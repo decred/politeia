@@ -3339,7 +3339,7 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 
 // initLoadVoteResults is used to send the LoadVoteResults decred plugin command
 // to the cache on www startup.
-func (p *politeiawww) initLoadVoteResults() error {
+func (p *politeiawww) initVoteResults() error {
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return err

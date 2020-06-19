@@ -43,12 +43,11 @@ const (
 
 // decred implements the PluginDriver interface.
 type decred struct {
+	sync.RWMutex
 	recordsdb *gorm.DB              // Database context
 	version   string                // Version of decred cache plugin
 	settings  []cache.PluginSetting // Plugin settings
-
-	bbMtx         sync.RWMutex
-	lastBestBlock uint64 // Last best block used to update tables
+	bestBlock uint64                // Best block used to update tables
 }
 
 // publicStatuses returns an array of ints that represents all the publicly
@@ -59,6 +58,24 @@ func publicStatuses() []int {
 		int(pd.RecordStatusPublic),
 		int(pd.RecordStatusArchived),
 	}
+}
+
+// bestBlockSet sets the best block used to update the VoteResults table.
+//
+// This function must be called WITHOUT the lock held.
+func (d *decred) bestBlockSet(bb uint64) {
+	d.Lock()
+	defer d.Unlock()
+	d.bestBlock = bb
+}
+
+// bestBlockGet gets the best block used to update the VoteResults table.
+//
+// This function must be called WITHOUT the lock held.
+func (d *decred) bestBlockGet() uint64 {
+	d.RLock()
+	defer d.RUnlock()
+	return d.bestBlock
 }
 
 // authorizeVotes returns a map[token]AuthorizeVote for the given records. An
@@ -161,56 +178,59 @@ func (d *decred) voteOptionResults(options []VoteOption) ([]VoteOptionResult, er
 func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error) {
 	// Find standard vote proposals that have finished voting but
 	// have not yet been added to the VoteResults table.
-	q := `SELECT start_votes.token
-        FROM start_votes
-        LEFT OUTER JOIN vote_results
-          ON start_votes.token = vote_results.token
-          WHERE start_votes.end_height <= ?
-          AND start_votes.Type = ?
-          AND vote_results.token IS NULL`
-	rows, err := d.recordsdb.Raw(q, bestBlock,
-		int(decredplugin.VoteTypeStandard)).Rows()
-	if err != nil {
-		return nil, nil, fmt.Errorf("lookup missing standard vote results: %v",
-			err)
-	}
-	defer rows.Close()
-
 	standard := make([]string, 0, 1024)
-	for rows.Next() {
-		var token string
-		rows.Scan(&token)
-		standard = append(standard, token)
-	}
-
-	// Find runoff vote proposals that have finished voting but
-	// have not yet been added to the VoteResults table.
-	q = `SELECT start_votes.token
+	runoff := make([]string, 0, 1024)
+	lbb := d.bestBlockGet()
+	// Only update the table if this procedure has not been run for
+	// the received best block.
+	if lbb != bestBlock {
+		q := `SELECT start_votes.token
         FROM start_votes
         LEFT OUTER JOIN vote_results
           ON start_votes.token = vote_results.token
           WHERE start_votes.end_height <= ?
           AND start_votes.Type = ?
           AND vote_results.token IS NULL`
-	rows, err = d.recordsdb.Raw(q, bestBlock,
-		int(decredplugin.VoteTypeRunoff)).Rows()
-	if err != nil {
-		return nil, nil, fmt.Errorf("lookup missing runoff vote results: %v",
-			err)
-	}
-	defer rows.Close()
+		rows, err := d.recordsdb.Raw(q, bestBlock,
+			int(decredplugin.VoteTypeStandard)).Rows()
+		if err != nil {
+			return nil, nil, fmt.Errorf("lookup missing standard vote results: %v",
+				err)
+		}
+		defer rows.Close()
 
-	runoff := make([]string, 0, 1024)
-	for rows.Next() {
-		var token string
-		rows.Scan(&token)
-		runoff = append(runoff, token)
-	}
+		for rows.Next() {
+			var token string
+			rows.Scan(&token)
+			standard = append(standard, token)
+		}
 
-	// Update latest best block used to run this procedure
-	d.bbMtx.Lock()
-	d.lastBestBlock = bestBlock
-	d.bbMtx.Unlock()
+		// Find runoff vote proposals that have finished voting but
+		// have not yet been added to the VoteResults table.
+		q = `SELECT start_votes.token
+        FROM start_votes
+        LEFT OUTER JOIN vote_results
+          ON start_votes.token = vote_results.token
+          WHERE start_votes.end_height <= ?
+          AND start_votes.Type = ?
+          AND vote_results.token IS NULL`
+		rows, err = d.recordsdb.Raw(q, bestBlock,
+			int(decredplugin.VoteTypeRunoff)).Rows()
+		if err != nil {
+			return nil, nil, fmt.Errorf("lookup missing runoff vote results: %v",
+				err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var token string
+			rows.Scan(&token)
+			runoff = append(runoff, token)
+		}
+
+		// Update best block
+		d.bestBlockSet(bestBlock)
+	}
 
 	return standard, runoff, nil
 }
@@ -447,62 +467,56 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 }
 
 func (d *decred) voteResultsLoad(bestBlock uint64) error {
-	// Check to see if the VoteResults table needs to be updated. Only update
-	// if best block is different from the last update.
-	d.bbMtx.RLock()
-	lbb := d.lastBestBlock
-	d.bbMtx.RUnlock()
-	if lbb != bestBlock {
-		standard, runoff, err := d.voteResultsMissing(bestBlock)
+	// Check to see if the VoteResults table needs to be updated.
+	standard, runoff, err := d.voteResultsMissing(bestBlock)
+	if err != nil {
+		return err
+	}
+
+	// Insert vote results for standard votes proposals.
+	for _, token := range standard {
+		err := d.voteResultsInsertStandard(token)
 		if err != nil {
-			return err
+			return fmt.Errorf("voteResultsInsertStandard %v: %v",
+				token, err)
+		}
+	}
+
+	// Insert vote results for the runoff vote submissions. Runoff
+	// votes are identified by the parent RFP proposal token.
+	done := make(map[string]struct{}, len(runoff)) // [rfpToken]struct{}
+	for _, token := range runoff {
+		// Lookup the RFP token for the runoff vote submission
+		var pm ProposalMetadata
+		err := d.recordsdb.
+			Where("token = ?", token).
+			Find(&pm).
+			Error
+		if err != nil {
+			return fmt.Errorf("lookup ProposalMetadata %v: %v",
+				token, err)
+		}
+		if pm.LinkTo == "" {
+			return fmt.Errorf("runoff vote linkto not found %v",
+				token)
 		}
 
-		// Insert vote results for standard votes proposals.
-		for _, token := range standard {
-			err := d.voteResultsInsertStandard(token)
-			if err != nil {
-				return fmt.Errorf("voteResultsInsertStandard %v: %v",
-					token, err)
-			}
+		if _, ok := done[pm.LinkTo]; ok {
+			// Results have already been inserted for this RFP.
+			// This happens because the vote results are built
+			// using the RFP token and all RFP submissions will
+			// list the same RFP token in their LinkTo field.
+			continue
 		}
 
-		// Insert vote results for the runoff vote submissions. Runoff
-		// votes are identified by the parent RFP proposal token.
-		done := make(map[string]struct{}, len(runoff)) // [rfpToken]struct{}
-		for _, token := range runoff {
-			// Lookup the RFP token for the runoff vote submission
-			var pm ProposalMetadata
-			err := d.recordsdb.
-				Where("token = ?", token).
-				Find(&pm).
-				Error
-			if err != nil {
-				return fmt.Errorf("lookup ProposalMetadata %v: %v",
-					token, err)
-			}
-			if pm.LinkTo == "" {
-				return fmt.Errorf("runoff vote linkto not found %v",
-					token)
-			}
-
-			if _, ok := done[pm.LinkTo]; ok {
-				// Results have already been inserted for this RFP.
-				// This happens because the vote results are built
-				// using the RFP token and all RFP submissions will
-				// list the same RFP token in their LinkTo field.
-				continue
-			}
-
-			// Insert vote results for the full runoff vote
-			err = d.voteResultsInsertRunoff(pm.LinkTo)
-			if err != nil {
-				return fmt.Errorf("insert runoff vote results %v: %v",
-					pm.LinkTo, err)
-			}
-
-			done[pm.LinkTo] = struct{}{}
+		// Insert vote results for the full runoff vote
+		err = d.voteResultsInsertRunoff(pm.LinkTo)
+		if err != nil {
+			return fmt.Errorf("insert runoff vote results %v: %v",
+				pm.LinkTo, err)
 		}
+
+		done[pm.LinkTo] = struct{}{}
 	}
 
 	return nil
@@ -513,22 +527,15 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 // The VoteResults table is lazy loaded. A cache.ErrRecordNotFound error is
 // returned if the VoteResults table is not up-to-date.
 func (d *decred) voteResults(tokens []string, bestBlock uint64) (map[string]VoteResults, error) {
-	// Check to see if the VoteResults table needs to be updated. Only update
-	// if best block is different from the last update.
-	d.bbMtx.RLock()
-	lbb := d.lastBestBlock
-	d.bbMtx.RUnlock()
-	// Only run if it has not been updated for the provided best block
-	if lbb != bestBlock {
-		standard, runoff, err := d.voteResultsMissing(bestBlock)
-		if err != nil {
-			return nil, err
-		}
-		if len(standard) > 0 || len(runoff) > 0 {
-			// Return a ErrRecordNotFound to indicate one
-			// or more vote result records were not found.
-			return nil, cache.ErrRecordNotFound
-		}
+	// Check to see if the VoteResults table needs to be updated.
+	standard, runoff, err := d.voteResultsMissing(bestBlock)
+	if err != nil {
+		return nil, err
+	}
+	if len(standard) > 0 || len(runoff) > 0 {
+		// Return a ErrRecordNotFound to indicate one
+		// or more vote result records were not found.
+		return nil, cache.ErrRecordNotFound
 	}
 
 	voteResults := make(map[string]VoteResults, len(tokens))
@@ -538,7 +545,7 @@ func (d *decred) voteResults(tokens []string, bestBlock uint64) (map[string]Vote
 
 	// Lookup vote results
 	vrs := make([]VoteResults, 0, len(tokens))
-	err := d.recordsdb.
+	err = d.recordsdb.
 		Where("token IN (?)", tokens).
 		Preload("Results").
 		Preload("Results.Option").
@@ -675,6 +682,9 @@ func (d *decred) voteSummaries(tokens []string, bestBlock uint64) (map[string]de
 			Approved:            vr.Approved,
 		}
 	}
+
+	// Update best block
+	d.bestBlockSet(bestBlock)
 
 	return summaries, nil
 }
@@ -1334,22 +1344,15 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		return "", err
 	}
 
-	// Check to see if the VoteResults table needs to be updated. Only update
-	// if best block is different from the last update.
-	d.bbMtx.RLock()
-	lbb := d.lastBestBlock
-	d.bbMtx.RUnlock()
-	// Only run if it has not been updated for the provided best block
-	if lbb != ti.BestBlock {
-		standard, runoff, err := d.voteResultsMissing(ti.BestBlock)
-		if err != nil {
-			return "", err
-		}
-		if len(standard) > 0 || len(runoff) > 0 {
-			// Return a ErrRecordNotFound to indicate one
-			// or more vote result records were not found.
-			return "", cache.ErrRecordNotFound
-		}
+	// Check to see if the VoteResults table needs to be updated
+	standard, runoff, err := d.voteResultsMissing(ti.BestBlock)
+	if err != nil {
+		return "", err
+	}
+	if len(standard) > 0 || len(runoff) > 0 {
+		// Return a ErrRecordNotFound to indicate one
+		// or more vote result records were not found.
+		return "", cache.ErrRecordNotFound
 	}
 
 	// Pre voting period tokens. This query returns the

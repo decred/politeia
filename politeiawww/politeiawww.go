@@ -973,6 +973,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 					m.Block.Height)
 				bb := uint64(m.Block.Height)
 				p.updateBestBlock(bb)
+				// Keep VoteResults table updated with received best block
 				_, err = p.decredLoadVoteResults(bb)
 				if err != nil {
 					log.Errorf("decredLoadVoteResults: %v", err)

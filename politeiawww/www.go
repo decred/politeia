@@ -446,18 +446,19 @@ func _main() error {
 	}
 
 	// Setup VoteResults cache table
-	err = p.initLoadVoteResults()
+	log.Infof("Loading vote results cache table")
+	err = p.initVoteResults()
 	if err != nil {
 		return err
 	}
 
 	// Setup the code that checks for paywall payments.
 	if p.cfg.Mode == "piwww" {
-		p.initEventManager()
 		err = p.initPaywallChecker()
 		if err != nil {
 			return err
 		}
+		p.initEventManager()
 	} else if p.cfg.Mode == "cmswww" {
 		p.initCMSEventManager()
 	}
