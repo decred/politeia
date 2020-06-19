@@ -185,12 +185,12 @@ func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error
 	// Find standard vote proposals that have finished voting but
 	// have not yet been added to the VoteResults table.
 	q := `SELECT start_votes.token
-			FROM start_votes
-			LEFT OUTER JOIN vote_results
-			  ON start_votes.token = vote_results.token
-			  WHERE start_votes.end_height <= ?
-			  AND start_votes.Type = ?
-			  AND vote_results.token IS NULL`
+        FROM start_votes
+        LEFT OUTER JOIN vote_results
+          ON start_votes.token = vote_results.token
+          WHERE start_votes.end_height <= ?
+          AND start_votes.Type = ?
+          AND vote_results.token IS NULL`
 	rows, err := d.recordsdb.Raw(q, bestBlock,
 		int(decredplugin.VoteTypeStandard)).Rows()
 	if err != nil {

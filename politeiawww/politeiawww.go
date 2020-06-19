@@ -977,7 +977,6 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				_, err = p.decredLoadVoteResults(bb)
 				if err != nil {
 					log.Errorf("decredLoadVoteResults: %v", err)
-					return
 				}
 			case *pstypes.HangUp:
 				log.Infof("Dcrdata has hung up. Will reconnect.")
