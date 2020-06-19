@@ -684,9 +684,6 @@ func (d *decred) voteSummaries(tokens []string, bestBlock uint64) (map[string]de
 		}
 	}
 
-	// Update best block
-	d.bestBlockSet(bestBlock)
-
 	return summaries, nil
 }
 
