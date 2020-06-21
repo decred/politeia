@@ -20,6 +20,8 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/dcrdata"
+
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -32,7 +34,7 @@ const (
 )
 
 func (p *politeiawww) addWatchAddress(address string) {
-	err := p.wsDcrdata.subToAddr(address)
+	err := p.wsDcrdata.SubToAddr(address)
 	if err != nil {
 		log.Errorf("addWatchAddress: subscribe '%v': %v",
 			address, err)
@@ -43,7 +45,7 @@ func (p *politeiawww) addWatchAddress(address string) {
 }
 
 func (p *politeiawww) removeWatchAddress(address string) {
-	err := p.wsDcrdata.unsubFromAddr(address)
+	err := p.wsDcrdata.UnsubFromAddr(address)
 	if err != nil {
 		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
 			address, err)
@@ -56,9 +58,19 @@ func (p *politeiawww) removeWatchAddress(address string) {
 func (p *politeiawww) setupCMSAddressWatcher() {
 	go func() {
 		for {
-			msg, ok := <-p.wsDcrdata.client.Receive()
+			receiver, err := p.wsDcrdata.Receive()
+			if err == dcrdata.ErrShutdown {
+				log.Infof("Dcrdata websocket closed")
+				return
+			} else if err != nil {
+				log.Errorf("WSDcrdata Receive: %v", err)
+				log.Infof("Dcrdata websocket closed")
+				return
+			}
+
+			msg, ok := <-receiver
 			if !ok {
-				break
+				return
 			}
 			if msg == nil {
 				log.Errorf("ReceiveMsg failed")
@@ -442,13 +454,13 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 
 func (p *politeiawww) reconnectWS() {
 	if p.wsDcrdata != nil {
-		p.wsDcrdata.client.Stop()
+		p.wsDcrdata.Close()
 		p.wsDcrdata = nil
 	}
 	var err error
 	// Retry wsDcrdata reconnect every 1 minute
 	for {
-		p.wsDcrdata, err = newWSDcrdata(p.dcrdataHostWS())
+		p.wsDcrdata, err = dcrdata.NewWSDcrdata(p.dcrdataHostWS())
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
 		}
