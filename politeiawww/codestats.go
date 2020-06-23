@@ -71,6 +71,14 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 }
 
 func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGithubReply, error) {
+
+	// make sure tracker was created, if not alert for them to check github api
+	// token config
+	if p.tracker == nil {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusTrackerNotStarted,
+		}
+	}
 	// First update PR/Commit/Review information in Github DB
 	if !ugh.OnlyCodeStats {
 		err := p.tracker.Update(ugh.Organization, ugh.Repository)

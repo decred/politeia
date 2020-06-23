@@ -244,6 +244,7 @@ const (
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
 	ErrorStatusMissingGithubName              www.ErrorStatusT = 1057
+	ErrorStatusTrackerNotStarted              www.ErrorStatusT = 1058
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
@@ -384,6 +385,7 @@ var (
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
 		ErrorStatusMissingGithubName:              "Github Name required to receive code stats",
+		ErrorStatusTrackerNotStarted:              "code tracker required for attempted request, check token setting in config",
 	}
 )
 
