@@ -1826,7 +1826,6 @@ func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSumma
 			}
 			totalSpent += int64(payout.Total)
 		}
-
 		// Go fetch proposal information to get name/title.
 		bp := &www.BatchProposals{
 			Tokens: []string{prop},
@@ -1878,6 +1877,7 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 		totalSpent += int64(payout.Total)
 		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
 	}
+	spendingSummary.Title = pbd.Token
 	spendingSummary.Invoices = invRecs
 	spendingSummary.TotalBilled = totalSpent
 
