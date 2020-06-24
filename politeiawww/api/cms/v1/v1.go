@@ -48,12 +48,12 @@ const (
 	RouteGeneratePayouts        = "/admin/generatepayouts"
 	RouteInvoicePayouts         = "/admin/invoicepayouts"
 	RoutePayInvoices            = "/admin/payinvoices"
-	RouteProposalBillingSummary = "/proposals/spendingsummary"
-	RouteProposalBillingDetails = "/proposals/spendingdetails"
 	RouteInvoiceComments        = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate    = "/invoices/exchangerate"
 	RouteProposalOwner          = "/proposals/owner"
 	RouteProposalBilling        = "/proposals/billing"
+	RouteProposalBillingSummary = "/proposals/spendingsummary"
+	RouteProposalBillingDetails = "/proposals/spendingdetails"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status

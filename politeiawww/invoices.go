@@ -1818,24 +1818,31 @@ func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSumma
 		spendingSummary := cms.ProposalSpending{}
 		spendingSummary.Token = prop
 
-		invRecs := make([]cms.InvoiceRecord, 0, len(invoices))
 		totalSpent := int64(0)
 		for _, dbInv := range invoices {
-			u, err := p.db.UserGetByPubKey(dbInv.PublicKey)
-			if err != nil {
-				log.Errorf("getUserByPubKey: token:%v "+
-					"pubKey:%v err:%v", dbInv.PublicKey, err)
-			} else {
-				dbInv.Username = u.Username
-			}
 			payout, err := calculatePayout(*dbInv)
 			if err != nil {
 				return nil, err
 			}
 			totalSpent += int64(payout.Total)
-			invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
 		}
-		spendingSummary.Invoices = invRecs
+
+		// Go fetch proposal information to get name/title.
+		bp := &www.BatchProposals{
+			Tokens: []string{prop},
+		}
+
+		data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+		if err != nil {
+			return nil, err
+		}
+
+		var bpr www.BatchProposalsReply
+		err = json.Unmarshal(data, &bpr)
+		if err != nil {
+			return nil, err
+		}
+		spendingSummary.Title = bpr.Proposals[0].Name
 		spendingSummary.TotalBilled = totalSpent
 		spendingSummaries = append(spendingSummaries, spendingSummary)
 	}
@@ -1874,5 +1881,6 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 	spendingSummary.Invoices = invRecs
 	spendingSummary.TotalBilled = totalSpent
 
+	reply.Details = spendingSummary
 	return reply, nil
 }

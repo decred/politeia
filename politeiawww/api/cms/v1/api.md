@@ -1775,7 +1775,7 @@ as proposal token added.
 
 Note: This call requires admin privileges.
 
-**Route:** `GET /v1/admin/spendingsummary`
+**Route:** `GET /v1/proposals/spendingsummary`
 
 **Params:**
 
@@ -1857,7 +1857,7 @@ Retrieve all billing information for all given proposal token.
 
 Note: This call requires admin privileges.
 
-**Route:** `POST /v1/admin/spendingdetails`
+**Route:** `POST /v1/proposals/spendingdetails`
 
 **Params:**
 
