@@ -445,7 +445,14 @@ func _main() error {
 		return fmt.Errorf("initCommentScore: %v", err)
 	}
 
-	// Set up the code that checks for paywall payments.
+	// Setup VoteResults cache table
+	log.Infof("Loading vote results cache table")
+	err = p.initVoteResults()
+	if err != nil {
+		return err
+	}
+
+	// Setup the code that checks for paywall payments.
 	if p.cfg.Mode == "piwww" {
 		err = p.initPaywallChecker()
 		if err != nil {
