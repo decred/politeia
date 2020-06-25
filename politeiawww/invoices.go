@@ -1877,7 +1877,18 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 		totalSpent += int64(payout.Total)
 		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
 	}
-	spendingSummary.Title = pbd.Token
+
+	propDetails, err := p.proposalDetails(pbd.Token)
+	if err != nil {
+		return nil, err
+	}
+	var pdr www.ProposalDetailsReply
+	err = json.Unmarshal(propDetails, &pdr)
+	if err != nil {
+		return nil, err
+	}
+
+	spendingSummary.Title = pdr.Proposal.Name
 	spendingSummary.Invoices = invRecs
 	spendingSummary.TotalBilled = totalSpent
 
