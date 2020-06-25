@@ -64,6 +64,7 @@ func publicStatuses() []int {
 //
 // This function must be called WITHOUT the lock held.
 func (d *decred) bestBlockSet(bb uint64) {
+	log.Debugf("bestBlockSet: setting best block %v with mutex held", bb)
 	d.Lock()
 	defer d.Unlock()
 	d.bestBlock = bb
@@ -73,6 +74,7 @@ func (d *decred) bestBlockSet(bb uint64) {
 //
 // This function must be called WITHOUT the lock held.
 func (d *decred) bestBlockGet() uint64 {
+	log.Debugf("bestBlockGet: getting best block with mutex held")
 	d.RLock()
 	defer d.RUnlock()
 	return d.bestBlock
@@ -179,6 +181,8 @@ func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error
 	// Check if the vote results table has already been built for this
 	// block. If so, there is no need to run these queries.
 	if d.bestBlockGet() >= bestBlock {
+		log.Debugf("voteResultsMissing: table already updated for block "+
+			"%v", bestBlock)
 		return []string{}, []string{}, nil
 	}
 
@@ -473,6 +477,8 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 
 	// Insert vote results for standard votes proposals.
 	for _, token := range standard {
+		log.Debugf("voteResultsLoad: loading vote results for standard " +
+			"proposals")
 		err := d.voteResultsInsertStandard(token)
 		if err != nil {
 			return fmt.Errorf("voteResultsInsertStandard %v: %v",
@@ -484,6 +490,8 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 	// votes are identified by the parent RFP proposal token.
 	done := make(map[string]struct{}, len(runoff)) // [rfpToken]struct{}
 	for _, token := range runoff {
+		log.Debugf("voteResultsLoad: loading vote results for runoff " +
+			"proposals")
 		// Lookup the RFP token for the runoff vote submission
 		var pm ProposalMetadata
 		err := d.recordsdb.
@@ -517,6 +525,8 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 		done[pm.LinkTo] = struct{}{}
 	}
 
+	log.Debugf("voteResultsLoad: table updated, saving used block on cache")
+
 	// Keep track of block used to update the table.
 	d.bestBlockSet(bestBlock)
 
@@ -536,6 +546,7 @@ func (d *decred) voteResults(tokens []string, bestBlock uint64) (map[string]Vote
 	if len(standard) > 0 || len(runoff) > 0 {
 		// Return a ErrRecordNotFound to indicate one
 		// or more vote result records were not found.
+		log.Debugf("voteResults: table needs to be updated")
 		return nil, cache.ErrRecordNotFound
 	}
 
@@ -1350,6 +1361,7 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	if len(standard) > 0 || len(runoff) > 0 {
 		// Return a ErrRecordNotFound to indicate one
 		// or more vote result records were not found.
+		log.Debugf("cmdTokenInventory: VoteResults table needs to be updated")
 		return "", cache.ErrRecordNotFound
 	}
 

@@ -3346,6 +3346,7 @@ func (p *politeiawww) initVoteResults() error {
 	}
 	_, err = p.decredLoadVoteResults(bb)
 	if err != nil {
+		log.Debugf("initVoteResults: decredLoadVoteResults: %v", err)
 		return err
 	}
 
