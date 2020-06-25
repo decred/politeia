@@ -178,7 +178,7 @@ func (d *decred) voteOptionResults(options []VoteOption) ([]VoteOptionResult, er
 func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error) {
 	// Check if the vote results table has already been built for this
 	// block. If so, there is no need to run these queries.
-	if d.bestBlockGet() != bestBlock {
+	if d.bestBlockGet() >= bestBlock {
 		return []string{}, []string{}, nil
 	}
 
