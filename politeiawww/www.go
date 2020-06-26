@@ -618,11 +618,19 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		p.setupCMSAddressWatcher()
-		err = p.restartCMSAddressesWatching()
-		if err != nil {
-			log.Errorf("error restarting address watcher %v", err)
-		}
+		go func() {
+			for {
+				if p.wsDcrdata != nil {
+					p.setupCMSAddressWatcher()
+					err = p.restartCMSAddressesWatching()
+					if err != nil {
+						log.Errorf("error restarting address watcher %v", err)
+					}
+					break
+				}
+				time.Sleep(1 * time.Minute)
+			}
+		}()
 
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
