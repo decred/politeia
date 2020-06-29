@@ -814,6 +814,7 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 				Version:   cacheVersion,
 				Timestamp: time.Now().Unix(),
 			}).Error
+		return err
 	}
 
 	// Insert initial best block if record is not found.
