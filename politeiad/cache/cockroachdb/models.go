@@ -4,6 +4,12 @@
 
 package cockroachdb
 
+// KeyValue is a generic key-value store for the cache.
+type KeyValue struct {
+	Key   string `gorm:"primary_key"`
+	Value []byte `gorm:"not null"`
+}
+
 // Version describes the version of a record or plugin that the database is
 // currently using.
 type Version struct {

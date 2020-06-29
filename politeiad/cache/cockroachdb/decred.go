@@ -6,6 +6,7 @@ package cockroachdb
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -47,7 +48,6 @@ type decred struct {
 	recordsdb *gorm.DB              // Database context
 	version   string                // Version of decred cache plugin
 	settings  []cache.PluginSetting // Plugin settings
-	bestBlock uint64                // Best block used to update tables
 }
 
 // publicStatuses returns an array of ints that represents all the publicly
@@ -60,23 +60,29 @@ func publicStatuses() []int {
 	}
 }
 
-// bestBlockSet sets the best block used to update the VoteResults table.
-//
-// This function must be called WITHOUT the lock held.
-func (d *decred) bestBlockSet(bb uint64) {
-	log.Debugf("bestBlockSet: %v", bb)
-	d.Lock()
-	defer d.Unlock()
-	d.bestBlock = bb
+// bestBlockSet sets the best block used to update the VoteResults table
+// in the key-value store.
+func (d *decred) bestBlockSet(bb uint64) error {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, bb)
+	kv := KeyValue{
+		Key:   keyBestBlock,
+		Value: b,
+	}
+	return d.recordsdb.Save(&kv).Error
 }
 
-// bestBlockGet gets the best block used to update the VoteResults table.
-//
-// This function must be called WITHOUT the lock held.
-func (d *decred) bestBlockGet() uint64 {
-	d.RLock()
-	defer d.RUnlock()
-	return d.bestBlock
+// BestBlockGet gets the best block used to update the VoteResults table
+// from the key-value store.
+func (d *decred) bestBlockGet() (uint64, error) {
+	kv := KeyValue{
+		Key: keyBestBlock,
+	}
+	err := d.recordsdb.Find(&kv).Error
+	if err != nil {
+		return 0, fmt.Errorf("bestBlockGetError: %v", err)
+	}
+	return binary.LittleEndian.Uint64(kv.Value), nil
 }
 
 // authorizeVotes returns a map[token]AuthorizeVote for the given records. An
@@ -179,14 +185,18 @@ func (d *decred) voteOptionResults(options []VoteOption) ([]VoteOptionResult, er
 func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error) {
 	// Check if the vote results table has already been built for this
 	// block. If so, there is no need to run these queries.
-	if d.bestBlockGet() >= bestBlock {
+	bb, err := d.bestBlockGet()
+	if err != nil {
+		return nil, nil, err
+	}
+	if bb >= bestBlock {
 		log.Debugf("voteResultsMissing: table already updated for block "+
 			"%v", bestBlock)
 		return []string{}, []string{}, nil
 	}
 
 	log.Debugf("voteResultsMissing: checking missing results for block: %v. "+
-		"Cached block: %v", bestBlock, d.bestBlockGet())
+		"Cached block: %v", bestBlock, bb)
 
 	// Find standard vote proposals that have finished voting but
 	// have not yet been added to the VoteResults table.
@@ -529,7 +539,10 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 	log.Debugf("voteResultsLoad: table updated for block %v", bestBlock)
 
 	// Keep track of block used to update the table.
-	d.bestBlockSet(bestBlock)
+	err = d.bestBlockSet(bestBlock)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
