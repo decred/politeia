@@ -63,7 +63,7 @@ func publicStatuses() []int {
 // bestBlockSet sets the best block used to update the VoteResults table
 // in the key-value store.
 func (d *decred) bestBlockSet(bb uint64) error {
-	b := make([]byte, 8)
+	b := make([]byte, binary.MaxVarintLen64)
 	binary.LittleEndian.PutUint64(b, bb)
 	kv := KeyValue{
 		Key:   keyBestBlock,
