@@ -1613,10 +1613,25 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	// Check to make sure the user is either an admin or the
 	// invoice author.
 	if !u.Admin && (ir.Username != u.Username) {
-		err := www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		// If not an admin or invoice owner, check to see if they own a
+		// proposal that is being billed against, they are allowed to view
+		// comment threads (that they have begun).
+		cmsUser, err := p.getCMSUserByID(u.ID.String())
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+
+		proposalFound := false
+		for _, lineItem := range ir.Input.LineItems {
+			if stringInSlice(cmsUser.ProposalsOwned, lineItem.ProposalToken) {
+				proposalFound = true
+			}
+		}
+		if !proposalFound {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			}
+		}
 	}
 
 	// Fetch proposal comments from cache
@@ -1625,6 +1640,21 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 		return nil, err
 	}
 
+	validComments := c[:0]
+	// Check to see if it's a proposal owner, then show them only threads
+	// they started.  Admins and invoice owners can see everything.
+	if !u.Admin && (ir.Username != u.Username) {
+		for _, comment := range c {
+			// Add any comments that are top level and owned by the requesting
+			// user.
+			if comment.ParentID == "0" && comment.UserID == u.ID.String() {
+				validComments = append(validComments, comment)
+			}
+			// Add any replies to a top level comment that is owned by the
+			// requesting user. ??
+		}
+		c = validComments
+	}
 	// Get the last time the user accessed these comments. This is
 	// a public route so a user may not exist.
 	var accessTime int64
