@@ -26,31 +26,6 @@ type counters struct {
 	down uint64
 }
 
-// initCommentScores populates the comment scores cache.
-func (p *politeiawww) initCommentScores() error {
-	log.Tracef("initCommentScores")
-
-	// Fetch decred plugin inventory from cache
-	ir, err := p.decredInventory()
-	if err != nil {
-		return fmt.Errorf("decredInventory: %v", err)
-	}
-
-	// XXX this could be done much more efficiently since we
-	// already have all of the like comments in the inventory
-	// response, but re-using the updateCommentVotes function is
-	// simpler. This only gets run on startup so I'm not that
-	// worried about performance for right now.
-	for _, v := range ir.Comments {
-		_, err := p.updateCommentVotes(v.Token, v.CommentID)
-		if err != nil {
-			return fmt.Errorf("updateCommentVotes: %v", err)
-		}
-	}
-
-	return nil
-}
-
 // getComment retreives the specified comment from the cache then fills in
 // politeiawww specific data for the comment.
 func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) {
@@ -72,19 +47,42 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	}
 
 	// Lookup comment votes
-	p.RLock()
-	defer p.RUnlock()
-
-	votes, ok := p.commentVotes[token+commentID]
-	if !ok {
-		log.Errorf("getComment: comment votes lookup failed for "+
-			"token:%v commentID:%v", token, commentID)
+	votes, err := p.getCommentVotes(token, commentID)
+	if err != nil {
+		return nil, err
 	}
 	c.ResultVotes = int64(votes.up - votes.down)
 	c.Upvotes = votes.up
 	c.Downvotes = votes.down
 
 	return &c, nil
+}
+
+// getCommentVotes tries to get comment votes from the cache. If votes are
+// not stored, fetch them and update cache.
+//
+// This function must be called WITHOUT the lock held.
+func (p *politeiawww) getCommentVotes(token, commentID string) (counters, error) {
+	log.Tracef("getCommentVotes: %v %v", token, commentID)
+
+	// Check if comment votes is already cached
+	var votes counters
+	p.RLock()
+	vs, ok := p.commentVotes[token+commentID]
+	p.RUnlock()
+	votes = vs
+	// If not in cache, fetch comment votes and update cache
+	if !ok {
+		vsUpdated, err := p.updateCommentVotes(token, commentID)
+		if err != nil {
+			log.Errorf("getCommentVotes: comment votes update "+
+				"failed: token:%v commentID:%v", token, commentID)
+			return counters{}, err
+		}
+		votes = *vsUpdated
+	}
+
+	return votes, nil
 }
 
 // updateCommentVotes calculates the up/down votes for the specified comment,

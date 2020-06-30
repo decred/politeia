@@ -975,16 +975,10 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 		comments = append(comments, c)
 	}
 
-	// Fill in comment scores
-	p.RLock()
-	defer p.RUnlock()
-
 	for i, v := range comments {
-		votes, ok := p.commentVotes[v.Token+v.CommentID]
-		if !ok {
-			log.Errorf("getPropComments: comment votes lookup "+
-				"failed: token:%v commentID:%v pubKey:%v", v.Token,
-				v.CommentID, v.PublicKey)
+		votes, err := p.getCommentVotes(v.Token, v.CommentID)
+		if err != nil {
+			return nil, err
 		}
 		comments[i].ResultVotes = int64(votes.up - votes.down)
 		comments[i].Upvotes = votes.up

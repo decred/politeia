@@ -439,12 +439,6 @@ func _main() error {
 		return err
 	}
 
-	// Setup comment scores map
-	err = p.initCommentScores()
-	if err != nil {
-		return fmt.Errorf("initCommentScore: %v", err)
-	}
-
 	// Setup VoteResults cache table
 	log.Infof("Loading vote results cache table")
 	err = p.initVoteResults()
