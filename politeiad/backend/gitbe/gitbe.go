@@ -27,6 +27,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -87,6 +88,9 @@ const (
 	// where an anchor confirmation has been committed.  This value is
 	// parsed and therefore must be a const.
 	markerAnchorConfirmation = "Anchor confirmation"
+
+	piMode  = "piwww"
+	cmsMode = "cmswww"
 )
 
 var (
@@ -113,22 +117,23 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	sync.Mutex                       // Global lock
-	cron            *cron.Cron       // Scheduler for periodic tasks
-	activeNetParams *chaincfg.Params // indicator if we are running on testnet
-	journal         *Journal         // Journal context
-	shutdown        bool             // Backend is shutdown
-	root            string           // Root directory
-	unvetted        string           // Unvettend content
-	vetted          string           // Vetted, public, visible content
-	journals        string           // Journals/cache
-	dcrtimeHost     string           // Dcrtimed host
-	gitPath         string           // Path to git
-	gitTrace        bool             // Enable git tracing
-	test            bool             // Set during UT
-	exit            chan struct{}    // Close channel
-	checkAnchor     chan struct{}    // Work notification
-	plugins         []backend.Plugin // Plugins
+	sync.Mutex                          // Global lock
+	cron            *cron.Cron          // Scheduler for periodic tasks
+	activeNetParams *chaincfg.Params    // indicator if we are running on testnet
+	journal         *Journal            // Journal context
+	shutdown        bool                // Backend is shutdown
+	root            string              // Root directory
+	unvetted        string              // Unvettend content
+	vetted          string              // Vetted, public, visible content
+	journals        string              // Journals/cache
+	dcrtimeHost     string              // Dcrtimed host
+	gitPath         string              // Path to git
+	gitTrace        bool                // Enable git tracing
+	test            bool                // Set during UT
+	exit            chan struct{}       // Close channel
+	checkAnchor     chan struct{}       // Work notification
+	plugins         []backend.Plugin    // Plugins
+	prefixCache     map[string]struct{} // Cache prefixes of existing tokens
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -700,6 +705,36 @@ func (g *gitBackEnd) appendAuditTrail(path string, ts int64, merkle [sha256.Size
 	return nil
 }
 
+// runAnchorFsck returns whether a git fsck should be run as part of the
+// anchoring process. As a the git repos grow in the size the git fsck command
+// can keep the gitBackEnd locked for an untolerable amount of time. This
+// function can be used to specify specific times that the git fsck should be
+// run instead of it being run everytime an anchor it dropped.
+func (g *gitBackEnd) runAnchorFsck() bool {
+	// We want to run the git fsck during the 06:58 UTC anchor drop
+	// only. This time was chosen because it falls in the middle of
+	// the night for the USA and Brazil, which is likely the majority
+	// of politeia traffic.
+	utc, err := time.LoadLocation("UTC")
+	if err != nil {
+		e := fmt.Sprintf("load time location UTC: %v", err)
+		panic(e)
+	}
+	now := time.Now().In(utc)
+	y, m, d := now.Date()
+
+	// Give a 5 minute buffer on either side of 06:58 UTC. If the
+	// current time falls within this window then true is returned
+	// to indicate a fsck should be run.
+	start := time.Date(y, m, d, 6, 53, 0, 0, utc)
+	end := time.Date(y, m, d, 7, 03, 0, 0, utc)
+	if now.After(start) && now.Before(end) {
+		return true
+	}
+
+	return false
+}
+
 // anchorRepo drops an anchor for an individual repo.
 // It prints the basename during its actions.
 //
@@ -709,15 +744,18 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 	repo := filepath.Base(path)
 
 	// Fsck
-	log.Infof("Running git fsck on %v repository", repo)
 	err := g.gitCheckout(path, "master")
 	if err != nil {
 		return nil, fmt.Errorf("anchor checkout master %v: %v", repo,
 			err)
 	}
-	_, err = g.gitFsck(path)
-	if err != nil {
-		return nil, fmt.Errorf("anchor fsck master %v: %v", repo, err)
+
+	if g.runAnchorFsck() {
+		log.Infof("Running git fsck on %v repository", repo)
+		_, err = g.gitFsck(path)
+		if err != nil {
+			return nil, fmt.Errorf("anchor fsck master %v: %v", repo, err)
+		}
 	}
 
 	// Check for unanchored commits
@@ -1158,6 +1196,111 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 	return rm, nil
 }
 
+// getVettedTokens gets the tokens of all vetted records by retrieving the
+// names of the folders in the vetted directory.
+//
+// Function must be called with the lock held.
+func (g *gitBackEnd) getVettedTokens() ([]string, error) {
+	files, err := ioutil.ReadDir(g.vetted)
+	if err != nil {
+		return nil, err
+	}
+
+	vettedTokens := make([]string, 0, len(files))
+	for _, v := range files {
+		id := v.Name()
+		if !util.IsDigest(id) {
+			continue
+		}
+		vettedTokens = append(vettedTokens, id)
+	}
+
+	return vettedTokens, nil
+}
+
+// getUnvettedTokens gets the tokens of all unvetted records by retrieving the
+// names of the git branches in the unvetted directory.
+//
+// Function must be called with the lock held.
+func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
+	branches, err := g.gitBranches(g.unvetted)
+	if err != nil {
+		return nil, err
+	}
+
+	unvettedTokens := make([]string, 0, len(branches))
+	for _, id := range branches {
+		if !util.IsDigest(id) {
+			continue
+		}
+		unvettedTokens = append(unvettedTokens, id)
+	}
+
+	return unvettedTokens, nil
+}
+
+// populateTokenPrefixCache populates the prefix cache on the gitBackEnd
+// object with the prefixes of the tokens of both vetted and unvetted
+// records. This cache is used to ensure that only tokens with unique prefixes
+// are generated, because this allows lookups based on the prefix of a token.
+//
+// This function must be called with the lock held.
+//
+// This must be called after the vetted and unvetted repos are created,
+// otherwise it will return an error.
+func (g *gitBackEnd) populateTokenPrefixCache() error {
+	vettedTokens, err := g.getVettedTokens()
+	if err != nil {
+		return err
+	}
+
+	unvettedTokens, err := g.getUnvettedTokens()
+	if err != nil {
+		return err
+	}
+
+	prefixCache := make(map[string]struct{},
+		len(vettedTokens)+len(unvettedTokens))
+
+	vettedPrefixes := util.TokensToPrefixes(vettedTokens)
+	unvettedPrefixes := util.TokensToPrefixes(unvettedTokens)
+
+	for _, prefix := range vettedPrefixes {
+		prefixCache[prefix] = struct{}{}
+	}
+	for _, prefix := range unvettedPrefixes {
+		prefixCache[prefix] = struct{}{}
+	}
+	g.prefixCache = prefixCache
+
+	return nil
+}
+
+// randomUniqueToken generates a new token of length pd.TokenSize which
+// does not share a prefix of length pd.TokenPrefixSize with any existing
+// token. This is needed to allow lookups based on the prefix of a token.
+//
+// This method must be called with the lock held.
+func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
+	TRIES := 1000
+	for i := 0; i < TRIES; i++ {
+		token, err := util.Random(pd.TokenSize)
+		if err != nil {
+			return nil, err
+		}
+
+		newToken := hex.EncodeToString(token)
+		prefix := util.TokenToPrefix(newToken)
+
+		if _, ok := g.prefixCache[prefix]; !ok {
+			g.prefixCache[prefix] = struct{}{}
+			return token, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to find unique token after %v tries", TRIES)
+}
+
 // New takes a record verifies it and drops it on disk in the unvetted
 // directory.  Records and metadata are stored in unvetted/token/.  the
 // function returns a RecordMetadata.
@@ -1170,20 +1313,19 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 		return nil, err
 	}
 
-	// Create a censorship token.
-	token, err := util.Random(pd.TokenSize)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("New %x", token)
-
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
+
+	token, err := g.randomUniqueToken()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("New %x", token)
 
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
@@ -1785,6 +1927,107 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	return g._updateVettedMetadata(token, mdAppend, mdOverwrite)
 }
 
+// updateMetadata describes a metadata update for a specific record. This
+// struct is used when the metadata of multiple records needs to be updated
+// atomically. A []updateMetadata can be passed in to represent multiple
+// metadata updates.
+type updateMetadata struct {
+	token       string
+	mdAppend    []backend.MetadataStream
+	mdOverwrite []backend.MetadataStream
+}
+
+// _updateVettedMetadataMulti updates metadata of multiple vetted record. It
+// goes through the normal stages of updating unvetted, pushing PR, merge PR,
+// pull remote.  Note that the content must have been validated before this
+// call. Record itself is not changed.
+//
+// This function must be called with the lock held.
+func (g *gitBackEnd) updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return err
+	}
+
+	// Update metadata changes
+	for _, v := range um {
+		log.Debugf("update vetted metadata: %v", v.token)
+		err = g.updateMetadata(v.token, v.mdAppend, v.mdOverwrite)
+		if err != nil {
+			return err
+		}
+	}
+
+	// If there are no changes DO NOT update the record
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Commit changes
+	msg := "Update record metadata multi "
+	for _, v := range um {
+		// '-m' puts the token on a new line
+		msg += "-m " + v.token
+	}
+	err = g.gitCommit(g.unvetted, msg)
+	if err != nil {
+		return err
+	}
+
+	// Create and rebase
+	return g.rebasePR(idTmp)
+}
+
+// _updateVettedMetadataMulti updates metadata of multiple vetted record. It
+// goes through the normal stages of updating unvetted, pushing PR, merge PR,
+// pull remote.  Note that the content must have been validated before this
+// call. Record itself is not changed. If any parts of the update fail then
+// all work is unwound.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
+	if len(um) == 0 {
+		return backend.ErrNoChanges
+	}
+
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure none of the records have been archived
+	for _, v := range um {
+		md, err := loadMD(g.unvetted, v.token, "")
+		if err != nil {
+			return err
+		}
+		if md.Status == backend.MDStatusArchived {
+			return backend.ErrRecordArchived
+		}
+	}
+
+	// Do the work, if there is an error we must unwind git.
+	err = g.updateVettedMetadataMulti(um, idTmp)
+	if err != nil {
+		err2 := g.gitUnwindBranch(g.unvetted, idTmp)
+		if err2 != nil {
+			// We are in trouble! Consider a panic.
+			log.Criticalf("updateVettedMetadataMulti: %v", err2)
+		}
+		return err
+	}
+
+	return nil
+}
+
 // _updateReadme updates the README.md file in the unvetted repo, then
 // does a commit. This function must be called WITH the lock
 // held, and must be wrapped with a function that puts the repo
@@ -2078,8 +2321,21 @@ func (g *gitBackEnd) fsck(path string) error {
 // UnvettedExists satisfies the backend interface.
 func (g *gitBackEnd) UnvettedExists(token []byte) bool {
 	log.Tracef("UnvettedExists %x", token)
-	_, err := os.Stat(pijoin(g.unvetted, hex.EncodeToString(token)))
-	return err == nil
+
+	// Unvetted records exists as branches in the unvetted repo where
+	// the branch name is the record token.
+	branches, err := g.gitBranches(g.unvetted)
+	if err != nil {
+		return false
+	}
+	t := hex.EncodeToString(token)
+	for _, v := range branches {
+		if v == t {
+			return true
+		}
+	}
+
+	return false
 }
 
 // VettedExists returns whether the given token corresponds to a record in
@@ -2483,6 +2739,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdStartVote:
 		payload, err := g.pluginStartVote(payload)
 		return decredplugin.CmdStartVote, payload, err
+	case decredplugin.CmdStartVoteRunoff:
+		payload, err := g.pluginStartVoteRunoff(payload)
+		return decredplugin.CmdStartVote, payload, err
 	case decredplugin.CmdBallot:
 		payload, err := g.pluginBallot(payload)
 		return decredplugin.CmdBallot, payload, err
@@ -2513,6 +2772,12 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdLoadVoteResults:
 		payload, err := g.pluginLoadVoteResults()
 		return decredplugin.CmdLoadVoteResults, payload, err
+	case cmsplugin.CmdStartVote:
+		payload, err := g.pluginStartDCCVote(payload)
+		return cmsplugin.CmdStartVote, payload, err
+	case cmsplugin.CmdCastVote:
+		payload, err := g.pluginCastVote(payload)
+		return cmsplugin.CmdCastVote, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
@@ -2565,7 +2830,11 @@ func (g *gitBackEnd) newLocked() error {
 	}
 	log.Infof("Running git fsck on unvetted repository")
 	_, err = g.gitFsck(g.unvetted)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return g.populateTokenPrefixCache()
 }
 
 // rebasePR pushes branch id into upstream (vetted repo) and rebases it onto
@@ -2656,7 +2925,8 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string, mode string) (*gitBackEnd, error) {
+
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
@@ -2675,12 +2945,41 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		exit:            make(chan struct{}),
 		checkAnchor:     make(chan struct{}),
 		testAnchors:     make(map[string]bool),
+		prefixCache:     make(map[string]struct{}),
 		plugins:         []backend.Plugin{getDecredPlugin(dcrdataHost)},
 	}
+
 	idJSON, err := id.Marshal()
 	if err != nil {
 		return nil, err
 	}
+
+	switch mode {
+	case piMode:
+		// Setup decred plugin settings
+		var voteDurationMin, voteDurationMax string
+		switch anp.Name {
+		case chaincfg.MainNetParams.Name:
+			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
+			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
+		case chaincfg.TestNet3Params.Name:
+			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
+			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
+		default:
+			return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
+		}
+		setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
+		setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
+	case cmsMode:
+		g.plugins = []backend.Plugin{getDecredPlugin(dcrdataHost),
+			getCMSPlugin(anp.Name != "mainnet")}
+
+		setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
+		setCMSPluginSetting(cmsPluginJournals, g.journals)
+	default:
+		return nil, fmt.Errorf("invalid mode")
+	}
+
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 	setDecredPluginSetting(decredPluginJournals, g.journals)
 	setDecredPluginHook(PluginPostHookEdit, g.decredPluginPostEdit)
@@ -2701,6 +3000,14 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
+	if mode == cmsMode {
+		// this function must be called after g.journal is created
+		err = g.initCMSPluginJournals()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	err = g.newLocked()
 	if err != nil {
 		return nil, err
@@ -2717,6 +3024,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	err = g.cron.AddFunc(anchorSchedule, func() {
 		// Flush journals
 		g.decredPluginJournalFlusher()
+
+		if mode == cmsMode {
+			g.cmsPluginJournalFlusher()
+		}
 
 		// Anchor commit
 		g.anchorAllReposCronJob()

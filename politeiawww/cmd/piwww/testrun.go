@@ -5,7 +5,9 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -52,13 +54,29 @@ func newProposal() (*v1.NewProposal, error) {
 	}
 	files := []v1.File{*md}
 
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	pm := v1.ProposalMetadata{
+		Name: "Some proposal name",
+	}
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []v1.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    v1.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
+	}
+
+	sig, err := shared.SignedMerkleRoot(files, metadata, cfg.Identity)
 	if err != nil {
 		return nil, fmt.Errorf("sign merkle root: %v", err)
 	}
 
 	return &v1.NewProposal{
 		Files:     files,
+		Metadata:  metadata,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
 	}, nil
@@ -364,11 +382,12 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Verify proposal censorship record
 	pr := v1.ProposalRecord{
 		Files:            np.Files,
+		Metadata:         np.Metadata,
 		PublicKey:        np.PublicKey,
 		Signature:        np.Signature,
 		CensorshipRecord: npr.CensorshipRecord,
 	}
-	err = verifyProposal(pr, version.PubKey)
+	err = shared.VerifyProposal(pr, version.PubKey)
 	if err != nil {
 		return fmt.Errorf("verify proposal failed: %v", err)
 	}
@@ -446,7 +465,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
-	err = verifyProposal(pdr.Proposal, version.PubKey)
+	err = shared.VerifyProposal(pdr.Proposal, version.PubKey)
 	if err != nil {
 		return fmt.Errorf("verify proposal failed: %v", err)
 	}
@@ -1123,7 +1142,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	for _, v := range gavr.Proposals {
-		err = verifyProposal(v, version.PubKey)
+		err = shared.VerifyProposal(v, version.PubKey)
 		if err != nil {
 			return fmt.Errorf("verify proposal failed %v: %v",
 				v.CensorshipRecord.Token, err)
@@ -1162,7 +1181,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	for _, v := range upr.Proposals {
-		err := verifyProposal(v, version.PubKey)
+		err := shared.VerifyProposal(v, version.PubKey)
 		if err != nil {
 			return fmt.Errorf("verify proposal failed %v: %v",
 				v.CensorshipRecord.Token, err)

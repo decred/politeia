@@ -27,6 +27,7 @@ import (
 	"github.com/decred/dcrd/wire"
 	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -35,9 +36,11 @@ import (
 // XXX plugins really need to become an interface. Run with this for now.
 
 const (
-	decredPluginIdentity  = "fullidentity"
-	decredPluginJournals  = "journals"
-	decredPluginInventory = "inventory"
+	decredPluginIdentity        = "fullidentity"
+	decredPluginJournals        = "journals"
+	decredPluginInventory       = "inventory"
+	decredPluginVoteDurationMin = "votedurationmin"
+	decredPluginVoteDurationMax = "votedurationmax"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -249,14 +252,6 @@ func setDecredPluginSetting(key, value string) {
 
 func setDecredPluginHook(name string, f func(string) error) {
 	decredPluginHooks[name] = f
-}
-
-func (g *gitBackEnd) unvettedPropExists(token string) bool {
-	tokenb, err := util.ConvertStringToken(token)
-	if err != nil {
-		return false
-	}
-	return g.UnvettedExists(tokenb)
 }
 
 func (g *gitBackEnd) vettedPropExists(token string) bool {
@@ -640,7 +635,7 @@ func (g *gitBackEnd) flushJournalsUnwind(id string) error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushComments(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -828,7 +823,7 @@ func (g *gitBackEnd) flushCommentJournals() error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushVotes(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -1523,6 +1518,28 @@ func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {
 	return encodeGetCommentsReply(comments)
 }
 
+func prepareAuthorizeVote(fi *identity.FullIdentity, token, action, pubkey, sig string) decredplugin.AuthorizeVote {
+	r := fi.SignMessage([]byte(sig))
+	return decredplugin.AuthorizeVote{
+		Version:   decredplugin.VersionAuthorizeVote,
+		Receipt:   hex.EncodeToString(r[:]),
+		Timestamp: time.Now().Unix(),
+		Token:     token,
+		Action:    action,
+		PublicKey: pubkey,
+		Signature: sig,
+	}
+}
+
+func prepareAuthorizeVoteReply(av decredplugin.AuthorizeVote, recordVersion string) decredplugin.AuthorizeVoteReply {
+	return decredplugin.AuthorizeVoteReply{
+		Action:        av.Action,
+		RecordVersion: recordVersion,
+		Receipt:       av.Receipt,
+		Timestamp:     av.Timestamp,
+	}
+}
+
 // pluginAuthorizeVote updates the vetted repo with vote authorization
 // metadata from the proposal author.
 func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
@@ -1551,21 +1568,8 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 		return "", fmt.Errorf("UnmarshalFullIdentity: %v", err)
 	}
 
-	// Sign signature
-	r := fi.SignMessage([]byte(authorize.Signature))
-	receipt := hex.EncodeToString(r[:])
-
-	// Create on disk structure
-	t := time.Now().Unix()
-	av := decredplugin.AuthorizeVote{
-		Version:   decredplugin.VersionAuthorizeVote,
-		Receipt:   receipt,
-		Timestamp: t,
-		Action:    authorize.Action,
-		Token:     token,
-		Signature: authorize.Signature,
-		PublicKey: authorize.PublicKey,
-	}
+	av := prepareAuthorizeVote(fi, authorize.Token, authorize.Action,
+		authorize.PublicKey, authorize.Signature)
 	avb, err := decredplugin.EncodeAuthorizeVote(av)
 	if err != nil {
 		return "", fmt.Errorf("EncodeAuthorizeVote: %v", err)
@@ -1604,12 +1608,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getLatest: %v", err)
 	}
-	avr := decredplugin.AuthorizeVoteReply{
-		Action:        av.Action,
-		RecordVersion: version,
-		Receipt:       av.Receipt,
-		Timestamp:     av.Timestamp,
-	}
+	avr := prepareAuthorizeVoteReply(av, version)
 	avrb, err := decredplugin.EncodeAuthorizeVoteReply(avr)
 	if err != nil {
 		return "", err
@@ -1620,97 +1619,154 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 	return string(avrb), nil
 }
 
-func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
-	vote, err := decredplugin.DecodeStartVoteV2([]byte(payload))
-	if err != nil {
-		return "", fmt.Errorf("DecodeStartVote %v", err)
-	}
-
+// validateStartVote validates the vote bits and the vote params of a decred
+// plugin StartVote.
+func validateStartVoteV2(sv decredplugin.StartVoteV2) error {
 	// Verify signature
-	err = vote.VerifySignature()
+	err := sv.VerifySignature()
 	if err != nil {
-		return "", fmt.Errorf("invalid signature")
+		return fmt.Errorf("invalid signature")
 	}
 
 	// Verify vote bits are somewhat sane
-	for _, v := range vote.Vote.Options {
-		err = _validateVoteBit(vote.Vote.Options, vote.Vote.Mask, v.Bits)
+	for _, v := range sv.Vote.Options {
+		err := _validateVoteBit(sv.Vote.Options, sv.Vote.Mask, v.Bits)
 		if err != nil {
-			return "", fmt.Errorf("invalid vote bits: %v", err)
+			return fmt.Errorf("invalid vote bits: %v", err)
 		}
 	}
 
-	// Verify vote type
-	if vote.Vote.Type != decredplugin.VoteTypeStandard {
-		return "", fmt.Errorf("invalid vote type")
-	}
-
-	// Verify proposal exists
-	tokenB, err := util.ConvertStringToken(vote.Vote.Token)
+	// Make sure vote duration is within min/max range
+	min := decredPluginSettings[decredPluginVoteDurationMin]
+	max := decredPluginSettings[decredPluginVoteDurationMax]
+	voteDurationMin, err := strconv.ParseUint(min, 10, 32)
 	if err != nil {
-		return "", fmt.Errorf("ConvertStringToken %v", err)
+		return err
 	}
-	token := vote.Vote.Token
-
-	if !g.vettedPropExists(token) {
-		return "", fmt.Errorf("unknown proposal: %v", token)
+	voteDurationMax, err := strconv.ParseUint(max, 10, 32)
+	if err != nil {
+		return err
+	}
+	if sv.Vote.Duration < uint32(voteDurationMin) ||
+		sv.Vote.Duration > uint32(voteDurationMax) {
+		return fmt.Errorf("invalid duration: %v (%v - %v)",
+			sv.Vote.Duration, voteDurationMin, voteDurationMax)
 	}
 
-	// 1. Get best block
+	return nil
+}
+
+// prepareStartVoteReply prepares a decred plugin StartVoteReply.
+func prepareStartVoteReply(voteDuration, ticketMaturity uint32) (*decredplugin.StartVoteReply, error) {
+	// Get best block
 	bb, err := bestBlock()
 	if err != nil {
-		return "", fmt.Errorf("bestBlock %v", err)
+		return nil, fmt.Errorf("bestBlock %v", err)
 	}
-	if bb.Height < uint32(g.activeNetParams.TicketMaturity) {
-		return "", fmt.Errorf("invalid height")
+	if bb.Height < ticketMaturity {
+		return nil, fmt.Errorf("invalid height")
 	}
-	// 2. Subtract TicketMaturity from block height to get into
+
+	// Subtract TicketMaturity from block height to get into
 	// unforkable teritory
-	snapshotBlock, err := block(bb.Height -
-		uint32(g.activeNetParams.TicketMaturity))
+	snapshotBlock, err := block(bb.Height - ticketMaturity)
 	if err != nil {
-		return "", fmt.Errorf("bestBlock %v", err)
+		return nil, fmt.Errorf("bestBlock %v", err)
 	}
-	// 3. Get ticket pool snapshot
+
+	// Get ticket pool snapshot
 	snapshot, err := snapshot(snapshotBlock.Hash)
 	if err != nil {
-		return "", fmt.Errorf("snapshot %v", err)
+		return nil, fmt.Errorf("snapshot %v", err)
 	}
 	if len(snapshot) == 0 {
-		return "", fmt.Errorf("no eligible voters for %v", token)
+		return nil, fmt.Errorf("no eligible voters for block hash %v",
+			snapshotBlock.Hash)
 	}
 
-	// Make sure vote duration is within min/max range
-	// XXX calculate this value for testnet instead of using hard coded values.
-	if vote.Vote.Duration < decredplugin.VoteDurationMin ||
-		vote.Vote.Duration > decredplugin.VoteDurationMax {
-		// XXX return a user error instead of an internal error
-		return "", fmt.Errorf("invalid duration: %v (%v - %v)",
-			vote.Vote.Duration, decredplugin.VoteDurationMin,
-			decredplugin.VoteDurationMax)
-	}
-
-	svr := decredplugin.StartVoteReply{
+	// Prepare reply
+	return &decredplugin.StartVoteReply{
 		Version: decredplugin.VersionStartVoteReply,
 		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height),
 			10),
 		StartBlockHash: snapshotBlock.Hash,
 		// On EndHeight: we start in the past, add maturity to correct
 		EndHeight: strconv.FormatUint(uint64(snapshotBlock.Height+
-			vote.Vote.Duration+
-			uint32(g.activeNetParams.TicketMaturity)), 10),
+			voteDuration+
+			ticketMaturity), 10),
 		EligibleTickets: snapshot,
-	}
-	svrb, err := decredplugin.EncodeStartVoteReply(svr)
+	}, nil
+}
+
+var (
+	errProposalMetadataNotFound = errors.New("proposal metadata not found")
+)
+
+// vettedProposalMetadata returns the www.ProposalMetadata for the provided
+// token. All new proposal records are required to contain a ProposalMetadata,
+// but older records may not. A errProposalMetadata not found error is returned
+// if a ProposalMetadata was not found.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) vettedProposalMetadata(token string) (*mdstream.ProposalMetadata, error) {
+	tokenb, err := hex.DecodeString(token)
 	if err != nil {
-		return "", fmt.Errorf("EncodeStartVoteReply: %v", err)
+		return nil, err
+	}
+	r, err := g.getRecord(tokenb, "", g.vetted, true)
+	if err != nil {
+		return nil, err
 	}
 
-	// Add version to on disk structure
-	vote.Version = decredplugin.VersionStartVote
-	voteb, err := decredplugin.EncodeStartVoteV2(*vote)
+	// ProposalMetadata is stored as a politeiad File, not an mdstream.
+	var pm *mdstream.ProposalMetadata
+	for _, v := range r.Files {
+		if v.Name != mdstream.FilenameProposalMetadata {
+			continue
+		}
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return nil, err
+		}
+		pm, err = mdstream.DecodeProposalMetadata(b)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if pm == nil {
+		return nil, errProposalMetadataNotFound
+	}
+
+	return pm, nil
+}
+
+func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
+	sv, err := decredplugin.DecodeStartVoteV2([]byte(payload))
 	if err != nil {
-		return "", fmt.Errorf("EncodeStartVote: %v", err)
+		return "", fmt.Errorf("DecodeStartVote %v", err)
+	}
+
+	err = validateStartVoteV2(*sv)
+	if err != nil {
+		return "", err
+	}
+
+	svr, err := prepareStartVoteReply(sv.Vote.Duration,
+		uint32(g.activeNetParams.TicketMaturity))
+	if err != nil {
+		return "", err
+	}
+
+	// Verify vote type
+	if sv.Vote.Type != decredplugin.VoteTypeStandard {
+		return "", fmt.Errorf("invalid vote type")
+	}
+
+	// Verify proposal exists
+	token := sv.Vote.Token
+	if !g.vettedPropExists(token) {
+		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
 	g.Lock()
@@ -1720,23 +1776,43 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
-	// Verify that the proposal version being voted on is the most
-	// recent proposal version.
-	latestVersion, err := getLatest(pijoin(g.unvetted, token))
-	if err != nil {
+	// Ensure proposal is not an RFP submissions. The plugin command
+	// startvoterunoff must be used to start a runoff vote between RFP
+	// submissions.
+	pm, err := g.vettedProposalMetadata(token)
+	switch {
+	case err == errProposalMetadataNotFound:
+		// Proposal is not an RFP submission. This is ok.
+	case err != nil:
+		// All other errors
 		return "", err
-	}
-	version := strconv.FormatUint(uint64(vote.Vote.ProposalVersion), 10)
-	if latestVersion != version {
-		return "", fmt.Errorf("invalid proposal version")
+	case pm.LinkTo != "":
+		// ProposalMetadata exists and a linkto was set. Check if this
+		// proposal is an RFP submission.
+		linkToPM, err := g.vettedProposalMetadata(pm.LinkTo)
+		if err != nil {
+			return "", err
+		}
+		if linkToPM.LinkBy != 0 {
+			// LinkBy will only be set on RFP proposals
+			return "", fmt.Errorf("proposal is an rfp submission: %v",
+				token)
+		}
+	default:
+		// ProposalMetadata exists, but this proposal is not linked to
+		// another proposal. This is ok.
 	}
 
 	// Verify proposal state
-	avExists := g.vettedMetadataStreamExists(tokenB,
+	tokenb, err := util.ConvertStringToken(token)
+	if err != nil {
+		return "", err
+	}
+	avExists := g.vettedMetadataStreamExists(tokenb,
 		decredplugin.MDStreamAuthorizeVote)
-	vbExists := g.vettedMetadataStreamExists(tokenB,
+	vbExists := g.vettedMetadataStreamExists(tokenb,
 		decredplugin.MDStreamVoteBits)
-	vsExists := g.vettedMetadataStreamExists(tokenB,
+	vsExists := g.vettedMetadataStreamExists(tokenb,
 		decredplugin.MDStreamVoteSnapshot)
 
 	switch {
@@ -1754,8 +1830,19 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 			token)
 	}
 
+	// Verify that the proposal version being voted on is the most
+	// recent proposal version.
+	latestVersion, err := getLatest(pijoin(g.unvetted, token))
+	if err != nil {
+		return "", err
+	}
+	version := strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10)
+	if latestVersion != version {
+		return "", fmt.Errorf("invalid proposal version")
+	}
+
 	// Ensure vote authorization has not been revoked
-	b, err := g.getVettedMetadataStream(tokenB,
+	b, err := g.getVettedMetadataStream(tokenb,
 		decredplugin.MDStreamAuthorizeVote)
 	if err != nil {
 		return "", fmt.Errorf("getVettedMetadataStream %v: %v",
@@ -1769,11 +1856,24 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("vote authorization revoked")
 	}
 
+	// Add version to on disk structure
+	sv.Version = decredplugin.VersionStartVote
+
+	// Encode relevant data
+	svb, err := decredplugin.EncodeStartVoteV2(*sv)
+	if err != nil {
+		return "", fmt.Errorf("EncodeStartVoteV2: %v", err)
+	}
+	svrb, err := decredplugin.EncodeStartVoteReply(*svr)
+	if err != nil {
+		return "", fmt.Errorf("EncodeStartVoteReply: %v", err)
+	}
+
 	// Store snapshot in metadata
-	err = g._updateVettedMetadata(tokenB, nil, []backend.MetadataStream{
+	err = g._updateVettedMetadata(tokenb, nil, []backend.MetadataStream{
 		{
 			ID:      decredplugin.MDStreamVoteBits,
-			Payload: string(voteb),
+			Payload: string(svb),
 		},
 		{
 			ID:      decredplugin.MDStreamVoteSnapshot,
@@ -1784,7 +1884,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 
 	// Add vote snapshot to in-memory cache
-	decredPluginVoteSnapshotCache[token] = svr
+	decredPluginVoteSnapshotCache[token] = *svr
 
 	log.Infof("Vote started for: %v snapshot %v start %v end %v",
 		token, svr.StartBlockHash, svr.StartBlockHeight,
@@ -1792,6 +1892,271 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	// return success and encoded answer
 	return string(svrb), nil
+}
+
+// pluginStartVoteRunoff starts a runoff vote between the given submissions.
+func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
+	sv, err := decredplugin.DecodeStartVoteRunoff([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Ensure start votes and authorize votes match
+	authVotes := make(map[string]struct{}, len(sv.AuthorizeVotes))
+	startVotes := make(map[string]struct{}, len(sv.StartVotes))
+	for _, v := range sv.AuthorizeVotes {
+		authVotes[v.Token] = struct{}{}
+	}
+	for _, v := range sv.StartVotes {
+		startVotes[v.Vote.Token] = struct{}{}
+	}
+	for _, v := range sv.AuthorizeVotes {
+		_, ok := startVotes[v.Token]
+		if !ok {
+			return "", fmt.Errorf("authorize vote found without matching"+
+				"start vote %v", v.Token)
+		}
+	}
+	for _, v := range sv.StartVotes {
+		_, ok := authVotes[v.Vote.Token]
+		if !ok {
+			return "", fmt.Errorf("start vote found without matching "+
+				"authorize vote %v", v.Vote.Token)
+		}
+	}
+	if len(sv.StartVotes) == 0 {
+		return "", fmt.Errorf("no start votes found")
+	}
+
+	var (
+		// Vote params must be the same for all submissions so set
+		// the defaults to be the params of the first submission.
+		duration = sv.StartVotes[0].Vote.Duration
+		quorum   = sv.StartVotes[0].Vote.QuorumPercentage
+		pass     = sv.StartVotes[0].Vote.PassPercentage
+	)
+
+	// Validate the StartVote for each submission
+	for _, v := range sv.StartVotes {
+		err = validateStartVoteV2(v)
+		if err != nil {
+			return "", err
+		}
+
+		// Validate vote type
+		if v.Vote.Type != decredplugin.VoteTypeRunoff {
+			return "", fmt.Errorf("invalid vote type")
+		}
+
+		// Vote params must be the same for all submissions
+		switch {
+		case duration != v.Vote.Duration:
+			return "", fmt.Errorf("start votes have different vote durations")
+		case quorum != v.Vote.QuorumPercentage:
+			return "", fmt.Errorf("start votes have different quorum percentages")
+		case pass != v.Vote.PassPercentage:
+			return "", fmt.Errorf("start votes have different pass percentages")
+		}
+
+		// Vote bits can only be yes/no for submissions
+		if len(v.Vote.Options) != 2 {
+			return "", fmt.Errorf("invalid number of vote options: %v",
+				v.Vote.Token)
+		}
+		for _, vo := range v.Vote.Options {
+			if vo.Id != decredplugin.VoteOptionIDApprove &&
+				vo.Id != decredplugin.VoteOptionIDReject {
+				return "", fmt.Errorf("invalid vote option id: %v",
+					v.Vote.Token)
+			}
+		}
+	}
+
+	// Prepare the StartVoteReply. This will be the same for all
+	// submissions.
+	svr, err := prepareStartVoteReply(duration,
+		uint32(g.activeNetParams.TicketMaturity))
+	if err != nil {
+		return "", err
+	}
+	svrb, err := decredplugin.EncodeStartVoteReply(*svr)
+	if err != nil {
+		return "", fmt.Errorf("EncodeStartVoteReply: %v",
+			err)
+	}
+
+	// Verify the rfp proposal and all rfp submissions exist
+	if !g.vettedPropExists(sv.Token) {
+		return "", fmt.Errorf("rfp proposal not found: %v",
+			sv.Token)
+	}
+	for _, v := range sv.StartVotes {
+		if !g.vettedPropExists(v.Vote.Token) {
+			return "", fmt.Errorf("rfp submission not found: %v",
+				v.Vote.Token)
+		}
+	}
+
+	// Run everything else with the lock held
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return "", backend.ErrShutdown
+	}
+
+	// Verify this proposal is indeed an RFP
+	pm, err := g.vettedProposalMetadata(sv.Token)
+	switch {
+	case err == errProposalMetadataNotFound:
+		// No ProposalMetadata. This is not an RFP.
+		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
+	case err != nil:
+		// All other errors
+		return "", err
+	case pm.LinkBy == 0:
+		// ProposalMetadata found but this is not an RFP
+		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
+	case pm.LinkBy > 0:
+		// This proposal is an RFP. This is what we want.
+	default:
+		return "", fmt.Errorf("unknown proposal state")
+	}
+
+	// Validate proposal state of all rfp submissions. The authorize
+	// vote metadata is intentionally not checked. RFP submissions
+	// are not required to have the vote authorized by the proposal
+	// author.
+	for _, v := range sv.StartVotes {
+		tokenb, err := util.ConvertStringToken(v.Vote.Token)
+		if err != nil {
+			return "", err
+		}
+
+		authVoteExists := g.vettedMetadataStreamExists(tokenb,
+			decredplugin.MDStreamAuthorizeVote)
+		voteBitsExist := g.vettedMetadataStreamExists(tokenb,
+			decredplugin.MDStreamVoteBits)
+		voteSnapshotExists := g.vettedMetadataStreamExists(tokenb,
+			decredplugin.MDStreamVoteSnapshot)
+		switch {
+		case !authVoteExists && !voteBitsExist && !voteSnapshotExists:
+			// Vote has not started, continue
+		case authVoteExists && voteBitsExist && voteSnapshotExists:
+			// Vote has started
+			return "", fmt.Errorf("vote already started: %x",
+				tokenb)
+		default:
+			// This is bad, both files should exist or not exist
+			return "", fmt.Errorf("proposal in unknown vote state: %x",
+				tokenb)
+		}
+	}
+
+	// Get identity
+	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
+	if !ok {
+		return "", fmt.Errorf("full identity not set")
+	}
+	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare work to be done
+	var (
+		um          = make([]updateMetadata, 0, len(sv.StartVotes))
+		authReplies = make(map[string]decredplugin.AuthorizeVoteReply) // [token]AuthorizeVoteReply
+
+	)
+	for _, v := range sv.AuthorizeVotes {
+		av := prepareAuthorizeVote(fi, v.Token, v.Action,
+			v.PublicKey, v.Signature)
+
+		// Encode authorize vote
+		avb, err := decredplugin.EncodeAuthorizeVote(av)
+		if err != nil {
+			return "", fmt.Errorf("EncodeAuthorizeVote %v: %v",
+				v.Token, err)
+		}
+
+		// Add to work array
+		um = append(um, updateMetadata{
+			token:    v.Token,
+			mdAppend: nil,
+			mdOverwrite: []backend.MetadataStream{
+				{
+					ID:      decredplugin.MDStreamAuthorizeVote,
+					Payload: string(avb),
+				},
+			},
+		})
+
+		// Prepare reply
+		recordVersion, err := getLatest(pijoin(g.vetted, v.Token))
+		if err != nil {
+			return "", fmt.Errorf("getLatest %v: %v",
+				v.Token, err)
+		}
+		avr := prepareAuthorizeVoteReply(av, recordVersion)
+		authReplies[v.Token] = avr
+	}
+	for _, v := range sv.StartVotes {
+		// Add version to on disk structure
+		v.Version = decredplugin.VersionStartVote
+
+		// Encode start vote
+		svb, err := decredplugin.EncodeStartVoteV2(v)
+		if err != nil {
+			return "", fmt.Errorf("EncodeStartVote %v: %v",
+				v.Vote.Token, err)
+		}
+
+		// Add to work array
+		um = append(um, updateMetadata{
+			token:    v.Vote.Token,
+			mdAppend: nil,
+			mdOverwrite: []backend.MetadataStream{
+				{
+					ID:      decredplugin.MDStreamVoteBits,
+					Payload: string(svb),
+				},
+				{
+					ID:      decredplugin.MDStreamVoteSnapshot,
+					Payload: string(svrb),
+				}},
+		})
+	}
+
+	// idTmp uses the token of the rfp proposal, not the rfp
+	// submission tokens.
+	idTmp := sv.Token + "_tmp"
+
+	// Update metadata for each record
+	err = g._updateVettedMetadataMulti(um, idTmp)
+	if err != nil {
+		return "", err
+	}
+
+	// Add vote snapshots to in-memory cache
+	for _, sv := range sv.StartVotes {
+		decredPluginVoteSnapshotCache[sv.Vote.Token] = *svr
+
+		log.Infof("Vote started for: %v snapshot %v start %v end %v",
+			sv.Vote.Token, svr.StartBlockHash, svr.StartBlockHeight,
+			svr.EndHeight)
+	}
+
+	// Prepare reply
+	reply, err := decredplugin.EncodeStartVoteRunoffReply(
+		decredplugin.StartVoteRunoffReply{
+			AuthorizeVoteReplies: authReplies,
+			StartVoteReply:       *svr,
+		})
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
 }
 
 // validateVoteByAddress validates that vote, as specified by the commitment

@@ -7,13 +7,15 @@ package main
 import (
 	"fmt"
 
+	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // InvoiceDetailsCmd retrieves the details of a invoice.
 type InvoiceDetailsCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token" required:"true"` // Censorship token
+		Token   string `positional-arg-name:"token" required:"true"` // Censorship token
+		Version string `positional-arg-name:"version"`               // Proposal version
 	} `positional-args:"true"`
 }
 
@@ -26,7 +28,10 @@ func (cmd *InvoiceDetailsCmd) Execute(args []string) error {
 	}
 
 	// Get invoice
-	idr, err := client.InvoiceDetails(cmd.Args.Token)
+	idr, err := client.InvoiceDetails(cmd.Args.Token,
+		&v1.InvoiceDetails{
+			Version: cmd.Args.Version,
+		})
 	if err != nil {
 		return err
 	}

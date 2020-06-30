@@ -117,6 +117,18 @@ notifications.  It does not render HTML.
 - [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
 - [`ErrorStatusInvalidLogin`](#ErrorStatusInvalidLogin)
 - [`ErrorStatusCommentIsCensored`](#ErrorStatusCommentIsCensored)
+- [`ErrorStatusInvalidProposalVersion`](#ErrorStatusInvalidProposalVersion)
+- [`ErrorStatusMetadataInvalid`](#ErrorStatusMetadataInvalid)
+- [`ErrorStatusMetadataMissing`](#ErrorStatusMetadataMissing)
+- [`ErrorStatusMetadataDigestInvalid`](#ErrorStatusMetadataDigestInvalid)
+- [`ErrorStatusInvalidVoteType`](#ErrorStatusInvalidVoteType)
+- [`ErrorStatusInvalidVoteOptions`](#ErrorStatusInvalidVoteOptions)
+- [`ErrorStatusLinkByDeadlineNotMet`](#ErrorStatusLinkByDeadlineNotMet)
+- [`ErrorStatusNoLinkedProposals`](#ErrorStatusNoLinkedProposals)
+- [`ErrorStatusInvalidLinkTo`](#ErrorStatusInvalidLinkTo)
+- [`ErrorStatusInvalidLinkBy`](#ErrorStatusInvalidLinkBy)
+- [`ErrorStatusInvalidRunoffVote`](#ErrorStatusInvalidRunoffVote)
+- [`ErrorStatusWrongProposalType`](#ErrorStatusWrongProposalType)
 
 **Websockets**
 
@@ -260,7 +272,6 @@ Reply:
   "testnet": true,
   "mode": "piwww",
   "activeusersession": true
-
 }
 ```
 
@@ -614,13 +625,13 @@ For a logged in admin user or own user requesting data.
     "newuserpaywalltx": "",
     "newuserpaywalltxnotbefore": 1528821554,
     "newuserpaywallpollexpiry": 1528821554,
-    "newuserverificationtoken": 
+    "newuserverificationtoken":
       "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "newuserverificationexpiry": 1528821554,
-    "updatekeyverificationtoken": 
+    "updatekeyverificationtoken":
       "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "updatekeyverificationexpiry": 1528821554,
-    "resetpasswordverificationtoken": 
+    "resetpasswordverificationtoken":
       "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "resetpasswordverificationexpiry": 1528821554,
     "lastlogintime": 1571316271,
@@ -628,7 +639,7 @@ For a logged in admin user or own user requesting data.
     "isdeactivated": false,
     "islocked": false,
     "identities": [{
-      "pubkey": 
+      "pubkey":
         "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
@@ -665,7 +676,7 @@ For a unlogged or normal user requesting data.
     "isdeactivated": false,
     "islocked": false,
     "identities": [{
-      "pubkey": 
+      "pubkey":
         "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
@@ -1098,7 +1109,9 @@ Reply:
 ### `New proposal`
 
 Submit a new proposal to the politeiawww server.
-The proposal name is derived from the first line of the markdown file - index.md.
+
+The Metadata field is required to include a [`Metadata`](#metadata) object that
+contains an encoded [`ProposalMetadata`](#proposal-metadata).
 
 **Route:** `POST /v1/proposals/new`
 
@@ -1107,7 +1120,8 @@ The proposal name is derived from the first line of the markdown file - index.md
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
-| signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+| metadata | array of [`Metadata`](#metadata) | User specified proposal metadata.  |
+| signature | string | Signature of the string representation of the Merkle root of the file payloads and the metadata payloads. Note that the merkle digests are calculated on the decoded payload.. | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
@@ -1162,14 +1176,16 @@ Reply:
 ### `Edit proposal`
 
 Edit an existent proposal into the politeiawww server.
-The proposal name is derived from the first line of the markdown file - index.md.
+
+The Metadata field is required to include a [`Metadata`](#metadata) object that
+contains an encoded [`ProposalMetadata`](#proposal-metadata).
 
 Note that updating public proposals will generate a new record version. While
 updating an unvetted record will change the record but it will not generate
 a new version.
 
-The example shown below is for a public proposal where the proposal version is increased
-by one after the update.
+The example shown below is for a public proposal where the proposal version is
+increased by one after the update.
 
 **Route:** `POST /v1/proposals/edit`
 
@@ -1178,7 +1194,8 @@ by one after the update.
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
-| signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+| metadata | array of [`Metadata`](#metadata) | User specified proposal metadata.  |
+| signature | string | Signature of the string representation of the Merkle root of the file payloads and the metadata payloads. Note that the merkle digests are calculated on the decoded payload.. | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
@@ -1347,8 +1364,8 @@ Reply:
 
 ### `Policy`
 
-Retrieve server policy.  The returned values contain various maxima that the client
-SHALL observe.
+Retrieve server policy.  The returned values contain various maxima that the
+client SHALL observe.
 
 **Route:** `GET /v1/policy`
 
@@ -1358,30 +1375,28 @@ SHALL observe.
 
 | | Type | Description |
 |-|-|-|
-| minpasswordlength | integer | minimum number of characters accepted for user passwords |
-| minusernamelength | integer | minimum number of characters accepted for username |
-| maxusernamelength | integer | maximum number of characters accepted for username |
+| minpasswordlength | number | minimum number of characters accepted for user passwords |
+| minusernamelength | number | minimum number of characters accepted for username |
+| maxusernamelength | number | maximum number of characters accepted for username |
 | usernamesupportedchars | array of strings | the regular expression of a valid username |
-| proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
-| userlistpagesize | integer | maximum number of users returned for the routes that return lists of users |
-| maximages | integer | maximum number of images accepted when creating a new proposal |
-| maximagesize | integer | maximum image file size (in bytes) accepted when creating a new proposal |
-| maxmds | integer | maximum number of markdown files accepted when creating a new proposal |
-| maxmdsize | integer | maximum markdown file size (in bytes) accepted when creating a new proposal |
+| paywallenabled | bool | is paywall enabled |
+| proposallistpagesize | number | maximum number of proposals returned for the routes that return lists of proposals |
+| userlistpagesize | number | maximum number of users returned for the routes that return lists of users |
+| maximages | number | maximum number of images accepted when creating a new proposal |
+| maximagesize | number | maximum image file size (in bytes) accepted when creating a new proposal |
+| maxmds | number | maximum number of markdown files accepted when creating a new proposal |
+| maxmdsize | number | maximum markdown file size (in bytes) accepted when creating a new proposal |
 | validmimetypes | array of strings | list of all acceptable MIME types that can be communicated between client and server. |
-| maxproposalnamelength | integer | max length of a proposal name |
-| minproposalnamelength | integer | min length of a proposal name |
+| maxproposalnamelength | number | max length of a proposal name |
+| minproposalnamelength | number | min length of a proposal name |
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
-| maxcommentlength | integer | maximum number of characters accepted for comments |
+| maxcommentlength | number | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
-| maxnamelength | integer | maximum contractor name length (cmswww)
-| minnamelength | integer | mininum contractor name length (cmswww)
-| maxlocationlength | integer | maximum contractor location length (cmswww)
-| minlocationlength | integer | minimum contractor location length (cmswww)
-| invoicecommentchar | char | character for comments on invoices (cmswww)
-| invoicefielddelimiterchar | char | character for invoice csv field separation (cmswww)
-| invoicelineitemcount | integer | expected count for line item fields (cmswww)
-
+| tokenprefixlength | number | The length of token prefix needed
+| buildinformation | []string | build information including module commit hashes |
+| IndexFilename | string | required filename for the proposal index.md file |
+| MinLinkbyPeriod | number | Minimum required period, in seconds, for the proposal linkby period |
+| MaxLinkByPeriod | number | Maximum allowed period, in seconds, for the proposal linkby period |
 
 **Example**
 
@@ -1411,13 +1426,15 @@ Reply:
     "text/plain",
     "text/plain; charset=utf-8"
   ],
+  "paywallenabled": true,
   "proposalnamesupportedchars": [
      "A-z", "0-9", "&", ".", ":", ";", ",", "-", " ", "@", "+", "#"
   ],
   "maxcommentlength": 8000,
   "backendpublickey": "",
   "minproposalnamelength": 8,
-  "maxproposalnamelength": 80
+  "maxproposalnamelength": 80,
+  "tokenprefixlength": 7
 }
 ```
 
@@ -1426,16 +1443,16 @@ Reply:
 Update the [status](#proposal-status-codes) of a proposal.  This call requires
 admin privileges.
 
-Unvetted proposals can have their status updated to:  
-`PropStatusPublic`  
+Unvetted proposals can have their status updated to:
+`PropStatusPublic`
 `PropStatusCensored`
 
-Vetted proposals can have their status updated to:  
+Vetted proposals can have their status updated to:
 `PropStatusAbandoned`
 
 A status change message detailing the reason for the status change is required
-for the following statuses:  
-`PropStatusCensored`  
+for the following statuses:
+`PropStatusCensored`
 `PropStatusAbandoned`
 
 **Route:** `POST /v1/proposals/{token}/status`
@@ -1505,7 +1522,8 @@ Reply:
 
 ### `Proposal details`
 
-Retrieve proposal and its details.
+Retrieve proposal and its details. This request can be made with the full
+censorship token or its 7 character prefix.
 
 **Routes:** `GET /v1/proposals/{token}`
 
@@ -2668,8 +2686,20 @@ Reply:
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 60 | No changes found in proposal. |
 | <a name="ErrorStatusMaxProposalsExceedsPolicy">ErrorStatusMaxProposalsExceededPolicy</a> | 61 | Number of proposals requested exceeded the ProposalListPageSize. |
 | <a name="ErrorStatusDuplicateComment">ErrorStatusDuplicateComment</a> | 62 | Duplicate comment. |
-| <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 62 | Invalid login credentials. |
-| <a name="ErrorStatusCommentIsCensored">ErrorStatusCommentIsCensored</a> | 62 | Comment is censored. |
+| <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 63 | Invalid login credentials. |
+| <a name="ErrorStatusCommentIsCensored">ErrorStatusCommentIsCensored</a> | 64 | Comment is censored. |
+| <a name="ErrorStatusInvalidProposalVersion">ErrorStatusInvalidProposalVersion</a> | 65 | Invalid proposal version.  |
+| <a name="ErrorStatusMetadataInvalid">ErrorStatusMetadataInvalid</a> | 66 | Invalid proposal metadata.  |
+| <a name="ErrorStatusMetadataMissing">ErrorStatusMetadataMissing</a> | 67 | Missing proposal metadata. |
+| <a name="ErrorStatusMetadataDigestInvalid">ErrorStatusMetadataDigestInvalid</a> | 68 | Proposal metadata digest invalid.  |
+| <a name="ErrorStatusInvalidVoteType">ErrorStatusInvalidVoteType</a> | 69 | Invalid vote type. |
+| <a name="ErrorStatusInvalidVoteOptions">ErrorStatusInvalidVoteOptions</a> | 70 | Invalid vote option.  |
+| <a name="ErrorStatusLinkByDeadlineNotMet">ErrorStatusLinkByDeadlineNotMet</a> | 71 | Linkby not met yet.  |
+| <a name="ErrorStatusNoLinkedProposals">ErrorStatusNoLinkedProposals</a> | 72 | No linked proposals.  |
+| <a name="ErrorStatusInvalidLinkTo">ErrorStatusInvalidLinkTo</a> | 73 | Invalid propsoal linkto. |
+| <a name="ErrorStatusInvalidLinkBy">ErrorStatusInvalidLinkBy</a> | 74 | Invalid proposal linkby.  |
+| <a name="ErrorStatusInvalidRunoffVote">ErrorStatusInvalidRunoffVote</a> | 75 | Invalid runoff vote. |
+| <a name="ErrorStatusWrongProposalType">ErrorStatusWrongProposalType</a> | 76 | Wrong proposal type. |
 
 
 ### `Proposal status codes`
@@ -2683,6 +2713,13 @@ Reply:
 | <a name="PropStatusPublic">PropStatusPublic</a> | 4 | The proposal has been published by an admin. |
 | <a name="PropStatusUnreviewedChanges">PropStatusUnreviewedChanges</a> | 5 | The proposal has not been rewieved by an admin yet and has been edited by the author. |
 | <a name="PropStatusAbandoned">PropStatusAbandoned</a> | 6 | The proposal is public and has been deemed abandoned by an admin. |
+
+### `Vote types`
+| Status | Value | Description |
+|-|-|-|
+| <a name="VoteTypeInvalid">VoteTypeInvalid</a>| 0 | An invalid vote type. This shall be considered a bug. |
+| <a name="VoteTypeStandard">VoteTypeStandard</a>| 1 | A simple approve or reject proposal vote where the winner is the voting option that has met the specified pass and quorum requirements. |
+| <a name="VoteTypeRunoff">VoteType</a>| 2 | A runoff vote that multiple proposals compete in. All proposals are voted on like normal, but there can only be one winner in a runoff vote. The winner is the proposal that meets the quorum requirement, meets the pass requirement, and that has the most net yes votes. The winning proposal is considered approved and all other proposals are considered rejected. If no proposals meet the quorum and pass requirements then all proposals are considered rejected. Note: in a runoff vote it is possible for a proposal to meet the quorum and pass requirements but still be rejected if it does not have the most net yes votes. |
 
 ### `User edit actions`
 
@@ -2760,17 +2797,21 @@ This is a shortened representation of a user, used for lists.
 | status | number | Current status of the proposal. |
 | timestamp | number | The unix time of the last update of the proposal. |
 | userid | string | The ID of the user who created the proposal. |
+| username | string | Proposal author's username. |
 | publickey | string | The public key of the user who created the proposal. |
 | signature | string | The signature of the merkle root, signed by the user who created the proposal. |
-| version | string | The proposal version. |
-| censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
-| files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 | numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |
-| statatuschangemessage | Message associated to the status change. |
-| pubishedat | The timestamp of when the proposal has been published. If the proposals has not been pubished, this field will not be present. |
-| censoredat | The timestamp of when the proposal has been censored. If the proposals has not been censored, this field will not be present. |
-| abandonedat | The timestamp of when the proposal has been abandoned. If the proposals has not been abandoned, this field will not be present. |
- 
+| version | string | The proposal version. |
+| statatuschangemessage | string | Message associated to the status change (omitempty). |
+| pubishedat | number | The timestamp of when the proposal was published (omitempty). |
+| censoredat | number | The timestamp of when the proposal was censored (omitempty). |
+| abandonedat | The timestamp of when the proposal was abandoned (omitempty). |
+| linkto | string | Censorship token of proposal to link to (omitempty). |
+| linkby | number | Unix timestamp of RFP link by deadline (omitempty). |
+| files | [][`File`](#file)s | Proposal files. This property will only be populated for the [`Proposal details`](#proposal-details) call. |
+| metadata | [][`Metadata`](#metadata) | Proposal metadata. This will contain a [`ProposalMetadata`](#proposal-metadata). |
+| censorshiprecord | [`CensorshipRecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
+
 ### `Identity`
 
 | | Type | Description |
@@ -2787,18 +2828,34 @@ This is a shortened representation of a user, used for lists.
 | digest | string | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
 | payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
 
-### `Vote Summary`
+### `Metadata`
+
+| | Type | Description |
+|-|-|-|
+| Digest | string | SHA256 digest of the JSON encoded payload |
+| Hint | string | Hint that describes the payload |
+| Payload | string | Base64 encoded metadata content where the metadata content is JSON encoded. |
+
+### `Proposal metadata`
+| | Type | Description |
+|-|-|-|
+| Name | string | Proposal name. |
+| LinkTo | string | Censorship token of the proposal to link to (optional). |
+| LinkBy | int64 | Unix timestamp of the RFP deadline (optional). |
+
+### `Vote summary`
 
 | | Type | Description |
 |-|-|-|
 | status | int | Status identifier |
-| eligibletickets | int | Total number of eligible tickets |
-| duration | uint32 | Duration of the vote in blocks |
-| endheight | uint64 | The chain height in which the vote will end |
-| bestblock | uint64 | The current chain height |
-| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
-| passpercentage | uint32 | Percent of total votes required to pass |
-| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
+| approved | bool | Has the proposal vote passed |
+| type | [`VoteT`](#vote-types)| Vote type (omitempty) |
+| eligibletickets | int | Total number of eligible tickets (omitempty) |
+| duration | uint32 | Duration of the vote in blocks (omitempty) |
+| endheight | uint64 | The chain height in which the vote will end (omitempty) |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum (omitempty) |
+| passpercentage | uint32 | Percent of total votes required to pass (omitempty) |
+| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received (omitempty) |
 
 ### `Censorship record`
 

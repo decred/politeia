@@ -6,7 +6,6 @@ package shared
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -15,9 +14,9 @@ import (
 	"os"
 
 	"github.com/agl/ed25519"
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	"golang.org/x/crypto/sha3"
 )
@@ -63,49 +62,57 @@ func PrintJSON(body interface{}) error {
 	return nil
 }
 
-// MerkleRoot converts the passed in list of files into SHA256 digests then
-// calculates and returns the merkle root of the digests.
-func MerkleRoot(files []v1.File) (string, error) {
-	if len(files) == 0 {
-		return "", fmt.Errorf("no proposal files found")
-	}
-
-	digests := make([]*[sha256.Size]byte, len(files))
-	for i, f := range files {
-		// Compute file digest
+// ValidateDigests receives a list of files and metadata to verify their
+// digests. It compares digests that came with the file/md with digests
+// calculated from their respective payloads.
+func ValidateDigests(files []v1.File, md []v1.Metadata) error {
+	// Validate file digests
+	for _, f := range files {
 		b, err := base64.StdEncoding.DecodeString(f.Payload)
 		if err != nil {
-			return "", fmt.Errorf("decode payload for file %v: %v",
+			return fmt.Errorf("file: %v decode payload err %v",
 				f.Name, err)
 		}
 		digest := util.Digest(b)
-
-		// Compare against digest that came with the file
 		d, ok := util.ConvertDigest(f.Digest)
 		if !ok {
-			return "", fmt.Errorf("invalid digest: file:%v digest:%v",
+			return fmt.Errorf("file: %v invalid digest %v",
 				f.Name, f.Digest)
 		}
 		if !bytes.Equal(digest, d[:]) {
-			return "", fmt.Errorf("digests do not match for file %v",
+			return fmt.Errorf("file: %v digests do not match",
 				f.Name)
 		}
-
-		// Digest is valid
-		digests[i] = &d
 	}
-
-	// Compute merkle root
-	return hex.EncodeToString(merkle.Root(digests)[:]), nil
+	// Validate metadata digests
+	for _, v := range md {
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return fmt.Errorf("metadata: %v decode payload err %v",
+				v.Hint, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			return fmt.Errorf("metadata: %v invalid digest %v",
+				v.Hint, v.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			return fmt.Errorf("metadata: %v digests do not match metadata",
+				v.Hint)
+		}
+	}
+	return nil
 }
 
-// SignedMerkleRoot calculates the merkle root of the passed in list of files,
-// signs the merkle root with the passed in identity and returns the signature.
-func SignedMerkleRoot(files []v1.File, id *identity.FullIdentity) (string, error) {
+// SignedMerkleRoot calculates the merkle root of the passed in list of files
+// and metadata, signs the merkle root with the passed in identity and returns
+// the signature.
+func SignedMerkleRoot(files []v1.File, md []v1.Metadata, id *identity.FullIdentity) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no proposal files found")
 	}
-	mr, err := MerkleRoot(files)
+	mr, err := wwwutil.MerkleRoot(files, md)
 	if err != nil {
 		return "", err
 	}
@@ -148,4 +155,53 @@ func SetConfig(config *Config) {
 // SetClient sets the global client variable.
 func SetClient(c *Client) {
 	client = c
+}
+
+// VerifyProposal verifies a proposal's merkle root, author signature, and
+// censorship record.
+func VerifyProposal(p v1.ProposalRecord, serverPubKey string) error {
+	if len(p.Files) > 0 {
+		// Verify digests
+		err := ValidateDigests(p.Files, p.Metadata)
+		if err != nil {
+			return err
+		}
+		// Verify merkle root
+		mr, err := wwwutil.MerkleRoot(p.Files, p.Metadata)
+		if err != nil {
+			return err
+		}
+		if mr != p.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
+	}
+
+	// Verify proposal signature
+	pid, err := util.IdentityFromString(p.PublicKey)
+	if err != nil {
+		return err
+	}
+	sig, err := util.ConvertSignature(p.Signature)
+	if err != nil {
+		return err
+	}
+	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
+		return fmt.Errorf("could not verify proposal signature")
+	}
+
+	// Verify censorship record signature
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("could not verify censorship record signature")
+	}
+
+	return nil
 }

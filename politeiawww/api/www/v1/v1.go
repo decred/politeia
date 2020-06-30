@@ -16,6 +16,7 @@ type PropStatusT int
 type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
+type VoteT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -60,11 +61,11 @@ const (
 	RouteAllVoteStatus            = "/proposals/votestatus"
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
-	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
-	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
-	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{64}}/votestatus"
+	RouteProposalDetails          = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
+	RouteSetProposalStatus        = "/proposals/{token:[A-Fa-f0-9]{7,64}}/status"
+	RouteCommentsGet              = "/proposals/{token:[A-Fa-f0-9]{7,64}}/comments"
+	RouteVoteResults              = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
+	RouteVoteStatus               = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
 	RouteNewComment               = "/comments/new"
 	RouteLikeComment              = "/comments/like"
 	RouteCensorComment            = "/comments/censor"
@@ -74,9 +75,20 @@ const (
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
+	// TokenPrefixLength is the length of the token prefix that can
+	// be used in RouteProposalDetails. This should match what is defined
+	// in politeiad, and once a Policy route is created in politeiad,
+	// this should be removed.
+	TokenPrefixLength = 7
+
 	// VerificationExpiryHours is the number of hours before the
 	// verification token expires
 	VerificationExpiryHours = 24
+
+	// PolicyIdexFilename is the file name of the proposal markdown
+	// file. Every proposal is required to have a index file. The index
+	// file should contain the proposal content.
+	PolicyIndexFilename = "index.md"
 
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
@@ -87,7 +99,7 @@ const (
 	PolicyMaxImageSize = 512 * 1024
 
 	// PolicyMaxMDs is the maximum number of markdown files accepted
-	// when creating a new proposal
+	// when creating a new proposal.
 	PolicyMaxMDs = 1
 
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
@@ -188,6 +200,17 @@ const (
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
 	ErrorStatusCommentIsCensored           ErrorStatusT = 64
 	ErrorStatusInvalidProposalVersion      ErrorStatusT = 65
+	ErrorStatusMetadataInvalid             ErrorStatusT = 66
+	ErrorStatusMetadataMissing             ErrorStatusT = 67
+	ErrorStatusMetadataDigestInvalid       ErrorStatusT = 68
+	ErrorStatusInvalidVoteType             ErrorStatusT = 69
+	ErrorStatusInvalidVoteOptions          ErrorStatusT = 70
+	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 71
+	ErrorStatusNoLinkedProposals           ErrorStatusT = 72
+	ErrorStatusInvalidLinkTo               ErrorStatusT = 73
+	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
+	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
+	ErrorStatusWrongProposalType           ErrorStatusT = 76
 
 	// Proposal state codes
 	//
@@ -221,6 +244,26 @@ const (
 	PropVoteStatusStarted       PropVoteStatusT = 3 // Proposal vote has been started
 	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
 	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
+
+	// Vote types
+	//
+	// VoteTypeStandard is used to indicate a simple approve or reject
+	// proposal vote where the winner is the voting option that has met
+	// the specified pass and quorum requirements.
+	//
+	// VoteTypeRunoff specifies a runoff vote that multiple proposals compete in.
+	// All proposals are voted on like normal, but there can only be one winner
+	// in a runoff vote. The winner is the proposal that meets the quorum
+	// requirement, meets the pass requirement, and that has the most net yes
+	// votes. The winning proposal is considered approved and all other proposals
+	// are considered rejected. If no proposals meet the quorum and pass
+	// requirements then all proposals are considered rejected.
+	// Note: in a runoff vote it is possible for a proposal to meet the quorum
+	// and pass requirements but still be rejected if it does not have the most
+	// net yes votes.
+	VoteTypeInvalid  VoteT = 0
+	VoteTypeStandard VoteT = 1
+	VoteTypeRunoff   VoteT = 2
 
 	// User manage actions
 	UserManageInvalid                         UserManageActionT = 0 // Invalid action type
@@ -329,6 +372,17 @@ var (
 		ErrorStatusInvalidLogin:                "invalid login credentials",
 		ErrorStatusCommentIsCensored:           "comment is censored",
 		ErrorStatusInvalidProposalVersion:      "invalid proposal version",
+		ErrorStatusMetadataInvalid:             "invalid metadata",
+		ErrorStatusMetadataMissing:             "missing metadata",
+		ErrorStatusMetadataDigestInvalid:       "metadata digest invalid",
+		ErrorStatusInvalidVoteType:             "invalid vote type",
+		ErrorStatusInvalidVoteOptions:          "invalid vote options",
+		ErrorStatusLinkByDeadlineNotMet:        "linkby deadline note met yet",
+		ErrorStatusNoLinkedProposals:           "no linked proposals",
+		ErrorStatusInvalidLinkTo:               "invalid proposal linkto",
+		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
+		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
+		ErrorStatusWrongProposalType:           "wrong proposal type",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -377,13 +431,42 @@ type File struct {
 	Payload string `json:"payload"` // File content, base64 encoded
 }
 
+const (
+	// Metadata hints
+	HintProposalMetadata = "proposalmetadata"
+)
+
+// ProposalMetadata contains metadata that is specified by the user on proposal
+// submission. It is attached to a proposal submission as a Metadata object.
+//
+// LinkBy must allow for a minimum of one week after the proposal vote ends for
+// RFP submissions to be submitted. The LinkBy field is validated on both
+// proposal submission and before the proposal vote is started to ensure that
+// the RFP submissions have sufficient time to be submitted.
+type ProposalMetadata struct {
+	Name   string `json:"name"`             // Proposal name
+	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
+	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+}
+
+// Metadata describes user specified metadata.
+//
+// Payload is the base64 encoding of the JSON encoded metadata. Its required
+// to be base64 encoded because it's stored in politeiad as a file and the
+// politeiad file payload must be base64.
+type Metadata struct {
+	Digest  string `json:"digest"`  // SHA256 digest of JSON encoded payload
+	Hint    string `json:"hint"`    // Hint that describes the payload
+	Payload string `json:"payload"` // Base64 encoded metadata content
+}
+
 // CensorshipRecord contains the proof that a proposal was accepted for review.
 // The proof is verifiable on the client side.
 //
-// The Merkle field contains the ordered merkle root of all files in the proposal.
-// The Token field contains a random censorship token that is signed by the
-// server private key.  The token can be used on the client to verify the
-// authenticity of the CensorshipRecord.
+// The Merkle field contains the ordered merkle root of all files and metadata
+// in the proposal.  The Token field contains a random censorship token that is
+// signed by the server private key.  The token can be used on the client to
+// verify the authenticity of the CensorshipRecord.
 type CensorshipRecord struct {
 	Token     string `json:"token"`     // Censorship token
 	Merkle    string `json:"merkle"`    // Merkle root of proposal
@@ -395,6 +478,8 @@ type CensorshipRecord struct {
 // when the full ticket snapshot or the full cast vote data is not needed.
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
+	Approved         bool               `json:"approved"`                   // Was the vote approved
+	Type             VoteT              `json:"type,omitempty"`             // Vote type
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
 	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
@@ -404,6 +489,9 @@ type VoteSummary struct {
 }
 
 // ProposalRecord is an entire proposal and it's content.
+//
+// Signature is a signature of the proposal merkle root where the merkle root
+// contains all Files and Metadata of the proposal.
 type ProposalRecord struct {
 	Name                string      `json:"name"`                          // Suggested short proposal name
 	State               PropStateT  `json:"state"`                         // Current state of proposal
@@ -413,14 +501,18 @@ type ProposalRecord struct {
 	Username            string      `json:"username"`                      // Username of user who submitted proposal
 	PublicKey           string      `json:"publickey"`                     // Key used for signature.
 	Signature           string      `json:"signature"`                     // Signature of merkle root
-	Files               []File      `json:"files"`                         // Files that make up the proposal
 	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
 	Version             string      `json:"version"`                       // Record version
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
-	PublishedAt         int64       `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
-	CensoredAt          int64       `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
-	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
+	PublishedAt         int64       `json:"publishedat,omitempty"`         // UNIX timestamp of when proposal was published
+	CensoredAt          int64       `json:"censoredat,omitempty"`          // UNIX timestamp of when proposal was censored
+	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // UNIX timestamp of when proposal was abandoned
+	LinkTo              string      `json:"linkto,omitempty"`              // Token of linked parent proposal
+	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
+	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
 
+	Files            []File           `json:"files"`
+	Metadata         []Metadata       `json:"metadata"`
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
@@ -483,8 +575,9 @@ type Version struct{}
 // this backend supports and additionally the route to the API and the public
 // signing key of the server.
 type VersionReply struct {
-	Version           uint   `json:"version"`           // lowest supported WWW API version
-	Route             string `json:"route"`             // prefix to API calls
+	Version           uint   `json:"version"`           // Lowest supported WWW API version
+	Route             string `json:"route"`             // Prefix to API calls
+	BuildVersion      string `json:"buildversion"`      // Build version from hosted pi module
 	PubKey            string `json:"pubkey"`            // Server public key
 	TestNet           bool   `json:"testnet"`           // Network indicator
 	Mode              string `json:"mode"`              // current politeiawww mode running (piwww or cmswww)
@@ -739,10 +832,18 @@ type ProposalPaywallPaymentReply struct {
 }
 
 // NewProposal attempts to submit a new proposal.
+//
+// Metadata is required to include a ProposalMetadata for all proposal
+// submissions.
+//
+// Signature is the signature of the proposal merkle root. The merkle root
+// contains the ordered files and metadata digests. The file digests are first
+// in the ordering.
 type NewProposal struct {
-	Files     []File `json:"files"`     // Proposal files
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Signature string `json:"signature"` // Signature of merkle root
+	Files     []File     `json:"files"`     // Proposal files
+	Metadata  []Metadata `json:"metadata"`  // User specified metadata
+	PublicKey string     `json:"publickey"` // Key used for signature.
+	Signature string     `json:"signature"` // Signature of merkle root
 }
 
 // NewProposalReply is used to reply to the NewProposal command
@@ -848,9 +949,15 @@ type PolicyReply struct {
 	ValidMIMETypes             []string `json:"validmimetypes"`
 	MinProposalNameLength      uint     `json:"minproposalnamelength"`
 	MaxProposalNameLength      uint     `json:"maxproposalnamelength"`
+	PaywallEnabled             bool     `json:"paywallenabled"`
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	TokenPrefixLength          int      `json:"tokenprefixlength"`
+	BuildInformation           []string `json:"buildinformation"`
+	IndexFilename              string   `json:"indexfilename"`
+	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
+	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 }
 
 // VoteOption describes a single vote option.
@@ -1173,11 +1280,19 @@ type UserIdentity struct {
 }
 
 // EditProposal attempts to edit a proposal
+//
+// Metadata is required to include a ProposalMetadata for all proposal
+// submissions.
+//
+// Signature is the signature of the proposal merkle root. The merkle root
+// contains the ordered files and metadata digests. The file digests are first
+// in the ordering.
 type EditProposal struct {
-	Token     string `json:"token"`
-	Files     []File `json:"files"`
-	PublicKey string `json:"publickey"`
-	Signature string `json:"signature"`
+	Token     string     `json:"token"`
+	Files     []File     `json:"files"`
+	Metadata  []Metadata `json:"metadata"`
+	PublicKey string     `json:"publickey"`
+	Signature string     `json:"signature"`
 }
 
 // EditProposalReply is used to reply to the EditProposal command

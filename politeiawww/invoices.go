@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -28,6 +26,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -493,7 +492,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	var (
 		numCSVs, numImages, numInvoiceFiles    int
 		csvExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                 []*[sha256.Size]byte
 	)
 	for _, v := range ni.Files {
 		filenames[v.Name]++
@@ -722,12 +720,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 		}
-
-		// Append digest to array for merkle root calculation
-		digest := util.Digest(data)
-		var d [sha256.Size]byte
-		copy(d[:], digest)
-		hashes = append(hashes, &d)
 	}
 
 	// verify duplicate file names
@@ -750,7 +742,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	if numInvoiceFiles == 0 {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{indexFile},
+			ErrorContext: []string{www.PolicyIndexFilename},
 		}
 	}
 
@@ -779,8 +771,11 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	// Note that we need validate the string representation of the merkle
-	mr := merkle.Root(hashes)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+	mr, err := wwwutil.MerkleRoot(ni.Files, nil)
+	if err != nil {
+		return err
+	}
+	if !pk.VerifyMessage([]byte(mr), sig) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -794,7 +789,15 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
-	invRec, err := p.getInvoice(invDetails.Token)
+	// Version is an optional query param. Fetch latest version
+	// when query param is not specified.
+	var invRec *cms.InvoiceRecord
+	var err error
+	if invDetails.Version == "" {
+		invRec, err = p.getInvoice(invDetails.Token)
+	} else {
+		invRec, err = p.getInvoiceVersion(invDetails.Token, invDetails.Version)
+	}
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -971,6 +974,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 			})
 	}
 
+	dbInvoice.Username = invRec.Username
 	// Return the reply.
 	sisr := cms.SetInvoiceStatusReply{
 		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
@@ -1216,6 +1220,13 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
+	// Remove all existing line items for that invoice.  They will all get added
+	// back on the update below.
+	err = p.cmsDB.RemoveInvoiceLineItems(invRec.CensorshipRecord.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	// Update the cmsdb
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
 		Files:            convertPropFilesFromWWW(ei.Files),
@@ -1283,6 +1294,30 @@ func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	i := convertInvoiceFromCache(*r)
+
+	// Fill in userID and username fields
+	u, err := p.db.UserGetByPubKey(i.PublicKey)
+	if err != nil {
+		log.Errorf("getInvoice: getUserByPubKey: token:%v "+
+			"pubKey:%v err:%v", token, i.PublicKey, err)
+	} else {
+		i.UserID = u.ID.String()
+		i.Username = u.Username
+	}
+
+	return &i, nil
+}
+
+// getInvoiceVersion gets a specific version of an invoice from the cache.
+func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceRecord, error) {
+	log.Tracef("getInvoiceVersion: %v %v", token, version)
+
+	r, err := p.cache.RecordVersion(token, version)
+	if err != nil {
+		return nil, err
+	}
+
 	i := convertInvoiceFromCache(*r)
 
 	// Fill in userID and username fields
@@ -1603,6 +1638,57 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 		invoices = append(invoices, *invRec)
 	}
 	reply.Invoices = invoices
+	return reply, nil
+}
+
+// processProposalBilling ensures that the request user is either an admin or
+// listed as an owner of the requested proposal.
+func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.User) (*cms.ProposalBillingReply, error) {
+	reply := &cms.ProposalBillingReply{}
+
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to see if the user currently listed as owning the proposal
+	propOwned := false
+	for _, prop := range cmsUser.ProposalsOwned {
+		if prop == pb.Token {
+			propOwned = true
+		}
+	}
+	// If it's not owned and it's not an admin requesting return an error.
+	if !cmsUser.Admin && !propOwned {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
+	invoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pb.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvoiceNotFound,
+		}
+	}
+	propBilling := make([]cms.ProposalLineItems, 0, len(invoices))
+	for _, inv := range invoices {
+		// All invoices should have only 1 line item returned from that function
+		if len(inv.LineItems) > 1 {
+			continue
+		}
+		lineItem := convertDatabaseInvoiceToProposalLineItems(inv)
+		u, err := p.db.UserGetByPubKey(inv.PublicKey)
+		if err != nil {
+			log.Errorf("processProposalBilling: getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", pb.Token, inv.PublicKey, err)
+		} else {
+			lineItem.Username = u.Username
+		}
+		propBilling = append(propBilling, lineItem)
+	}
+	reply.BilledLineItems = propBilling
 	return reply, nil
 }
 

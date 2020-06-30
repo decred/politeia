@@ -42,6 +42,12 @@ const (
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
 
+	// Currently available modes to run politeia, by default piwww, is used.
+	politeiaWWWMode = "piwww"
+	cmsWWWMode      = "cmswww"
+
+	defaultWWWMode = politeiaWWWMode
+
 	// Backend options
 	backendGit     = "git"
 	backendTlog    = "tlog"
@@ -97,6 +103,7 @@ type config struct {
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
 	DcrdataHost   string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
+	Mode          string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 	Backend       string `long:"backend"`
 	TrillianHost  string `long:"trillianhost"`
 	TrillianKey   string `long:"trilliankey"`
@@ -303,6 +310,7 @@ func loadConfig() (*config, []string, error) {
 		HTTPSKey:     defaultHTTPSKeyFile,
 		HTTPSCert:    defaultHTTPSCertFile,
 		Version:      version.String(),
+		Mode:         defaultWWWMode,
 		Backend:      defaultBackend,
 		TrillianHost: defaultTrillianHost,
 	}
@@ -624,6 +632,16 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
+	}
+
+	// Verify mode
+	switch cfg.Mode {
+	case cmsWWWMode:
+	case politeiaWWWMode:
+	default:
+		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
+		fmt.Fprintln(os.Stderr, err)
+		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other configuration is

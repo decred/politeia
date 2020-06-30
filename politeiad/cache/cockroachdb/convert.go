@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/util"
 )
 
 func convertMDStreamFromCache(ms cache.MetadataStream) MetadataStream {
@@ -41,15 +43,16 @@ func convertRecordFromCache(r cache.Record, version uint64) Record {
 	}
 
 	return Record{
-		Key:       r.CensorshipRecord.Token + r.Version,
-		Token:     r.CensorshipRecord.Token,
-		Version:   version,
-		Status:    int(r.Status),
-		Timestamp: r.Timestamp,
-		Merkle:    r.CensorshipRecord.Merkle,
-		Signature: r.CensorshipRecord.Signature,
-		Metadata:  convertMDStreamsFromCache(r.Metadata),
-		Files:     files,
+		Key:         r.CensorshipRecord.Token + r.Version,
+		Token:       r.CensorshipRecord.Token,
+		Version:     version,
+		Status:      int(r.Status),
+		Timestamp:   r.Timestamp,
+		Merkle:      r.CensorshipRecord.Merkle,
+		Signature:   r.CensorshipRecord.Signature,
+		Metadata:    convertMDStreamsFromCache(r.Metadata),
+		Files:       files,
+		TokenPrefix: util.TokenToPrefix(r.CensorshipRecord.Token),
 	}
 }
 
@@ -156,8 +159,14 @@ func convertLikeCommentToDecred(lc LikeComment) decredplugin.LikeComment {
 	}
 }
 
-func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplugin.AuthorizeVoteReply, version uint64) AuthorizeVote {
-	return AuthorizeVote{
+func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplugin.AuthorizeVoteReply) (*AuthorizeVote, error) {
+	version, err := strconv.ParseUint(avr.RecordVersion, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("parse version '%v' failed: %v",
+			avr.RecordVersion, err)
+	}
+
+	return &AuthorizeVote{
 		Key:       av.Token + avr.RecordVersion,
 		Token:     av.Token,
 		Version:   version,
@@ -166,7 +175,7 @@ func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplu
 		PublicKey: av.PublicKey,
 		Receipt:   avr.Receipt,
 		Timestamp: avr.Timestamp,
-	}
+	}, nil
 }
 
 func convertAuthorizeVoteToDecred(av AuthorizeVote) decredplugin.AuthorizeVote {
@@ -398,6 +407,118 @@ func convertVoteOptionResultsToDecred(r []VoteOptionResult) []decredplugin.VoteO
 	results := make([]decredplugin.VoteOptionResult, 0, len(r))
 	for _, v := range r {
 		results = append(results, convertVoteOptionResultToDecred(v))
+	}
+	return results
+}
+
+func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply, endHeight uint32) StartDCCVote {
+	opts := make([]VoteDCCOption, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		opts = append(opts, VoteDCCOption{
+			Token:       sv.Vote.Token,
+			ID:          v.Id,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	weights := make([]DCCUserWeight, 0, len(sv.UserWeights))
+	for _, v := range sv.UserWeights {
+		weights = append(weights, DCCUserWeight{
+			Key:    sv.Vote.Token + "-" + v.UserID,
+			Token:  sv.Vote.Token,
+			UserID: v.UserID,
+			Weight: v.Weight,
+		})
+	}
+	return StartDCCVote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+		Options:          opts,
+		PublicKey:        sv.PublicKey,
+		Signature:        sv.Signature,
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndHeight:        endHeight,
+		EligibleUserIDs:  weights,
+	}
+}
+
+func convertStartVoteToCMS(sv StartDCCVote) (cmsplugin.StartVote, cmsplugin.StartVoteReply) {
+	opts := make([]cmsplugin.VoteOption, 0, len(sv.Options))
+	for _, v := range sv.Options {
+		opts = append(opts, cmsplugin.VoteOption{
+			Id:          v.ID,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+
+	weights := make([]cmsplugin.UserWeight, 0, len(sv.EligibleUserIDs))
+	for _, v := range sv.EligibleUserIDs {
+		weights = append(weights, cmsplugin.UserWeight{
+			UserID: v.UserID,
+			Weight: v.Weight,
+		})
+	}
+
+	dsv := cmsplugin.StartVote{
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+		Vote: cmsplugin.Vote{
+			Token:            sv.Token,
+			Mask:             sv.Mask,
+			Duration:         sv.Duration,
+			QuorumPercentage: sv.QuorumPercentage,
+			PassPercentage:   sv.PassPercentage,
+			Options:          opts,
+		},
+		UserWeights: weights,
+	}
+
+	dsvr := cmsplugin.StartVoteReply{
+		StartBlockHeight: sv.StartBlockHeight,
+		StartBlockHash:   sv.StartBlockHash,
+		EndHeight:        sv.EndHeight,
+	}
+
+	return dsv, dsvr
+}
+
+func convertCastVoteFromCMS(cv cmsplugin.CastVote) CastDCCVote {
+	return CastDCCVote{
+		Token:        cv.Token,
+		UserID:       cv.UserID,
+		VoteBit:      cv.VoteBit,
+		Signature:    cv.Signature,
+		TokenVoteBit: cv.Token + cv.VoteBit,
+	}
+}
+
+func convertCastVoteToCMS(cv CastDCCVote) cmsplugin.CastVote {
+	return cmsplugin.CastVote{
+		Token:     cv.Token,
+		UserID:    cv.UserID,
+		VoteBit:   cv.VoteBit,
+		Signature: cv.Signature,
+	}
+}
+
+func convertVoteOptionResultToCMS(r VoteOptionResult) cmsplugin.VoteOptionResult {
+	return cmsplugin.VoteOptionResult{
+		ID:          r.Option.ID,
+		Description: r.Option.Description,
+		Bits:        r.Option.Bits,
+		Votes:       r.Votes,
+	}
+}
+
+func convertVoteOptionResultsToCMS(r []VoteOptionResult) []cmsplugin.VoteOptionResult {
+	results := make([]cmsplugin.VoteOptionResult, 0, len(r))
+	for _, v := range r {
+		results = append(results, convertVoteOptionResultToCMS(v))
 	}
 	return results
 }

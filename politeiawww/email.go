@@ -33,7 +33,7 @@ func createBody(tpl *template.Template, tplData interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-func (p *politeiawww) createEmailLink(path, email, token string) (string, error) {
+func (p *politeiawww) createEmailLink(path, email, token, username string) (string, error) {
 	l, err := url.Parse(p.cfg.WebServerAddress + path)
 	if err != nil {
 		return "", err
@@ -45,6 +45,9 @@ func (p *politeiawww) createEmailLink(path, email, token string) (string, error)
 	}
 	if token != "" {
 		q.Set("verificationtoken", token)
+	}
+	if username != "" {
+		q.Set("username", username)
 	}
 	l.RawQuery = q.Encode()
 
@@ -71,7 +74,7 @@ func (p *politeiawww) emailNewUserVerificationLink(email, token, username string
 	}
 
 	link, err := p.createEmailLink(www.RouteVerifyNewUser, email,
-		token)
+		token, username)
 	if err != nil {
 		return err
 	}
@@ -501,7 +504,7 @@ func (p *politeiawww) emailUpdateUserKeyVerificationLink(email, publicKey, token
 		return nil
 	}
 
-	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token)
+	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token, "")
 	if err != nil {
 		return err
 	}
@@ -550,7 +553,7 @@ func (p *politeiawww) emailUserLocked(email string) error {
 	}
 
 	link, err := p.createEmailLink(ResetPasswordGuiRoute,
-		email, "")
+		email, "", "")
 	if err != nil {
 		return err
 	}
@@ -576,7 +579,7 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 		return nil
 	}
 
-	link, err := p.createEmailLink(RegisterNewUserGuiRoute, "", token)
+	link, err := p.createEmailLink(RegisterNewUserGuiRoute, "", token, "")
 	if err != nil {
 		return err
 	}

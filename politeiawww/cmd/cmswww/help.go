@@ -25,6 +25,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	}
 
 	switch cmd.Args.Topic {
+	case "invite":
+		fmt.Printf("%s\n", inviteNewUserHelpMsg)
 	case "login":
 		fmt.Printf("%s\n", shared.LoginHelpMsg)
 	case "logout":
@@ -38,6 +40,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "censorcomment":
 		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
 	case "manageuser":
+		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
+	case "cmsmanageuser":
 		fmt.Printf("%s\n", cmsManageUserHelpMsg)
 	case "version":
 		fmt.Printf("%s\n", shared.VersionHelpMsg)

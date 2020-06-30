@@ -7,7 +7,7 @@ package shared
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // LoginCmd logs into Politeia using the specified credentials.
@@ -20,6 +20,13 @@ type LoginCmd struct {
 
 // Execute executes the login command.
 func (cmd *LoginCmd) Execute(args []string) error {
+
+	// Fetch CSRF key
+	_, err := client.Version()
+	if err != nil {
+		return err
+	}
+
 	// Setup login request
 	l := &v1.Login{
 		Email:    cmd.Args.Email,
@@ -27,7 +34,7 @@ func (cmd *LoginCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err := PrintJSON(l)
+	err = PrintJSON(l)
 	if err != nil {
 		return err
 	}

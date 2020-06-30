@@ -14,23 +14,16 @@ import (
 // InviteNewUserCmd allows administrators to invite contractors to join CMS.
 type InviteNewUserCmd struct {
 	Args struct {
-		Email     string `positional-arg-name:"email"`
-		Temporary bool   `positional-arg-name:"temp"`
-	} `positional-args:"true" required:"true"`
+		Email string `positional-arg-name:"email" `
+	} `positional-args:"true"`
+	Temporary bool `long:"temp" optional:"true"`
 }
 
 // Execute executes the invite new user command.
 func (cmd *InviteNewUserCmd) Execute(args []string) error {
-	email := cmd.Args.Email
-
-	if email == "" {
-		return fmt.Errorf("invalid credentials: you must specify user " +
-			"email")
-	}
-
 	inu := &v1.InviteNewUser{
 		Email:     cmd.Args.Email,
-		Temporary: cmd.Args.Temporary,
+		Temporary: cmd.Temporary,
 	}
 
 	// Print request details
@@ -53,3 +46,20 @@ func (cmd *InviteNewUserCmd) Execute(args []string) error {
 
 	return nil
 }
+
+const inviteNewUserHelpMsg = `invite "email"
+
+Send a new user invitation to the given email.
+
+If email has been disabled on the politeiawww server then the verification
+token that would normally be sent to the email address will be returned in the
+response.
+
+Arguments:
+1. email      (string, required)  Email address
+
+Flags:
+  --temp      (bool, optional)    Designate the user as a temporary user. This 
+                                  means the user will only be able to submit a
+                                  single invoice before being deactivated.
+`

@@ -10,6 +10,7 @@ package version
 import (
 	"bytes"
 	"fmt"
+	"runtime/debug"
 	"strings"
 )
 
@@ -72,6 +73,40 @@ func String() string {
 	}
 
 	return version
+}
+
+// BuildMainVersion returns the main module version information from where
+// politeia was builded.
+func BuildMainVersion() string {
+	i, ok := debug.ReadBuildInfo()
+	v := i.Main.Version
+	if !ok {
+		v = "No build information available"
+	}
+	return v
+}
+
+// BuildInformation returns the main module plus all dependecies module
+// version informations from where politeia was builded.
+func BuildInformation() []string {
+	var infos []string
+	i, ok := debug.ReadBuildInfo()
+	if !ok {
+		infos = append(infos, "No build information available")
+		return infos
+	}
+
+	// Add main module info
+	full := i.Main.Path + "-" + i.Main.Version
+	infos = append(infos, full)
+
+	// Add dependecies module info
+	for _, dep := range i.Deps {
+		full = dep.Path + "-" + dep.Version
+		infos = append(infos, full)
+	}
+
+	return infos
 }
 
 // normalizeSemString returns the passed string stripped of all characters

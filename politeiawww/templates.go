@@ -288,7 +288,7 @@ Contractor Management System
 const templateNewDCCSupportOpposeRaw = `
 A DCC has received new support or opposition.
 
-{.Link}}
+{{.Link}}
 
 Regards,
 Contractor Management System

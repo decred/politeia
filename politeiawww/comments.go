@@ -26,31 +26,6 @@ type counters struct {
 	down uint64
 }
 
-// initCommentScores populates the comment scores cache.
-func (p *politeiawww) initCommentScores() error {
-	log.Tracef("initCommentScores")
-
-	// Fetch decred plugin inventory from cache
-	ir, err := p.decredInventory()
-	if err != nil {
-		return fmt.Errorf("decredInventory: %v", err)
-	}
-
-	// XXX this could be done much more efficiently since we
-	// already have all of the like comments in the inventory
-	// response, but re-using the updateCommentVotes function is
-	// simpler. This only gets run on startup so I'm not that
-	// worried about performance for right now.
-	for _, v := range ir.Comments {
-		_, err := p.updateCommentVotes(v.Token, v.CommentID)
-		if err != nil {
-			return fmt.Errorf("updateCommentVotes: %v", err)
-		}
-	}
-
-	return nil
-}
-
 // getComment retreives the specified comment from the cache then fills in
 // politeiawww specific data for the comment.
 func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) {
@@ -72,19 +47,42 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	}
 
 	// Lookup comment votes
-	p.RLock()
-	defer p.RUnlock()
-
-	votes, ok := p.commentVotes[token+commentID]
-	if !ok {
-		log.Errorf("getComment: comment votes lookup failed for "+
-			"token:%v commentID:%v", token, commentID)
+	votes, err := p.getCommentVotes(token, commentID)
+	if err != nil {
+		return nil, err
 	}
 	c.ResultVotes = int64(votes.up - votes.down)
 	c.Upvotes = votes.up
 	c.Downvotes = votes.down
 
 	return &c, nil
+}
+
+// getCommentVotes tries to get comment votes from the cache. If votes are
+// not stored, fetch them and update cache.
+//
+// This function must be called WITHOUT the lock held.
+func (p *politeiawww) getCommentVotes(token, commentID string) (counters, error) {
+	log.Tracef("getCommentVotes: %v %v", token, commentID)
+
+	// Check if comment votes is already cached
+	var votes counters
+	p.RLock()
+	vs, ok := p.commentVotes[token+commentID]
+	p.RUnlock()
+	votes = vs
+	// If not in cache, fetch comment votes and update cache
+	if !ok {
+		vsUpdated, err := p.updateCommentVotes(token, commentID)
+		if err != nil {
+			log.Errorf("getCommentVotes: comment votes update "+
+				"failed: token:%v commentID:%v", token, commentID)
+			return counters{}, err
+		}
+		votes = *vsUpdated
+	}
+
+	return votes, nil
 }
 
 // updateCommentVotes calculates the up/down votes for the specified comment,
@@ -186,7 +184,7 @@ func validateComment(c www.NewComment) error {
 		}
 	}
 	// validate token
-	if !tokenIsValid(c.Token) {
+	if !isTokenValid(c.Token) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}
@@ -198,6 +196,14 @@ func validateComment(c www.NewComment) error {
 // then fetches the new comment from the cache and returns it.
 func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
+
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(nc.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{nc.Token},
+		}
+	}
 
 	// Pay up sucker!
 	if !p.HasUserPaid(u) {
@@ -245,16 +251,15 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(nc.Token)
-	if err != nil {
-		return nil, fmt.Errorf("decredVoteSummary: %v", err)
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	vs, err := p.voteSummaryGet(nc.Token, bb)
+	if err != nil {
+		return nil, fmt.Errorf("voteSummaryGet: %v", err)
+	}
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote is finished"},
@@ -471,6 +476,14 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
 	log.Debugf("processLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(lc.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{lc.Token},
+		}
+	}
+
 	// Pay up sucker!
 	if !p.HasUserPaid(u) {
 		return nil, www.UserError{
@@ -510,16 +523,15 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
+	if err != nil {
+		return nil, err
+	}
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote has ended"},
@@ -621,6 +633,14 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
 	log.Tracef("processCensorComment: %v: %v", cc.Token, cc.CommentID)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(cc.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{cc.Token},
+		}
+	}
+
 	// Ensure the public key is the user's active key
 	if cc.PublicKey != u.PublicKey() {
 		return nil, www.UserError{
@@ -654,16 +674,15 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(cc.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	vs, err := p.voteSummaryGet(cc.Token, bb)
+	if err != nil {
+		return nil, err
+	}
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote has ended"},

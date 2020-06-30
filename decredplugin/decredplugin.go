@@ -18,6 +18,7 @@ const (
 	ID                       = "decred"
 	CmdAuthorizeVote         = "authorizevote"
 	CmdStartVote             = "startvote"
+	CmdStartVoteRunoff       = "startvoterunoff"
 	CmdVoteDetails           = "votedetails"
 	CmdVoteSummary           = "votesummary"
 	CmdBatchVoteSummary      = "batchvotesummary"
@@ -35,24 +36,44 @@ const (
 	CmdProposalCommentsLikes = "proposalcommentslikes"
 	CmdInventory             = "inventory"
 	CmdTokenInventory        = "tokeninventory"
+	CmdLinkedFrom            = "linkedfrom"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
 
-	VoteDurationMin = 2016 // Minimum vote duration (in blocks)
-	VoteDurationMax = 4032 // Maximum vote duration (in blocks)
+	// Vote duration requirements for proposal votes (in blocks)
+	VoteDurationMinMainnet = 2016
+	VoteDurationMaxMainnet = 4032
+	VoteDurationMinTestnet = 0
+	VoteDurationMaxTestnet = 4032
 
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
+
+	// Vote option IDs
+	VoteOptionIDApprove = "yes"
+	VoteOptionIDReject  = "no"
 
 	// Vote types
 	//
 	// VoteTypeStandard is used to indicate a simple approve or reject
 	// proposal vote where the winner is the voting option that has met
 	// the specified pass and quorum requirements.
+	//
+	// VoteTypeRunoff specifies a runoff vote that multiple proposals compete in.
+	// All proposals are voted on like normal, but there can only be one winner
+	// in a runoff vote. The winner is the proposal that meets the quorum
+	// requirement, meets the pass requirement, and that has the most net yes
+	// votes. The winning proposal is considered approved and all other proposals
+	// are considered rejected. If no proposals meet the quorum and pass
+	// requirements then all proposals are considered rejected.
+	// Note: in a runoff vote it is possible for a proposal to meet the quorum
+	// and pass requirements but still be rejected if it does not have the most
+	// net yes votes.
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
+	VoteTypeRunoff   VoteT = 2
 
 	// Versioning
 	VersionStartVoteV1 = 1
@@ -463,6 +484,58 @@ func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
 	return &v, nil
 }
 
+// StartVoteRunoff instructs the plugin to start a runoff vote using the given
+// submissions. Each submission is required to have its own AuthorizeVote and
+// StartVote.
+type StartVoteRunoff struct {
+	Token          string          `json:"token"`          // Token of RFP proposal
+	AuthorizeVotes []AuthorizeVote `json:"authorizevotes"` // Submission auth votes
+	StartVotes     []StartVoteV2   `json:"startvotes"`     // Submission start votes
+}
+
+// EncodeStartVoteRunoffencodes StartVoteRunoffinto a JSON byte slice.
+func EncodeStartVoteRunoff(v StartVoteRunoff) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVotedecodes a JSON byte slice into a StartVoteRunoff.
+func DecodeStartVoteRunoff(payload []byte) (*StartVoteRunoff, error) {
+	var sv StartVoteRunoff
+
+	err := json.Unmarshal(payload, &sv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sv, nil
+}
+
+// StartVoteRunoffReply is the reply to StartVoteRunoff. The StartVoteReply
+// will be the same for all submissions so only one is returned. The individual
+// AuthorizeVoteReply is returned for each submission where the token is the
+// map key.
+type StartVoteRunoffReply struct {
+	AuthorizeVoteReplies map[string]AuthorizeVoteReply `json:"authorizevotereply"`
+	StartVoteReply       StartVoteReply                `json:"startvotereply"`
+}
+
+// EncodeStartVoteRunoffReply encodes StartVoteRunoffReply into a JSON byte slice.
+func EncodeStartVoteRunoffReply(v StartVoteRunoffReply) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVoteReply decodes a JSON byte slice into a StartVoteRunoffReply.
+func DecodeStartVoteRunoffReply(payload []byte) (*StartVoteRunoffReply, error) {
+	var v StartVoteRunoffReply
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
 // VoteDetails is used to retrieve the voting period details for a record.
 type VoteDetails struct {
 	Token string `json:"token"` // Censorship token
@@ -554,7 +627,8 @@ func DecodeVoteResultsReply(payload []byte) (*VoteResultsReply, error) {
 // VoteSummary requests a summary of a proposal vote. This includes certain
 // voting period parameters and a summary of the vote results.
 type VoteSummary struct {
-	Token string `json:"token"` // Censorship token
+	Token     string `json:"token"`     // Censorship token
+	BestBlock uint64 `json:"bestblock"` // Best block
 }
 
 // EncodeVoteSummary encodes VoteSummary into a JSON byte slice.
@@ -587,12 +661,14 @@ type VoteOptionResult struct {
 // voting period parameters as well as a summary of the vote results.
 type VoteSummaryReply struct {
 	Authorized          bool               `json:"authorized"`          // Vote is authorized
+	Type                VoteT              `json:"type"`                // Vote type
 	Duration            uint32             `json:"duration"`            // Vote duration
 	EndHeight           string             `json:"endheight"`           // End block height
 	EligibleTicketCount int                `json:"eligibleticketcount"` // Number of eligible tickets
 	QuorumPercentage    uint32             `json:"quorumpercentage"`    // Percent of eligible votes required for quorum
 	PassPercentage      uint32             `json:"passpercentage"`      // Percent of total votes required to pass
 	Results             []VoteOptionResult `json:"results"`             // Vote results
+	Approved            bool               `json:"approved"`            // Was vote approved
 }
 
 // EncodeVoteSummaryReply encodes VoteSummary into a JSON byte slice.
@@ -616,7 +692,8 @@ func DecodeVoteSummaryReply(payload []byte) (*VoteSummaryReply, error) {
 // includes certain voting period parameters and a summary of the vote
 // results.
 type BatchVoteSummary struct {
-	Tokens []string `json:"token"` // Censorship token
+	Tokens    []string `json:"token"`     // Censorship token
+	BestBlock uint64   `json:"bestblock"` // Best block
 }
 
 // EncodeBatchVoteSummary encodes BatchVoteSummary into a JSON byte slice.
@@ -638,7 +715,9 @@ func DecodeBatchVoteSummary(payload []byte) (*BatchVoteSummary, error) {
 
 // BatchVoteSummaryReply is the reply to the VoteSummary command and returns
 // certain voting period parameters as well as a summary of the vote results.
-// Results will only be returned for tokens of valid vetted proposals.
+// Results are returned for all tokens that correspond to a proposal. This
+// includes both unvetted and vetted proposals. Tokens that do no correspond to
+// a proposal are not included in the returned map.
 type BatchVoteSummaryReply struct {
 	Summaries map[string]VoteSummaryReply `json:"summaries"` // Vote summaries
 }
@@ -1250,6 +1329,54 @@ func EncodeLoadVoteResultsReply(reply LoadVoteResultsReply) ([]byte, error) {
 // DecodeLoadVoteResultsReply decodes a JSON byte slice into a LoadVoteResults.
 func DecodeLoadVoteResultsReply(payload []byte) (*LoadVoteResultsReply, error) {
 	var reply LoadVoteResultsReply
+
+	err := json.Unmarshal(payload, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
+}
+
+// LinkedFrom returns a map[token][]token that contains the linked from list
+// for each of the given proposal tokens. A linked from list is a list of all
+// the proposals that have linked to a given proposal using the LinkTo field in
+// the ProposalMetadata mdstream. If a token does not correspond to an actual
+// proposal then it will not be included in the returned map.
+type LinkedFrom struct {
+	Tokens []string `json:"tokens"`
+}
+
+// EncodeLinkedFrom encodes a LinkedFrom into a JSON byte slice.
+func EncodeLinkedFrom(lf LinkedFrom) ([]byte, error) {
+	return json.Marshal(lf)
+}
+
+// DecodeLinkedFrom decodes a JSON byte slice into a LinkedFrom.
+func DecodeLinkedFrom(payload []byte) (*LinkedFrom, error) {
+	var lf LinkedFrom
+
+	err := json.Unmarshal(payload, &lf)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lf, nil
+}
+
+// LinkedFromReply is the reply to the LinkedFrom command.
+type LinkedFromReply struct {
+	LinkedFrom map[string][]string `json:"linkedfrom"`
+}
+
+// EncodeLinkedFromReply encodes a LinkedFromReply into a JSON byte slice.
+func EncodeLinkedFromReply(reply LinkedFromReply) ([]byte, error) {
+	return json.Marshal(reply)
+}
+
+// DecodeLinkedFromReply decodes a JSON byte slice into a LinkedFrom.
+func DecodeLinkedFromReply(payload []byte) (*LinkedFromReply, error) {
+	var reply LinkedFromReply
 
 	err := json.Unmarshal(payload, &reply)
 	if err != nil {

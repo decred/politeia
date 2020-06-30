@@ -55,7 +55,7 @@ type EventDataProposalEdited struct {
 
 type EventDataProposalVoteStarted struct {
 	AdminUser *user.User
-	StartVote *www2.StartVote
+	StartVote www2.StartVote
 }
 
 type EventDataProposalVoteAuthorized struct {
@@ -439,9 +439,12 @@ func (p *politeiawww) _setupProposalVoteAuthorizedEmailNotification() {
 				log.Errorf("proposal not found: %v", err)
 				continue
 			}
-			proposal := convertPropFromCache(*record)
+			proposal, err := convertPropFromCache(*record)
+			if err != nil {
+				log.Errorf("invalid proposal %v", token)
+			}
 
-			err = p.emailAdminsForProposalVoteAuthorized(&proposal, pvs.User)
+			err = p.emailAdminsForProposalVoteAuthorized(proposal, pvs.User)
 			if err != nil {
 				log.Errorf("email all admins for new submitted proposal %v: %v",
 					token, err)
@@ -532,11 +535,7 @@ func (e *EventManager) _register(eventType EventT, listenerToAdd chan interface{
 		e.Listeners = make(map[EventT][]chan interface{})
 	}
 
-	if _, ok := e.Listeners[eventType]; ok {
-		e.Listeners[eventType] = append(e.Listeners[eventType], listenerToAdd)
-	} else {
-		e.Listeners[eventType] = []chan interface{}{listenerToAdd}
-	}
+	e.Listeners[eventType] = append(e.Listeners[eventType], listenerToAdd)
 }
 
 // _unregister removes the given listener channel for the given event type.
