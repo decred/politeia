@@ -6,11 +6,8 @@ package tlogbe
 
 import (
 	"bytes"
-	"context"
-	"crypto"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -30,31 +27,28 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
-	"github.com/google/trillian/crypto/keys"
-	"github.com/google/trillian/crypto/keys/der"
-	"github.com/google/trillian/crypto/keyspb"
 	"github.com/google/trillian/types"
 	"github.com/marcopeereboom/sbox"
-	"google.golang.org/grpc"
+	"github.com/robfig/cron"
 	"google.golang.org/grpc/codes"
 )
 
-// TODO make unvetted record metdata behavior the same as vetted
-// and document why gitbe handles them differently
-// TODO if we want to get rid of the cache we will need to make the
-// locking more granular and lock on the individual token level
+// TODO we need to seperate testnet and mainnet trillian trees. This will need
+// to be done through setup scripts and config options. Use different ports for
+// testnet.
+// TODO lock on the token level
 
 const (
 	defaultTrillianKeyFilename   = "trillian.key"
 	defaultEncryptionKeyFilename = "tlogbe.key"
 
-	blobsDirname = "blobs"
+	recordsDirname = "records"
 )
 
 var (
 	_ backend.Backend = (*tlogbe)(nil)
 
-	// statusChanges contains the allowed record status changes
+	// statusChanges contains the allowed record status changes.
 	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
 		// Unvetted status changes
 		backend.MDStatusUnvetted: map[backend.MDStatusT]struct{}{
@@ -81,40 +75,25 @@ type tlogbe struct {
 	homeDir       string
 	dataDir       string
 	dcrtimeHost   string
-	encryptionKey *[32]byte
+	encryptionKey *EncryptionKey
 	store         store.Blob
+	tlog          *TrillianClient
+	cron          *cron.Cron
 	plugins       []backend.Plugin
 
-	// Trillian
-	grpc       *grpc.ClientConn             // Trillian grpc connection
-	client     trillian.TrillianLogClient   // Trillian log client
-	admin      trillian.TrillianAdminClient // Trillian admin client
-	ctx        context.Context              // Context used for trillian calls
-	privateKey *keyspb.PrivateKey           // Trillian signing key
-	publicKey  crypto.PublicKey             // Trillian public key
+	unvetted *tlog
+	vetted   *tlog
 
-	// dirty keeps track of which trillian trees are dirty and at what
-	// height. Dirty means that the tree has leaves that have not been
-	// anchored yet.
-	dirtyMtx       sync.RWMutex
-	dirty          map[int64]uint64 // [treeid]height
-	droppingAnchor bool             // Anchor dropping is in progress
-}
+	// prefixes contains the first n characters of each record token,
+	// where n is defined by the TokenPrefixLength from the politeiad
+	// API. Lookups by token prefix are allowed. This cache is used to
+	// prevent prefix collisions when creating new tokens.
+	prefixes map[string]struct{}
 
-func tokenFromTreeID(treeID int64) []byte {
-	b := make([]byte, binary.MaxVarintLen64)
-	// Converting between int64 and uint64 doesn't change the sign bit,
-	// only the way it's interpreted.
-	binary.LittleEndian.PutUint64(b, uint64(treeID))
-	return b
-}
-
-func treeIDFromToken(token []byte) int64 {
-	return int64(binary.LittleEndian.Uint64(token))
-}
-
-func tokenString(token []byte) string {
-	return hex.EncodeToString(token)
+	// droppingAnchor indicates whether tlogbe is in the process of
+	// dropping an anchor, i.e. timestamping unanchored trillian trees
+	// using dcrtime. An anchor is dropped periodically using cron.
+	droppingAnchor bool
 }
 
 // statusChangeIsAllowed returns whether the provided status change is allowed
@@ -128,48 +107,6 @@ func statusChangeIsAllowed(from, to backend.MDStatusT) bool {
 	}
 	_, ok = allowed[to]
 	return ok
-}
-
-func (t *tlogbe) dirtyAdd(treeID int64, treeSize uint64) {
-	log.Tracef("dirtyAdd treeID:%v treeSize:%v", treeID, treeSize)
-
-	t.dirtyMtx.Lock()
-	defer t.dirtyMtx.Unlock()
-
-	t.dirty[treeID] = treeSize
-}
-
-func (t *tlogbe) dirtyDel(treeID int64) {
-	log.Tracef("dirtyDel: %v", treeID)
-
-	t.dirtyMtx.Lock()
-	defer t.dirtyMtx.Unlock()
-
-	delete(t.dirty, treeID)
-}
-
-func (t *tlogbe) dirtyHeight(treeID int64) (uint64, bool) {
-	log.Tracef("dirtyHeight: %v", treeID)
-
-	t.dirtyMtx.RLock()
-	defer t.dirtyMtx.RUnlock()
-
-	h, ok := t.dirty[treeID]
-	return h, ok
-}
-
-func (t *tlogbe) dirtyCopy() map[int64]uint64 {
-	log.Tracef("dirtyCopy")
-
-	t.dirtyMtx.RLock()
-	defer t.dirtyMtx.RUnlock()
-
-	dirtyCopy := make(map[int64]uint64, len(t.dirty))
-	for k, v := range t.dirty {
-		dirtyCopy[k] = v
-	}
-
-	return dirtyCopy
 }
 
 func merkleRoot(files []backend.File) (*[sha256.Size]byte, error) {
@@ -488,7 +425,7 @@ func metadataStreamsApplyChanges(md, mdAppend, mdOverwrite []backend.MetadataStr
 // such as when a file is deleted from a record then added back to the record
 // without being altered. The order of the returned leaf proofs is not
 // guaranteed.
-func (t *tlogbe) blobEntriesAppend(token []byte, entries []blobEntry) ([]leafProof, *types.LogRootV1, error) {
+func (t *tlogbe) blobEntriesAppend(token []byte, entries []blobEntry) ([]LeafProof, *types.LogRootV1, error) {
 	// Setup request
 	treeID := treeIDFromToken(token)
 	leaves, err := convertLeavesFromBlobEntries(entries)
@@ -497,7 +434,7 @@ func (t *tlogbe) blobEntriesAppend(token []byte, entries []blobEntry) ([]leafPro
 	}
 
 	// Append leaves
-	queued, lr, err := t.leavesAppend(treeID, leaves)
+	queued, lr, err := t.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
 		return nil, nil, fmt.Errorf("leavesAppend: %v", err)
 	}
@@ -511,7 +448,7 @@ func (t *tlogbe) blobEntriesAppend(token []byte, entries []blobEntry) ([]leafPro
 	// Convert queuedLeafProofs to leafProofs. Fail if any of the
 	// leaves were not appended successfully. The exception to this is
 	// if the leaf was not appended because it was a duplicate.
-	proofs := make([]leafProof, 0, len(queued))
+	proofs := make([]LeafProof, 0, len(queued))
 	dups := make([][]byte, 0, len(queued))
 	failed := make([]string, 0, len(queued))
 	for _, v := range queued {
@@ -519,7 +456,7 @@ func (t *tlogbe) blobEntriesAppend(token []byte, entries []blobEntry) ([]leafPro
 		switch c {
 		case codes.OK:
 			// Leaf successfully appended to tree
-			proofs = append(proofs, leafProof{
+			proofs = append(proofs, LeafProof{
 				Leaf:  v.QueuedLeaf.Leaf,
 				Proof: v.Proof,
 			})
@@ -552,7 +489,7 @@ func (t *tlogbe) blobEntriesAppend(token []byte, entries []blobEntry) ([]leafPro
 
 	// Retrieve leaf proofs for duplicates
 	if len(dups) > 0 {
-		p, err := t.leafProofs(treeID, dups, lr)
+		p, err := t.tlog.LeafProofs(treeID, dups, lr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("leafProofs: %v", err)
 		}
@@ -689,6 +626,7 @@ func (t *tlogbe) recordSave(token []byte, metadata []backend.MetadataStream, fil
 	if err != nil {
 		return nil, err
 	}
+
 	// The RecordMetadata is intentionally put first so that it is
 	// added to the trillian tree first. If we ever need to walk the
 	// tree a RecordMetadata will signify the start of a new record.
@@ -770,11 +708,11 @@ func (t *tlogbe) recordSave(token []byte, metadata []backend.MetadataStream, fil
 	// Save all blobs
 	log.Debugf("Saving %v blobs to kv store", len(blobs))
 
-	err = t.store.Multi(store.Ops{
+	err = t.store.Batch(store.Ops{
 		Put: blobs,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("store Multi: %v", err)
+		return nil, fmt.Errorf("store Batch: %v", err)
 	}
 
 	// Lookup new version of the record
@@ -1107,12 +1045,12 @@ func (t *tlogbe) recordUpdate(token []byte, mdAppend, mdOverwrite []backend.Meta
 	}
 
 	// Save all the blob changes
-	err = t.store.Multi(store.Ops{
+	err = t.store.Batch(store.Ops{
 		Put: blobs,
 		Del: del,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("store Multi: %v", err)
+		return nil, fmt.Errorf("store Batch: %v", err)
 	}
 
 	// Retrieve and return the updated record
@@ -1133,7 +1071,7 @@ func (t *tlogbe) recordUpdate(token []byte, mdAppend, mdOverwrite []backend.Meta
 	return r, nil
 }
 
-/// New satisfies the Backend interface.
+// New satisfies the Backend interface.
 func (t *tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*backend.RecordMetadata, error) {
 	log.Tracef("New")
 
@@ -1143,29 +1081,52 @@ func (t *tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 		return nil, err
 	}
 
-	// Create a new trillian tree. The treeID is used as the record
-	// token.
-	// TODO handle token prefix collisions
-	tree, _, err := t.treeNew()
+	// Create token
+	token, err := t.unvetted.tokenNew()
 	if err != nil {
-		return nil, fmt.Errorf("treeNew: %v", err)
+		return nil, err
 	}
-	token := tokenFromTreeID(tree.TreeId)
 
-	// Save record
-	rh := recordHistoryNew(token)
+	// TODO handle token prefix collisions
+
+	// Create record metadata
 	rm, err := recordMetadataNew(token, files, backend.MDStatusUnvetted, 1)
 	if err != nil {
 		return nil, err
 	}
-	_, err = t.recordSave(token, metadata, files, *rm, rh)
+
+	// Save record
+	r, err := t.unvetted.recordSave(token, metadata, files, *rm)
 	if err != nil {
-		return nil, fmt.Errorf("recordSave %x: %v", token, err)
+		return nil, fmt.Errorf("unvetted save %x: %v", token, err)
 	}
 
-	log.Infof("New record tree:%v token:%x", tree.TreeId, token)
+	log.Infof("New record %x", token)
 
-	return rm, nil
+	return &r.RecordMetadata, nil
+	/*
+		// Create a tree
+		tree, _, err := t.client.treeNew()
+		if err != nil {
+			return nil, fmt.Errorf("treeNew: %v", err)
+		}
+		token := tokenFromTreeID(tree.TreeId)
+
+		// Save record
+		rh := recordHistoryNew(token)
+		rm, err := recordMetadataNew(token, files, backend.MDStatusUnvetted, 1)
+		if err != nil {
+			return nil, err
+		}
+		_, err = t.recordSave(token, metadata, files, *rm, rh)
+		if err != nil {
+			return nil, fmt.Errorf("recordSave %x: %v", token, err)
+		}
+
+		log.Infof("New record tree:%v token:%x", tree.TreeId, token)
+
+		return rm, nil
+	*/
 }
 
 func (t *tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
@@ -1587,6 +1548,12 @@ func (t *tlogbe) Inventory(vettedCount uint, branchCount uint, includeFiles, all
 	// gitbe correspond to unvetted records. Neither of these are
 	// implemented in gitbe so they will not be implemented here
 	// either. They can be added in the future if they are needed.
+	switch {
+	case vettedCount != 0:
+		return nil, nil, fmt.Errorf("vetted count is not implemented")
+	case branchCount != 0:
+		return nil, nil, fmt.Errorf("branch count is not implemented")
+	}
 
 	// Get all record histories from the store
 	hists := make([]recordHistory, 0, 1024)
@@ -1663,42 +1630,13 @@ func (t *tlogbe) Close() {
 	t.shutdown = true
 
 	// Close trillian connection
-	t.grpc.Close()
+	t.tlog.Close()
 
 	// Zero out encryption key
-	util.Zero(t.encryptionKey[:])
-	t.encryptionKey = nil
+	t.encryptionKey.Zero()
 }
 
 func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptionKeyFile string) (*tlogbe, error) {
-	// Setup trillian key file
-	if trillianKeyFile == "" {
-		// No file path was given. Use the default path.
-		trillianKeyFile = filepath.Join(homeDir, defaultTrillianKeyFilename)
-	}
-	if !util.FileExists(trillianKeyFile) {
-		// Trillian key file does not exist. Create one.
-		log.Infof("Generating trillian private key")
-		if trillianKeyFile == "" {
-		}
-		key, err := keys.NewFromSpec(&keyspb.Specification{
-			// TODO Params: &keyspb.Specification_Ed25519Params{},
-			Params: &keyspb.Specification_EcdsaParams{},
-		})
-		if err != nil {
-			return nil, err
-		}
-		b, err := der.MarshalPrivateKey(key)
-		if err != nil {
-			return nil, err
-		}
-		err = ioutil.WriteFile(trillianKeyFile, b, 0400)
-		if err != nil {
-			return nil, err
-		}
-		log.Infof("Trillian private key created: %v", trillianKeyFile)
-	}
-
 	// Setup encryption key file
 	if encryptionKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -1719,72 +1657,66 @@ func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptio
 		log.Infof("Encryption key created: %v", encryptionKeyFile)
 	}
 
-	// Connect to trillian
-	log.Infof("Trillian log server: %v", trillianHost)
-	g, err := grpc.Dial(trillianHost, grpc.WithInsecure())
+	// Setup trillian client
+	tlog, err := trillianClientNew(homeDir, trillianHost, trillianKeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("grpc dial: %v", err)
+		return nil, err
 	}
 
-	// Setup blob key-value store
-	blobsPath := filepath.Join(dataDir, blobsDirname)
-	err = os.MkdirAll(blobsPath, 0700)
+	// Setup key-value store
+	fp := filepath.Join(dataDir, recordsDirname)
+	err = os.MkdirAll(fp, 0700)
 	if err != nil {
 		return nil, err
 	}
-	store := filesystem.New(blobsPath)
-
-	// Load trillian key pair
-	var privateKey = &keyspb.PrivateKey{}
-	privateKey.Der, err = ioutil.ReadFile(trillianKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	signer, err := der.UnmarshalPrivateKey(privateKey.Der)
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("Trillian key loaded")
+	store := filesystem.New(fp)
 
 	// Load encryption key
 	f, err := os.Open(encryptionKeyFile)
 	if err != nil {
 		return nil, err
 	}
-	var encryptionKey [32]byte
-	n, err := f.Read(encryptionKey[:])
-	if n != len(encryptionKey) {
+	var key [32]byte
+	n, err := f.Read(key[:])
+	if n != len(key) {
 		return nil, fmt.Errorf("invalid encryption key length")
 	}
 	if err != nil {
 		return nil, err
 	}
 	f.Close()
+	encryptionKey := encryptionKeyNew(&key)
+
 	log.Infof("Encryption key loaded")
 
-	// Dcrtime host
+	// Setup dcrtime host
 	_, err = url.Parse(dcrtimeHost)
 	if err != nil {
 		return nil, fmt.Errorf("parse dcrtime host '%v': %v", dcrtimeHost, err)
 	}
 	log.Infof("Anchor host: %v", dcrtimeHost)
 
-	// TODO Launch cron
-	// TODO fsck
-	// TODO test trillian connection
-
-	return &tlogbe{
+	t := tlogbe{
 		homeDir:       homeDir,
 		dataDir:       dataDir,
-		encryptionKey: &encryptionKey,
+		encryptionKey: encryptionKey,
 		dcrtimeHost:   dcrtimeHost,
 		store:         store,
-		grpc:          g,
-		client:        trillian.NewTrillianLogClient(g),
-		admin:         trillian.NewTrillianAdminClient(g),
-		ctx:           context.Background(),
-		privateKey:    privateKey,
-		publicKey:     signer.Public(),
-		dirty:         make(map[int64]uint64),
-	}, nil
+		tlog:          tlog,
+		cron:          cron.New(),
+	}
+
+	// Launch cron
+	log.Infof("Launch cron anchor job")
+	err = t.cron.AddFunc(anchorSchedule, func() {
+		t.anchorTrees()
+	})
+	if err != nil {
+		return nil, err
+	}
+	t.cron.Start()
+
+	// TODO fsck
+
+	return &t, nil
 }

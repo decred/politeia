@@ -32,6 +32,7 @@ import (
 	"github.com/google/trillian/crypto/keys/der"
 	"github.com/google/trillian/crypto/keyspb"
 	"github.com/google/trillian/crypto/sigpb"
+	_ "github.com/google/trillian/merkle/rfc6962"
 	"github.com/google/trillian/types"
 	"github.com/gorilla/mux"
 	"github.com/robfig/cron"
@@ -502,10 +503,6 @@ func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot
 	// Get inclusion proofs
 	proofs := make([]v1.QueuedLeafProof, 0, len(qlr.QueuedLeaves))
 	for _, v := range qlr.QueuedLeaves {
-		fmt.Printf("%x\n", v.Leaf.LeafValue)
-		fmt.Printf("%x\n", v.Leaf.MerkleLeafHash)
-		fmt.Printf("%x\n", util.Digest(v.Leaf.LeafValue))
-
 		qllp := v1.QueuedLeafProof{
 			QueuedLeaf: *v,
 		}

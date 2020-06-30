@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	_ store.Blob = (*fileSystem)(nil)
+// TODO put back
+// _ store.Blob = (*fileSystem)(nil)
 )
 
 // fileSystem implements the Blob interface using the file system.
@@ -103,7 +104,7 @@ func (f *fileSystem) Enum(cb func(key string, value []byte) error) error {
 	return nil
 }
 
-func (f *fileSystem) multi(ops store.Ops) error {
+func (f *fileSystem) batch(ops store.Ops) error {
 	for _, fn := range ops.Del {
 		log.Tracef("del: %v", fn)
 		err := f.del(fn)
@@ -121,8 +122,8 @@ func (f *fileSystem) multi(ops store.Ops) error {
 	return nil
 }
 
-func (f *fileSystem) Multi(ops store.Ops) error {
-	log.Tracef("Multi")
+func (f *fileSystem) Batch(ops store.Ops) error {
+	log.Tracef("Batch")
 
 	f.Lock()
 	defer f.Unlock()
@@ -152,15 +153,15 @@ func (f *fileSystem) Multi(ops store.Ops) error {
 		puts[fn] = b
 	}
 
-	err := f.multi(ops)
+	err := f.batch(ops)
 	if err != nil {
 		// Unwind puts
 		for fn := range ops.Put {
 			err2 := f.del(fn)
 			if err2 != nil {
 				// This is ok. It just means the file was never saved before
-				// the multi function exited with an error.
-				log.Debugf("unwind multi: del %v: %v", fn, err2)
+				// the batch function exited with an error.
+				log.Debugf("batch unwind: del %v: %v", fn, err2)
 				continue
 			}
 		}
@@ -171,7 +172,7 @@ func (f *fileSystem) Multi(ops store.Ops) error {
 			err2 := f.put(fn, b)
 			if err2 != nil {
 				// We're in trouble!
-				log.Criticalf("multi unwind: unable to put original file back %v: %v",
+				log.Criticalf("batch unwind: unable to put original file back %v: %v",
 					fn, err2)
 				unwindFailed = true
 				continue
@@ -189,7 +190,7 @@ func (f *fileSystem) Multi(ops store.Ops) error {
 			err2 = f.put(fn, b)
 			if err2 != nil {
 				// We're in trouble!
-				log.Criticalf("multi unwind: unable to put deleted file back %v: %v",
+				log.Criticalf("batch unwind: unable to put deleted file back %v: %v",
 					fn, err2)
 				unwindFailed = true
 				continue
@@ -199,8 +200,8 @@ func (f *fileSystem) Multi(ops store.Ops) error {
 		if unwindFailed {
 			// Print orignal error that caused the unwind then panic
 			// because the unwind failed.
-			log.Errorf("multi: %v", err)
-			panic("multi unwind failed")
+			log.Errorf("batch: %v", err)
+			panic("batch unwind failed")
 		}
 
 		return err

@@ -41,7 +41,7 @@ func (e ErrNotAnchored) Error() string {
 	return e.err.Error()
 }
 
-// isTimestamp determines if a string is a valid SHA256 digest.
+// isDigest determines if a string is a valid SHA256 digest.
 func isDigest(digest string) bool {
 	return v1.RegexpSHA256.MatchString(digest)
 }
@@ -141,6 +141,12 @@ func Timestamp(id, host string, digests []*[sha256.Size]byte) error {
 // error is returned.  If the reply is valid it is returned to the caller for
 // further processing.  This means that the caller can be assured that all
 // checks have been done and the data is readily usable.
+//
+// Note the Result in the reply will be set to OK as soon as the digest is
+// waiting to be anchored. The ChainInformation will be populated once the
+// digest has been included in a dcr transaction, except for the ChainTimestamp
+// field. The ChainTimestamp field is only populated once the dcr transaction
+// has 6 confirmations.
 func Verify(id, host string, digests []string) (*v1.VerifyReply, error) {
 	ver := v1.Verify{
 		ID: id,

@@ -26,6 +26,7 @@ require (
 	github.com/decred/dcrdata/pubsub/v4 v4.0.3-0.20191219212733-19f656d6d679
 	github.com/decred/dcrdata/semver v1.0.0
 	github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e
+	github.com/decred/dcrtime/api/v2 v2.0.0-20200618212201-c181ffffd11c
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
 	github.com/decred/go-socks v1.1.0
@@ -73,6 +74,7 @@ require (
 	golang.org/x/crypto v0.0.0-20190829043050-9756ffdc2472
 	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
+	google.golang.org/genproto v0.0.0-20190425155659-357c62f0e4bb
 	google.golang.org/grpc v1.24.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )

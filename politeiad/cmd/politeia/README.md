@@ -73,9 +73,12 @@ Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 
 ## Set unvetted status
 
-You can update the status of an unvetted record using `publish` or `censor`
-arguments. `publish` makes the record a public, vetted record. `censor` keeps
-the record private. Note the token argument is not prefixed in this command.
+You can update the status of an unvetted record using one of the following
+statuses:
+- `publish` - make the record a public, vetted record.
+- `censor` - keep the record unvetted and mark as censored.
+
+Note `token:` is not prefixed to the token in this command.
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus publish 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4               

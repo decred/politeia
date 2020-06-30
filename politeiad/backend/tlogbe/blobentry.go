@@ -15,6 +15,8 @@ import (
 )
 
 const (
+	blobEntryVersion uint32 = 1
+
 	// Data descriptor types. These may be freely edited since they are
 	// solely hints to the application.
 	dataTypeStructure = "struct" // Descriptor contains a structure
@@ -24,8 +26,11 @@ const (
 	dataDescriptorRecordMetadata = "recordmetadata"
 	dataDescriptorMetadataStream = "metadatastream"
 	dataDescriptorRecordHistory  = "recordhistory"
+	dataDescriptorAnchor         = "anchor"
 
-	// Blob entry key prefixes for the key-value store
+	dataDescriptorRecordIndex = "recordindex"
+
+	// Key prefixes for blob entries saved to the key-value store
 	keyPrefixRecordHistory = "index"
 	keyPrefixRecordContent = "record"
 	keyPrefixAnchor        = "anchor"
@@ -34,15 +39,16 @@ const (
 // dataDescriptor provides hints about a data blob. In practise we JSON encode
 // this struture and stuff it into blobEntry.DataHint.
 type dataDescriptor struct {
-	Type       string `json:"type"`                // Type of data that is stored
+	Type       string `json:"type"`                // Type of data
 	Descriptor string `json:"descriptor"`          // Description of the data
-	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used by caller
+	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used
 }
 
 // blobEntry is the structure used to store data in the Blob key-value store.
+// All data in the Blob key-value store will be encoded as a blobEntry.
 type blobEntry struct {
-	Hash     string `json:"hash"`     // SHA256 hash of the data payload, hex encoded
-	DataHint string `json:"datahint"` // Hint that describes the data, base64 encoded
+	Hash     string `json:"hash"`     // SHA256 hash of data payload, hex encoded
+	DataHint string `json:"datahint"` // Hint that describes data, base64 encoded
 	Data     string `json:"data"`     // Data payload, base64 encoded
 }
 
@@ -52,11 +58,11 @@ func keyRecordHistory(token []byte) string {
 	return keyPrefixRecordHistory + hex.EncodeToString(token)
 }
 
-// keyRecordContent returns the key for the blob key-value store for any type
-// of record content (files, metadata streams, record metadata). Its possible
-// for two different records to submit the same file resulting in identical
-// merkle leaf hashes. The token is included in the key to ensure that a
-// situation like this does not lead to unwanted behavior.
+// keyRecordContent returns the key-value store key for any type of record
+// content (files, metadata streams, record metadata). Its possible for two
+// different records to submit the same file resulting in identical merkle leaf
+// hashes. The token is included in the key to ensure that a situation like
+// this does not lead to unwanted behavior.
 func keyRecordContent(token, merkleLeafHash []byte) string {
 	return keyPrefixRecordContent + hex.EncodeToString(token) +
 		hex.EncodeToString(merkleLeafHash)
@@ -64,7 +70,7 @@ func keyRecordContent(token, merkleLeafHash []byte) string {
 
 // keyAnchor returns the key for the blob key-value store for a anchor record.
 func keyAnchor(logRootHash []byte) string {
-	return keyPrefixRecordHistory + hex.EncodeToString(logRootHash)
+	return keyPrefixAnchor + hex.EncodeToString(logRootHash)
 }
 
 func blobify(be blobEntry) ([]byte, error) {
@@ -96,7 +102,7 @@ func deblob(blob []byte) (*blobEntry, error) {
 	return &be, nil
 }
 
-func blobifyEncrypted(be blobEntry, key *[32]byte) ([]byte, error) {
+func blobifyEncrypted(be blobEntry, key *EncryptionKey) ([]byte, error) {
 	var b bytes.Buffer
 	zw := gzip.NewWriter(&b)
 	enc := gob.NewEncoder(zw)
@@ -108,15 +114,15 @@ func blobifyEncrypted(be blobEntry, key *[32]byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blob, err := encryptAndPack(b.Bytes(), key)
+	blob, err := key.Encrypt(blobEntryVersion, b.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	return blob, nil
 }
 
-func deblobEncrypted(blob []byte, key *[32]byte) (*blobEntry, error) {
-	b, err := unpackAndDecrypt(key, blob)
+func deblobEncrypted(blob []byte, key *EncryptionKey) (*blobEntry, error) {
+	b, _, err := key.Decrypt(blob)
 	if err != nil {
 		return nil, err
 	}

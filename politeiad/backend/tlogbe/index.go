@@ -52,19 +52,16 @@ type recordHistory struct {
 	State    string                 `json:"state"`    // Unvetted or vetted
 	Versions map[uint32]recordIndex `json:"versions"` // [version]recordIndex
 
-	// TODO remove anchor when deleting an orphaned blob
-	// Anchors contains the anchored log root hash for each piece of
-	// record content. It aggregates the merkle leaf hashes from all
-	// record index versions. The log root hash can be used to lookup
-	// the anchor structure from the key-value store, which contains
-	// the dcrtime inclusion proof, or can be used to obtain the
-	// inclusion proof from dcrtime itself if needed. The merkle leaf
-	// hash is hex encoded. The log root hash is a SHA256 digest of the
-	// encoded LogRootV1.
-	Anchors map[string][]byte `json:"anchors"` // [merkleLeafHash]logRootHash
+	// Anchors contains the digests of all log roots that have been
+	// anchored for this record. The leaf height of any individual
+	// piece of record content can be used to look up the earliest
+	// anchor that the leaf was included in. The log root digest can
+	// be used to lookup the anchor record. The log root digest is a
+	// SHA256 digest of the encoded LogRootV1 structure.
+	Anchors map[uint64][]byte `json:"anchors"` // [treeHeight]logRootDigest
 }
 
-// String returns the recordHistory printed in human readable format.
+// String returns the recordHistory printed in a human readable format.
 func (r *recordHistory) String() string {
 	s := fmt.Sprintf("Token: %x\n", r.Token)
 	s += fmt.Sprintf("State: %v\n", r.State)
@@ -211,5 +208,6 @@ func recordHistoryNew(token []byte) recordHistory {
 		Token:    token,
 		State:    stateUnvetted,
 		Versions: make(map[uint32]recordIndex),
+		Anchors:  make(map[uint64][]byte),
 	}
 }
