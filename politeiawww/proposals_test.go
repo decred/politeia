@@ -243,14 +243,13 @@ func TestVoteIsApproved(t *testing.T) {
 		newVoteOptionResult(t, no, "not approve", 1, 2),
 		newVoteOptionResult(t, yes, "approve", 2, 8),
 	}
-	vsVoteNotFinished :=
-		newVoteSummary(t, www.PropVoteStatusAuthorized, emptyResults)
-	vsQuorumNotMet :=
-		newVoteSummary(t, www.PropVoteStatusFinished, badQuorumResults)
-	vsPassPercentageNotMet :=
-		newVoteSummary(t, www.PropVoteStatusFinished, badPassPercentageResults)
-	vsApproved :=
-		newVoteSummary(t, www.PropVoteStatusFinished, approvedResults)
+	vsVoteNotFinished := newVoteSummary(t, www.PropVoteStatusAuthorized,
+		emptyResults)
+	vsQuorumNotMet := newVoteSummary(t, www.PropVoteStatusFinished,
+		badQuorumResults)
+	vsPassPercentageNotMet := newVoteSummary(t, www.PropVoteStatusFinished,
+		badPassPercentageResults)
+	vsApproved := newVoteSummary(t, www.PropVoteStatusFinished, approvedResults)
 
 	var tests = []struct {
 		name    string
@@ -368,27 +367,23 @@ func TestValidateProposalMetadata(t *testing.T) {
 	_, mdInvalidLinkTo := newProposalMetadata(t, validName, invalidToken, 0)
 	_, mdProposalNotFound := newProposalMetadata(t, validName, rToken, 0)
 	_, mdProposalNotRFP := newProposalMetadata(t, validName, token, 0)
-	_, mdProposalNotApproved :=
-		newProposalMetadata(t, validName, rfpTokenNotApproved, 0)
-	_, mdProposalBadLinkBy :=
-		newProposalMetadata(t, validName, rfpBadLinkByToken, 0)
-	_, mdProposalBadState :=
-		newProposalMetadata(t, validName, rfpBadStateToken, 0)
-	_, mdProposalBothRFP :=
-		newProposalMetadata(t, validName, rfpToken, time.Now().Unix())
+	_, mdProposalNotApproved := newProposalMetadata(t, validName,
+		rfpTokenNotApproved, 0)
+	_, mdProposalBadLinkBy := newProposalMetadata(t, validName,
+		rfpBadLinkByToken, 0)
+	_, mdProposalBadState := newProposalMetadata(t, validName,
+		rfpBadStateToken, 0)
+	_, mdProposalBothRFP := newProposalMetadata(t, validName, rfpToken,
+		time.Now().Unix())
 	// LinkBy validations
-	_, mdLinkByMin :=
-		newProposalMetadata(t, validName, "", 100)
-	_, mdLinkByMax :=
-		newProposalMetadata(t, validName, "", time.Now().Unix()+7777000)
-	linkByMinError :=
-		fmt.Sprintf("linkby period cannot be shorter than %v seconds",
-			p.linkByPeriodMin())
-	linkByMaxError :=
-		fmt.Sprintf("linkby period cannot be greater than %v seconds",
-			p.linkByPeriodMax())
-	_, mdSuccess :=
-		newProposalMetadata(t, validName, rfpToken, 0)
+	_, mdLinkByMin := newProposalMetadata(t, validName, "", 100)
+	_, mdLinkByMax := newProposalMetadata(t, validName, "",
+		time.Now().Unix()+7777000)
+	linkByMinError := fmt.Sprintf("linkby period cannot be shorter than %v"+
+		" seconds", p.linkByPeriodMin())
+	linkByMaxError := fmt.Sprintf("linkby period cannot be greater than %v"+
+		" seconds", p.linkByPeriodMax())
+	_, mdSuccess := newProposalMetadata(t, validName, rfpToken, 0)
 
 	var tests = []struct {
 		name      string
@@ -1464,7 +1459,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 	sv := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
 
 	// Invalid vote type
-	svInvalidType := newStartVote(t, token, 1, minDuration, www2.VoteTypeRunoff, id)
+	svInvalidType := newStartVote(t, token, 1, minDuration,
+		www2.VoteTypeRunoff, id)
 	svInvalidType.Vote.Type = www2.VoteTypeRunoff
 
 	// RFP proposal linkBy less than min
@@ -1647,7 +1643,8 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 
 	sv := newStartVote(t, token, 1, minDuration, www2.VoteTypeRunoff, id)
 
-	svInvalidType := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
+	svInvalidType := newStartVote(t, token, 1, minDuration,
+		www2.VoteTypeStandard, id)
 
 	var tests = []struct {
 		name string
@@ -1788,7 +1785,8 @@ func TestFilterProposals(t *testing.T) {
 		input []www.ProposalRecord
 		want  []www.ProposalRecord
 	}{
-		{"filter by State",
+		{
+			"filter by State",
 			proposalsFilter{
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateUnvetted: true,
@@ -1802,7 +1800,8 @@ func TestFilterProposals(t *testing.T) {
 			},
 		},
 
-		{"filter by UserID",
+		{
+			"filter by UserID",
 			proposalsFilter{
 				UserID: "1",
 				StateMap: map[www.PropStateT]bool{
@@ -1816,8 +1815,8 @@ func TestFilterProposals(t *testing.T) {
 				*props[1],
 			},
 		},
-
-		{"filter by Before",
+		{
+			"filter by Before",
 			proposalsFilter{
 				Before: props[3].CensorshipRecord.Token,
 				StateMap: map[www.PropStateT]bool{
@@ -1833,7 +1832,8 @@ func TestFilterProposals(t *testing.T) {
 			},
 		},
 
-		{"filter by After",
+		{
+			"filter by After",
 			proposalsFilter{
 				After: props[3].CensorshipRecord.Token,
 				StateMap: map[www.PropStateT]bool{
@@ -1849,7 +1849,8 @@ func TestFilterProposals(t *testing.T) {
 			},
 		},
 
-		{"unsorted proposals",
+		{
+			"unsorted proposals",
 			proposalsFilter{
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateUnvetted: true,
@@ -1940,24 +1941,36 @@ func TestProcessNewProposal(t *testing.T) {
 		usr  *user.User
 		want error
 	}{
-		{"unpaid registration fee", np, usrUnpaid,
+		{
+			"unpaid registration fee",
+			np,
+			usrUnpaid,
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserNotPaid,
 			}},
 
-		{"no proposal credits", np, usrNoCredits,
+		{
+			"no proposal credits",
+			np,
+			usrNoCredits,
 			www.UserError{
 				ErrorCode: www.ErrorStatusNoProposalCredits,
 			}},
 
-		{"invalid proposal",
+		{
+			"invalid proposal",
 			propInvalid,
 			usrValid,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
-		{"success", np, usrValid, nil},
+		{
+			"success",
+			np,
+			usrValid,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -2243,7 +2256,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 		// This is an admin route so it can be assumed that the
 		// user has been validated and is an admin.
 
-		{"no change message for censored", admin,
+		{
+			"no change message for censored",
+			admin,
 			www.SetProposalStatus{
 				Token:          tokenNotReviewed,
 				ProposalStatus: www.PropStatusCensored,
@@ -2254,7 +2269,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusChangeMessageCannotBeBlank,
 			}},
 
-		{"no change message for abandoned", admin,
+		{
+			"no change message for abandoned",
+			admin,
 			www.SetProposalStatus{
 				Token:          tokenPublic,
 				ProposalStatus: www.PropStatusAbandoned,
@@ -2265,7 +2282,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusChangeMessageCannotBeBlank,
 			}},
 
-		{"invalid public key", admin,
+		{
+			"invalid public key",
+			admin,
 			www.SetProposalStatus{
 				Token:          tokenNotReviewed,
 				ProposalStatus: www.PropStatusPublic,
@@ -2276,7 +2295,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidSigningKey,
 			}},
 
-		{"invalid signature", admin,
+		{
+			"invalid signature",
+			admin,
 			www.SetProposalStatus{
 				Token:          tokenNotReviewed,
 				ProposalStatus: www.PropStatusPublic,
@@ -2287,7 +2308,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
-		{"invalid proposal token", admin,
+		{
+			"invalid proposal token",
+			admin,
 			www.SetProposalStatus{
 				Token:          tokenNotFound,
 				ProposalStatus: www.PropStatusPublic,
@@ -2298,7 +2321,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			}},
 
-		{"invalid status change", admin,
+		{
+			"invalid status change",
+			admin,
 			www.SetProposalStatus{
 				Token:               tokenNotReviewed,
 				ProposalStatus:      www.PropStatusAbandoned,
@@ -2309,8 +2334,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
 			}},
-
-		{"unvetted success", admin,
+		{
+			"unvetted success",
+			admin,
 			www.SetProposalStatus{
 				Token:          tokenNotReviewed,
 				ProposalStatus: www.PropStatusPublic,
@@ -2318,7 +2344,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				PublicKey:      admin.PublicKey(),
 			}, nil},
 
-		{"vote already authorized", admin,
+		{
+			"vote already authorized",
+			admin,
 			www.SetProposalStatus{
 				Token:               tokenVoteAuthorized,
 				ProposalStatus:      www.PropStatusAbandoned,
@@ -2330,7 +2358,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}},
 
-		{"vote already started", admin,
+		{
+			"vote already started",
+			admin,
 			www.SetProposalStatus{
 				Token:               tokenVoteStarted,
 				ProposalStatus:      www.PropStatusAbandoned,
@@ -2342,7 +2372,9 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}},
 
-		{"vetted success", admin,
+		{
+			"vetted success",
+			admin,
 			www.SetProposalStatus{
 				Token:               tokenPublic,
 				ProposalStatus:      www.PropStatusAbandoned,
@@ -2397,7 +2429,8 @@ func TestProcessAllVetted(t *testing.T) {
 		av   www.GetAllVetted
 		want error
 	}{
-		{"before token not hex",
+		{
+			"before token not hex",
 			www.GetAllVetted{
 				Before: tokenNotHex,
 			},
@@ -2405,7 +2438,8 @@ func TestProcessAllVetted(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
-		{"before token invalid length short",
+		{
+			"before token invalid length short",
 			www.GetAllVetted{
 				Before: tokenShort,
 			},
@@ -2413,7 +2447,8 @@ func TestProcessAllVetted(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
-		{"before token invalid length long",
+		{
+			"before token invalid length long",
 			www.GetAllVetted{
 				Before: tokenLong,
 			},
@@ -2421,7 +2456,8 @@ func TestProcessAllVetted(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
-		{"after token not hex",
+		{
+			"after token not hex",
 			www.GetAllVetted{
 				After: tokenNotHex,
 			},
@@ -2429,7 +2465,8 @@ func TestProcessAllVetted(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
-		{"after token invalid length short",
+		{
+			"after token invalid length short",
 			www.GetAllVetted{
 				After: tokenShort,
 			},
@@ -2437,7 +2474,8 @@ func TestProcessAllVetted(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
-		{"after token invalid length long",
+		{
+			"after token invalid length long",
 			www.GetAllVetted{
 				After: tokenLong,
 			},
@@ -2445,13 +2483,15 @@ func TestProcessAllVetted(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
-		{"valid before token",
+		{
+			"valid before token",
 			www.GetAllVetted{
 				Before: tokenValid,
 			},
 			nil,
 		},
-		{"valid after token",
+		{
+			"valid after token",
 			www.GetAllVetted{
 				After: tokenValid,
 			},
@@ -2576,10 +2616,12 @@ func TestProcessStartVoteV2(t *testing.T) {
 	}
 	rToken := hex.EncodeToString(randomToken)
 
-	svInvalidToken := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
+	svInvalidToken := newStartVote(t, token, 1, minDuration,
+		www2.VoteTypeStandard, id)
 	svInvalidToken.Vote.Token = ""
 
-	svRandomToken := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
+	svRandomToken := newStartVote(t, token, 1, minDuration,
+		www2.VoteTypeStandard, id)
 	svRandomToken.Vote.Token = rToken
 
 	var tests = []struct {
@@ -2670,7 +2712,8 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 
 	makeProposalRFP(t, &rfpProposal, []string{}, linkBy)
 	makeProposalRFPSubmissions(t, rfpSubmissions, linkTo)
-	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&extraProposalSubmission}, extraToken)
+	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&extraProposalSubmission},
+		extraToken)
 
 	badRFPProposal := newProposalRecord(t, usr, id, public)
 
@@ -2743,7 +2786,8 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 	svInvalidToken := []www2.StartVote{
 		sub1SvInvalid,
 	}
-	svRunoffInvalidToken := newStartVoteRunoff(t, token, avInvalidToken, svInvalidToken)
+	svRunoffInvalidToken := newStartVoteRunoff(t, token, avInvalidToken,
+		svInvalidToken)
 
 	// Proposal submission record not found
 	randomToken, err := util.Random(pd.TokenSize)
