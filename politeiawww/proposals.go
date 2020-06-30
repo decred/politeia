@@ -2442,7 +2442,7 @@ func validateAuthorizeVote(av www.AuthorizeVote, u user.User, pr www.ProposalRec
 	return nil
 }
 
-// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// validateAuthorizeVoteStandard validates the authorize vote for a proposal that
 // is participating in a standard vote. A UserError is returned if any of the
 // validation fails.
 func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
@@ -2732,7 +2732,6 @@ func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRe
 	}
 
 	// The remaining validation is specific to a VoteTypeStandard.
-
 	switch {
 	case sv.Vote.Type != www2.VoteTypeStandard:
 		// Not a standard vote
@@ -2826,7 +2825,7 @@ func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalReco
 
 	case !isRFPSubmission(pr):
 		// The proposal is not an RFP submission
-		e := fmt.Sprintf("%v in not an rfp submission", token)
+		e := fmt.Sprintf("%v is not an rfp submission", token)
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusWrongProposalType,
 			ErrorContext: []string{e},
@@ -3021,7 +3020,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 	}
 	if len(auths) == 0 {
-		e := fmt.Sprintf("start votes and authorize votes cannot be empty")
+		e := "start votes and authorize votes cannot be empty"
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidRunoffVote,
 			ErrorContext: []string{e},
