@@ -17,16 +17,15 @@ const (
 	ID      = "comments"
 
 	// Plugin commands
-	CmdNew      = "new"      // Create a new comment
-	CmdUnvetted = "unvetted" // Get unvetted comments
-	CmdVetted   = "vetted"   // Get vetted comments
-	CmdGet      = "get"      // Get a comment
-	CmdEdit     = "edit"     // Edit a comment
-	CmdDel      = "del"      // Delete a comment
-	CmdVote     = "vote"     // Vote on a comment
-	CmdCensor   = "censor"   // Censor a comment
-	CmdCount    = "count"    // Get comments count
-	CmdProofs   = "proofs"   // Get comment proofs
+	CmdNew    = "new"    // Create a new comment
+	CmdGet    = "get"    // Get comments
+	CmdEdit   = "edit"   // Edit a comment
+	CmdDel    = "del"    // Delete a comment
+	CmdExists = "exists" // Does a comment exist
+	CmdVote   = "vote"   // Vote on a comment
+	CmdCensor = "censor" // Censor a comment
+	CmdCount  = "count"  // Get comments count
+	CmdProofs = "proofs" // Get comment proofs
 
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0

@@ -301,7 +301,8 @@ type SetVettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
-// UpdateRecord update an unvetted record.
+// UpdateRecord updates a record. This is used for both unvetted and vetted
+// records.
 type UpdateRecord struct {
 	Challenge   string           `json:"challenge"`   // Random challenge
 	Token       string           `json:"token"`       // Censorship token

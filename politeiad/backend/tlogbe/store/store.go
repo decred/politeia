@@ -16,6 +16,7 @@ type Ops struct {
 	Del []string
 }
 
+// TODO get rid of this Blob implementation
 type Blob interface {
 	Get(string) ([]byte, error)
 	Put(string, []byte) error
@@ -26,10 +27,10 @@ type Blob interface {
 
 // Blob represents a blob key-value store.
 type Blob_ interface {
-	// Get returns blobs from the store. An entry will not exist in the
-	// returned map if for any blobs that are not found. It is the
-	// responsibility of the caller to ensure a blob was returned for
-	// all provided keys.
+	// Get returns blobs from the store for the provided keys. An entry
+	// will not exist in the returned map if for any blobs that are not
+	// found. It is the responsibility of the caller to ensure a blob
+	// was returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
 
 	// Put saves the provided blobs to the store. The keys for the

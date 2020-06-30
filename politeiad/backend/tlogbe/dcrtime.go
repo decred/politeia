@@ -87,10 +87,10 @@ func timestampBatch(host, id string, digests []string) (*dcrtime.TimestampBatchR
 // code and handling digests that failed to be timestamped.
 //
 // Note the Result in the reply will be set to OK as soon as the digest is
-// waiting to be anchored. The ChainInformation will be populated once the
-// digest has been included in a dcr transaction, except for the ChainTimestamp
-// field. The ChainTimestamp field is only populated once the dcr transaction
-// has 6 confirmations.
+// waiting to be anchored. All the ChainInformation fields will be populated
+// once the digest has been included in a dcr transaction, except for the
+// ChainTimestamp field. The ChainTimestamp field is only populated once the
+// dcr transaction has 6 confirmations.
 func verifyBatch(host, id string, digests []string) (*dcrtime.VerifyBatchReply, error) {
 	log.Tracef("verifyBatch: %v %v %v", host, id, digests)
 

@@ -70,9 +70,10 @@ func merkleLeafHash(leafValue []byte) []byte {
 	return h.Sum(nil)
 }
 
-func logLeafNew(value []byte) *trillian.LogLeaf {
+func logLeafNew(value []byte, extraData []byte) *trillian.LogLeaf {
 	return &trillian.LogLeaf{
 		LeafValue: value,
+		ExtraData: extraData,
 	}
 }
 
@@ -268,12 +269,12 @@ func (t *TrillianClient) SignedLogRoot(treeID int64) (*trillian.SignedLogRoot, *
 	return slr, lr, nil
 }
 
-// LeavesAppend appends the provided leaves onto the provided tree. The leaf
-// and the inclusion proof for the leaf are returned. If a leaf was not
-// successfully appended, the leaf will be returned without an inclusion proof.
-// The error status code can be found in the returned leaf. Note leaves that
-// are duplicates will fail and it is the callers responsibility to determine
-// how they should be handled.
+// LeavesAppend appends the provided leaves onto the provided tree. The queued
+// leaf and the leaf inclusion proof are returned. If a leaf was not
+// successfully appended, the queued leaf will still be returned and the error
+// will be in the queued leaf. Inclusion proofs will not exist for leaves that
+// fail to be appended. Note leaves that are duplicates will fail and it is the
+// callers responsibility to determine how they should be handled.
 func (t *TrillianClient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]QueuedLeafProof, *types.LogRootV1, error) {
 	log.Tracef("LeavesAppend: %v", treeID)
 
@@ -285,6 +286,11 @@ func (t *TrillianClient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 	slr, _, err := t.signedLogRoot(tree)
 	if err != nil {
 		return nil, nil, fmt.Errorf("signedLogRoot pre update: %v", err)
+	}
+
+	// Ensure the tree is not frozen
+	if tree.TreeState == trillian.TreeState_FROZEN {
+		return nil, nil, fmt.Errorf("tree is frozen")
 	}
 
 	log.Debugf("Appending %v leaves to tree id %v", len(leaves), treeID)
@@ -372,6 +378,19 @@ func (t *TrillianClient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 	return proofs, lrv1, nil
 }
 
+func (t *TrillianClient) leavesByRange(treeID int64, startIndex, count int64) ([]*trillian.LogLeaf, error) {
+	glbrr, err := t.client.GetLeavesByRange(t.ctx,
+		&trillian.GetLeavesByRangeRequest{
+			LogId:      treeID,
+			StartIndex: startIndex,
+			Count:      count,
+		})
+	if err != nil {
+		return nil, err
+	}
+	return glbrr.Leaves, nil
+}
+
 // LeavesAll returns all of the leaves for the provided treeID.
 func (t *TrillianClient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	// Get log root
@@ -381,17 +400,7 @@ func (t *TrillianClient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	}
 
 	// Get all leaves
-	glbrr, err := t.client.GetLeavesByRange(t.ctx,
-		&trillian.GetLeavesByRangeRequest{
-			LogId:      treeID,
-			StartIndex: 0,
-			Count:      int64(lr.TreeSize),
-		})
-	if err != nil {
-		return nil, fmt.Errorf("GetLeavesByRangeRequest: %v", err)
-	}
-
-	return glbrr.Leaves, nil
+	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))
 }
 
 // LeafProofs returns the LeafProofs for the provided treeID and merkle leaf

@@ -5,21 +5,14 @@
 package tlogbe
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"time"
-
 	dcrtime "github.com/decred/dcrtime/api/v2"
-	"github.com/decred/politeia/util"
 	"github.com/google/trillian/types"
 )
 
 // TODO handle reorgs. A anchor record may become invalid in the case of a
 // reorg. We don't create the anchor record until the anchor tx has 6
-// confirmations so the probability of this occuring on mainnet is very low,
-// but it should still be handled.
+// confirmations so the probability of this occuring on mainnet is low, but it
+// still needs to be handled.
 
 const (
 	// anchorSchedule determines how often we anchor records. dcrtime
@@ -42,6 +35,7 @@ type anchor struct {
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
 }
 
+/*
 func convertBlobEntryFromAnchor(a anchor) (*blobEntry, error) {
 	data, err := json.Marshal(a)
 	if err != nil {
@@ -75,55 +69,55 @@ func (t *tlogbe) anchorSave(a anchor) error {
 		return fmt.Errorf("verify digest not found")
 	}
 
-	// Save the anchor record
-	be, err := convertBlobEntryFromAnchor(a)
-	if err != nil {
-		return err
-	}
-	b, err := blobify(*be)
-	if err != nil {
-		return err
-	}
-	lrb, err := a.LogRoot.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	logRootHash := util.Hash(lrb)[:]
-	err = t.store.Put(keyAnchor(logRootHash), b)
-	if err != nil {
-		return fmt.Errorf("Put: %v", err)
-	}
+		// Save the anchor record
+		be, err := convertBlobEntryFromAnchor(a)
+		if err != nil {
+			return err
+		}
+		b, err := blobify(*be)
+		if err != nil {
+			return err
+		}
+		lrb, err := a.LogRoot.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		logRootHash := util.Hash(lrb)[:]
+		err = t.store.Put(keyAnchor(logRootHash), b)
+		if err != nil {
+			return fmt.Errorf("Put: %v", err)
+		}
 
-	log.Debugf("Anchor saved for tree %v at height %v",
-		a.TreeID, a.LogRoot.TreeSize)
+		log.Debugf("Anchor saved for tree %v at height %v",
+			a.TreeID, a.LogRoot.TreeSize)
 
-	// Update the record history with the anchor. The lock must be held
-	// during this update.
-	t.Lock()
-	defer t.Unlock()
+		// Update the record history with the anchor. The lock must be held
+		// during this update.
+		t.Lock()
+		defer t.Unlock()
 
-	token := tokenFromTreeID(a.TreeID)
-	rh, err := t.recordHistory(token)
-	if err != nil {
-		return fmt.Errorf("recordHistory: %v", err)
-	}
+		token := tokenFromTreeID(a.TreeID)
+		rh, err := t.recordHistory(token)
+		if err != nil {
+			return fmt.Errorf("recordHistory: %v", err)
+		}
 
-	rh.Anchors[a.LogRoot.TreeSize] = logRootHash
+		rh.Anchors[a.LogRoot.TreeSize] = logRootHash
 
-	be, err = convertBlobEntryFromRecordHistory(*rh)
-	if err != nil {
-		return err
-	}
-	b, err = blobify(*be)
-	if err != nil {
-		return err
-	}
-	err = t.store.Put(keyRecordHistory(rh.Token), b)
-	if err != nil {
-		return fmt.Errorf("Put: %v", err)
-	}
+		be, err = convertBlobEntryFromRecordHistory(*rh)
+		if err != nil {
+			return err
+		}
+		b, err = blobify(*be)
+		if err != nil {
+			return err
+		}
+		err = t.store.Put(keyRecordHistory(rh.Token), b)
+		if err != nil {
+			return fmt.Errorf("Put: %v", err)
+		}
 
-	log.Debugf("Anchor added to record history %x", token)
+		log.Debugf("Anchor added to record history %x", token)
 
 	return nil
 }
@@ -385,3 +379,4 @@ func (t *tlogbe) anchorTrees() {
 
 	go t.waitForAnchor(anchors, digests)
 }
+*/

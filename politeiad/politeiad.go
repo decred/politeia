@@ -1156,7 +1156,7 @@ func _main() error {
 	case backendGit:
 		b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
 			loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
-			loadedCfg.DcrdataHost)
+			loadedCfg.DcrdataHost, loadedCfg.Mode)
 		if err != nil {
 			return fmt.Errorf("new gitbe: %v", err)
 		}

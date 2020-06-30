@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	v1 "github.com/decred/dcrtime/api/v1"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
