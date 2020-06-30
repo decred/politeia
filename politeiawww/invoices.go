@@ -847,6 +847,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 		invRec.Input.ContractorLocation = ""
 
 		validLineItems := invRec.Input.LineItems[:0]
+
 		for _, lineItem := range invRec.Input.LineItems {
 			// If the proposal token is empty then don't display it for the
 			// non invoice owner or admin.

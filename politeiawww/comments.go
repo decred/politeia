@@ -367,8 +367,23 @@ func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewCo
 	// Check to make sure the user is either an admin or the
 	// author of the invoice.
 	if !u.Admin && (ir.Username != u.Username) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		// If not an admin or invoice owner, check to see if they own a
+		// proposal that is being billed against, they are allowed to comment.
+		cmsUser, err := p.getCMSUserByID(u.ID.String())
+		if err != nil {
+			return nil, err
+		}
+
+		proposalFound := false
+		for _, lineItem := range ir.Input.LineItems {
+			if stringInSlice(cmsUser.ProposalsOwned, lineItem.ProposalToken) {
+				proposalFound = true
+			}
+		}
+		if !proposalFound {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			}
 		}
 	}
 
