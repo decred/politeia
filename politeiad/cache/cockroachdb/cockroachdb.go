@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -25,6 +26,7 @@ const (
 	cacheVersion = "1"
 
 	// Database table names
+	tableKeyValue        = "key_value"
 	tableVersions        = "versions"
 	tableRecords         = "records"
 	tableMetadataStreams = "metadata_streams"
@@ -38,6 +40,9 @@ const (
 	// Database users
 	UserPoliteiad   = "politeiad"   // politeiad user (read/write access)
 	UserPoliteiawww = "politeiawww" // politeiawww user (read access)
+
+	// Key-value store keys
+	keyBestBlock = "bestblock"
 )
 
 // cockroachdb implements the cache interface.
@@ -46,6 +51,14 @@ type cockroachdb struct {
 	shutdown  bool                          // Backend is shutdown
 	recordsdb *gorm.DB                      // Database context
 	plugins   map[string]cache.PluginDriver // [pluginID]PluginDriver
+}
+
+// isShutdown returns whether the backend has been shutdown.
+func (c *cockroachdb) isShutdown() bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.shutdown
 }
 
 // recordExists returns whether a record exists for the provided token and
@@ -95,11 +108,7 @@ func (c *cockroachdb) newRecord(tx *gorm.DB, r Record) error {
 func (c *cockroachdb) NewRecord(cr cache.Record) error {
 	log.Tracef("NewRecord: %v", cr.CensorshipRecord.Token)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return cache.ErrShutdown
 	}
 
@@ -151,11 +160,7 @@ func recordByPrefix(db *gorm.DB, prefix string) (*Record, error) {
 func (c *cockroachdb) RecordByPrefix(prefix string) (*cache.Record, error) {
 	log.Tracef("RecordByPrefix %v", prefix)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}
 
@@ -194,11 +199,7 @@ func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record
 func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error) {
 	log.Tracef("RecordVersion: %v %v", token, version)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}
 
@@ -237,11 +238,7 @@ func record(db *gorm.DB, token string) (*Record, error) {
 func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 	log.Tracef("Record: %v", token)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}
 
@@ -367,11 +364,7 @@ func (c *cockroachdb) updateRecord(tx *gorm.DB, updated Record) error {
 func (c *cockroachdb) UpdateRecord(r cache.Record) error {
 	log.Tracef("UpdateRecord: %v %v", r.CensorshipRecord.Token, r.Version)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return cache.ErrShutdown
 	}
 
@@ -428,11 +421,7 @@ func (c *cockroachdb) updateRecordStatus(tx *gorm.DB, token, version string, sta
 func (c *cockroachdb) UpdateRecordStatus(token, version string, status cache.RecordStatusT, timestamp int64, metadata []cache.MetadataStream) error {
 	log.Tracef("UpdateRecordStatus: %v %v", token, status)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return cache.ErrShutdown
 	}
 
@@ -492,11 +481,7 @@ func (c *cockroachdb) updateRecordMetadata(tx *gorm.DB, token string, ms []Metad
 func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStream) error {
 	log.Tracef("UpdateRecordMetadata: %v", token)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return cache.ErrShutdown
 	}
 
@@ -579,11 +564,7 @@ func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, er
 func (c *cockroachdb) Records(tokens []string, fetchFiles bool) (map[string]cache.Record, error) {
 	log.Tracef("Records: %v", tokens)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}
 
@@ -654,11 +635,7 @@ func (c *cockroachdb) inventory() ([]Record, error) {
 func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	log.Tracef("Inventory")
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}
 
@@ -697,11 +674,7 @@ func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
 func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandReply, error) {
 	log.Tracef("PluginExec: %v", pc.ID)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}
 
@@ -727,11 +700,7 @@ func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandRe
 func (c *cockroachdb) PluginSetup(id string) error {
 	log.Tracef("PluginSetup: %v", id)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return cache.ErrShutdown
 	}
 
@@ -781,11 +750,7 @@ func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 func (c *cockroachdb) PluginBuild(id, payload string) error {
 	log.Tracef("PluginBuild: %v", id)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return cache.ErrShutdown
 	}
 
@@ -807,6 +772,12 @@ func (c *cockroachdb) PluginBuild(id, payload string) error {
 func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	log.Tracef("createTables")
 
+	if !tx.HasTable(tableKeyValue) {
+		err := tx.CreateTable(&KeyValue{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	if !tx.HasTable(tableVersions) {
 		err := tx.CreateTable(&Version{}).Error
 		if err != nil {
@@ -843,6 +814,24 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 				Version:   cacheVersion,
 				Timestamp: time.Now().Unix(),
 			}).Error
+		return err
+	}
+
+	// Insert initial best block if record is not found.
+	kv := KeyValue{
+		Key: keyBestBlock,
+	}
+	err = tx.Find(&kv).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			b := make([]byte, 8)
+			binary.LittleEndian.PutUint64(b, 0)
+			kv := KeyValue{
+				Key:   keyBestBlock,
+				Value: b,
+			}
+			err = tx.Save(&kv).Error
+		}
 	}
 
 	return err
