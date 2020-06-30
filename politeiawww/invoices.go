@@ -829,10 +829,45 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 	// Check to make sure the user is either an admin or shares the domain
 	// as the invoice creator (which will then be filtered).
 	if !u.Admin && (invoiceUser.Domain != requestingUser.Domain) {
-		err := www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
-		return nil, err
+	}
+
+	// Check to make sure the reqeusting user is either an admin, the
+	// invoice author or the owner of a proposal of line items that are
+	// included.
+	proposalFound := false
+	if !u.Admin && (invRec.Username != u.Username) {
+		// This is a non invoice owner or admin requesting, clean it up for
+		// private information.
+		invRec.Files = nil
+		invRec.Payment = cms.PaymentInformation{}
+		invRec.Input.PaymentAddress = ""
+		invRec.Input.ContractorLocation = ""
+
+		validLineItems := invRec.Input.LineItems[:0]
+		for _, lineItem := range invRec.Input.LineItems {
+			// If the proposal token is empty then don't display it for the
+			// non invoice owner or admin.
+			if lineItem.ProposalToken == "" {
+				continue
+			}
+			// Check to see that proposal token matches an owned proposal by
+			// the requesting user, if not don't include the line item in the
+			// list of line items to display.
+			if stringInSlice(requestingUser.ProposalsOwned, lineItem.ProposalToken) {
+				proposalFound = true
+				validLineItems = append(validLineItems, lineItem)
+			}
+		}
+		invRec.Input.LineItems = validLineItems
+		if !proposalFound {
+			err := www.UserError{
+				ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			}
+			return nil, err
+		}
 	}
 
 	// Calculate the payout from the invoice record
