@@ -137,7 +137,7 @@ func setCMSPluginHook(name string, f func(string) error) {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushDCCVotes(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown dcc: %v", token)
 	}
 

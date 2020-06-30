@@ -971,7 +971,13 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 			case *exptypes.WebsocketBlock:
 				log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
 					m.Block.Height)
-				p.updateBestBlock(uint64(m.Block.Height))
+				bb := uint64(m.Block.Height)
+				p.updateBestBlock(bb)
+				// Keep VoteResults table updated with received best block
+				_, err = p.decredLoadVoteResults(bb)
+				if err != nil {
+					log.Errorf("decredLoadVoteResults: %v", err)
+				}
 			case *pstypes.HangUp:
 				log.Infof("Dcrdata has hung up. Will reconnect.")
 				err = p.resetPiDcrdataWSSubs()

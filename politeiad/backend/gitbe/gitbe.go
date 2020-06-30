@@ -2320,8 +2320,21 @@ func (g *gitBackEnd) fsck(path string) error {
 // UnvettedExists satisfies the backend interface.
 func (g *gitBackEnd) UnvettedExists(token []byte) bool {
 	log.Tracef("UnvettedExists %x", token)
-	_, err := os.Stat(pijoin(g.unvetted, hex.EncodeToString(token)))
-	return err == nil
+
+	// Unvetted records exists as branches in the unvetted repo where
+	// the branch name is the record token.
+	branches, err := g.gitBranches(g.unvetted)
+	if err != nil {
+		return false
+	}
+	t := hex.EncodeToString(token)
+	for _, v := range branches {
+		if v == t {
+			return true
+		}
+	}
+
+	return false
 }
 
 // VettedExists returns whether the given token corresponds to a record in

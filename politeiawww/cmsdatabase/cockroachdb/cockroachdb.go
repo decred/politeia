@@ -61,6 +61,13 @@ func (c *cockroachdb) UpdateInvoice(dbInvoice *database.Invoice) error {
 	return c.recordsdb.Save(invoice).Error
 }
 
+// RemoveLineItem deletes an existing invoice line items from the database.
+func (c *cockroachdb) RemoveInvoiceLineItems(invoiceToken string) error {
+	log.Debugf("RemoveInvoiceLineItems: %v", invoiceToken)
+
+	return c.recordsdb.Where("invoice_token = ?", invoiceToken).Delete(&LineItem{}).Error
+}
+
 // Return all invoices by userid
 func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByUserID")

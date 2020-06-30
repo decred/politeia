@@ -20,7 +20,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -55,7 +54,7 @@ type piwww struct {
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
 	AuthorizeVote      AuthorizeVoteCmd         `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
-	BatchProposals     BatchProposalsCmd        `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
+	BatchProposals     shared.BatchProposalsCmd `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	BatchVoteSummary   BatchVoteSummaryCmd      `command:"batchvotesummary" description:"(user)   retrieve the vote summary for a set of proposals"`
 	CensorComment      shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
@@ -87,7 +86,7 @@ type piwww struct {
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
 	Tally              TallyCmd                 `command:"tally" description:"(public) get the vote tally for a proposal"`
 	TestRun            TestRunCmd               `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
-	TokenInventory     TokenInventoryCmd        `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
+	TokenInventory     shared.TokenInventoryCmd `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
 	UpdateUserKey      shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails        UserDetailsCmd           `command:"userdetails" description:"(public) get the details of a user profile"`
 	UserLikeComments   UserLikeCommentsCmd      `command:"userlikecomments" description:"(user)   get the logged in user's comment upvotes/downvotes for a proposal"`
@@ -125,55 +124,6 @@ func createMDFile() (*v1.File, error) {
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}, nil
-}
-
-// verifyProposal verifies a proposal's merkle root, author signature, and
-// censorship record.
-func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
-	if len(p.Files) > 0 {
-		// Verify digests
-		err := shared.ValidateDigests(p.Files, p.Metadata)
-		if err != nil {
-			return err
-		}
-		// Verify merkle root
-		mr, err := wwwutil.MerkleRoot(p.Files, p.Metadata)
-		if err != nil {
-			return err
-		}
-		if mr != p.CensorshipRecord.Merkle {
-			return fmt.Errorf("merkle roots do not match")
-		}
-	}
-
-	// Verify proposal signature
-	pid, err := util.IdentityFromString(p.PublicKey)
-	if err != nil {
-		return err
-	}
-	sig, err := util.ConvertSignature(p.Signature)
-	if err != nil {
-		return err
-	}
-	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
-		return fmt.Errorf("could not verify proposal signature")
-	}
-
-	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
-	if err != nil {
-		return err
-	}
-	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
-	if err != nil {
-		return err
-	}
-	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
-	if !id.VerifyMessage(msg, s) {
-		return fmt.Errorf("could not verify censorship record signature")
-	}
-
-	return nil
 }
 
 // convertTicketHashes converts a slice of hexadecimal ticket hashes into

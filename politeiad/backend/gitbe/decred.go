@@ -254,14 +254,6 @@ func setDecredPluginHook(name string, f func(string) error) {
 	decredPluginHooks[name] = f
 }
 
-func (g *gitBackEnd) unvettedPropExists(token string) bool {
-	tokenb, err := util.ConvertStringToken(token)
-	if err != nil {
-		return false
-	}
-	return g.UnvettedExists(tokenb)
-}
-
 func (g *gitBackEnd) vettedPropExists(token string) bool {
 	tokenb, err := util.ConvertStringToken(token)
 	if err != nil {
@@ -643,7 +635,7 @@ func (g *gitBackEnd) flushJournalsUnwind(id string) error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushComments(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -831,7 +823,7 @@ func (g *gitBackEnd) flushCommentJournals() error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushVotes(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
