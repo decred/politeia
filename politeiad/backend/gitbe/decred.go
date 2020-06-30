@@ -568,9 +568,15 @@ func (g *gitBackEnd) pluginBestBlock() (string, error) {
 func (g *gitBackEnd) decredPluginPostEdit(token string) error {
 	log.Tracef("decredPluginPostEdit: %v", token)
 
-	destination, err := g.flushComments(token)
-	if err != nil {
-		return err
+	// The post edit hook gets called on both unvetted and vetted
+	// proposals, but comments can only be made on vetted proposals.
+	var destination string
+	var err error
+	if g.vettedPropExists(token) {
+		destination, err = g.flushComments(token)
+		if err != nil {
+			return err
+		}
 	}
 
 	// When destination is empty there was nothing to do
