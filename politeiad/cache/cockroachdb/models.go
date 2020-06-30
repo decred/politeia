@@ -10,6 +10,11 @@ type KeyValue struct {
 	Value []byte `gorm:"not null"`
 }
 
+// TableName returns the name of the KeyValue table.
+func (KeyValue) TableName() string {
+	return tableKeyValue
+}
+
 // Version describes the version of a record or plugin that the database is
 // currently using.
 type Version struct {
