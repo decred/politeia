@@ -569,7 +569,7 @@ func (g *gitBackEnd) decredPluginPostEdit(token string) error {
 	log.Tracef("decredPluginPostEdit: %v", token)
 
 	// The post edit hook gets called on both unvetted and vetted
-	// propsoals, but comments can only be made on vetted proposals.
+	// proposals, but comments can only be made on vetted proposals.
 	var destination string
 	var err error
 	if g.vettedPropExists(token) {
