@@ -942,7 +942,9 @@ func TestValidateAuthorizeVoteStandard(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			fmt.Errorf("proposal is a runoff vote submission"),
+			www.UserError{
+				ErrorCode: www.ErrorStatusWrongProposalType,
+			},
 		},
 		{
 			"not proposal author",
