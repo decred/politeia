@@ -21,28 +21,30 @@ import (
 
 const (
 	// mdstream IDs
-	IDProposalGeneral      = 0
-	IDRecordStatusChange   = 2
-	IDInvoiceGeneral       = 3
-	IDInvoiceStatusChange  = 4
-	IDInvoicePayment       = 5
-	IDDCCGeneral           = 6
-	IDDCCStatusChange      = 7
-	IDDCCSupportOpposition = 8
+	IDProposalGeneral        = 0
+	IDRecordStatusChange     = 2
+	IDInvoiceGeneral         = 3
+	IDInvoiceStatusChange    = 4
+	IDInvoicePayment         = 5
+	IDDCCGeneral             = 6
+	IDDCCStatusChange        = 7
+	IDDCCSupportOpposition   = 8
+	IDInvoiceProposalApprove = 9
 
 	// Note that 13 is in use by the decred plugin
 	// Note that 14 is in use by the decred plugin
 	// Note that 15 is in use by the decred plugin
 
 	// mdstream current supported versions
-	VersionProposalGeneral      = 2
-	VersionRecordStatusChange   = 2
-	VersionInvoiceGeneral       = 1
-	VersionInvoiceStatusChange  = 1
-	VersionInvoicePayment       = 1
-	VersionDCCGeneral           = 1
-	VersionDCCStatusChange      = 1
-	VersionDCCSupposeOpposition = 1
+	VersionProposalGeneral        = 2
+	VersionRecordStatusChange     = 2
+	VersionInvoiceGeneral         = 1
+	VersionInvoiceStatusChange    = 1
+	VersionInvoicePayment         = 1
+	VersionDCCGeneral             = 1
+	VersionDCCStatusChange        = 1
+	VersionDCCSupposeOpposition   = 1
+	VersionInvoiceProposalApprove = 1
 
 	// Filenames of user defined metadata that is stored as politeiad
 	// files instead of politeiad metadata streams. This is done so
@@ -521,6 +523,49 @@ func DecodeDCCSupportOpposition(payload []byte) ([]DCCSupportOpposition, error) 
 		var m DCCSupportOpposition
 		err := d.Decode(&m)
 		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
+	}
+
+	return md, nil
+}
+
+// InvoiceProposalApprove represents an invoice status change and is stored
+// in the metadata IDInvoiceProposalApprove in politeiad.
+type InvoiceProposalApprove struct {
+	Version   uint   `json:"version"`   // Version of the struct
+	PublicKey string `json:"publickey"` // Identity of the administrator
+	Signature string `json:"signature"` // Signature of the line item payload included
+	Token     string `json:"token"`     // Token of the invoice
+	Timestamp int64  `json:"timestamp"`
+	LineItems []byte `json:"lineitems"` // json payload of line items that are being approved
+}
+
+// EncodeInvoiceProposalApprove encodes a InvoiceProposalApprove into a
+// JSON byte slice.
+func EncodeInvoiceProposalApprove(md InvoiceProposalApprove) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeInvoiceProposalApprove decodes a JSON byte slice into a slice of
+// InvoiceProposalApproves.
+func DecodeInvoiceProposalApprove(payload []byte) ([]InvoiceProposalApprove, error) {
+	var md []InvoiceProposalApprove
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m InvoiceProposalApprove
+		err := d.Decode(&m)
+		if err == io.EOF {
 			break
 		} else if err != nil {
 			return nil, err

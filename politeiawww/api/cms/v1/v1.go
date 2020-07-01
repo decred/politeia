@@ -55,6 +55,7 @@ const (
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
 	RouteUserCodeStats          = "/user/codestats"
+	RouteProposalInvoiceApprove = "/proposals/approve"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -1084,4 +1085,18 @@ type CodeStats struct {
 	PRs              []string `json:"prs"`
 	Reviews          []string `json:"reviews"`
 	Commits          []string `json:"commits"`
+}
+
+// ProposalOwnerApprove is used to approve or reject an proposal referenced
+// invoice.
+type ProposalOwnerApprove struct {
+	Token     string           `json:"token"`
+	Status    InvoiceStatusT   `json:"status"`
+	LineItems []LineItemsInput `json:"lineitems"`
+	Signature string           `json:"signature"` // Signature of LineItems Approved
+	PublicKey string           `json:"publickey"` // Public key of admin
+}
+
+// ProposalOwnerApprove used to reply to a ProposalOwnerApprove command.
+type ProposalOwnerApproveReply struct {
 }

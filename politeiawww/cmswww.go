@@ -1125,6 +1125,37 @@ func (p *politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, uscr)
 }
 
+// handleProposalInvoiceApprove handles request for proposal owners to approve
+// an invoices' line items that reference their proposal.
+func (p *politeiawww) handleProposalInvoiceApprove(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalInvoiceApprove")
+
+	var poa cms.ProposalOwnerApprove
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&poa); err != nil {
+		RespondWithError(w, r, 0, "handleProposalInvoiceApprove: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalInvoiceApprove: getSessionUser %v", err)
+		return
+	}
+
+	poar, err := p.processProposalInvoiceApprove(poa, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalInvoiceApprove: processStartVoteDCC %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, poar)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -1223,6 +1254,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteUserCodeStats, p.handleUserCodeStats,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteProposalInvoiceApprove, p.handleProposalInvoiceApprove,
 		permissionLogin)
 
 	// Unauthenticated websocket

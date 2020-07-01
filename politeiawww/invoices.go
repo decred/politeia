@@ -1974,13 +1974,11 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 	if err != nil {
 		return nil, err
 	}
-
 	var tvr www.TokenInventoryReply
 	err = json.Unmarshal(data, &tvr)
 	if err != nil {
 		return nil, err
 	}
-
 	approvedProposals := tvr.Approved
 
 	approvedProposalDetails := make([]www.ProposalRecord, 0, len(approvedProposals))
@@ -2080,7 +2078,6 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 	if err != nil {
 		return nil, err
 	}
-
 	spendingSummary := cms.ProposalSpending{}
 	spendingSummary.Token = pbd.Token
 
@@ -2110,7 +2107,6 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 	if err != nil {
 		return nil, err
 	}
-
 	var pdr www.ProposalDetailsReply
 	err = json.Unmarshal(data, &pdr)
 	if err != nil {
@@ -2123,4 +2119,99 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 
 	reply.Details = spendingSummary
 	return reply, nil
+}
+
+// processProposalInvoiceApprove appends a proposal owners approval onto the
+// invoice records metadata which will allow admins to determine if an invoice
+// is fully approved.
+func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove, u *user.User) (*cms.ProposalOwnerApproveReply, error) {
+	invRec, err := p.getInvoice(poa.Token)
+	if err != nil {
+		return nil, err
+	}
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+	proposalFound := false
+	for _, lineItem := range invRec.Input.LineItems {
+		// If the proposal token is empty then don't display it for the
+		// non invoice owner or admin.
+		if lineItem.ProposalToken == "" {
+			continue
+		}
+		// Check to see that proposal token matches an owned proposal by
+		// the recommending user, if not don't include the line item in the
+		// list of line items to display.
+		if stringInSlice(cmsUser.ProposalsOwned, lineItem.ProposalToken) {
+			proposalFound = true
+		}
+	}
+	if !proposalFound {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
+	b, err := json.Marshal(poa.LineItems)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate signature
+	msg := fmt.Sprintf("%v", b)
+	err = validateSignature(poa.PublicKey, poa.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the change record.
+	c := mdstream.InvoiceProposalApprove{
+		Version:   mdstream.VersionInvoiceProposalApprove,
+		PublicKey: u.PublicKey(),
+		Timestamp: time.Now().Unix(),
+		Signature: poa.Signature,
+		Token:     poa.Token,
+		LineItems: b,
+	}
+	blob, err := mdstream.EncodeInvoiceProposalApprove(c)
+	if err != nil {
+		return nil, err
+	}
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     poa.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdstream.IDInvoiceProposalApprove,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cms.ProposalOwnerApproveReply{}, nil
 }
