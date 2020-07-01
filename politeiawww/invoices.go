@@ -1640,20 +1640,34 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 		return nil, err
 	}
 
-	validComments := c[:0]
+	userOwnedComments := make([]www.Comment, 0, 1048)
+	commentsToDisplay := make([]www.Comment, 0, 1048)
 	// Check to see if it's a proposal owner, then show them only threads
 	// they started.  Admins and invoice owners can see everything.
 	if !u.Admin && (ir.Username != u.Username) {
 		for _, comment := range c {
-			// Add any comments that are top level and owned by the requesting
+			// Add any comments that are owned by the requesting
 			// user.
-			if comment.ParentID == "0" && comment.UserID == u.ID.String() {
-				validComments = append(validComments, comment)
+			if comment.UserID == u.ID.String() {
+				userOwnedComments = append(userOwnedComments, comment)
 			}
-			// Add any replies to a top level comment that is owned by the
-			// requesting user. ??
 		}
-		c = validComments
+		// Now go through again and check for any replies to a proposal owner
+		// comment.
+		for _, comment := range c {
+			addToComments := false
+			for _, userComment := range userOwnedComments {
+				if userComment.ParentID == comment.CommentID {
+					addToComments = true
+					break
+				}
+			}
+			if addToComments {
+				commentsToDisplay = append(commentsToDisplay, comment)
+			}
+		}
+		commentsToDisplay = append(commentsToDisplay, userOwnedComments...)
+		c = commentsToDisplay
 	}
 	// Get the last time the user accessed these comments. This is
 	// a public route so a user may not exist.
