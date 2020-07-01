@@ -498,9 +498,14 @@ func TestValidateProposalMetadata(t *testing.T) {
 					t.Errorf("got error context '%v', want '%v'",
 						gotErrContext[0], wantErrContext[0])
 				}
-
+				return
 			}
-
+			// If wantError is nil, it means that an error case
+			// was expected and did not get returned.
+			if test.wantError != nil {
+				t.Errorf("want error '%v', got nil",
+					test.wantError)
+			}
 		})
 	}
 }
@@ -1121,7 +1126,13 @@ func TestValidateVoteOptions(t *testing.T) {
 					t.Errorf("got error context '%v', want '%v'",
 						gotErrContext[0], wantErrContext[0])
 				}
-
+				return
+			}
+			// If wantError is nil, it means that an error case
+			// was expected and did not get returned.
+			if test.want != nil {
+				t.Errorf("want error '%v', got nil",
+					test.want)
 			}
 		})
 	}
@@ -1424,6 +1435,12 @@ func TestValidateStartVote(t *testing.T) {
 					t.Errorf("got error context '%v', want '%v'",
 						gotErrContext[0], wantErrContext[0])
 				}
+				// If wantError is nil, it means that an error case
+				// was expected and did not get returned.
+				if test.want != nil && err == nil {
+					t.Errorf("want error '%v', got nil",
+						test.want)
+				}
 			case false:
 				got := errToStr(err)
 				want := errToStr(test.want)
@@ -1475,7 +1492,9 @@ func TestValidateStartVoteStandard(t *testing.T) {
 	d.AddRecord(t, convertPropToPD(t, propMaxLb))
 
 	// Three days vote duration
-	svVoteDuration := newStartVote(t, token, 1, 864, www2.VoteTypeStandard, id)
+	propWrongSubPeriod := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	makeProposalRFP(t, &propWrongSubPeriod, []string{}, p.linkByPeriodMin()-100)
+	d.AddRecord(t, convertPropToPD(t, propWrongSubPeriod))
 
 	var tests = []struct {
 		name string
@@ -1564,9 +1583,9 @@ func TestValidateStartVoteStandard(t *testing.T) {
 		},
 		{
 			"three days vote duration",
-			svVoteDuration,
+			sv,
 			*usr,
-			prop,
+			propWrongSubPeriod,
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
@@ -1619,6 +1638,13 @@ func TestValidateStartVoteStandard(t *testing.T) {
 					t.Errorf("got error context '%v', want '%v'",
 						gotErrContext[0], wantErrContext[0])
 				}
+				return
+			}
+			// If wantError is nil, it means that an error case
+			// was expected and did not get returned.
+			if test.want != nil {
+				t.Errorf("want error '%v', got nil",
+					test.want)
 			}
 		})
 	}
@@ -1721,6 +1747,13 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 					t.Errorf("got error context '%v', want '%v'",
 						gotErrContext[0], wantErrContext[0])
 				}
+				return
+			}
+			// If wantError is nil, it means that an error case
+			// was expected and did not get returned.
+			if test.want != nil {
+				t.Errorf("want error '%v', got nil",
+					test.want)
 			}
 		})
 	}
@@ -2963,6 +2996,13 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 					t.Errorf("got error context '%v', want '%v'",
 						gotErrContext[0], wantErrContext[0])
 				}
+				return
+			}
+			// If wantError is nil, it means that an error case
+			// was expected and did not get returned.
+			if test.want != nil {
+				t.Errorf("want error '%v', got nil",
+					test.want)
 			}
 		})
 	}
