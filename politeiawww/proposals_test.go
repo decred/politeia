@@ -1418,26 +1418,29 @@ func TestValidateStartVote(t *testing.T) {
 			// Check if wanted error is a UserError struct
 			switch test.wantUE {
 			case true:
-				// Validate error code
-				gotErrCode := err.(www.UserError).ErrorCode
-				wantErrCode := test.want.(www.UserError).ErrorCode
+				if err != nil {
+					// Validate error code
+					gotErrCode := err.(www.UserError).ErrorCode
+					wantErrCode := test.want.(www.UserError).ErrorCode
 
-				if gotErrCode != wantErrCode {
-					t.Errorf("got error code %v, want %v",
-						gotErrCode, wantErrCode)
-				}
-				// Validate error context
-				gotErrContext := err.(www.UserError).ErrorContext
-				wantErrContext := test.want.(www.UserError).ErrorContext
-				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+					if gotErrCode != wantErrCode {
+						t.Errorf("got error code %v, want %v",
+							gotErrCode, wantErrCode)
+					}
+					// Validate error context
+					gotErrContext := err.(www.UserError).ErrorContext
+					wantErrContext := test.want.(www.UserError).ErrorContext
+					hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
 
-				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-					t.Errorf("got error context '%v', want '%v'",
-						gotErrContext[0], wantErrContext[0])
+					if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+						t.Errorf("got error context '%v', want '%v'",
+							gotErrContext[0], wantErrContext[0])
+					}
+					return
 				}
 				// If wantError is nil, it means that an error case
 				// was expected and did not get returned.
-				if test.want != nil && err == nil {
+				if test.want != nil {
 					t.Errorf("want error '%v', got nil",
 						test.want)
 				}
