@@ -2479,8 +2479,10 @@ func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.Pro
 	// standard votes.
 	switch {
 	case isRFPSubmission(pr):
-		// Wrong validation function used. Fail with a 500.
-		return fmt.Errorf("proposal is a runoff vote submission")
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{"proposal is an rfp submission"},
+		}
 	case pr.PublicKey != av.PublicKey:
 		// User is not the author. First make sure the author didn't
 		// submit the proposal using an old identity.
