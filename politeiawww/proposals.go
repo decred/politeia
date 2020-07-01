@@ -200,6 +200,11 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 	return 7776000 // 3 months in seconds
 }
 
+// validateProposalMetdata validates the provided proposal metadata to ensure
+// it adheres to the api policy. Note that this function only checks validation
+// that is applicable to both new proposals and proposal edits. Additional
+// validation is done in processNewProposal and processEditProposal that is
+// specific to that action only.
 func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	// Validate Name
 	if !isValidProposalName(pm.Name) {
@@ -218,8 +223,8 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 			}
 		}
 
-		// Validate the LinkTo proposal. The only type of proposal
-		// that we currently allow linking to is an RFP.
+		// Validate the LinkTo proposal. The only type of proposal that
+		// we currently allow linking to is an RFP.
 		r, err := p.cache.Record(pm.LinkTo)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
@@ -250,11 +255,6 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"rfp proposal vote did not pass"},
-			}
-		case time.Now().Unix() > pr.LinkBy:
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto proposal deadline is expired"},
 			}
 		case pr.State != www.PropStateVetted:
 			return www.UserError{
@@ -296,7 +296,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 // validateProposal ensures that the given new proposal meets the api policy
 // requirements. If a proposal data file exists (currently optional) then it is
-// parsed and a ProposalData is returned.
+// parsed and a ProposalMetadata is returned.
 func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
 	if len(np.Files) == 0 {
 		return nil, www.UserError{
@@ -1133,6 +1133,30 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	pm, err := p.validateProposal(np, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate linkto requirements that are specific to new proposal
+	// submissions. Everything else has already been validated by the
+	// validateProposal function.
+	if pm.LinkTo != "" {
+		r, err := p.cache.Record(pm.LinkTo)
+		if err != nil {
+			return nil, err
+		}
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return nil, err
+		}
+		// Once the linkto deadline has expired no new submissions are
+		// allowed. Edits to existing submissions are allowed which is
+		// why this is checked here and not in the validateProposal
+		// function.
+		if time.Now().Unix() > pr.LinkBy {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal deadline is expired"},
+			}
+		}
 	}
 
 	// politeiad only includes files in its merkle root calc, not the
