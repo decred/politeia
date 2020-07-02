@@ -1878,12 +1878,16 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
 	}
 
-	propDetails, err := p.proposalDetails(pbd.Token)
+	pd := www.ProposalsDetails{
+		Token: pbd.Token,
+	}
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteProposalDetails, pd)
 	if err != nil {
 		return nil, err
 	}
+
 	var pdr www.ProposalDetailsReply
-	err = json.Unmarshal(propDetails, &pdr)
+	err = json.Unmarshal(data, &pdr)
 	if err != nil {
 		return nil, err
 	}
