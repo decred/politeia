@@ -329,13 +329,6 @@ func TestValidateProposalMetadata(t *testing.T) {
 	makeProposalRFP(t, &rfpProposalNotApproved, linkFrom, linkBy)
 	d.AddRecord(t, convertPropToPD(t, rfpProposalNotApproved))
 
-	// RFP bad linkBy expired timestamp
-	rfpBadLinkBy := newProposalRecord(t, usr, id, public)
-	rfpBadLinkByToken := rfpBadLinkBy.CensorshipRecord.Token
-	badLinkBy := int64(1351700038)
-	makeProposalRFP(t, &rfpBadLinkBy, linkFrom, badLinkBy)
-	d.AddRecord(t, convertPropToPD(t, rfpBadLinkBy))
-
 	// RFP bad state
 	rfpBadState := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
 	rfpBadStateToken := rfpBadState.CensorshipRecord.Token
@@ -349,7 +342,6 @@ func TestValidateProposalMetadata(t *testing.T) {
 	}
 	vsApproved := newVoteSummary(t, www.PropVoteStatusFinished, approved)
 	p.voteSummarySet(rfpToken, vsApproved)
-	p.voteSummarySet(rfpBadLinkByToken, vsApproved)
 
 	// Not approved VoteSummary for proposal
 	notApproved := []www.VoteOptionResult{
@@ -358,7 +350,6 @@ func TestValidateProposalMetadata(t *testing.T) {
 	}
 	vsNotApproved := newVoteSummary(t, www.PropVoteStatusFinished, notApproved)
 	p.voteSummarySet(rfpTokenNotApproved, vsNotApproved)
-	p.voteSummarySet(rfpBadLinkByToken, vsApproved)
 	p.voteSummarySet(rfpBadStateToken, vsApproved)
 
 	// Metadatas to validate and test
@@ -369,8 +360,6 @@ func TestValidateProposalMetadata(t *testing.T) {
 	_, mdProposalNotRFP := newProposalMetadata(t, validName, token, 0)
 	_, mdProposalNotApproved := newProposalMetadata(t, validName,
 		rfpTokenNotApproved, 0)
-	_, mdProposalBadLinkBy := newProposalMetadata(t, validName,
-		rfpBadLinkByToken, 0)
 	_, mdProposalBadState := newProposalMetadata(t, validName,
 		rfpBadStateToken, 0)
 	_, mdProposalBothRFP := newProposalMetadata(t, validName, rfpToken,
@@ -427,14 +416,6 @@ func TestValidateProposalMetadata(t *testing.T) {
 			www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"rfp proposal vote did not pass"},
-			},
-		},
-		{
-			"invalid linkTo proposal deadline is expired",
-			mdProposalBadLinkBy,
-			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto proposal deadline is expired"},
 			},
 		},
 		{
