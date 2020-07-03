@@ -62,7 +62,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Rfp & linkby flags conflict
+	// RFP & linkby flags conflict
 	if cmd.RFP && cmd.LinkBy != 0 {
 		return errEditProposalRfpAndLinkbyFound
 	}
