@@ -62,14 +62,12 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Both rfp & linkby flags used
-	// throw error
+	// Rfp & linkby flags conflict
 	if cmd.RFP && cmd.LinkBy != 0 {
 		return errEditProposalRfpAndLinkbyFound
 	}
 
-	// Both random & name flags used
-	// throw error
+	// Random & name flags conflict
 	if cmd.Random && cmd.Name != "" {
 		return errEditProposalRandomAndNameFound
 	}
@@ -137,29 +135,27 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	// Setup metadata
 	var pm v1.ProposalMetadata
 
-	// Use existing metadata flag is true
-	// fetch record and pre-fill data
 	if cmd.UseMd {
 		pdr, err := client.ProposalDetails(cmd.Args.Token,
 			&v1.ProposalsDetails{})
 		if err != nil {
 			return err
 		}
+		// Prefill exisitng metadata
 		pm.Name = pdr.Proposal.Name
 		pm.LinkTo = pdr.Proposal.LinkTo
 		pm.LinkBy = pdr.Proposal.LinkBy
 	}
 	if cmd.Random {
-		// generate random name
+		// Generate random name
 		r, err := util.Random(v1.PolicyMinProposalNameLength)
 		if err != nil {
 			return err
 		}
 		pm.Name = hex.EncodeToString(r)
 	}
-	// If RFP flag is true
-	// set linkby to a month from now
 	if cmd.RFP {
+		// Set linkby to a month from now
 		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
 	if cmd.Name != "" {
