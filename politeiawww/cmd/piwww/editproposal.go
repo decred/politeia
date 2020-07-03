@@ -141,7 +141,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		// Prefill exisitng metadata
+		// Prefill existing metadata
 		pm.Name = pdr.Proposal.Name
 		pm.LinkTo = pdr.Proposal.LinkTo
 		pm.LinkBy = pdr.Proposal.LinkBy
