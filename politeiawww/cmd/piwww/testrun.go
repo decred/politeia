@@ -48,7 +48,8 @@ func login(email, password string) error {
 // newProposal returns a NewProposal object contains randonly generated
 // markdown text and a signature from the logged in user, if given RFP
 // bool is true it creates an RFP.
-func newProposal(RFP bool) (*v1.NewProposal, error) {
+// If given linkto it creates a RFP submission.
+func newProposal(RFP bool, linkto string) (*v1.NewProposal, error) {
 	md, err := createMDFile()
 	if err != nil {
 		return nil, fmt.Errorf("create MD file: %v", err)
@@ -60,6 +61,9 @@ func newProposal(RFP bool) (*v1.NewProposal, error) {
 	}
 	if RFP {
 		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	}
+	if linkto != "" {
+		pm.LinkTo = linkto
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
@@ -375,7 +379,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Submit new proposal
 	fmt.Printf("  New proposal\n")
-	np, err := newProposal(false)
+	np, err := newProposal(false, "")
 	if err != nil {
 		return err
 	}
@@ -718,7 +722,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		unreviewedPropToken string
 	)
 
-	np, err = newProposal(false)
+	np, err = newProposal(false, "")
 	if err != nil {
 		return err
 	}
@@ -728,7 +732,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	notReviewed1 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false)
+	np, err = newProposal(false, "")
 	if err != nil {
 		return err
 	}
@@ -738,7 +742,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	notReviewed2 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false)
+	np, err = newProposal(false, "")
 	if err != nil {
 		return err
 	}
@@ -756,7 +760,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	unreviewedChanges1 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false)
+	np, err = newProposal(false, "")
 	if err != nil {
 		return err
 	}
@@ -774,7 +778,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	unreviewedChanges2 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false)
+	np, err = newProposal(false, "")
 	if err != nil {
 		return err
 	}
@@ -1100,7 +1104,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	fmt.Printf("  Submitting a page of proposals to test vetted route\n")
 	for i := 0; i < v1.ProposalListPageSize; i++ {
-		np, err = newProposal(false)
+		np, err = newProposal(false, "")
 		if err != nil {
 			return err
 		}
@@ -1352,7 +1356,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Create RFP
 	fmt.Println("  Create RFP")
-	np, err = newProposal(true)
+	np, err = newProposal(true, "")
 	if err != nil {
 		return err
 	}
@@ -1474,9 +1478,124 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		}
 		if vs.Approved {
 			fmt.Printf("  RFP approved successfully\n")
-			// TODO: create submissions
+			// Create 4 RFP submissions.
+			// 1 Unreviewd
+			np, err = newProposal(false, token)
+			if err != nil {
+				return err
+			}
+			npr, err = client.NewProposal(np)
+			if err != nil {
+				return err
+			}
+			// 2 Public
+			np, err = newProposal(false, token)
+			if err != nil {
+				return err
+			}
+			npr, err = client.NewProposal(np)
+			if err != nil {
+				return err
+			}
+			firststoken := npr.CensorshipRecord.Token
+			fmt.Printf("  Set first submission status: not reviewed to" +
+				" public\n")
+			spsc = SetProposalStatusCmd{}
+			spsc.Args.Token = firststoken
+			spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+			err = spsc.Execute(nil)
+			if err != nil {
+				return err
+			}
+			np, err = newProposal(false, token)
+			if err != nil {
+				return err
+			}
+			npr, err = client.NewProposal(np)
+			if err != nil {
+				return err
+			}
+			secondstoken := npr.CensorshipRecord.Token
+			fmt.Printf("  Set second submission status: not reviewed to" +
+				" public\n")
+			spsc = SetProposalStatusCmd{}
+			spsc.Args.Token = secondstoken
+			spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+			err = spsc.Execute(nil)
+			if err != nil {
+				return err
+			}
+			// 1 Abandoned, first make public
+			// then abandon
+			np, err = newProposal(false, token)
+			if err != nil {
+				return err
+			}
+			npr, err = client.NewProposal(np)
+			if err != nil {
+				return err
+			}
+			thirdstoken := npr.CensorshipRecord.Token
+			fmt.Printf("  Set third submission status: not reviewed to" +
+				" abandoned\n")
+			spsc = SetProposalStatusCmd{}
+			spsc.Args.Token = thirdstoken
+			spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+			err = spsc.Execute(nil)
+			if err != nil {
+				return err
+			}
+			spsc.Args.Status = "abandoned"
+			spsc.Args.Message = "this is spam"
+			err = spsc.Execute(nil)
+			if err != nil {
+				return err
+			}
+			// Start runoff vote
+			fmt.Printf("  Start RFP submissions runoff vote\n")
+			svrc := StartVoteRunoffCmd{}
+			svrc.Args.TokenRFP = token
+			svrc.Args.Duration = 1
+			svrc.Args.PassPercentage = "0"
+			svrc.Args.QuorumPercentage = "0"
+			err = svrc.Execute(nil)
+			if err != nil {
+				return err
+			}
+			// Cast first submission votes
+			fmt.Printf("  Cast first submission votes\n")
+			vc = VoteCmd{}
+			vc.Args.Token = firststoken
+			vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
+			err = vc.Execute(nil)
+			if err != nil {
+				return err
+			}
+			// Wait to runoff vote finish
+			for {
+				bvs := v1.BatchVoteSummary{
+					Tokens: []string{firststoken},
+				}
+				bvsr, err := client.BatchVoteSummary(&bvs)
+				if err != nil {
+					return err
+				}
+
+				vs = bvsr.Summaries[firststoken]
+				// runoff voting period has ended
+				// proceed with tests
+				if vs.Status == v1.PropVoteStatusFinished {
+					break
+				}
+
+				fmt.Printf("  Runoff vote still going on...\n")
+				time.Sleep(sleepInterval)
+			}
+			if vs.Approved {
+				fmt.Printf("  First submission approved successfully\n")
+			}
 		} else {
-			return fmt.Errorf("was RFP approved? %v, want true",
+			return fmt.Errorf("RFP approved? %v, want true",
 				vs.Approved)
 		}
 	}
