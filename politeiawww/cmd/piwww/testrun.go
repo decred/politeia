@@ -1335,7 +1335,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// RFP routes
 	fmt.Println("Running RFP routes")
 
-	// Login with admin and make the proposal public
+	// Login with admin to create an RFP
+	// and make the proposal public.
 	fmt.Printf("  Login admin\n")
 	err = login(admin.email, admin.password)
 	if err != nil {
@@ -1448,15 +1449,24 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	if !noDcrwallet {
-		// RFP Vote results
-		fmt.Printf("  Vote results\n")
-		vrr, err = client.VoteResults(token)
-		if err != nil {
-			return err
+		// Wait to RFP to finish voting
+		for {
+			vsr, err := client.VoteStatus(token)
+			if err != nil {
+				return err
+			}
+
+			// RFP voting period has ended
+			// proceed with tests
+			if vsr.Status == v1.PropVoteStatusFinished {
+				break
+			}
+
+			fmt.Printf("  RFP voting still going on...\n")
+			time.Sleep(sleepInterval)
 		}
-		fmt.Println(vrr)
-		// TODO: poll voteReults tell vote is done, then create submissions and start run off vote :)
 	}
+	fmt.Println("RFP voting finished!")
 
 	// Logout
 	fmt.Printf("  Logout\n")
