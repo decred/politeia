@@ -1351,22 +1351,22 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Create RFP
 	fmt.Println("  Create RFP")
-	nrfp, err := newProposal(true)
+	np, err = newProposal(true)
 	if err != nil {
 		return err
 	}
-	rnpr, err := client.NewProposal(nrfp)
+	npr, err = client.NewProposal(np)
 	if err != nil {
 		return err
 	}
 
 	// Verify RFP censorship record
 	rpr := v1.ProposalRecord{
-		Files:            nrfp.Files,
-		Metadata:         nrfp.Metadata,
-		PublicKey:        nrfp.PublicKey,
-		Signature:        nrfp.Signature,
-		CensorshipRecord: rnpr.CensorshipRecord,
+		Files:            np.Files,
+		Metadata:         np.Metadata,
+		PublicKey:        np.PublicKey,
+		Signature:        np.Signature,
+		CensorshipRecord: npr.CensorshipRecord,
 	}
 	err = shared.VerifyProposal(rpr, version.PubKey)
 	if err != nil {
