@@ -1480,6 +1480,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			fmt.Printf("  RFP approved successfully\n")
 			// Create 4 RFP submissions.
 			// 1 Unreviewd
+			fmt.Println("  Create unreviewed RFP submission")
 			np, err = newProposal(false, token)
 			if err != nil {
 				return err
