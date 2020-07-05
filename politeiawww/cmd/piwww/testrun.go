@@ -1409,7 +1409,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	// Start RFP vote
-	fmt.Printf("  Start vote\n")
+	fmt.Printf("  Start RFP vote\n")
 	svc = StartVoteCmd{}
 	svc.Args.Token = token
 	svc.Args.Duration = 1
@@ -1431,14 +1431,16 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		switch {
 		case strings.Contains(err.Error(), "connection refused"):
 			// User is not running a dcrwallet instance locally.
-			// This is ok. Print a warning and continue.
+			// Skipping RFP tests as we couldn't proceed without
+			// an approved RFP.
 			fmt.Printf("  WARNING: could not connect to dcrwallet; " +
 				"skipping RFP tests\n")
 			noDcrwallet = true
 
 		case strings.Contains(err.Error(), "no eligible tickets"):
 			// User doesn't have any eligible tickets. This is ok.
-			// Print a warning and continue.
+			// Skipping RFP tests as we couldn't proceed without
+			// an approved RFP.
 			fmt.Printf("  WARNING: user has no elibigle tickets; " +
 				"skipping RFP tests\n")
 			noDcrwallet = true
@@ -1450,23 +1452,34 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	if !noDcrwallet {
 		// Wait to RFP to finish voting
+		var vs v1.VoteSummary
 		for {
-			vsr, err := client.VoteStatus(token)
+			bvs := v1.BatchVoteSummary{
+				Tokens: []string{token},
+			}
+			bvsr, err := client.BatchVoteSummary(&bvs)
 			if err != nil {
 				return err
 			}
 
+			vs = bvsr.Summaries[token]
 			// RFP voting period has ended
 			// proceed with tests
-			if vsr.Status == v1.PropVoteStatusFinished {
+			if vs.Status == v1.PropVoteStatusFinished {
 				break
 			}
 
 			fmt.Printf("  RFP voting still going on...\n")
 			time.Sleep(sleepInterval)
 		}
+		if vs.Approved {
+			fmt.Printf("  RFP approved successfully\n")
+			// TODO: create submissions
+		} else {
+			return fmt.Errorf("was RFP approved? %v, want true",
+				vs.Approved)
+		}
 	}
-	fmt.Println("RFP voting finished!")
 
 	// Logout
 	fmt.Printf("  Logout\n")
