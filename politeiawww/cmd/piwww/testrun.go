@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
@@ -88,7 +90,8 @@ func newProposal(RFP bool) (*v1.NewProposal, error) {
 func (cmd *TestRunCmd) Execute(args []string) error {
 	const (
 		// sleepInterval is the time to wait in between requests
-		// when polling politeiawww for paywall tx confirmations.
+		// when polling politeiawww for paywall tx confirmations
+		// or RFP vote results.
 		sleepInterval = 15 * time.Second
 
 		// Comment actions
@@ -416,6 +419,13 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
+	// Update user key
+	fmt.Printf("  Update user key\n")
+	err = uukc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("  Set proposal status: public\n")
 	spsc := SetProposalStatusCmd{}
 	spsc.Args.Token = token
@@ -704,8 +714,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 		// We don't need these now but will need
 		// them when we test the public routes.
-		// censoredPropToken   string
-		// unreviewedPropToken string
+		censoredPropToken   string
+		unreviewedPropToken string
 	)
 
 	np, err = newProposal(false)
@@ -775,7 +785,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// We don't use this proposal for testing the set
 	// proposal status routes, but will need it when
 	// we are testing the public routes.
-	// unreviewedPropToken = npr.CensorshipRecord.Token
+	unreviewedPropToken = npr.CensorshipRecord.Token
 
 	// Log back in with admin
 	fmt.Printf("  Login admin\n")
@@ -829,7 +839,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Save this token. We will need it when
 	// we test the public routes.
-	// censoredPropToken = spsc.Args.Token
+	censoredPropToken = spsc.Args.Token
 
 	// Set proposal status - not reviewed to public
 	fmt.Printf("  Set proposal status: not reviewed to public\n")
@@ -969,358 +979,358 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	// Public routes
-	// fmt.Printf("Running public routes\n")
+	fmt.Printf("Running public routes\n")
 
-	// // Me failure
-	// _, err = client.Me()
-	// if err == nil {
-	// 	return fmt.Errorf("admin should be logged out")
-	// }
+	// Me failure
+	_, err = client.Me()
+	if err == nil {
+		return fmt.Errorf("admin should be logged out")
+	}
 
-	// // Proposal details
-	// fmt.Printf("  Proposal details\n")
-	// pdr, err = client.ProposalDetails(token, nil)
-	// if err != nil {
-	// 	return err
-	// }
+	// Proposal details
+	fmt.Printf("  Proposal details\n")
+	pdr, err = client.ProposalDetails(token, nil)
+	if err != nil {
+		return err
+	}
 
-	// if pdr.Proposal.Version != "2" {
-	// 	return fmt.Errorf("proposal details version got %v, want 2",
-	// 		pdr.Proposal.Version)
-	// }
+	if pdr.Proposal.Version != "2" {
+		return fmt.Errorf("proposal details version got %v, want 2",
+			pdr.Proposal.Version)
+	}
 
-	// // Proposal details version
-	// fmt.Printf("  Proposal details version\n")
-	// pdr, err = client.ProposalDetails(token,
-	// 	&v1.ProposalsDetails{
-	// 		Version: "1",
-	// 	})
-	// if err != nil {
-	// 	return err
-	// }
+	// Proposal details version
+	fmt.Printf("  Proposal details version\n")
+	pdr, err = client.ProposalDetails(token,
+		&v1.ProposalsDetails{
+			Version: "1",
+		})
+	if err != nil {
+		return err
+	}
 
-	// if pdr.Proposal.Version != "1" {
-	// 	return fmt.Errorf("proposal details version got %v, want 1",
-	// 		pdr.Proposal.Version)
-	// }
+	if pdr.Proposal.Version != "1" {
+		return fmt.Errorf("proposal details version got %v, want 1",
+			pdr.Proposal.Version)
+	}
 
-	// // Proposal details - unreviewed
-	// fmt.Printf("  Proposal details: unreviewed proposal\n")
-	// pdr, err = client.ProposalDetails(unreviewedPropToken, nil)
-	// if err != nil {
-	// 	return err
-	// }
+	// Proposal details - unreviewed
+	fmt.Printf("  Proposal details: unreviewed proposal\n")
+	pdr, err = client.ProposalDetails(unreviewedPropToken, nil)
+	if err != nil {
+		return err
+	}
 
-	// switch {
-	// case pdr.Proposal.Name != "":
-	// 	return fmt.Errorf("proposal name should be empty string")
+	switch {
+	case pdr.Proposal.Name != "":
+		return fmt.Errorf("proposal name should be empty string")
 
-	// case len(pdr.Proposal.Files) != 0:
-	// 	return fmt.Errorf("proposal files should not be included")
-	// }
+	case len(pdr.Proposal.Files) != 0:
+		return fmt.Errorf("proposal files should not be included")
+	}
 
-	// // Proposal details - censored
-	// fmt.Printf("  Proposal details: censored proposal\n")
-	// pdr, err = client.ProposalDetails(censoredPropToken, nil)
-	// if err != nil {
-	// 	return err
-	// }
+	// Proposal details - censored
+	fmt.Printf("  Proposal details: censored proposal\n")
+	pdr, err = client.ProposalDetails(censoredPropToken, nil)
+	if err != nil {
+		return err
+	}
 
-	// switch {
-	// case pdr.Proposal.Name != "":
-	// 	return fmt.Errorf("proposal name should be empty string")
+	switch {
+	case pdr.Proposal.Name != "":
+		return fmt.Errorf("proposal name should be empty string")
 
-	// case len(pdr.Proposal.Files) != 0:
-	// 	return fmt.Errorf("proposal files should not be included")
+	case len(pdr.Proposal.Files) != 0:
+		return fmt.Errorf("proposal files should not be included")
 
-	// case pdr.Proposal.CensoredAt == 0:
-	// 	return fmt.Errorf("proposal should have a CensoredAt timestamp")
-	// }
+	case pdr.Proposal.CensoredAt == 0:
+		return fmt.Errorf("proposal should have a CensoredAt timestamp")
+	}
 
-	// // Proposal comments
-	// fmt.Printf("  Get comments\n")
-	// gcr, err = client.GetComments(token)
-	// if err != nil {
-	// 	return err
-	// }
+	// Proposal comments
+	fmt.Printf("  Get comments\n")
+	gcr, err = client.GetComments(token)
+	if err != nil {
+		return err
+	}
 
-	// if len(gcr.Comments) != 2 {
-	// 	return fmt.Errorf("num comments got %v, want 2",
-	// 		len(gcr.Comments))
-	// }
+	if len(gcr.Comments) != 2 {
+		return fmt.Errorf("num comments got %v, want 2",
+			len(gcr.Comments))
+	}
 
-	// c0 := gcr.Comments[0]
-	// c1 := gcr.Comments[1]
-	// switch {
-	// case c0.CommentID != "1":
-	// 	return fmt.Errorf("comment ID got %v, want 1",
-	// 		c0.CommentID)
+	c0 := gcr.Comments[0]
+	c1 := gcr.Comments[1]
+	switch {
+	case c0.CommentID != "1":
+		return fmt.Errorf("comment ID got %v, want 1",
+			c0.CommentID)
 
-	// case c0.Upvotes != 0:
-	// 	return fmt.Errorf("comment %v result up votes got %v, want 0",
-	// 		c0.CommentID, c0.Upvotes)
+	case c0.Upvotes != 0:
+		return fmt.Errorf("comment %v result up votes got %v, want 0",
+			c0.CommentID, c0.Upvotes)
 
-	// case c0.Downvotes != 1:
-	// 	return fmt.Errorf("comment %v result down votes got %v, want 1",
-	// 		c0.CommentID, c0.Downvotes)
+	case c0.Downvotes != 1:
+		return fmt.Errorf("comment %v result down votes got %v, want 1",
+			c0.CommentID, c0.Downvotes)
 
-	// case c0.ResultVotes != -1:
-	// 	return fmt.Errorf("comment %v result vote score got %v, want -1",
-	// 		c0.CommentID, c0.Downvotes)
+	case c0.ResultVotes != -1:
+		return fmt.Errorf("comment %v result vote score got %v, want -1",
+			c0.CommentID, c0.Downvotes)
 
-	// case c1.CommentID != "2":
-	// 	return fmt.Errorf("comment ID got %v, want 2",
-	// 		c1.CommentID)
+	case c1.CommentID != "2":
+		return fmt.Errorf("comment ID got %v, want 2",
+			c1.CommentID)
 
-	// case c1.Comment != "":
-	// 	return fmt.Errorf("censored comment text got '%v', want ''",
-	// 		c1.Comment)
+	case c1.Comment != "":
+		return fmt.Errorf("censored comment text got '%v', want ''",
+			c1.Comment)
 
-	// case !c1.Censored:
-	// 	return fmt.Errorf("censored comment not marked as censored")
-	// }
+	case !c1.Censored:
+		return fmt.Errorf("censored comment not marked as censored")
+	}
 
-	// // Vetted proposals. We need to submit a page of proposals and
-	// // make them public first in order to test the vetted route.
-	// fmt.Printf("  Login admin\n")
-	// err = login(admin.email, admin.password)
-	// if err != nil {
-	// 	return err
-	// }
+	// Vetted proposals. We need to submit a page of proposals and
+	// make them public first in order to test the vetted route.
+	fmt.Printf("  Login admin\n")
+	err = login(admin.email, admin.password)
+	if err != nil {
+		return err
+	}
 
-	// fmt.Printf("  Submitting a page of proposals to test vetted route\n")
-	// for i := 0; i < v1.ProposalListPageSize; i++ {
-	// 	np, err = newProposal(false)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	_, err = client.NewProposal(np)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+	fmt.Printf("  Submitting a page of proposals to test vetted route\n")
+	for i := 0; i < v1.ProposalListPageSize; i++ {
+		np, err = newProposal(false)
+		if err != nil {
+			return err
+		}
+		_, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+	}
 
-	// fmt.Printf("  Token inventory\n")
-	// tir, err := client.TokenInventory()
-	// if err != nil {
-	// 	return err
-	// }
+	fmt.Printf("  Token inventory\n")
+	tir, err := client.TokenInventory()
+	if err != nil {
+		return err
+	}
 
-	// fmt.Printf("  Batch proposals\n")
-	// bpr, err := client.BatchProposals(&v1.BatchProposals{
-	// 	Tokens: tir.Unreviewed[:v1.ProposalListPageSize],
-	// })
-	// if err != nil {
-	// 	return err
-	// }
+	fmt.Printf("  Batch proposals\n")
+	bpr, err := client.BatchProposals(&v1.BatchProposals{
+		Tokens: tir.Unreviewed[:v1.ProposalListPageSize],
+	})
+	if err != nil {
+		return err
+	}
 
-	// fmt.Printf("  Making unvetted proposals public\n")
-	// for _, v := range bpr.Proposals {
-	// 	spsc := SetProposalStatusCmd{}
-	// 	spsc.Args.Token = v.CensorshipRecord.Token
-	// 	spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
-	// 	err = spsc.Execute(nil)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+	fmt.Printf("  Making unvetted proposals public\n")
+	for _, v := range bpr.Proposals {
+		spsc := SetProposalStatusCmd{}
+		spsc.Args.Token = v.CensorshipRecord.Token
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+	}
 
-	// fmt.Printf("  Logout\n")
-	// lc = shared.LogoutCmd{}
-	// err = lc.Execute(nil)
-	// if err != nil {
-	// 	return err
-	// }
+	fmt.Printf("  Logout\n")
+	lc = shared.LogoutCmd{}
+	err = lc.Execute(nil)
+	if err != nil {
+		return err
+	}
 
-	// fmt.Printf("  Vetted\n")
-	// gavr, err := client.GetAllVetted(&v1.GetAllVetted{})
-	// if err != nil {
-	// 	return err
-	// }
+	fmt.Printf("  Vetted\n")
+	gavr, err := client.GetAllVetted(&v1.GetAllVetted{})
+	if err != nil {
+		return err
+	}
 
-	// if len(gavr.Proposals) != v1.ProposalListPageSize {
-	// 	return fmt.Errorf("proposals page size got %v, want %v",
-	// 		len(gavr.Proposals), v1.ProposalListPageSize)
-	// }
+	if len(gavr.Proposals) != v1.ProposalListPageSize {
+		return fmt.Errorf("proposals page size got %v, want %v",
+			len(gavr.Proposals), v1.ProposalListPageSize)
+	}
 
-	// for _, v := range gavr.Proposals {
-	// 	err = shared.VerifyProposal(v, version.PubKey)
-	// 	if err != nil {
-	// 		return fmt.Errorf("verify proposal failed %v: %v",
-	// 			v.CensorshipRecord.Token, err)
-	// 	}
-	// }
+	for _, v := range gavr.Proposals {
+		err = shared.VerifyProposal(v, version.PubKey)
+		if err != nil {
+			return fmt.Errorf("verify proposal failed %v: %v",
+				v.CensorshipRecord.Token, err)
+		}
+	}
 
-	// // User details
-	// fmt.Printf("  User details\n")
-	// udr, err := client.UserDetails(user.ID)
-	// if err != nil {
-	// 	return err
-	// }
+	// User details
+	fmt.Printf("  User details\n")
+	udr, err := client.UserDetails(user.ID)
+	if err != nil {
+		return err
+	}
 
-	// if udr.User.ID != user.ID {
-	// 	return fmt.Errorf("user ID got %v, want %v",
-	// 		udr.User.ID, user.ID)
-	// }
+	if udr.User.ID != user.ID {
+		return fmt.Errorf("user ID got %v, want %v",
+			udr.User.ID, user.ID)
+	}
 
-	// // User proposals
-	// fmt.Printf("  User proposals\n")
-	// upr, err := client.UserProposals(
-	// 	&v1.UserProposals{
-	// 		UserId: user.ID,
-	// 	})
-	// if err != nil {
-	// 	return err
-	// }
+	// User proposals
+	fmt.Printf("  User proposals\n")
+	upr, err := client.UserProposals(
+		&v1.UserProposals{
+			UserId: user.ID,
+		})
+	if err != nil {
+		return err
+	}
 
-	// // userPropCount is the total number of proposals that we've
-	// // submitted with the test user during the test run that are
-	// // public.
-	// userPropCount := 3
-	// if upr.NumOfProposals != userPropCount {
-	// 	return fmt.Errorf("user proposal count got %v, want %v",
-	// 		upr.NumOfProposals, userPropCount)
-	// }
+	// userPropCount is the total number of proposals that we've
+	// submitted with the test user during the test run that are
+	// public.
+	userPropCount := 3
+	if upr.NumOfProposals != userPropCount {
+		return fmt.Errorf("user proposal count got %v, want %v",
+			upr.NumOfProposals, userPropCount)
+	}
 
-	// for _, v := range upr.Proposals {
-	// 	err := shared.VerifyProposal(v, version.PubKey)
-	// 	if err != nil {
-	// 		return fmt.Errorf("verify proposal failed %v: %v",
-	// 			v.CensorshipRecord.Token, err)
-	// 	}
-	// }
+	for _, v := range upr.Proposals {
+		err := shared.VerifyProposal(v, version.PubKey)
+		if err != nil {
+			return fmt.Errorf("verify proposal failed %v: %v",
+				v.CensorshipRecord.Token, err)
+		}
+	}
 
-	// // Vote details
-	// fmt.Printf("  Vote details\n")
-	// vdr, err := client.VoteDetailsV2(token)
-	// if err != nil {
-	// 	return err
-	// }
-	// switch vdr.Version {
-	// case 2:
-	// 	// Validate signature
-	// 	vote, err := decredplugin.DecodeVoteV2([]byte(vdr.Vote))
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	dsv := decredplugin.StartVoteV2{
-	// 		PublicKey: vdr.PublicKey,
-	// 		Vote:      *vote,
-	// 		Signature: vdr.Signature,
-	// 	}
-	// 	err = dsv.VerifySignature()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// default:
-	// 	return fmt.Errorf("unknown start vote version %v", vdr.Version)
-	// }
+	// Vote details
+	fmt.Printf("  Vote details\n")
+	vdr, err := client.VoteDetailsV2(token)
+	if err != nil {
+		return err
+	}
+	switch vdr.Version {
+	case 2:
+		// Validate signature
+		vote, err := decredplugin.DecodeVoteV2([]byte(vdr.Vote))
+		if err != nil {
+			return err
+		}
+		dsv := decredplugin.StartVoteV2{
+			PublicKey: vdr.PublicKey,
+			Vote:      *vote,
+			Signature: vdr.Signature,
+		}
+		err = dsv.VerifySignature()
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown start vote version %v", vdr.Version)
+	}
 
-	// // Vote status
-	// fmt.Printf("  Vote status\n")
-	// vsr, err = client.VoteStatus(token)
-	// if err != nil {
-	// 	return err
-	// }
+	// Vote status
+	fmt.Printf("  Vote status\n")
+	vsr, err = client.VoteStatus(token)
+	if err != nil {
+		return err
+	}
 
-	// if vsr.Status != v1.PropVoteStatusStarted {
-	// 	return fmt.Errorf("vote status got %v, want %v",
-	// 		vsr.Status, v1.PropVoteStatusStarted)
-	// }
+	if vsr.Status != v1.PropVoteStatusStarted {
+		return fmt.Errorf("vote status got %v, want %v",
+			vsr.Status, v1.PropVoteStatusStarted)
+	}
 
-	// // Active votes
-	// fmt.Printf("  Active votes\n")
-	// avr, err := client.ActiveVotes()
-	// if err != nil {
-	// 	return err
-	// }
+	// Active votes
+	fmt.Printf("  Active votes\n")
+	avr, err := client.ActiveVotes()
+	if err != nil {
+		return err
+	}
 
-	// var found bool
-	// for _, v := range avr.Votes {
-	// 	if v.Proposal.CensorshipRecord.Token == token {
-	// 		found = true
-	// 	}
-	// }
-	// if !found {
-	// 	return fmt.Errorf("proposal %v not found in active votes",
-	// 		token)
-	// }
+	var found bool
+	for _, v := range avr.Votes {
+		if v.Proposal.CensorshipRecord.Token == token {
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("proposal %v not found in active votes",
+			token)
+	}
 
-	// // Cast votes
-	// fmt.Printf("  Cast votes\n")
-	// var skipCastVotes bool
-	// var vc VoteCmd
-	// vc.Args.Token = token
-	// vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
-	// err = vc.Execute(nil)
-	// if err != nil {
-	// 	switch {
-	// 	case strings.Contains(err.Error(), "connection refused"):
-	// 		// User is not running a dcrwallet instance locally.
-	// 		// This is ok. Print a warning and continue.
-	// 		fmt.Printf("  WARNING: could not connect to dcrwallet; " +
-	// 			"skipping cast votes\n")
-	// 		skipCastVotes = true
+	// Cast votes
+	fmt.Printf("  Cast votes\n")
+	var skipCastVotes bool
+	var vc VoteCmd
+	vc.Args.Token = token
+	vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
+	err = vc.Execute(nil)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "connection refused"):
+			// User is not running a dcrwallet instance locally.
+			// This is ok. Print a warning and continue.
+			fmt.Printf("  WARNING: could not connect to dcrwallet; " +
+				"skipping cast votes\n")
+			skipCastVotes = true
 
-	// 	case strings.Contains(err.Error(), "no eligible tickets"):
-	// 		// User doesn't have any eligible tickets. This is ok.
-	// 		// Print a warning and continue.
-	// 		fmt.Printf("  WARNING: user has no elibigle tickets; " +
-	// 			"skipping cast votes\n")
-	// 		skipCastVotes = true
+		case strings.Contains(err.Error(), "no eligible tickets"):
+			// User doesn't have any eligible tickets. This is ok.
+			// Print a warning and continue.
+			fmt.Printf("  WARNING: user has no elibigle tickets; " +
+				"skipping cast votes\n")
+			skipCastVotes = true
 
-	// 	default:
-	// 		return err
-	// 	}
-	// }
+		default:
+			return err
+		}
+	}
 
-	// // Find how many votes the user cast so that
-	// // we can compare it against the vote results.
-	// var voteCount int
-	// if !skipCastVotes {
-	// 	// Get proposal vote details
-	// 	var pvt v1.ProposalVoteTuple
-	// 	for _, v := range avr.Votes {
-	// 		if v.Proposal.CensorshipRecord.Token == token {
-	// 			pvt = v
-	// 			break
-	// 		}
-	// 	}
+	// Find how many votes the user cast so that
+	// we can compare it against the vote results.
+	var voteCount int
+	if !skipCastVotes {
+		// Get proposal vote details
+		var pvt v1.ProposalVoteTuple
+		for _, v := range avr.Votes {
+			if v.Proposal.CensorshipRecord.Token == token {
+				pvt = v
+				break
+			}
+		}
 
-	// 	// Get the number of eligible tickets the user had
-	// 	ticketPool, err := convertTicketHashes(pvt.StartVoteReply.EligibleTickets)
-	// 	if err != nil {
-	// 		return err
-	// 	}
+		// Get the number of eligible tickets the user had
+		ticketPool, err := convertTicketHashes(pvt.StartVoteReply.EligibleTickets)
+		if err != nil {
+			return err
+		}
 
-	// 	err = client.LoadWalletClient()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	defer client.Close()
+		err = client.LoadWalletClient()
+		if err != nil {
+			return err
+		}
+		defer client.Close()
 
-	// 	ctr, err := client.CommittedTickets(
-	// 		&walletrpc.CommittedTicketsRequest{
-	// 			Tickets: ticketPool,
-	// 		})
-	// 	if err != nil {
-	// 		return err
-	// 	}
+		ctr, err := client.CommittedTickets(
+			&walletrpc.CommittedTicketsRequest{
+				Tickets: ticketPool,
+			})
+		if err != nil {
+			return err
+		}
 
-	// 	voteCount = len(ctr.TicketAddresses)
-	// }
+		voteCount = len(ctr.TicketAddresses)
+	}
 
-	// // Vote results
-	// fmt.Printf("  Vote results\n")
-	// vrr, err := client.VoteResults(token)
-	// if err != nil {
-	// 	return err
-	// }
+	// Vote results
+	fmt.Printf("  Vote results\n")
+	vrr, err := client.VoteResults(token)
+	if err != nil {
+		return err
+	}
 
-	// if len(vrr.CastVotes) != voteCount {
-	// 	return fmt.Errorf("num cast votes got %v, want %v",
-	// 		len(vrr.CastVotes), voteCount)
-	// }
+	if len(vrr.CastVotes) != voteCount {
+		return fmt.Errorf("num cast votes got %v, want %v",
+			len(vrr.CastVotes), voteCount)
+	}
 
 	// RFP routes
 	fmt.Println("Running RFP routes")
@@ -1367,6 +1377,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	token = rpr.CensorshipRecord.Token
 	fmt.Printf("  RFP submitted: %v\n", token)
 
+	// Make RFP public
 	fmt.Printf("  Set RFP status: not reviewed to public\n")
 	spsc = SetProposalStatusCmd{}
 	spsc.Args.Token = token
@@ -1384,6 +1395,75 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	if pdr.Proposal.Status != v1.PropStatusPublic {
 		return fmt.Errorf("RFP status got %v, want %v",
 			pdr.Proposal.Status, v1.PropStatusPublic)
+	}
+
+	// Authorize vote
+	fmt.Printf("  Authorize vote: authorize\n")
+	avc = AuthorizeVoteCmd{}
+	avc.Args.Token = token
+	avc.Args.Action = decredplugin.AuthVoteActionAuthorize
+	err = avc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Start RFP vote
+	fmt.Printf("  Start vote\n")
+	svc = StartVoteCmd{}
+	svc.Args.Token = token
+	svc.Args.Duration = 1
+	svc.Args.PassPercentage = "0"
+	svc.Args.QuorumPercentage = "0"
+	err = svc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Cast RFP votes
+	fmt.Printf("  Cast RFP votes\n")
+	var noDcrwallet bool
+	vc = VoteCmd{}
+	vc.Args.Token = token
+	vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
+	err = vc.Execute(nil)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "connection refused"):
+			// User is not running a dcrwallet instance locally.
+			// This is ok. Print a warning and continue.
+			fmt.Printf("  WARNING: could not connect to dcrwallet; " +
+				"skipping RFP tests\n")
+			noDcrwallet = true
+
+		case strings.Contains(err.Error(), "no eligible tickets"):
+			// User doesn't have any eligible tickets. This is ok.
+			// Print a warning and continue.
+			fmt.Printf("  WARNING: user has no elibigle tickets; " +
+				"skipping RFP tests\n")
+			noDcrwallet = true
+
+		default:
+			return err
+		}
+	}
+
+	if !noDcrwallet {
+		// RFP Vote results
+		fmt.Printf("  Vote results\n")
+		vrr, err = client.VoteResults(token)
+		if err != nil {
+			return err
+		}
+		fmt.Println(vrr)
+		// TODO: poll voteReults tell vote is done, then create submissions and start run off vote :)
+	}
+
+	// Logout
+	fmt.Printf("  Logout\n")
+	lc = shared.LogoutCmd{}
+	err = lc.Execute(nil)
+	if err != nil {
+		return err
 	}
 
 	// Websockets
