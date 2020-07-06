@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"text/template"
@@ -952,22 +953,52 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughBatchProposals")
 
-	route := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		route = cms.ProposalsTestnet
-	}
-	route = route + "/api/v1" + www.RouteBatchProposals
-
-	resp, err := http.Post(route, "application/json", r.Body)
+	data, err := p.batchProposals(r.Body)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handlePassThroughBatchProposals: http.NewRequest: %v", err)
+			"handlePassThroughBatchProposals: batchProposals: %v", err)
 		return
+	}
+	util.RespondRaw(w, http.StatusOK, data)
+}
+
+func (p *politeiawww) batchProposals(body io.ReadCloser) ([]byte, error) {
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+
+	route := dest + "/api/v1" + www.RouteVersion
+
+	resp, err := http.Get(route)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	data, _ := ioutil.ReadAll(resp.Body)
-	util.RespondRaw(w, http.StatusOK, data)
+	cookies := resp.Cookies()
+	csrf := resp.Header.Get(www.CsrfToken)
+
+	route = dest + "/api/v1" + www.RouteBatchProposals
+
+	req, err := http.NewRequest(http.MethodPost, route, body)
+	if err != nil {
+		return nil, err
+	}
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	req.Header.Set(www.CsrfToken, csrf)
+	newClient := &http.Client{}
+
+	r, err := newClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	return ioutil.ReadAll(r.Body)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
