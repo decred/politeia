@@ -1490,6 +1490,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 				return err
 			}
 			// 2 Public
+			fmt.Println("  Create 2 more submissions & make them public")
 			np, err = newProposal(false, token)
 			if err != nil {
 				return err
