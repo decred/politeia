@@ -50,8 +50,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Get server public key so that we can verify the censorship
-	// record that is sent back.
+	// Get server public key
 	vr, err := client.Version()
 	if err != nil {
 		return err
@@ -122,15 +121,8 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		Name: cmd.Name,
 	}
 	if cmd.RFP {
-		// Get the minimum LinkBy from the policy
-		pr, err := client.Policy()
-		if err != nil {
-			return fmt.Errorf("Policy: %v", err)
-		}
-
-		// Set linkby to twice the required minimum
-		minLinkByPeriod := time.Duration(pr.MinLinkByPeriod) * time.Second
-		pm.LinkBy = time.Now().Add(minLinkByPeriod * 2).Unix()
+		// Set linkby to a month from now
+		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
 	if cmd.LinkTo != "" {
 		pm.LinkTo = cmd.LinkTo

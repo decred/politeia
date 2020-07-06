@@ -155,15 +155,8 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		pm.Name = hex.EncodeToString(r)
 	}
 	if cmd.RFP {
-		// Get the minimum LinkBy from the policy
-		pr, err := client.Policy()
-		if err != nil {
-			return fmt.Errorf("Policy: %v", err)
-		}
-
-		// Set linkby to twice the required minimum
-		minLinkByPeriod := time.Duration(pr.MinLinkByPeriod) * time.Second
-		pm.LinkBy = time.Now().Add(minLinkByPeriod * 2).Unix()
+		// Set linkby to a month from now
+		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
 	if cmd.Name != "" {
 		pm.Name = cmd.Name
