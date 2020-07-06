@@ -108,6 +108,7 @@ type Invoice struct {
 	ContractorContact  string
 	ContractorRate     uint
 	PaymentAddress     string
+	ApprovedProposals  []string
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.
 	Changes   []InvoiceChange // All status changes that the invoice has had.

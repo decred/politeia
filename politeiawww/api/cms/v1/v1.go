@@ -470,6 +470,7 @@ type InvoiceRecord struct {
 	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
 	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
 	Total              int64                `json:"total"`                        // Total amount that the invoice is billing
+	ApprovedProposals  []string             `json:"approvedproposals"`            // List of proposals from this invoice that have been approved
 	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 

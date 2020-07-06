@@ -1070,6 +1070,23 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				payment.TimeLastUpdated = s.Timestamp
 				payment.AmountReceived = s.AmountReceived
 			}
+			dbInvoice.Payments = payment
+		case mdstream.IDInvoiceProposalApprove:
+			ipa, err := mdstream.DecodeInvoiceProposalApprove([]byte(m.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					p.CensorshipRecord.Token, err, m)
+				continue
+			}
+			var approvedProposals []string
+			for _, s := range ipa {
+				if approvedProposals == nil {
+					approvedProposals = make([]string, 0, 1048)
+				} else {
+					approvedProposals = append(approvedProposals, s.Token)
+				}
+			}
 		default:
 			// Log error but proceed
 			log.Errorf("convertRecordToInvoiceDB: invalid "+
