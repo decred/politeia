@@ -5,12 +5,19 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"image/png"
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pquerna/otp/totp"
+)
+
+var (
+	validTOTPTypes = map[www.TOTPMethodT]bool{
+		www.TOTPTypeBasic: true,
+	}
 )
 
 // processSetTOTP attempts to set a new TOTP key based on the given TOTP type.
@@ -27,9 +34,13 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 		}
 	}
 
+	issuer := "politeia"
+	if p.cfg.Mode == "cmswww" {
+		issuer = "cms"
+	}
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      p.cfg.Mode,
-		AccountName: u.Email,
+		Issuer:      issuer,
+		AccountName: u.Username,
 	})
 	if err != nil {
 		return nil, err
@@ -41,6 +52,15 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 		return nil, err
 	}
 	png.Encode(&buf, img)
+
+	// Validate TOTP type that was selected.
+	if _, ok := validTOTPTypes[st.Type]; !ok {
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			}
+		}
+	}
 
 	u.TOTPType = int(st.Type)
 	u.TOTPSecret = key.Secret()
@@ -54,7 +74,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 
 	return &www.SetTOTPReply{
 		Key:   key.Secret(),
-		Image: buf.Bytes(),
+		Image: base64.StdEncoding.EncodeToString(buf.Bytes()),
 	}, nil
 }
 

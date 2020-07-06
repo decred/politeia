@@ -1381,7 +1381,7 @@ type SetTOTP struct {
 // SetTOTPReply will return an empty reply if no errors occurred.
 type SetTOTPReply struct {
 	Key   string `json:"key"`
-	Image []byte `json:"image"`
+	Image string `json:"image"`
 }
 
 // VerifyTOTP is used to confirm the previously set TOTP key.
