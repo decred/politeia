@@ -254,14 +254,6 @@ func setDecredPluginHook(name string, f func(string) error) {
 	decredPluginHooks[name] = f
 }
 
-func (g *gitBackEnd) unvettedPropExists(token string) bool {
-	tokenb, err := util.ConvertStringToken(token)
-	if err != nil {
-		return false
-	}
-	return g.UnvettedExists(tokenb)
-}
-
 func (g *gitBackEnd) vettedPropExists(token string) bool {
 	tokenb, err := util.ConvertStringToken(token)
 	if err != nil {
@@ -576,9 +568,15 @@ func (g *gitBackEnd) pluginBestBlock() (string, error) {
 func (g *gitBackEnd) decredPluginPostEdit(token string) error {
 	log.Tracef("decredPluginPostEdit: %v", token)
 
-	destination, err := g.flushComments(token)
-	if err != nil {
-		return err
+	// The post edit hook gets called on both unvetted and vetted
+	// proposals, but comments can only be made on vetted proposals.
+	var destination string
+	var err error
+	if g.vettedPropExists(token) {
+		destination, err = g.flushComments(token)
+		if err != nil {
+			return err
+		}
 	}
 
 	// When destination is empty there was nothing to do
@@ -643,7 +641,7 @@ func (g *gitBackEnd) flushJournalsUnwind(id string) error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushComments(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -831,7 +829,7 @@ func (g *gitBackEnd) flushCommentJournals() error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushVotes(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 

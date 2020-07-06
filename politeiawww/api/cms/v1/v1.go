@@ -228,6 +228,9 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+
+	ProposalsMainnet = "https://proposals.decred.org"
+	ProposalsTestnet = "https://test-proposals.decred.org"
 )
 
 var (
@@ -452,7 +455,8 @@ type InvoiceRecord struct {
 
 // InvoiceDetails is used to retrieve a invoice by it's token.
 type InvoiceDetails struct {
-	Token string `json:"token"` // Censorship token
+	Token   string `json:"token"`             // Censorship token
+	Version string `json:"version,omitempty"` // Invoice version
 }
 
 // InvoiceDetailsReply is used to reply to a invoice details command.

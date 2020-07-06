@@ -387,7 +387,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		Signature:        np.Signature,
 		CensorshipRecord: npr.CensorshipRecord,
 	}
-	err = verifyProposal(pr, version.PubKey)
+	err = shared.VerifyProposal(pr, version.PubKey)
 	if err != nil {
 		return fmt.Errorf("verify proposal failed: %v", err)
 	}
@@ -465,7 +465,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
-	err = verifyProposal(pdr.Proposal, version.PubKey)
+	err = shared.VerifyProposal(pdr.Proposal, version.PubKey)
 	if err != nil {
 		return fmt.Errorf("verify proposal failed: %v", err)
 	}
@@ -1142,7 +1142,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	for _, v := range gavr.Proposals {
-		err = verifyProposal(v, version.PubKey)
+		err = shared.VerifyProposal(v, version.PubKey)
 		if err != nil {
 			return fmt.Errorf("verify proposal failed %v: %v",
 				v.CensorshipRecord.Token, err)
@@ -1181,7 +1181,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	for _, v := range upr.Proposals {
-		err := verifyProposal(v, version.PubKey)
+		err := shared.VerifyProposal(v, version.PubKey)
 		if err != nil {
 			return fmt.Errorf("verify proposal failed %v: %v",
 				v.CensorshipRecord.Token, err)

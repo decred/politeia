@@ -223,7 +223,7 @@ func (c *testcache) findLinkedFrom(token string) ([]string, error) {
 	// provided token.
 	for _, allVersions := range c.records {
 		// Get the latest version of the proposal
-		r := allVersions[string(len(allVersions))]
+		r := allVersions[strconv.Itoa(len(allVersions))]
 
 		// Extract LinkTo from the ProposalMetadata file
 		for _, f := range r.Files {

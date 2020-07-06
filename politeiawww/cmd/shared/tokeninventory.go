@@ -2,9 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
-
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+package shared
 
 // TokenInventory retrieves the censorship record tokens of all proposals in
 // the inventory.
@@ -16,5 +14,6 @@ func (cmd *TokenInventoryCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	return shared.PrintJSON(reply)
+
+	return PrintJSON(reply)
 }

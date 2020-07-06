@@ -156,3 +156,52 @@ func SetConfig(config *Config) {
 func SetClient(c *Client) {
 	client = c
 }
+
+// VerifyProposal verifies a proposal's merkle root, author signature, and
+// censorship record.
+func VerifyProposal(p v1.ProposalRecord, serverPubKey string) error {
+	if len(p.Files) > 0 {
+		// Verify digests
+		err := ValidateDigests(p.Files, p.Metadata)
+		if err != nil {
+			return err
+		}
+		// Verify merkle root
+		mr, err := wwwutil.MerkleRoot(p.Files, p.Metadata)
+		if err != nil {
+			return err
+		}
+		if mr != p.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
+	}
+
+	// Verify proposal signature
+	pid, err := util.IdentityFromString(p.PublicKey)
+	if err != nil {
+		return err
+	}
+	sig, err := util.ConvertSignature(p.Signature)
+	if err != nil {
+		return err
+	}
+	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
+		return fmt.Errorf("could not verify proposal signature")
+	}
+
+	// Verify censorship record signature
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("could not verify censorship record signature")
+	}
+
+	return nil
+}

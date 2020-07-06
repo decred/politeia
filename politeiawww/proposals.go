@@ -230,6 +230,11 @@ func (p *politeiawww) linkByValidate(linkBy int64) error {
 	return nil
 }
 
+// validateProposalMetdata validates the provided proposal metadata to ensure
+// it adheres to the api policy. Note that this function only checks validation
+// that is applicable to both new proposals and proposal edits. Additional
+// validation is done in processNewProposal and processEditProposal that is
+// specific to that action only.
 func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	// Validate Name
 	if !isValidProposalName(pm.Name) {
@@ -248,8 +253,8 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 			}
 		}
 
-		// Validate the LinkTo proposal. The only type of proposal
-		// that we currently allow linking to is an RFP.
+		// Validate the LinkTo proposal. The only type of proposal that
+		// we currently allow linking to is an RFP.
 		r, err := p.cache.Record(pm.LinkTo)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
@@ -281,11 +286,6 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"rfp proposal vote did not pass"},
 			}
-		case time.Now().Unix() > pr.LinkBy:
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto proposal deadline is expired"},
-			}
 		case pr.State != www.PropStateVetted:
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
@@ -312,7 +312,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 // validateProposal ensures that the given new proposal meets the api policy
 // requirements. If a proposal data file exists (currently optional) then it is
-// parsed and a ProposalData is returned.
+// parsed and a ProposalMetadata is returned.
 func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
 	if len(np.Files) == 0 {
 		return nil, www.UserError{
@@ -991,16 +991,10 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 		comments = append(comments, c)
 	}
 
-	// Fill in comment scores
-	p.RLock()
-	defer p.RUnlock()
-
 	for i, v := range comments {
-		votes, ok := p.commentVotes[v.Token+v.CommentID]
-		if !ok {
-			log.Errorf("getPropComments: comment votes lookup "+
-				"failed: token:%v commentID:%v pubKey:%v", v.Token,
-				v.CommentID, v.PublicKey)
+		votes, err := p.getCommentVotes(v.Token, v.CommentID)
+		if err != nil {
+			return nil, err
 		}
 		comments[i].ResultVotes = int64(votes.up - votes.down)
 		comments[i].Upvotes = votes.up
@@ -1155,6 +1149,30 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	pm, err := p.validateProposal(np, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate linkto requirements that are specific to new proposal
+	// submissions. Everything else has already been validated by the
+	// validateProposal function.
+	if pm.LinkTo != "" {
+		r, err := p.cache.Record(pm.LinkTo)
+		if err != nil {
+			return nil, err
+		}
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return nil, err
+		}
+		// Once the linkto deadline has expired no new submissions are
+		// allowed. Edits to existing submissions are allowed which is
+		// why this is checked here and not in the validateProposal
+		// function.
+		if time.Now().Unix() > pr.LinkBy {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal deadline is expired"},
+			}
+		}
 	}
 
 	// politeiad only includes files in its merkle root calc, not the
@@ -2464,7 +2482,7 @@ func validateAuthorizeVote(av www.AuthorizeVote, u user.User, pr www.ProposalRec
 	return nil
 }
 
-// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// validateAuthorizeVoteStandard validates the authorize vote for a proposal that
 // is participating in a standard vote. A UserError is returned if any of the
 // validation fails.
 func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
@@ -2477,8 +2495,10 @@ func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.Pro
 	// standard votes.
 	switch {
 	case isRFPSubmission(pr):
-		// Wrong validation function used. Fail with a 500.
-		return fmt.Errorf("proposal is a runoff vote submission")
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{"proposal is an rfp submission"},
+		}
 	case pr.PublicKey != av.PublicKey:
 		// User is not the author. First make sure the author didn't
 		// submit the proposal using an old identity.
@@ -2755,7 +2775,6 @@ func (p *politeiawww) validateStartVoteStandard(sv www2.StartVote, u user.User, 
 	}
 
 	// The remaining validation is specific to a VoteTypeStandard.
-
 	switch {
 	case sv.Vote.Type != www2.VoteTypeStandard:
 		// Not a standard vote
@@ -2815,7 +2834,7 @@ func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalReco
 
 	case !isRFPSubmission(pr):
 		// The proposal is not an RFP submission
-		e := fmt.Sprintf("%v in not an rfp submission", token)
+		e := fmt.Sprintf("%v is not an rfp submission", token)
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusWrongProposalType,
 			ErrorContext: []string{e},
@@ -3008,7 +3027,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 	}
 	if len(auths) == 0 {
-		e := fmt.Sprintf("start votes and authorize votes cannot be empty")
+		e := "start votes and authorize votes cannot be empty"
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidRunoffVote,
 			ErrorContext: []string{e},
@@ -3316,4 +3335,19 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	}
 
 	return vdr, nil
+}
+
+// initLoadVoteResults is used to send the LoadVoteResults decred plugin command
+// to the cache on www startup.
+func (p *politeiawww) initVoteResults() error {
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return err
+	}
+	_, err = p.decredLoadVoteResults(bb)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

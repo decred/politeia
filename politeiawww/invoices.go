@@ -789,7 +789,15 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
-	invRec, err := p.getInvoice(invDetails.Token)
+	// Version is an optional query param. Fetch latest version
+	// when query param is not specified.
+	var invRec *cms.InvoiceRecord
+	var err error
+	if invDetails.Version == "" {
+		invRec, err = p.getInvoice(invDetails.Token)
+	} else {
+		invRec, err = p.getInvoiceVersion(invDetails.Token, invDetails.Version)
+	}
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -1212,6 +1220,13 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
+	// Remove all existing line items for that invoice.  They will all get added
+	// back on the update below.
+	err = p.cmsDB.RemoveInvoiceLineItems(invRec.CensorshipRecord.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	// Update the cmsdb
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
 		Files:            convertPropFilesFromWWW(ei.Files),
@@ -1279,6 +1294,30 @@ func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	i := convertInvoiceFromCache(*r)
+
+	// Fill in userID and username fields
+	u, err := p.db.UserGetByPubKey(i.PublicKey)
+	if err != nil {
+		log.Errorf("getInvoice: getUserByPubKey: token:%v "+
+			"pubKey:%v err:%v", token, i.PublicKey, err)
+	} else {
+		i.UserID = u.ID.String()
+		i.Username = u.Username
+	}
+
+	return &i, nil
+}
+
+// getInvoiceVersion gets a specific version of an invoice from the cache.
+func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceRecord, error) {
+	log.Tracef("getInvoiceVersion: %v %v", token, version)
+
+	r, err := p.cache.RecordVersion(token, version)
+	if err != nil {
+		return nil, err
+	}
+
 	i := convertInvoiceFromCache(*r)
 
 	// Fill in userID and username fields

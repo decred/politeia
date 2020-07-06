@@ -7,6 +7,7 @@ package main
 import (
 	"time"
 
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -26,6 +27,20 @@ func (p *politeiawww) checkInvoiceNotifications() {
 			if user.Admin {
 				return
 			}
+
+			cmsUser, err := p.getCMSUserByID(user.ID.String())
+			if err != nil {
+				log.Errorf("Error retrieving user invoices email: %v %v", err,
+					user.Email)
+				return
+			}
+
+			// Skip if user isn't a direct or supervisor contractor.
+			if cmsUser.ContractorType != cms.ContractorTypeDirect &&
+				cmsUser.ContractorType != cms.ContractorTypeSupervisor {
+				return
+			}
+
 			// If HashedPassword not set to anything that means the user has
 			// not completed registration.
 			if len(user.HashedPassword) == 0 {
@@ -36,6 +51,7 @@ func (p *politeiawww) checkInvoiceNotifications() {
 			if err != nil {
 				log.Errorf("Error retrieving user invoices email: %v %v", err,
 					user.Email)
+				return
 			}
 			for _, inv := range userInvoices {
 				// Check to see if invoices match last month + current year OR

@@ -6,10 +6,12 @@ package cockroachdb
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
@@ -42,6 +44,7 @@ const (
 
 // decred implements the PluginDriver interface.
 type decred struct {
+	sync.RWMutex
 	recordsdb *gorm.DB              // Database context
 	version   string                // Version of decred cache plugin
 	settings  []cache.PluginSetting // Plugin settings
@@ -55,6 +58,31 @@ func publicStatuses() []int {
 		int(pd.RecordStatusPublic),
 		int(pd.RecordStatusArchived),
 	}
+}
+
+// bestBlockSet sets the best block used to update the VoteResults table
+// in the key-value store.
+func (d *decred) bestBlockSet(bb uint64) error {
+	b := make([]byte, binary.MaxVarintLen64)
+	binary.LittleEndian.PutUint64(b, bb)
+	kv := KeyValue{
+		Key:   keyBestBlock,
+		Value: b,
+	}
+	return d.recordsdb.Save(&kv).Error
+}
+
+// BestBlockGet gets the best block used to update the VoteResults table
+// from the key-value store.
+func (d *decred) bestBlockGet() (uint64, error) {
+	kv := KeyValue{
+		Key: keyBestBlock,
+	}
+	err := d.recordsdb.Find(&kv).Error
+	if err != nil {
+		return 0, fmt.Errorf("bestBlockGetError: %v", err)
+	}
+	return binary.LittleEndian.Uint64(kv.Value), nil
 }
 
 // authorizeVotes returns a map[token]AuthorizeVote for the given records. An
@@ -155,6 +183,21 @@ func (d *decred) voteOptionResults(options []VoteOption) ([]VoteOptionResult, er
 // runoff proposal votes that have finished voting but are missing from the
 // lazy loaded VoteResults table.
 func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error) {
+	// Check if the vote results table has already been built for this
+	// block. If so, there is no need to run these queries.
+	bb, err := d.bestBlockGet()
+	if err != nil {
+		return nil, nil, err
+	}
+	if bb >= bestBlock {
+		log.Debugf("voteResultsMissing: table already updated for block "+
+			"%v", bestBlock)
+		return []string{}, []string{}, nil
+	}
+
+	log.Debugf("voteResultsMissing: checking missing results for block: %v. "+
+		"Cached block: %v", bestBlock, bb)
+
 	// Find standard vote proposals that have finished voting but
 	// have not yet been added to the VoteResults table.
 	q := `SELECT start_votes.token
@@ -202,6 +245,9 @@ func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error
 		rows.Scan(&token)
 		runoff = append(runoff, token)
 	}
+
+	log.Debugf("voteResultsMissing: found %v standard and %v runoff "+
+		"proposals", len(standard), len(runoff))
 
 	return standard, runoff, nil
 }
@@ -438,6 +484,7 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 }
 
 func (d *decred) voteResultsLoad(bestBlock uint64) error {
+	// Check to see if the VoteResults table needs to be updated.
 	standard, runoff, err := d.voteResultsMissing(bestBlock)
 	if err != nil {
 		return err
@@ -453,7 +500,7 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 	}
 
 	// Insert vote results for the runoff vote submissions. Runoff
-	// votes are identitified by the parent RFP proposal token.
+	// votes are identified by the parent RFP proposal token.
 	done := make(map[string]struct{}, len(runoff)) // [rfpToken]struct{}
 	for _, token := range runoff {
 		// Lookup the RFP token for the runoff vote submission
@@ -489,6 +536,14 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 		done[pm.LinkTo] = struct{}{}
 	}
 
+	log.Debugf("voteResultsLoad: table updated for block %v", bestBlock)
+
+	// Keep track of block used to update the table.
+	err = d.bestBlockSet(bestBlock)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -497,7 +552,7 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 // The VoteResults table is lazy loaded. A cache.ErrRecordNotFound error is
 // returned if the VoteResults table is not up-to-date.
 func (d *decred) voteResults(tokens []string, bestBlock uint64) (map[string]VoteResults, error) {
-	// Check to see if the VoteResults table needs to be updated
+	// Check to see if the VoteResults table needs to be updated.
 	standard, runoff, err := d.voteResultsMissing(bestBlock)
 	if err != nil {
 		return nil, err
@@ -1311,8 +1366,7 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		return "", err
 	}
 
-	// The VoteResults table is lazy loaded. Check to see if it
-	// needs to be updated.
+	// Check to see if the VoteResults table needs to be updated
 	standard, runoff, err := d.voteResultsMissing(ti.BestBlock)
 	if err != nil {
 		return "", err
