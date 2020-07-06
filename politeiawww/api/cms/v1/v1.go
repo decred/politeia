@@ -995,15 +995,19 @@ type CastVoteReply struct {
 	ErrorStatus     cmsplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
 }
 
+// ProposalBillingSummary allows for all proposal spending to be returned for
+// an admin to review.
 type ProposalBillingSummary struct {
-	StartTime int64 `json:"start"`
-	EndTime   int64 `json:"end"`
 }
 
+// ProposalBillingSummaryReply returns an array of proposal spending given the
+// time parameters that were given in the request.
 type ProposalBillingSummaryReply struct {
 	Proposals []ProposalSpending `json:"proposals"`
 }
 
+// ProposalSpending contains all the information about a given proposal's
+// spending.
 type ProposalSpending struct {
 	Token       string          `json:"token"`
 	Title       string          `json:"title"`
@@ -1011,10 +1015,14 @@ type ProposalSpending struct {
 	Invoices    []InvoiceRecord `json:"invoices"`
 }
 
+// ProposalBillingDetails returns all the information about the given proposal's
+// spending.
 type ProposalBillingDetails struct {
 	Token string `json:"token"`
 }
 
+// ProposalBillingDetailsReply returns the spending information about the
+// requested proposal.
 type ProposalBillingDetailsReply struct {
 	Details ProposalSpending `json:"details"`
 }
