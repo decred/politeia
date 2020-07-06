@@ -365,13 +365,10 @@ func TestValidateProposalMetadata(t *testing.T) {
 	_, mdProposalBothRFP := newProposalMetadata(t, validName, rfpToken,
 		time.Now().Unix())
 	// LinkBy validations
-	_, mdLinkByMin := newProposalMetadata(t, validName, "", 100)
+	_, mdLinkByMin := newProposalMetadata(t, validName, "",
+		p.linkByPeriodMin()-1)
 	_, mdLinkByMax := newProposalMetadata(t, validName, "",
-		time.Now().Unix()+7777000)
-	linkByMinError := fmt.Sprintf("linkby period cannot be shorter than %v"+
-		" seconds", p.linkByPeriodMin())
-	linkByMaxError := fmt.Sprintf("linkby period cannot be greater than %v"+
-		" seconds", p.linkByPeriodMax())
+		p.linkByPeriodMax()+1)
 	_, mdSuccess := newProposalMetadata(t, validName, rfpToken, 0)
 
 	var tests = []struct {
@@ -383,16 +380,14 @@ func TestValidateProposalMetadata(t *testing.T) {
 			"invalid proposal name",
 			mdInvalidName,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-				ErrorContext: []string{createProposalNameRegex()},
+				ErrorCode: www.ErrorStatusProposalInvalidTitle,
 			},
 		},
 		{
 			"invalid linkTo bad token",
 			mdInvalidLinkTo,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"invalid token"},
+				ErrorCode: www.ErrorStatusInvalidLinkTo,
 			},
 		},
 		{
@@ -406,48 +401,42 @@ func TestValidateProposalMetadata(t *testing.T) {
 			"invalid linkTo not a RFP proposal",
 			mdProposalNotRFP,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto proposal is not an rfp"},
+				ErrorCode: www.ErrorStatusInvalidLinkTo,
 			},
 		},
 		{
 			"invalid linkTo RFP proposal vote not approved",
 			mdProposalNotApproved,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"rfp proposal vote did not pass"},
+				ErrorCode: www.ErrorStatusInvalidLinkTo,
 			},
 		},
 		{
 			"invalid linkTo proposal is not vetted",
 			mdProposalBadState,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto proposal is not vetted"},
+				ErrorCode: www.ErrorStatusInvalidLinkTo,
 			},
 		},
 		{
 			"invalid linkTo rfp proposal linked to another rfp",
 			mdProposalBothRFP,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"an rfp cannot link to an rfp"},
+				ErrorCode: www.ErrorStatusInvalidLinkTo,
 			},
 		},
 		{
 			"invalid linkBy shorter than min",
 			mdLinkByMin,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{linkByMinError},
+				ErrorCode: www.ErrorStatusInvalidLinkBy,
 			},
 		},
 		{
 			"invalid linkBy greather than max",
 			mdLinkByMax,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{linkByMaxError},
+				ErrorCode: www.ErrorStatusInvalidLinkBy,
 			},
 		},
 		{
@@ -470,15 +459,7 @@ func TestValidateProposalMetadata(t *testing.T) {
 					t.Errorf("got error code %v, want %v",
 						gotErrCode, wantErrCode)
 				}
-				// Validate error context
-				gotErrContext := err.(www.UserError).ErrorContext
-				wantErrContext := test.wantError.(www.UserError).ErrorContext
-				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
 
-				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-					t.Errorf("got error context '%v', want '%v'",
-						gotErrContext[0], wantErrContext[0])
-				}
 				return
 			}
 			// If wantError is nil, it means that an error case
@@ -1488,7 +1469,6 @@ func TestValidateStartVoteStandard(t *testing.T) {
 		u    user.User
 		pr   www.ProposalRecord
 		vs   www.VoteSummary
-		mm   []uint32 // min duration and max duration
 		want error
 	}{
 		{
@@ -1497,12 +1477,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			[]uint32{minDuration, maxDuration},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidVoteType,
-				ErrorContext: []string{
-					fmt.Sprintf("vote type must be %v", www2.VoteTypeStandard),
-				},
 			},
 		},
 		{
@@ -1513,10 +1489,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusNotAuthorized,
 			},
-			[]uint32{minDuration, maxDuration},
 			www.UserError{
-				ErrorCode:    www.ErrorStatusWrongVoteStatus,
-				ErrorContext: []string{"vote not authorized"},
+				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			},
 		},
 		{
@@ -1527,10 +1501,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
-			[]uint32{minDuration, maxDuration},
 			www.UserError{
-				ErrorCode:    www.ErrorStatusWrongProposalType,
-				ErrorContext: []string{"cannot be an rfp submission"},
+				ErrorCode: www.ErrorStatusWrongProposalType,
 			},
 		},
 		{
@@ -1541,13 +1513,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
-			[]uint32{minDuration, maxDuration},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{
-					fmt.Sprintf("linkby period must be at least %v seconds"+
-						" from the start of the proposal vote", p.linkByPeriodMin()),
-				},
 			},
 		},
 		{
@@ -1558,13 +1525,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
-			[]uint32{minDuration, maxDuration},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{
-					fmt.Sprintf("linkby period cannot be more than %v seconds"+
-						" from the start of the proposal vote", p.linkByPeriodMax()),
-				},
 			},
 		},
 		{
@@ -1575,7 +1537,6 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
-			[]uint32{100, maxDuration},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidLinkBy,
 			},
@@ -1588,23 +1549,13 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
-			[]uint32{minDuration, maxDuration},
 			nil,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := validateStartVoteStandard(
-				test.sv,
-				test.u,
-				test.pr,
-				test.vs,
-				test.mm[0],
-				test.mm[1],
-				p.linkByPeriodMin(),
-				p.linkByPeriodMax(),
-			)
+			err := p.validateStartVoteStandard(test.sv, test.u, test.pr, test.vs)
 
 			if err != nil {
 				// Validate error code
@@ -1615,15 +1566,7 @@ func TestValidateStartVoteStandard(t *testing.T) {
 					t.Errorf("got error code %v, want %v",
 						gotErrCode, wantErrCode)
 				}
-				// Validate error context
-				gotErrContext := err.(www.UserError).ErrorContext
-				wantErrContext := test.want.(www.UserError).ErrorContext
-				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
 
-				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-					t.Errorf("got error context '%v', want '%v'",
-						gotErrContext[0], wantErrContext[0])
-				}
 				return
 			}
 			// If wantError is nil, it means that an error case
