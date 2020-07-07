@@ -1450,16 +1450,12 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	svc = StartVoteCmd{}
 	svc.Args.Token = token
 	svc.Args.Duration = policy.MinVoteDuration
-	svc.Args.PassPercentage = "0"
-	svc.Args.QuorumPercentage = "0"
+	svc.Args.PassPercentage = "1"
+	svc.Args.QuorumPercentage = "1"
 	err = svc.Execute(nil)
 	if err != nil {
 		return err
 	}
-
-	// Cast RFP votes
-	fmt.Printf("  Cast 'No' votes\n")
-	dcrwalletFailed, err = castVotes(token, vsr.OptionsResult[1].Option.Id)
 
 	// Wait to RFP to finish voting
 	var vs v1.VoteSummary
