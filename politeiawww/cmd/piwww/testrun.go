@@ -1439,7 +1439,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	fmt.Printf("  Start RFP vote\n")
 	svc = StartVoteCmd{}
 	svc.Args.Token = token
-	svc.Args.Duration = 1
+	// use policy's min vote duration
+	svc.Args.Duration = policy.MinVoteDuration
 	svc.Args.PassPercentage = "0"
 	svc.Args.QuorumPercentage = "0"
 	err = svc.Execute(nil)
@@ -1580,7 +1581,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			fmt.Printf("  Start RFP submissions runoff vote\n")
 			svrc := StartVoteRunoffCmd{}
 			svrc.Args.TokenRFP = token
-			svrc.Args.Duration = 1
+			// use policy's min vote duration
+			svrc.Args.Duration = policy.MinVoteDuration
 			svrc.Args.PassPercentage = "0"
 			svrc.Args.QuorumPercentage = "0"
 			err = svrc.Execute(nil)
