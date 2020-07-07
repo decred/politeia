@@ -1358,7 +1358,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	fmt.Println("Running RFP routes")
 
 	// Login with admin to create an RFP
-	// and make the proposal public.
+	// and make it public.
 	fmt.Printf("  Login admin\n")
 	err = login(admin.email, admin.password)
 	if err != nil {
@@ -1420,6 +1420,22 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			pdr.Proposal.Status, v1.PropStatusPublic)
 	}
 
+	// Try to submit a RFP submission before RFP approval & expect to fail
+	fmt.Println("  Try submitting a submission before RFP approval")
+	np, err = newSubmissionProposal(token)
+	if err != nil {
+		return err
+	}
+	npr, err = client.NewProposal(np)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "rfp proposal vote did not pass"):
+			fmt.Println("  Subimssion failed with expected error")
+		default:
+			return err
+		}
+	}
+
 	// Authorize vote
 	fmt.Printf("  Authorize vote: authorize\n")
 	avc = AuthorizeVoteCmd{}
@@ -1434,7 +1450,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	fmt.Printf("  Start RFP vote\n")
 	svc = StartVoteCmd{}
 	svc.Args.Token = token
-	// use policy's min vote duration
 	svc.Args.Duration = policy.MinVoteDuration
 	svc.Args.PassPercentage = "0"
 	svc.Args.QuorumPercentage = "0"
@@ -1545,7 +1560,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			fmt.Printf("  Start RFP submissions runoff vote\n")
 			svrc := StartVoteRunoffCmd{}
 			svrc.Args.TokenRFP = token
-			// use policy's min vote duration
 			svrc.Args.Duration = policy.MinVoteDuration
 			svrc.Args.PassPercentage = "0"
 			svrc.Args.QuorumPercentage = "0"
@@ -1555,7 +1569,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			}
 			// Cast first submission votes
 			fmt.Printf("  Cast first submission votes\n")
-			dcrwalletFailed, err = castVotes(token, vsr.OptionsResult[0].Option.Id)
+			dcrwalletFailed, err = castVotes(firststoken, vsr.OptionsResult[0].Option.Id)
 			if err != nil {
 				return err
 			}
