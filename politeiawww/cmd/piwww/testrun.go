@@ -56,6 +56,12 @@ func newSubmissionProposal(linkto string) (*v1.NewProposal, error) {
 	return newProposal(false, linkto)
 }
 
+// newNormalProposal is a wrapper func which creates a proposal by calling
+// newProposal
+func newNormalProposal() (*v1.NewProposal, error) {
+	return newProposal(false, "")
+}
+
 // newProposal returns a NewProposal object contains randonly generated
 // markdown text and a signature from the logged in user, if given `rfp`
 // bool is true it creates an RFP.
@@ -183,11 +189,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	// As we rely on votedurationmin to be set to something reasonable
-	// in order to approve an RFP & it's submssion.
-	// We validate it's value before any test
-	// XXXX: continue here.
 
 	// Create user and verify email
 	b, err := util.Random(int(policy.MinPasswordLength))
@@ -398,7 +399,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Submit new proposal
 	fmt.Printf("  New proposal\n")
-	np, err := newProposal(false, "")
+	np, err := newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -734,7 +735,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		unreviewedPropToken string
 	)
 
-	np, err = newProposal(false, "")
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -744,7 +745,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	notReviewed1 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false, "")
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -754,7 +755,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	notReviewed2 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false, "")
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -772,7 +773,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	unreviewedChanges1 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false, "")
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -790,7 +791,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	unreviewedChanges2 = npr.CensorshipRecord.Token
 
-	np, err = newProposal(false, "")
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -1116,7 +1117,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	fmt.Printf("  Submitting a page of proposals to test vetted route\n")
 	for i := 0; i < v1.ProposalListPageSize; i++ {
-		np, err = newProposal(false, "")
+		np, err = newNormalProposal()
 		if err != nil {
 			return err
 		}
