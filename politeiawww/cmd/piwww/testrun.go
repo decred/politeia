@@ -132,6 +132,13 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Suppress output from cli commands
 	cfg.Silent = true
 
+	// Policy
+	fmt.Printf("Policy\n")
+	policy, err := client.Policy()
+	if err != nil {
+		return err
+	}
+
 	// Version (CSRF tokens)
 	fmt.Printf("Version\n")
 	version, err := client.Version()
@@ -142,8 +149,15 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// We only allow this to be run on testnet for right now.
 	// Running it on mainnet would require changing the user
 	// email verification flow.
-	if !version.TestNet {
+	// We ensure vote duration isn't longer than
+	// 3 blocks as we need to approve an RFP and it's
+	// submission as part of our tests.
+	switch {
+	case !version.TestNet:
 		return fmt.Errorf("this command must be run on testnet")
+	case policy.MinVoteDuration > 3:
+		return fmt.Errorf("--votedurationmin flag should be <= 3, as the " +
+			"tests include RFP & submssions voting")
 	}
 
 	// Ensure admin credentials are valid and that the admin has
@@ -166,13 +180,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	lc := shared.LogoutCmd{}
 	err = lc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
-	// Policy
-	fmt.Printf("Policy\n")
-	policy, err := client.Policy()
 	if err != nil {
 		return err
 	}
