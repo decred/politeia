@@ -45,11 +45,22 @@ func login(email, password string) error {
 	return lc.Execute(nil)
 }
 
+// newRFPProposal is a wrapper func which creates a RFP by calling newProposal
+func newRFPProposal() (*v1.NewProposal, error) {
+	return newProposal(true, "")
+}
+
+// newSubmissionProposal is a wrapper func which creates a RFP submission by
+// calling newProposal func with a given linkto token.
+func newSubmissionProposal(linkto string) (*v1.NewProposal, error) {
+	return newProposal(false, linkto)
+}
+
 // newProposal returns a NewProposal object contains randonly generated
-// markdown text and a signature from the logged in user, if given RFP
+// markdown text and a signature from the logged in user, if given `rfp`
 // bool is true it creates an RFP.
-// If given linkto it creates a RFP submission.
-func newProposal(RFP bool, linkto string) (*v1.NewProposal, error) {
+// If given `linkto` it creates a RFP submission.
+func newProposal(rfp bool, linkto string) (*v1.NewProposal, error) {
 	md, err := createMDFile()
 	if err != nil {
 		return nil, fmt.Errorf("create MD file: %v", err)
@@ -59,7 +70,7 @@ func newProposal(RFP bool, linkto string) (*v1.NewProposal, error) {
 	pm := v1.ProposalMetadata{
 		Name: "Some proposal name",
 	}
-	if RFP {
+	if rfp {
 		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
 	if linkto != "" {
@@ -1356,7 +1367,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Create RFP
 	fmt.Println("  Create RFP")
-	np, err = newProposal(true, "")
+	np, err = newRFPProposal()
 	if err != nil {
 		return err
 	}
@@ -1481,7 +1492,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			// Create 4 RFP submissions.
 			// 1 Unreviewd
 			fmt.Println("  Create unreviewed RFP submission")
-			np, err = newProposal(false, token)
+			np, err = newSubmissionProposal(token)
 			if err != nil {
 				return err
 			}
@@ -1491,7 +1502,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			}
 			// 2 Public
 			fmt.Println("  Create 2 more submissions & make them public")
-			np, err = newProposal(false, token)
+			np, err = newSubmissionProposal(token)
 			if err != nil {
 				return err
 			}
@@ -1509,7 +1520,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			if err != nil {
 				return err
 			}
-			np, err = newProposal(false, token)
+			np, err = newSubmissionProposal(token)
 			if err != nil {
 				return err
 			}
@@ -1529,7 +1540,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			}
 			// 1 Abandoned, first make public
 			// then abandon
-			np, err = newProposal(false, token)
+			np, err = newSubmissionProposal(token)
 			if err != nil {
 				return err
 			}
