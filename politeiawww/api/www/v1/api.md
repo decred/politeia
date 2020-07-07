@@ -1435,7 +1435,8 @@ Reply:
   "backendpublickey": "",
   "minproposalnamelength": 8,
   "maxproposalnamelength": 80,
-  "tokenprefixlength": 7
+  "tokenprefixlength": 7,
+  "minvoteduration": 2016
 }
 ```
 
