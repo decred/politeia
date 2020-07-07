@@ -270,18 +270,14 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	// Wait for user registration payment confirmations
-	for {
-		vupr, err := client.VerifyUserPayment()
+	// If the paywall has been disable this will be marked
+	// as true. If the paywall has been enabled this will
+	// be true once the payment tx has the required number
+	// of confirmations.
+	for !vupr.HasPaid {
+		vupr, err = client.VerifyUserPayment()
 		if err != nil {
 			return err
-		}
-
-		// If the paywall has been disable this will be marked
-		// as true. If the paywall has been enabled this will
-		// be true once the payment tx has the required number
-		// of confirmations.
-		if vupr.HasPaid {
-			break
 		}
 
 		fmt.Printf("  Verify user payment: waiting for tx confirmations...\n")
@@ -442,13 +438,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Login with admin and make the proposal public
 	fmt.Printf("  Login admin\n")
 	err = login(admin.email, admin.password)
-	if err != nil {
-		return err
-	}
-
-	// Update user key
-	fmt.Printf("  Update user key\n")
-	err = uukc.Execute(nil)
 	if err != nil {
 		return err
 	}
@@ -1481,7 +1470,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	if !noDcrwallet {
 		// Wait to RFP to finish voting
 		var vs v1.VoteSummary
-		for {
+		for vs.Status != v1.PropVoteStatusFinished {
 			bvs := v1.BatchVoteSummary{
 				Tokens: []string{token},
 			}
@@ -1491,11 +1480,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			}
 
 			vs = bvsr.Summaries[token]
-			// RFP voting period has ended
-			// proceed with tests
-			if vs.Status == v1.PropVoteStatusFinished {
-				break
-			}
 
 			fmt.Printf("  RFP voting still going on...\n")
 			time.Sleep(sleepInterval)
@@ -1599,7 +1583,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 				return err
 			}
 			// Wait to runoff vote finish
-			for {
+			var vs v1.VoteSummary
+			for vs.Status != v1.PropVoteStatusFinished {
 				bvs := v1.BatchVoteSummary{
 					Tokens: []string{firststoken},
 				}
@@ -1609,11 +1594,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 				}
 
 				vs = bvsr.Summaries[firststoken]
-				// runoff voting period has ended
-				// proceed with tests
-				if vs.Status == v1.PropVoteStatusFinished {
-					break
-				}
 
 				fmt.Printf("  Runoff vote still going on...\n")
 				time.Sleep(sleepInterval)
