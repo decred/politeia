@@ -1397,6 +1397,7 @@ client SHALL observe.
 | IndexFilename | string | required filename for the proposal index.md file |
 | MinLinkbyPeriod | number | Minimum required period, in seconds, for the proposal linkby period |
 | MaxLinkByPeriod | number | Maximum allowed period, in seconds, for the proposal linkby period |
+| MinVoteDuration | number | Minimum allowed vote duration |
 
 **Example**
 

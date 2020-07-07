@@ -958,6 +958,7 @@ type PolicyReply struct {
 	IndexFilename              string   `json:"indexfilename"`
 	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
 	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
+	MinVoteDuration            uint32   `json:"minvoteduration"`
 }
 
 // VoteOption describes a single vote option.
