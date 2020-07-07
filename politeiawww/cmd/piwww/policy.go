@@ -45,4 +45,5 @@ Response:
 	"maxcommentlength"           (uint)     Maximum characters in comments
 	"backendpublickey"           (string)   Backend public key
 	"minvoteduration"            (uint)     Minimum vote duration
+	"maxvoteduration"            (uint)     Maximum vote duration
 }`
