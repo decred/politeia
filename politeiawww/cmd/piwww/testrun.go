@@ -1373,7 +1373,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	// Create RFP
-	fmt.Println("  Create a RFP, start vote & wait untill it's rejected")
+	fmt.Println("  Create a RFP")
 	np, err = newRFPProposal()
 	if err != nil {
 		return err
@@ -1662,7 +1662,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 				if err != nil {
 					switch {
 					case strings.Contains(err.Error(), "proposal not found"):
-						fmt.Println("  Casting votes on abandoned submission failed as expected")
+						fmt.Println("  Casting votes on abandoned submission failed")
 					default:
 						return err
 					}
