@@ -1574,6 +1574,18 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 				return err
 			}
 			if !dcrwalletFailed {
+				// Try cast votes on abandoned & expect error
+				fmt.Println("  Try casting votes on abandoned RFP submission")
+				_, err = castVotes(thirdstoken, vsr.OptionsResult[0].Option.Id)
+				if err != nil {
+					switch {
+					case strings.Contains(err.Error(), "proposal not found"):
+						fmt.Println("  Casting votes on abandoned submission failed as expected")
+					default:
+						return err
+					}
+				}
+
 				// Wait to runoff vote finish
 				var vs v1.VoteSummary
 				for vs.Status != v1.PropVoteStatusFinished {
