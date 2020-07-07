@@ -177,6 +177,11 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
+	// As we rely on votedurationmin to be set to something reasonable
+	// in order to approve an RFP & it's submssion.
+	// We validate it's value before any test
+	// XXXX: continue here.
+
 	// Create user and verify email
 	b, err := util.Random(int(policy.MinPasswordLength))
 	if err != nil {
