@@ -1474,7 +1474,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		time.Sleep(sleepInterval)
 	}
 	if !vs.Approved {
-		fmt.Println(" RFP rejected")
+		fmt.Println("  RFP rejected")
 	} else {
 		return fmt.Errorf("RFP approved? %v, want false",
 			vs.Approved)
@@ -1497,12 +1497,16 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	// Create another RFP
-	fmt.Println(" Create another RFP")
+	fmt.Println("  Create another RFP")
+	np, err = newRFPProposal()
+	if err != nil {
+		return err
+	}
 	npr, err = client.NewProposal(np)
 	if err != nil {
 		return err
 	}
-	token = rpr.CensorshipRecord.Token
+	token = npr.CensorshipRecord.Token
 
 	// Make second RFP public
 	fmt.Printf("  Set RFP status: not reviewed to public\n")
