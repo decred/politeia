@@ -107,6 +107,35 @@ func newProposal(rfp bool, linkto string) (*v1.NewProposal, error) {
 	}, nil
 }
 
+// castVotes casts votes on a proposal with a given voteId
+// If it fails it returns the error and in case of dcrwallet
+// connection error it returns true as first returned value
+func castVotes(token string, voteID string) (bool, error) {
+	var vc VoteCmd
+	vc.Args.Token = token
+	vc.Args.VoteID = voteID
+	err := vc.Execute(nil)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "connection refused"):
+			// User is not running a dcrwallet instance locally.
+			// This is ok. Print a warning and continue.
+			fmt.Printf("  WARNING: could not connect to dcrwallet")
+			return true, err
+
+		case strings.Contains(err.Error(), "no eligible tickets"):
+			// User doesn't have any eligible tickets. This is ok.
+			// Print a warning and continue.
+			fmt.Printf("  WARNING: user has no elibigle tickets")
+			return true, err
+
+		default:
+			return false, err
+		}
+	}
+	return false, err
+}
+
 // Execute executes the test run command.
 func (cmd *TestRunCmd) Execute(args []string) error {
 	const (
@@ -1275,36 +1304,12 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Cast votes
 	fmt.Printf("  Cast votes\n")
-	var skipCastVotes bool
-	var vc VoteCmd
-	vc.Args.Token = token
-	vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
-	err = vc.Execute(nil)
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "connection refused"):
-			// User is not running a dcrwallet instance locally.
-			// This is ok. Print a warning and continue.
-			fmt.Printf("  WARNING: could not connect to dcrwallet; " +
-				"skipping cast votes\n")
-			skipCastVotes = true
-
-		case strings.Contains(err.Error(), "no eligible tickets"):
-			// User doesn't have any eligible tickets. This is ok.
-			// Print a warning and continue.
-			fmt.Printf("  WARNING: user has no elibigle tickets; " +
-				"skipping cast votes\n")
-			skipCastVotes = true
-
-		default:
-			return err
-		}
-	}
+	dcrwalletFailed, err := castVotes(token, vsr.OptionsResult[0].Option.Id)
 
 	// Find how many votes the user cast so that
 	// we can compare it against the vote results.
 	var voteCount int
-	if !skipCastVotes {
+	if !dcrwalletFailed {
 		// Get proposal vote details
 		var pvt v1.ProposalVoteTuple
 		for _, v := range avr.Votes {
@@ -1440,35 +1445,9 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Cast RFP votes
 	fmt.Printf("  Cast RFP votes\n")
-	var noDcrwallet bool
-	vc = VoteCmd{}
-	vc.Args.Token = token
-	vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
-	err = vc.Execute(nil)
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "connection refused"):
-			// User is not running a dcrwallet instance locally.
-			// Skipping RFP tests as we couldn't proceed without
-			// an approved RFP.
-			fmt.Printf("  WARNING: could not connect to dcrwallet; " +
-				"skipping RFP tests\n")
-			noDcrwallet = true
+	dcrwalletFailed, err = castVotes(token, vsr.OptionsResult[0].Option.Id)
 
-		case strings.Contains(err.Error(), "no eligible tickets"):
-			// User doesn't have any eligible tickets. This is ok.
-			// Skipping RFP tests as we couldn't proceed without
-			// an approved RFP.
-			fmt.Printf("  WARNING: user has no elibigle tickets; " +
-				"skipping RFP tests\n")
-			noDcrwallet = true
-
-		default:
-			return err
-		}
-	}
-
-	if !noDcrwallet {
+	if !dcrwalletFailed {
 		// Wait to RFP to finish voting
 		var vs v1.VoteSummary
 		for vs.Status != v1.PropVoteStatusFinished {
@@ -1576,31 +1555,30 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			}
 			// Cast first submission votes
 			fmt.Printf("  Cast first submission votes\n")
-			vc = VoteCmd{}
-			vc.Args.Token = firststoken
-			vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
-			err = vc.Execute(nil)
+			dcrwalletFailed, err = castVotes(token, vsr.OptionsResult[0].Option.Id)
 			if err != nil {
 				return err
 			}
-			// Wait to runoff vote finish
-			var vs v1.VoteSummary
-			for vs.Status != v1.PropVoteStatusFinished {
-				bvs := v1.BatchVoteSummary{
-					Tokens: []string{firststoken},
-				}
-				bvsr, err := client.BatchVoteSummary(&bvs)
-				if err != nil {
-					return err
-				}
+			if !dcrwalletFailed {
+				// Wait to runoff vote finish
+				var vs v1.VoteSummary
+				for vs.Status != v1.PropVoteStatusFinished {
+					bvs := v1.BatchVoteSummary{
+						Tokens: []string{firststoken},
+					}
+					bvsr, err := client.BatchVoteSummary(&bvs)
+					if err != nil {
+						return err
+					}
 
-				vs = bvsr.Summaries[firststoken]
+					vs = bvsr.Summaries[firststoken]
 
-				fmt.Printf("  Runoff vote still going on...\n")
-				time.Sleep(sleepInterval)
-			}
-			if vs.Approved {
-				fmt.Printf("  First submission approved successfully\n")
+					fmt.Printf("  Runoff vote still going on...\n")
+					time.Sleep(sleepInterval)
+				}
+				if vs.Approved {
+					fmt.Printf("  First submission approved successfully\n")
+				}
 			}
 		} else {
 			return fmt.Errorf("RFP approved? %v, want true",
