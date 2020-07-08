@@ -16,6 +16,9 @@ const (
 
 func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, error) {
 	proposalsOwned := strings.Split(cu.ProposalsOwned, ",")
+	for i := range proposalsOwned {
+		proposalsOwned[i] = strings.TrimSpace(proposalsOwned[i])
+	}
 	superUserIds := strings.Split(cu.SupervisorUserID, ",")
 	parsedUUIds := make([]uuid.UUID, 0, len(superUserIds))
 	for _, userIds := range superUserIds {
