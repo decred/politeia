@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -26,10 +27,10 @@ type NewProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`
 		Attachments []string `positional-arg-name:"attachmentfiles"`
 	} `positional-args:"true" optional:"true"`
-	Name     string       `long:"name" optional:"true"`
-	LinkTo   string       `long:"linkto" optional:"true"`
-	LinkBy   int64        `long:"linkby" optional:"true"`
-	Category v1.CategoryT `long:"category" optional:"true"` // Proposal category
+	Name     string `long:"name" optional:"true"`
+	LinkTo   string `long:"linkto" optional:"true"`
+	LinkBy   int64  `long:"linkby" optional:"true"`
+	Category string `long:"category" optional:"true"`
 
 	// Random can be used in place of submitting proposal files. When
 	// specified, random proposal data will be created and submitted.
@@ -146,8 +147,25 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		LinkTo: cmd.LinkTo,
 		LinkBy: cmd.LinkBy,
 	}
-	if cmd.Category != 0 {
-		pm.Category = cmd.Category
+	if cmd.Category != "" {
+		// Create inverse categories map from policy for validation
+		PropCategories := make(map[string]v1.CategoryT)
+		for k, v := range v1.PolicyProposalCategories {
+			PropCategories[v] = k
+		}
+		// Parse proposal category. Accepts either the numeric category
+		// code or the human readable equivalent
+		c, err := strconv.ParseUint(cmd.Category, 10, 32)
+		if err == nil {
+			// Numeric category code found
+			pm.Category = v1.CategoryT(c)
+		} else if c, ok := PropCategories[cmd.Category]; ok {
+			// Human readable category found
+			pm.Category = c
+		} else {
+			return fmt.Errorf("Invalid proposal category '%v'. Please check "+
+				"policy for further guidance.", pm.Category)
+		}
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
@@ -224,14 +242,16 @@ Arguments:
 2. attachmentFiles   (string, optional)   Attachments 
 
 Flags:
- --name   (string, optional)  The name of the proposal
- --linkto (string, optional)  Token of an existing public proposal to link to.
- --linkby (int64, optional)   UNIX timestamp of RFP deadline. Setting the linkby of a proposal will
-                              make the proposal an RFP with a submission deadline specified by the
-                              linkby.
- --random (bool, optional)    Generate a random proposal. If this flag is used then the markdown
-                              file argument is no longer required and any provided files will be
-                              ignored.
- --rfp    (bool, optional)    Make the proposal an RFP by setting the linkby to one month from the
-                              current time. This is intended to be used in place of --linkby.
+ --name   (string, optional)   The name of the proposal
+ --linkto (string, optional)   Token of an existing public proposal to link to.
+ --linkby (int64, optional)    UNIX timestamp of RFP deadline. Setting the linkby of a proposal will
+                               make the proposal an RFP with a submission deadline specified by the
+                               linkby.
+ --random (bool, optional)     Generate a random proposal. If this flag is used then the markdown
+                               file argument is no longer required and any provided files will be
+                               ignored.
+ --rfp    (bool, optional)     Make the proposal an RFP by setting the linkby to one month from the
+							   current time. This is intended to be used in place of --linkby.
+ --category (string, optional) Set a valid proposal category. Accepts both numeric value and human
+							   readable equivalent for the category code.
 `

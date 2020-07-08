@@ -289,6 +289,9 @@ const (
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
 
 	// Category types
+	//
+	// These types are defined based on the available categories a contractor
+	// can select for completed work on CMS invoices
 	CategoryInvalid       CategoryT = 0
 	CategoryDevelopment   CategoryT = 1
 	CategoryMarketing     CategoryT = 2
@@ -959,31 +962,31 @@ type Policy struct{}
 // PolicyReply is used to reply to the policy command. It returns
 // the file upload restrictions set for Politeia.
 type PolicyReply struct {
-	MinPasswordLength          uint     `json:"minpasswordlength"`
-	MinUsernameLength          uint     `json:"minusernamelength"`
-	MaxUsernameLength          uint     `json:"maxusernamelength"`
-	UsernameSupportedChars     []string `json:"usernamesupportedchars"`
-	ProposalListPageSize       uint     `json:"proposallistpagesize"`
-	UserListPageSize           uint     `json:"userlistpagesize"`
-	MaxImages                  uint     `json:"maximages"`
-	MaxImageSize               uint     `json:"maximagesize"`
-	MaxMDs                     uint     `json:"maxmds"`
-	MaxMDSize                  uint     `json:"maxmdsize"`
-	ValidMIMETypes             []string `json:"validmimetypes"`
-	MinProposalNameLength      uint     `json:"minproposalnamelength"`
-	MaxProposalNameLength      uint     `json:"maxproposalnamelength"`
-	PaywallEnabled             bool     `json:"paywallenabled"`
-	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
-	MaxCommentLength           uint     `json:"maxcommentlength"`
-	BackendPublicKey           string   `json:"backendpublickey"`
-	TokenPrefixLength          int      `json:"tokenprefixlength"`
-	BuildInformation           []string `json:"buildinformation"`
-	IndexFilename              string   `json:"indexfilename"`
-	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
-	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
-	MinVoteDuration            uint32   `json:"minvoteduration"`
-	MaxVoteDuration            uint32   `json:"maxvoteduration"`
-	ProposalCategories         []string `json:"proposalcategories"`
+	MinPasswordLength          uint                 `json:"minpasswordlength"`
+	MinUsernameLength          uint                 `json:"minusernamelength"`
+	MaxUsernameLength          uint                 `json:"maxusernamelength"`
+	UsernameSupportedChars     []string             `json:"usernamesupportedchars"`
+	ProposalListPageSize       uint                 `json:"proposallistpagesize"`
+	UserListPageSize           uint                 `json:"userlistpagesize"`
+	MaxImages                  uint                 `json:"maximages"`
+	MaxImageSize               uint                 `json:"maximagesize"`
+	MaxMDs                     uint                 `json:"maxmds"`
+	MaxMDSize                  uint                 `json:"maxmdsize"`
+	ValidMIMETypes             []string             `json:"validmimetypes"`
+	MinProposalNameLength      uint                 `json:"minproposalnamelength"`
+	MaxProposalNameLength      uint                 `json:"maxproposalnamelength"`
+	PaywallEnabled             bool                 `json:"paywallenabled"`
+	ProposalNameSupportedChars []string             `json:"proposalnamesupportedchars"`
+	MaxCommentLength           uint                 `json:"maxcommentlength"`
+	BackendPublicKey           string               `json:"backendpublickey"`
+	TokenPrefixLength          int                  `json:"tokenprefixlength"`
+	BuildInformation           []string             `json:"buildinformation"`
+	IndexFilename              string               `json:"indexfilename"`
+	MinLinkByPeriod            int64                `json:"minlinkbyperiod"`
+	MaxLinkByPeriod            int64                `json:"maxlinkbyperiod"`
+	MinVoteDuration            uint32               `json:"minvoteduration"`
+	MaxVoteDuration            uint32               `json:"maxvoteduration"`
+	ProposalCategories         map[CategoryT]string `json:"proposalcategories"`
 }
 
 // VoteOption describes a single vote option.

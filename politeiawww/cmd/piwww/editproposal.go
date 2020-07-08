@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -169,8 +170,26 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		pm.LinkTo = cmd.LinkTo
 	}
 	if cmd.Category != "" {
-		// pm.Category = cmd.Category
+		// Create inverse categories map from policy used on validation
+		PropCategories := make(map[string]v1.CategoryT)
+		for k, v := range v1.PolicyProposalCategories {
+			PropCategories[v] = k
+		}
+		// Parse proposal category. Accepts either the numeric category
+		// code or the human readable equivalent
+		c, err := strconv.ParseUint(cmd.Category, 10, 32)
+		if err == nil {
+			// Numeric category code found
+			pm.Category = v1.CategoryT(c)
+		} else if c, ok := PropCategories[cmd.Category]; ok {
+			// Human readable category found
+			pm.Category = c
+		} else {
+			return fmt.Errorf("Invalid proposal category '%v'. Please check "+
+				"policy for further guidance.", pm.Category)
+		}
 	}
+
 	pmb, err := json.Marshal(pm)
 	if err != nil {
 		return err
@@ -246,7 +265,8 @@ Flags:
                                 proposal data JSON file. The LinkBy timestamp is set to be one
                                 month from the current time.
                                 This is intended to be used in place of --linkby.
-
+	--category (string, optional) Set a valid proposal category. Accepts both numeric value and human
+																readable equivalent for the category code.
 Request:
 {
   "token":  (string)  Censorship token
