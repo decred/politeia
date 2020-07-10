@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -762,7 +763,7 @@ func (c *ctx) dumpTogo() {
 
 // signalHandler catches SIGUSR1 and dumps the current state of the vote
 // trickler.
-func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
+func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}, interrupt chan os.Signal, token string) {
 	for {
 		select {
 		case <-signals:
@@ -770,6 +771,20 @@ func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
 			c.dumpTogo()
 			c.dumpComplete()
 			c.dumpQueue()
+		case <-interrupt:
+			fmt.Printf("\n----- %s vote status -----\n", token)
+			vsr, err := c.voteStatus(token)
+			if err != nil {
+				fmt.Printf("Vote status error: %v\n", err)
+				os.Exit(1)
+			}
+			s, err := json.MarshalIndent(vsr, "", "  ")
+			if err != nil {
+				fmt.Printf("MarshalIndent: %v", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stdout, "%s\n", s)
+			os.Exit(1)
 		case <-done:
 			return
 		}
@@ -907,8 +922,10 @@ func (c *ctx) _voteTrickler(token string) error {
 	// Launch signal handler
 	signalsChan := make(chan os.Signal, 1)
 	signalsDone := make(chan struct{}, 1)
+	signalsInterrupt := make(chan os.Signal, 1)
+	signal.Notify(signalsInterrupt, syscall.SIGINT, syscall.SIGINT)
 	signal.Notify(signalsChan, signals...)
-	go c.signalHandler(signalsChan, signalsDone)
+	go c.signalHandler(signalsChan, signalsDone, signalsInterrupt, token)
 
 	// Launch retry loop
 	c.retryWG.Add(1)
