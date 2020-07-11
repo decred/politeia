@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # This script creates the certificates required to run a PostgreSQL node
-# locally. This includes creating a CA certificate, a node certificate, and two
-# client certificates one for politeiad, and the second for politeiawww
+# locally. This includes creating a CA certificate, a node certificate, one 
+# root client to connect via cli, and two more client certificates the first
+# for politeiad, the second for politeiawww.
 # NOTE: this scripts creates and copies over the server files (root.crt, 
 # server.key & root.crt) to postgres' data dir, is uses $PGDATA environment
 # variable to determine where to copy the files to, make sure it's exported
@@ -25,6 +26,7 @@ if [ "${POSTGRESCERTS_DIR}" == "" ]; then
 fi
 
 # Create postgresdb clients directories.
+mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/root"
 mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAD}"
 mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAWWW}"
 
@@ -74,6 +76,36 @@ openssl \
 # as postgres' data dir
 echo "Copying server.key server.crt root.crt to $PGDATA as postgres sys user"
 sudo -u postgres cp server.key server.crt root.crt $PGDATA
+
+# Create root client key - used to connect via cli
+openssl genrsa -out client.root.key 4096
+# Remove passphrase
+openssl rsa -in client.root.key -out client.root.key
+
+chmod og-rwx client.root.key
+
+# Create client certificate signing request
+# Note: CN should be equal to db username
+openssl \
+    req -new \
+    -key client.root.key \
+    -subj "/CN=postgres" \
+    -out client.root.csr
+
+# Create client certificate
+openssl \
+    x509 -req \
+    -in client.root.csr \
+    -CA root.crt \
+    -CAkey root.key \
+    -CAcreateserial \
+    -days 365 \
+    -text \
+    -out client.root.crt
+
+# Copy client to certs dir
+cp client.root.key client.root.crt root.crt \
+  ${POSTGRESCERTS_DIR}/certs/clients/root
 
 # Create client key for politeiad
 openssl genrsa -out client.${USER_POLITEIAD}.key 4096
