@@ -109,6 +109,11 @@ You can also use the following default configurations:
     cacherootcert="~/.cockroachdb/certs/clients/politeiad/ca.crt"
     cachecert="~/.cockroachdb/certs/clients/politeiad/client.politeiad.crt"
     cachekey="~/.cockroachdb/certs/clients/politeiad/client.politeiad.key"
+    # In case you are running PostgresSQL:
+    # cachehost=localhost:5432
+    # cacherootcert="~/.postgresql/certs/clients/politeiad/root.crt"
+    # cachecert="~/.postgresql/certs/clients/politeiad/client.politeiad.crt"
+    # cachekey="~/.postgresql/certs/clients/politeiad/client.politeiad.key"
 
 
 **politeiawww.conf**:
@@ -125,6 +130,11 @@ You can also use the following default configurations:
     dbrootcert="~/.cockroachdb/certs/clients/politeiawww/ca.crt"
     dbcert="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
     dbkey="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
+    # In case you are running PostgresSQL:
+    # cachehost=localhost:5432
+    # cacherootcert="~/.postgresql/certs/clients/politeiawww/root.crt"
+    # cachecert="~/.postgresql/certs/clients/politeiawww/client.politeiawww.crt"
+    # cachekey="~/.postgresql/certs/clients/politeiawww/client.politeiawww.key"
 
 **Things to note:**
 
@@ -158,10 +168,9 @@ access to the cache.  The flow of data is as follows:
 5. politeiawww reads the updated data from the cache
 6. politeiawww returns a response to the user
 
-We use CockroachDB for the cache in the instructions below.  CockroachDB is
-built to be compatible with Postgres so you can use Postgres for the cache if
-you so choose.  Using Postgres for the cache has not been thoroughly tested and
-bugs may exist.
+We use CockroachDB for the cache in the instructions below. politeia 
+supports Postgres as well, if you like to setup postgres database please 
+skip this section and see instructions below(4a).
 
 Install CockroachDB using the instructions found in the [CockroachDB
 Documentation](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-mac.html).
@@ -170,7 +179,7 @@ Run the following commands to create the CockroachDB certificates required for
 running CockroachDB with Politeia.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./scripts/cockroachcerts.sh
+    ./scripts/cockroach/cockroachcerts.sh
 
 The script creates following certificates and directories.
 
@@ -229,15 +238,71 @@ manually you can do so by opening a sql shell.
       --certs-dir=${HOME}/.cockroachdb/certs/clients/root \
       --host localhost
 
-#### 4a. Setup cms database:
+#### 4a. Setup PostgresSQL databasee
+
+Install PostgresSQL using the instructions found in the [PostgresSQL
+Documentation](https://www.postgresql.org/download/macosx/).
+
+Run the following commands to create the PostgresSQL certificates required for
+running PostgresSQL with Politeia.
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./scripts/postgres/postgrescerts.sh
+
+The script creates following certificates and directories.
+
+    ~/.postgressql
+    └── certs
+        └── clients
+             ├── politeiad
+             │   ├── root.crt
+             │   ├── client.politeiad.crt
+             │   └── client.politeiad.key
+             └── politeiawww
+                 ├── root.crt
+                 ├── client.politeiawww.crt
+                 └── client.politeiawww.key
+
+In addition, it creates and copies server.key, server.crt & root.crt to postgres'
+data dir as  discribed in PostgresSQL ssl connection documentation, it uses 
+environment variable $PGDATA as postgres' data dir & it restarts postgres
+server in order to load created certs.
+
+These are the certificates required to run a PostgresSQL node locally. This
+includes creating a CA certificate, a server certificate, and client certificates
+for the politeiad user, and politeiawww user. Each client directory contains all 
+of the certificates required to connect to the database with that user, 
+you should be able to connect to user's db securely via cli be executing 
+the following:
+```
+psql "host=localhost sslmode=verify-full \ 
+    sslrootcert=~/.postgresql/certs/clients/politeiad/root.crt 
+    sslcert=~/.postgresql/certs/clients/politeiad/client.politeiad.crt 
+    sslkey=~/.postgresql/certs/clients/politeiad/client.politeiad.key 
+    port=5432 user=politeiad 
+    dbname=records_testnet3"
+psql (12.3)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256, compression: off)
+Type "help" for help.
+
+records_testnet3=> 
+```
+
+Once PostgresSQL is restarted and cert are loaded, you can setup the cache databases using the
+commands below.
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./scripts/postgres/cachesetup.sh
+
+#### 4b. Setup cms database:
 
 CMS uses both the cache database and its own database.  Once the cache database
 has been setup using the instructions above, you can setup the CMS database
-using the script below.  CockroachDB must be running when you execute this
+using the script below.  CockroachDB/Postgres must be running when you execute this
 script.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./scripts/cmssetup.sh
+    ./scripts/cmssetup.sh // In case running postgres: ./scripts/postgres/cmssetup.sh
     
 
 #### 5. Build the programs:
@@ -312,16 +377,17 @@ database is LevelDB, a simple key-value store.  This is fine if you're just
 getting started, but LevelDB has some scalability limitations due to it being a
 simple key-value store that doesn't allow concurrent connections.
 
-A more scalable option is setting up the user database to use CockroachDB.  The
-CockroachDB implementation makes public user fields queryable and encrypts
-private user data at rest.  You can setup the user database to use CockroachDB
+A more scalable option is setting up the user database to use CockroachDB/Postgres.  The
+CockroachDB/Postgres implementation makes public user fields queryable and encrypts
+private user data at rest.  You can setup the user database to use CockroachDB/Postgres
 with the following commands.  Before running these commands, make sure that
-you've followed the instructions above and have a CockroachDB instance running.
+you've followed the instructions above and have a CockroachDB/Postgres instance running.
 
-Create a CockroachDB user database and assign user privileges:
+Create a CockroachDB/Postgres user database and assign user privileges:
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./scripts/userdbsetup.sh
+    ./scripts/cockroach/userdbsetup.sh 
+    // In case running postgres: ./scripts/postgres/userdbsetup.sh
 
 Create an encryption key to be used to encrypt data at rest:
 

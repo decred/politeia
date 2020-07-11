@@ -6,6 +6,8 @@
 # server.key & root.crt) to postgres' data dir, is uses $PGDATA environment
 # variable to determine where to copy the files to, make sure it's exported
 # before running the script.
+# when done creating & moving certs this script restarts postgres server
+# in order to load created server certs.
 #
 # More information on PostgreSQL ssl connection usage can be found at:
 # https://www.postgresql.org/docs/9.5/ssl-tcp.html
@@ -26,10 +28,12 @@ fi
 mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAD}"
 mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAWWW}"
 
-# Create CA private key
+# Create a CA private key
+echo "Generating root.key, please type a password:"
 openssl genrsa -des3 -out root.key 4096
-#Remove a passphrase
-openssl rsa -in root.key -out root.key
+# Remove passphrase
+echo "Removing root.key password, please re-type it:"
+openssl rsa -in root.key -out root.key -passout pass:123
 
 # Create a root Certificate Authority (CA)
 openssl \
@@ -40,9 +44,11 @@ openssl \
     -out root.crt
 
 # Create server key
-openssl genrsa -des3 -out server.key 4096
+echo "Generating server.key, please type a password:"
+openssl genrsa -des3 -out server.key 4096 -passout pass:123
 #Remove a passphrase
-openssl rsa -in server.key -out server.key
+echo "Removing server.key password, please re-type it:"
+openssl rsa -in server.key -out server.key -passout pass:123
 
 # Create a root certificate signing request
 openssl \
@@ -66,66 +72,67 @@ openssl \
 # Copy server.key, server.crt & root.crt to postgres' data dir as discribed in
 # PostgresSQL ssl connection documentation, it uses environment variable PGDATA
 # as postgres' data dir
+echo "Copying server.key server.crt root.crt to $PGDATA as postgres sys user"
 sudo -u postgres cp server.key server.crt root.crt $PGDATA
 
 # Create client key for politeiad
-openssl genrsa -out politeiad.client.key 4096
-#Remove a passphrase
-openssl rsa -in politeiad.client.key -out politeiad.client.key
+openssl genrsa -out client.${USER_POLITEIAD}.key 4096
+# Remove passphrase
+openssl rsa -in client.${USER_POLITEIAD}.key -out client.${USER_POLITEIAD}.key
 
-chmod og-rwx politeiad.client.key
+chmod og-rwx client.${USER_POLITEIAD}.key
 
 # Create client certificate signing request
 # Note: CN should be equal to db username
 openssl \
     req -new \
-    -key politeiad.client.key \
+    -key client.${USER_POLITEIAD}.key \
     -subj "/CN=${USER_POLITEIAD}" \
-    -out politeiad.client.csr
+    -out client.${USER_POLITEIAD}.csr
 
 # Create client certificate
 openssl \
     x509 -req \
-    -in politeiad.client.csr \
+    -in client.${USER_POLITEIAD}.csr \
     -CA root.crt \
     -CAkey root.key \
     -CAcreateserial \
     -days 365 \
     -text \
-    -out politeiad.client.crt
+    -out client.${USER_POLITEIAD}.crt
 
 # Copy client to certs dir
-cp politeiad.client.key politeiad.client.crt root.crt \
+cp client.${USER_POLITEIAD}.key client.${USER_POLITEIAD}.crt root.crt \
   ${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAD}
     
 # Create client key for politeiawww
-openssl genrsa -out politeiawww.client.key 4096
-#Remove a passphrase
-openssl rsa -in politeiawww.client.key -out politeiawww.client.key
+openssl genrsa -out client.${USER_POLITEIAWWW}.key 4096
+# Remove a passphrase
+openssl rsa -in client.${USER_POLITEIAWWW}.key -out client.${USER_POLITEIAWWW}.key
 
-chmod og-rwx politeiawww.client.key
+chmod og-rwx client.${USER_POLITEIAWWW}.key
 
 # Create client certificate signing request
 # Note: CN should be equal to db username
 openssl \
     req -new \
-    -key politeiawww.client.key \
+    -key client.${USER_POLITEIAWWW}.key \
     -subj "/CN=${USER_POLITEIAWWW}" \
-    -out politeiawww.client.csr
+    -out client.${USER_POLITEIAWWW}.csr
 
 # Create client certificate
 openssl \
     x509 -req \
-    -in politeiawww.client.csr \
+    -in client.${USER_POLITEIAWWW}.csr \
     -CA root.crt \
     -CAkey root.key \
     -CAcreateserial \
     -days 365 \
     -text \
-    -out politeiawww.client.crt
+    -out client.${USER_POLITEIAWWW}.crt
 
 # Copy client to certs dir
-cp politeiawww.client.key politeiawww.client.crt root.crt \
+cp client.${USER_POLITEIAWWW}.key client.${USER_POLITEIAWWW}.crt root.crt \
   ${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAWWW}
 
 # "On Unix systems, the permissions on 
@@ -133,10 +140,11 @@ cp politeiawww.client.key politeiawww.client.crt root.crt \
 # Source: PostgresSQL docs - link above
 #
 sudo chmod og-rwx $PGDATA/server.key
-sudo chmod og-rwx $POSTGRESCERTS_DIR/certs/clients/${USER_POLITEIAWWW}/${USER_POLITEIAWWW}.client.key
-sudo chmod og-rwx $POSTGRESCERTS_DIR/certs/clients/${USER_POLITEIAD}/${USER_POLITEIAD}.client.key
+sudo chmod og-rwx $POSTGRESCERTS_DIR/certs/clients/${USER_POLITEIAWWW}/client.${USER_POLITEIAWWW}.key
+sudo chmod og-rwx $POSTGRESCERTS_DIR/certs/clients/${USER_POLITEIAD}/client.${USER_POLITEIAD}.key
 
 # Cleanup
 rm *.crt *.key *.srl *.csr
 
-
+# Restart postgres to load server certs
+sudo -u postgres pg_ctl -D $PGDATA restart
