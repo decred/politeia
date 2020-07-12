@@ -3,7 +3,7 @@
 # locally. This includes creating a CA certificate, a node certificate, one 
 # root client to connect via cli, and two more client certificates the first
 # for politeiad, the second for politeiawww.
-# NOTE: this scripts creates and copies over the server files (root.crt, 
+# NOTE: this scripts creates and copies over the server files (server.crt, 
 # server.key & root.crt) to postgres' data dir, is uses $PGDATA environment
 # variable to determine where to copy the files to, make sure it's exported
 # before running the script.
@@ -20,15 +20,15 @@ readonly USER_POLITEIAD="politeiad"
 readonly USER_POLITEIAWWW="politeiawww"
 
 # POSTGRES_DIR is where all of the certificates will be created.
-POSTGRESCERTS_DIR=$1
-if [ "${POSTGRESCERTS_DIR}" == "" ]; then
-  POSTGRESCERTS_DIR="${HOME}/.postgresql"
+POSTGRES_DIR=$1
+if [ "${POSTGRES_DIR}" == "" ]; then
+  POSTGRES_DIR="${HOME}/.postgresql"
 fi
 
 # Create postgresdb clients directories.
-mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/root"
-mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAD}"
-mkdir -p "${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAWWW}"
+mkdir -p "${POSTGRES_DIR}/certs/clients/root"
+mkdir -p "${POSTGRES_DIR}/certs/clients/${USER_POLITEIAD}"
+mkdir -p "${POSTGRES_DIR}/certs/clients/${USER_POLITEIAWWW}"
 
 # Create a CA private key
 echo "Generating root.key, please type a password:"
@@ -105,7 +105,7 @@ openssl \
 
 # Copy client to certs dir
 cp client.root.key client.root.crt root.crt \
-  ${POSTGRESCERTS_DIR}/certs/clients/root
+  ${POSTGRES_DIR}/certs/clients/root
 
 # Create client key for politeiad
 openssl genrsa -out client.${USER_POLITEIAD}.key 4096
@@ -135,7 +135,7 @@ openssl \
 
 # Copy client to certs dir
 cp client.${USER_POLITEIAD}.key client.${USER_POLITEIAD}.crt root.crt \
-  ${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAD}
+  ${POSTGRES_DIR}/certs/clients/${USER_POLITEIAD}
     
 # Create client key for politeiawww
 openssl genrsa -out client.${USER_POLITEIAWWW}.key 4096
@@ -165,15 +165,15 @@ openssl \
 
 # Copy client to certs dir
 cp client.${USER_POLITEIAWWW}.key client.${USER_POLITEIAWWW}.crt root.crt \
-  ${POSTGRESCERTS_DIR}/certs/clients/${USER_POLITEIAWWW}
+  ${POSTGRES_DIR}/certs/clients/${USER_POLITEIAWWW}
 
 # "On Unix systems, the permissions on 
 # server.key must disallow any access to world or group"
 # Source: PostgresSQL docs - link above
 #
 sudo chmod og-rwx $PGDATA/server.key
-sudo chmod og-rwx $POSTGRESCERTS_DIR/certs/clients/${USER_POLITEIAWWW}/client.${USER_POLITEIAWWW}.key
-sudo chmod og-rwx $POSTGRESCERTS_DIR/certs/clients/${USER_POLITEIAD}/client.${USER_POLITEIAD}.key
+sudo chmod og-rwx $POSTGRES_DIR/certs/clients/${USER_POLITEIAWWW}/client.${USER_POLITEIAWWW}.key
+sudo chmod og-rwx $POSTGRES_DIR/certs/clients/${USER_POLITEIAD}/client.${USER_POLITEIAD}.key
 
 # Cleanup
 rm *.crt *.key *.srl *.csr

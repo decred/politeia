@@ -151,8 +151,8 @@ things like new user registration, and those settings are also configured within
 politeiad stores proposal data in git repositories that are regularly backed up
 to github and cryptographically timestamped onto the Decred blockchain.  The
 politeiad git repositories serve as the source of truth for proposal data. A
-CockroachDB database is used as a cache for proposal data in order to increase
-query performance.
+CockroachDB/Postgres database is used as a cache for proposal data in order to
+increase query performance.
 
 **The cache is not required if you're running just politeiad.  politeiad has
 the cache disable by default. If you're running the full politeia stack,
@@ -168,7 +168,7 @@ access to the cache.  The flow of data is as follows:
 5. politeiawww reads the updated data from the cache
 6. politeiawww returns a response to the user
 
-We use CockroachDB for the cache in the instructions below. politeia 
+We use CockroachDB for the cache in the instructions below. however, politeia 
 supports Postgres as well, if you like to setup postgres database please 
 skip this section and see instructions below(4a).
 
@@ -254,6 +254,10 @@ The script creates following certificates and directories.
     ~/.postgressql
     └── certs
         └── clients
+             ├── root
+             |   ├── ca.crt
+             |   ├── client.root.crt
+             |   └── client.root.key
              ├── politeiad
              │   ├── root.crt
              │   ├── client.politeiad.crt
@@ -275,17 +279,18 @@ of the certificates required to connect to the database with that user,
 you should be able to connect to user's db securely via cli be executing 
 the following:
 ```
-psql "host=localhost sslmode=verify-full \ 
-    sslrootcert=~/.postgresql/certs/clients/politeiad/root.crt 
-    sslcert=~/.postgresql/certs/clients/politeiad/client.politeiad.crt 
-    sslkey=~/.postgresql/certs/clients/politeiad/client.politeiad.key 
-    port=5432 user=politeiad 
-    dbname=records_testnet3"
+$ psql "host=localhost sslmode=verify-full
+    sslrootcert=${HOME}/.postgresql/certs/clients/root/root.crt 
+    sslcert=${HOME}/.postgresql/certs/clients/root/client.root.crt 
+    sslkey=${HOME}/.postgresql/certs/clients/root/client.root.key 
+    port=5432 user=postgres 
+    dbname=postgres"
+
 psql (12.3)
 SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256, compression: off)
 Type "help" for help.
 
-records_testnet3=> 
+postgres=> 
 ```
 
 Once PostgresSQL is restarted and cert are loaded, you can setup the cache databases using the
