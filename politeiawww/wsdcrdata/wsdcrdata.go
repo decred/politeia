@@ -1,4 +1,4 @@
-package dcrdata
+package wsdcrdata
 
 import (
 	"context"
@@ -116,8 +116,8 @@ func (w *WSDcrdata) Subscribe(event string) error {
 	return nil
 }
 
-// unsubscribe ubsubscribes the dcrdata client from an event.
-func (w *WSDcrdata) unsubscribe(event string) error {
+// Unsubscribe ubsubscribes the dcrdata client from an event.
+func (w *WSDcrdata) Unsubscribe(event string) error {
 	if w.IsShutdown() {
 		return ErrShutdown
 	}
@@ -146,8 +146,8 @@ func (w *WSDcrdata) Receive() (<-chan *client.ClientMessage, error) {
 	return w.client.Receive(), nil
 }
 
-// ping pings the dcrdata server.
-func (w *WSDcrdata) ping() error {
+// Ping pings the dcrdata server.
+func (w *WSDcrdata) Ping() error {
 	if w.IsShutdown() {
 		return ErrShutdown
 	}
@@ -162,7 +162,7 @@ func (w *WSDcrdata) SubToAddr(address string) error {
 
 // UnsubFromAddr removes a subscription to a decred address.
 func (w *WSDcrdata) UnsubFromAddr(address string) error {
-	return w.unsubscribe(AddrSubPrefix + address)
+	return w.Unsubscribe(AddrSubPrefix + address)
 }
 
 func newDcrdataWSClient(url string) (*client.Client, error) {
@@ -215,7 +215,7 @@ func (w *WSDcrdata) Reconnect() error {
 
 	for len(prevSubscriptions) > 0 {
 		// Reconnect to dcrdata if needed
-		err := w.ping()
+		err := w.Ping()
 		if err == ErrShutdown {
 			return ErrShutdown
 		} else if err != nil {
