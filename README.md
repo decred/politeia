@@ -255,9 +255,9 @@ The script creates following certificates and directories.
     └── certs
         └── clients
              ├── root
-             |   ├── ca.crt
-             |   ├── client.root.crt
-             |   └── client.root.key
+             │   ├── root.crt
+             │   ├── client.root.crt
+             │   └── client.root.key
              ├── politeiad
              │   ├── root.crt
              │   ├── client.politeiad.crt
