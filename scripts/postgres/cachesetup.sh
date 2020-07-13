@@ -43,8 +43,7 @@ readonly CONNECTION_STRING="host=localhost \
   sslcert=${ROOT_CERTS_DIR}/client.root.crt \
   sslkey=${ROOT_CERTS_DIR}/client.root.key \
   port=5432 \
-  user=postgres \
-  dbname=postgres"
+  user=postgres"
 
 # Create the mainnet and testnet databases for the politeiad records cache.
 psql "$CONNECTION_STRING" \
@@ -84,3 +83,12 @@ psql "$CONNECTION_STRING" \
 
 psql "$CONNECTION_STRING" \
   -c "GRANT CONNECT ON DATABASE ${DB_TESTNET} TO ${USER_POLITEIAWWW}"
+
+# Grant politeiawww SELECT privilege on tables created by politeiad
+psql "$CONNECTION_STRING \
+    dbname=${DB_TESTNET}" \
+  -c "ALTER DEFAULT PRIVILEGES FOR USER ${USER_POLITEIAD} GRANT SELECT ON TABLES TO ${USER_POLITEIAWWW}"
+
+psql "$CONNECTION_STRING \
+    dbname=${DB_MAINNET}" \
+  -c "ALTER DEFAULT PRIVILEGES FOR USER ${USER_POLITEIAD} GRANT SELECT ON TABLES TO ${USER_POLITEIAWWW}"
