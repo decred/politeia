@@ -352,6 +352,8 @@ func (d *decred) voteResultsInsertStandard(token string) error {
 		return fmt.Errorf("insert vote results: %v", err)
 	}
 
+	log.Debugf("Standard vote result created %v", vr.Token)
+
 	return nil
 }
 
@@ -478,6 +480,8 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 			return fmt.Errorf("insert vote results %v: %v",
 				vr.Token, err)
 		}
+
+		log.Debugf("Runoff vote result created %v", vr.Token)
 	}
 
 	return nil
@@ -1056,24 +1060,73 @@ func startVoteInsert(db *gorm.DB, sv StartVote) error {
 func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdStartVote")
 
-	sv, err := decredplugin.DecodeStartVoteV2([]byte(cmdPayload))
+	// Handle start vote versioning. This command accepts both v1 and
+	// v2 start votes in order to allow rebuilding the start vote cache
+	// using this command.
+	dsv, err := decredplugin.DecodeStartVote([]byte(cmdPayload))
 	if err != nil {
 		return "", err
-	}
-	err = sv.VerifySignature()
-	if err != nil {
-		return "", fmt.Errorf("verify signature: %v", err)
 	}
 	svr, err := decredplugin.DecodeStartVoteReply([]byte(replyPayload))
 	if err != nil {
 		return "", err
 	}
-	s, err := convertStartVoteV2FromDecred(*sv, *svr)
-	if err != nil {
-		return "", err
+
+	var sv *StartVote
+	switch dsv.Version {
+	case 0:
+		// The version is only going to be present when the cache is
+		// being rebuilt. When a vote is started normally, gitbe fills in
+		// the version before writing it to disk, which means the version
+		// is not going to travel to the cache. This is a side effect of
+		// the cache being implemented in the wrong layer. If the version
+		// is 0 then we can assume this is the current start vote version.
+		svb := []byte(dsv.Payload)
+		sv2, err := decredplugin.DecodeStartVoteV2(svb)
+		if err != nil {
+			return "", fmt.Errorf("decode StartVoteV2 %v: %v", dsv.Token, err)
+		}
+		err = sv2.VerifySignature()
+		if err != nil {
+			return "", fmt.Errorf("verify signature: %v", err)
+		}
+		sv, err = convertStartVoteV2FromDecred(*sv2, *svr)
+		if err != nil {
+			return "", err
+		}
+	case decredplugin.VersionStartVoteV1:
+		svb := []byte(dsv.Payload)
+		sv1, err := decredplugin.DecodeStartVoteV1(svb)
+		if err != nil {
+			return "", fmt.Errorf("decode StartVoteV1 %v: %v", dsv.Token, err)
+		}
+		err = sv1.VerifySignature()
+		if err != nil {
+			return "", fmt.Errorf("verify signature: %v", err)
+		}
+		sv, err = convertStartVoteV1FromDecred(*sv1, *svr)
+		if err != nil {
+			return "", err
+		}
+	case decredplugin.VersionStartVoteV2:
+		svb := []byte(dsv.Payload)
+		sv2, err := decredplugin.DecodeStartVoteV2(svb)
+		if err != nil {
+			return "", fmt.Errorf("decode StartVoteV2 %v: %v", dsv.Token, err)
+		}
+		err = sv2.VerifySignature()
+		if err != nil {
+			return "", fmt.Errorf("verify signature: %v", err)
+		}
+		sv, err = convertStartVoteV2FromDecred(*sv2, *svr)
+		if err != nil {
+			return "", err
+		}
+	default:
+		return "", fmt.Errorf("unknown start vote version %v", dsv.Version)
 	}
 
-	err = startVoteInsert(d.recordsdb, *s)
+	err = startVoteInsert(d.recordsdb, *sv)
 	if err != nil {
 		return "", err
 	}
@@ -1231,19 +1284,17 @@ func (d *decred) cmdNewBallot(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	// Put votes receipts into a map for easy lookup. Only votes
-	// with a receipt signature will be added to the cache.
-	receipts := make(map[string]string, len(br.Receipts)) // [clientSig]receiptSig
+	// If the vote contains an error, don't add it.
+	invalid := make(map[string]struct{}, len(br.Receipts))
 	for _, v := range br.Receipts {
-		receipts[v.ClientSignature] = v.Signature
+		if v.ErrorStatus != 0 || v.Error != "" {
+			invalid[v.ClientSignature] = struct{}{}
+		}
 	}
 
-	// Add cast votes to the cache
+	// Insert cast vote records
 	for _, v := range b.Votes {
-		// Don't add votes that don't have a receipt signature
-		if receipts[v.Signature] == "" {
-			log.Debugf("cmdNewBallot: vote receipt not found %v %v",
-				v.Token, v.Ticket)
+		if _, ok := invalid[v.Signature]; ok {
 			continue
 		}
 
@@ -2069,10 +2120,11 @@ func (d *decred) dropTables(tx *gorm.DB) error {
 //
 // This function cannot be called using a transaction because it could
 // potentially exceed cockroachdb's transaction size limit.
-func (d *decred) build(ir *decredplugin.InventoryReply) error {
+func (d *decred) build() error {
 	log.Tracef("decred build")
 
 	// Drop all decred plugin tables
+	log.Debugf("Dropping decred plugin tables")
 	tx := d.recordsdb.Begin()
 	err := d.dropTables(tx)
 	if err != nil {
@@ -2085,6 +2137,7 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	}
 
 	// Create decred plugin tables
+	log.Debugf("Building decred plugin tables")
 	tx = d.recordsdb.Begin()
 	err = d.createTables(tx)
 	if err != nil {
@@ -2096,114 +2149,13 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		return err
 	}
 
-	// Build comments cache
-	log.Tracef("decred: building comments cache")
-	for _, v := range ir.Comments {
-		c := convertCommentFromDecred(v)
-		err := d.recordsdb.Create(&c).Error
-		if err != nil {
-			log.Debugf("create comment failed on '%v'", c)
-			return fmt.Errorf("newComment: %v", err)
-		}
-	}
-
-	// Build like comments cache
-	log.Tracef("decred: building like comments cache")
-	for _, v := range ir.LikeComments {
-		lc := convertLikeCommentFromDecred(v)
-		err := d.recordsdb.Create(&lc).Error
-		if err != nil {
-			log.Debugf("newLikeComment failed on '%v'", lc)
-			return fmt.Errorf("newLikeComment: %v", err)
-		}
-	}
-
-	// Put authorize vote replies in a map for quick lookups
-	avr := make(map[string]decredplugin.AuthorizeVoteReply,
-		len(ir.AuthorizeVoteReplies)) // [receipt]AuthorizeVote
-	for _, v := range ir.AuthorizeVoteReplies {
-		avr[v.Receipt] = v
-	}
-
-	// Build authorize vote cache
-	log.Tracef("decred: building authorize vote cache")
-	for _, v := range ir.AuthorizeVotes {
-		r, ok := avr[v.Receipt]
-		if !ok {
-			return fmt.Errorf("AuthorizeVoteReply not found %v",
-				v.Token)
-		}
-
-		av, err := convertAuthorizeVoteFromDecred(v, r)
-		if err != nil {
-			return err
-		}
-		err = authorizeVoteInsert(d.recordsdb, *av)
-		if err != nil {
-			log.Debugf("authorizeVoteInsert failed on '%v'", av)
-			return fmt.Errorf("authorizeVoteInsert: %v", err)
-		}
-	}
-
-	// Build start vote cache
-	log.Tracef("decred: building start vote cache")
-	for _, v := range ir.StartVoteTuples {
-		// Handle start vote versioning
-		var sv StartVote
-		switch v.StartVote.Version {
-		case decredplugin.VersionStartVoteV1:
-			svb := []byte(v.StartVote.Payload)
-			sv1, err := decredplugin.DecodeStartVoteV1(svb)
-			if err != nil {
-				return fmt.Errorf("decode StartVoteV2 %v: %v",
-					v.StartVote.Token, err)
-			}
-			svp, err := convertStartVoteV1FromDecred(*sv1, v.StartVoteReply)
-			if err != nil {
-				return fmt.Errorf("convertStartVoteV1FromDecred %v: %v",
-					v.StartVote.Token, err)
-			}
-			sv = *svp
-		case decredplugin.VersionStartVoteV2:
-			svb := []byte(v.StartVote.Payload)
-			sv2, err := decredplugin.DecodeStartVoteV2(svb)
-			if err != nil {
-				return fmt.Errorf("decode StartVoteV1 %v: %v",
-					v.StartVote.Token, err)
-			}
-			svp, err := convertStartVoteV2FromDecred(*sv2, v.StartVoteReply)
-			if err != nil {
-				return fmt.Errorf("convertStartVoteV2FromDecred %v: %v",
-					v.StartVote.Version, err)
-			}
-			sv = *svp
-		}
-
-		// Insert start vote record
-		err = d.recordsdb.Create(&sv).Error
-		if err != nil {
-			return fmt.Errorf("insert StartVote: %v %v",
-				err, sv.Token)
-		}
-	}
-
-	// Build cast vote cache
-	log.Tracef("decred: building cast vote cache")
-	for _, v := range ir.CastVotes {
-		cv := convertCastVoteFromDecred(v)
-		err := d.recordsdb.Create(&cv).Error
-		if err != nil {
-			log.Debugf("insert cast vote failed on '%v'", cv)
-			return fmt.Errorf("insert cast vote: %v", err)
-		}
-	}
-
-	// Build the ProposalMetadata cache. This metadata is not part of
-	// the decredplugin InventoryReply. It is already stored in the
-	// cached as a MetadataStream with an encoded payload. We need to
-	// pull the ProposalMetadata out so it can be queried. Only the
-	// ProposalMetadata for the most recent version of the proposal
+	// Build the ProposalMetadata cache. This metadata is already in
+	// the cache as a MetadataStream with an encoded payload. We need
+	// to pull the ProposalMetadata out so that it can be queried. Only
+	// the ProposalMetadata for the most recent version of the proposal
 	// is saved to the cache.
+
+	log.Debugf("Building proposal metadata cache")
 
 	// Lookup latest version of each record
 	query := `SELECT a.*
@@ -2280,16 +2232,10 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 func (d *decred) Build(payload string) error {
 	log.Tracef("decred Build")
 
-	// Decode the payload
-	ir, err := decredplugin.DecodeInventoryReply([]byte(payload))
-	if err != nil {
-		return fmt.Errorf("DecodeInventoryReply: %v", err)
-	}
-
 	// Build the decred plugin cache. This is not run using
 	// a transaction because it could potentially exceed
 	// cockroachdb's transaction size limit.
-	err = d.build(ir)
+	err := d.build()
 	if err != nil {
 		// Remove the version record. This will
 		// force a rebuild on the next start up.

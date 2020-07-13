@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	cmsPluginIdentity  = "cmsfullidentity"
-	cmsPluginJournals  = "cmssjournals"
-	cmsPluginInventory = "cmsinventory"
+	cmsPluginIdentity    = "cmsfullidentity"
+	cmsPluginJournals    = "cmssjournals"
+	cmsPluginEnableCache = "enablecache"
 )
 
 type CastDCCVoteJournal struct {
@@ -81,13 +81,10 @@ func getCMSPlugin(testnet bool) backend.Plugin {
 		Settings: []backend.PluginSetting{},
 	}
 
-	// This setting is used to tell politeiad how to retrieve the
-	// decred plugin data that is required to build the external
-	// politeiad cache.
 	cmsPlugin.Settings = append(cmsPlugin.Settings,
 		backend.PluginSetting{
-			Key:   cmsPluginInventory,
-			Value: cmsplugin.CmdInventory,
+			Key:   cmsPluginEnableCache,
+			Value: "",
 		})
 
 	// Initialize hooks
