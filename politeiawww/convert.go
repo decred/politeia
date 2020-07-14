@@ -1554,10 +1554,24 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStats {
 	cmsCodeStats := make([]cms.CodeStats, 0, len(userCodeStats))
 	for _, codeStat := range userCodeStats {
+		prs := make([]string, 0, len(codeStat.PRs))
+		reviews := make([]string, 0, len(codeStat.Reviews))
+		for _, pr := range codeStat.PRs {
+			if pr == "" {
+				continue
+			}
+			prs = append(prs, pr)
+		}
+		for _, review := range codeStat.Reviews {
+			if review == "" {
+				continue
+			}
+			reviews = append(reviews, review)
+		}
 		cmsCodeStat := cms.CodeStats{
 			Repository:      codeStat.Repository,
-			PRs:             codeStat.PRs,
-			Reviews:         codeStat.Reviews,
+			PRs:             prs,
+			Reviews:         reviews,
 			MergeAdditions:  codeStat.MergedAdditions,
 			MergeDeletions:  codeStat.MergedDeletions,
 			ReviewAdditions: codeStat.ReviewAdditions,
