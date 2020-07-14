@@ -2705,8 +2705,6 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allV
 		return nil, nil, backend.ErrShutdown
 	}
 
-	log.Debugf("Inventory: walking vetted")
-
 	// Walk vetted, we can simply take the vetted directory and sort the
 	// entries by time.
 	files, err := ioutil.ReadDir(g.vetted)
