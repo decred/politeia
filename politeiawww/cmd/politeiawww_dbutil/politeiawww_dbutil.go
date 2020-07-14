@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
@@ -36,8 +35,6 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/marcopeereboom/sbox"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 const (
@@ -87,7 +84,6 @@ var (
 	network string // Mainnet or testnet3
 	// XXX ldb should be abstracted away. dbutil commands should use
 	// the user.Database interface instead.
-	ldb    *leveldb.DB
 	userDB user.Database
 )
 
@@ -143,7 +139,7 @@ const usageMsg = `politeiawww_dbutil usage:
     -dump
           Dump the entire database or the contents of a specific user
           Required DB flag : -leveldb
-          LevelDB args     : <email>
+          LevelDB args     : <username>
     -createkey
           Create a new encryption key that can be used to encrypt data at rest
           Required DB flag : None
@@ -173,84 +169,38 @@ func cmdDump() error {
 	// If email is provided, only dump that user.
 	args := flag.Args()
 	if len(args) == 1 {
-		email := []byte(args[0])
-		value, err := ldb.Get(email, nil)
+		username := args[0]
+		u, err := userDB.UserGetByUsername(username)
+
 		if err != nil {
 			return err
 		}
 
-		u, err := user.DecodeUser(value)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Key    : %v\n", hex.EncodeToString(email))
+		fmt.Printf("Key    : %v\n", username)
 		fmt.Printf("Record : %v", spew.Sdump(u))
 		return nil
 	}
 
-	iter := ldb.NewIterator(nil, nil)
-	for iter.Next() {
-		fmt.Printf("%v\n", strings.Repeat("=", 80))
-		key := iter.Key()
-		value := iter.Value()
-
-		switch string(key) {
-		case localdb.UserVersionKey:
-			v, err := localdb.DecodeVersion(value)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("Key    : %v\n", string(key))
-			fmt.Printf("Record : %v\n", spew.Sdump(v))
-		case localdb.LastPaywallAddressIndex:
-			fmt.Printf("Key    : %v\n", string(key))
-			fmt.Printf("Record : %v\n", binary.LittleEndian.Uint64(value))
-		default:
-			u, err := user.DecodeUser(value)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("Key    : %v\n", hex.EncodeToString(key))
-			fmt.Printf("Record : %v", spew.Sdump(u))
-		}
-	}
-	iter.Release()
-	return iter.Error()
-}
-
-func levelSetAdmin(email string, isAdmin bool) error {
-	b, err := ldb.Get([]byte(email), nil)
-	if err != nil {
-		return fmt.Errorf("user email '%v' not found", email)
-	}
-
-	u, err := user.DecodeUser(b)
+	err := userDB.AllUsers(func(u *user.User) {
+		fmt.Printf("Key    : %v\n", string(u.Username))
+		fmt.Printf("Record : %v\n", spew.Sdump(u))
+	})
 	if err != nil {
 		return err
 	}
-
-	u.Admin = isAdmin
-
-	b, err = user.EncodeUser(*u)
-	if err != nil {
-		return err
-	}
-
-	err = ldb.Put([]byte(email), b, nil)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("User with email '%v' admin status updated "+
-		"to %v\n", email, isAdmin)
-
 	return nil
 }
 
-func cockroachSetAdmin(username string, isAdmin bool) error {
+func cmdSetAdmin() error {
+	args := flag.Args()
+	if len(args) < 2 {
+		flag.Usage()
+		return nil
+	}
+
+	username := args[0]
+	isAdmin := (strings.ToLower(args[1]) == "true" || args[1] == "1")
+
 	u, err := userDB.UserGetByUsername(username)
 	if err != nil {
 		return err
@@ -269,24 +219,6 @@ func cockroachSetAdmin(username string, isAdmin bool) error {
 	return nil
 }
 
-func cmdSetAdmin() error {
-	args := flag.Args()
-	if len(args) < 2 {
-		flag.Usage()
-		return nil
-	}
-
-	isAdmin := (strings.ToLower(args[1]) == "true" || args[1] == "1")
-	switch {
-	case *level:
-		return levelSetAdmin(args[0], isAdmin)
-	case *cockroach:
-		return cockroachSetAdmin(args[0], isAdmin)
-	}
-
-	return nil
-}
-
 func cmdSetEmail() error {
 	args := flag.Args()
 	if len(args) < 2 {
@@ -294,11 +226,8 @@ func cmdSetEmail() error {
 		return nil
 	}
 
-	switch {
-	case *level:
+	if *level {
 		return fmt.Errorf("this cannot be used with the -leveldb flag")
-	case !*cockroach:
-		return fmt.Errorf("must use the -cockroachdb flag to use this command")
 	}
 
 	username := strings.ToLower(args[0])
@@ -324,46 +253,19 @@ func cmdSetEmail() error {
 	return nil
 }
 
-func levelAddCredits(email string, quantity int) error {
-	// Fetch user from db.
-	u, err := ldb.Get([]byte(email), nil)
+func cmdAddCredits() error {
+	args := flag.Args()
+	if len(args) < 2 {
+		flag.Usage()
+		return nil
+	}
+	username := args[0]
+
+	quantity, err := strconv.Atoi(args[1])
 	if err != nil {
-		return err
+		return fmt.Errorf("parse int '%v' failed: %v",
+			args[1], err)
 	}
-
-	usr, err := user.DecodeUser(u)
-	if err != nil {
-		return err
-	}
-
-	// Create proposal credits.
-	c := make([]user.ProposalCredit, quantity)
-	timestamp := time.Now().Unix()
-	for i := 0; i < quantity; i++ {
-		c[i] = user.ProposalCredit{
-			PaywallID:     0,
-			Price:         0,
-			DatePurchased: timestamp,
-			TxID:          "created_by_dbutil",
-		}
-	}
-	usr.UnspentProposalCredits = append(usr.UnspentProposalCredits, c...)
-
-	// Write user record to db.
-	u, err = user.EncodeUser(*usr)
-	if err != nil {
-		return err
-	}
-	if err = ldb.Put([]byte(email), u, nil); err != nil {
-		return err
-	}
-
-	fmt.Printf("%v proposal credits added to account %v\n",
-		quantity, email)
-	return nil
-}
-
-func cockroachAddCredits(username string, quantity int) error {
 	// Lookup user
 	u, err := userDB.UserGetByUsername(username)
 	if err != nil {
@@ -391,29 +293,6 @@ func cockroachAddCredits(username string, quantity int) error {
 
 	fmt.Printf("%v proposal credits added to account %v\n",
 		quantity, username)
-
-	return nil
-}
-
-func cmdAddCredits() error {
-	args := flag.Args()
-	if len(args) < 2 {
-		flag.Usage()
-		return nil
-	}
-
-	quantity, err := strconv.Atoi(args[1])
-	if err != nil {
-		return fmt.Errorf("parse int '%v' failed: %v",
-			args[1], err)
-	}
-
-	switch {
-	case *level:
-		return levelAddCredits(args[0], quantity)
-	case *cockroach:
-		return cockroachAddCredits(args[0], quantity)
-	}
 
 	return nil
 }
@@ -465,79 +344,6 @@ func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
 		}
 	}
 
-	return nil
-}
-
-func levelStubUsers(pubkeys map[string]struct{}) error {
-	var i int
-	for k := range pubkeys {
-		username := fmt.Sprintf("dbutil_user%v", i)
-		email := username + "@example.com"
-		id, err := util.IdentityFromString(k)
-		if err != nil {
-			return err
-		}
-
-		b, err := user.EncodeUser(user.User{
-			ID:             uuid.New(),
-			Email:          email,
-			Username:       username,
-			HashedPassword: []byte("password"),
-			Admin:          false,
-			Identities: []user.Identity{
-				{
-					Key:       id.Key,
-					Activated: time.Now().Unix(),
-				},
-			},
-		})
-		if err != nil {
-			return err
-		}
-
-		err = ldb.Put([]byte(email), b, nil)
-		if err != nil {
-			return err
-		}
-
-		i++
-	}
-
-	fmt.Printf("Done!\n")
-	return nil
-}
-
-func cockroachStubUsers(pubkeys map[string]struct{}) error {
-	var i int
-	for k := range pubkeys {
-		username := fmt.Sprintf("dbutil_user%v", i)
-		email := username + "@example.com"
-		id, err := util.IdentityFromString(k)
-		if err != nil {
-			return err
-		}
-
-		err = userDB.UserNew(user.User{
-			ID:             uuid.New(),
-			Email:          email,
-			Username:       username,
-			HashedPassword: []byte("password"),
-			Admin:          false,
-			Identities: []user.Identity{
-				{
-					Key:       id.Key,
-					Activated: time.Now().Unix(),
-				},
-			},
-		})
-		if err != nil {
-			return err
-		}
-
-		i++
-	}
-
-	fmt.Printf("Done!\n")
 	return nil
 }
 
@@ -595,19 +401,44 @@ func cmdStubUsers() error {
 	}
 
 	fmt.Printf("Stubbing users...\n")
-	switch {
-	case *level:
-		return levelStubUsers(pubkeys)
-	case *cockroach:
-		return cockroachStubUsers(pubkeys)
+
+	// update users on database
+	var i int
+	for k := range pubkeys {
+		username := fmt.Sprintf("dbutil_user%v", i)
+		email := username + "@example.com"
+		id, err := util.IdentityFromString(k)
+		if err != nil {
+			return err
+		}
+
+		err = userDB.UserNew(user.User{
+			ID:             uuid.New(),
+			Email:          email,
+			Username:       username,
+			HashedPassword: []byte("password"),
+			Admin:          false,
+			Identities: []user.Identity{
+				{
+					Key:       id.Key,
+					Activated: time.Now().Unix(),
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		i++
 	}
 
+	fmt.Printf("Done!\n")
 	return nil
 }
 
 func cmdMigrate() error {
 	// Connect to LevelDB
-	dbDir := filepath.Join(*dataDir, network, localdb.UserdbPath)
+	dbDir := filepath.Join(*dataDir, network)
 	_, err := os.Stat(dbDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -616,19 +447,15 @@ func cmdMigrate() error {
 		return err
 	}
 
-	ldb, err = leveldb.OpenFile(dbDir,
-		&opt.Options{
-			ErrorIfMissing: true,
-		})
+	ldb, err := localdb.New(dbDir)
 	if err != nil {
 		return err
 	}
-	defer ldb.Close()
 
 	// Connect to CockroachDB
 	err = validateCockroachParams()
 	if err != nil {
-		return err
+		return fmt.Errorf("new leveldb: %v", err)
 	}
 	cdb, err := cockroachdb.New(*host, network, *rootCert,
 		*clientCert, *clientKey, *encryptionKey)
@@ -642,94 +469,77 @@ func cmdMigrate() error {
 	fmt.Printf("Migrating records from LevelDB to CockroachDB...\n")
 
 	// Migrate LevelDB records to CockroachDB
+	var users []user.User
 	var paywallIndex uint64
 	var userCount int
-	iter := ldb.NewIterator(nil, nil)
-	for iter.Next() {
-		key := iter.Key()
-		value := iter.Value()
 
-		switch string(key) {
-		case localdb.UserVersionKey:
-			// Version record; ignore
-		case localdb.LastPaywallAddressIndex:
-			// Paywall address index record
-			paywallIndex = binary.LittleEndian.Uint64(value)
-			err := cdb.SetPaywallAddressIndex(paywallIndex)
-			if err != nil {
-				return fmt.Errorf("set paywall index: %v", err)
-			}
-		default:
-			// User record
-			u, err := user.DecodeUser(value)
-			if err != nil {
-				return fmt.Errorf("decode user '%v': %v",
-					value, err)
-			}
-
-			// Check if username already exists in db. There was a
-			// ~2 month period where a bug allowed for users to be
-			// created with duplicate usernames.
-			_, err = cdb.UserGetByUsername(u.Username)
-			switch err {
-			case nil:
-				for err != user.ErrUserNotFound {
-					// Username is a duplicate. Allow for the username to be
-					// updated here. The migration will fail if the username
-					// is not unique.
-					fmt.Printf("Username '%v' already exists. Username must be "+
-						"updated for the following user before the migration can "+
-						"continue.\n", u.Username)
-
-					fmt.Printf("ID                 : %v\n", u.ID.String())
-					fmt.Printf("Email              : %v\n", u.Email)
-					fmt.Printf("Username           : %v\n", u.Username)
-					fmt.Printf("Input new username : ")
-
-					var input string
-					r := bufio.NewReader(os.Stdin)
-					input, err = r.ReadString('\n')
-					if err != nil {
-						return err
-					}
-
-					username := strings.TrimSuffix(input, "\n")
-					u.Username = strings.ToLower(strings.TrimSpace(username))
-					_, err = cdb.UserGetByUsername(u.Username)
-				}
-
-				fmt.Printf("Username updated to '%v'\n", u.Username)
-
-			case user.ErrUserNotFound:
-				// Username doesn't exist; continue
-			default:
-				return err
-			}
-
-			err = cdb.InsertUser(*u)
-			if err != nil {
-				return fmt.Errorf("migrate user '%v': %v",
-					u.ID, err)
-			}
-			userCount++
-		}
-	}
+	// populates the user slice from leveldb users
+	err = ldb.AllUsers(func(u *user.User) {
+		users = append(users, *u)
+	})
 
 	// Make sure the migration went ok.
-	if userCount == 0 {
+	if len(users) == 0 {
 		return fmt.Errorf("no users found in leveldb")
 	}
 
-	if paywallIndex == 0 {
-		return fmt.Errorf("paywall address index not found")
+	for i := 0; i < len(users); i++ {
+
+		u := users[i]
+		// Check if username already exists in db. There was a
+		// ~2 month period where a bug allowed for users to be
+		// created with duplicate usernames.
+		_, err = cdb.UserGetByUsername(u.Username)
+
+		paywallIndex = u.PaywallAddressIndex
+		switch err {
+		case nil:
+			for err != user.ErrUserNotFound {
+				// Username is a duplicate. Allow for the username to be
+				// updated here. The migration will fail if the username
+				// is not unique.
+				fmt.Printf("Username '%v' already exists. Username must be "+
+					"updated for the following user before the migration can "+
+					"continue.\n", u.Username)
+
+				fmt.Printf("ID                 : %v\n", u.ID.String())
+				fmt.Printf("Email              : %v\n", u.Email)
+				fmt.Printf("Username           : %v\n", u.Username)
+				fmt.Printf("Input new username : ")
+
+				var input string
+				r := bufio.NewReader(os.Stdin)
+				input, err = r.ReadString('\n')
+				if err != nil {
+					return err
+				}
+
+				username := strings.TrimSuffix(input, "\n")
+				u.Username = strings.ToLower(strings.TrimSpace(username))
+				_, err = cdb.UserGetByUsername(u.Username)
+			}
+
+			fmt.Printf("Username updated to '%v'\n", u.Username)
+
+		case user.ErrUserNotFound:
+			// Username doesn't exist; continue
+		default:
+			return err
+		}
+
+		err = cdb.InsertUser(u)
+		if err != nil {
+			return fmt.Errorf("migrate user '%v': %v",
+				u.ID, err)
+		}
+		userCount++
 	}
 
 	fmt.Printf("Users migrated : %v\n", userCount)
 	fmt.Printf("Paywall index  : %v\n", paywallIndex)
 	fmt.Printf("Done!\n")
 
-	iter.Release()
-	return iter.Error()
+	return nil
 }
 
 func cmdCreateKey() error {
@@ -917,7 +727,6 @@ func _main() error {
 	} else {
 		network = chaincfg.MainNetParams.Name
 	}
-
 	// Validate database selection
 	if *level && *cockroach {
 		return fmt.Errorf("database choice cannot be both " +
@@ -954,7 +763,8 @@ func _main() error {
 	// Connect to database
 	switch {
 	case *level:
-		dbDir := filepath.Join(*dataDir, network, localdb.UserdbPath)
+		dbDir := filepath.Join(*dataDir, network)
+		// dbDir := filepath.Join(*dataDir, network, localdb.UserdbPath)
 		fmt.Printf("Database: %v\n", dbDir)
 
 		_, err := os.Stat(dbDir)
@@ -964,15 +774,14 @@ func _main() error {
 			}
 			return err
 		}
-		ldb, err = leveldb.OpenFile(dbDir,
-			&opt.Options{
-				ErrorIfMissing: true,
-			})
+		ldb, err := localdb.New(dbDir)
 		if err != nil {
 			return err
 		}
-		defer ldb.Close()
+		userDB = ldb
+		defer userDB.Close()
 
+	// connects to cockroachdb by default
 	case *cockroach:
 		err := validateCockroachParams()
 		if err != nil {
