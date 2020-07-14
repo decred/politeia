@@ -26,6 +26,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/politeiawww/user"
@@ -156,14 +157,6 @@ const usageMsg = `politeiawww_dbutil usage:
           Required DB flag : -cockroachdb
           Args             : <username>
 `
-
-type proposalMetadata struct {
-	Version   uint64 `json:"version"`   // Version of this struct
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	Name      string `json:"name"`      // Generated proposal name
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Signature of merkle root
-}
 
 func cmdDump() error {
 	// If email is provided, only dump that user.
@@ -386,7 +379,7 @@ func cmdStubUsers() error {
 					return err
 				}
 
-				var md proposalMetadata
+				var md mdstream.ProposalGeneralV2
 				err = json.Unmarshal(b, &md)
 				if err != nil {
 					return fmt.Errorf("proposal md: %v", err)
@@ -764,7 +757,6 @@ func _main() error {
 	switch {
 	case *level:
 		dbDir := filepath.Join(*dataDir, network)
-		// dbDir := filepath.Join(*dataDir, network, localdb.UserdbPath)
 		fmt.Printf("Database: %v\n", dbDir)
 
 		_, err := os.Stat(dbDir)
@@ -781,7 +773,6 @@ func _main() error {
 		userDB = ldb
 		defer userDB.Close()
 
-	// connects to cockroachdb by default
 	case *cockroach:
 		err := validateCockroachParams()
 		if err != nil {
