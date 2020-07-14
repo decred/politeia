@@ -14,10 +14,12 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -156,6 +158,16 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		return nil, fmt.Errorf("host scheme must be http or https")
 	}
 
+	// Load isAdmin for the logged in user and set the
+	// appropriate host port
+	isAdmin, err := cfg.loadLoggedInIsAdmin()
+	if err != nil {
+		return nil, fmt.Errorf("load isAdmin: %v", err)
+	}
+	if isAdmin {
+		cfg.Host = "https://" + u.Hostname() + ":" + v1.DefaultMainnetAdminPort
+	}
+
 	// Load cookies
 	cookies, err := cfg.loadCookies()
 	if err != nil {
@@ -185,8 +197,8 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 }
 
 // hostFilePath returns the host specific file path for the passed in file.
-// This means that the hostname is prepended to the filename.  politeiawwwcli
-// data is segmented by host so that we can interact with multiple hosts
+// This means that the hostname is prepended to the filename. piwww data
+// is segmented by host so that we can interact with multiple hosts
 // simultaneously.
 func (cfg *Config) hostFilePath(filename string) (string, error) {
 	u, err := url.Parse(cfg.Host)
@@ -322,7 +334,7 @@ func (cfg *Config) SaveIdentity(user string, id *identity.FullIdentity) error {
 
 	err = id.Save(f)
 	if err != nil {
-		return fmt.Errorf("save idenity to %v: %v", f, err)
+		return fmt.Errorf("save identity to %v: %v", f, err)
 	}
 
 	cfg.Identity = id
@@ -345,10 +357,61 @@ func (cfg *Config) loadLoggedInUsername() (string, error) {
 		return "", fmt.Errorf("read file %v: %v", f, err)
 	}
 
-	return string(b), nil
+	// Username is the first data of the on-disk file
+	bs := strings.Split(string(b), "\n")
+
+	return bs[0], nil
 }
 
-// SaveLoggedInUsername saved the passed in username to the on-disk user file.
+func (cfg *Config) loadLoggedInIsAdmin() (bool, error) {
+	f, err := cfg.hostFilePath(userFile)
+	if err != nil {
+		return false, fmt.Errorf("hostFilePath: %v", err)
+	}
+
+	if !fileExists(f) {
+		// Nothing to load
+		return false, nil
+	}
+
+	b, err := ioutil.ReadFile(f)
+	if err != nil {
+		return false, fmt.Errorf("read file %v: %v", f, err)
+	}
+
+	bs := strings.Split(string(b), "\n")
+	isAdmin := false
+	// Check if data is there
+	if len(bs) > 1 {
+		// IsAdmin is the second data of the on-disk file
+		isAdmin, err = strconv.ParseBool(bs[1])
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return isAdmin, nil
+}
+
+// SaveUserData stores user information inside the on-disk user file
+// It's used so that we can control the order of what gets written
+// and appended on the file.
+func (cfg *Config) SaveUserData(loginReply v1.LoginReply) error {
+	// Save username
+	err := cfg.SaveLoggedInUsername(loginReply.Username)
+	if err != nil {
+		return err
+	}
+	// Save isAdmin
+	err = cfg.SaveLoggedInIsAdmin(loginReply.IsAdmin)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SaveLoggedInUsername saves the passed in username to the on-disk user file.
 // We persist the logged in username between commands so that we know which
 // identity to load.
 func (cfg *Config) SaveLoggedInUsername(username string) error {
@@ -370,6 +433,29 @@ func (cfg *Config) SaveLoggedInUsername(username string) error {
 		return fmt.Errorf("load identity: %v", err)
 	}
 	cfg.Identity = id
+
+	return nil
+}
+
+// SaveLoggedInIsAdmin saves if the logged in user is an admin to the on-disk
+// user file. We persist this so piwww can tell which host to make requests.
+func (cfg *Config) SaveLoggedInIsAdmin(isAdmin bool) error {
+	path, err := cfg.hostFilePath(userFile)
+	if err != nil {
+		return fmt.Errorf("hostFilePath: %v", err)
+	}
+
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("openFile: %v", err)
+	}
+
+	// IsAdmin is not the first info saved on file, so add a \n
+	_, err = file.Write([]byte("\n" + strconv.FormatBool(isAdmin)))
+	if err != nil {
+		return fmt.Errorf("write: %v", err)
+
+	}
 
 	return nil
 }

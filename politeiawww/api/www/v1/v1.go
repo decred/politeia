@@ -28,6 +28,7 @@ const (
 	RoutePolicy                   = "/policy"
 	RouteSecret                   = "/secret"
 	RouteLogin                    = "/login"
+	RouteLoginAdmin               = "/loginadmin"
 	RouteLogout                   = "/logout"
 	RouteUserMe                   = "/user/me"
 	RouteUserDetails              = "/user/{userid:[0-9a-zA-Z-]{36}}"
@@ -211,6 +212,7 @@ const (
 	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
 	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
+	ErrorStatusLoginAttemptWrongHost       ErrorStatusT = 77
 
 	// Proposal state codes
 	//
@@ -285,6 +287,12 @@ const (
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
+
+	// Default network config
+	DefaultMainnetPort      = "4443"
+	DefaultTestnetPort      = "4443"
+	DefaultMainnetAdminPort = "1433"
+	DefaultTestnetAdminPort = "1433"
 )
 
 var (
@@ -383,6 +391,7 @@ var (
 		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
 		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
 		ErrorStatusWrongProposalType:           "wrong proposal type",
+		ErrorStatusLoginAttemptWrongHost:       "admin login attempt on wrong host",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

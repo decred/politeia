@@ -244,7 +244,7 @@ func (c *Client) Version() (*www.VersionReply, error) {
 	return &vr, nil
 }
 
-// Login logs a user into politeiawww.
+// Login logs a normal user into politeiawww.
 func (c *Client) Login(l *www.Login) (*www.LoginReply, error) {
 	// Setup request
 	requestBody, err := json.Marshal(l)
@@ -266,6 +266,81 @@ func (c *Client) Login(l *www.Login) (*www.LoginReply, error) {
 	// Create new http request instead of using makeRequest()
 	// so that we can save the session data for subsequent
 	// commands
+	req, err := http.NewRequest(http.MethodPost, fullRoute,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add(www.CsrfToken, c.cfg.CSRF)
+
+	// Send request
+	r, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+
+	// Validate response status
+	if r.StatusCode != http.StatusOK {
+		var ue www.UserError
+		err = json.Unmarshal(responseBody, &ue)
+		if err == nil {
+			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
+				userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
+		}
+
+		return nil, fmt.Errorf("%v", r.StatusCode)
+	}
+
+	// Unmarshal response
+	var lr www.LoginReply
+	err = json.Unmarshal(responseBody, &lr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal LoginReply: %v", err)
+	}
+
+	// Print response details
+	if c.cfg.Verbose {
+		fmt.Printf("Response: %v\n", r.StatusCode)
+		err := prettyPrintJSON(lr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Persist session data
+	ck := c.http.Jar.Cookies(req.URL)
+	if err = c.cfg.SaveCookies(ck); err != nil {
+		return nil, err
+	}
+
+	return &lr, nil
+}
+
+// LoginAdmin logs a admin user into politeiawww.
+func (c *Client) LoginAdmin(l *www.Login) (*www.LoginReply, error) {
+	// Setup request
+	requestBody, err := json.Marshal(l)
+	if err != nil {
+		return nil, err
+	}
+
+	fullRoute := c.cfg.Host + www.PoliteiaWWWAPIRoute + www.RouteLoginAdmin
+
+	// Print request details
+	if c.cfg.Verbose {
+		fmt.Printf("Request: POST %v\n", fullRoute)
+		err := prettyPrintJSON(l)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Prepare request
 	req, err := http.NewRequest(http.MethodPost, fullRoute,
 		bytes.NewReader(requestBody))
 	if err != nil {

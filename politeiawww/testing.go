@@ -693,6 +693,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		cache:           testcache.New(),
 		params:          &chaincfg.TestNet3Params,
 		router:          mux.NewRouter(),
+		adminRouter:     mux.NewRouter(),
 		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
 		smtp:            smtp,
 		test:            true,

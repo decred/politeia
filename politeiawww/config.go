@@ -28,6 +28,7 @@ import (
 	"github.com/decred/politeia/util/version"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
@@ -39,9 +40,6 @@ const (
 	defaultLogFilename      = "politeiawww.log"
 	adminLogFilename        = "admin.log"
 	defaultIdentityFilename = "identity.json"
-
-	defaultMainnetPort = "4443"
-	defaultTestnetPort = "4443"
 
 	allowInteractive = "i-know-this-is-a-bad-idea"
 
@@ -107,6 +105,7 @@ type config struct {
 	MemProfile               string   `long:"memprofile" description:"Write mem profile to the specified file"`
 	DebugLevel               string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Listeners                []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	AdminListeners           []string `long:"adminlisten" description:"Add a port to listen for connections on admin routes"`
 	Version                  string
 	HTTPSCert                string `long:"httpscert" description:"File containing the https certificate file"`
 	HTTPSKey                 string `long:"httpskey" description:"File containing the https certificate key"`
@@ -549,12 +548,14 @@ func loadConfig() (*config, []string, error) {
 
 	// Count number of network flags passed; assign active network params
 	// while we're at it
-	port := defaultMainnetPort
+	port := www.DefaultMainnetPort
+	adminPort := www.DefaultMainnetAdminPort
 	activeNetParams = &mainNetParams
 	if cfg.TestNet {
 		numNets++
 		activeNetParams = &testNet3Params
-		port = defaultTestnetPort
+		port = www.DefaultTestnetPort
+		adminPort = www.DefaultTestnetAdminPort
 	}
 	if cfg.SimNet {
 		numNets++
@@ -705,16 +706,24 @@ func loadConfig() (*config, []string, error) {
 
 	// Add the default listener if none were specified. The default
 	// listener is all addresses on the listen port for the network
-	// we are to connect to.
+	// we are to connect to. We have the normal listeners and admin
+	// listeners, one for each politeia router.
 	if len(cfg.Listeners) == 0 {
 		cfg.Listeners = []string{
 			net.JoinHostPort("", port),
 		}
 	}
 
+	if len(cfg.AdminListeners) == 0 {
+		cfg.AdminListeners = []string{
+			net.JoinHostPort("", adminPort),
+		}
+	}
+
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
+	cfg.AdminListeners = normalizeAddresses(cfg.AdminListeners, adminPort)
 
 	// Set up the rpc address.
 	if cfg.TestNet {

@@ -74,6 +74,7 @@ type piwww struct {
 	Inventory          InventoryCmd             `command:"inventory" description:"(public) get the proposals that are being voted on"`
 	LikeComment        LikeCommentCmd           `command:"likecomment" description:"(user)   upvote/downvote a comment"`
 	Login              shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
+	LoginAdmin         shared.LoginAdminCmd     `command:"loginadmin" description:"(admin) login to Politeia with an admin account"`
 	Logout             shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
 	ManageUser         shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`

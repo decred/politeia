@@ -151,6 +151,62 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject admin login
+	if reply.IsAdmin {
+		RespondWithError(w, r, 0, "handleLogin: admin login attempt to "+
+			"wrong host", www.UserError{
+			ErrorCode: www.ErrorStatusLoginAttemptWrongHost,
+		})
+		return
+	}
+
+	// Initialize a session for the logged in user
+	err = p.initSession(w, r, reply.UserID)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLogin: initSession: %v", err)
+		return
+	}
+
+	// Set session max age
+	reply.SessionMaxAge = sessionMaxAge
+
+	// Reply with the user information.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleLoginAdmin handles the incoming admin login command. Executes same
+// process as normal login, but only for admin users.
+func (p *politeiawww) handleLoginAdmin(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleLogin")
+
+	// Get the login command.
+	var l www.Login
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&l); err != nil {
+		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processLogin(l)
+	if err != nil {
+		RespondWithError(w, r, http.StatusUnauthorized,
+			"handleLogin: processLogin: %v", err)
+		return
+	}
+
+	// Reject non-admin login
+	if !reply.IsAdmin {
+		RespondWithError(w, r, 0, "handleLogin: normal login attempt to "+
+			"wrong host", www.UserError{
+			ErrorCode: www.ErrorStatusLoginAttemptWrongHost,
+		})
+		return
+	}
+
 	// Initialize a session for the logged in user
 	err = p.initSession(w, r, reply.UserID)
 	if err != nil {
@@ -741,6 +797,9 @@ func (p *politeiawww) setUserWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLogin, p.handleLogin,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLoginAdmin, p.handleLoginAdmin,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLogout, p.handleLogout,

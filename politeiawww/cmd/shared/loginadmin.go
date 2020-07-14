@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,28 +6,30 @@ package shared
 
 import (
 	"fmt"
+	"net/url"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// LoginCmd logs into Politeia using the specified credentials.
-type LoginCmd struct {
+// LoginAdminCmd logs into Politeia with an admin account,
+// using the specified credentials.
+type LoginAdminCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
 		Password string `positional-arg-name:"password"`
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the login command.
-func (cmd *LoginCmd) Execute(args []string) error {
-
+// Execute executes the loginadmin command. This command calls the
+// login route on the admin host of the running pi instance.
+func (cmd *LoginAdminCmd) Execute(args []string) error {
 	// Fetch CSRF key
-	_, err := client.Version()
+	v, err := client.Version()
 	if err != nil {
 		return err
 	}
 
-	// Setup login request
+	// Setup admin login request
 	l := &v1.Login{
 		Email:    cmd.Args.Email,
 		Password: DigestSHA3(cmd.Args.Password),
@@ -39,8 +41,19 @@ func (cmd *LoginCmd) Execute(args []string) error {
 		return err
 	}
 
+	// Configure admin host
+	port := v1.DefaultMainnetAdminPort
+	if v.TestNet {
+		port = v1.DefaultTestnetAdminPort
+	}
+	url, err := url.Parse(client.cfg.Host)
+	if err != nil {
+		return err
+	}
+	client.cfg.Host = "https://" + url.Hostname() + ":" + port
+
 	// Send request
-	lr, err := client.Login(l)
+	lr, err := client.LoginAdmin(l)
 	if err != nil {
 		return err
 	}
@@ -48,17 +61,18 @@ func (cmd *LoginCmd) Execute(args []string) error {
 	// Update the logged in user data that we store on disk
 	err = cfg.SaveUserData(*lr)
 	if err != nil {
-		return fmt.Errorf("SaveLoggedInUsername: %v", err)
+		return fmt.Errorf("SaveUserData: %v", err)
 	}
 
 	// Print response details
 	return PrintJSON(lr)
 }
 
-// LoginHelpMsg is the output for the help command when 'login' is specified.
-const LoginHelpMsg = `login "email" "password"
+// LoginAdminHelpMsg is the output for the help command when 'loginadmin'
+// is specified.
+const LoginAdminHelpMsg = `loginadmin "email" "password"
 
-Login as a user.
+Login as an admin.
 
 Arguments:
 1. email      (string, required)   Email

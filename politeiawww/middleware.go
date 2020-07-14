@@ -77,7 +77,7 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// logging logs all incoming commands before calling the next funxtion.
+// logging logs all incoming commands before calling the next function.
 //
 // NOTE: LOGGING WILL LOG PASSWORDS IF TRACING IS ENABLED.
 func logging(f http.HandlerFunc) http.HandlerFunc {

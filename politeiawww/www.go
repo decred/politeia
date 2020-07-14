@@ -27,6 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
@@ -195,12 +196,23 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 	// All handlers need to close the body
 	handler = closeBody(handler)
 
+	// Websocket route
 	if method == "" {
-		// Websocket
 		log.Tracef("Adding websocket: %v", fullRoute)
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler)
-	} else {
-		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
+		return
+	}
+
+	// Add all routes to admin router
+	p.adminRouter.StrictSlash(true).HandleFunc(fullRoute, handler)
+
+	// Add non-admin routes to router.
+
+	// The login admin route can't be under the admin middleware,
+	// therefore we check for it here so it doesn't get added under
+	// the normal router port.
+	if perm != permissionAdmin && route != v1.RouteLoginAdmin {
+		p.router.StrictSlash(true).HandleFunc(fullRoute, handler)
 	}
 }
 
@@ -504,6 +516,8 @@ func _main() error {
 
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
+	p.adminRouter = mux.NewRouter()
+	p.adminRouter.Use(recoverMiddleware)
 
 	// Setup dcrdata websocket connection
 	ws, err := newWSDcrdata(p.dcrdataHostWS())
@@ -646,7 +660,7 @@ func _main() error {
 	}
 	p.sessions = NewSessionStore(p.db, sessionMaxAge, cookieKey)
 
-	// Bind to a port and pass our router in
+	// Normal listeners. Bind to a port and pass the corresponding router in.
 	listenC := make(chan error)
 	for _, listener := range loadedCfg.Listeners {
 		listen := listener
@@ -675,6 +689,39 @@ func _main() error {
 
 			log.Infof("Listen: %v", listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
+				loadedCfg.HTTPSKey)
+		}()
+	}
+
+	// Admin listeners. Bind to a port and pass the corresponding router in.
+	listenA := make(chan error)
+	for _, listener := range loadedCfg.AdminListeners {
+		listen := listener
+		go func() {
+			cfg := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				CurvePreferences: []tls.CurveID{
+					tls.CurveP256, // BLAME CHROME, NOT ME!
+					tls.CurveP521,
+					tls.X25519},
+				PreferServerCipherSuites: true,
+				CipherSuites: []uint16{
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+				},
+			}
+			srv := &http.Server{
+				Handler:   csrfHandle(p.adminRouter),
+				Addr:      listen,
+				TLSConfig: cfg,
+				TLSNextProto: make(map[string]func(*http.Server,
+					*tls.Conn, http.Handler)),
+			}
+
+			log.Infof("Admin Listen: %v", listen)
+			listenA <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
 				loadedCfg.HTTPSKey)
 		}()
 	}
