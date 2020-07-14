@@ -175,7 +175,7 @@ func cmdDump() error {
 	}
 
 	err := userDB.AllUsers(func(u *user.User) {
-		fmt.Printf("Key    : %v\n", string(u.Username))
+		fmt.Printf("Key    : %v\n", u.Username)
 		fmt.Printf("Record : %v\n", spew.Sdump(u))
 	})
 	if err != nil {
@@ -470,6 +470,9 @@ func cmdMigrate() error {
 	err = ldb.AllUsers(func(u *user.User) {
 		users = append(users, *u)
 	})
+	if err != nil {
+		return fmt.Errorf("leveldb allusers request: %v", err)
+	}
 
 	// Make sure the migration went ok.
 	if len(users) == 0 {
