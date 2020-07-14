@@ -1060,7 +1060,7 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
-func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
+func (p *politeia) buildCacheDecredPlugin(tokens [][]byte) error {
 	log.Infof("Building %v plugin cache", decredplugin.ID)
 
 	// Reset the existing plugin tables
@@ -1071,12 +1071,12 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 
 	// Build the plugin cache for each record
 	for i, token := range tokens {
-		log.Infof("Building %v plugin cache for %v (%v/%v)",
+		log.Infof("Building %v plugin cache for %x (%v/%v)",
 			decredplugin.ID, token, i+1, len(tokens))
 
 		// Get plugin data from the backend for this record
 		ri := decredplugin.Inventory{
-			Tokens: []string{token},
+			Tokens: []string{hex.EncodeToString(token)},
 		}
 		b, err := decredplugin.EncodeInventory(ri)
 		if err != nil {
@@ -1084,7 +1084,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 		}
 		_, reply, err := p.backend.Plugin(decredplugin.CmdInventory, string(b))
 		if err != nil {
-			return fmt.Errorf("backend decred plugin inventory %v: %v", token, err)
+			return fmt.Errorf("backend decred plugin inventory %x: %v", token, err)
 		}
 		ir, err := decredplugin.DecodeInventoryReply([]byte(reply))
 		if err != nil {
@@ -1126,7 +1126,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 				ReplyPayload:   string(replyPayload),
 			})
 			if err != nil {
-				return fmt.Errorf("PluginExec %v %v %v: %v",
+				return fmt.Errorf("PluginExec %v %x %v: %v",
 					decredplugin.CmdNewComment, token, ncr.CommentID, err)
 			}
 		}
@@ -1148,7 +1148,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 				CommandPayload: string(cmdPayload),
 			})
 			if err != nil {
-				return fmt.Errorf("PluginExec %v %v %v: %v",
+				return fmt.Errorf("PluginExec %v %x %v: %v",
 					decredplugin.CmdLikeComment, token, v.CommentID, err)
 			}
 		}
@@ -1175,7 +1175,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 				ReplyPayload:   string(replyPayload),
 			})
 			if err != nil {
-				return fmt.Errorf("PluginExec %v %v: %v",
+				return fmt.Errorf("PluginExec %v %x: %v",
 					decredplugin.CmdAuthorizeVote, token, err)
 			}
 		}
@@ -1198,7 +1198,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 				ReplyPayload:   string(replyPayload),
 			})
 			if err != nil {
-				return fmt.Errorf("PluginExec %v %v: %v",
+				return fmt.Errorf("PluginExec %v %x: %v",
 					decredplugin.CmdStartVote, token, err)
 			}
 		}
@@ -1236,7 +1236,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 				ReplyPayload:   string(replyPayload),
 			})
 			if err != nil {
-				return fmt.Errorf("PluginExec %v %v: %v",
+				return fmt.Errorf("PluginExec %v %x: %v",
 					decredplugin.CmdBallot, token, err)
 			}
 		}
@@ -1245,7 +1245,7 @@ func (p *politeia) buildCacheDecredPlugin(tokens []string) error {
 	return nil
 }
 
-func (p *politeia) buildCacheCMSPlugin(tokens []string) error {
+func (p *politeia) buildCacheCMSPlugin() error {
 	// Fetch plugin inventory
 	_, payload, err := p.backend.Plugin(cmsplugin.CmdInventory, "")
 	if err != nil {
@@ -1536,15 +1536,6 @@ func _main() error {
 			}
 		}
 
-		// Compile all tokens
-		tokens := make([]string, 0, len(unvetted)+len(vetted))
-		for _, v := range unvetted {
-			tokens = append(tokens, hex.EncodeToString(v))
-		}
-		for _, v := range vetted {
-			tokens = append(tokens, hex.EncodeToString(v))
-		}
-
 		// Build the cache for plugins
 		for _, plugin := range p.plugins {
 			var enableCache bool
@@ -1559,12 +1550,14 @@ func _main() error {
 
 			switch plugin.ID {
 			case decredplugin.ID:
-				err := p.buildCacheDecredPlugin(tokens)
+				// Decred plugin features are only available on vetted
+				// proposals.
+				err := p.buildCacheDecredPlugin(vetted)
 				if err != nil {
 					return fmt.Errorf("buildCacheDecredPlugin: %v", err)
 				}
 			case cmsplugin.ID:
-				err := p.buildCacheCMSPlugin(tokens)
+				err := p.buildCacheCMSPlugin()
 				if err != nil {
 					return fmt.Errorf("buildCacheCMSPlugin: %v", err)
 				}
