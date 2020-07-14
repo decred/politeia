@@ -1081,11 +1081,16 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			}
 			var approvedProposals []string
 			for _, s := range ipa {
+				// Check to see if the approved invoice version doesn't match
+				// current invoice version.  If so, the proposal owner needs to
+				// approve again.
+				if s.InvoiceVersion != r.Version {
+					continue
+				}
 				if approvedProposals == nil {
 					approvedProposals = make([]string, 0, 1048)
-				} else {
-					approvedProposals = append(approvedProposals, s.Token)
 				}
+				approvedProposals = append(approvedProposals, s.Token)
 			}
 		default:
 			// Log error but proceed

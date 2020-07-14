@@ -2168,12 +2168,13 @@ func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove
 
 	// Create the change record.
 	c := mdstream.InvoiceProposalApprove{
-		Version:   mdstream.VersionInvoiceProposalApprove,
-		PublicKey: u.PublicKey(),
-		Timestamp: time.Now().Unix(),
-		Signature: poa.Signature,
-		Token:     poa.Token,
-		LineItems: b,
+		Version:        mdstream.VersionInvoiceProposalApprove,
+		PublicKey:      u.PublicKey(),
+		Timestamp:      time.Now().Unix(),
+		Signature:      poa.Signature,
+		Token:          poa.Token,
+		LineItems:      b,
+		InvoiceVersion: invRec.Version,
 	}
 	blob, err := mdstream.EncodeInvoiceProposalApprove(c)
 	if err != nil {

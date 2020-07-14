@@ -537,12 +537,13 @@ func DecodeDCCSupportOpposition(payload []byte) ([]DCCSupportOpposition, error) 
 // InvoiceProposalApprove represents an invoice status change and is stored
 // in the metadata IDInvoiceProposalApprove in politeiad.
 type InvoiceProposalApprove struct {
-	Version   uint   `json:"version"`   // Version of the struct
-	PublicKey string `json:"publickey"` // Identity of the administrator
-	Signature string `json:"signature"` // Signature of the line item payload included
-	Token     string `json:"token"`     // Token of the invoice
-	Timestamp int64  `json:"timestamp"`
-	LineItems []byte `json:"lineitems"` // json payload of line items that are being approved
+	Version        uint   `json:"version"`   // Version of the struct
+	PublicKey      string `json:"publickey"` // Identity of the administrator
+	Signature      string `json:"signature"` // Signature of the line item payload included
+	Token          string `json:"token"`     // Token of the invoice
+	Timestamp      int64  `json:"timestamp"`
+	LineItems      []byte `json:"lineitems"`      // json payload of line items that are being approved
+	InvoiceVersion string `json:"invoiceversion"` // Version of the invoice that is being approved
 }
 
 // EncodeInvoiceProposalApprove encodes a InvoiceProposalApprove into a
