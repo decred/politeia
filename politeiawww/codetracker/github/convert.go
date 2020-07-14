@@ -5,6 +5,7 @@
 package github
 
 import (
+	"strconv"
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -12,12 +13,15 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
 )
 
+const githubPullURL = "https://github.com"
+
 func convertAPIPullRequestToDbPullRequest(apiPR *api.ApiPullRequest, repo api.ApiRepository, org string) (*database.PullRequest, error) {
+	url := githubPullURL + "/" + org + "/" + repo.Name + "/pull/" + strconv.Itoa(apiPR.Number)
 	dbPR := &database.PullRequest{
 		Repo:         repo.Name,
 		Organization: org,
 		User:         apiPR.User.Login,
-		URL:          apiPR.URL,
+		URL:          url,
 		Number:       apiPR.Number,
 		State:        apiPR.State,
 		Additions:    apiPR.Additions,
