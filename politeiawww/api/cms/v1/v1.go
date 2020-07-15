@@ -1000,8 +1000,8 @@ type CastVoteReply struct {
 type ProposalBillingSummary struct {
 }
 
-// ProposalBillingSummaryReply returns an array of proposal spending given the
-// time parameters that were given in the request.
+// ProposalBillingSummaryReply returns an array of proposal spending based on
+// the list of approved invoices returned from the respective proposals site.
 type ProposalBillingSummaryReply struct {
 	Proposals []ProposalSpending `json:"proposals"`
 }
