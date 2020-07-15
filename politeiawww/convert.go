@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"

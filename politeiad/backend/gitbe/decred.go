@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
 	"github.com/decred/politeia/decredplugin"
@@ -329,7 +329,7 @@ func (g *gitBackEnd) getNewCid(token string) (string, error) {
 // Copied from https://github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
 func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, error) {
 	// Decode the provided address.
-	addr, err := dcrutil.DecodeAddress(address)
+	addr, err := dcrutil.DecodeAddress(address, g.activeNetParams)
 	if err != nil {
 		return false, fmt.Errorf("Could not decode address: %v",
 			err)
@@ -353,7 +353,7 @@ func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, er
 	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
 	wire.WriteVarString(&buf, 0, message)
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := secp256k1.RecoverCompact(sig,
+	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
 		expectedMessageHash)
 	if err != nil {
 		// Mirror Bitcoin Core behavior, which treats error in
@@ -377,7 +377,7 @@ func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, er
 	}
 
 	// Return boolean if addresses match.
-	return a.EncodeAddress() == address, nil
+	return a.Address() == address, nil
 }
 
 func bestBlock() (*dcrdataapi.BlockDataBasic, error) {

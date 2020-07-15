@@ -6,9 +6,8 @@
 package main
 
 import (
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/wire"
-	"github.com/decred/dcrwallet/netparams"
 )
 
 // activeNetParams is a pointer to the parameters specific to the
@@ -29,8 +28,8 @@ type params struct {
 // it does not handle on to dcrd.  This approach allows the wallet process
 // to emulate the full reference implementation RPC API.
 var mainNetParams = params{
-	Params:              &chaincfg.MainNetParams,
-	WalletRPCServerPort: netparams.MainNetParams.GRPCServerPort,
+	Params:              chaincfg.MainNetParams(),
+	WalletRPCServerPort: "9111",
 }
 
 // testNet3Params contains parameters specific to the test network (version 0)
@@ -38,15 +37,15 @@ var mainNetParams = params{
 // reference implementation - see the mainNetParams comment for details.
 
 var testNet3Params = params{
-	Params:              &chaincfg.TestNet3Params,
-	WalletRPCServerPort: netparams.TestNet3Params.GRPCServerPort,
+	Params:              chaincfg.TestNet3Params(),
+	WalletRPCServerPort: "19111",
 }
 
 // simNetParams contains parameters specific to the simulation test network
 // (wire.SimNet).
 var simNetParams = params{
-	Params:              &chaincfg.SimNetParams,
-	WalletRPCServerPort: netparams.SimNetParams.GRPCServerPort,
+	Params:              chaincfg.SimNetParams(),
+	WalletRPCServerPort: "19558",
 }
 
 // netName returns the name used when referring to a decred network.  At the

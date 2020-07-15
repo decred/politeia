@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
@@ -86,7 +86,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// Initialize stuff we need
-	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
+	g, err := New(chaincfg.TestNet3Params(), dir, "", "", nil,
 		testing.Verbose(), "", "piwww")
 	if err != nil {
 		t.Fatal(err)
@@ -475,7 +475,7 @@ func TestUpdateReadme(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
+	g, err := New(chaincfg.TestNet3Params(), dir, "", "", nil,
 		testing.Verbose(), "", "piwww")
 	if err != nil {
 		t.Fatal(err)
@@ -583,7 +583,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
+	g, err := New(chaincfg.TestNet3Params(), dir, "", "", nil,
 		testing.Verbose(), "", "piwww")
 	if err != nil {
 		t.Fatal(err)
@@ -679,7 +679,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	// Now we test that when creating a new gitbe object on an existing folder,
 	// the prefix cache is populated correctly.
 	oldPrefixCache := g.prefixCache
-	g, err = New(&chaincfg.TestNet3Params, dir, "", "", nil,
+	g, err = New(chaincfg.TestNet3Params(), dir, "", "", nil,
 		testing.Verbose(), "", "piwww")
 	if err != nil {
 		t.Fatal(err)

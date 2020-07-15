@@ -3,7 +3,7 @@ package v1
 import (
 	"fmt"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/cmsplugin"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )

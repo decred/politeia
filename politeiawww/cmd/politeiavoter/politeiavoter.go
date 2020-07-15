@@ -29,14 +29,15 @@ import (
 	"sync"
 	"time"
 
+	pb "decred.org/dcrwallet/rpc/walletrpc"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
-	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -97,9 +98,9 @@ func ProvidePrivPassphrase() ([]byte, error) {
 
 // verifyMessage verifies a message is properly signed.
 // Copied from https://github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
-func verifyMessage(address, message, signature string) (bool, error) {
+func verifyMessage(params *chaincfg.Params, address, message, signature string) (bool, error) {
 	// Decode the provided address.
-	addr, err := dcrutil.DecodeAddress(address)
+	addr, err := dcrutil.DecodeAddress(address, params)
 	if err != nil {
 		return false, fmt.Errorf("Could not decode address: %v",
 			err)
@@ -123,7 +124,7 @@ func verifyMessage(address, message, signature string) (bool, error) {
 	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
 	wire.WriteVarString(&buf, 0, message)
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := secp256k1.RecoverCompact(sig,
+	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
 		expectedMessageHash)
 	if err != nil {
 		// Mirror Bitcoin Core behavior, which treats error in
@@ -147,7 +148,7 @@ func verifyMessage(address, message, signature string) (bool, error) {
 	}
 
 	// Return boolean if addresses match.
-	return a.EncodeAddress() == address, nil
+	return a.Address() == address, nil
 }
 
 // BallotResult is a tupple of the ticket and receipt. We combine the too
@@ -561,8 +562,15 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 			continue
 		}
 
+		var params *chaincfg.Params
+		if c.cfg.TestNet {
+			params = chaincfg.TestNet3Params()
+		} else {
+			params = chaincfg.MainNetParams()
+		}
+
 		v, ok := castVotes[h.String()]
-		if !ok || !verifyV1Vote(t.Address, &v) {
+		if !ok || !verifyV1Vote(params, t.Address, &v) {
 			eligible = append(eligible, t)
 		}
 	}
@@ -1015,7 +1023,7 @@ exit:
 // signature is invalid or if an error occurs during validation, the error will
 // be logged instead of being returned. This is to prevent interuptions to
 // politeavoter while it is in the process of casting votes.
-func verifyV1Vote(address string, vote *v1.CastVote) bool {
+func verifyV1Vote(params *chaincfg.Params, address string, vote *v1.CastVote) bool {
 	sig, err := hex.DecodeString(vote.Signature)
 	if err != nil {
 		log.Errorf("Could not decode signature %v: %v",
@@ -1024,7 +1032,8 @@ func verifyV1Vote(address string, vote *v1.CastVote) bool {
 	}
 
 	msg := vote.Token + vote.Ticket + vote.VoteBit
-	validated, err := verifyMessage(address, msg,
+
+	validated, err := verifyMessage(params, address, msg,
 		base64.StdEncoding.EncodeToString(sig))
 	if err != nil {
 		log.Errorf("Could not verify signature %v: %v",

@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
@@ -48,9 +48,9 @@ func _main() error {
 	}
 
 	// Set data directory
-	activeNet := chaincfg.MainNetParams.Name
+	activeNet := chaincfg.MainNetParams().Name
 	if *testnet {
-		activeNet = chaincfg.TestNet3Params.Name
+		activeNet = chaincfg.TestNet3Params().Name
 	}
 
 	dataDir := filepath.Join(util.CleanAndExpandPath(*homeDir),
