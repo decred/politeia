@@ -1773,12 +1773,20 @@ This retrieves the tokens for approved proposals and uses those tokens to
 search through the database for invoices that have line-items that have that
 as proposal token added.
 
+There is also a basic pagination feature implemented with an offset and a 
+total count of proposals to return.  These are optional and if both unset, 
+all proposal summaries will be returned.
+
 Note: This call requires admin privileges.
 
 **Route:** `GET /v1/proposals/spendingsummary`
 
 **Params:**
 
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| offset | int | Page offset | No |
+| count | int | Page count | No |
 
 **Results:**
 
