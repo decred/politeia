@@ -13,13 +13,18 @@ import (
 type ProposalBillingSummaryCmd struct {
 	Args struct {
 	} `positional-args:"true" required:"true"`
+	Offset int `long:"offset" optional:"true"` // Offset length
+	Count  int `long:"count" optional:"true"`  // Page size
 }
 
 // Execute executes the user invoices command.
 func (cmd *ProposalBillingSummaryCmd) Execute(args []string) error {
 	// Get user invoices
 	pbsr, err := client.ProposalBillingSummary(
-		&v1.ProposalBillingSummary{})
+		&v1.ProposalBillingSummary{
+			Offset: cmd.Offset,
+			Count:  cmd.Count,
+		})
 	if err != nil {
 		return err
 	}

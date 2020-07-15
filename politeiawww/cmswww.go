@@ -965,14 +965,25 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 func (p *politeiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalBillingSummary")
 
-	svr, err := p.processProposalBillingSummary()
+	var pbs cms.ProposalBillingSummary
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &pbs)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleProposalBillingSummary: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	pbsr, err := p.processProposalBillingSummary(pbs)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalBillingSummary: processProposalBillingSummary %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, svr)
+	util.RespondWithJSON(w, http.StatusOK, pbsr)
 }
 
 func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *http.Request) {

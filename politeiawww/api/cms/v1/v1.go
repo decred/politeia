@@ -998,6 +998,8 @@ type CastVoteReply struct {
 // ProposalBillingSummary allows for all proposal spending to be returned for
 // an admin to review.
 type ProposalBillingSummary struct {
+	Offset int `json:"offset"` // Amount to offset for pagination
+	Count  int `json:"count"`  // Size of page for pagination
 }
 
 // ProposalBillingSummaryReply returns an array of proposal spending based on

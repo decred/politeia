@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -1787,7 +1788,7 @@ func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
 	return &invInput, nil
 }
 
-func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSummaryReply, error) {
+func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
 	reply := &cms.ProposalBillingSummaryReply{}
 
 	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
@@ -1802,9 +1803,18 @@ func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSumma
 	}
 
 	approvedProposals := tvr.Approved
-
+	fmt.Println(pbs.Count, pbs.Offset)
 	proposalInvoices := make(map[string][]*database.Invoice, len(approvedProposals))
-	for _, prop := range approvedProposals {
+	count := 0
+	for i, prop := range approvedProposals {
+		if i < pbs.Offset {
+			fmt.Println(i, pbs.Offset, "continue")
+			continue
+		}
+		if pbs.Count != 0 && count >= pbs.Count {
+			fmt.Println(pbs.Count, count, "break")
+			break
+		}
 		propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(prop)
 		if err != nil {
 			return nil, err
@@ -1812,7 +1822,9 @@ func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSumma
 		if len(propInvoices) > 0 {
 			proposalInvoices[prop] = propInvoices
 		}
+		count++
 	}
+	spew.Dump(proposalInvoices)
 	spendingSummaries := make([]cms.ProposalSpending, 0, len(proposalInvoices))
 	for prop, invoices := range proposalInvoices {
 		spendingSummary := cms.ProposalSpending{}
@@ -1845,7 +1857,9 @@ func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSumma
 		spendingSummary.TotalBilled = totalSpent
 		spendingSummaries = append(spendingSummaries, spendingSummary)
 	}
+
 	reply.Proposals = spendingSummaries
+
 	return reply, nil
 }
 
