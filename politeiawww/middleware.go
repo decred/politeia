@@ -6,11 +6,13 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"runtime/debug"
 	"time"
 
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
@@ -136,4 +138,58 @@ func recoverMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (p *politeiawww) getPassThrough(route string, r *http.Request) ([]byte, error) {
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+	route = dest + route
+
+	resp, err := http.Get(route)
+	if err != nil {
+	}
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
+}
+
+func (p *politeiawww) postPassThrough(route string, r *http.Request) ([]byte, error) {
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+
+	versionRoute := dest + "/api/v1" + www.RouteVersion
+
+	resp, err := http.Get(versionRoute)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	cookies := resp.Cookies()
+	csrf := resp.Header.Get(www.CsrfToken)
+
+	route = dest + route
+
+	req, err := http.NewRequest(http.MethodPost, route, r.Body)
+	if err != nil {
+		return nil, err
+	}
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	req.Header.Set(www.CsrfToken, csrf)
+	newClient := &http.Client{}
+
+	reply, err := newClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer reply.Body.Close()
+
+	return ioutil.ReadAll(reply.Body)
 }

@@ -6,8 +6,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"text/template"
 
@@ -932,73 +930,25 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
-	route := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		route = cms.ProposalsTestnet
-	}
-	route = route + "/api/v1" + www.RouteTokenInventory
-
-	resp, err := http.Get(route)
+	data, err := p.getPassThrough("/api/v1"+www.RouteTokenInventory, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handlePassThroughTokenInventory: http.Get: %v", err)
+			"handlePassThroughTokenInventory: getPassThrough: %v", err)
 		return
 	}
-	defer resp.Body.Close()
-
-	data, _ := ioutil.ReadAll(resp.Body)
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
 func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughBatchProposals")
 
-	data, err := p.batchProposals(r.Body)
+	data, err := p.postPassThrough("/api/v1"+www.RouteBatchProposals, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: batchProposals: %v", err)
 		return
 	}
 	util.RespondRaw(w, http.StatusOK, data)
-}
-
-func (p *politeiawww) batchProposals(body io.ReadCloser) ([]byte, error) {
-	dest := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		dest = cms.ProposalsTestnet
-	}
-
-	route := dest + "/api/v1" + www.RouteVersion
-
-	resp, err := http.Get(route)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	cookies := resp.Cookies()
-	csrf := resp.Header.Get(www.CsrfToken)
-
-	route = dest + "/api/v1" + www.RouteBatchProposals
-
-	req, err := http.NewRequest(http.MethodPost, route, body)
-	if err != nil {
-		return nil, err
-	}
-	for _, cookie := range cookies {
-		req.AddCookie(cookie)
-	}
-
-	req.Header.Set(www.CsrfToken, csrf)
-	newClient := &http.Client{}
-
-	r, err := newClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-
-	return ioutil.ReadAll(r.Body)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
