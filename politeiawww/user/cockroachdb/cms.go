@@ -18,6 +18,13 @@ func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, err
 	proposalsOwned := strings.Split(cu.ProposalsOwned, ",")
 	superUserIds := strings.Split(cu.SupervisorUserID, ",")
 	parsedUUIds := make([]uuid.UUID, 0, len(superUserIds))
+	proposalsSlice := make([]string, 0, len(proposalsOwned))
+	for _, proposal := range proposalsOwned {
+		if proposal == "" {
+			continue
+		}
+		proposalsSlice = append(proposalsSlice, strings.TrimSpace(proposal))
+	}
 	for _, userIds := range superUserIds {
 		if userIds == "" {
 			continue
@@ -37,7 +44,7 @@ func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, err
 		ContractorLocation: cu.ContractorLocation,
 		ContractorContact:  cu.ContractorContact,
 		SupervisorUserIDs:  parsedUUIds,
-		ProposalsOwned:     proposalsOwned,
+		ProposalsOwned:     proposalsSlice,
 	}
 	b, _, err := c.decrypt(cu.User.Blob)
 	if err != nil {
