@@ -1790,7 +1790,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 //
 // This function is part of the interface.
 func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
-	log.Debugf("UpdateVettedRecord %x", token)
+	log.Tracef("UpdateVettedRecord %x", token)
 	return g.updateRecord(token, mdAppend, mdOverwrite, filesAdd, filesDel,
 		true)
 }
@@ -1799,7 +1799,7 @@ func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.Metadat
 //
 // This function is part of the interface.
 func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
-	log.Debugf("UpdateUnvettedRecord %x", token)
+	log.Tracef("UpdateUnvettedRecord %x", token)
 	return g.updateRecord(token, mdAppend, mdOverwrite, filesAdd, filesDel,
 		false)
 }
@@ -1900,7 +1900,7 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 //
 // This function must be called without the lock held.
 func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
-	log.Debugf("UpdateVettedMetadata: %x", token)
+	log.Tracef("UpdateVettedMetadata: %x", token)
 
 	// Send in a single metadata array to verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
@@ -2092,7 +2092,7 @@ func (g *gitBackEnd) updateReadme(content string) error {
 //
 // UpdateReadme satisfies the backend interface.
 func (g *gitBackEnd) UpdateReadme(content string) error {
-	log.Debugf("UpdateReadme")
+	log.Tracef("UpdateReadme")
 
 	// Lock filesystem
 	g.Lock()
@@ -2347,6 +2347,62 @@ func (g *gitBackEnd) VettedExists(token []byte) bool {
 	return err == nil
 }
 
+// UnvettedTokens returns the censorship record token of all unvetted records
+// in the backend.
+func (g *gitBackEnd) UnvettedTokens() ([][]byte, error) {
+	log.Tracef("UnvettedTokens")
+
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return nil, backend.ErrShutdown
+	}
+
+	tokens, err := g.getUnvettedTokens()
+	if err != nil {
+		return nil, err
+	}
+
+	tokensb := make([][]byte, 0, len(tokens))
+	for _, v := range tokens {
+		b, err := hex.DecodeString(v)
+		if err != nil {
+			return nil, err
+		}
+		tokensb = append(tokensb, b)
+	}
+
+	return tokensb, nil
+}
+
+// VettedTokens returns the censorship record token of all vetted records in
+// the backend.
+func (g *gitBackEnd) VettedTokens() ([][]byte, error) {
+	log.Tracef("VettedTokens")
+
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return nil, backend.ErrShutdown
+	}
+
+	tokens, err := g.getVettedTokens()
+	if err != nil {
+		return nil, err
+	}
+
+	tokensb := make([][]byte, 0, len(tokens))
+	for _, v := range tokens {
+		b, err := hex.DecodeString(v)
+		if err != nil {
+			return nil, err
+		}
+		tokensb = append(tokensb, b)
+	}
+
+	return tokensb, nil
+}
+
 // vettedMetadataStreamExists returns whether the given metadata stream exists.
 //
 // This function must be called with the read lock held.
@@ -2362,7 +2418,7 @@ func (g *gitBackEnd) vettedMetadataStreamExists(token []byte, mdstreamID int) bo
 //
 // GetUnvetted satisfies the backend interface.
 func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
-	log.Debugf("GetUnvetted %x", token)
+	log.Tracef("GetUnvetted %x", token)
 	return g.getRecordLock(token, "", g.unvetted, true)
 }
 
@@ -2370,7 +2426,7 @@ func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
 //
 // GetVetted satisfies the backend interface.
 func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, error) {
-	log.Debugf("GetVetted %x", token)
+	log.Tracef("GetVetted %x %v", token, version)
 	return g.getRecordLock(token, version, g.vetted, true)
 }
 
@@ -2640,7 +2696,7 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 // Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
 func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
-	log.Debugf("Inventory: %v %v %v", vettedCount, branchCount, includeFiles)
+	log.Tracef("Inventory: %v %v %v", vettedCount, branchCount, includeFiles)
 
 	// Lock filesystem
 	g.Lock()
@@ -2720,7 +2776,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allV
 //
 // GetPlugins satisfies the backend interface.
 func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
-	log.Debugf("GetPlugins")
+	log.Tracef("GetPlugins")
 	return g.plugins, nil
 }
 
@@ -2730,7 +2786,7 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 //
 // Plugin satisfies the backend interface.
 func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
-	log.Debugf("Plugin: %v", command)
+	log.Tracef("Plugin: %v", command)
 	switch command {
 	case decredplugin.CmdAuthorizeVote:
 		payload, err := g.pluginAuthorizeVote(payload)
@@ -2766,7 +2822,7 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 		payload, err := g.pluginGetProposalCommentsLikes(payload)
 		return decredplugin.CmdProposalCommentsLikes, payload, err
 	case decredplugin.CmdInventory:
-		payload, err := g.pluginInventory()
+		payload, err := g.pluginInventory(payload)
 		return decredplugin.CmdInventory, payload, err
 	case decredplugin.CmdLoadVoteResults:
 		payload, err := g.pluginLoadVoteResults()
@@ -2787,7 +2843,7 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 //
 // Close satisfies the backend interface.
 func (g *gitBackEnd) Close() {
-	log.Debugf("Close")
+	log.Tracef("Close")
 
 	g.Lock()
 	defer g.Unlock()

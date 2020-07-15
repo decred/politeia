@@ -17,9 +17,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/decred/politeia/cmsplugin"
+	"github.com/decred/politeia/decredplugin"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
@@ -1057,6 +1060,208 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
+func (p *politeia) buildCacheDecredPlugin(tokens [][]byte) error {
+	log.Infof("Building %v plugin cache", decredplugin.ID)
+
+	// Reset the existing plugin tables
+	err := p.cache.PluginBuild(decredplugin.ID, "")
+	if err != nil {
+		return fmt.Errorf("PluginBuild: %v", err)
+	}
+
+	// Build the plugin cache for each record
+	for i, token := range tokens {
+		log.Infof("Building %v plugin cache for %x (%v/%v)",
+			decredplugin.ID, token, i+1, len(tokens))
+
+		// Get plugin data from the backend for this record
+		ri := decredplugin.Inventory{
+			Tokens: []string{hex.EncodeToString(token)},
+		}
+		b, err := decredplugin.EncodeInventory(ri)
+		if err != nil {
+			return err
+		}
+		_, reply, err := p.backend.Plugin(decredplugin.CmdInventory, string(b))
+		if err != nil {
+			return fmt.Errorf("backend decred plugin inventory %x: %v", token, err)
+		}
+		ir, err := decredplugin.DecodeInventoryReply([]byte(reply))
+		if err != nil {
+			return err
+		}
+
+		// Build the plugin cache for this record
+
+		// Build comments
+		log.Debugf("Building comments cache (%v comments)", len(ir.Comments))
+		for _, v := range ir.Comments {
+			// Setup payloads
+			nc := decredplugin.NewComment{
+				Token:     v.Token,
+				ParentID:  v.ParentID,
+				Comment:   v.Comment,
+				Signature: v.Signature,
+				PublicKey: v.PublicKey,
+			}
+			ncr := decredplugin.NewCommentReply{
+				CommentID: v.CommentID,
+				Receipt:   v.Receipt,
+				Timestamp: v.Timestamp,
+			}
+			cmdPayload, err := decredplugin.EncodeNewComment(nc)
+			if err != nil {
+				return err
+			}
+			replyPayload, err := decredplugin.EncodeNewCommentReply(ncr)
+			if err != nil {
+				return err
+			}
+
+			// Send plugin command
+			_, err = p.cache.PluginExec(cache.PluginCommand{
+				ID:             decredplugin.ID,
+				Command:        decredplugin.CmdNewComment,
+				CommandPayload: string(cmdPayload),
+				ReplyPayload:   string(replyPayload),
+			})
+			if err != nil {
+				return fmt.Errorf("PluginExec %v %x %v: %v",
+					decredplugin.CmdNewComment, token, ncr.CommentID, err)
+			}
+		}
+
+		// Build comment likes
+		log.Debugf("Building comment likes cache (%v likes)",
+			len(ir.LikeComments))
+		for _, v := range ir.LikeComments {
+			// Setup payloads
+			cmdPayload, err := decredplugin.EncodeLikeComment(v)
+			if err != nil {
+				return err
+			}
+
+			// Send plugin command
+			_, err = p.cache.PluginExec(cache.PluginCommand{
+				ID:             decredplugin.ID,
+				Command:        decredplugin.CmdLikeComment,
+				CommandPayload: string(cmdPayload),
+			})
+			if err != nil {
+				return fmt.Errorf("PluginExec %v %x %v: %v",
+					decredplugin.CmdLikeComment, token, v.CommentID, err)
+			}
+		}
+
+		// Build vote authorizations
+		log.Debugf("Building authorize vote cache")
+		for k, v := range ir.AuthorizeVotes {
+			// Setup payloads
+			cmdPayload, err := decredplugin.EncodeAuthorizeVote(v)
+			if err != nil {
+				return err
+			}
+			avr := ir.AuthorizeVoteReplies[k]
+			replyPayload, err := decredplugin.EncodeAuthorizeVoteReply(avr)
+			if err != nil {
+				return err
+			}
+
+			// Send plugin command
+			_, err = p.cache.PluginExec(cache.PluginCommand{
+				ID:             decredplugin.ID,
+				Command:        decredplugin.CmdAuthorizeVote,
+				CommandPayload: string(cmdPayload),
+				ReplyPayload:   string(replyPayload),
+			})
+			if err != nil {
+				return fmt.Errorf("PluginExec %v %x: %v",
+					decredplugin.CmdAuthorizeVote, token, err)
+			}
+		}
+
+		// Build start votes
+		log.Debugf("Building start vote cache")
+		for _, v := range ir.StartVoteTuples {
+			// Setup payloads. The start vote payload comes in the tuple
+			// already encoded due to the start vote versioning.
+			replyPayload, err := decredplugin.EncodeStartVoteReply(v.StartVoteReply)
+			if err != nil {
+				return err
+			}
+
+			// Send plugin command
+			_, err = p.cache.PluginExec(cache.PluginCommand{
+				ID:             decredplugin.ID,
+				Command:        decredplugin.CmdStartVote,
+				CommandPayload: v.StartVote.Payload,
+				ReplyPayload:   string(replyPayload),
+			})
+			if err != nil {
+				return fmt.Errorf("PluginExec %v %x: %v",
+					decredplugin.CmdStartVote, token, err)
+			}
+		}
+
+		// Build cast votes
+		log.Debugf("Building cast votes cache (%v votes)", len(ir.CastVotes))
+		if len(ir.CastVotes) != 0 {
+			// Setup payloads
+			bl := decredplugin.Ballot{
+				Votes: ir.CastVotes,
+			}
+			cmdPayload, err := decredplugin.EncodeBallot(bl)
+			if err != nil {
+				return err
+			}
+			receipts := make([]decredplugin.CastVoteReply, 0, len(ir.CastVotes))
+			for _, v := range ir.CastVotes {
+				receipts = append(receipts, decredplugin.CastVoteReply{
+					ClientSignature: v.Signature,
+				})
+			}
+			br := decredplugin.BallotReply{
+				Receipts: receipts,
+			}
+			replyPayload, err := decredplugin.EncodeBallotReply(br)
+			if err != nil {
+				return err
+			}
+
+			// Send plugin command
+			_, err = p.cache.PluginExec(cache.PluginCommand{
+				ID:             decredplugin.ID,
+				Command:        decredplugin.CmdBallot,
+				CommandPayload: string(cmdPayload),
+				ReplyPayload:   string(replyPayload),
+			})
+			if err != nil {
+				return fmt.Errorf("PluginExec %v %x: %v",
+					decredplugin.CmdBallot, token, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *politeia) buildCacheCMSPlugin() error {
+	// Fetch plugin inventory
+	_, payload, err := p.backend.Plugin(cmsplugin.CmdInventory, "")
+	if err != nil {
+		return fmt.Errorf("cms plugin inventory: %v", err)
+	}
+
+	// Build plugin cache
+	err = p.cache.PluginBuild(cmsplugin.ID, payload)
+	if err != nil {
+		return fmt.Errorf("cache PluginBuild %v: %v",
+			cmsplugin.ID, err)
+	}
+
+	return nil
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -1260,54 +1465,104 @@ func _main() error {
 
 	// Build the cache
 	if p.cfg.BuildCache {
-		// Fetch all versions of all records from the inventory and
-		// use them to build the cache.
-		vetted, unvetted, err := p.backend.Inventory(0, 0, true, true)
+		// Reset cache tables
+		err = p.cache.Build([]cache.Record{})
 		if err != nil {
-			return fmt.Errorf("backend inventory: %v", err)
+			return fmt.Errorf("cache Build: %v", err)
 		}
 
-		inv := make([]cache.Record, 0, len(vetted)+len(unvetted))
-		for _, r := range vetted {
-			inv = append(inv, p.convertBackendRecordToCache(r))
+		// Build unvetted records cache
+		log.Infof("Building unvettted records cache")
+		unvetted, err := p.backend.UnvettedTokens()
+		if err != nil {
+			return fmt.Errorf("backend UnvettedTokens: %v", err)
 		}
-		for _, r := range unvetted {
-			inv = append(inv, p.convertBackendRecordToCache(r))
+		for _, token := range unvetted {
+			r, err := p.backend.GetUnvetted(token)
+			if err != nil {
+				return fmt.Errorf("backend GetUnvetted %x: %v", token, err)
+			}
+			cr := p.convertBackendRecordToCache(*r)
+			err = p.cache.NewRecord(cr)
+			if err != nil {
+				return fmt.Errorf("cache NewRecord %x: %v", token, err)
+			}
+
+			log.Debugf("Added unvetted record %x", token)
 		}
 
-		// Build the cache
-		err = p.cache.Build(inv)
+		// Build vetted records cache
+		log.Debugf("Building vetted records cache")
+		vetted, err := p.backend.VettedTokens()
 		if err != nil {
-			return fmt.Errorf("build cache: %v", err)
+			return fmt.Errorf("backend VettedTokens: %v", err)
+		}
+		for _, token := range vetted {
+			// Add the most recent version
+			r, err := p.backend.GetVetted(token, "")
+			if err != nil {
+				return fmt.Errorf("backend GetVetted %x: %v", token, err)
+			}
+			cr := p.convertBackendRecordToCache(*r)
+			err = p.cache.NewRecord(cr)
+			if err != nil {
+				return fmt.Errorf("cache NewRecord %x: %v", token, err)
+			}
+
+			log.Debugf("Added vetted record %x version %v", token, r.Version)
+
+			// Add all previous versions
+			version, err := strconv.ParseUint(r.Version, 10, 64)
+			if err != nil {
+				return err
+			}
+			version--
+			for version > 0 {
+				v := strconv.FormatUint(version, 10)
+				r, err := p.backend.GetVetted(token, v)
+				if err != nil {
+					return fmt.Errorf("backend GetVetted %x %v: %v",
+						token, v, err)
+				}
+				cr := p.convertBackendRecordToCache(*r)
+				err = p.cache.NewRecord(cr)
+				if err != nil {
+					return fmt.Errorf("cache NewRecord %x %v: %v",
+						token, v, err)
+				}
+
+				log.Debugf("Added vetted record %x version %v", token, version)
+				version--
+			}
 		}
 
 		// Build the cache for plugins
-		// XXX when we create an interface for plugins we need to
-		// rethink how we're building the plugin caches. Reading the
-		// entire plugin inventory into memory is only a temporary
-		// solution.
-		for _, v := range p.plugins {
-			var cmd string
-			for _, s := range v.Settings {
-				if s.Key == "inventory" {
-					cmd = s.Value
+		for _, plugin := range p.plugins {
+			var enableCache bool
+			for _, s := range plugin.Settings {
+				if s.Key == "enablecache" {
+					enableCache = true
 				}
 			}
-			if cmd == "" {
+			if !enableCache {
 				continue
 			}
 
-			// Fetch plugin inventory
-			_, payload, err := p.backend.Plugin(cmd, "")
-			if err != nil {
-				log.Errorf("Failed to get plugin data to build cache "+
-					"plugin:%v command:%v error:%v", v.ID, cmd, err)
-			}
-
-			// Build plugin cache
-			err = p.cache.PluginBuild(v.ID, payload)
-			if err != nil {
-				return fmt.Errorf("plugin '%v' build cache: %v", v.ID, err)
+			switch plugin.ID {
+			case decredplugin.ID:
+				// Decred plugin features are only available on vetted
+				// proposals.
+				err := p.buildCacheDecredPlugin(vetted)
+				if err != nil {
+					return fmt.Errorf("buildCacheDecredPlugin: %v", err)
+				}
+			case cmsplugin.ID:
+				err := p.buildCacheCMSPlugin()
+				if err != nil {
+					return fmt.Errorf("buildCacheCMSPlugin: %v", err)
+				}
+			default:
+				return fmt.Errorf("cache enabled for invalid plugin '%v'", plugin.ID)
 			}
 		}
 	}
