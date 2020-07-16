@@ -934,7 +934,7 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handlePassThroughTokenInventory: getPassThrough: %v", err)
+			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
 	}
 	util.RespondRaw(w, http.StatusOK, data)
@@ -956,7 +956,7 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handlePassThroughBatchProposals: batchProposals: %v", err)
+			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
 		return
 	}
 	util.RespondRaw(w, http.StatusOK, data)
