@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"text/template"
@@ -930,7 +931,7 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
-	data, err := p.getPassThrough("/api/v1"+www.RouteTokenInventory, r)
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: getPassThrough: %v", err)
@@ -942,13 +943,108 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughBatchProposals")
 
-	data, err := p.postPassThrough("/api/v1"+www.RouteBatchProposals, r)
+	var bp www.BatchProposals
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bp); err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: batchProposals: %v", err)
 		return
 	}
 	util.RespondRaw(w, http.StatusOK, data)
+}
+
+// makeProposalsRequest submits pass through requests to the proposals sites
+// (testnet or mainnet).  It takes a http method type, proposals route and a
+// request interface as arguments.  It returns the response body as byte array
+// (which can then be decoded as though a response directly from proposals).
+func (p *politeiawww) makeProposalsRequest(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		requestBody  []byte
+		responseBody []byte
+		cookies      []*http.Cookie
+		csrf         string
+		err          error
+	)
+	if v != nil {
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	client, err := util.NewClient(false, "")
+	if err != nil {
+		return nil, err
+	}
+
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+
+	route = dest + "/api/v1" + route
+
+	// We have to special case post requests since they require to first get
+	// cookies and csrf headers from a Version GET request.
+	if method == http.MethodPost {
+		versionRoute := dest + "/api/v1" + www.RouteVersion
+		req, err := http.NewRequest(http.MethodGet, versionRoute, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		r, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer r.Body.Close()
+
+		cookies = r.Cookies()
+		csrf = r.Header.Get(www.CsrfToken)
+	}
+
+	req, err := http.NewRequest(method, route,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	req.Header.Set(www.CsrfToken, csrf)
+
+	r, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		var pdErrorReply www.PDErrorReply
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&pdErrorReply); err != nil {
+			return nil, err
+		}
+
+		return nil, www.PDError{
+			HTTPCode:   r.StatusCode,
+			ErrorReply: pdErrorReply,
+		}
+	}
+
+	responseBody = util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
