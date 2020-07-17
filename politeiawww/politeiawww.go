@@ -141,6 +141,9 @@ type politeiawww struct {
 	// the dcrdata best block route of politeiad is used as a fallback.
 	bestBlock uint64
 	bbMtx     sync.RWMutex
+
+	// Indicates if politeiawww is in qiesce mode
+	qiesce bool
 }
 
 // XXX rig this up
@@ -1315,6 +1318,20 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vtr)
 }
 
+// handleQiesce toggles qiesce mode
+func (p *politeiawww) handleQiesce(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleQiesce")
+
+	reply, err := p.toggleQiesce()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleQiesce: toggleQiesceMode %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Templates
@@ -1429,4 +1446,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, p.handleCensorComment,
 		permissionAdmin)
+	p.addRoute(http.MethodGet, www2.APIRoute,
+		www2.RouteQiesce, p.handleQiesce,
+		permissionAdmin)
+
 }

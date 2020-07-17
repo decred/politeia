@@ -17,6 +17,7 @@ const (
 	RouteStartVote       = "/vote/start"
 	RouteStartVoteRunoff = "/vote/startrunoff"
 	RouteVoteDetails     = "/vote/{token:[A-z0-9]{64}}"
+	RouteQiesce          = "/qiesce"
 
 	// Vote types
 	//
@@ -167,4 +168,10 @@ type VoteDetailsReply struct {
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
 	EndBlockHeight   uint32   `json:"endblockheight"`   // Height of vote end
 	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting ticket
+}
+
+// QiesceReply is the reply to the Qiesce command. It includes the qiesce
+// toggle value
+type QiesceReply struct {
+	Qiesce bool `json:"qiesce"` // Is qiesced
 }

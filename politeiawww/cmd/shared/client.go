@@ -386,6 +386,30 @@ func (c *Client) Logout() (*www.LogoutReply, error) {
 	return &lr, nil
 }
 
+// Qiesce toggles the politeiawww qiesce mode
+func (c *Client) Qiesce() (*www2.QiesceReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www2.APIRoute,
+		www2.RouteQiesce, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var sr www2.QiesceReply
+	err = json.Unmarshal(responseBody, &sr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal QiesceReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sr, nil
+}
+
 // Policy returns the politeiawww policy information.
 func (c *Client) Policy() (*www.PolicyReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet,
