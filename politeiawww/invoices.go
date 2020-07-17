@@ -1425,6 +1425,13 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, u *user.User) (
 		}
 	}
 
+	// Make sure if month and year populated that start and end ARE NOT
+	if (ai.Month != 0 && ai.Year != 0) && (ai.StartTime != 0 && ai.EndTime != 0) {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
 	var dbInvs []database.Invoice
 	var err error
 	switch {
@@ -1438,8 +1445,19 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, u *user.User) (
 		if err != nil {
 			return nil, err
 		}
+	case (ai.StartTime != 0 && ai.EndTime != 0) && ai.Status == 0:
+		dbInvs, err = p.cmsDB.InvoicesByDateRange(ai.StartTime, ai.EndTime)
+		if err != nil {
+			return nil, err
+		}
 	case (ai.Month == 0 && ai.Year == 0) && ai.Status != 0:
 		dbInvs, err = p.cmsDB.InvoicesByStatus(int(ai.Status))
+		if err != nil {
+			return nil, err
+		}
+	case (ai.StartTime != 0 && ai.EndTime != 0) && ai.Status != 0:
+		dbInvs, err = p.cmsDB.InvoicesByDateRangeStatus(ai.StartTime,
+			ai.EndTime, int(ai.Status))
 		if err != nil {
 			return nil, err
 		}
@@ -1464,7 +1482,10 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, u *user.User) (
 
 		// Skip invoice if requesting user is not an admin && they don't
 		// share the same domain as the invoice user.
-		if !u.Admin && invoiceUser.Domain != requestingUser.Domain {
+		// Also skip invoice if the provided user id does not match the
+		// invoices' userid.
+		if (!u.Admin && invoiceUser.Domain != requestingUser.Domain) ||
+			(ai.UserID != "" && ai.UserID != v.UserID) {
 			continue
 		}
 
@@ -1667,7 +1688,7 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 	}
 	invoices := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, inv := range dbInvs {
-		invRec := convertDatabaseInvoiceToInvoiceRecord(*inv)
+		invRec := convertDatabaseInvoiceToInvoiceRecord(inv)
 		invoices = append(invoices, invRec)
 	}
 	reply.Invoices = invoices

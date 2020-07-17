@@ -539,11 +539,15 @@ type UserInvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
 }
 
-// AdminInvoices is used to get all invoices from all users
+// AdminInvoices is used to get all invoices from all users (if no userid is
+// given).
 type AdminInvoices struct {
-	Month  uint16         `json:"month"`  // Month of Invoice
-	Year   uint16         `json:"year"`   // Year of Invoice
-	Status InvoiceStatusT `json:"status"` // Current status of invoice
+	Month     uint16         `json:"month"`  // Month of Invoice
+	Year      uint16         `json:"year"`   // Year of Invoice
+	Status    InvoiceStatusT `json:"status"` // Current status of invoice
+	UserID    string         `json:"userid"` // User ID for invoices to return
+	StartTime int64          `json:"start"`  // Start time for range
+	EndTime   int64          `json:"end"`    // End time for range
 }
 
 // AdminInvoicesReply is used to reply to an admin invoices command.
