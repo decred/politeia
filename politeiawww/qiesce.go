@@ -8,10 +8,10 @@ import (
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 )
 
-func (p *politeiawww) toggleQiesce() (*www2.QiesceReply, error) {
-	p.qiesce = !p.qiesce
+func (p *politeiawww) toggleQuiesce() (*www2.QuiesceReply, error) {
+	p.quiesce = !p.quiesce
 	// XXX: toggle politeiad mode as well
-	return &www2.QiesceReply{
-		Qiesce: p.qiesce,
+	return &www2.QuiesceReply{
+		Quiesce: p.quiesce,
 	}, nil
 }

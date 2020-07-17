@@ -142,8 +142,8 @@ type politeiawww struct {
 	bestBlock uint64
 	bbMtx     sync.RWMutex
 
-	// Indicates if politeiawww is in qiesce mode
-	qiesce bool
+	// Indicates if politeiawww is in quiesce mode
+	quiesce bool
 }
 
 // XXX rig this up
@@ -1321,11 +1321,14 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 // handleQiesce toggles qiesce mode
 func (p *politeiawww) handleQiesce(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleQiesce")
+// handleQuiesce toggles quiesce mode
+func (p *politeiawww) handleQuiesce(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleQuiesce")
 
-	reply, err := p.toggleQiesce()
+	reply, err := p.toggleQuiesce()
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleQiesce: toggleQiesceMode %v", err)
+			"handleQuiesce: toggleQuiesceMode %v", err)
 		return
 	}
 
@@ -1447,7 +1450,7 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		www.RouteCensorComment, p.handleCensorComment,
 		permissionAdmin)
 	p.addRoute(http.MethodGet, www2.APIRoute,
-		www2.RouteQiesce, p.handleQiesce,
+		www2.RouteQuiesce, p.handleQuiesce,
 		permissionAdmin)
 
 }

@@ -17,7 +17,7 @@ const (
 	RouteStartVote       = "/vote/start"
 	RouteStartVoteRunoff = "/vote/startrunoff"
 	RouteVoteDetails     = "/vote/{token:[A-z0-9]{64}}"
-	RouteQiesce          = "/qiesce"
+	RouteQuiesce         = "/quiesce"
 
 	// Vote types
 	//
@@ -170,8 +170,8 @@ type VoteDetailsReply struct {
 	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting ticket
 }
 
-// QiesceReply is the reply to the Qiesce command. It includes the qiesce
+// QuiesceReply is the reply to the Quiesce command. It includes the quiesce
 // toggle value
-type QiesceReply struct {
-	Qiesce bool `json:"qiesce"` // Is qiesced
+type QuiesceReply struct {
+	Quiesce bool `json:"quiesce"` // Is quiesced
 }

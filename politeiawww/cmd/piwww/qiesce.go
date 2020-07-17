@@ -6,27 +6,27 @@ package main
 
 import "github.com/decred/politeia/politeiawww/cmd/shared"
 
-// QiesceCmd toggles the qiesce mode
-type QiesceCmd struct{}
+// QuiesceCmd toggles the quiesce mode
+type QuiesceCmd struct{}
 
-// Execute executes the qiesce command
-func (cmd *QiesceCmd) Execute(args []string) error {
-	qr, err := client.Qiesce()
+// Execute executes the quiesce command
+func (cmd *QuiesceCmd) Execute(args []string) error {
+	qr, err := client.Quiesce()
 	if err != nil {
 		return err
 	}
 	return shared.PrintJSON(qr)
 }
 
-// qiesceHelpMsg is the output of the help message when `policy` is specified
-const qiesceHelpMsg = `qiesce
+// QuiesceHelpMsg is the output of the help message when `policy` is specified
+const QuiesceHelpMsg = `quiesce
 
-Toggle qiesce mode.
+Toggle quiesce mode.
 
 Arguments:
 None
 
 Response:
 {
-	"qiesce" (bool)    Indicates if in qiesce mode
+	"quiesce" (bool)    Indicates if in quiesce mode
 }`

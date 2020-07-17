@@ -386,18 +386,18 @@ func (c *Client) Logout() (*www.LogoutReply, error) {
 	return &lr, nil
 }
 
-// Qiesce toggles the politeiawww qiesce mode
-func (c *Client) Qiesce() (*www2.QiesceReply, error) {
+// Quiesce toggles the politeiawww quiesce mode
+func (c *Client) Quiesce() (*www2.QuiesceReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www2.APIRoute,
-		www2.RouteQiesce, nil)
+		www2.RouteQuiesce, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var sr www2.QiesceReply
+	var sr www2.QuiesceReply
 	err = json.Unmarshal(responseBody, &sr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal QiesceReply: %v", err)
+		return nil, fmt.Errorf("unmarshal QuiesceReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
