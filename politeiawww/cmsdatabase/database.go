@@ -53,7 +53,8 @@ type Database interface {
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
-	InvoicesByDateRangeStatus(int64, int64, int) ([]*Invoice, error)  // Returns all paid invoice line items from range provided
+	InvoicesByDateRangeStatus(int64, int64, int) ([]Invoice, error)   // Returns all paid invoice line items from range provided
+	InvoicesByDateRange(int64, int64) ([]Invoice, error)              // Returns all invoices from range provided
 	InvoicesByLineItemsProposalToken(string) ([]*Invoice, error)      // Returns all Invoices with paid line item information based on proposal token.
 
 	// ExchangeRate functions

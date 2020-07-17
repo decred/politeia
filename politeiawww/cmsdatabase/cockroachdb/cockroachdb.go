@@ -341,7 +341,7 @@ func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, err
 // InvoicesByDateRangeStatus takes a start and end time (in Unix seconds) and returns
 // all invoices with the included status.  This uses the
 // invoice_changes table to discover the token to look up the correct line items.
-func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([]*database.Invoice, error) {
+func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([]database.Invoice, error) {
 	log.Debugf("InvoicesByDateRangeStatus: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
 	// Get all invoice changes of PAID status within date range.
@@ -364,7 +364,7 @@ func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([
 	invoices := make([]Invoice, 0, len(tokens))
 	// Using all invoice tokens from the results of the query above, ask for all
 	// invoices that match those tokens.
-	dbInvoices := make([]*database.Invoice, 0, len(tokens))
+	dbInvoices := make([]database.Invoice, 0, len(tokens))
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Payments").
@@ -379,7 +379,51 @@ func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([
 		if err != nil {
 			return nil, err
 		}
-		dbInvoices = append(dbInvoices, inv)
+		dbInvoices = append(dbInvoices, *inv)
+	}
+	return dbInvoices, nil
+}
+
+// InvoicesByDateRange takes a start and end time (in Unix seconds) and returns
+// all invoices.  This uses the
+// invoice_changes table to discover the token to look up the correct line items.
+func (c *cockroachdb) InvoicesByDateRange(start, end int64) ([]database.Invoice, error) {
+	log.Debugf("InvoicesByDateRange: %v %v", time.Unix(start, 0),
+		time.Unix(end, 0))
+	// Get all invoice changes of PAID status within date range.
+	invoiceChanges := make([]InvoiceChange, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("timestamp BETWEEN ? AND ?",
+			time.Unix(start, 0),
+			time.Unix(end, 0)).
+		Find(&invoiceChanges).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	tokens := make([]string, 0, len(invoiceChanges))
+	for _, r := range invoiceChanges {
+		tokens = append(tokens, r.InvoiceToken)
+	}
+	invoices := make([]Invoice, 0, len(tokens))
+	// Using all invoice tokens from the results of the query above, ask for all
+	// invoices that match those tokens.
+	dbInvoices := make([]database.Invoice, 0, len(tokens))
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Payments").
+		Where(tokens).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	for _, vv := range invoices {
+		inv, err := DecodeInvoice(&vv)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *inv)
 	}
 	return dbInvoices, nil
 }
