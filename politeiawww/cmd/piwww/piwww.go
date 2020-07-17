@@ -113,6 +113,7 @@ type piwww struct {
 	VoteResults        VoteResultsCmd           `command:"voteresults" description:"(public) get vote results for a proposal"`
 	VoteStatus         VoteStatusCmd            `command:"votestatus" description:"(public) get the vote status of a proposal"`
 	VoteStatuses       VoteStatusesCmd          `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
+	Quiesce            QuiesceCmd               `command:"quiesce" description:"(public) toggle quiesce mode"`
 }
 
 // createMDFile returns a File object that was created using a markdown file

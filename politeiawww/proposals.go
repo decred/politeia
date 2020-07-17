@@ -3272,7 +3272,7 @@ func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.Token
 // processTokenInventory returns the tokens of all proposals in the inventory,
 // categorized by stage of the voting process.
 func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
-	log.Tracef("processTokenInventory")
+	log.Trace("processTokenInventory")
 
 	bb, err := p.getBestBlock()
 	if err != nil {

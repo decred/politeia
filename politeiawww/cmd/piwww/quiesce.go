@@ -19,7 +19,7 @@ func (cmd *QuiesceCmd) Execute(args []string) error {
 }
 
 // QuiesceHelpMsg is the output of the help message when `policy` is specified
-const QuiesceHelpMsg = `quiesce
+const quiesceHelpMsg = `quiesce
 
 Toggle quiesce mode.
 
