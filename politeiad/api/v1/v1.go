@@ -279,7 +279,7 @@ type SetUnvettedStatus struct {
 	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
 }
 
-// SetUnvettedStatus is a response to a SetUnvettedStatus.  It returns the
+// SetUnvettedStatusReply is a response to a SetUnvettedStatus.  It returns the
 // potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
@@ -332,7 +332,7 @@ type UpdateVettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
-// UpdateReadme updated the README.md file in the vetted and unvetted repos.
+// UpdateReadme updates the README.md file in the vetted and unvetted repos.
 type UpdateReadme struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Content   string `json:"content"`   // New content of README.md

@@ -38,6 +38,8 @@ const (
 	keyPaywallAddressIndex = "paywalladdressindex"
 )
 
+var quiesce bool
+
 // cockroachdb implements the user database interface.
 type cockroachdb struct {
 	sync.RWMutex
@@ -162,6 +164,10 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) (*uuid.UUID, error) {
 // UserNew creates a new user record in the database.
 func (c *cockroachdb) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
+
+	if quiesce {
+		return user.ErrQuiesced
+	}
 
 	if c.isShutdown() {
 		return user.ErrShutdown
@@ -666,6 +672,10 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 func (c *cockroachdb) InsertUser(u user.User) error {
 	log.Tracef("InsertUser: %v", u.ID)
 
+	if quiesce {
+		return user.ErrQuiesced
+	}
+
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
@@ -743,7 +753,7 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 // Close shuts down the database.  All interface functions must return with
 // errShutdown if the backend is shutting down.
 func (c *cockroachdb) Close() error {
-	log.Tracef("Close")
+	log.Trace("Close")
 
 	c.Lock()
 	defer c.Unlock()
@@ -754,6 +764,20 @@ func (c *cockroachdb) Close() error {
 
 	c.shutdown = true
 	return c.userDB.Close()
+}
+
+// Quiesce toggles userdb quiesce mode.
+// If Quiesced all writes are blocked,
+// only reads all allowed.
+func (c *cockroachdb) Quiesce() error {
+	log.Tracef("Quiesce")
+
+	c.Lock()
+	defer c.Unlock()
+
+	quiesce = !quiesce
+
+	return nil
 }
 
 func (c *cockroachdb) createTables(tx *gorm.DB) error {

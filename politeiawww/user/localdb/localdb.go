@@ -24,7 +24,8 @@ const (
 )
 
 var (
-	_ user.Database = (*localdb)(nil)
+	quiesce bool
+	_       user.Database = (*localdb)(nil)
 )
 
 // localdb implements the Database interface.
@@ -57,6 +58,10 @@ func isUserRecord(key string) bool {
 func (l *localdb) UserNew(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
+
+	if quiesce {
+		return user.ErrQuiesced
+	}
 
 	if l.shutdown {
 		return user.ErrShutdown
@@ -111,6 +116,10 @@ func (l *localdb) UserNew(u user.User) error {
 func (l *localdb) UserGet(email string) (*user.User, error) {
 	l.RLock()
 	defer l.RUnlock()
+
+	if quiesce {
+		return nil, user.ErrQuiesced
+	}
 
 	if l.shutdown {
 		return nil, user.ErrShutdown
@@ -388,6 +397,21 @@ func (l *localdb) Close() error {
 
 	l.shutdown = true
 	return l.userdb.Close()
+}
+
+// ErrQuiesced is emitted when write query is performed in readonly
+// mode
+//
+// Close satisfies the Database interface.
+func (l *localdb) Quiesce() error {
+	log.Tracef("Quiesce")
+
+	l.Lock()
+	defer l.Unlock()
+
+	quiesce = !quiesce
+
+	return nil
 }
 
 // SessionSave saves the given session to the database. New sessions are

@@ -38,6 +38,10 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
+
+	// ErrQuiesced is emitted when write query is performed in readonly
+	// mode
+	ErrQuiesced = errors.New("user db is quiesced, writes aren't allowed")
 )
 
 // Identity wraps an ed25519 public key and timestamps to indicate if it is
@@ -484,4 +488,9 @@ type Database interface {
 
 	// Close performs cleanup of the backend.
 	Close() error
+
+	// Quiesce toggles userdb quiesce mode.
+	// If Quiesced all writes are blocked,
+	// only reads all allowed.
+	Quiesce() error
 }
