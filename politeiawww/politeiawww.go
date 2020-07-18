@@ -174,6 +174,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet:      p.cfg.TestNet,
 		Mode:         p.cfg.Mode,
+		Quiesce:      p.quiesce,
 	}
 
 	_, err := p.getSessionUser(w, r)

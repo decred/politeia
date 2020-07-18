@@ -593,6 +593,7 @@ type VersionReply struct {
 	TestNet           bool   `json:"testnet"`           // Network indicator
 	Mode              string `json:"mode"`              // current politeiawww mode running (piwww or cmswww)
 	ActiveUserSession bool   `json:"activeusersession"` // indicates if there is an active user session
+	Quiesce           bool   `json:"quiesce"`           // Indicates if quiesce mode is on.
 }
 
 // NewUser is used to request that a new user be created within the db.
