@@ -372,7 +372,7 @@ type InventoryReply struct {
 	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
 }
 
-// Quiesce toggles the serve quiesce mode.
+// Quiesce toggles the server quiesce mode.
 type Quiesce struct {
 	Challenge string `json:"challenge"` // Random challenge
 }

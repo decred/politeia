@@ -14,6 +14,8 @@ import (
 )
 
 func (p *politeiawww) toggleQuiesce() (*www2.QuiesceReply, error) {
+	p.bbMtx.Lock()
+	defer p.bbMtx.Unlock()
 	p.quiesce = !p.quiesce
 
 	// Toggle user db quiesce mode
