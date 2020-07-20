@@ -60,6 +60,7 @@ const (
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 	ErrorStatusRecordFound                   ErrorStatusT = 15
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
+	ErrorStatusIsQuiesced                    ErrorStatusT = 17
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -99,6 +100,7 @@ var (
 		ErrorStatusNoChanges:                     "no changes in record",
 		ErrorStatusRecordFound:                   "record found",
 		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
+		ErrorStatusIsQuiesced:                    "politeiad is quisced",
 	}
 
 	// RecordStatus converts record status codes to human readable text.

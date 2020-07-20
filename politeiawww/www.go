@@ -147,7 +147,17 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 	if pdError, ok := args[0].(www.PDError); ok {
 		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
-		if pdErrorCode == www.ErrorStatusInvalid {
+		switch {
+		case pdErrorCode == www.ErrorStatusIsQuiesced:
+			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
+				remoteAddr(r))
+			util.RespondWithJSON(w, pdError.HTTPCode,
+				www.ErrorReply{
+					ErrorCode:    int64(pdErrorCode),
+					ErrorContext: pdError.ErrorReply.ErrorContext,
+				})
+			return
+		case pdErrorCode == www.ErrorStatusInvalid:
 			errorCode := time.Now().Unix()
 			log.Errorf("%v %v %v %v Internal error %v: error "+
 				"code from politeiad: %v", remoteAddr(r),
@@ -158,14 +168,14 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 					ErrorCode: errorCode,
 				})
 			return
+		default:
+			util.RespondWithJSON(w, pdError.HTTPCode,
+				www.ErrorReply{
+					ErrorCode:    int64(pdErrorCode),
+					ErrorContext: pdError.ErrorReply.ErrorContext,
+				})
+			return
 		}
-
-		util.RespondWithJSON(w, pdError.HTTPCode,
-			www.ErrorReply{
-				ErrorCode:    int64(pdErrorCode),
-				ErrorContext: pdError.ErrorReply.ErrorContext,
-			})
-		return
 	}
 
 	errorCode := time.Now().Unix()

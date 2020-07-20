@@ -331,6 +331,13 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if err == backend.ErrQuiesced {
+			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
+				remoteAddr(r))
+			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
+			return
+		}
+
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v New record error code %v: %v", remoteAddr(r),

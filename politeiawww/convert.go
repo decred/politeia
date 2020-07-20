@@ -294,6 +294,8 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 		return www.ErrorStatusInvalidPropStatusTransition
 	case pd.ErrorStatusInvalidFilename:
 		return www.ErrorStatusInvalidFilename
+	case pd.ErrorStatusIsQuiesced:
+		return www.ErrorStatusIsQuiesced
 
 		// These cases are intentionally omitted because
 		// they are indicative of some internal server error,

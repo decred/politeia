@@ -216,6 +216,7 @@ const (
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
+	ErrorStatusIsQuiesced                  ErrorStatusT = 79
 
 	// Proposal state codes
 	//
