@@ -799,6 +799,12 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 				nil)
 			return
 		}
+		if err == backend.ErrQuiesced {
+			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
+				remoteAddr(r))
+			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
+			return
+		}
 		if _, ok := err.(backend.StateTransitionError); ok {
 			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
@@ -868,6 +874,12 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 				"found: %x", remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
+			return
+		}
+		if err == backend.ErrQuiesced {
+			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
+				remoteAddr(r))
+			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
 			return
 		}
 		if _, ok := err.(backend.StateTransitionError); ok {
