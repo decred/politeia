@@ -651,6 +651,31 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeia) quiesce(w http.ResponseWriter, r *http.Request) {
+	var q v1.Quiesce
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&q); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(q.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	reply := v1.QuiesceReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	quiesce := p.backend.Quiesce()
+	reply.Quiesce = quiesce
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	var i v1.Inventory
 	decoder := json.NewDecoder(r.Body)
@@ -1416,6 +1441,7 @@ func _main() error {
 		p.updateVettedMetadata, permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateReadmeRoute,
 		p.updateReadme, permissionAuth)
+	p.addRoute(http.MethodGet, v1.QuiesceRoute, p.quiesce, permissionAuth)
 
 	// Setup plugins
 	plugins, err := p.backend.GetPlugins()

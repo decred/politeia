@@ -122,6 +122,7 @@ type gitBackEnd struct {
 	activeNetParams *chaincfg.Params    // indicator if we are running on testnet
 	journal         *Journal            // Journal context
 	shutdown        bool                // Backend is shutdown
+	quiesce         bool                // Is quiesced
 	root            string              // Root directory
 	unvetted        string              // Unvettend content
 	vetted          string              // Vetted, public, visible content
@@ -1319,6 +1320,10 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 		return nil, backend.ErrShutdown
 	}
 
+	if g.quiesce {
+		return nil, backend.ErrQuiesced
+	}
+
 	token, err := g.randomUniqueToken()
 	if err != nil {
 		return nil, err
@@ -1649,6 +1654,10 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
+	}
+
+	if g.quiesce {
+		return nil, backend.ErrQuiesced
 	}
 
 	// git checkout master
@@ -2468,7 +2477,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 
 		// Update MD first
 		record.RecordMetadata.Status = backend.MDStatusVetted
-		record.RecordMetadata.Iteration += 1
+		record.RecordMetadata.Iteration++
 		record.RecordMetadata.Timestamp = time.Now().Unix()
 		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
@@ -2498,7 +2507,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 		status == backend.MDStatusCensored:
 		// unvetted -> censored
 		record.RecordMetadata.Status = backend.MDStatusCensored
-		record.RecordMetadata.Iteration += 1
+		record.RecordMetadata.Iteration++
 		record.RecordMetadata.Timestamp = time.Now().Unix()
 		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
@@ -2536,6 +2545,9 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
+	}
+	if g.quiesce {
+		return nil, backend.ErrQuiesced
 	}
 
 	log.Debugf("setting status %v (%v) -> %x", status,
@@ -2629,7 +2641,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 
 	// Update MD first
 	record.RecordMetadata.Status = backend.MDStatusArchived
-	record.RecordMetadata.Iteration += 1
+	record.RecordMetadata.Iteration++
 	record.RecordMetadata.Timestamp = time.Now().Unix()
 	err = updateMD(g.unvetted, id, &record.RecordMetadata)
 	if err != nil {
@@ -2669,6 +2681,10 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 		return nil, backend.ErrShutdown
 	}
 
+	if g.quiesce {
+		return nil, backend.ErrQuiesced
+	}
+
 	log.Debugf("setting status %v (%v) -> %x", status,
 		backend.MDStatus[status], token)
 	record, err := g._setVettedStatus(token, status, mdAppend, mdOverwrite)
@@ -2691,6 +2707,11 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 	}
 
 	return record, nil
+}
+
+func (g *gitBackEnd) Quiesce() bool {
+	g.quiesce = !g.quiesce
+	return g.quiesce
 }
 
 // Inventory returns an inventory of vetted and unvetted records.  If

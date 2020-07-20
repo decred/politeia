@@ -27,6 +27,10 @@ var (
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrShutdown = errors.New("backend is shutting down")
 
+	// ErrQuiesced is returned when a write was attempted while
+	// the backend is quiesced
+	ErrQuiesced = errors.New("backend is quisced, action isn't allowed")
+
 	// ErrNoChanges there are no changes to the record.
 	ErrNoChanges = errors.New("no changes to record")
 
@@ -38,11 +42,12 @@ var (
 	// archived record.
 	ErrRecordArchived = errors.New("record is archived")
 
-	// ErrJournalsNotReplayed is returned when the journals have not been replayed
-	// and the subsequent code expect it to be replayed
+	// ErrJournalsNotReplayed is returned when the journals have not been
+	// replayed and the subsequent code expect it to be replayed
 	ErrJournalsNotReplayed = errors.New("journals have not been replayed")
 
-	// Plugin names must be all lowercase letters and have a length of <20
+	// PluginRE is plugins' names regex, which must be all lowercase letters
+	// and have a length of <20
 	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
 )
 
@@ -193,6 +198,9 @@ type Backend interface {
 
 	// Plugin pass-through command
 	Plugin(string, string) (string, string, error) // command type, payload, error
+
+	// Toggle quiesce mode
+	Quiesce() bool
 
 	// Close performs cleanup of the backend.
 	Close()

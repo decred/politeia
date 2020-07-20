@@ -36,6 +36,7 @@ const (
 	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
 	UpdateReadmeRoute      = "/v1/updatereadme/"               // Update README
+	QuiesceRoute           = "/v1/quiesce/"                    // Toggle quiesce mode
 
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
@@ -369,6 +370,17 @@ type InventoryReply struct {
 	Response string   `json:"response"` // Challenge response
 	Vetted   []Record `json:"vetted"`   // Last N vetted records
 	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
+}
+
+// Quiesce toggles the serve quiesce mode.
+type Quiesce struct {
+	Challenge string `json:"challenge"` // Random challenge
+}
+
+// QuiesceReply includes the quiesce toggle value.
+type QuiesceReply struct {
+	Response string `json:"response"` // Challenge response
+	Quiesce  bool   `json:"quiesce"`  // Is quiesced
 }
 
 // UserErrorReply returns details about an error that occurred while trying to
