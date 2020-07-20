@@ -444,6 +444,12 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
 		}
+		if err == backend.ErrQuiesced {
+			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
+				remoteAddr(r))
+			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
+			return
+		}
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
 			log.Errorf("%v update %v record content error: %v",
