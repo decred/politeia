@@ -489,8 +489,7 @@ type Database interface {
 	// Close performs cleanup of the backend.
 	Close() error
 
-	// Quiesce toggles userdb quiesce mode.
-	// If Quiesced all writes are blocked,
+	// Quiesce toggles userdb quiesce mode, if Quiesced all writes are blocked,
 	// only reads all allowed.
 	Quiesce() error
 }
