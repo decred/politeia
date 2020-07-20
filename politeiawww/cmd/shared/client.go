@@ -387,9 +387,9 @@ func (c *Client) Logout() (*www.LogoutReply, error) {
 }
 
 // Quiesce toggles the politeiawww quiesce mode
-func (c *Client) Quiesce() (*www2.QuiesceReply, error) {
+func (c *Client) Quiesce(q *www2.Quiesce) (*www2.QuiesceReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www2.APIRoute,
-		www2.RouteQuiesce, nil)
+		www2.RouteQuiesce, q)
 	if err != nil {
 		return nil, err
 	}

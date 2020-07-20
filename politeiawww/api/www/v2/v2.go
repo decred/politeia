@@ -170,6 +170,10 @@ type VoteDetailsReply struct {
 	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting ticket
 }
 
+// Quiesce toggles the quiesce mode
+type Quiesce struct {
+}
+
 // QuiesceReply is the reply to the Quiesce command. It includes the quiesce
 // toggle value
 type QuiesceReply struct {

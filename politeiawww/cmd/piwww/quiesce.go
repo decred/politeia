@@ -4,14 +4,17 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import (
+	v2 "github.com/decred/politeia/politeiawww/api/www/v2"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
+)
 
 // QuiesceCmd toggles the quiesce mode
 type QuiesceCmd struct{}
 
 // Execute executes the quiesce command
 func (cmd *QuiesceCmd) Execute(args []string) error {
-	qr, err := client.Quiesce()
+	qr, err := client.Quiesce(&v2.Quiesce{})
 	if err != nil {
 		return err
 	}
