@@ -1462,7 +1462,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 		vs = bvsr.Summaries[token]
 
-		fmt.Printf("  RFP voting still going on, block %v\\%v \n", bvsr.BestBlock, vs.EndHeight)
+		fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+			bvsr.BestBlock, vs.EndHeight)
 		time.Sleep(sleepInterval)
 	}
 	if !vs.Approved {
@@ -1550,7 +1551,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 			vs = bvsr.Summaries[token]
 
-			fmt.Printf("  RFP voting still going on, block %v\\%v \n", bvsr.BestBlock, vs.EndHeight)
+			fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+				bvsr.BestBlock, vs.EndHeight)
 			time.Sleep(sleepInterval)
 		}
 		if !vs.Approved {
@@ -1677,7 +1679,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 				vs = bvsr.Summaries[firststoken]
 
-				fmt.Printf("  Runoff vote still going on, block %v\\%v \n", bvsr.BestBlock, vs.EndHeight)
+				fmt.Printf("  Runoff vote still going on, block %v\\%v \n",
+					bvsr.BestBlock, vs.EndHeight)
 				time.Sleep(sleepInterval)
 			}
 			if !vs.Approved {
