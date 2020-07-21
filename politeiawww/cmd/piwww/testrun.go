@@ -119,13 +119,13 @@ func castVotes(token string, voteID string) (bool, error) {
 		case strings.Contains(err.Error(), "connection refused"):
 			// User is not running a dcrwallet instance locally.
 			// This is ok. Print a warning and continue.
-			fmt.Printf("  WARNING: could not connect to dcrwallet")
+			fmt.Printf("  WARNING: could not connect to dcrwallet\n")
 			return true, err
 
 		case strings.Contains(err.Error(), "no eligible tickets"):
 			// User doesn't have any eligible tickets. This is ok.
 			// Print a warning and continue.
-			fmt.Printf("  WARNING: user has no elibigle tickets")
+			fmt.Printf("  WARNING: user has no elibigle tickets\n")
 			return true, err
 
 		default:
@@ -1364,13 +1364,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Update user key
-	fmt.Printf("  Update user key\n")
-	err = uukc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
 	// Create RFP
 	fmt.Println("  Create a RFP")
 	np, err = newRFPProposal()
@@ -1469,7 +1462,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 		vs = bvsr.Summaries[token]
 
-		fmt.Printf("  RFP voting still going on...\n")
+		fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+			bvsr.BestBlock, vs.EndHeight)
 		time.Sleep(sleepInterval)
 	}
 	if !vs.Approved {
@@ -1557,7 +1551,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 			vs = bvsr.Summaries[token]
 
-			fmt.Printf("  RFP voting still going on...\n")
+			fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+				bvsr.BestBlock, vs.EndHeight)
 			time.Sleep(sleepInterval)
 		}
 		if !vs.Approved {
@@ -1684,7 +1679,8 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 				vs = bvsr.Summaries[firststoken]
 
-				fmt.Printf("  Runoff vote still going on...\n")
+				fmt.Printf("  Runoff vote still going on, block %v\\%v \n",
+					bvsr.BestBlock, vs.EndHeight)
 				time.Sleep(sleepInterval)
 			}
 			if !vs.Approved {
