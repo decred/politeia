@@ -1364,13 +1364,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Update user key
-	fmt.Printf("  Update user key\n")
-	err = uukc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
 	// Create RFP
 	fmt.Println("  Create a RFP")
 	np, err = newRFPProposal()
@@ -1469,7 +1462,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 		vs = bvsr.Summaries[token]
 
-		fmt.Printf("  RFP voting still going on...\n")
+		fmt.Printf("  RFP voting still going on, blick %v\\%v \n", bvsr.BestBlock, vs.EndHeight)
 		time.Sleep(sleepInterval)
 	}
 	if !vs.Approved {
@@ -1557,7 +1550,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 			vs = bvsr.Summaries[token]
 
-			fmt.Printf("  RFP voting still going on...\n")
+			fmt.Printf("  RFP voting still going on, blick %v\\%v \n", bvsr.BestBlock, vs.EndHeight)
 			time.Sleep(sleepInterval)
 		}
 		if !vs.Approved {
