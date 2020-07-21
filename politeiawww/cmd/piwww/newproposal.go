@@ -23,13 +23,24 @@ import (
 // NewProposalCmd submits a new proposal.
 type NewProposalCmd struct {
 	Args struct {
-		Markdown    string   `positional-arg-name:"markdownfile"`    // Proposal MD file
-		Attachments []string `positional-arg-name:"attachmentfiles"` // Proposal attachment files
+		Markdown    string   `positional-arg-name:"markdownfile"`
+		Attachments []string `positional-arg-name:"attachmentfiles"`
 	} `positional-args:"true" optional:"true"`
-	Random bool   `long:"random" optional:"true"` // Generate random proposal data
 	Name   string `long:"name" optional:"true"`
-	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
-	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
+	LinkTo string `long:"linkto" optional:"true"`
+	LinkBy int64  `long:"linkby" optional:"true"`
+
+	// Random can be used in place of submitting proposal files. When
+	// specified, random proposal data will be created and submitted.
+	// The --random flag cannot be used if proposal files are provided
+	// as arguments.
+	Random bool `long:"random" optional:"true"`
+
+	// RFP is a flag that is intended to make submitting an RFP easier
+	// by calculating and inserting a linkby timestamp automatically
+	// instead of having to pass in a specific timestamp using the
+	// --linkby flag.
+	RFP bool `long:"rfp" optional:"true"`
 }
 
 // Execute executes the new proposal command.
@@ -37,20 +48,28 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	mdFile := cmd.Args.Markdown
 	attachmentFiles := cmd.Args.Attachments
 
+	// Validate arguments
 	switch {
+	case cmd.Random && mdFile != "":
+		return fmt.Errorf("you cannot provide file arguments and use the " +
+			"--random flag at the same time")
 	case !cmd.Random && mdFile == "":
 		return errProposalMDNotFound
 	case !cmd.Random && cmd.Name == "":
 		return fmt.Errorf("you must either provide a proposal name using the " +
 			"--name flag or use the --random flag to generate a random name")
+	case cmd.RFP && cmd.LinkBy != 0:
+		return fmt.Errorf("you cannot use both the --rfp and --linkby flags " +
+			"at the same time")
 	}
 
-	// Check for user identity
+	// Check for user identity. A user identity is required to sign
+	// the proposal files and metadata.
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Get server public key
+	// Get server public key. This will be used to verify the reply.
 	vr, err := client.Version()
 	if err != nil {
 		return err
@@ -91,7 +110,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 
 	files = append(files, f)
 
-	// Read attachment files into memory and convert to type File
+	// Prepare attachment files
 	for _, file := range attachmentFiles {
 		path := util.CleanAndExpandPath(file)
 		attachment, err := ioutil.ReadFile(path)
@@ -110,22 +129,21 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	}
 
 	// Setup metadata
-	if cmd.Name == "" {
+	if cmd.Random {
 		r, err := util.Random(v1.PolicyMinProposalNameLength)
 		if err != nil {
 			return err
 		}
 		cmd.Name = hex.EncodeToString(r)
 	}
-	pm := v1.ProposalMetadata{
-		Name: cmd.Name,
-	}
 	if cmd.RFP {
 		// Set linkby to a month from now
-		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+		cmd.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
-	if cmd.LinkTo != "" {
-		pm.LinkTo = cmd.LinkTo
+	pm := v1.ProposalMetadata{
+		Name:   cmd.Name,
+		LinkTo: cmd.LinkTo,
+		LinkBy: cmd.LinkBy,
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
@@ -139,13 +157,11 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		},
 	}
 
-	// Compute merkle root and sign it
+	// Setup new proposal request
 	sig, err := shared.SignedMerkleRoot(files, metadata, cfg.Identity)
 	if err != nil {
-		return fmt.Errorf("SignMerkleRoot: %v", err)
+		return err
 	}
-
-	// Setup new proposal request
 	np := &v1.NewProposal{
 		Files:     files,
 		Metadata:  metadata,
@@ -153,14 +169,18 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		Signature: sig,
 	}
 
-	// Print request details
+	// Send the new proposal request. The request and response details
+	// are printed to the console based on the logging flags that are
+	// used.
 	err = shared.PrintJSON(np)
 	if err != nil {
 		return err
 	}
-
-	// Send request
 	npr, err := client.NewProposal(np)
+	if err != nil {
+		return err
+	}
+	err = shared.PrintJSON(npr)
 	if err != nil {
 		return err
 	}
@@ -179,37 +199,35 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 			pr.CensorshipRecord.Token, err)
 	}
 
-	// Print response details
-	return shared.PrintJSON(npr)
+	return nil
 }
 
 const newProposalHelpMsg = `newproposal [flags] "markdownFile" "attachmentFiles" 
 
-Submit a new proposal to Politeia. Proposal must be a markdown file. Accepted 
-attachment filetypes: png or plain text.
+Submit a new proposal to Politeia. A proposal is defined as a single markdown
+file with the filename "index.md" and optional attachment png files. No other
+file types are allowed.
+
+A proposal can be submitted as an RFP (Request for Proposals) by using either
+the --rfp flag or by manually specifying a link by deadline using the --linkby
+flag. Only one of these flags can be used at a time.
+
+A proposal can be submitted as an RFP submission by using the --linkto flag
+to link to and existing RFP proposal.
 
 Arguments:
 1. markdownFile      (string, required)   Proposal 
 2. attachmentFiles   (string, optional)   Attachments 
 
 Flags:
-  --random   (bool, optional)    Generate a random proposal.
-  --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy timestamp into the
-                                 proposal data JSON file. The LinkBy timestamp is set to be one
-                                 week from the current time.
-  --linkto   (string, optional)  Token of an existing public proposal to link to. The token is
-                                 used to populate the LinkTo field in the proposal data JSON file.
-
-Result:
-{
-  "files": [
-    {
-      "name":      (string)  Filename 
-      "mime":      (string)  Mime type 
-      "digest":    (string)  File digest 
-      "payload":   (string)  File payload 
-    }
-  ],
-  "publickey":   (string)  Public key of user
-  "signature":   (string)  Signed merkel root of files in proposal 
-}`
+ --name   (string, optional)  The name of the proposal
+ --linkto (string, optional)  Token of an existing public proposal to link to.
+ --linkby (int64, optional)   UNIX timestamp of RFP deadline. Setting the linkby of a proposal will
+                              make the proposal an RFP with a submission deadline specified by the
+                              linkby.
+ --random (bool, optional)    Generate a random proposal. If this flag is used then the markdown
+                              file argument is no longer required and any provided files will be
+                              ignored.
+ --rfp    (bool, optional)    Make the proposal an RFP by setting the linkby to one month from the
+                              current time. This is intended to be used in place of --linkby.
+`
