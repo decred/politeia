@@ -55,7 +55,7 @@ type Database interface {
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
 	InvoicesByDateRangeStatus(int64, int64, int) ([]Invoice, error)   // Returns all paid invoice line items from range provided
 	InvoicesByDateRange(int64, int64) ([]Invoice, error)              // Returns all invoices from range provided
-	InvoicesByLineItemsProposalToken(string) ([]*Invoice, error)      // Returns all Invoices with paid line item information based on proposal token.
+	InvoicesByLineItemsProposalToken(string) ([]Invoice, error)       // Returns all Invoices with paid line item information based on proposal token.
 
 	// ExchangeRate functions
 	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate

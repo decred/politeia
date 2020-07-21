@@ -835,7 +835,7 @@ func convertRecordFilesToWWW(f []pd.File) []www.File {
 	return files
 }
 
-func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) cms.InvoiceRecord {
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (cms.InvoiceRecord, error) {
 	invRec := cms.InvoiceRecord{}
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
@@ -872,6 +872,13 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) cms.In
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
+
+	payout, err := calculatePayout(dbInvoice)
+	if err != nil {
+		return invRec, err
+	}
+	invRec.Total = int64(payout.Total)
+
 	invInput.LineItems = invInputLineItems
 	invRec.Input = invInput
 	invRec.Input.LineItems = invInputLineItems
@@ -884,7 +891,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) cms.In
 		TimeLastUpdated: dbInvoice.Payments.TimeLastUpdated,
 	}
 	invRec.Payment = payment
-	return invRec
+	return invRec, nil
 }
 
 func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdatabase.Invoice {
@@ -1654,7 +1661,7 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 	return dbDCC
 }
 
-func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.ProposalLineItems {
+func convertDatabaseInvoiceToProposalLineItems(inv cmsdatabase.Invoice) cms.ProposalLineItems {
 	return cms.ProposalLineItems{
 		Month:    int(inv.Month),
 		Year:     int(inv.Year),
