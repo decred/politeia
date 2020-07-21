@@ -119,13 +119,13 @@ func castVotes(token string, voteID string) (bool, error) {
 		case strings.Contains(err.Error(), "connection refused"):
 			// User is not running a dcrwallet instance locally.
 			// This is ok. Print a warning and continue.
-			fmt.Printf("  WARNING: could not connect to dcrwallet")
+			fmt.Printf("  WARNING: could not connect to dcrwallet\n")
 			return true, err
 
 		case strings.Contains(err.Error(), "no eligible tickets"):
 			// User doesn't have any eligible tickets. This is ok.
 			// Print a warning and continue.
-			fmt.Printf("  WARNING: user has no elibigle tickets")
+			fmt.Printf("  WARNING: user has no elibigle tickets\n")
 			return true, err
 
 		default:
