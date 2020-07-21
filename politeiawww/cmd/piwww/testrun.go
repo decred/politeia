@@ -63,9 +63,8 @@ func newNormalProposal() (*v1.NewProposal, error) {
 }
 
 // newProposal returns a NewProposal object contains randonly generated
-// markdown text and a signature from the logged in user, if given `rfp`
-// bool is true it creates an RFP.
-// If given `linkto` it creates a RFP submission.
+// markdown text and a signature from the logged in user. If given `rfp` bool
+// is true it creates an RFP. If given `linkto` it creates a RFP submission.
 func newProposal(rfp bool, linkto string) (*v1.NewProposal, error) {
 	md, err := createMDFile()
 	if err != nil {
@@ -107,9 +106,9 @@ func newProposal(rfp bool, linkto string) (*v1.NewProposal, error) {
 	}, nil
 }
 
-// castVotes casts votes on a proposal with a given voteId
-// If it fails it returns the error and in case of dcrwallet
-// connection error it returns true as first returned value
+// castVotes casts votes on a proposal with a given voteId. If it fails it
+// returns the error and in case of dcrwallet connection error it returns
+// true as first returned value
 func castVotes(token string, voteID string) (bool, error) {
 	var vc VoteCmd
 	vc.Args.Token = token
@@ -1561,136 +1560,138 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			fmt.Printf("  RFP voting still going on...\n")
 			time.Sleep(sleepInterval)
 		}
-		if vs.Approved {
-			fmt.Printf("  RFP approved successfully\n")
-			// Create 4 RFP submissions.
-			// 1 Unreviewd
-			fmt.Println("  Create unreviewed RFP submission")
-			np, err = newSubmissionProposal(token)
-			if err != nil {
-				return err
-			}
-			npr, err = client.NewProposal(np)
-			if err != nil {
-				return err
-			}
-			// 2 Public
-			fmt.Println("  Create 2 more submissions & make them public")
-			np, err = newSubmissionProposal(token)
-			if err != nil {
-				return err
-			}
-			npr, err = client.NewProposal(np)
-			if err != nil {
-				return err
-			}
-			firststoken := npr.CensorshipRecord.Token
-			fmt.Printf("  Set first submission status: not reviewed to" +
-				" public\n")
-			spsc = SetProposalStatusCmd{}
-			spsc.Args.Token = firststoken
-			spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
-			err = spsc.Execute(nil)
-			if err != nil {
-				return err
-			}
-			np, err = newSubmissionProposal(token)
-			if err != nil {
-				return err
-			}
-			npr, err = client.NewProposal(np)
-			if err != nil {
-				return err
-			}
-			secondstoken := npr.CensorshipRecord.Token
-			fmt.Printf("  Set second submission status: not reviewed to" +
-				" public\n")
-			spsc = SetProposalStatusCmd{}
-			spsc.Args.Token = secondstoken
-			spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
-			err = spsc.Execute(nil)
-			if err != nil {
-				return err
-			}
-			// 1 Abandoned, first make public
-			// then abandon
-			np, err = newSubmissionProposal(token)
-			if err != nil {
-				return err
-			}
-			npr, err = client.NewProposal(np)
-			if err != nil {
-				return err
-			}
-			thirdstoken := npr.CensorshipRecord.Token
-			fmt.Printf("  Set third submission status: not reviewed to" +
-				" abandoned\n")
-			spsc = SetProposalStatusCmd{}
-			spsc.Args.Token = thirdstoken
-			spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
-			err = spsc.Execute(nil)
-			if err != nil {
-				return err
-			}
-			spsc.Args.Status = "abandoned"
-			spsc.Args.Message = "this is spam"
-			err = spsc.Execute(nil)
-			if err != nil {
-				return err
-			}
-			// Start runoff vote
-			fmt.Printf("  Start RFP submissions runoff vote\n")
-			svrc := StartVoteRunoffCmd{}
-			svrc.Args.TokenRFP = token
-			svrc.Args.Duration = policy.MinVoteDuration
-			svrc.Args.PassPercentage = "0"
-			svrc.Args.QuorumPercentage = "0"
-			err = svrc.Execute(nil)
-			if err != nil {
-				return err
-			}
-			// Cast first submission votes
-			fmt.Printf("  Cast first submission votes\n")
-			dcrwalletFailed, err = castVotes(firststoken, vsr.OptionsResult[0].Option.Id)
-			if err != nil {
-				return err
-			}
-			if !dcrwalletFailed {
-				// Try cast votes on abandoned & expect error
-				fmt.Println("  Try casting votes on abandoned RFP submission")
-				_, err = castVotes(thirdstoken, vsr.OptionsResult[0].Option.Id)
-				if err != nil {
-					switch {
-					case strings.Contains(err.Error(), "proposal not found"):
-						fmt.Println("  Casting votes on abandoned submission failed")
-					default:
-						return err
-					}
-				}
-
-				// Wait to runoff vote finish
-				var vs v1.VoteSummary
-				for vs.Status != v1.PropVoteStatusFinished {
-					bvs := v1.BatchVoteSummary{
-						Tokens: []string{firststoken},
-					}
-					bvsr, err := client.BatchVoteSummary(&bvs)
-					if err != nil {
-						return err
-					}
-
-					vs = bvsr.Summaries[firststoken]
-
-					fmt.Printf("  Runoff vote still going on...\n")
-					time.Sleep(sleepInterval)
-				}
-				if vs.Approved {
-					fmt.Printf("  First submission approved successfully\n")
-				}
-			}
-		} else {
+		if !vs.Approved {
 			return fmt.Errorf("RFP approved? %v, want true",
 				vs.Approved)
+		}
+
+		fmt.Printf("  RFP approved successfully\n")
+		// Create 4 RFP submissions.
+		// 1 Unreviewd
+		fmt.Println("  Create unreviewed RFP submission")
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		// 2 Public
+		fmt.Println("  Create 2 more submissions & make them public")
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		firststoken := npr.CensorshipRecord.Token
+		fmt.Printf("  Set first submission status: not reviewed to" +
+			" public\n")
+		spsc = SetProposalStatusCmd{}
+		spsc.Args.Token = firststoken
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		secondstoken := npr.CensorshipRecord.Token
+		fmt.Printf("  Set second submission status: not reviewed to" +
+			" public\n")
+		spsc = SetProposalStatusCmd{}
+		spsc.Args.Token = secondstoken
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		// 1 Abandoned, first make public
+		// then abandon
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		thirdstoken := npr.CensorshipRecord.Token
+		fmt.Printf("  Set third submission status: not reviewed to" +
+			" abandoned\n")
+		spsc = SetProposalStatusCmd{}
+		spsc.Args.Token = thirdstoken
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		spsc.Args.Status = "abandoned"
+		spsc.Args.Message = "this is spam"
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		// Start runoff vote
+		fmt.Printf("  Start RFP submissions runoff vote\n")
+		svrc := StartVoteRunoffCmd{}
+		svrc.Args.TokenRFP = token
+		svrc.Args.Duration = policy.MinVoteDuration
+		svrc.Args.PassPercentage = "0"
+		svrc.Args.QuorumPercentage = "0"
+		err = svrc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		// Cast first submission votes
+		fmt.Printf("  Cast first submission votes\n")
+		dcrwalletFailed, err = castVotes(firststoken, vsr.OptionsResult[0].Option.Id)
+		if err != nil {
+			return err
+		}
+		if !dcrwalletFailed {
+			// Try cast votes on abandoned & expect error
+			fmt.Println("  Try casting votes on abandoned RFP submission")
+			_, err = castVotes(thirdstoken, vsr.OptionsResult[0].Option.Id)
+			if err != nil {
+				switch {
+				case strings.Contains(err.Error(), "proposal not found"):
+					fmt.Println("  Casting votes on abandoned submission failed")
+				default:
+					return err
+				}
+			}
+
+			// Wait to runoff vote finish
+			var vs v1.VoteSummary
+			for vs.Status != v1.PropVoteStatusFinished {
+				bvs := v1.BatchVoteSummary{
+					Tokens: []string{firststoken},
+				}
+				bvsr, err := client.BatchVoteSummary(&bvs)
+				if err != nil {
+					return err
+				}
+
+				vs = bvsr.Summaries[firststoken]
+
+				fmt.Printf("  Runoff vote still going on...\n")
+				time.Sleep(sleepInterval)
+			}
+			if !vs.Approved {
+				return fmt.Errorf("First submission approved? %v, want true",
+					vs.Approved)
+			}
+			fmt.Printf("  First submission approved successfully\n")
 		}
 	}
 
