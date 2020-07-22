@@ -1326,7 +1326,17 @@ func (p *politeiawww) handleQiesce(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleQuiesce(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleQuiesce")
 
-	reply, err := p.processQuiesce()
+	var q www2.Quiesce
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&q); err != nil {
+		RespondWithError(w, r, 0, "handleQuiesce: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processQuiesce(q)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleQuiesce: toggleQuiesceMode %v", err)
@@ -1450,7 +1460,7 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, p.handleCensorComment,
 		permissionAdmin)
-	p.addRoute(http.MethodGet, www2.APIRoute,
+	p.addRoute(http.MethodPost, www2.APIRoute,
 		www2.RouteQuiesce, p.handleQuiesce,
 		permissionAdmin)
 

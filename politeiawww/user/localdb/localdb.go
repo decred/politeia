@@ -397,17 +397,16 @@ func (l *localdb) Close() error {
 	return l.userdb.Close()
 }
 
-// ErrQuiesced is emitted when write query is performed in readonly
-// mode
+// SetQuiesce sets localdb quiesce mode toggle value
 //
 // Close satisfies the Database interface.
-func (l *localdb) Quiesce() error {
+func (l *localdb) SetQuiesce(quiesce bool) error {
 	log.Tracef("Quiesce")
 
 	l.Lock()
 	defer l.Unlock()
 
-	l.quiesce = !l.quiesce
+	l.quiesce = quiesce
 
 	return nil
 }

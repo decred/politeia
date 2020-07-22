@@ -9,12 +9,19 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// QuiesceCmd toggles the quiesce mode
-type QuiesceCmd struct{}
+// QuiesceCmd sets the quiesce mode toggle value
+type QuiesceCmd struct {
+	Args struct {
+		Quiesce bool `positional-arg-name:"quiesce"` // Quiesce mode toggle value
+	} `positional-args:"true"`
+}
 
 // Execute executes the quiesce command
 func (cmd *QuiesceCmd) Execute(args []string) error {
-	qr, err := client.Quiesce(&v2.Quiesce{})
+	quiesce := cmd.Args.Quiesce
+	qr, err := client.Quiesce(&v2.Quiesce{
+		Quiesce: quiesce,
+	})
 	if err != nil {
 		return err
 	}
@@ -22,14 +29,22 @@ func (cmd *QuiesceCmd) Execute(args []string) error {
 }
 
 // QuiesceHelpMsg is the output of the help message when `policy` is specified
-const quiesceHelpMsg = `quiesce
+const quiesceHelpMsg = `quiesce "quiesce"
 
-Toggle quiesce mode.
+Set quiesce mode state.
 
 Arguments:
+1. quiesce  (bool, required) Is quiesced
+
+Flags:
 None
+
+Request:
+{
+	"quiesce"  (bool)  Quiesce mode toggle value
+}
 
 Response:
 {
-	"quiesce" (bool)    Indicates if in quiesce mode
+	"quiesce"  (bool)  Indicates if in quiesce mode
 }`

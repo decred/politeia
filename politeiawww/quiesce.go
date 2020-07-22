@@ -13,18 +13,18 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func (p *politeiawww) quiesceToggle() {
+func (p *politeiawww) setQuiesce(quiesce bool) {
 	p.Lock()
 	defer p.Unlock()
-	p.quiesce = !p.quiesce
+	p.quiesce = quiesce
 }
 
-func (p *politeiawww) processQuiesce() (*www2.QuiesceReply, error) {
+func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error) {
 	// Toggle piwww quiesce mode
-	p.quiesceToggle()
+	p.setQuiesce(q.Quiesce)
 
 	// Toggle user db quiesce mode
-	p.db.Quiesce()
+	p.db.SetQuiesce(q.Quiesce)
 	// Setup politeiad /quiesce request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {

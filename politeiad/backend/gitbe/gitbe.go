@@ -2709,11 +2709,11 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 	return record, nil
 }
 
-func (g *gitBackEnd) Quiesce() bool {
+func (g *gitBackEnd) SetQuiesce(quiesce bool) bool {
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
-	g.quiesce = !g.quiesce
+	g.quiesce = quiesce
 	return g.quiesce
 }
 

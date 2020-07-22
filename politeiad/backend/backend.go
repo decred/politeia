@@ -199,8 +199,8 @@ type Backend interface {
 	// Plugin pass-through command
 	Plugin(string, string) (string, string, error) // command type, payload, error
 
-	// Toggle quiesce mode
-	Quiesce() bool
+	// Set quiesce mode toggle value
+	SetQuiesce(quiesce bool) bool
 
 	// Close performs cleanup of the backend.
 	Close()

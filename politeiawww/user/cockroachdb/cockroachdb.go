@@ -773,15 +773,14 @@ func (c *cockroachdb) Close() error {
 	return c.userDB.Close()
 }
 
-// Quiesce toggles userdb quiesce mode, if Quiesced all writes are blocked,
-// only reads all allowed.
-func (c *cockroachdb) Quiesce() error {
+// SetQuiesce sets localdb cockroachdb mode toggle value
+func (c *cockroachdb) SetQuiesce(quiesce bool) error {
 	log.Tracef("Quiesce")
 
 	c.Lock()
 	defer c.Unlock()
 
-	c.quiesce = !c.quiesce
+	c.quiesce = quiesce
 
 	return nil
 }

@@ -377,6 +377,7 @@ type InventoryReply struct {
 // Quiesce toggles the server quiesce mode.
 type Quiesce struct {
 	Challenge string `json:"challenge"` // Random challenge
+	Quiesce   bool   `json:"quiesce"`   // Quiesce mode toggle value
 }
 
 // QuiesceReply includes the quiesce toggle value.
