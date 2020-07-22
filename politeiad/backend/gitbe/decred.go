@@ -1585,6 +1585,10 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 	// Verify proposal state
 	g.Lock()
 	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
+
 	if g.shutdown {
 		return "", backend.ErrShutdown
 	}
@@ -1774,6 +1778,9 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	g.Lock()
 	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 	if g.shutdown {
 		// Make sure we are not shutting down
 		return "", backend.ErrShutdown
@@ -2003,6 +2010,9 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	// Run everything else with the lock held
 	g.Lock()
 	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 	if g.shutdown {
 		return "", backend.ErrShutdown
 	}
@@ -2772,6 +2782,9 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 
 	g.Lock()
 	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 
 	if g.shutdown {
 		return "", backend.ErrShutdown

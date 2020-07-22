@@ -2709,6 +2709,7 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 	return record, nil
 }
 
+// SetQuiesce sets the quiesce mode toggle value.
 func (g *gitBackEnd) SetQuiesce(quiesce bool) bool {
 	// Lock filesystem
 	g.Lock()
