@@ -1033,6 +1033,11 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 
 	cid, payload, err := p.backend.Plugin(pc.Command, pc.Payload)
 	if err != nil {
+		if err == backend.ErrQuiesced {
+			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced,
+				nil)
+			return
+		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v %v: backend plugin failed with "+
