@@ -13,10 +13,15 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func (p *politeiawww) toggleQuiesce() (*www2.QuiesceReply, error) {
-	p.bbMtx.Lock()
-	defer p.bbMtx.Unlock()
+func (p *politeiawww) quiesceToggle() {
+	p.Lock()
+	defer p.Unlock()
 	p.quiesce = !p.quiesce
+}
+
+func (p *politeiawww) processQuiesce() (*www2.QuiesceReply, error) {
+	// Toggle piwww quiesce mode
+	p.quiesceToggle()
 
 	// Toggle user db quiesce mode
 	p.db.Quiesce()
