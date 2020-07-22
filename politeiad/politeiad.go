@@ -1458,7 +1458,7 @@ func _main() error {
 		p.updateVettedMetadata, permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateReadmeRoute,
 		p.updateReadme, permissionAuth)
-	p.addRoute(http.MethodGet, v1.QuiesceRoute, p.quiesce, permissionAuth)
+	p.addRoute(http.MethodPost, v1.QuiesceRoute, p.quiesce, permissionAuth)
 
 	// Setup plugins
 	plugins, err := p.backend.GetPlugins()

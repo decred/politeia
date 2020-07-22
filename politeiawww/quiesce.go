@@ -20,11 +20,7 @@ func (p *politeiawww) setQuiesce(quiesce bool) {
 }
 
 func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error) {
-	// Toggle piwww quiesce mode
-	p.setQuiesce(q.Quiesce)
 
-	// Toggle user db quiesce mode
-	p.db.SetQuiesce(q.Quiesce)
 	// Setup politeiad /quiesce request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -32,13 +28,20 @@ func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error)
 	}
 	e := pd.Quiesce{
 		Challenge: hex.EncodeToString(challenge),
+		Quiesce:   q.Quiesce,
 	}
 
 	// Send politeiad request
-	_, err = p.makeRequest(http.MethodGet, pd.QuiesceRoute, e)
+	_, err = p.makeRequest(http.MethodPost, pd.QuiesceRoute, e)
 	if err != nil {
 		return nil, err
 	}
+
+	// Toggle piwww quiesce mode
+	p.setQuiesce(q.Quiesce)
+
+	// Toggle user db quiesce mode
+	p.db.SetQuiesce(q.Quiesce)
 
 	return &www2.QuiesceReply{
 		Quiesce: p.quiesce,

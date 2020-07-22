@@ -1339,7 +1339,7 @@ func (p *politeiawww) handleQuiesce(w http.ResponseWriter, r *http.Request) {
 	reply, err := p.processQuiesce(q)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleQuiesce: toggleQuiesceMode %v", err)
+			"handleQuiesce: processQuiesce %v", err)
 		return
 	}
 
