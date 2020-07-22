@@ -1569,6 +1569,8 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 			reviews = append(reviews, review)
 		}
 		cmsCodeStat := cms.CodeStats{
+			Month:           codeStat.Month,
+			Year:            codeStat.Year,
 			Repository:      codeStat.Repository,
 			PRs:             prs,
 			Reviews:         reviews,

@@ -12,6 +12,18 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
+var (
+	month31Days = map[int]bool{
+		0:  true,
+		2:  true,
+		4:  true,
+		6:  true,
+		7:  true,
+		9:  true,
+		11: true,
+	}
+)
+
 // processUserCodeStats tries to compile code statistics based on user
 // and month/year provided.
 func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
@@ -37,36 +49,55 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 			ErrorCode: cms.ErrorStatusMissingGithubName,
 		}
 	}
-	cu := user.CMSCodeStatsByUserMonthYear{
-		GithubName: requestedUser.GitHubName,
-		Month:      int(ucs.Month),
-		Year:       int(ucs.Year),
-	}
-	payload, err := user.EncodeCMSCodeStatsByUserMonthYear(cu)
-	if err != nil {
-		return nil, err
-	}
-	pc := user.PluginCommand{
-		ID:      user.CMSPluginID,
-		Command: user.CmdCMSCodeStatsByUserMonthYear,
-		Payload: string(payload),
-	}
+	startDate := time.Unix(ucs.StartTime, 0)
+	endDate := time.Unix(ucs.EndTime, 0)
+	allRepoStats := make([]cms.CodeStats, 0, 1048)
+	for startDate.Before(endDate) {
+		month := startDate.Month()
+		year := startDate.Year()
 
-	// Execute plugin command
-	pcr, err := p.db.PluginExec(pc)
-	if err != nil {
-		return nil, err
-	}
+		cu := user.CMSCodeStatsByUserMonthYear{
+			GithubName: requestedUser.GitHubName,
+			Month:      int(month),
+			Year:       year,
+		}
+		payload, err := user.EncodeCMSCodeStatsByUserMonthYear(cu)
+		if err != nil {
+			return nil, err
+		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdCMSCodeStatsByUserMonthYear,
+			Payload: string(payload),
+		}
 
-	// Decode reply
-	reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply(
-		[]byte(pcr.Payload))
-	if err != nil {
-		return nil, err
-	}
+		// Execute plugin command
+		pcr, err := p.db.PluginExec(pc)
+		if err != nil {
+			return nil, err
+		}
 
+		// Decode reply
+		reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply(
+			[]byte(pcr.Payload))
+		if err != nil {
+			return nil, err
+		}
+		allRepoStats = append(allRepoStats, convertCodeStatsFromDatabase(reply.UserCodeStats)...)
+
+		var addTime time.Duration
+
+		// Figure out if month is 31 days or 30
+		if ok := month31Days[int(month)]; ok {
+			addTime = time.Minute * 60 * 24 * 31 // 31 Days
+		} else {
+			addTime = time.Minute * 60 * 24 * 30 // 30 Days
+		}
+		startDate.Add(addTime)
+	}
 	return &cms.UserCodeStatsReply{
-		RepoStats: convertCodeStatsFromDatabase(reply.UserCodeStats),
+
+		RepoStats: allRepoStats,
 	}, nil
 }
 

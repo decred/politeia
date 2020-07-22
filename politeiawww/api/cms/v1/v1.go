@@ -1054,9 +1054,9 @@ type ProposalBillingDetailsReply struct {
 // UserCodeStats is a request that other members of the requested user's domain
 // may attempt to view the given month/year of code changes
 type UserCodeStats struct {
-	UserID string `json:"userid"`
-	Month  int64  `json:"month"`
-	Year   int64  `json:"year"`
+	UserID    string `json:"userid"`
+	StartTime int64  `json:"starttime"`
+	EndTime   int64  `json:"endtime"`
 }
 
 // UserCodeStatsReply responds with an array of code stats per repo for the
@@ -1068,6 +1068,8 @@ type UserCodeStatsReply struct {
 // CodeStats contains various pieces of information for user's code contributions
 // per repo over a period of time.
 type CodeStats struct {
+	Month           int      `json:"month"`
+	Year            int      `json:"year"`
 	Repository      string   `json:"repository"`
 	MergeAdditions  int64    `json:"mergeadditions"`
 	MergeDeletions  int64    `json:"mergedeletions"`

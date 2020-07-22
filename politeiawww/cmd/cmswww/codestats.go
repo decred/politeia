@@ -15,29 +15,38 @@ import (
 // CodeStatsCmd requests a user's information.
 type CodeStatsCmd struct {
 	Args struct {
-		Month  uint   `positional-arg-name:"month" optional:"true"`
-		Year   uint   `positional-arg-name:"year" optional:"true"`
-		UserID string `positional-arg-name:"userid" optional:"true"`
+		UserID     string `positional-arg-name:"userid" optional:"true"`
+		StartMonth uint   `positional-arg-name:"startmonth" optional:"true"`
+		StartYear  uint   `positional-arg-name:"startyear" optional:"true"`
+		EndMonth   uint   `positional-arg-name:"endmonth" optional:"true"`
+		EndYear    uint   `positional-arg-name:"endyear" optional:"true"`
 	} `positional-args:"true" optional:"true"`
 }
 
 // Execute executes the cms user information command.
 func (cmd *CodeStatsCmd) Execute(args []string) error {
-	month := cmd.Args.Month
-	year := cmd.Args.Year
+	startDate := int64(0)
+	endDate := int64(0)
 
-	if month == 0 || year == 0 {
-		if time.Now().Month() == 1 {
-			month = 12
-			year = uint(time.Now().Year()) - 1
-		} else {
-			month = uint(time.Now().Month()) - 1
-			year = uint(time.Now().Year())
+	if cmd.Args.StartMonth != 0 {
+		if cmd.Args.StartYear == 0 {
+			return fmt.Errorf("most supply a start year if giving an start month")
 		}
-		fmt.Printf("month/year not provided requesting current %v/%v\n", month, year)
-	}
-	uid := cmd.Args.UserID
+		startDate = time.Date(int(cmd.Args.StartYear), time.Month(cmd.Args.StartMonth), 0, 0, 0, 0, 0, time.UTC).Unix()
+	} else {
 
+	}
+	if cmd.Args.EndMonth != 0 {
+		if cmd.Args.EndYear == 0 {
+			return fmt.Errorf("most supply a end year if giving an end month")
+		}
+		endDate = time.Date(int(cmd.Args.EndYear), time.Month(cmd.Args.EndMonth), 0, 0, 0, 0, 0, time.UTC).Unix()
+	} else {
+		fmt.Println("no end date provided, just getting the start date month")
+		endDate = startDate
+	}
+
+	uid := cmd.Args.UserID
 	if uid == "" {
 		lr, err := client.Me()
 		if err != nil {
@@ -47,9 +56,9 @@ func (cmd *CodeStatsCmd) Execute(args []string) error {
 	}
 
 	ucs := cms.UserCodeStats{
-		UserID: uid,
-		Month:  int64(month),
-		Year:   int64(year),
+		UserID:    uid,
+		StartTime: startDate,
+		EndTime:   endDate,
 	}
 
 	csr, err := client.CodeStats(ucs)
