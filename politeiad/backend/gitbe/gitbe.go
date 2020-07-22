@@ -2827,6 +2827,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdLoadVoteResults:
 		payload, err := g.pluginLoadVoteResults()
 		return decredplugin.CmdLoadVoteResults, payload, err
+	case cmsplugin.CmdInventory:
+		payload, err := g.pluginCMSInventory()
+		return cmsplugin.CmdInventory, payload, err
 	case cmsplugin.CmdStartVote:
 		payload, err := g.pluginStartDCCVote(payload)
 		return cmsplugin.CmdStartVote, payload, err
