@@ -332,8 +332,6 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err == backend.ErrQuiesced {
-			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
-				remoteAddr(r))
 			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
 			return
 		}
@@ -445,8 +443,6 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 			return
 		}
 		if err == backend.ErrQuiesced {
-			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
-				remoteAddr(r))
 			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
 			return
 		}
@@ -800,8 +796,6 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == backend.ErrQuiesced {
-			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
-				remoteAddr(r))
 			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
 			return
 		}
@@ -877,8 +871,6 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == backend.ErrQuiesced {
-			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
-				remoteAddr(r))
 			p.respondWithUserError(w, v1.ErrorStatusIsQuiesced, nil)
 			return
 		}
