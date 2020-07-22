@@ -38,16 +38,23 @@ const (
 	keyPaywallAddressIndex = "paywalladdressindex"
 )
 
-var quiesce bool
-
 // cockroachdb implements the user database interface.
 type cockroachdb struct {
 	sync.RWMutex
 
 	shutdown       bool                            // Backend is shutdown
+	quiesce        bool                            // Backebd is quiesced
 	encryptionKey  *[32]byte                       // Data at rest encryption key
 	userDB         *gorm.DB                        // Database context
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
+}
+
+// isShutdown returns whether the backend has been quiesced.
+func (c *cockroachdb) isQuiesced() bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.quiesce
 }
 
 // isShutdown returns whether the backend has been shutdown.
@@ -165,7 +172,7 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) (*uuid.UUID, error) {
 func (c *cockroachdb) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
 
-	if quiesce {
+	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
 
@@ -672,7 +679,7 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 func (c *cockroachdb) InsertUser(u user.User) error {
 	log.Tracef("InsertUser: %v", u.ID)
 
-	if quiesce {
+	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
 
@@ -774,7 +781,7 @@ func (c *cockroachdb) Quiesce() error {
 	c.Lock()
 	defer c.Unlock()
 
-	quiesce = !quiesce
+	c.quiesce = !c.quiesce
 
 	return nil
 }

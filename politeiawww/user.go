@@ -25,10 +25,12 @@ import (
 )
 
 const (
+	// LoginAttemptsToLockUser is the number of allowed wrong
+	// login attempts before locking account
 	LoginAttemptsToLockUser = 5
 
-	// Route to reset password at GUI
-	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
+	// ResetPasswordGuiRoute is the route to reset password at GUI
+	ResetPasswordGuiRoute = "/password"
 
 	emailRegex = `^[a-zA-Z0-9.!#$%&'*+/=?^_` +
 		"`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +

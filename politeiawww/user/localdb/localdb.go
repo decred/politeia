@@ -23,16 +23,14 @@ const (
 	sessionPrefix = "session:"
 )
 
-var (
-	quiesce bool
-	_       user.Database = (*localdb)(nil)
-)
+var _ user.Database = (*localdb)(nil)
 
 // localdb implements the Database interface.
 type localdb struct {
 	sync.RWMutex
 
 	shutdown bool        // Backend is shutdown
+	quiesce  bool        // Backend is quiesced
 	root     string      // Database root
 	userdb   *leveldb.DB // Database context
 }
@@ -59,7 +57,7 @@ func (l *localdb) UserNew(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
 
-	if quiesce {
+	if l.quiesce {
 		return user.ErrQuiesced
 	}
 
@@ -117,7 +115,7 @@ func (l *localdb) UserGet(email string) (*user.User, error) {
 	l.RLock()
 	defer l.RUnlock()
 
-	if quiesce {
+	if l.quiesce {
 		return nil, user.ErrQuiesced
 	}
 
@@ -409,7 +407,7 @@ func (l *localdb) Quiesce() error {
 	l.Lock()
 	defer l.Unlock()
 
-	quiesce = !quiesce
+	l.quiesce = !l.quiesce
 
 	return nil
 }

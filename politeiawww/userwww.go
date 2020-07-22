@@ -12,6 +12,7 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -52,8 +53,16 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 
 	reply, err := p.processNewUser(u)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleNewUser: processNewUser %v", err)
-		return
+		switch err {
+		case user.ErrQuiesced:
+			RespondWithError(w, r, 0, "handleNewUser: processNewUser %v", www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			})
+			return
+		default:
+			RespondWithError(w, r, 0, "handleNewUser: processNewUser %v", err)
+			return
+		}
 	}
 
 	// Reply with the verification token.
