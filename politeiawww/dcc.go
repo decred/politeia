@@ -1059,8 +1059,12 @@ func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.Ca
 		return nil, err
 	}
 
+	endHeight, err := strconv.Atoi(vdr.StartVoteReply.EndHeight)
+	if err != nil {
+		return nil, fmt.Errorf("end height atoi: %v", err)
+	}
 	// Check to make sure that the Vote hasn't ended yet.
-	if uint64(vdr.StartVoteReply.EndHeight) < bb {
+	if uint64(endHeight) < bb {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusDCCVoteEnded,
 		}
@@ -1237,10 +1241,14 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 				v.CensorshipRecord.Token, err)
 		}
 		// Create vote tuple
+		svr, err := convertCMSStartVoteReplyToCMS(vdr.StartVoteReply)
+		if err != nil {
+			return nil, fmt.Errorf("convertCMSStartVoteReplyToCMS %v", err)
+		}
 		vt = append(vt, cms.VoteTuple{
 			DCC:            v,
 			StartVote:      convertCMSStartVoteToCMS(vdr.StartVote),
-			StartVoteReply: convertCMSStartVoteReplyToCMS(vdr.StartVoteReply),
+			StartVoteReply: svr,
 		})
 	}
 
@@ -1483,7 +1491,7 @@ func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.
 	if err != nil {
 		return nil, err
 	}
-	svr := convertCMSStartVoteReplyToCMS(dsvr)
+	svr, err := convertCMSStartVoteReplyToCMS(dsvr)
 	if err != nil {
 		return nil, err
 	}

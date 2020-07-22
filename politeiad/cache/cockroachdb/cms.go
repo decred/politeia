@@ -56,7 +56,11 @@ func (c *cms) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	s := convertStartVoteFromCMS(sv, svr, svr.EndHeight)
+	s, err := convertStartVoteFromCMS(sv, svr, svr.EndHeight)
+	if err != nil {
+		log.Debugf("convertStartVoteFromCMS failed on '%v'", sv)
+		return "", fmt.Errorf("convertStartVoteFromCMS: %v", err)
+	}
 	err = c.newStartDCCVote(c.recordsdb, s)
 	if err != nil {
 		return "", err
@@ -693,8 +697,12 @@ func (c *cms) build(ir *cmsplugin.InventoryReply) error {
 	// Build start vote cache
 	log.Tracef("cms: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
-		sv := convertStartVoteFromCMS(v.StartVote,
+		sv, err := convertStartVoteFromCMS(v.StartVote,
 			v.StartVoteReply, v.StartVoteReply.EndHeight)
+		if err != nil {
+			log.Debugf("convertStartVoteFromCMS failed on '%v'", sv)
+			return fmt.Errorf("convertStartVoteFromCMS: %v", err)
+		}
 		err = c.newStartDCCVote(c.recordsdb, sv)
 		if err != nil {
 			log.Debugf("newStartVote failed on '%v'", sv)

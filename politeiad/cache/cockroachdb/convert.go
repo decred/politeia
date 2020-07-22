@@ -411,7 +411,11 @@ func convertVoteOptionResultsToDecred(r []VoteOptionResult) []decredplugin.VoteO
 	return results
 }
 
-func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply, endHeight uint32) StartDCCVote {
+func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply, endHeight string) (StartDCCVote, error) {
+	endHeightInt, err := strconv.Atoi(endHeight)
+	if err != nil {
+		return StartDCCVote{}, fmt.Errorf("end height atoi: %v", err)
+	}
 	opts := make([]VoteDCCOption, 0, len(sv.Vote.Options))
 	for _, v := range sv.Vote.Options {
 		opts = append(opts, VoteDCCOption{
@@ -430,6 +434,10 @@ func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteRepl
 			Weight: v.Weight,
 		})
 	}
+	startHeight, err := strconv.Atoi(svr.StartBlockHeight)
+	if err != nil {
+		return StartDCCVote{}, fmt.Errorf("start height atoi: %v", err)
+	}
 	return StartDCCVote{
 		Token:            sv.Vote.Token,
 		Mask:             sv.Vote.Mask,
@@ -439,11 +447,11 @@ func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteRepl
 		Options:          opts,
 		PublicKey:        sv.PublicKey,
 		Signature:        sv.Signature,
-		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHeight: uint32(startHeight),
 		StartBlockHash:   svr.StartBlockHash,
-		EndHeight:        endHeight,
+		EndHeight:        uint32(endHeightInt),
 		EligibleUserIDs:  weights,
-	}
+	}, nil
 }
 
 func convertStartVoteToCMS(sv StartDCCVote) (cmsplugin.StartVote, cmsplugin.StartVoteReply) {
@@ -479,9 +487,9 @@ func convertStartVoteToCMS(sv StartDCCVote) (cmsplugin.StartVote, cmsplugin.Star
 	}
 
 	dsvr := cmsplugin.StartVoteReply{
-		StartBlockHeight: sv.StartBlockHeight,
+		StartBlockHeight: strconv.Itoa(int(sv.StartBlockHeight)),
 		StartBlockHash:   sv.StartBlockHash,
-		EndHeight:        sv.EndHeight,
+		EndHeight:        strconv.Itoa(int(sv.EndHeight)),
 	}
 
 	return dsv, dsvr

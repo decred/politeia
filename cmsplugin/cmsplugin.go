@@ -187,9 +187,9 @@ type StartVoteReply struct {
 	Version uint `json:"version"` // Version of this structure
 
 	// Shared data
-	StartBlockHeight uint32 `json:"startblockheight"` // Block height
+	StartBlockHeight string `json:"startblockheight"` // Block height
 	StartBlockHash   string `json:"startblockhash"`   // Block hash
-	EndHeight        uint32 `json:"endheight"`        // Height of vote end
+	EndHeight        string `json:"endheight"`        // Height of vote end
 }
 
 // EncodeStartVoteReply encodes StartVoteReply into a JSON byte slice.

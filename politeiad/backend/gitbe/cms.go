@@ -363,9 +363,9 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 
 	svr := cmsplugin.StartVoteReply{
 		Version:          cmsplugin.VersionStartVoteReply,
-		StartBlockHeight: startVoteBlock.Height,
+		StartBlockHeight: strconv.Itoa(int(startVoteBlock.Height)),
 		StartBlockHash:   startVoteBlock.Hash,
-		EndHeight:        startVoteBlock.Height + vote.Vote.Duration,
+		EndHeight:        strconv.Itoa(int(startVoteBlock.Height + vote.Vote.Duration)),
 	}
 	svrb, err := cmsplugin.EncodeStartVoteReply(svr)
 	if err != nil {
@@ -696,8 +696,11 @@ func (g *gitBackEnd) dccVoteEndHeight(token string) (uint32, error) {
 		}
 		svr = *s
 	}
-
-	return svr.EndHeight, nil
+	endHeight, err := strconv.Atoi(svr.EndHeight)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(endHeight), nil
 }
 
 // writeVote writes the provided vote to the provided journal file path, if the

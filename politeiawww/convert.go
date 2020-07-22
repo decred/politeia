@@ -1726,14 +1726,22 @@ func convertCMSStartVoteToCMSVoteDetailsReply(sv cmsplugin.StartVote, svr cmsplu
 		userWeight := weights.UserID + "-" + strconv.Itoa(int(weights.Weight))
 		userWeights = append(userWeights, userWeight)
 	}
+	startHeight, err := strconv.Atoi(svr.StartBlockHeight)
+	if err != nil {
+		return nil, fmt.Errorf("end height atoi: %v", err)
+	}
+	endHeight, err := strconv.Atoi(svr.EndHeight)
+	if err != nil {
+		return nil, fmt.Errorf("end height atoi: %v", err)
+	}
 	return &cms.VoteDetailsReply{
 		Version:          uint32(sv.Version),
 		Vote:             string(voteb),
 		PublicKey:        sv.PublicKey,
 		Signature:        sv.Signature,
-		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHeight: uint32(startHeight),
 		StartBlockHash:   svr.StartBlockHash,
-		EndBlockHeight:   svr.EndHeight,
+		EndBlockHeight:   uint32(endHeight),
 		UserWeights:      userWeights,
 	}, nil
 }
@@ -1765,12 +1773,20 @@ func convertCMSStartVoteToCMS(sv cmsplugin.StartVote) cms.StartVote {
 	}
 }
 
-func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) cms.StartVoteReply {
-	return cms.StartVoteReply{
-		StartBlockHeight: svr.StartBlockHeight,
-		StartBlockHash:   svr.StartBlockHash,
-		EndBlockHeight:   svr.EndHeight,
+func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) (cms.StartVoteReply, error) {
+	startHeight, err := strconv.Atoi(svr.StartBlockHeight)
+	if err != nil {
+		return cms.StartVoteReply{}, fmt.Errorf("end height atoi: %v", err)
 	}
+	endHeight, err := strconv.Atoi(svr.EndHeight)
+	if err != nil {
+		return cms.StartVoteReply{}, fmt.Errorf("end height atoi: %v", err)
+	}
+	return cms.StartVoteReply{
+		StartBlockHeight: uint32(startHeight),
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   uint32(endHeight),
+	}, nil
 }
 
 func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
