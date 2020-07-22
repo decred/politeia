@@ -50,7 +50,18 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		}
 	}
 	startDate := time.Unix(ucs.StartTime, 0)
-	endDate := time.Unix(ucs.EndTime, 0)
+	if ucs.StartTime == 0 {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+		}
+	}
+	var endDate time.Time
+	if ucs.EndTime == 0 {
+		endDate = startDate
+	} else {
+		endDate = time.Unix(ucs.EndTime, 0)
+	}
+
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
 	for startDate.Before(endDate) {
 		month := startDate.Month()
