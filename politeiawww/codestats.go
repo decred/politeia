@@ -55,11 +55,16 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
 		}
 	}
+	if ucs.StartTime > ucs.EndTime {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+		}
+	}
 	var endDate time.Time
 	if ucs.EndTime == 0 {
 		endDate = startDate
 	} else {
-		endDate = time.Unix(ucs.EndTime, 0)
+		endDate = time.Unix(ucs.EndTime, 0).Add(time.Minute)
 	}
 
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
@@ -96,15 +101,12 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		}
 		allRepoStats = append(allRepoStats, convertCodeStatsFromDatabase(reply.UserCodeStats)...)
 
-		var addTime time.Duration
-
 		// Figure out if month is 31 days or 30
 		if ok := month31Days[int(month)]; ok {
-			addTime = time.Minute * 60 * 24 * 31 // 31 Days
+			startDate = startDate.Add(time.Minute * 60 * 24 * 31) // 31 Days
 		} else {
-			addTime = time.Minute * 60 * 24 * 30 // 30 Days
+			startDate = startDate.Add(time.Minute * 60 * 24 * 30) // 30 Days
 		}
-		startDate.Add(addTime)
 	}
 	return &cms.UserCodeStatsReply{
 
