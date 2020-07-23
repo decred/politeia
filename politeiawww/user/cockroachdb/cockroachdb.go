@@ -43,7 +43,7 @@ type cockroachdb struct {
 	sync.RWMutex
 
 	shutdown       bool                            // Backend is shutdown
-	quiesce        bool                            // Backebd is quiesced
+	quiesce        bool                            // Backend is quiesced
 	encryptionKey  *[32]byte                       // Data at rest encryption key
 	userDB         *gorm.DB                        // Database context
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
