@@ -36,7 +36,7 @@ const (
 	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
 	UpdateReadmeRoute      = "/v1/updatereadme/"               // Update README
-	QuiesceRoute           = "/v1/quiesce/"                    // Toggle quiesce mode
+	QuiesceRoute           = "/v1/quiesce/"                    // Set quiesce toggle value
 
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
