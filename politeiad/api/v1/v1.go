@@ -100,7 +100,7 @@ var (
 		ErrorStatusNoChanges:                     "no changes in record",
 		ErrorStatusRecordFound:                   "record found",
 		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
-		ErrorStatusIsQuiesced:                    "politeiad is quisced",
+		ErrorStatusIsQuiesced:                    "politeiad is quiesced",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
