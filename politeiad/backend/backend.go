@@ -29,7 +29,7 @@ var (
 
 	// ErrQuiesced is returned when a write was attempted while
 	// the backend is quiesced
-	ErrQuiesced = errors.New("backend is quisced, action isn't allowed")
+	ErrQuiesced = errors.New("backend is quiesced, action isn't allowed")
 
 	// ErrNoChanges there are no changes to the record.
 	ErrNoChanges = errors.New("no changes to record")
