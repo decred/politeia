@@ -1774,8 +1774,9 @@ search through the database for invoices that have line-items that have that
 as proposal token added.
 
 There is also a basic pagination feature implemented with an offset and a 
-total count of proposals to return.  These are optional and if both unset, 
-all proposal summaries will be returned.
+page count of proposals to return.  Note, there is a max proposal
+spending list page count.  If above 20, then it will be set to that max.
+These are optional and if both unset, all proposal summaries will be returned.  
 
 Note: This call requires admin privileges.
 
@@ -1861,7 +1862,7 @@ Reply:
 
 ### `Proposal Billing Details`
 
-Retrieve all billing information for all given proposal token.
+Retrieve all billing information for the given proposal token.
 
 Note: This call requires admin privileges.
 
