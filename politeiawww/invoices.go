@@ -1895,11 +1895,9 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
 	}
 
-	pd := www.ProposalsDetails{
-		Token: pbd.Token,
-	}
-	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteProposalDetails, pd)
+	data, err := p.makeProposalsRequest(http.MethodGet, "/proposals/"+pbd.Token, nil)
 	if err != nil {
+		fmt.Println("asdfsdf?")
 		return nil, err
 	}
 
