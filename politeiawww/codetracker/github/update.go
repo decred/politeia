@@ -79,7 +79,7 @@ func (g *github) Update(org string, repoRequest string) error {
 				log.Errorf("error converting api PR to database: %v", err)
 				continue
 			}
-			dbPR, err := g.codedb.PullRequestByURL(pr.URL)
+			dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
 			if err != nil {
 				if err == database.ErrNoPullRequestFound {
 					prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
