@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -230,13 +231,14 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	fmt.Printf("Creating user: %v\n", email)
 
+	ctx := context.Background()
 	nuc := NewUserCmd{
 		Verify: true,
 	}
 	nuc.Args.Email = email
 	nuc.Args.Username = username
 	nuc.Args.Password = password
-	err = nuc.Execute(nil)
+	err = nuc.Execute(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -287,7 +289,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 		// Pay user registration fee
 		fmt.Printf("  Paying user registration fee\n")
-		txID, err := util.PayWithTestnetFaucet(cfg.FaucetHost,
+		txID, err := util.PayWithTestnetFaucet(ctx, cfg.FaucetHost,
 			lr.PaywallAddress, lr.PaywallAmount, "")
 		if err != nil {
 			return err
@@ -336,7 +338,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		fmt.Printf("  Purchasing %v proposal credits\n", numCredits)
 
 		atoms := ppdr.CreditPrice * uint64(numCredits)
-		txID, err := util.PayWithTestnetFaucet(cfg.FaucetHost,
+		txID, err := util.PayWithTestnetFaucet(ctx, cfg.FaucetHost,
 			ppdr.PaywallAddress, atoms, "")
 		if err != nil {
 			return err

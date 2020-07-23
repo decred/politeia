@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -1891,7 +1892,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 
 // processUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
-func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
+func (p *politeiawww) processUserPaymentsRescan(ctx context.Context, upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
 	// Ensure paywall is enabled
 	if !p.paywallIsEnabled() {
 		return &www.UserPaymentsRescanReply{}, nil
@@ -1904,7 +1905,7 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 	}
 
 	// Fetch user payments
-	payments, err := util.FetchTxsForAddressNotBefore(u.NewUserPaywallAddress,
+	payments, err := util.FetchTxsForAddressNotBefore(ctx, u.NewUserPaywallAddress,
 		u.NewUserPaywallTxNotBefore, p.dcrdataHostHTTP())
 	if err != nil {
 		return nil, fmt.Errorf("FetchTxsForAddressNotBefore: %v", err)
@@ -2035,7 +2036,7 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 // processVerifyUserPayment verifies that the provided transaction
 // meets the minimum requirements to mark the user as paid, and then does
 // that in the user database.
-func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
+func (p *politeiawww) processVerifyUserPayment(ctx context.Context, u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
 	var reply www.VerifyUserPaymentReply
 	if p.HasUserPaid(u) {
 		reply.HasPaid = true
@@ -2053,7 +2054,7 @@ func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUser
 		return &reply, nil
 	}
 
-	tx, _, err := util.FetchTxWithBlockExplorers(u.NewUserPaywallAddress,
+	tx, _, err := util.FetchTxWithBlockExplorers(ctx, u.NewUserPaywallAddress,
 		u.NewUserPaywallAmount, u.NewUserPaywallTxNotBefore,
 		p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
 	if err != nil {
@@ -2198,7 +2199,7 @@ func (p *politeiawww) createUserPaywallPoolCopy() map[uuid.UUID]paywallPoolMembe
 
 // checkForUserPayments is called periodically to see if payments have come
 // through.
-func (p *politeiawww) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
+func (p *politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
 	var userIDsToRemove []uuid.UUID
 
 	for userID, poolMember := range pool {
@@ -2237,7 +2238,7 @@ func (p *politeiawww) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember)
 			continue
 		}
 
-		tx, _, err := util.FetchTxWithBlockExplorers(poolMember.address,
+		tx, _, err := util.FetchTxWithBlockExplorers(ctx, poolMember.address,
 			poolMember.amount, poolMember.txNotBefore,
 			p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
 		if err != nil {
@@ -2318,7 +2319,7 @@ func (p *politeiawww) HasUserPaid(u *user.User) bool {
 }
 
 // initPaywallCheck is intended to be called
-func (p *politeiawww) initPaywallChecker() error {
+func (p *politeiawww) initPaywallChecker(ctx context.Context) error {
 	if p.cfg.PaywallAmount == 0 {
 		// Paywall not configured.
 		return nil
@@ -2330,6 +2331,6 @@ func (p *politeiawww) initPaywallChecker() error {
 	}
 
 	// Start the thread that checks for payments.
-	go p.checkForPayments()
+	go p.checkForPayments(ctx)
 	return nil
 }

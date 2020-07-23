@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -52,7 +53,7 @@ func (p *politeiawww) removeWatchAddress(address string) {
 	log.Infof("Unsubscribed: %v", address)
 }
 
-func (p *politeiawww) monitorCMSAddressWatcher() {
+func (p *politeiawww) monitorCMSAddressWatcher(ctx context.Context) {
 	defer func() {
 		log.Infof("Dcrdata websocket closed")
 	}()
@@ -89,7 +90,7 @@ func (p *politeiawww) monitorCMSAddressWatcher() {
 				log.Errorf("payment address does not match watched address message!")
 				continue
 			}
-			paid := p.checkPayments(payment, m.TxHash)
+			paid := p.checkPayments(ctx, payment, m.TxHash)
 			if paid {
 				p.removeWatchAddress(payment.Address)
 			}
@@ -119,24 +120,24 @@ func (p *politeiawww) monitorCMSAddressWatcher() {
 	}
 }
 
-func (p *politeiawww) setupCMSAddressWatcher() {
+func (p *politeiawww) setupCMSAddressWatcher(ctx context.Context) {
 	// Ensure connection is open. If connection is closed, establish a
 	// new connection before continuing.
 	if p.wsDcrdata.Status() != wsdcrdata.StatusOpen {
 		p.wsDcrdata.Reconnect()
 	}
 
-	err := p.restartCMSAddressesWatching()
+	err := p.restartCMSAddressesWatching(ctx)
 	if err != nil {
 		log.Errorf("error restarting address watcher %v", err)
 		return
 	}
 
 	// Monitor websocket connection in a new go routine
-	go p.monitorCMSAddressWatcher()
+	go p.monitorCMSAddressWatcher(ctx)
 
 }
-func (p *politeiawww) restartCMSAddressesWatching() error {
+func (p *politeiawww) restartCMSAddressesWatching(ctx context.Context) error {
 	approvedInvoices, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
 	if err != nil {
 		return err
@@ -171,7 +172,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 	}
 	for _, payments := range unpaidPayments {
 		payments.Address = strings.TrimSpace(payments.Address)
-		paid := p.checkHistoricalPayments(&payments)
+		paid := p.checkHistoricalPayments(ctx, &payments)
 		if !paid {
 			p.addWatchAddress(payments.Address)
 		}
@@ -183,9 +184,9 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTxsForAddressNotBefore which looks for transaction at a given address
 // after a certain time (in Unix seconds).
-func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
+func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *database.Payments) bool {
 	// Get all txs since start time of watcher
-	txs, err := util.FetchTxsForAddressNotBefore(strings.TrimSpace(payment.Address),
+	txs, err := util.FetchTxsForAddressNotBefore(ctx, strings.TrimSpace(payment.Address),
 		payment.TimeStarted, p.dcrdataHostHTTP())
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
@@ -246,7 +247,7 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 	if payment.Status == cms.PaymentStatusPaid {
 		log.Debugf("Updating invoice %v status to paid", payment.InvoiceToken)
 		// Update invoice status here
-		err := p.invoiceStatusPaid(payment.InvoiceToken)
+		err := p.invoiceStatusPaid(ctx, payment.InvoiceToken)
 		if err != nil {
 			log.Errorf("error updating invoice status to paid %v", err)
 		}
@@ -258,8 +259,8 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 // checkPayments checks to see if a given payment has been successfully paid.
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTx which looks for transaction at a given address.
-func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx string) bool {
-	tx, err := util.FetchTx(payment.Address, notifiedTx, p.dcrdataHostHTTP())
+func (p *politeiawww) checkPayments(ctx context.Context, payment *database.Payments, notifiedTx string) bool {
+	tx, err := util.FetchTx(ctx, payment.Address, notifiedTx, p.dcrdataHostHTTP())
 	if err != nil {
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
@@ -301,7 +302,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx strin
 	payment.AmountReceived = int64(amountReceived)
 	payment.TimeLastUpdated = time.Now().Unix()
 
-	err = p.updateInvoicePayment(payment)
+	err = p.updateInvoicePayment(ctx, payment)
 	if err != nil {
 		log.Errorf("error updateInvoicePayment %v", err)
 		return false
@@ -310,7 +311,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx strin
 	if payment.Status == cms.PaymentStatusPaid {
 		log.Debugf("Updating invoice %v status to paid", payment.InvoiceToken)
 		// Update invoice status here
-		err := p.invoiceStatusPaid(payment.InvoiceToken)
+		err := p.invoiceStatusPaid(ctx, payment.InvoiceToken)
 		if err != nil {
 			log.Errorf("error updating invoice status to paid %v", err)
 		}
@@ -319,7 +320,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx strin
 	return false
 }
 
-func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
+func (p *politeiawww) updateInvoicePayment(ctx context.Context, payment *database.Payments) error {
 	// Create new backend invoice payment metadata
 	c := mdstream.InvoicePayment{
 		Version:        mdstream.VersionInvoicePayment,
@@ -348,7 +349,7 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 			},
 		},
 	}
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return err
@@ -374,7 +375,7 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 	}
 	return nil
 }
-func (p *politeiawww) invoiceStatusPaid(token string) error {
+func (p *politeiawww) invoiceStatusPaid(ctx context.Context, token string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -413,7 +414,7 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 			},
 		},
 	}
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return err

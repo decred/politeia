@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/decred/politeia/util"
@@ -21,7 +22,7 @@ type SendFaucetTxCmd struct {
 }
 
 // Execute executes the send faucet tx command.
-func (cmd *SendFaucetTxCmd) Execute(args []string) error {
+func (cmd *SendFaucetTxCmd) Execute(ctx context.Context, args []string) error {
 	address := cmd.Args.Address
 	atoms := cmd.Args.Amount
 	dcr := float64(atoms) / 1e8
@@ -31,7 +32,7 @@ func (cmd *SendFaucetTxCmd) Execute(args []string) error {
 			dcr, address)
 	}
 
-	txID, err := util.PayWithTestnetFaucet(cfg.FaucetHost, address, atoms,
+	txID, err := util.PayWithTestnetFaucet(ctx, cfg.FaucetHost, address, atoms,
 		cmd.Args.OverrideToken)
 	if err != nil {
 		return err

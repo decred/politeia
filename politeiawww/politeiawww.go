@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -295,7 +296,7 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	reply, err := p.processBatchVoteSummary(bvs)
+	reply, err := p.processBatchVoteSummary(r.Context(), bvs)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
@@ -444,7 +445,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleActiveVote")
 
-	avr, err := p.processActiveVote()
+	avr, err := p.processActiveVote(r.Context())
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleActiveVote: processActiveVote %v", err)
@@ -467,7 +468,7 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	avr, err := p.processCastVotes(&cv)
+	avr, err := p.processCastVotes(r.Context(), &cv)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCastVotes: processCastVotes %v", err)
@@ -515,7 +516,7 @@ func (p *politeiawww) handleVoteDetailsV2(w http.ResponseWriter, r *http.Request
 
 // handleGetAllVoteStatus returns the voting status of all public proposals.
 func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
-	gasvr, err := p.processGetAllVoteStatus()
+	gasvr, err := p.processGetAllVoteStatus(r.Context())
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleGetAllVoteStatus: processGetAllVoteStatus %v", err)
@@ -528,7 +529,7 @@ func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Requ
 // handleVoteStatus returns the vote status for a given proposal.
 func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
-	vsr, err := p.processVoteStatus(pathParams["token"])
+	vsr, err := p.processVoteStatus(r.Context(), pathParams["token"])
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVoteStatus: ProcessVoteStatus: %v", err)
@@ -550,7 +551,7 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 	}
 
 	isAdmin := user != nil && user.Admin
-	reply, err := p.processTokenInventory(isAdmin)
+	reply, err := p.processTokenInventory(r.Context(), isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleTokenInventory: processTokenInventory: %v", err)
@@ -601,7 +602,7 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	reply, err := p.processNewProposal(np, user)
+	reply, err := p.processNewProposal(r.Context(), np, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewProposal: processNewProposal %v", err)
@@ -633,7 +634,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.processNewComment(sc, user)
+	cr, err := p.processNewComment(r.Context(), sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: processNewComment: %v", err)
@@ -664,7 +665,7 @@ func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cr, err := p.processLikeComment(lc, user)
+	cr, err := p.processLikeComment(r.Context(), lc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLikeComment: processLikeComment %v", err)
@@ -695,7 +696,7 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 
 	log.Debugf("handleEditProposal: %v", ep.Token)
 
-	epr, err := p.processEditProposal(ep, user)
+	epr, err := p.processEditProposal(r.Context(), ep, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditProposal: processEditProposal %v", err)
@@ -723,7 +724,7 @@ func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request
 			"handleAuthorizeVote: getSessionUser %v", err)
 		return
 	}
-	avr, err := p.processAuthorizeVote(av, user)
+	avr, err := p.processAuthorizeVote(r.Context(), av, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleAuthorizeVote: processAuthorizeVote %v", err)
@@ -897,7 +898,7 @@ func (p *politeiawww) updateBestBlock(bestBlock uint64) {
 // getBestBlock returns the cached best block if there is an active websocket
 // connection to dcrdata. Otherwise, it requests the best block from politeiad
 // using the the decred plugin best block command.
-func (p *politeiawww) getBestBlock() (uint64, error) {
+func (p *politeiawww) getBestBlock(ctx context.Context) (uint64, error) {
 	p.bbMtx.RLock()
 	bb := p.bestBlock
 	p.bbMtx.RUnlock()
@@ -906,7 +907,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	// connection to dcrdata, or if no new block messages have been received
 	// since a connection was established.
 	if bb == 0 {
-		return p.getBestBlockDecredPlugin()
+		return p.getBestBlockDecredPlugin(ctx)
 	}
 
 	return bb, nil
@@ -914,7 +915,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 
 // monitorWSDcrdataPi monitors the websocket connection for pi and handles
 // new websocket messages.
-func (p *politeiawww) monitorWSDcrdataPi() {
+func (p *politeiawww) monitorWSDcrdataPi(ctx context.Context) {
 	defer func() {
 		log.Infof("Dcrdata websocket closed")
 	}()
@@ -946,7 +947,7 @@ func (p *politeiawww) monitorWSDcrdataPi() {
 			p.updateBestBlock(bb)
 
 			// Keep VoteResults table updated with received best block
-			_, err := p.decredLoadVoteResults(bb)
+			_, err := p.decredLoadVoteResults(ctx, bb)
 			if err != nil {
 				log.Errorf("decredLoadVoteResults: %v", err)
 			}
@@ -983,7 +984,7 @@ func (p *politeiawww) monitorWSDcrdataPi() {
 
 // setupWSDcrataPi subscribes and listens to websocket messages from dcrdata
 // that are needed for pi.
-func (p *politeiawww) setupWSDcrdataPi() {
+func (p *politeiawww) setupWSDcrdataPi(ctx context.Context) {
 	// Ensure connection is open. If connection is closed, establish a
 	// new connection before continuing.
 	if p.wsDcrdata.Status() != wsdcrdata.StatusOpen {
@@ -997,7 +998,7 @@ func (p *politeiawww) setupWSDcrdataPi() {
 	}
 
 	// Monitor websocket connection in a new go routine
-	go p.monitorWSDcrdataPi()
+	go p.monitorWSDcrdataPi(ctx)
 }
 
 // handleWebsocket upgrades a regular HTTP connection to a websocket.
@@ -1133,7 +1134,7 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	// Set status
-	reply, err := p.processSetProposalStatus(sps, user)
+	reply, err := p.processSetProposalStatus(r.Context(), sps, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetProposalStatus: processSetProposalStatus %v",
@@ -1173,7 +1174,7 @@ func (p *politeiawww) handleStartVoteV2(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	svr, err := p.processStartVoteV2(sv, user)
+	svr, err := p.processStartVoteV2(r.Context(), sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVoteV2: processStartVoteV2 %v", err)
@@ -1212,7 +1213,7 @@ func (p *politeiawww) handleStartVoteRunoffV2(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	svr, err := p.processStartVoteRunoffV2(sv, user)
+	svr, err := p.processStartVoteRunoffV2(r.Context(), sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVoteRunoffV2: processStartVoteRunoff %v", err)
@@ -1243,7 +1244,7 @@ func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cr, err := p.processCensorComment(cc, user)
+	cr, err := p.processCensorComment(r.Context(), cc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCensorComment: processCensorComment %v", err)

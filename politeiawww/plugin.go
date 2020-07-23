@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -32,7 +33,7 @@ type Plugin struct {
 
 // getBestBlockDecredPlugin asks the decred plugin what the current best block
 // is.
-func (p *politeiawww) getBestBlockDecredPlugin() (uint64, error) {
+func (p *politeiawww) getBestBlockDecredPlugin(ctx context.Context) (uint64, error) {
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return 0, err
@@ -46,7 +47,7 @@ func (p *politeiawww) getBestBlockDecredPlugin() (uint64, error) {
 		Payload:   "",
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return 0, err
@@ -73,7 +74,7 @@ func (p *politeiawww) getBestBlockDecredPlugin() (uint64, error) {
 	return bestBlock, nil
 }
 
-func (p *politeiawww) pluginInventory() ([]Plugin, error) {
+func (p *politeiawww) pluginInventory(ctx context.Context) ([]Plugin, error) {
 	// Setup politeiad request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -85,7 +86,7 @@ func (p *politeiawww) pluginInventory() ([]Plugin, error) {
 	}
 
 	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginInventoryRoute, pi)
 	if err != nil {
 		return nil, fmt.Errorf("makeRequest: %v", err)
@@ -114,7 +115,7 @@ func (p *politeiawww) pluginInventory() ([]Plugin, error) {
 // getPluginInventory obtains the politeiad plugin inventory. If a politeiad
 // connection cannot be made, the call will be retried every 5 seconds for up
 // to 1000 tries.
-func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
+func (p *politeiawww) getPluginInventory(ctx context.Context) ([]Plugin, error) {
 	log.Tracef("getPluginInventory")
 
 	// Attempt to fetch the plugin inventory from politeiad until
@@ -126,11 +127,14 @@ func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
 		plugins       []Plugin
 	)
 	for retries := 0; !done; retries++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		if retries == maxRetries {
 			return nil, fmt.Errorf("max retries exceeded")
 		}
 
-		p, err := p.pluginInventory()
+		p, err := p.pluginInventory(ctx)
 		if err != nil {
 			log.Infof("cannot get politeiad plugin inventory: %v", err)
 			time.Sleep(sleepInterval)

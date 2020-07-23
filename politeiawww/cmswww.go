@@ -76,7 +76,7 @@ func (p *politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reply, err := p.processNewInvoice(ni, user)
+	reply, err := p.processNewInvoice(r.Context(), ni, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewInvoice: processNewInvoice %v", err)
@@ -204,7 +204,7 @@ func (p *politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	reply, err := p.processSetInvoiceStatus(sis, user)
+	reply, err := p.processSetInvoiceStatus(r.Context(), sis, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetInvoiceStatus: processSetInvoiceStatus %v", err)
@@ -269,7 +269,7 @@ func (p *politeiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) 
 
 	log.Debugf("handleEditInvoice: %v", ei.Token)
 
-	epr, err := p.processEditInvoice(ei, user)
+	epr, err := p.processEditInvoice(r.Context(), ei, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditInvoice: processEditInvoice %v", err)
@@ -333,7 +333,7 @@ func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	cr, err := p.processNewCommentInvoice(sc, user)
+	cr, err := p.processNewCommentInvoice(r.Context(), sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewCommentInvoice: processNewCommentInvoice: %v", err)
@@ -381,7 +381,7 @@ func (p *politeiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	ierr, err := p.processInvoiceExchangeRate(ier)
+	ierr, err := p.processInvoiceExchangeRate(r.Context(), ier)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleInvoiceExchangeRate: processNewCommentInvoice: %v", err)
@@ -435,7 +435,7 @@ func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	reply, err := p.processPayInvoices(user)
+	reply, err := p.processPayInvoices(r.Context(), user)
 	if err != nil {
 		RespondWithError(w, r, 0, "handlePayInvoices: processPayInvoices %v",
 			err)
@@ -582,7 +582,7 @@ func (p *politeiawww) handleNewDCC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ndr, err := p.processNewDCC(nd, u)
+	ndr, err := p.processNewDCC(r.Context(), nd, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewDCC: processNewDCC: %v", err)
@@ -609,7 +609,7 @@ func (p *politeiawww) handleDCCDetails(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
 	gd.Token = pathParams["token"]
 
-	gdr, err := p.processDCCDetails(gd)
+	gdr, err := p.processDCCDetails(r.Context(), gd)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleDCCDetails: processDCCDetails: %v", err)
@@ -667,7 +667,7 @@ func (p *politeiawww) handleSupportOpposeDCC(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	sdr, err := p.processSupportOpposeDCC(sd, u)
+	sdr, err := p.processSupportOpposeDCC(r.Context(), sd, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSupportOpposeDCC: processSupportOpposeDCC: %v", err)
@@ -698,7 +698,7 @@ func (p *politeiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cr, err := p.processNewCommentDCC(sc, user)
+	cr, err := p.processNewCommentDCC(r.Context(), sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewCommentDCC: processNewCommentDCC: %v", err)
@@ -751,7 +751,7 @@ func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	adr, err := p.processSetDCCStatus(ad, u)
+	adr, err := p.processSetDCCStatus(r.Context(), ad, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetDCCStatus: processSetDCCStatus: %v", err)
@@ -851,7 +851,7 @@ func (p *politeiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cvr, err := p.processCastVoteDCC(cv, u)
+	cvr, err := p.processCastVoteDCC(r.Context(), cv, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCastVoteDCC: processCastVoteDCC: %v", err)
@@ -873,7 +873,7 @@ func (p *politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	vdr, err := p.processVoteDetailsDCC(vd.Token)
+	vdr, err := p.processVoteDetailsDCC(r.Context(), vd.Token)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVoteDetailsDCC: processVoteDetailsDCC: %v", err)
@@ -887,7 +887,7 @@ func (p *politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Reques
 func (p *politeiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleActiveVoteDCC")
 
-	avr, err := p.processActiveVoteDCC()
+	avr, err := p.processActiveVoteDCC(r.Context())
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleActiveVoteDCC: processActiveVoteDCC %v", err)
@@ -925,7 +925,7 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	svr, err := p.processStartVoteDCC(sv, user)
+	svr, err := p.processStartVoteDCC(r.Context(), sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVoteDCC: processStartVoteDCC %v", err)

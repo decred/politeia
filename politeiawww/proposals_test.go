@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"reflect"
@@ -446,9 +447,10 @@ func TestValidateProposalMetadata(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := p.validateProposalMetadata(test.metadata)
+			err := p.validateProposalMetadata(ctx, test.metadata)
 			got := errToStr(err)
 			want := errToStr(test.want)
 			if got != want {
@@ -692,9 +694,10 @@ func TestValidateProposal(t *testing.T) {
 	}
 
 	// Run test cases
+	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := p.validateProposal(test.newProposal, test.user)
+			_, err := p.validateProposal(ctx, test.newProposal, test.user)
 			got := errToStr(err)
 			want := errToStr(test.want)
 			if got != want {
@@ -1832,9 +1835,10 @@ func TestProcessNewProposal(t *testing.T) {
 	}
 
 	// Run tests
+	ctx := context.Background()
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			npr, err := p.processNewProposal(*v.np, v.usr)
+			npr, err := p.processNewProposal(ctx, *v.np, v.usr)
 			got := errToStr(err)
 			want := errToStr(v.want)
 
@@ -1986,9 +1990,10 @@ func TestProcessEditProposal(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			_, err := p.processEditProposal(v.editProp, v.user)
+			_, err := p.processEditProposal(ctx, v.editProp, v.user)
 			got := errToStr(err)
 			want := errToStr(v.wantError)
 
@@ -2095,7 +2100,8 @@ func TestProcessSetProposalStatus(t *testing.T) {
 			PublicKey:      admin.PublicKey(),
 		}
 
-		_, err := p.processSetProposalStatus(sps, admin)
+		ctx := context.Background()
+		_, err := p.processSetProposalStatus(ctx, sps, admin)
 		got := errToStr(err)
 		want := www.ErrorStatus[www.ErrorStatusReviewerAdminEqualsAuthor]
 		if got != want {
@@ -2243,9 +2249,10 @@ func TestProcessSetProposalStatus(t *testing.T) {
 	}
 
 	// Run tests
+	ctx := context.Background()
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			reply, err := p.processSetProposalStatus(v.sps, v.usr)
+			reply, err := p.processSetProposalStatus(ctx, v.sps, v.usr)
 			got := errToStr(err)
 			want := errToStr(v.want)
 			if got != want {
@@ -2429,9 +2436,10 @@ func TestProcessAuthorizeVote(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			reply, err := p.processAuthorizeVote(v.av, v.user)
+			reply, err := p.processAuthorizeVote(ctx, v.av, v.user)
 			got := errToStr(err)
 			want := errToStr(v.wantErr)
 
@@ -2518,9 +2526,10 @@ func TestProcessStartVoteV2(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			_, err := p.processStartVoteV2(v.sv, v.user)
+			_, err := p.processStartVoteV2(ctx, v.sv, v.user)
 			got := errToStr(err)
 			want := errToStr(v.wantErr)
 			if got != want {
@@ -2776,9 +2785,10 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := p.processStartVoteRunoffV2(test.sv, test.user)
+			_, err := p.processStartVoteRunoffV2(ctx, test.sv, test.user)
 			got := errToStr(err)
 			want := errToStr(test.want)
 			if got != want {

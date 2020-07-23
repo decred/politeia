@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -38,7 +39,7 @@ type poloChartData struct {
 var endPoloDate = time.Date(2019, 4, 1, 0, 0, 0, 0, time.UTC)
 
 // getMonthAverage returns the average USD/DCR price for a given month
-func (p *politeiawww) getMonthAverage(month time.Month, year int) (uint, error) {
+func getMonthAverage(ctx context.Context, month time.Month, year int) (uint, error) {
 	startTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.AddDate(0, 1, 0)
 
@@ -59,21 +60,21 @@ func (p *politeiawww) getMonthAverage(month time.Month, year int) (uint, error) 
 	// Use Binance if start date is AFTER 3/31/19
 	if startTime.Before(endPoloDate) {
 		// Download BTC/DCR and USDT/BTC prices from Polo
-		dcrPrices, err = getPricesPolo(dcrSymbolPolo, unixStart, unixEnd)
+		dcrPrices, err = getPricesPolo(ctx, dcrSymbolPolo, unixStart, unixEnd)
 		if err != nil {
 			return 0, fmt.Errorf("getPricesPolo %v: %v", dcrSymbolPolo, err)
 		}
-		btcPrices, err = getPricesPolo(usdtSymbolPolo, unixStart, unixEnd)
+		btcPrices, err = getPricesPolo(ctx, usdtSymbolPolo, unixStart, unixEnd)
 		if err != nil {
 			return 0, fmt.Errorf("getPricesPolo %v: %v", usdtSymbolPolo, err)
 		}
 	} else {
 		// Download BTC/DCR and USDT/BTC prices from Binance
-		dcrPrices, err = getPricesBinance(dcrSymbolBinance, unixStart, unixEnd)
+		dcrPrices, err = getPricesBinance(ctx, dcrSymbolBinance, unixStart, unixEnd)
 		if err != nil {
 			return 0, fmt.Errorf("getPricesBinance %v: %v", dcrSymbolBinance, err)
 		}
-		btcPrices, err = getPricesBinance(usdtSymbolBinance, unixStart, unixEnd)
+		btcPrices, err = getPricesBinance(ctx, usdtSymbolBinance, unixStart, unixEnd)
 		if err != nil {
 			return 0, fmt.Errorf("getPricesBinance %v: %v", usdtSymbolBinance, err)
 		}
@@ -105,9 +106,9 @@ func (p *politeiawww) getMonthAverage(month time.Month, year int) (uint, error) 
 // of unix timestamp => average price
 // Currently being replaced by Binance data due to Polo's ongoing issues with
 // volume.
-func getPricesPolo(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
+func getPricesPolo(ctx context.Context, pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
 	// Construct HTTP request and set parameters
-	req, err := http.NewRequest(http.MethodGet, poloURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, poloURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,9 +154,9 @@ func getPricesPolo(pairing string, startDate int64, endDate int64) (map[uint64]f
 // getPricesBinance contacts the Binance API to download
 // price data for a given CC pairing. Returns a map
 // of unix timestamp => average price
-func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
+func getPricesBinance(ctx context.Context, pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
 	// Construct HTTP request and set parameters
-	req, err := http.NewRequest(http.MethodGet, binanceURL+"/api/v1/klines", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, binanceURL+"/api/v1/klines", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -229,13 +230,13 @@ func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint6
 // processInvoiceExchangeRate handles requests to return an exchange for a given
 // month and year. It first attempts to find the exchange rate from the database
 // and if none is found it requests the monthly average from the exchange API.
-func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
+func (p *politeiawww) processInvoiceExchangeRate(ctx context.Context, ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
 	reply := cms.InvoiceExchangeRateReply{}
 
 	monthAvg, err := p.cmsDB.ExchangeRate(int(ier.Month), int(ier.Year))
 	if err != nil {
 		if err == database.ErrExchangeRateNotFound {
-			monthAvgRaw, err := p.getMonthAverage(time.Month(ier.Month), int(ier.Year))
+			monthAvgRaw, err := getMonthAverage(ctx, time.Month(ier.Month), int(ier.Year))
 			if err != nil {
 				log.Errorf("processInvoiceExchangeRate: getMonthAverage: %v", err)
 				return reply, www.UserError{
