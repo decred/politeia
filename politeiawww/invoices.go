@@ -1803,6 +1803,24 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 
 	approvedProposals := tvr.Approved
 
+	var bpr www.BatchProposalsReply
+	if len(approvedProposals) > 0 {
+		// Go fetch proposal information to get name/title.
+		bp := &www.BatchProposals{
+			Tokens: approvedProposals,
+		}
+
+		data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+		if err != nil {
+			return nil, err
+		}
+
+		err = json.Unmarshal(data, &bpr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	count := pbs.Count
 	if count > cms.ProposalBillingListPageSize {
 		count = cms.ProposalBillingListPageSize
@@ -1841,22 +1859,13 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 			}
 			totalSpent += int64(payout.Total)
 		}
-		// Go fetch proposal information to get name/title.
-		bp := &www.BatchProposals{
-			Tokens: []string{prop},
+		// Look across approved proposals batch reply for proposal name.
+		for _, propDetails := range bpr.Proposals {
+			if propDetails.CensorshipRecord.Token == prop {
+				spendingSummary.Title = propDetails.Name
+				break
+			}
 		}
-
-		data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
-		if err != nil {
-			return nil, err
-		}
-
-		var bpr www.BatchProposalsReply
-		err = json.Unmarshal(data, &bpr)
-		if err != nil {
-			return nil, err
-		}
-		spendingSummary.Title = bpr.Proposals[0].Name
 		spendingSummary.TotalBilled = totalSpent
 		spendingSummaries = append(spendingSummaries, spendingSummary)
 	}
