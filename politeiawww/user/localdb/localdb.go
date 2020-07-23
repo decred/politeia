@@ -23,7 +23,9 @@ const (
 	sessionPrefix = "session:"
 )
 
-var _ user.Database = (*localdb)(nil)
+var (
+	_ user.Database = (*localdb)(nil)
+)
 
 // localdb implements the Database interface.
 type localdb struct {
