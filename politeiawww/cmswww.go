@@ -5,8 +5,8 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"text/template"
 
@@ -931,43 +931,120 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
-	route := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		route = cms.ProposalsTestnet
-	}
-	route = route + "/api/v1" + www.RouteTokenInventory
-
-	resp, err := http.Get(route)
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handlePassThroughTokenInventory: http.Get: %v", err)
+			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
 	}
-	defer resp.Body.Close()
-
-	data, _ := ioutil.ReadAll(resp.Body)
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
 func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughBatchProposals")
 
-	route := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		route = cms.ProposalsTestnet
-	}
-	route = route + "/api/v1" + www.RouteBatchProposals
-
-	resp, err := http.Post(route, "application/json", r.Body)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handlePassThroughBatchProposals: http.NewRequest: %v", err)
+	var bp www.BatchProposals
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bp); err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
 		return
 	}
-	defer resp.Body.Close()
 
-	data, _ := ioutil.ReadAll(resp.Body)
+	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
+		return
+	}
 	util.RespondRaw(w, http.StatusOK, data)
+}
+
+// makeProposalsRequest submits pass through requests to the proposals sites
+// (testnet or mainnet).  It takes a http method type, proposals route and a
+// request interface as arguments.  It returns the response body as byte array
+// (which can then be decoded as though a response directly from proposals).
+func (p *politeiawww) makeProposalsRequest(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		requestBody  []byte
+		responseBody []byte
+		cookies      []*http.Cookie
+		csrf         string
+		err          error
+	)
+	if v != nil {
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	client, err := util.NewClient(false, "")
+	if err != nil {
+		return nil, err
+	}
+
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+
+	route = dest + "/api/v1" + route
+
+	// We have to special case post requests since they require to first get
+	// cookies and csrf headers from a Version GET request.
+	if method == http.MethodPost {
+		versionRoute := dest + "/api/v1" + www.RouteVersion
+		req, err := http.NewRequest(http.MethodGet, versionRoute, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		r, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer r.Body.Close()
+
+		cookies = r.Cookies()
+		csrf = r.Header.Get(www.CsrfToken)
+	}
+
+	req, err := http.NewRequest(method, route,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	req.Header.Set(www.CsrfToken, csrf)
+
+	r, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		var pdErrorReply www.PDErrorReply
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&pdErrorReply); err != nil {
+			return nil, err
+		}
+
+		return nil, www.PDError{
+			HTTPCode:   r.StatusCode,
+			ErrorReply: pdErrorReply,
+		}
+	}
+
+	responseBody = util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
