@@ -20,6 +20,7 @@ func (p *politeiawww) setQuiesce(quiesce bool) {
 }
 
 func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error) {
+	log.Tracef("processQuiesce: %v", q.Quiesce)
 
 	// Setup politeiad /quiesce request
 	challenge, err := util.Random(pd.ChallengeSize)
