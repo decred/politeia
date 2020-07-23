@@ -149,8 +149,6 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
 		switch {
 		case pdErrorCode == www.ErrorStatusIsQuiesced:
-			log.Errorf("%v politeiad is quiesced, writes aren't allowed",
-				remoteAddr(r))
 			util.RespondWithJSON(w, pdError.HTTPCode,
 				www.ErrorReply{
 					ErrorCode:    int64(pdErrorCode),
