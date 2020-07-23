@@ -1802,6 +1802,12 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 	}
 
 	approvedProposals := tvr.Approved
+
+	count := pbs.Count
+	if count > cms.ProposalBillingListPageSize {
+		count = cms.ProposalBillingListPageSize
+	}
+
 	proposalInvoices := make(map[string][]*database.Invoice, len(approvedProposals))
 	for i, prop := range approvedProposals {
 		if i < pbs.Offset {
@@ -1817,10 +1823,11 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 			proposalInvoices[prop] = make([]*database.Invoice, 0)
 		}
 
-		if pbs.Count != 0 && len(proposalInvoices) >= pbs.Count {
+		if count != 0 && len(proposalInvoices) >= count {
 			break
 		}
 	}
+
 	spendingSummaries := make([]cms.ProposalSpending, 0, len(proposalInvoices))
 	for prop, invoices := range proposalInvoices {
 		spendingSummary := cms.ProposalSpending{}

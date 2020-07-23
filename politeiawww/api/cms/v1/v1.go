@@ -176,6 +176,11 @@ const (
 	// statement contained within a DCC
 	PolicyMaxSponsorStatementLength = 5000
 
+	// ProposalBillingListPageSize is the maximum number of proposal billing
+	// summaries returned for the routes that return lists of proposal billing
+	// summaries.
+	ProposalBillingListPageSize = 50
+
 	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
 	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
 	ErrorStatusInvoiceNotFound                www.ErrorStatusT = 1003
