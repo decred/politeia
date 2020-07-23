@@ -45,6 +45,4 @@ Request:
 }
 
 Response:
-{
-	"quiesce"  (bool)  Indicates if in quiesce mode
-}`
+{}`

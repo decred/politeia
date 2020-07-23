@@ -44,7 +44,5 @@ func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error)
 	// Toggle user db quiesce mode
 	p.db.SetQuiesce(q.Quiesce)
 
-	return &www2.QuiesceReply{
-		Quiesce: p.quiesce,
-	}, nil
+	return &www2.QuiesceReply{}, nil
 }

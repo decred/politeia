@@ -177,6 +177,4 @@ type Quiesce struct {
 
 // QuiesceReply is the reply to the Quiesce command. It includes the quiesce
 // toggle value
-type QuiesceReply struct {
-	Quiesce bool `json:"quiesce"` // Indicates if quiesce mode is on.
-}
+type QuiesceReply struct{}
