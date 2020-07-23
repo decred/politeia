@@ -403,7 +403,7 @@ func (l *localdb) Close() error {
 //
 // Close satisfies the Database interface.
 func (l *localdb) SetQuiesce(quiesce bool) error {
-	log.Tracef("Quiesce")
+	log.Tracef("SetQuiesce: %v", quiesce)
 
 	l.Lock()
 	defer l.Unlock()

@@ -775,7 +775,7 @@ func (c *cockroachdb) Close() error {
 
 // SetQuiesce sets localdb cockroachdb mode toggle value
 func (c *cockroachdb) SetQuiesce(quiesce bool) error {
-	log.Tracef("Quiesce")
+	log.Tracef("SetQuiesce: %v", quiesce)
 
 	c.Lock()
 	defer c.Unlock()

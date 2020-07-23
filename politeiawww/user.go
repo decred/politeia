@@ -30,7 +30,7 @@ const (
 	LoginAttemptsToLockUser = 5
 
 	// ResetPasswordGuiRoute is the route to reset password at GUI
-	ResetPasswordGuiRoute = "/password"
+	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
 
 	emailRegex = `^[a-zA-Z0-9.!#$%&'*+/=?^_` +
 		"`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +
