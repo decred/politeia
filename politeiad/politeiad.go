@@ -679,8 +679,7 @@ func (p *politeia) quiesce(w http.ResponseWriter, r *http.Request) {
 		Response: hex.EncodeToString(response[:]),
 	}
 
-	quiesce := p.backend.SetQuiesce(q.Quiesce)
-	reply.Quiesce = quiesce
+	p.backend.SetQuiesce(q.Quiesce)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

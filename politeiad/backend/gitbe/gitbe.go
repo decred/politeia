@@ -2710,12 +2710,11 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 }
 
 // SetQuiesce sets the quiesce mode toggle value.
-func (g *gitBackEnd) SetQuiesce(quiesce bool) bool {
+func (g *gitBackEnd) SetQuiesce(quiesce bool) {
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
 	g.quiesce = quiesce
-	return g.quiesce
 }
 
 // Inventory returns an inventory of vetted and unvetted records.  If

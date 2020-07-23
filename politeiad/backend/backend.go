@@ -200,7 +200,7 @@ type Backend interface {
 	Plugin(string, string) (string, string, error) // command type, payload, error
 
 	// Set quiesce mode toggle value
-	SetQuiesce(quiesce bool) bool
+	SetQuiesce(quiesce bool)
 
 	// Close performs cleanup of the backend.
 	Close()

@@ -383,7 +383,6 @@ type Quiesce struct {
 // QuiesceReply includes the quiesce toggle value.
 type QuiesceReply struct {
 	Response string `json:"response"` // Challenge response
-	Quiesce  bool   `json:"quiesce"`  // Is quiesced
 }
 
 // UserErrorReply returns details about an error that occurred while trying to
