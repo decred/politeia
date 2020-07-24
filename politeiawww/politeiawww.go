@@ -69,6 +69,7 @@ type wsContext struct {
 	subscriptions map[string]struct{}
 	errorC        chan www.WSError
 	pingC         chan struct{}
+	quiesceC      chan bool
 	done          chan struct{} // SHUT...DOWN...EVERYTHING...
 }
 
@@ -807,9 +808,6 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 				return
 			}
 
-			//log.Tracef("subscribe: %v %v", wc.uuid,
-			//	spew.Sdump(subscribe))
-
 			subscriptions := make(map[string]struct{})
 			var errors []string
 			for _, v := range subscribe.RPCS {
@@ -849,7 +847,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 }
 
 // handleWebsocketWrite attempts to notify a subscribed websocket. Currently
-// only ping is supported.
+// only ping & quiesce are supported.
 func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 	defer wc.wg.Done()
 	log.Tracef("handleWebsocketWrite %v", wc)
@@ -881,6 +879,18 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 			cmd = www.WSCPing
 			id = ""
 			payload = www.WSPing{Timestamp: time.Now().Unix()}
+		case quiesce, ok := <-wc.quiesceC:
+			if !ok {
+				log.Tracef("handleWebsocketWrite quiesce not ok"+
+					" %v", wc)
+				return
+			}
+			cmd = www.WSCQuiesce
+			id = ""
+			payload = www.WSQuiesce{
+				Timestamp: time.Now().Unix(),
+				Quiesce:   quiesce,
+			}
 		}
 
 		err := utilwww.WSWrite(wc.conn, cmd, id, payload)
@@ -1014,6 +1024,7 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 		uuid:          id,
 		subscriptions: make(map[string]struct{}),
 		pingC:         make(chan struct{}),
+		quiesceC:      make(chan bool),
 		errorC:        make(chan www.WSError),
 		done:          make(chan struct{}),
 	}

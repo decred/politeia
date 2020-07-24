@@ -1346,6 +1346,7 @@ type TokenInventoryReply struct {
 const (
 	WSCError     = "error"
 	WSCPing      = "ping"
+	WSCQuiesce   = "quiesce"
 	WSCSubscribe = "subscribe"
 )
 
@@ -1405,4 +1406,11 @@ type VerifyTOTP struct {
 // VerifyTOTPReply will return an empty reply if it was successfully confirmed
 // with no errors.
 type VerifyTOTPReply struct {
+}
+
+// WSQuiesce is a server side push to the client to inform it about quiesce
+// mode toggle
+type WSQuiesce struct {
+	Timestamp int64 `json:"tiestamp"`
+	Quiesce   bool  `json:"quiesce"`
 }
