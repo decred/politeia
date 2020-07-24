@@ -30,6 +30,15 @@ The politeia stack is as follows:
 |        dcrtimed         |
 +-------------------------+
 ```
+## API Documentation
+
+### v1
+
+* [politeiawww API Specification v1](https://github.com/decred/politeia/blob/master/politeiawww/api/www/v1/api.md) - This document describes the REST API provided by a politeiawww server. The politeiawww server is the web server backend and it interacts with a JSON REST API. This document also describes websockets for server side notifications. It does not render HTML.
+
+### v2
+
+* [politeiawww API Specification v2](https://github.com/decred/politeia/blob/master/politeiawww/api/www/v2/api.md) - This document describes the v2 REST API provided by a politeiawww server. The politeiawww server is the web server backend that interacts with clients using a JSON REST API.
 
 ## Components
 
