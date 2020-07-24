@@ -962,6 +962,53 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
+func (p *politeiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalBillingSummary")
+
+	var pbs cms.ProposalBillingSummary
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &pbs)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleProposalBillingSummary: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	pbsr, err := p.processProposalBillingSummary(pbs)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBillingSummary: processProposalBillingSummary %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pbsr)
+}
+
+func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalBillingDetails")
+
+	var pbd cms.ProposalBillingDetails
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pbd); err != nil {
+		RespondWithError(w, r, 0, "handleProposalBillingDetails: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	svr, err := p.processProposalBillingDetails(pbd)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBillingDetails: processProposalBillingDetails %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
 // makeProposalsRequest submits pass through requests to the proposals sites
 // (testnet or mainnet).  It takes a http method type, proposals route and a
 // request interface as arguments.  It returns the response body as byte array
@@ -1174,5 +1221,11 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteStartVoteDCC, p.handleStartVoteDCC,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteProposalBillingSummary, p.handleProposalBillingSummary,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
 		permissionAdmin)
 }

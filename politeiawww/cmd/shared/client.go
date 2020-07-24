@@ -896,6 +896,54 @@ func (c *Client) ProposalBilling(pb *cms.ProposalBilling) (*cms.ProposalBillingR
 	return &pbr, nil
 }
 
+// ProposalBillingDetails retrieves the billing for the requested proposal
+func (c *Client) ProposalBillingDetails(pbd *cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteProposalBillingDetails, pbd)
+	if err != nil {
+		return nil, err
+	}
+
+	var pbdr cms.ProposalBillingDetailsReply
+	err = json.Unmarshal(responseBody, &pbdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalBillingDetailsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pbdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pbdr, nil
+}
+
+// ProposalBillingSummary retrieves the billing for all approved proposals.
+func (c *Client) ProposalBillingSummary(pbd *cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RouteProposalBillingSummary, pbd)
+	if err != nil {
+		return nil, err
+	}
+
+	var pbdr cms.ProposalBillingSummaryReply
+	err = json.Unmarshal(responseBody, &pbdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalBillingSummaryReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pbdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pbdr, nil
+}
+
 // AdminInvoices retrieves invoices base on possible field set in the request
 // month/year and/or status
 func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
