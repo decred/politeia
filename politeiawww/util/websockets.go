@@ -13,6 +13,7 @@ import (
 )
 
 var (
+	// ErrInvalidWSCommand is emitted when invalid websocket command is used
 	ErrInvalidWSCommand = errors.New("invalid webssocket command")
 )
 
@@ -20,6 +21,7 @@ func validCommand(cmd string) bool {
 	switch cmd {
 	case v1.WSCError:
 	case v1.WSCPing:
+	case v1.WSCQuiesce:
 	case v1.WSCSubscribe:
 	default:
 		return false
@@ -27,18 +29,23 @@ func validCommand(cmd string) bool {
 	return true
 }
 
+// ValidSubscription validates wether given ws subscription command is valid
 func ValidSubscription(cmd string) bool {
 	switch cmd {
 	case v1.WSCPing:
+	case v1.WSCQuiesce:
 	default:
 		return false
 	}
 	return true
 }
 
+// SubsciptionReqAuth returns wether given ws subscription command requires
+// authentication or not
 func SubsciptionReqAuth(cmd string) bool {
 	switch cmd {
 	case v1.WSCPing:
+	case v1.WSCQuiesce:
 	default:
 		return true
 	}

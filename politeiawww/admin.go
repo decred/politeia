@@ -6,9 +6,11 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"net/http"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/util"
 )
@@ -43,6 +45,21 @@ func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error)
 
 	// Toggle user db quiesce mode
 	p.db.SetQuiesce(q.Quiesce)
+
+	// Emit 'quiesce' websocket event
+	p.wsMtx.RLock()
+	defer p.wsMtx.RUnlock()
+
+	for _, ws := range p.ws {
+		for _, v := range ws {
+			fmt.Println(v.subscriptions)
+			if _, ok := v.subscriptions[www.WSCQuiesce]; !ok {
+				continue
+			}
+
+			v.quiesceC <- q.Quiesce
+		}
+	}
 
 	return &www2.QuiesceReply{}, nil
 }
