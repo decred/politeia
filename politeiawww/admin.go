@@ -6,7 +6,6 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"net/http"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -52,7 +51,6 @@ func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error)
 
 	for _, ws := range p.ws {
 		for _, v := range ws {
-			fmt.Println(v.subscriptions)
 			if _, ok := v.subscriptions[www.WSCQuiesce]; !ok {
 				continue
 			}
