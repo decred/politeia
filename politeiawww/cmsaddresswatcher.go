@@ -20,7 +20,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
-	"github.com/decred/politeia/politeiawww/dcrdata"
+	"github.com/decred/politeia/politeiawww/wsdcrdata"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -59,7 +59,7 @@ func (p *politeiawww) setupCMSAddressWatcher() {
 	go func() {
 		for {
 			receiver, err := p.wsDcrdata.Receive()
-			if err == dcrdata.ErrShutdown {
+			if err == wsdcrdata.ErrShutdown {
 				log.Infof("Dcrdata websocket closed")
 				return
 			} else if err != nil {
@@ -460,7 +460,7 @@ func (p *politeiawww) reconnectWS() {
 	var err error
 	// Retry wsDcrdata reconnect every 1 minute
 	for {
-		p.wsDcrdata, err = dcrdata.NewWSDcrdata(p.dcrdataHostWS())
+		p.wsDcrdata, err = wsdcrdata.NewWSDcrdata(p.dcrdataHostWS())
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
 		}

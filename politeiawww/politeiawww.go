@@ -23,9 +23,9 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
-	"github.com/decred/politeia/politeiawww/dcrdata"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
+	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/google/uuid"
@@ -135,7 +135,7 @@ type politeiawww struct {
 
 	// WSDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket
-	wsDcrdata *dcrdata.WSDcrdata
+	wsDcrdata *wsdcrdata.WSDcrdata
 
 	// The current best block is cached and updated using a websocket
 	// subscription to dcrdata. If the websocket connection is not active,
@@ -927,7 +927,7 @@ func (p *politeiawww) resetPiDcrdataWSSubs() error {
 // setupPiDcrdataWSSubs subscribes and listens to websocket messages from
 // dcrdata that are needed for pi.
 func (p *politeiawww) setupPiDcrdataWSSubs() error {
-	err := p.wsDcrdata.Subscribe(dcrdata.NewBlockSub)
+	err := p.wsDcrdata.Subscribe(wsdcrdata.NewBlockSub)
 	if err != nil {
 		return err
 	}
@@ -935,7 +935,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 	go func() {
 		for {
 			receiver, err := p.wsDcrdata.Receive()
-			if err == dcrdata.ErrShutdown {
+			if err == wsdcrdata.ErrShutdown {
 				log.Infof("Dcrdata websocket closed")
 				return
 			} else if err != nil {
@@ -956,7 +956,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 
 				log.Errorf("WSDcrdata receive channel closed. Will reconnect.")
 				err = p.resetPiDcrdataWSSubs()
-				if err == dcrdata.ErrShutdown {
+				if err == wsdcrdata.ErrShutdown {
 					log.Infof("Dcrdata websocket closed")
 					return
 				} else if err != nil {
@@ -976,7 +976,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 			case *pstypes.HangUp:
 				log.Infof("Dcrdata has hung up. Will reconnect.")
 				err = p.resetPiDcrdataWSSubs()
-				if err == dcrdata.ErrShutdown {
+				if err == wsdcrdata.ErrShutdown {
 					log.Infof("Dcrdata websocket closed")
 					return
 				} else if err != nil {
