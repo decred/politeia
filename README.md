@@ -202,7 +202,7 @@ docs](https://www.cockroachlabs.com/docs/stable/manual-deployment.html).
 You can now start CockroachDB using the command below.  The `cachesetup.sh`
 script that is run next requires that a CockroachDB is running.
 
-    cockroach start \
+    cockroach start-single-node \
       --certs-dir=${HOME}/.cockroachdb/certs/node \
       --listen-addr=localhost \
       --store=${HOME}/.cockroachdb/data
