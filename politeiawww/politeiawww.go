@@ -1033,6 +1033,11 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 		EnableCompression: true,
 	}
 
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		// XXX add actual check here@!
+		return true
+	}
+
 	var err error
 	wc.conn, err = upgrader.Upgrade(w, r, nil)
 	if err != nil {
