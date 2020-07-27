@@ -344,7 +344,7 @@ func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, err
 func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([]database.Invoice, error) {
 	log.Debugf("InvoicesByDateRangeStatus: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
-	// Get all invoice changes of PAID status within date range.
+	// Get all invoice changes of given status within date range.
 	invoiceChanges := make([]InvoiceChange, 0, 1024) // PNOOMA
 	err := c.recordsdb.
 		Where("new_status = ? AND "+
@@ -390,10 +390,12 @@ func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([
 func (c *cockroachdb) InvoicesByDateRange(start, end int64) ([]database.Invoice, error) {
 	log.Debugf("InvoicesByDateRange: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
-	// Get all invoice changes of PAID status within date range.
+	// Get all invoice changes of NEW status within date range.
 	invoiceChanges := make([]InvoiceChange, 0, 1024) // PNOOMA
 	err := c.recordsdb.
-		Where("timestamp BETWEEN ? AND ?",
+		Where("new_status = ? AND"+
+			"timestamp BETWEEN ? AND ?",
+			v1.InvoiceStatusNew,
 			time.Unix(start, 0),
 			time.Unix(end, 0)).
 		Find(&invoiceChanges).

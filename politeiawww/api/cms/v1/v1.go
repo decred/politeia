@@ -551,8 +551,8 @@ type Invoices struct {
 	Year      uint16         `json:"year"`   // Year of Invoice
 	Status    InvoiceStatusT `json:"status"` // Current status of invoice
 	UserID    string         `json:"userid"` // User ID for invoices to return
-	StartTime int64          `json:"start"`  // Start time for range
-	EndTime   int64          `json:"end"`    // End time for range
+	StartTime int64          `json:"start"`  // Start time for range of invoice submission
+	EndTime   int64          `json:"end"`    // End time for range of invoice submission
 }
 
 // InvoicesReply is used to reply to an admin invoices command.
