@@ -5,7 +5,14 @@
 package tlogbe
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"time"
+
 	dcrtime "github.com/decred/dcrtime/api/v2"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
+	"github.com/decred/politeia/util"
 	"github.com/google/trillian/types"
 )
 
@@ -21,44 +28,23 @@ const (
 	// Seconds Minutes Hours Days Months DayOfWeek
 	anchorSchedule = "0 56 * * * *" // At 56 minutes every hour
 
-	// TODO does this need to be unique?
+	// anchorID is included in the timestamp and verify requests as a
+	// unique identifier.
 	anchorID = "tlogbe"
 )
 
 // anchor represents an anchor, i.e. timestamp, of a trillian tree at a
-// specific tree size. The LogRoot is hashed and anchored using dcrtime. Once
-// dcrtime timestamp is verified the anchor structure is updated and saved to
-// the key-value store.
+// specific tree size. A SHA256 digest of the LogRoot is timestamped using
+// dcrtime.
 type anchor struct {
 	TreeID       int64                 `json:"treeid"`
 	LogRoot      *types.LogRootV1      `json:"logroot"`
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
 }
 
-/*
-func convertBlobEntryFromAnchor(a anchor) (*blobEntry, error) {
-	data, err := json.Marshal(a)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		dataDescriptor{
-			Type:       dataTypeStructure,
-			Descriptor: dataDescriptorAnchor,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := blobEntryNew(hint, data)
-	return &be, nil
-}
-
-// anchorSave saves an anchor to the key-value store and updates the record
-// history of the record that corresponds to tree that was anchored.
-//
-// This function must be called WITHOUT the read/write lock held.
-func (t *tlogbe) anchorSave(a anchor) error {
-
+// anchorSave saves an anchor to the key-value store and appends a log leaf
+// to the trillian tree for the anchor.
+func (t *tlog) anchorSave(a anchor) error {
 	// Sanity checks
 	switch {
 	case a.TreeID == 0:
@@ -69,66 +55,39 @@ func (t *tlogbe) anchorSave(a anchor) error {
 		return fmt.Errorf("verify digest not found")
 	}
 
-		// Save the anchor record
-		be, err := convertBlobEntryFromAnchor(a)
-		if err != nil {
-			return err
-		}
-		b, err := blobify(*be)
-		if err != nil {
-			return err
-		}
-		lrb, err := a.LogRoot.MarshalBinary()
-		if err != nil {
-			return err
-		}
-		logRootHash := util.Hash(lrb)[:]
-		err = t.store.Put(keyAnchor(logRootHash), b)
-		if err != nil {
-			return fmt.Errorf("Put: %v", err)
-		}
+	// TODO
+	// Save the anchor record to store
+	be, err := convertBlobEntryFromAnchor(a)
+	if err != nil {
+		return err
+	}
+	b, err := store.Blobify(*be)
+	if err != nil {
+		return err
+	}
+	lrb, err := a.LogRoot.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	logRootHash := util.Hash(lrb)[:]
+	_ = logRootHash
+	_ = b
 
-		log.Debugf("Anchor saved for tree %v at height %v",
-			a.TreeID, a.LogRoot.TreeSize)
+	// Append anchor leaf to trillian tree
 
-		// Update the record history with the anchor. The lock must be held
-		// during this update.
-		t.Lock()
-		defer t.Unlock()
-
-		token := tokenFromTreeID(a.TreeID)
-		rh, err := t.recordHistory(token)
-		if err != nil {
-			return fmt.Errorf("recordHistory: %v", err)
-		}
-
-		rh.Anchors[a.LogRoot.TreeSize] = logRootHash
-
-		be, err = convertBlobEntryFromRecordHistory(*rh)
-		if err != nil {
-			return err
-		}
-		b, err = blobify(*be)
-		if err != nil {
-			return err
-		}
-		err = t.store.Put(keyRecordHistory(rh.Token), b)
-		if err != nil {
-			return fmt.Errorf("Put: %v", err)
-		}
-
-		log.Debugf("Anchor added to record history %x", token)
+	log.Debugf("Saved %v anchor for tree %v at height %v",
+		t.id, a.TreeID, a.LogRoot.TreeSize)
 
 	return nil
 }
 
-// waitForAnchor waits for the anchor to drop. The anchor is not considered
+// anchorWait waits for the anchor to drop. The anchor is not considered
 // dropped until dcrtime returns the ChainTimestamp in the reply. dcrtime does
 // not return the ChainTimestamp until the timestamp transaction has 6
 // confirmations. Once the timestamp has been dropped, the anchor record is
 // saved to the key-value store and the record histories of the corresponding
 // timestamped trees are updated.
-func (t *tlogbe) waitForAnchor(anchors []anchor, hashes []string) {
+func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 	// Ensure we are not reentrant
 	t.Lock()
 	if t.droppingAnchor {
@@ -146,12 +105,12 @@ func (t *tlogbe) waitForAnchor(anchors []anchor, hashes []string) {
 		t.Unlock()
 
 		if exitErr != nil {
-			log.Errorf("waitForAnchor: %v", exitErr)
+			log.Errorf("anchorWait: %v", exitErr)
 		}
 	}()
 
 	// Wait for anchor to drop
-	log.Infof("Waiting for anchor to drop")
+	log.Infof("Waiting for %v anchor to drop", t.id)
 
 	// Continually check with dcrtime if the anchor has been dropped.
 	// The anchor is not considered dropped until the ChainTimestamp
@@ -173,7 +132,7 @@ func (t *tlogbe) waitForAnchor(anchors []anchor, hashes []string) {
 	for try := 0; try < retries; try++ {
 		<-ticker.C
 
-		log.Debugf("Verify anchor attempt %v/%v", try+1, retries)
+		log.Debugf("Verify %v anchor attempt %v/%v", t.id, try+1, retries)
 
 		vbr, err := verifyBatch(t.dcrtimeHost, anchorID, hashes)
 		if err != nil {
@@ -218,14 +177,14 @@ func (t *tlogbe) waitForAnchor(anchors []anchor, hashes []string) {
 			// that was anchored.
 			b, err := v.LogRoot.MarshalBinary()
 			if err != nil {
-				log.Errorf("waitForAnchor: MarshalBinary %v %x: %v",
+				log.Errorf("anchorWait: MarshalBinary %v %x: %v",
 					v.TreeID, v.LogRoot.RootHash, err)
 				continue
 			}
 			anchorDigest := hex.EncodeToString(util.Hash(b)[:])
 			dcrtimeDigest := vbr.Digests[k].Digest
 			if anchorDigest != dcrtimeDigest {
-				log.Errorf("waitForAnchor: digest mismatch: got %x, want %v",
+				log.Errorf("anchorWait: digest mismatch: got %x, want %v",
 					dcrtimeDigest, anchorDigest)
 				continue
 			}
@@ -236,12 +195,12 @@ func (t *tlogbe) waitForAnchor(anchors []anchor, hashes []string) {
 			// Save anchor
 			err = t.anchorSave(v)
 			if err != nil {
-				log.Errorf("waitForAnchor: anchorSave %v: %v", v.TreeID, err)
+				log.Errorf("anchorWait: anchorSave %v: %v", v.TreeID, err)
 				continue
 			}
 		}
 
-		log.Infof("Anchor dropped for %v records", len(vbr.Digests))
+		log.Infof("Anchor dropped for %v %v records", len(vbr.Digests), t.id)
 		return
 	}
 
@@ -249,13 +208,12 @@ func (t *tlogbe) waitForAnchor(anchors []anchor, hashes []string) {
 		int(period.Minutes())*retries)
 }
 
-// anchor drops an anchor for any trees that have unanchored leaves at the
-// time of function invocation. A digest of the tree's log root at its current
-// height is timestamped onto the decred blockchain using the dcrtime service.
-// The anchor data is saved to the key-value store and the record history that
-// corresponds to the anchored tree is updated with the anchor data.
-func (t *tlogbe) anchorTrees() {
-	log.Debugf("Start anchor process")
+// anchor drops an anchor for any trees that have unanchored leaves at the time
+// of function invocation. A SHA256 digest of the tree's log root at its
+// current height is timestamped onto the decred blockchain using the dcrtime
+// service. The anchor data is saved to the key-value store.
+func (t *tlog) anchor() {
+	log.Debugf("Start %v anchor process", t.id)
 
 	var exitErr error // Set on exit if there is an error
 	defer func() {
@@ -264,7 +222,7 @@ func (t *tlogbe) anchorTrees() {
 		}
 	}()
 
-	trees, err := t.tlog.treesAll()
+	trees, err := t.trillian.treesAll()
 	if err != nil {
 		exitErr = fmt.Errorf("treesAll: %v", err)
 		return
@@ -283,35 +241,35 @@ func (t *tlogbe) anchorTrees() {
 
 	// Find the trees that need to be anchored
 	for _, v := range trees {
-		// Check if this tree has unanchored leaves
-		_, lr, err := t.tlog.signedLogRoot(v)
+		// TODO this needs to pull the anchor record from the store and
+		// check the anchor tree height against the current tree height
+
+		// Check if the last leaf is an anchor record
+		l, err := t.lastLeaf(v.TreeId)
 		if err != nil {
-			exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
+			exitErr = fmt.Errorf("lastLeaf %v: %v", v.TreeId, err)
 			return
 		}
-		token := tokenFromTreeID(v.TreeId)
-		rh, err := t.recordHistory(token)
-		if err != nil {
-			exitErr = fmt.Errorf("recordHistory %x: %v", token, err)
-		}
-		_, ok := rh.Anchors[lr.TreeSize]
-		if ok {
+		if leafIsAnchorRecord(l) {
 			// Tree has already been anchored at the current height. Check
 			// the next one.
 			continue
 		}
 
-		// Tree has not been anchored at current height. Anchor it.
-		log.Debugf("Tree %v (%x) anchoring at height %v",
-			v.TreeId, token, lr.TreeSize)
-
-		// Setup anchor record
+		// Tree has not been anchored at current height. Add it to the
+		// list of anchors.
+		_, lr, err := t.trillian.signedLogRootForTree(v)
+		if err != nil {
+			exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
+			return
+		}
 		anchors = append(anchors, anchor{
 			TreeID:  v.TreeId,
 			LogRoot: lr,
 		})
 
-		// Collate the log root digest
+		// Collate the log root digest. This is what gets submitted to
+		// dcrtime.
 		lrb, err := lr.MarshalBinary()
 		if err != nil {
 			exitErr = fmt.Errorf("MarshalBinary %v: %v", v.TreeId, err)
@@ -319,6 +277,9 @@ func (t *tlogbe) anchorTrees() {
 		}
 		d := hex.EncodeToString(util.Hash(lrb)[:])
 		digests = append(digests, d)
+
+		log.Debugf("Anchoring %v tree %v at height %v",
+			t.id, v.TreeId, lr.TreeSize)
 	}
 	if len(anchors) == 0 {
 		log.Infof("Nothing to anchor")
@@ -344,7 +305,7 @@ func (t *tlogbe) anchorTrees() {
 	t.Unlock()
 
 	// Submit dcrtime anchor request
-	log.Infof("Anchoring %v trees", len(anchors))
+	log.Infof("Anchoring %v %v trees", len(anchors), t.id)
 
 	tbr, err := timestampBatch(t.dcrtimeHost, anchorID, digests)
 	if err != nil {
@@ -357,13 +318,12 @@ func (t *tlogbe) anchorTrees() {
 		case dcrtime.ResultOK:
 			// We're good; continue
 		case dcrtime.ResultExistsError:
-			// I can't think of any situations where this would happen, but
-			// it's ok if it does since we'll still be able to retrieve the
-			// VerifyDigest from dcrtime for this digest.
+			// I don't think this will ever happen, but it's ok if it does
+			// since we'll still be able to retrieve the VerifyDigest from
+			// dcrtime for this digest.
 			//
-			// Log this as a warning to bring it to our attention. Do not
-			// exit.
-			log.Warnf("Digest failed %v: %v (%v)",
+			// Log a warning to bring it to our attention. Do not exit.
+			log.Warnf("Digest already exists %v: %v (%v)",
 				tbr.Digests[i], dcrtime.Result[v], v)
 		default:
 			// Something went wrong; exit
@@ -377,6 +337,5 @@ func (t *tlogbe) anchorTrees() {
 		return
 	}
 
-	go t.waitForAnchor(anchors, digests)
+	go t.anchorWait(anchors, digests)
 }
-*/

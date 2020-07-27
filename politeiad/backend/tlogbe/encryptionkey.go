@@ -11,20 +11,20 @@ import (
 	"github.com/marcopeereboom/sbox"
 )
 
-// EncryptionKey provides an API for encrypting and decrypting data using a
-// structure that can be passed to plugins and accessed concurrently.
-type EncryptionKey struct {
+// encryptionKey provides an API for encrypting and decrypting data. The
+// encryption key is zero'd out on application exit so the lock must be held
+// anytime the key is accessed in order to prevent the goland race detector
+// from complaining.
+type encryptionKey struct {
 	sync.RWMutex
 	key *[32]byte
 }
 
-// Encrypt encrypts the provided data. It prefixes the encrypted blob with an
+// encrypt encrypts the provided data. It prefixes the encrypted blob with an
 // sbox header which encodes the provided version. The version is user provided
 // and can be used as a hint to identify or version the packed blob. Version is
-// not inspected or used by Encrypt and Decrypt. The read lock is held to
-// prevent the golang race detector from complaining when the encryption key is
-// zeroed out on application exit.
-func (e *EncryptionKey) Encrypt(version uint32, blob []byte) ([]byte, error) {
+// not inspected or used by Encrypt and Decrypt.
+func (e *encryptionKey) encrypt(version uint32, blob []byte) ([]byte, error) {
 	e.RLock()
 	defer e.RUnlock()
 
@@ -32,10 +32,8 @@ func (e *EncryptionKey) Encrypt(version uint32, blob []byte) ([]byte, error) {
 }
 
 // decrypt decrypts the provided packed blob. The decrypted blob and the
-// version that was used to encrypt the blob are returned. The read lock is
-// held to prevent the golang race detector from complaining when the
-// encryption key is zeroed out on application exit.
-func (e *EncryptionKey) Decrypt(blob []byte) ([]byte, uint32, error) {
+// version that was used to encrypt the blob are returned.
+func (e *encryptionKey) decrypt(blob []byte) ([]byte, uint32, error) {
 	e.RLock()
 	defer e.RUnlock()
 
@@ -43,7 +41,7 @@ func (e *EncryptionKey) Decrypt(blob []byte) ([]byte, uint32, error) {
 }
 
 // Zero zeroes out the encryption key.
-func (e *EncryptionKey) Zero() {
+func (e *encryptionKey) Zero() {
 	e.Lock()
 	defer e.Unlock()
 
@@ -51,8 +49,8 @@ func (e *EncryptionKey) Zero() {
 	e.key = nil
 }
 
-func encryptionKeyNew(key *[32]byte) *EncryptionKey {
-	return &EncryptionKey{
+func encryptionKeyNew(key *[32]byte) *encryptionKey {
+	return &encryptionKey{
 		key: key,
 	}
 }

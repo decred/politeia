@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -24,10 +25,8 @@ import (
 	"github.com/marcopeereboom/sbox"
 )
 
-// TODO Add UpdateUnvettedMetadata to backend interface
 // TODO populate token prefixes cache on startup
 // TODO testnet vs mainnet trillian databases
-// TODO lock on the token level
 // TODO fsck
 // TODO allow token prefix lookups
 
@@ -39,7 +38,7 @@ const (
 )
 
 var (
-	_ backend.Backend = (*tlogbe)(nil)
+	_ backend.Backend = (*Tlogbe)(nil)
 
 	// statusChanges contains the allowed record status changes.
 	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
@@ -57,6 +56,7 @@ var (
 		// Vetted status changes
 		backend.MDStatusVetted: map[backend.MDStatusT]struct{}{
 			backend.MDStatusArchived: struct{}{},
+			backend.MDStatusCensored: struct{}{},
 		},
 
 		// Statuses that do not allow any further transitions
@@ -65,8 +65,8 @@ var (
 	}
 )
 
-// tlogbe implements the Backend interface.
-type tlogbe struct {
+// Tlogbe implements the Backend interface.
+type Tlogbe struct {
 	sync.RWMutex
 	shutdown bool
 	homeDir  string
@@ -79,51 +79,56 @@ type tlogbe struct {
 	// records. The prefix is the first n characters of the hex encoded
 	// record token, where n is defined by the TokenPrefixLength from
 	// the politeiad API. Record lookups by token prefix are allowed.
-	// This cache is used to prevent prefix collisions when creating
-	// new tokens and to facilitate lookups by token prefix. This cache
-	// is loaded on tlogbe startup.
+	// This cache is loaded on tlogbe startup and is used to prevent
+	// prefix collisions when creating new tokens and to facilitate
+	// lookups by token prefix.
 	prefixes map[string][]byte // [tokenPrefix]fullToken
 
-	// vettedTrees contains the token to tree ID mapping for vetted
+	// vettedTreeIDs contains the token to tree ID mapping for vetted
 	// records. The token corresponds to the unvetted tree ID so
 	// unvetted lookups can be done directly, but vetted lookups
 	// required pulling the freeze record from the unvetted tree to
 	// get the vetted tree ID. This cache memoizes these results.
-	vettedTrees map[string]int64 // [token]treeID
+	vettedTreeIDs map[string]int64 // [token]treeID
 }
 
-func (t *tlogbe) prefixExists(fullToken []byte) bool {
+func tokenPrefix(token []byte) string {
+	return hex.EncodeToString(token)[:pd.TokenPrefixLength]
+}
+
+func (t *Tlogbe) prefixExists(fullToken []byte) bool {
 	t.RLock()
 	defer t.RUnlock()
 
-	prefix := hex.EncodeToString(fullToken)[:pd.TokenPrefixLength]
-	_, ok := t.prefixes[prefix]
+	_, ok := t.prefixes[tokenPrefix(fullToken)]
 	return ok
 }
 
-func (t *tlogbe) prefixSet(fullToken []byte) {
+func (t *Tlogbe) prefixSet(fullToken []byte) {
 	t.Lock()
 	defer t.Unlock()
 
-	prefix := hex.EncodeToString(fullToken)[:pd.TokenPrefixLength]
-	t.prefixes[prefix] = fullToken
+	prefix := tokenPrefix(fullToken)
+	t.prefixes[tokenPrefix(fullToken)] = fullToken
+
+	log.Debugf("Token prefix cached: %v", prefix)
 }
 
-func (t *tlogbe) vettedTreesGet(token string) (int64, bool) {
+func (t *Tlogbe) vettedTreeIDGet(token string) (int64, bool) {
 	t.RLock()
 	defer t.RUnlock()
 
-	treeID, ok := t.vettedTrees[token]
+	treeID, ok := t.vettedTreeIDs[token]
 	return treeID, ok
 }
 
-func (t *tlogbe) vettedTreesSet(token string, treeID int64) {
+func (t *Tlogbe) vettedTreeIDSet(token string, treeID int64) {
 	t.Lock()
 	defer t.Unlock()
 
-	t.vettedTrees[token] = treeID
+	t.vettedTreeIDs[token] = treeID
 
-	log.Debugf("vettedTreesSet: %v %v", token, treeID)
+	log.Debugf("Vetted tree ID cached: %v %v", token, treeID)
 }
 
 // statusChangeIsAllowed returns whether the provided status change is allowed
@@ -232,8 +237,9 @@ func metadataStreamsUpdate(mdCurr, mdAppend, mdOverwrite []backend.MetadataStrea
 }
 
 // New satisfies the Backend interface.
-// TODO when does the signature get checked
-func (t *tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*backend.RecordMetadata, error) {
+//
+// This function satisfies the Backend interface.
+func (t *Tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*backend.RecordMetadata, error) {
 	log.Tracef("New")
 
 	// Validate record contents
@@ -254,11 +260,13 @@ func (t *tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 
 		// Check for token prefix collisions
 		if !t.prefixExists(token) {
-			// Not a collision
+			// Not a collision. Update token prefixes cache.
+			t.prefixSet(token)
 			break
 		}
 
-		log.Infof("Token prefix collision %x, creating new token", token)
+		log.Infof("Token prefix collision %v, creating new token",
+			tokenPrefix(token))
 	}
 
 	// Create record metadata
@@ -267,7 +275,7 @@ func (t *tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 		return nil, err
 	}
 
-	// Save the new version of the record
+	// Save the record
 	err = t.unvetted.recordSave(treeID, *rm, metadata, files)
 	if err != nil {
 		return nil, fmt.Errorf("recordSave %x: %v", token, err)
@@ -278,9 +286,8 @@ func (t *tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 	return rm, nil
 }
 
-// TODO Add UpdateUnvettedMetadata
-
-func (t *tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
+// This function satisfies the Backend interface.
+func (t *Tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("UpdateUnvettedRecord: %x", token)
 
 	// Validate record contents. Send in a single metadata array to
@@ -300,8 +307,10 @@ func (t *tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []back
 		}
 	}
 
-	t.Lock()
-	defer t.Unlock()
+	// Apply the record changes and save the new version. The lock
+	// needs to be held for the remainder of the function.
+	t.unvetted.Lock()
+	defer t.unvetted.Unlock()
 	if t.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -338,7 +347,7 @@ func (t *tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []back
 
 	// TODO Call plugin hooks
 
-	// Get updated record
+	// Return updated record
 	r, err = t.unvetted.recordLatest(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("recordLatest: %v", err)
@@ -347,7 +356,8 @@ func (t *tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []back
 	return r, nil
 }
 
-func (t *tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
+// This function satisfies the Backend interface.
+func (t *Tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("UpdateVettedRecord: %x", token)
 
 	// Validate record contents. Send in a single metadata array to
@@ -367,8 +377,10 @@ func (t *tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backen
 		}
 	}
 
-	t.Lock()
-	defer t.Unlock()
+	// Apply the record changes and save the new version. The lock
+	// needs to be held for the remainder of the function.
+	t.vetted.Lock()
+	defer t.vetted.Unlock()
 	if t.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -395,7 +407,7 @@ func (t *tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backen
 	}
 
 	// Save record
-	err = t.unvetted.recordSave(treeID, *recordMD, metadata, files)
+	err = t.vetted.recordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
 		if err == errNoFileChanges {
 			return nil, backend.ErrNoChanges
@@ -405,8 +417,8 @@ func (t *tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backen
 
 	// TODO Call plugin hooks
 
-	// Get updated record
-	r, err = t.unvetted.recordLatest(treeID)
+	// Return updated record
+	r, err = t.vetted.recordLatest(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("recordLatest: %v", err)
 	}
@@ -414,7 +426,57 @@ func (t *tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backen
 	return r, nil
 }
 
-func (t *tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
+// This function satisfies the Backend interface.
+func (t *Tlogbe) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
+	// Validate record contents. Send in a single metadata array to
+	// verify there are no dups.
+	allMD := append(mdAppend, mdOverwrite...)
+	err := backend.VerifyContent(allMD, []backend.File{}, []string{})
+	if err != nil {
+		e, ok := err.(backend.ContentVerificationError)
+		if !ok {
+			return err
+		}
+		// Allow ErrorStatusEmpty which indicates no new files are being
+		// being added. This is expected since this is a metadata only
+		// update.
+		if e.ErrorCode != pd.ErrorStatusEmpty {
+			return err
+		}
+	}
+	if len(mdAppend) == 0 && len(mdOverwrite) == 0 {
+		return backend.ContentVerificationError{
+			ErrorCode: pd.ErrorStatusNoChanges,
+		}
+	}
+
+	// Pull the existing record and apply the metadata updates. The
+	// unvetted lock must be held for the remainder of this function.
+	t.unvetted.Lock()
+	defer t.unvetted.Unlock()
+	if t.shutdown {
+		return backend.ErrShutdown
+	}
+
+	// Get existing record
+	treeID := treeIDFromToken(token)
+	r, err := t.unvetted.recordLatest(treeID)
+	if err != nil {
+		if err == errRecordNotFound {
+			return backend.ErrRecordNotFound
+		}
+		return fmt.Errorf("recordLatest: %v", err)
+	}
+
+	// Apply changes
+	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+
+	// Update metadata
+	return t.unvetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+}
+
+// This function satisfies the Backend interface.
+func (t *Tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
 	log.Tracef("UpdateVettedMetadata: %x", token)
 
 	// Validate record contents. Send in a single metadata array to
@@ -439,8 +501,10 @@ func (t *tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []back
 		}
 	}
 
-	t.Lock()
-	defer t.Unlock()
+	// Pull the existing record and apply the metadata updates. The
+	// vetted lock must be held for the remainder of this function.
+	t.vetted.Lock()
+	defer t.vetted.Unlock()
 	if t.shutdown {
 		return backend.ErrShutdown
 	}
@@ -462,134 +526,221 @@ func (t *tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []back
 	return t.vetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
 }
 
-func (t *tlogbe) UpdateReadme(content string) error {
+// TODO remove
+func (t *Tlogbe) UpdateReadme(content string) error {
 	return fmt.Errorf("not implemented")
 }
 
-// unvettedRecordExists returns whether the provided token corresponds to an
-// unvetted record.
-func (t *tlogbe) unvettedExists(token []byte) bool {
-	// TODO
-	return false
-}
-
-func (t *tlogbe) UnvettedExists(token []byte) bool {
+// UnvettedExists returns whether the provided token corresponds to an unvetted
+// record.
+//
+// This function satisfies the Backend interface.
+func (t *Tlogbe) UnvettedExists(token []byte) bool {
 	log.Tracef("UnvettedExists %x", token)
-	// TODO must check that it exists and it is not a vetted record too
-	// Checking if its frozen is not enough. A unvetted tree will be
-	// frozen when it is censored or abandoned.
 
-	return false
-}
-
-func (t *tlogbe) vettedExists(token []byte) bool {
-	tk := hex.EncodeToString(token)
-	if _, ok := t.vettedTreesGet(tk); ok {
-		return true
-	}
-
-	// Just because the token is not in the vetted trees cache does not
-	// mean a vetted tree does not exist. The cache is lazy loaded.
-	// Check if there is an unvetted tree for the token and if the last
-	// leaf of the unvetted tree is a freeze record.
-	treeID := treeIDFromToken(token)
-	fr, err := t.unvetted.freezeRecord(treeID)
-	if err != nil {
-		if err == errFreezeRecordNotFound {
-			// Unvetted tree is not frozen. Record is still unvetted.
-			return false
-		}
-
-		// Unexpected error
-		e := fmt.Sprintf("vettedExists %x: freezeRecord: %v", token, err)
-		panic(e)
-	}
-
-	// Unvetted tree is frozen. Check if the freeze record points to a
-	// vetted tree ID or if it is blank. A vetted tree ID indicates the
-	// record was made public. A blank tree ID indicates the tree was
-	// frozen for some other reason such as if the record was censored
-	// or abandoned.
-	if fr.TreeID == 0 {
-		// No vetted tree pointer found
+	// If the token is in the vetted cache then we know this is not an
+	// unvetted record without having to make any network requests.
+	_, ok := t.vettedTreeIDGet(hex.EncodeToString(token))
+	if ok {
 		return false
 	}
 
-	// Ensure vetted record exists
+	// Check if unvetted tree exists
+	treeID := treeIDFromToken(token)
+	if !t.unvetted.treeExists(treeID) {
+		// Unvetted tree does not exists. No tree, no record.
+		return false
+	}
+
+	// An unvetted tree exists. Check if a vetted tree also exists. If
+	// one does then it means this record has been made public and is
+	// no longer unvetted.
+	if t.VettedExists(token) {
+		return false
+	}
+
+	// Vetted record does not exist. This is an unvetted record.
+	return true
+}
+
+// This function satisfies the Backend interface.
+func (t *Tlogbe) VettedExists(token []byte) bool {
+	log.Tracef("VettedExists %x", token)
+
+	// Check if the token is in the vetted cache. The vetted cache is
+	// lazy loaded if the token is not present then we need to check
+	// manually.
+	_, ok := t.vettedTreeIDGet(hex.EncodeToString(token))
+	if ok {
+		return true
+	}
+
+	// The token is derived from the unvetted tree ID. Check if the
+	// token corresponds to an unvetted tree.
+	treeID := treeIDFromToken(token)
+	if !t.unvetted.treeExists(treeID) {
+		// Unvetted tree does not exists. This token does not correspond
+		// to any record.
+		return false
+	}
+
+	// Unvetted tree exists. Get the freeze record to see if it
+	// contains a pointer to a vetted tree.
+	fr, err := t.unvetted.freezeRecord(treeID)
+	if err != nil {
+		if err == errFreezeRecordNotFound {
+			// Unvetted tree exists and is not frozen. This is an unvetted
+			// record.
+			return false
+		}
+		log.Errorf("unvetted freezeRecord %v: %v", treeID, err)
+		return false
+	}
+	if fr.TreeID == 0 {
+		// Unvetted tree has been frozen but does not contain a pointer
+		// to another tree. This means it was frozen for some other
+		// reason (ex. censored). This is not a vetted record.
+		return false
+	}
+
+	// Ensure the freeze record tree ID points to a valid vetted tree.
+	// This should not fail.
 	if !t.vetted.treeExists(fr.TreeID) {
-		// Uh oh. A freeze record points to this tree ID but the tree
-		// does not exist. Not good.
-		e := fmt.Sprintf("freeze record points to invalid tree %v", fr.TreeID)
+		// We're in trouble!
+		e := fmt.Sprintf("freeze record of unvetted tree %v points to "+
+			"an invalid vetted tree %v", treeID, fr.TreeID)
 		panic(e)
 	}
 
-	// Cache the vetted tree ID
-	t.vettedTreesSet(hex.EncodeToString(token), fr.TreeID)
+	// Update the vetted cache
+	t.vettedTreeIDSet(hex.EncodeToString(token), fr.TreeID)
 
 	return true
 }
 
-func (t *tlogbe) VettedExists(token []byte) bool {
-	log.Tracef("VettedExists %x", token)
-
-	return false
-}
-
-func (t *tlogbe) GetUnvetted(token []byte) (*backend.Record, error) {
+// This function satisfies the Backend interface.
+func (t *Tlogbe) GetUnvetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetUnvetted: %x", token)
 
-	return nil, nil
-}
-
-func (t *tlogbe) GetVetted(token []byte, version string) (*backend.Record, error) {
-	log.Tracef("GetVetted: %x", token)
-
-	return nil, nil
-}
-
-// This function must be called with the read/write lock held.
-func (t *tlogbe) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	// Create a vetted record
-	// TODO check for collisions
-	treeID, err := t.vetted.treeNew()
+	treeID := treeIDFromToken(token)
+	v, err := strconv.ParseUint(version, 10, 64)
 	if err != nil {
-		return fmt.Errorf("vetted recordNew: %v", err)
+		return nil, backend.ErrRecordNotFound
 	}
 
-	// Save the record as vetted
-	err = t.vetted.recordSave(treeID, rm, metadata, files)
+	return t.unvetted.recordVersion(treeID, uint32(v))
+}
+
+// This function satisfies the Backend interface.
+func (t *Tlogbe) GetVetted(token []byte, version string) (*backend.Record, error) {
+	log.Tracef("GetVetted: %x", token)
+
+	treeID := treeIDFromToken(token)
+	v, err := strconv.ParseUint(version, 10, 64)
+	if err != nil {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	return t.vetted.recordVersion(treeID, uint32(v))
+}
+
+// This function must be called WITH the unvetted lock held.
+func (t *Tlogbe) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+	// Create a vetted tree
+	var (
+		vettedToken  []byte
+		vettedTreeID int64
+		err          error
+	)
+	for retries := 0; retries < 10; retries++ {
+		vettedTreeID, err = t.vetted.treeNew()
+		if err != nil {
+			return err
+		}
+		vettedToken = tokenFromTreeID(vettedTreeID)
+
+		// Check for token prefix collisions
+		if !t.prefixExists(vettedToken) {
+			// Not a collision. Update prefixes cache.
+			t.prefixSet(vettedToken)
+			break
+		}
+
+		log.Infof("Token prefix collision %v, creating new token",
+			tokenPrefix(vettedToken))
+	}
+
+	// Save the record to the vetted tlog
+	err = t.vetted.recordSave(vettedTreeID, rm, metadata, files)
 	if err != nil {
 		return fmt.Errorf("vetted recordSave: %v", err)
 	}
 
+	log.Debugf("Unvetted record %x copied to vetted", token)
+
 	// Freeze the unvetted tree
 	fr := freezeRecord{
-		TreeID: treeID,
+		TreeID: vettedTreeID,
 	}
-	_ = fr
+	treeID := treeIDFromToken(token)
+	err = t.unvetted.treeFreeze(treeID, rm, metadata, fr)
+	if err != nil {
+		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+	}
+
+	log.Debugf("Unvetted record %x frozen", token)
+
+	// Update the vetted cache
+	t.vettedTreeIDSet(hex.EncodeToString(token), vettedTreeID)
 
 	return nil
 }
 
-// This function must be called with the read/write lock held.
-func (t *tlogbe) unvettedCensor() error {
-	// Freeze tree
-	// Delete the censored blobs
+// This function must be called WITH the unvetted lock held.
+func (t *Tlogbe) unvettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	// Freeze the tree
+	treeID := treeIDFromToken(token)
+	err := t.unvetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	if err != nil {
+		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+	}
+
+	log.Debugf("Unvetted record %x frozen", token)
+
+	// Delete all record files
+	err = t.unvetted.recordDel(treeID)
+	if err != nil {
+		return fmt.Errorf("recordDel %v: %v", treeID, err)
+	}
+
+	log.Debug("Unvetted record %x files deleted", token)
+
 	return nil
 }
 
-// This function must be called with the read/write lock held.
-func (t *tlogbe) unvettedArchive() error {
-	// Freeze tree
+// This function must be called WITH the unvetted lock held.
+func (t *Tlogbe) unvettedArchive(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	// Freeze the tree. Nothing else needs to be done for an archived
+	// record.
+	treeID := treeIDFromToken(token)
+	err := t.unvetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Unvetted record %x frozen", token)
+
 	return nil
 }
 
-func (t *tlogbe) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
+func (t *Tlogbe) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetUnvettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
 
-	t.Lock()
-	defer t.Unlock()
+	// The existing record must be pulled and updated. The unvetted
+	// lock must be held for the rest of this function.
+	t.unvetted.Lock()
+	defer t.unvetted.Unlock()
 	if t.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -622,28 +773,29 @@ func (t *tlogbe) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdApp
 	// Apply metdata changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
+	// Update record
 	switch status {
 	case backend.MDStatusVetted:
 		err := t.unvettedPublish(token, rm, metadata, r.Files)
 		if err != nil {
-			return nil, fmt.Errorf("publish: %v", err)
+			return nil, fmt.Errorf("unvettedPublish: %v", err)
 		}
 	case backend.MDStatusCensored:
-		err := t.unvettedCensor()
+		err := t.unvettedCensor(token, rm, metadata)
 		if err != nil {
-			return nil, fmt.Errorf("censor: %v", err)
+			return nil, fmt.Errorf("unvettedCensor: %v", err)
 		}
 	case backend.MDStatusArchived:
-		err := t.unvettedArchive()
+		err := t.unvettedArchive(token, rm, metadata)
 		if err != nil {
-			return nil, fmt.Errorf("archive: %v", err)
+			return nil, fmt.Errorf("unvettedArchive: %v", err)
 		}
 	default:
 		return nil, fmt.Errorf("unknown status: %v (%v)",
 			backend.MDStatus[status], status)
 	}
 
-	// Return the record
+	// Return the updated record
 	r, err = t.unvetted.recordLatest(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("recordLatest: %v", err)
@@ -652,60 +804,110 @@ func (t *tlogbe) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdApp
 	return r, nil
 }
 
-// This function must be called with the read/write lock held.
-func (t *tlogbe) vettedCensor() error {
-	// Freeze tree
-	// Delete the censored blobs
+// This function must be called WITH the vetted lock held.
+func (t *Tlogbe) vettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	// Freeze the tree
+	treeID := treeIDFromToken(token)
+	err := t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	if err != nil {
+		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+	}
+
+	// Delete all record files
+	err = t.vetted.recordDel(treeID)
+	if err != nil {
+		return fmt.Errorf("recordDel %v: %v", treeID, err)
+	}
+
 	return nil
 }
 
-// This function must be called with the read/write lock held.
-func (t *tlogbe) vettedArchive() error {
-	// Freeze tree
-	return nil
+// This function must be called WITH the vetted lock held.
+func (t *Tlogbe) vettedArchive(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	// Freeze the tree. Nothing else needs to be done for an archived
+	// record.
+	treeID := treeIDFromToken(token)
+	return t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
 }
 
-func (t *tlogbe) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
+// This function satisfies the Backend interface.
+func (t *Tlogbe) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetVettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
 
-	t.Lock()
-	defer t.Unlock()
+	// The existing record must be pulled and updated. The vetted lock
+	// must be held for the rest of this function.
+	t.vetted.Lock()
+	defer t.vetted.Unlock()
 	if t.shutdown {
 		return nil, backend.ErrShutdown
 	}
 
-	/*
-		// Validate status change
-		if !statusChangeIsAllowed(rm.Status, status) {
-			return nil, backend.StateTransitionError{
-				From: rm.Status,
-				To:   status,
-			}
+	// Get existing record
+	treeID := treeIDFromToken(token)
+	r, err := t.vetted.recordLatest(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("recordLatest: %v", err)
+	}
+	rm := r.RecordMetadata
+
+	// Validate status change
+	if !statusChangeIsAllowed(rm.Status, status) {
+		return nil, backend.StateTransitionError{
+			From: rm.Status,
+			To:   status,
 		}
+	}
 
-		log.Debugf("Status change %x from %v (%v) to %v (%v)", token,
-			backend.MDStatus[rm.Status], rm.Status, backend.MDStatus[status], status)
+	log.Debugf("Status change %x from %v (%v) to %v (%v)",
+		token, backend.MDStatus[rm.Status], rm.Status,
+		backend.MDStatus[status], status)
 
-		// Apply status change
-		rm.Status = status
-		rm.Iteration += 1
-		rm.Timestamp = time.Now().Unix()
+	// Apply status change
+	rm.Status = status
+	rm.Iteration += 1
+	rm.Timestamp = time.Now().Unix()
 
-		// Update metadata
-	*/
+	// Apply metdata changes
+	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
-	return nil, nil
+	// Update record
+	switch status {
+	case backend.MDStatusCensored:
+		err := t.vettedCensor(token, rm, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("vettedCensor: %v", err)
+		}
+	case backend.MDStatusArchived:
+		err := t.vettedArchive(token, rm, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("vettedArchive: %v", err)
+		}
+	default:
+		return nil, fmt.Errorf("unknown status: %v (%v)",
+			backend.MDStatus[status], status)
+	}
+
+	// Return the updated record
+	r, err = t.vetted.recordLatest(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("recordLatest: %v", err)
+	}
+
+	return r, nil
 }
 
-func (t *tlogbe) Inventory(vettedCount uint, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
+// This function satisfies the Backend interface.
+func (t *Tlogbe) Inventory(vettedCount uint, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
 	log.Tracef("Inventory: %v %v", includeFiles, allVersions)
+
+	// TODO implement inventory
 
 	// return vetted, unvetted, nil
 	return nil, nil, nil
 }
 
-func (t *tlogbe) GetPlugins() ([]backend.Plugin, error) {
+func (t *Tlogbe) GetPlugins() ([]backend.Plugin, error) {
 	log.Tracef("GetPlugins")
 
 	// TODO implement plugins
@@ -713,7 +915,8 @@ func (t *tlogbe) GetPlugins() ([]backend.Plugin, error) {
 	return t.plugins, nil
 }
 
-func (t *tlogbe) Plugin(command, payload string) (string, string, error) {
+// Add commandID to Plugin
+func (t *Tlogbe) Plugin(pluginID, command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v", command)
 
 	// TODO implement plugins
@@ -721,7 +924,7 @@ func (t *tlogbe) Plugin(command, payload string) (string, string, error) {
 	return "", "", nil
 }
 
-func (t *tlogbe) Close() {
+func (t *Tlogbe) Close() {
 	log.Tracef("Close")
 
 	t.Lock()
@@ -735,7 +938,7 @@ func (t *tlogbe) Close() {
 	t.vetted.close()
 }
 
-func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptionKeyFile string) (*tlogbe, error) {
+func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptionKeyFile string) (*Tlogbe, error) {
 	// Setup encryption key file
 	if encryptionKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -799,7 +1002,7 @@ func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptio
 	_ = dcrtimeHost
 	_ = store
 	_ = tlog
-	t := tlogbe{
+	t := Tlogbe{
 		homeDir: homeDir,
 		dataDir: dataDir,
 		// cron:    cron.New(),

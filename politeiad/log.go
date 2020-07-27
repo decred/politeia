@@ -49,7 +49,7 @@ var (
 	gitbeLog  = backendLog.Logger("GITB")
 	tlogbeLog = backendLog.Logger("TLOG")
 	cacheLog  = backendLog.Logger("CACH")
-	blobLog   = backendLog.Logger("BLOB")
+	storeLog  = backendLog.Logger("STOR")
 	pluginLog = backendLog.Logger("PLGN")
 )
 
@@ -58,7 +58,7 @@ func init() {
 	cockroachdb.UseLogger(cacheLog)
 	gitbe.UseLogger(gitbeLog)
 	tlogbe.UseLogger(tlogbeLog)
-	filesystem.UseLogger(blobLog)
+	filesystem.UseLogger(storeLog)
 	comments.UseLogger(pluginLog)
 }
 
@@ -68,7 +68,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"GITB": gitbeLog,
 	"TLOG": tlogbeLog,
 	"CACH": cacheLog,
-	"BLOB": blobLog,
+	"STOR": storeLog,
 	"PLGN": pluginLog,
 }
 

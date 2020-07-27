@@ -314,6 +314,10 @@ type Backend interface {
 	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
 		[]string) (*Record, error)
 
+	// Update unvetted metadata (token, mdAppend, mdOverwrite)
+	UpdateUnvettedMetadata([]byte, []MetadataStream,
+		[]MetadataStream) error
+
 	// Update vetted metadata (token, mdAppend, mdOverwrite)
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
@@ -328,7 +332,7 @@ type Backend interface {
 	VettedExists([]byte) bool
 
 	// Get unvetted record
-	GetUnvetted([]byte) (*Record, error)
+	GetUnvetted([]byte, string) (*Record, error)
 
 	// Get vetted record
 	GetVetted([]byte, string) (*Record, error)
@@ -348,7 +352,7 @@ type Backend interface {
 	GetPlugins() ([]Plugin, error)
 
 	// Plugin pass-through command
-	Plugin(string, string) (string, string, error) // command type, payload, error
+	Plugin(string, string, string) (string, string, error) // command type, payload, error
 
 	// Close performs cleanup of the backend.
 	Close()
