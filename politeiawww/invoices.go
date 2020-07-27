@@ -1473,8 +1473,20 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 		return nil, err
 	}
 
+	// Sort returned invoices by time submitted
+	sort.Slice(dbInvs, func(a, b int) bool {
+		return dbInvs[a].Timestamp < dbInvs[b].Timestamp
+	})
+
 	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, v := range dbInvs {
+		// Only return up to max page size if start time and end time are
+		// provided.
+		if (ai.StartTime != 0 && ai.EndTime != 0) &&
+			len(invRecs) > cms.InvoiceListPageSize {
+			break
+		}
+
 		invoiceUser, err := p.getCMSUserByIDRaw(u.ID.String())
 		if err != nil {
 			return nil, err

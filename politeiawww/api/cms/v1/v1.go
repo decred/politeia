@@ -181,6 +181,11 @@ const (
 	// summaries.
 	ProposalBillingListPageSize = 50
 
+	// InvoiceListPageSize is the maximum number of invoices returned by the
+	// Invoices request, the date range should just be updated to return them
+	// all.
+	InvoiceListPageSize = 50
+
 	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
 	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
 	ErrorStatusInvoiceNotFound                www.ErrorStatusT = 1003
