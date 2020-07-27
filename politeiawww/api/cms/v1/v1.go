@@ -42,7 +42,7 @@ const (
 	RouteVoteDetailsDCC         = "/dcc/votedetails"
 	RouteActiveVotesDCC         = "/dcc/activevotes"
 	RouteStartVoteDCC           = "/dcc/startvote"
-	RouteAdminInvoices          = "/admin/invoices"
+	RouteInvoices               = "/invoices"
 	RouteManageCMSUser          = "/admin/managecms"
 	RouteAdminUserInvoices      = "/admin/userinvoices"
 	RouteGeneratePayouts        = "/admin/generatepayouts"
@@ -539,9 +539,9 @@ type UserInvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
 }
 
-// AdminInvoices is used to get all invoices from all users (if no userid is
+// Invoices is used to get all invoices from all users (if no userid is
 // given).
-type AdminInvoices struct {
+type Invoices struct {
 	Month     uint16         `json:"month"`  // Month of Invoice
 	Year      uint16         `json:"year"`   // Year of Invoice
 	Status    InvoiceStatusT `json:"status"` // Current status of invoice
@@ -550,8 +550,8 @@ type AdminInvoices struct {
 	EndTime   int64          `json:"end"`    // End time for range
 }
 
-// AdminInvoicesReply is used to reply to an admin invoices command.
-type AdminInvoicesReply struct {
+// InvoicesReply is used to reply to an admin invoices command.
+type InvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
 }
 

@@ -7,12 +7,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/cms/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// AdminInvoicesCmd gets all invoices by month/year and/or status.
-type AdminInvoicesCmd struct {
+// InvoicesCmd gets all invoices by month/year and/or status.
+type InvoicesCmd struct {
 	Args struct {
 		Month  int `long:"month"`
 		Year   int `long:"year"`
@@ -21,7 +21,7 @@ type AdminInvoicesCmd struct {
 }
 
 // Execute executes the admin invoices command.
-func (cmd *AdminInvoicesCmd) Execute(args []string) error {
+func (cmd *InvoicesCmd) Execute(args []string) error {
 	// Get server public key
 	vr, err := client.Version()
 	if err != nil {
@@ -29,8 +29,8 @@ func (cmd *AdminInvoicesCmd) Execute(args []string) error {
 	}
 
 	// Get admin invoices
-	uir, err := client.AdminInvoices(
-		&v1.AdminInvoices{
+	uir, err := client.Invoices(
+		&v1.Invoices{
 			Month:  uint16(cmd.Args.Month),
 			Year:   uint16(cmd.Args.Year),
 			Status: v1.InvoiceStatusT(cmd.Args.Status),

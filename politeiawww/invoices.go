@@ -1397,10 +1397,10 @@ func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.
 	return &reply, nil
 }
 
-// processAdminInvoices fetches all invoices that are currently stored in the
+// processInvoices fetches all invoices that are currently stored in the
 // cmsdb for an administrator, based on request fields (month/year and/or status).
-func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, u *user.User) (*cms.UserInvoicesReply, error) {
-	log.Tracef("processAdminInvoices")
+func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserInvoicesReply, error) {
+	log.Tracef("processInvoices")
 
 	// Make sure month AND year are set, if any.
 	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
@@ -1955,7 +1955,7 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 			return nil, err
 		}
 		totalSpent += int64(payout.Total)
-		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
+		invRecs = append(invRecs, convertDatabaseInvoiceToInvoiceRecord(*dbInv))
 	}
 
 	data, err := p.makeProposalsRequest(http.MethodGet, "/proposals/"+pbd.Token, nil)
