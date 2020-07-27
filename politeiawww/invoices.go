@@ -1398,7 +1398,8 @@ func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.
 }
 
 // processInvoices fetches all invoices that are currently stored in the
-// cmsdb for an administrator, based on request fields (month/year and/or status).
+// cmsdb for an administrator, based on request fields (month/year,
+// starttime/endtime, userid and/or status).
 func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserInvoicesReply, error) {
 	log.Tracef("processInvoices")
 
@@ -1503,17 +1504,17 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 
 		inv := convertDatabaseInvoiceToInvoiceRecord(v)
 
-		u, err := p.db.UserGetByPubKey(inv.PublicKey)
+		invUser, err := p.db.UserGetByPubKey(inv.PublicKey)
 		if err != nil {
 			log.Errorf("getInvoice: getUserByPubKey: token:%v "+
 				"pubKey:%v err:%v", v.Token, inv.PublicKey, err)
 		} else {
-			inv.Username = u.Username
+			inv.Username = invUser.Username
 		}
 
-		// If the user is not an admin filter out the information for domain
-		// viewing.
-		if !u.Admin {
+		// If the user is not an admin AND not the invoice owner
+		// filter out the information for domain viewing.
+		if !u.Admin && inv.UserID != u.ID.String() {
 			inv = filterDomainInvoice(&inv)
 		}
 		invRecs = append(invRecs, inv)
