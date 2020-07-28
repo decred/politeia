@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package plugin
+package plugins
 
 import "errors"
 
@@ -31,6 +31,8 @@ var (
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
 )
 
+// Plugin provides an interface for the backend to use when interacting with
+// plugins.
 type Plugin interface {
 	// Perform plugin setup
 	Setup() error

@@ -348,6 +348,9 @@ type Backend interface {
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, bool, bool) ([]Record, []Record, error)
 
+	// TODO Inventory needs to return the token inventory grouped by
+	// record status.
+
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)
 

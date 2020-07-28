@@ -13,8 +13,8 @@ type VoteT int
 type ErrorStatusT int
 
 const (
-	Version = "1"
-	ID      = "comments"
+	Version uint32 = 1
+	ID             = "comments"
 
 	// Plugin commands
 	CmdNew        = "new"        // Create a new comment
@@ -51,7 +51,7 @@ const (
 )
 
 var (
-	// Human readable error messages
+	// ErrorStatus contains human readable error statuses.
 	ErrorStatus = map[ErrorStatusT]string{
 		ErrorStatusInvalid:          "invalid error status",
 		ErrorStatusTokenInvalid:     "invalid token",
@@ -62,7 +62,7 @@ var (
 		ErrorStatusParentIDInvalid:  "parent id invalid",
 		ErrorStatusNoCommentChanges: "comment did not change",
 		ErrorStatusVoteInvalid:      "invalid vote",
-		ErrorStatusMaxVoteChanges:   "user has changed their vote too many times",
+		ErrorStatusMaxVoteChanges:   "max vote changes exceeded",
 	}
 )
 
@@ -108,9 +108,9 @@ func EncodeNew(n New) ([]byte, error) {
 }
 
 // DecodeNew decodes a JSON byte slice into a New.
-func DecodeNew(b []byte) (*New, error) {
+func DecodeNew(payload []byte) (*New, error) {
 	var n New
-	err := json.Unmarshal(b, &n)
+	err := json.Unmarshal(payload, &n)
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +130,9 @@ func EncodeNewReply(r NewReply) ([]byte, error) {
 }
 
 // DecodeNew decodes a JSON byte slice into a NewReply.
-func DecodeNewReply(b []byte) (*NewReply, error) {
+func DecodeNewReply(payload []byte) (*NewReply, error) {
 	var r NewReply
-	err := json.Unmarshal(b, &r)
+	err := json.Unmarshal(payload, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -155,9 +155,9 @@ func EncodeEdit(e Edit) ([]byte, error) {
 }
 
 // DecodeEdit decodes a JSON byte slice into a Edit.
-func DecodeEdit(b []byte) (*Edit, error) {
+func DecodeEdit(payload []byte) (*Edit, error) {
 	var e Edit
-	err := json.Unmarshal(b, &e)
+	err := json.Unmarshal(payload, &e)
 	if err != nil {
 		return nil, err
 	}
@@ -177,9 +177,9 @@ func EncodeEditReply(r EditReply) ([]byte, error) {
 }
 
 // DecodeEdit decodes a JSON byte slice into a EditReply.
-func DecodeEditReply(b []byte) (*EditReply, error) {
+func DecodeEditReply(payload []byte) (*EditReply, error) {
 	var r EditReply
-	err := json.Unmarshal(b, &r)
+	err := json.Unmarshal(payload, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -201,9 +201,9 @@ func EncodeDel(d Del) ([]byte, error) {
 }
 
 // DecodeDel decodes a JSON byte slice into a Del.
-func DecodeDel(b []byte) (*Del, error) {
+func DecodeDel(payload []byte) (*Del, error) {
 	var d Del
-	err := json.Unmarshal(b, &d)
+	err := json.Unmarshal(payload, &d)
 	if err != nil {
 		return nil, err
 	}
@@ -222,9 +222,9 @@ func EncodeDelReply(d DelReply) ([]byte, error) {
 }
 
 // DecodeDelReply decodes a JSON byte slice into a DelReply.
-func DecodeDelReply(b []byte) (*DelReply, error) {
+func DecodeDelReply(payload []byte) (*DelReply, error) {
 	var d DelReply
-	err := json.Unmarshal(b, &d)
+	err := json.Unmarshal(payload, &d)
 	if err != nil {
 		return nil, err
 	}
@@ -245,9 +245,9 @@ func EncodeGet(g Get) ([]byte, error) {
 }
 
 // DecodeGet decodes a JSON byte slice into a Get.
-func DecodeGet(b []byte) (*Get, error) {
+func DecodeGet(payload []byte) (*Get, error) {
 	var g Get
-	err := json.Unmarshal(b, &g)
+	err := json.Unmarshal(payload, &g)
 	if err != nil {
 		return nil, err
 	}
@@ -268,9 +268,9 @@ func EncodeGetReply(g GetReply) ([]byte, error) {
 }
 
 // DecodeGetReply decodes a JSON byte slice into a GetReply.
-func DecodeGetReply(b []byte) (*GetReply, error) {
+func DecodeGetReply(payload []byte) (*GetReply, error) {
 	var g GetReply
-	err := json.Unmarshal(b, &g)
+	err := json.Unmarshal(payload, &g)
 	if err != nil {
 		return nil, err
 	}
@@ -288,9 +288,9 @@ func EncodeGetAll(g GetAll) ([]byte, error) {
 }
 
 // DecodeGetAll decodes a JSON byte slice into a GetAll.
-func DecodeGetAll(b []byte) (*GetAll, error) {
+func DecodeGetAll(payload []byte) (*GetAll, error) {
 	var g GetAll
-	err := json.Unmarshal(b, &g)
+	err := json.Unmarshal(payload, &g)
 	if err != nil {
 		return nil, err
 	}
@@ -308,9 +308,9 @@ func EncodeGetAllReply(g GetAllReply) ([]byte, error) {
 }
 
 // DecodeGetAllReply decodes a JSON byte slice into a GetAllReply.
-func DecodeGetAllReply(b []byte) (*GetAllReply, error) {
+func DecodeGetAllReply(payload []byte) (*GetAllReply, error) {
 	var g GetAllReply
-	err := json.Unmarshal(b, &g)
+	err := json.Unmarshal(payload, &g)
 	if err != nil {
 		return nil, err
 	}
@@ -330,9 +330,9 @@ func EncodeGetVersion(g GetVersion) ([]byte, error) {
 }
 
 // DecodeGetVersion decodes a JSON byte slice into a GetVersion.
-func DecodeGetVersion(b []byte) (*GetVersion, error) {
+func DecodeGetVersion(payload []byte) (*GetVersion, error) {
 	var g GetVersion
-	err := json.Unmarshal(b, &g)
+	err := json.Unmarshal(payload, &g)
 	if err != nil {
 		return nil, err
 	}
@@ -350,9 +350,9 @@ func EncodeGetVersionReply(g GetVersionReply) ([]byte, error) {
 }
 
 // DecodeGetVersionReply decodes a JSON byte slice into a GetVersionReply.
-func DecodeGetVersionReply(b []byte) (*GetVersionReply, error) {
+func DecodeGetVersionReply(payload []byte) (*GetVersionReply, error) {
 	var g GetVersionReply
-	err := json.Unmarshal(b, &g)
+	err := json.Unmarshal(payload, &g)
 	if err != nil {
 		return nil, err
 	}
@@ -370,9 +370,9 @@ func EncodeCount(c Count) ([]byte, error) {
 }
 
 // DecodeCount decodes a JSON byte slice into a Count.
-func DecodeCount(b []byte) (*Count, error) {
+func DecodeCount(payload []byte) (*Count, error) {
 	var c Count
-	err := json.Unmarshal(b, &c)
+	err := json.Unmarshal(payload, &c)
 	if err != nil {
 		return nil, err
 	}
@@ -390,9 +390,9 @@ func EncodeCountReply(c CountReply) ([]byte, error) {
 }
 
 // DecodeCountReply decodes a JSON byte slice into a CountReply.
-func DecodeCountReply(b []byte) (*CountReply, error) {
+func DecodeCountReply(payload []byte) (*CountReply, error) {
 	var c CountReply
-	err := json.Unmarshal(b, &c)
+	err := json.Unmarshal(payload, &c)
 	if err != nil {
 		return nil, err
 	}
@@ -402,10 +402,10 @@ func DecodeCountReply(b []byte) (*CountReply, error) {
 // Vote casts a comment vote (upvote or downvote).
 //
 // The uuid is required because the effect of a new vote on a comment score
-// depends on the previous vote from that uuid. Example, a user casts an upvote
-// on a comment that they have already upvoted, the resulting vote score is 0
-// due to the second upvote removing the original upvote. The public key cannot
-// be relied on to remain the same for each user so a uuid must be included.
+// depends on the previous vote from that uuid. Example, a user upvotes a
+// comment that they have already upvoted, the resulting vote score is 0 due to
+// the second upvote removing the original upvote. The public key cannot be
+// relied on to remain the same for each user so a uuid must be included.
 type Vote struct {
 	UUID      string `json:"uuid"`      // Unique user ID
 	Token     string `json:"token"`     // Record token
@@ -421,9 +421,9 @@ func EncodeVote(v Vote) ([]byte, error) {
 }
 
 // DecodeVote decodes a JSON byte slice into a Vote.
-func DecodeVote(b []byte) (*Vote, error) {
+func DecodeVote(payload []byte) (*Vote, error) {
 	var v Vote
-	err := json.Unmarshal(b, &v)
+	err := json.Unmarshal(payload, &v)
 	if err != nil {
 		return nil, err
 	}
@@ -443,9 +443,9 @@ func EncodeVoteReply(v VoteReply) ([]byte, error) {
 }
 
 // DecodeVoteReply decodes a JSON byte slice into a VoteReply.
-func DecodeVoteReply(b []byte) (*VoteReply, error) {
+func DecodeVoteReply(payload []byte) (*VoteReply, error) {
 	var v VoteReply
-	err := json.Unmarshal(b, &v)
+	err := json.Unmarshal(payload, &v)
 	if err != nil {
 		return nil, err
 	}

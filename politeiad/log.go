@@ -11,7 +11,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiad/backend/tlogbe"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugin/comments"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	"github.com/decred/slog"
@@ -45,12 +45,12 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log       = backendLog.Logger("POLI")
-	gitbeLog  = backendLog.Logger("GITB")
-	tlogbeLog = backendLog.Logger("TLOG")
-	cacheLog  = backendLog.Logger("CACH")
-	storeLog  = backendLog.Logger("STOR")
-	pluginLog = backendLog.Logger("PLGN")
+	log        = backendLog.Logger("POLI")
+	gitbeLog   = backendLog.Logger("GITB")
+	tlogbeLog  = backendLog.Logger("TLOG")
+	cacheLog   = backendLog.Logger("CACH")
+	storeLog   = backendLog.Logger("STOR")
+	pluginsLog = backendLog.Logger("PLGN")
 )
 
 // Initialize package-global logger variables.
@@ -59,7 +59,7 @@ func init() {
 	gitbe.UseLogger(gitbeLog)
 	tlogbe.UseLogger(tlogbeLog)
 	filesystem.UseLogger(storeLog)
-	comments.UseLogger(pluginLog)
+	plugins.UseLogger(pluginsLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -69,7 +69,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"TLOG": tlogbeLog,
 	"CACH": cacheLog,
 	"STOR": storeLog,
-	"PLGN": pluginLog,
+	"PLGN": pluginsLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and
