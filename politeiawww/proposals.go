@@ -317,6 +317,16 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 		}
 	}
 
+	// Validate Duration
+	if pm.Duration != 0 {
+
+	}
+
+	// Validate Budget
+	if pm.Budget != 0 {
+
+	}
+
 	return nil
 }
 

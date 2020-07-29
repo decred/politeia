@@ -148,6 +148,8 @@ type ProposalMetadata struct {
 	LinkTo   string        `json:"linkto,omitempty"`   // Token of proposal to link to
 	LinkBy   int64         `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
 	Category www.CategoryT `json:"category,omitempty"` // Proposal category
+	Duration int64         `json:"duration"`           // Duration of proposal (in seconds)
+	Budget   int64         `json:"budget"`             // Budget of proposal (in US cents)
 }
 
 // EncodeProposalMetadata encodes a ProposalMetadata into a JSON byte slice.
