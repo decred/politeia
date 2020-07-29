@@ -372,9 +372,9 @@ func TestValidateProposalMetadata(t *testing.T) {
 	_, mdSuccess := newProposalMetadata(t, validName, rfpToken, 0)
 
 	var tests = []struct {
-		name      string
-		metadata  www.ProposalMetadata
-		wantError error
+		name     string
+		metadata www.ProposalMetadata
+		want     error
 	}{
 		{
 			"invalid proposal name",
@@ -449,24 +449,10 @@ func TestValidateProposalMetadata(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := p.validateProposalMetadata(test.metadata)
-
-			if err != nil {
-				// Validate error code
-				gotErrCode := err.(www.UserError).ErrorCode
-				wantErrCode := test.wantError.(www.UserError).ErrorCode
-
-				if gotErrCode != wantErrCode {
-					t.Errorf("got error code %v, want %v",
-						gotErrCode, wantErrCode)
-				}
-
-				return
-			}
-			// If wantError is nil, it means that an error case
-			// was expected and did not get returned.
-			if test.wantError != nil {
-				t.Errorf("want error '%v', got nil",
-					test.wantError)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -1032,32 +1018,28 @@ func TestValidateVoteOptions(t *testing.T) {
 			"no vote options found",
 			[]www2.VoteOption{},
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{"no vote options found"},
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
 			},
 		},
 		{
 			"invalid vote option",
 			invalidVoteOption,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{"invalid vote option id 'wrong'"},
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
 			},
 		},
 		{
 			"missing reject vote option",
 			missingReject,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{"missing vote option id 'no'"},
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
 			},
 		},
 		{
 			"missing approve vote option",
 			missingApprove,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{"missing vote option id 'yes'"},
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
 			},
 		},
 		{
@@ -1071,32 +1053,10 @@ func TestValidateVoteOptions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := validateVoteOptions(test.vos)
-
-			if err != nil {
-				// Validate error code
-				gotErrCode := err.(www.UserError).ErrorCode
-				wantErrCode := test.want.(www.UserError).ErrorCode
-
-				if gotErrCode != wantErrCode {
-					t.Errorf("got error code %v, want %v",
-						gotErrCode, wantErrCode)
-				}
-				// Validate error context
-				gotErrContext := err.(www.UserError).ErrorContext
-				wantErrContext := test.want.(www.UserError).ErrorContext
-				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
-
-				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-					t.Errorf("got error context '%v', want '%v'",
-						gotErrContext[0], wantErrContext[0])
-				}
-				return
-			}
-			// If wantError is nil, it means that an error case
-			// was expected and did not get returned.
-			if test.want != nil {
-				t.Errorf("want error '%v', got nil",
-					test.want)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -1213,13 +1173,12 @@ func TestValidateStartVote(t *testing.T) {
 	svInvalidVersion := newStartVote(t, token, 2, minDuration, standard, id)
 
 	var tests = []struct {
-		name   string
-		sv     www2.StartVote
-		u      user.User
-		pr     www.ProposalRecord
-		vs     www.VoteSummary
-		wantUE bool
-		want   error
+		name string
+		sv   www2.StartVote
+		u    user.User
+		pr   www.ProposalRecord
+		vs   www.VoteSummary
+		want error
 	}{
 		{
 			"invalid proposal token",
@@ -1227,7 +1186,6 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			false,
 			fmt.Errorf("invalid token %v", svInvalidToken.Vote.Token),
 		},
 		{
@@ -1236,7 +1194,6 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
 			},
@@ -1247,7 +1204,6 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidVoteOptions,
 			},
@@ -1258,12 +1214,8 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropVoteParams,
-				ErrorContext: []string{
-					fmt.Sprintf("vote duration must be >= %v", minDuration),
-				},
 			},
 		},
 		{
@@ -1272,12 +1224,8 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropVoteParams,
-				ErrorContext: []string{
-					fmt.Sprintf("vote duration must be <= %v", maxDuration),
-				},
 			},
 		},
 		{
@@ -1286,10 +1234,8 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-				ErrorContext: []string{"quorum percentage cannot be >100"},
+				ErrorCode: www.ErrorStatusInvalidPropVoteParams,
 			},
 		},
 		{
@@ -1298,10 +1244,8 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-				ErrorContext: []string{"pass percentage cannot be >100"},
+				ErrorCode: www.ErrorStatusInvalidPropVoteParams,
 			},
 		},
 		{
@@ -1310,7 +1254,6 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSigningKey,
 			},
@@ -1321,7 +1264,6 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			},
@@ -1332,10 +1274,8 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			true,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidProposalVersion,
-				ErrorContext: []string{"got 2, want 1"},
+				ErrorCode: www.ErrorStatusInvalidProposalVersion,
 			},
 		},
 		{
@@ -1344,10 +1284,8 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			propUnvetted,
 			www.VoteSummary{},
-			true,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusWrongStatus,
-				ErrorContext: []string{"proposal is not public"},
+				ErrorCode: www.ErrorStatusWrongStatus,
 			},
 		},
 		{
@@ -1358,10 +1296,8 @@ func TestValidateStartVote(t *testing.T) {
 			www.VoteSummary{
 				EndHeight: 1024,
 			},
-			true,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusWrongVoteStatus,
-				ErrorContext: []string{"vote already started"},
+				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			},
 		},
 		{
@@ -1370,7 +1306,6 @@ func TestValidateStartVote(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
-			false,
 			nil,
 		},
 	}
@@ -1378,42 +1313,10 @@ func TestValidateStartVote(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := validateStartVote(test.sv, test.u, test.pr, test.vs, minDuration, maxDuration)
-
-			// Check if wanted error is a UserError struct
-			switch test.wantUE {
-			case true:
-				if err != nil {
-					// Validate error code
-					gotErrCode := err.(www.UserError).ErrorCode
-					wantErrCode := test.want.(www.UserError).ErrorCode
-
-					if gotErrCode != wantErrCode {
-						t.Errorf("got error code %v, want %v",
-							gotErrCode, wantErrCode)
-					}
-					// Validate error context
-					gotErrContext := err.(www.UserError).ErrorContext
-					wantErrContext := test.want.(www.UserError).ErrorContext
-					hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
-
-					if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-						t.Errorf("got error context '%v', want '%v'",
-							gotErrContext[0], wantErrContext[0])
-					}
-					return
-				}
-				// If wantError is nil, it means that an error case
-				// was expected and did not get returned.
-				if test.want != nil {
-					t.Errorf("want error '%v', got nil",
-						test.want)
-				}
-			case false:
-				got := errToStr(err)
-				want := errToStr(test.want)
-				if got != want {
-					t.Errorf("got %v, want %v", got, want)
-				}
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -1556,24 +1459,11 @@ func TestValidateStartVoteStandard(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := p.validateStartVoteStandard(test.sv, test.u, test.pr, test.vs)
+			got := errToStr(err)
+			want := errToStr(test.want)
 
-			if err != nil {
-				// Validate error code
-				gotErrCode := err.(www.UserError).ErrorCode
-				wantErrCode := test.want.(www.UserError).ErrorCode
-
-				if gotErrCode != wantErrCode {
-					t.Errorf("got error code %v, want %v",
-						gotErrCode, wantErrCode)
-				}
-
-				return
-			}
-			// If wantError is nil, it means that an error case
-			// was expected and did not get returned.
-			if test.want != nil {
-				t.Errorf("want error '%v', got nil",
-					test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -1617,10 +1507,6 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 			www.VoteSummary{},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidVoteType,
-				ErrorContext: []string{
-					fmt.Sprintf("%v vote type must be %v",
-						svInvalidType.Vote.Token, www2.VoteTypeRunoff),
-				},
 			},
 		},
 		{
@@ -1631,8 +1517,6 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 			www.VoteSummary{},
 			www.UserError{
 				ErrorCode: www.ErrorStatusWrongProposalType,
-				ErrorContext: []string{
-					fmt.Sprintf("%v is not an rfp submission", sv.Vote.Token)},
 			},
 		},
 		{
@@ -1657,32 +1541,11 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 				minDuration,
 				maxDuration,
 			)
+			got := errToStr(err)
+			want := errToStr(test.want)
 
-			if err != nil {
-				// Validate error code
-				gotErrCode := err.(www.UserError).ErrorCode
-				wantErrCode := test.want.(www.UserError).ErrorCode
-
-				if gotErrCode != wantErrCode {
-					t.Errorf("got error code %v, want %v",
-						gotErrCode, wantErrCode)
-				}
-				// Validate error context
-				gotErrContext := err.(www.UserError).ErrorContext
-				wantErrContext := test.want.(www.UserError).ErrorContext
-				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
-
-				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-					t.Errorf("got error context '%v', want '%v'",
-						gotErrContext[0], wantErrContext[0])
-				}
-				return
-			}
-			// If wantError is nil, it means that an error case
-			// was expected and did not get returned.
-			if test.want != nil {
-				t.Errorf("want error '%v', got nil",
-					test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -2636,8 +2499,7 @@ func TestProcessStartVoteV2(t *testing.T) {
 			usr,
 			svInvalidToken,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-				ErrorContext: []string{svInvalidToken.Vote.Token},
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
 		{
@@ -2661,9 +2523,8 @@ func TestProcessStartVoteV2(t *testing.T) {
 			_, err := p.processStartVoteV2(v.sv, v.user)
 			got := errToStr(err)
 			want := errToStr(v.wantErr)
-
 			if got != want {
-				t.Errorf("got error %v, want %v", got, want)
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
@@ -2841,10 +2702,6 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			svRunoffNotMatch,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidRunoffVote,
-				ErrorContext: []string{
-					fmt.Sprintf("start vote found without matching authorize"+
-						" vote %v", sub1StartVote.Vote.Token),
-				},
 			},
 		},
 		{
@@ -2853,10 +2710,6 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			svRunoffNotMatch2,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidRunoffVote,
-				ErrorContext: []string{
-					fmt.Sprintf("authorize vote found without matching start"+
-						" vote %v", sub1AuthVote.Token),
-				},
 			},
 		},
 		{
@@ -2865,8 +2718,6 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			svRunoffEmpty,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidRunoffVote,
-				ErrorContext: []string{"start votes and authorize votes cannot " +
-					"be empty"},
 			},
 		},
 		{
@@ -2874,8 +2725,7 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			usr,
 			svRunoffInvalidToken,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-				ErrorContext: []string{"invalid"},
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
 		{
@@ -2883,8 +2733,7 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			usr,
 			svRunoffNotFound,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusProposalNotFound,
-				ErrorContext: []string{rToken},
+				ErrorCode: www.ErrorStatusProposalNotFound,
 			},
 		},
 		{
@@ -2892,8 +2741,7 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			usr,
 			svRunoffRFPNotFound,
 			www.UserError{
-				ErrorCode:    www.ErrorStatusProposalNotFound,
-				ErrorContext: []string{rToken},
+				ErrorCode: www.ErrorStatusProposalNotFound,
 			},
 		},
 		{
@@ -2910,10 +2758,6 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			svRunoffExtraSv,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidRunoffVote,
-				ErrorContext: []string{
-					fmt.Sprintf("invalid start vote submission: %v",
-						extraToken),
-				},
 			},
 		},
 		{
@@ -2922,10 +2766,6 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 			svRunoffMissingSv,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidRunoffVote,
-				ErrorContext: []string{
-					fmt.Sprintf("missing start vote for rfp submission: %v",
-						sub3StartVote.Vote.Token),
-				},
 			},
 		},
 		{
@@ -2939,32 +2779,10 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := p.processStartVoteRunoffV2(test.sv, test.user)
-
-			if err != nil {
-				// Validate error code
-				gotErrCode := err.(www.UserError).ErrorCode
-				wantErrCode := test.want.(www.UserError).ErrorCode
-
-				if gotErrCode != wantErrCode {
-					t.Errorf("got error code %v, want %v",
-						gotErrCode, wantErrCode)
-				}
-				// Validate error context
-				gotErrContext := err.(www.UserError).ErrorContext
-				wantErrContext := test.want.(www.UserError).ErrorContext
-				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
-
-				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
-					t.Errorf("got error context '%v', want '%v'",
-						gotErrContext[0], wantErrContext[0])
-				}
-				return
-			}
-			// If wantError is nil, it means that an error case
-			// was expected and did not get returned.
-			if test.want != nil {
-				t.Errorf("want error '%v', got nil",
-					test.want)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
 			}
 		})
 	}
