@@ -2477,7 +2477,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 
 		// Update MD first
 		record.RecordMetadata.Status = backend.MDStatusVetted
-		record.RecordMetadata.Iteration++
+		record.RecordMetadata.Iteration += 1
 		record.RecordMetadata.Timestamp = time.Now().Unix()
 		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
@@ -2507,7 +2507,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 		status == backend.MDStatusCensored:
 		// unvetted -> censored
 		record.RecordMetadata.Status = backend.MDStatusCensored
-		record.RecordMetadata.Iteration++
+		record.RecordMetadata.Iteration += 1
 		record.RecordMetadata.Timestamp = time.Now().Unix()
 		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
@@ -2641,7 +2641,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 
 	// Update MD first
 	record.RecordMetadata.Status = backend.MDStatusArchived
-	record.RecordMetadata.Iteration++
+	record.RecordMetadata.Iteration += 1
 	record.RecordMetadata.Timestamp = time.Now().Unix()
 	err = updateMD(g.unvetted, id, &record.RecordMetadata)
 	if err != nil {
