@@ -1316,12 +1316,11 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
-	if g.shutdown {
-		return nil, backend.ErrShutdown
-	}
-
 	if g.quiesce {
 		return nil, backend.ErrQuiesced
+	}
+	if g.shutdown {
+		return nil, backend.ErrShutdown
 	}
 
 	token, err := g.randomUniqueToken()
@@ -1652,12 +1651,11 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
-	if g.shutdown {
-		return nil, backend.ErrShutdown
-	}
-
 	if g.quiesce {
 		return nil, backend.ErrQuiesced
+	}
+	if g.shutdown {
+		return nil, backend.ErrShutdown
 	}
 
 	// git checkout master
@@ -2543,11 +2541,11 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
-	if g.shutdown {
-		return nil, backend.ErrShutdown
-	}
 	if g.quiesce {
 		return nil, backend.ErrQuiesced
+	}
+	if g.shutdown {
+		return nil, backend.ErrShutdown
 	}
 
 	log.Debugf("setting status %v (%v) -> %x", status,
@@ -2677,12 +2675,11 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
-	if g.shutdown {
-		return nil, backend.ErrShutdown
-	}
-
 	if g.quiesce {
 		return nil, backend.ErrQuiesced
+	}
+	if g.shutdown {
+		return nil, backend.ErrShutdown
 	}
 
 	log.Debugf("setting status %v (%v) -> %x", status,

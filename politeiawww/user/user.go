@@ -486,10 +486,10 @@ type Database interface {
 	// Execute a plugin command
 	PluginExec(PluginCommand) (*PluginCommandReply, error)
 
-	// Close performs cleanup of the backend.
-	Close() error
-
 	// SetQuiesce sets userdb quiesce mode toggle value, if Quiesced all writes
 	// are blocked, only reads all allowed.
 	SetQuiesce(quiesce bool) error
+
+	// Close performs cleanup of the backend.
+	Close() error
 }

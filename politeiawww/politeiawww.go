@@ -846,8 +846,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 	}
 }
 
-// handleWebsocketWrite attempts to notify a subscribed websocket. Currently
-// only ping & quiesce are supported.
+// handleWebsocketWrite attempts to notify a subscribed websocket.
 func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 	defer wc.wg.Done()
 	log.Tracef("handleWebsocketWrite %v", wc)
