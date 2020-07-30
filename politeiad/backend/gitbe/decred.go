@@ -2784,7 +2784,6 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 	if g.quiesce {
 		return "", backend.ErrQuiesced
 	}
-
 	if g.shutdown {
 		return "", backend.ErrShutdown
 	}
