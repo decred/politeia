@@ -1034,7 +1034,7 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	}
 
 	dest := cms.ProposalsMainnet
-	if !p.cfg.TestNet {
+	if p.cfg.TestNet {
 		dest = cms.ProposalsTestnet
 	}
 
