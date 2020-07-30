@@ -1034,7 +1034,7 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	}
 
 	dest := cms.ProposalsMainnet
-	if p.cfg.TestNet {
+	if !p.cfg.TestNet {
 		dest = cms.ProposalsTestnet
 	}
 
@@ -1078,15 +1078,8 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		var pdErrorReply www.PDErrorReply
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&pdErrorReply); err != nil {
-			return nil, err
-		}
-
-		return nil, www.PDError{
-			HTTPCode:   r.StatusCode,
-			ErrorReply: pdErrorReply,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusT(r.StatusCode),
 		}
 	}
 
