@@ -48,9 +48,18 @@ const (
 // cockroachdb implements the cache interface.
 type cockroachdb struct {
 	sync.RWMutex
+	quiesce   bool                          // Backend is quiesced
 	shutdown  bool                          // Backend is shutdown
 	recordsdb *gorm.DB                      // Database context
 	plugins   map[string]cache.PluginDriver // [pluginID]PluginDriver
+}
+
+// isQuiesce return whether the backend has been quiesced.
+func (c *cockroachdb) isQuiesced() bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.quiesce
 }
 
 // isShutdown returns whether the backend has been shutdown.
@@ -673,7 +682,9 @@ func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
 // PluginExec is a pass through function for plugin commands.
 func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandReply, error) {
 	log.Tracef("PluginExec: %v", pc.ID)
-
+	if c.isQuiesced() {
+		return nil, cache.ErrQuiesced
+	}
 	if c.isShutdown() {
 		return nil, cache.ErrShutdown
 	}

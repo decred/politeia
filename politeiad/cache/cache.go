@@ -23,6 +23,9 @@ var (
 	// ErrShutdown is emitted when the cache is shutting down.
 	ErrShutdown = errors.New("cache is shutting down")
 
+	// ErrQuiesced is emitted when cache is quiesced.
+	ErrQuiesced = errors.New("cache is quiesced")
+
 	// ErrRecordNotFound is emitted when a cache record could not be
 	// found.
 	ErrRecordNotFound = errors.New("record not found")

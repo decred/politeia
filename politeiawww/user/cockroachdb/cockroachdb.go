@@ -175,7 +175,6 @@ func (c *cockroachdb) UserNew(u user.User) error {
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
-
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
@@ -447,7 +446,9 @@ func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
 // SessionSave satisfies the user Database interface.
 func (c *cockroachdb) SessionSave(us user.Session) error {
 	log.Tracef("SessionSave: %v", us.ID)
-
+	if c.isQuiesced() {
+		return user.ErrQuiesced
+	}
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
@@ -526,7 +527,9 @@ func (c *cockroachdb) SessionGetByID(sid string) (*user.Session, error) {
 // SessionDeleteByID satisfies the Database interface.
 func (c *cockroachdb) SessionDeleteByID(sid string) error {
 	log.Tracef("SessionDeleteByID: %v", sid)
-
+	if c.isQuiesced() {
+		return user.ErrQuiesced
+	}
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
@@ -633,7 +636,9 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 // key.
 func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
-
+	if c.isQuiesced() {
+		return user.ErrQuiesced
+	}
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
@@ -682,7 +687,6 @@ func (c *cockroachdb) InsertUser(u user.User) error {
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
-
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}

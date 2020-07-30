@@ -320,7 +320,9 @@ func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 func (l *localdb) UserUpdate(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
-
+	if l.quiesce {
+		return user.ErrQuiesced
+	}
 	if l.shutdown {
 		return user.ErrShutdown
 	}
@@ -422,7 +424,9 @@ func (l *localdb) SessionSave(s user.Session) error {
 
 	l.Lock()
 	defer l.Unlock()
-
+	if l.quiesce {
+		return user.ErrQuiesced
+	}
 	if l.shutdown {
 		return user.ErrShutdown
 	}
@@ -472,7 +476,9 @@ func (l *localdb) SessionDeleteByID(sid string) error {
 
 	l.RLock()
 	defer l.RUnlock()
-
+	if l.quiesce {
+		return user.ErrQuiesced
+	}
 	if l.shutdown {
 		return user.ErrShutdown
 	}
