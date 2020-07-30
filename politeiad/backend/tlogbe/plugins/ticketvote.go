@@ -69,6 +69,8 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 }
 
 // Cmd executes a plugin command.
+//
+// This function satisfies the Plugin interface.
 func (p *ticketVotePlugin) Cmd(cmd, payload string) (string, error) {
 	log.Tracef("ticketvote Cmd: %v", cmd)
 
@@ -95,6 +97,8 @@ func (p *ticketVotePlugin) Cmd(cmd, payload string) (string, error) {
 }
 
 // Hook executes a plugin hook.
+//
+// This function satisfies the Plugin interface.
 func (p *ticketVotePlugin) Hook(h HookT, payload string) error {
 	log.Tracef("ticketvote Hook: %v %v", h, payload)
 
@@ -102,6 +106,8 @@ func (p *ticketVotePlugin) Hook(h HookT, payload string) error {
 }
 
 // Fsck performs a plugin filesystem check.
+//
+// This function satisfies the Plugin interface.
 func (p *ticketVotePlugin) Fsck() error {
 	log.Tracef("ticketvote Fsck")
 
@@ -109,6 +115,8 @@ func (p *ticketVotePlugin) Fsck() error {
 }
 
 // Setup performs any plugin setup work that needs to be done.
+//
+// This function satisfies the Plugin interface.
 func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("ticketvote Setup")
 

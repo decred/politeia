@@ -1409,6 +1409,8 @@ func (p *commentsPlugin) cmdProofs(payload string) (string, error) {
 }
 
 // Cmd executes a plugin command.
+//
+// This function satisfies the Plugin interface.
 func (p *commentsPlugin) Cmd(cmd, payload string) (string, error) {
 	log.Tracef("comments Cmd: %v", cmd)
 
@@ -1437,12 +1439,16 @@ func (p *commentsPlugin) Cmd(cmd, payload string) (string, error) {
 }
 
 // Hook executes a plugin hook.
+//
+// This function satisfies the Plugin interface.
 func (p *commentsPlugin) Hook(h HookT, payload string) error {
 	log.Tracef("comments Hook: %v", Hook[h])
 	return nil
 }
 
 // Fsck performs a plugin filesystem check.
+//
+// This function satisfies the Plugin interface.
 func (p *commentsPlugin) Fsck() error {
 	log.Tracef("comments Fsck")
 
@@ -1452,16 +1458,18 @@ func (p *commentsPlugin) Fsck() error {
 }
 
 // Setup performs any plugin setup work that needs to be done.
+//
+// This function satisfies the Plugin interface.
 func (p *commentsPlugin) Setup() error {
 	log.Tracef("comments Setup")
 	return nil
 }
 
 // CommentsPluginNew returns a new comments plugin.
-func CommentsPluginNew(id *identity.FullIdentity, backend *tlogbe.Tlogbe) (*commentsPlugin, error) {
+func CommentsPluginNew(id *identity.FullIdentity, backend *tlogbe.Tlogbe) *commentsPlugin {
 	return &commentsPlugin{
 		id:      id,
 		backend: backend,
 		mutexes: make(map[string]*sync.Mutex),
-	}, nil
+	}
 }
