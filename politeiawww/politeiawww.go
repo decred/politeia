@@ -147,6 +147,19 @@ type politeiawww struct {
 	quiesce bool
 }
 
+func (p *politeiawww) getQuiesce() bool {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.quiesce
+}
+
+func (p *politeiawww) setQuiesce(quiesce bool) {
+	p.Lock()
+	defer p.Unlock()
+	p.quiesce = quiesce
+}
+
 // XXX rig this up
 func (p *politeiawww) addTemplate(templateName, templateContent string) {
 	p.tmplMtx.Lock()
@@ -175,7 +188,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet:      p.cfg.TestNet,
 		Mode:         p.cfg.Mode,
-		Quiesce:      p.quiesce,
+		Quiesce:      p.getQuiesce(),
 	}
 
 	_, err := p.getSessionUser(w, r)

@@ -14,12 +14,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func (p *politeiawww) setQuiesce(quiesce bool) {
-	p.Lock()
-	defer p.Unlock()
-	p.quiesce = quiesce
-}
-
 func (p *politeiawww) processQuiesce(q www2.Quiesce) (*www2.QuiesceReply, error) {
 	log.Tracef("processQuiesce: %v", q.Quiesce)
 
