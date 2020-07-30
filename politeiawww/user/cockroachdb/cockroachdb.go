@@ -49,7 +49,7 @@ type cockroachdb struct {
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
 }
 
-// isShutdown returns whether the backend has been quiesced.
+// isQuiesced returns whether the backend has been quiesced.
 func (c *cockroachdb) isQuiesced() bool {
 	c.RLock()
 	defer c.RUnlock()
@@ -446,6 +446,7 @@ func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
 // SessionSave satisfies the user Database interface.
 func (c *cockroachdb) SessionSave(us user.Session) error {
 	log.Tracef("SessionSave: %v", us.ID)
+
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
@@ -527,6 +528,7 @@ func (c *cockroachdb) SessionGetByID(sid string) (*user.Session, error) {
 // SessionDeleteByID satisfies the Database interface.
 func (c *cockroachdb) SessionDeleteByID(sid string) error {
 	log.Tracef("SessionDeleteByID: %v", sid)
+
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
@@ -636,6 +638,7 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 // key.
 func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
+
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
@@ -683,7 +686,6 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 // intended to be used for migrations between databases.
 func (c *cockroachdb) InsertUser(u user.User) error {
 	log.Tracef("InsertUser: %v", u.ID)
-
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}
@@ -764,7 +766,7 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 // Close shuts down the database.  All interface functions must return with
 // errShutdown if the backend is shutting down.
 func (c *cockroachdb) Close() error {
-	log.Trace("Close")
+	log.Tracef("Close")
 
 	c.Lock()
 	defer c.Unlock()

@@ -62,7 +62,6 @@ func (l *localdb) UserNew(u user.User) error {
 	if l.quiesce {
 		return user.ErrQuiesced
 	}
-
 	if l.shutdown {
 		return user.ErrShutdown
 	}
@@ -120,7 +119,6 @@ func (l *localdb) UserGet(email string) (*user.User, error) {
 	if l.quiesce {
 		return nil, user.ErrQuiesced
 	}
-
 	if l.shutdown {
 		return nil, user.ErrShutdown
 	}

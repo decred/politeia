@@ -321,7 +321,6 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 	if g.quiesce {
 		return "", backend.ErrQuiesced
 	}
-
 	vote, err := cmsplugin.DecodeStartVote([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
