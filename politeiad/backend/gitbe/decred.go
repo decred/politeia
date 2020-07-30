@@ -1009,6 +1009,12 @@ func (g *gitBackEnd) decredPluginJournalFlusher() {
 
 func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	// XXX this should become part of some sort of context
+	log.Tracef("pluginNewComment")
+	g.Lock()
+	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
 	if !ok {
 		return "", fmt.Errorf("full identity not set")
@@ -1112,6 +1118,11 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 // pluginLikeComment handles up and down votes of comments.
 func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	log.Tracef("pluginLikeComment")
+	g.Lock()
+	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 
 	// Check if journals were replayed
 	if !journalsReplayed {
@@ -1226,7 +1237,11 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	log.Tracef("pluginCensorComment")
-
+	g.Lock()
+	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 	// Check if journals were replayed
 	if !journalsReplayed {
 		return "", backend.ErrJournalsNotReplayed
@@ -2525,6 +2540,11 @@ func (g *gitBackEnd) writeVote(v decredplugin.CastVote, receipt, journalPath str
 
 func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	log.Tracef("pluginBallot")
+	g.Lock()
+	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 
 	// Check if journals were replayed
 	if !journalsReplayed {

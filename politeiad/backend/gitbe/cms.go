@@ -315,6 +315,13 @@ func (g *gitBackEnd) cmsPluginJournalFlusher() {
 }
 
 func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
+	log.Tracef("pluginStartDCCVote")
+	g.Lock()
+	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
+
 	vote, err := cmsplugin.DecodeStartVote([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
@@ -773,6 +780,11 @@ func (g *gitBackEnd) writeDCCVote(v cmsplugin.CastVote, receipt, journalPath str
 
 func (g *gitBackEnd) pluginCastVote(payload string) (string, error) {
 	log.Tracef("pluginCastVote")
+	g.Lock()
+	defer g.Unlock()
+	if g.quiesce {
+		return "", backend.ErrQuiesced
+	}
 
 	// Check if journals were replayed
 	if !journalsReplayed {

@@ -1926,6 +1926,9 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
+	if g.quiesce {
+		return backend.ErrQuiesced
+	}
 	if g.shutdown {
 		return backend.ErrShutdown
 	}
@@ -2104,6 +2107,9 @@ func (g *gitBackEnd) UpdateReadme(content string) error {
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
+	if g.quiesce {
+		return backend.ErrQuiesced
+	}
 	if g.shutdown {
 		return backend.ErrShutdown
 	}
