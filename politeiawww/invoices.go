@@ -1803,21 +1803,39 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 
 	approvedProposals := tvr.Approved
 
-	var bpr www.BatchProposalsReply
+	approvedProposalDetails := make([]www.ProposalRecord, 0, len(approvedProposals))
 	if len(approvedProposals) > 0 {
-		// Go fetch proposal information to get name/title.
-		bp := &www.BatchProposals{
-			Tokens: approvedProposals,
+		startOffset := 0
+		endOffset := www.ProposalListPageSize
+		if endOffset > len(approvedProposals) {
+			endOffset = len(approvedProposals)
 		}
+		for i := endOffset; i <= len(approvedProposals); {
+			// Go fetch proposal information to get name/title.
+			bp := &www.BatchProposals{
+				Tokens: approvedProposals[startOffset:i],
+			}
 
-		data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
-		if err != nil {
-			return nil, err
-		}
+			data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+			if err != nil {
+				return nil, err
+			}
 
-		err = json.Unmarshal(data, &bpr)
-		if err != nil {
-			return nil, err
+			var bpr www.BatchProposalsReply
+			err = json.Unmarshal(data, &bpr)
+			if err != nil {
+				return nil, err
+			}
+			approvedProposalDetails = append(approvedProposalDetails, bpr.Proposals...)
+
+			startOffset = i
+			i += www.ProposalListPageSize
+			if i > len(approvedProposals) {
+				i = len(approvedProposals)
+			}
+			if i == startOffset {
+				break
+			}
 		}
 	}
 
@@ -1860,7 +1878,7 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 			totalSpent += int64(payout.Total)
 		}
 		// Look across approved proposals batch reply for proposal name.
-		for _, propDetails := range bpr.Proposals {
+		for _, propDetails := range approvedProposalDetails {
 			if propDetails.CensorshipRecord.Token == prop {
 				spendingSummary.Title = propDetails.Name
 				break
@@ -1906,7 +1924,6 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 
 	data, err := p.makeProposalsRequest(http.MethodGet, "/proposals/"+pbd.Token, nil)
 	if err != nil {
-		fmt.Println("asdfsdf?")
 		return nil, err
 	}
 
