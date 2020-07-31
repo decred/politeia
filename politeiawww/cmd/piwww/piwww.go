@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -177,7 +177,8 @@ func _main() error {
 	if cfg.CSRF == "" {
 		_, err := client.Version()
 		if err != nil {
-			if _, ok := err.(*url.Error); !ok {
+			var e *url.Error
+			if !errors.As(err, &e) {
 				// A url error likely means that politeiawww is not
 				// running. The user may just be trying to print the
 				// help message so only return an error if its not
@@ -191,8 +192,8 @@ func _main() error {
 	var cli piwww
 	var parser = flags.NewParser(&cli, flags.Default)
 	if _, err := parser.Parse(); err != nil {
-		flagsErr, ok := err.(*flags.Error)
-		if ok && flagsErr.Type == flags.ErrHelp {
+		var flagsErr *flags.Error
+		if errors.As(err, &flagsErr) && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		} else {
 			os.Exit(1)

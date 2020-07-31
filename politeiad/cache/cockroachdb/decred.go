@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -337,7 +338,7 @@ func (d *decred) voteResultsInsertStandard(token string) error {
 		Where("token = ?", token).
 		Find(&cv).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// No cast votes exists. In theory, this could
 		// happen if no one were to vote on a proposal.
 		// In practice, this shouldn't happen.
@@ -406,7 +407,7 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 			Where("token = ?", token).
 			Find(&cv).
 			Error
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// No cast votes exists. In theory, this could
 			// happen if no one were to vote on a proposal.
 			// In practice, this shouldn't happen.
@@ -653,7 +654,7 @@ func (d *decred) voteSummaries(tokens []string, bestBlock uint64) (map[string]de
 	// Check for missing vote results tables
 	voteResults, err := d.voteResults(tokens, bestBlock)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			// The VoteResults table needs to be updated. Return
 			// just the error so the calling function can key off
 			// of it.
@@ -779,7 +780,7 @@ func (d *decred) commentGetByID(token string, commentID string) (*Comment, error
 	}
 	err := d.recordsdb.Find(&c).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = cache.ErrRecordNotFound
 		}
 		return nil, err
@@ -794,7 +795,7 @@ func (d *decred) commentGetBySignature(token string, sig string) (*Comment, erro
 		Find(&c).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = cache.ErrRecordNotFound
 		}
 		return nil, err
@@ -1208,7 +1209,7 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 		Find(&r).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = cache.ErrRecordNotFound
 		}
 		return "", err
@@ -1221,7 +1222,7 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 		Where("key = ?", key).
 		Find(&av).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// An authorize vote may note exist. This is ok.
 	} else if err != nil {
 		return "", fmt.Errorf("authorize vote lookup failed: %v", err)
@@ -1238,7 +1239,7 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 		Preload("Options").
 		Find(&sv).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// A start vote may note exist. This is ok.
 	} else if err != nil {
 		return "", fmt.Errorf("start vote lookup failed: %v", err)
@@ -1324,7 +1325,7 @@ func (d *decred) cmdProposalVotes(payload string) (string, error) {
 		Where("token = ?", vr.Token).
 		Find(&cv).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// No cast votes may exist yet. This is ok.
 	} else if err != nil {
 		return "", fmt.Errorf("cast votes lookup failed: %v", err)
@@ -2084,7 +2085,7 @@ func (d *decred) createTables(tx *gorm.DB) error {
 
 	var v Version
 	err := tx.Where("id = ?", decredplugin.ID).Find(&v).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		err = tx.Create(
 			&Version{
 				ID:        decredplugin.ID,
@@ -2286,7 +2287,7 @@ func (d *decred) CheckVersion() error {
 		Where("id = ?", decredplugin.ID).
 		Find(&v).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Debugf("version record not found for ID '%v'",
 			decredplugin.ID)
 		err = cache.ErrNoVersionRecord

@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -106,7 +107,7 @@ func (c *cms) cmdDCCVotes(payload string) (string, error) {
 		Preload("Options").
 		Find(&sv).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// A start vote may note exist if the voting period has not
 		// been started yet. This is ok.
 	} else if err != nil {
@@ -119,7 +120,7 @@ func (c *cms) cmdDCCVotes(payload string) (string, error) {
 		Where("token = ?", vr.Token).
 		Find(&cv).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// No cast votes may exist yet. This is ok.
 	} else if err != nil {
 		return "", fmt.Errorf("cast votes lookup failed: %v", err)
@@ -233,7 +234,7 @@ func (c *cms) newVoteResults(token string) error {
 		Where("token = ?", token).
 		Find(&cv).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// No cast votes exists. In theory, this could
 		// happen if no one were to vote on a proposal.
 		// In practice, this shouldn't happen.
@@ -474,7 +475,7 @@ func (c *cms) createTables(tx *gorm.DB) error {
 
 	var v Version
 	err := tx.Where("id = ?", cmsplugin.ID).Find(&v).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		err = tx.Create(
 			&Version{
 				ID:        cmsplugin.ID,
@@ -629,7 +630,7 @@ func (c *cms) CheckVersion() error {
 		Where("id = ?", cmsplugin.ID).
 		Find(&v).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Debugf("version record not found for ID '%v'",
 			cmsplugin.ID)
 		err = cache.ErrNoVersionRecord

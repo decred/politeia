@@ -1,12 +1,14 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package util_test
 
 import (
-	"github.com/decred/politeia/util"
+	"errors"
 	"testing"
+
+	"github.com/decred/politeia/util"
 )
 
 func TestDcrStringToAmount(t *testing.T) {
@@ -55,7 +57,7 @@ func TestDcrStringToAmount(t *testing.T) {
 	// test
 	for _, testCase := range testCases {
 		result, err := util.DcrStringToAmount(testCase.input)
-		if err != testCase.expectedError {
+		if !errors.Is(err, testCase.expectedError) {
 			t.Errorf("Expected %v for input %s, got %v.",
 				testCase.expectedError, testCase.input, err)
 		}

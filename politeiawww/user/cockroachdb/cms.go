@@ -1,6 +1,7 @@
 package cockroachdb
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -156,7 +157,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	}
 	err := tx.First(&cms).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			cms.Domain = nu.Domain
 			cms.GitHubName = nu.GitHubName
 			cms.MatrixName = nu.MatrixName
@@ -361,7 +362,7 @@ func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 		Find(&cmsUser).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// It's ok if there are no cms records found for this user.
 			// But we do need to request the rest of the user details from the
 			// www User table.
@@ -371,7 +372,7 @@ func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 				Find(&u).
 				Error
 			if err != nil {
-				if err == gorm.ErrRecordNotFound {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
 					err = user.ErrUserNotFound
 				}
 				return "", err

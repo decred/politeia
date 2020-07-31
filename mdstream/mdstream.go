@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package mdstream
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -248,7 +249,7 @@ func DecodeRecordStatusChanges(payload []byte) ([]RecordStatusChangeV1, []Record
 		// Decode json into a map so we can determine the version.
 		statusChange := make(map[string]interface{}, 6)
 		err := d.Decode(&statusChange)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, nil, err
@@ -362,7 +363,7 @@ func DecodeInvoiceStatusChange(payload []byte) ([]InvoiceStatusChange, error) {
 	for {
 		var m InvoiceStatusChange
 		err := d.Decode(&m)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -401,7 +402,7 @@ func DecodeInvoicePayment(payload []byte) ([]InvoicePayment, error) {
 	for {
 		var m InvoicePayment
 		err := d.Decode(&m)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -477,7 +478,7 @@ func DecodeDCCStatusChange(payload []byte) ([]DCCStatusChange, error) {
 	for {
 		var m DCCStatusChange
 		err := d.Decode(&m)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -519,7 +520,7 @@ func DecodeDCCSupportOpposition(payload []byte) ([]DCCSupportOpposition, error) 
 	for {
 		var m DCCSupportOpposition
 		err := d.Decode(&m)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err

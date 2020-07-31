@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -202,7 +203,7 @@ func Verify(id, host string, digests []string) (*v1.VerifyReply, error) {
 		// Verify merkle path.
 		root, err := merkle.VerifyAuthPath(&v.ChainInformation.MerklePath)
 		if err != nil {
-			if err != merkle.ErrEmpty {
+			if !errors.Is(err, merkle.ErrEmpty) {
 				return nil, fmt.Errorf("%v invalid auth path "+
 					"%v", v.Digest, err)
 			}

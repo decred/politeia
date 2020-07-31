@@ -599,7 +599,7 @@ func (g *gitBackEnd) replayDCCBallot(token string) error {
 			}
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return err
@@ -815,10 +815,11 @@ func (g *gitBackEnd) pluginCastVote(payload string) (string, error) {
 	// Ensure that the votebits are correct
 	err = g.validateCMSVoteBit(vote.Token, vote.VoteBit)
 	if err != nil {
-		if e, ok := err.(invalidVoteBitError); ok {
+		var ierr invalidVoteBitError
+		if errors.As(err, &ierr) {
 			es := cmsplugin.ErrorStatusInvalidVoteBit
 			err := fmt.Sprintf("%v: %v",
-				cmsplugin.ErrorStatus[es], e.err.Error())
+				cmsplugin.ErrorStatus[es], ierr.err.Error())
 			return "", fmt.Errorf("validateCMSVoteBit: %v", err)
 
 		}
@@ -956,7 +957,7 @@ func (g *gitBackEnd) tallyDCCVotes(token string) ([]cmsplugin.CastVote, error) {
 			}
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err

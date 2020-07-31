@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -257,7 +258,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 		// we currently allow linking to is an RFP.
 		r, err := p.cache.Record(pm.LinkTo)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
+			if errors.Is(err, cache.ErrRecordNotFound) {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidLinkTo,
 				}
@@ -1042,7 +1043,7 @@ func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[s
 	for retries := 0; !done && retries <= 1; retries++ {
 		reply, err = p.decredBatchVoteSummary(tokensToLookup, bestBlock)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
+			if errors.Is(err, cache.ErrRecordNotFound) {
 				// There are missing entries in the VoteResults
 				// cache table. Load them.
 				_, err := p.decredLoadVoteResults(bestBlock)
@@ -1307,7 +1308,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 		prop, err = p.getPropVersion(propDetails.Token, propDetails.Version)
 	}
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -1511,7 +1512,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	// Get proposal from cache
 	pr, err := p.getProp(sps.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -1713,7 +1714,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	// Validate proposal status
 	cachedProp, err := p.getProp(ep.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -2086,7 +2087,7 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -2239,7 +2240,7 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -2551,7 +2552,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	// Validate the vote authorization
 	pr, err := p.getProp(av.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -2869,7 +2870,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	}
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -3046,7 +3047,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 		pr, err := p.getProp(token)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
+			if errors.Is(err, cache.ErrRecordNotFound) {
 				err = www.UserError{
 					ErrorCode:    www.ErrorStatusProposalNotFound,
 					ErrorContext: []string{token},
@@ -3073,7 +3074,8 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		if err != nil {
 			// Attach the token to the error so the user knows which one
 			// failed.
-			if ue, ok := err.(*www.UserError); ok {
+			var ue *www.UserError
+			if errors.As(err, &ue) {
 				ue.ErrorContext = append(ue.ErrorContext, token)
 				err = ue
 			}
@@ -3086,7 +3088,8 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		if err != nil {
 			// Attach the token to the error so the user knows which one
 			// failed.
-			if ue, ok := err.(*www.UserError); ok {
+			var ue *www.UserError
+			if errors.As(err, &ue) {
 				ue.ErrorContext = append(ue.ErrorContext, token)
 				err = ue
 			}
@@ -3097,7 +3100,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	// Validate the RFP proposal
 	rfp, err := p.getProp(sv.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode:    www.ErrorStatusProposalNotFound,
 				ErrorContext: []string{sv.Token},
@@ -3248,7 +3251,7 @@ func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.Token
 		// for non-admins.
 		ti, err := p.decredTokenInventory(bestBlock, isAdmin)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
+			if errors.Is(err, cache.ErrRecordNotFound) {
 				// There are missing entries in the vote
 				// results cache table. Load them.
 				_, err := p.decredLoadVoteResults(bestBlock)
@@ -3289,7 +3292,7 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	// Validate vote status
 	dvdr, err := p.decredVoteDetails(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/hex"
+	"errors"
 	"testing"
 	"time"
 
@@ -1605,7 +1606,7 @@ func TestProcessVerifyResetPassword(t *testing.T) {
 				err = bcrypt.CompareHashAndPassword(u.HashedPassword,
 					[]byte(v.vrp.NewPassword))
 				if err != nil {
-					if err == bcrypt.ErrMismatchedHashAndPassword {
+					if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 						t.Errorf("user password not updated")
 					}
 					t.Fatal(err)

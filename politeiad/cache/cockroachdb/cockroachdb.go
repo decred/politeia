@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package cockroachdb
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -66,7 +67,7 @@ func (c *cockroachdb) isShutdown() bool {
 func recordExists(db *gorm.DB, token string, version string) (bool, error) {
 	var r Record
 	err := db.Where("key = ?", token+version).Find(&r).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Record doesn't exist
 		return false, nil
 	} else if err != nil {
@@ -146,7 +147,7 @@ func recordByPrefix(db *gorm.DB, prefix string) (*Record, error) {
 		Find(&r).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = cache.ErrRecordNotFound
 		}
 		return nil, err
@@ -187,7 +188,7 @@ func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record
 		Find(&r).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = cache.ErrRecordNotFound
 		}
 		return nil, err
@@ -226,7 +227,7 @@ func record(db *gorm.DB, token string) (*Record, error) {
 		Find(&r).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = cache.ErrRecordNotFound
 		}
 		return nil, err
@@ -807,7 +808,7 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	err := tx.Where("id = ?", cacheID).
 		Find(&v).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		err = tx.Create(
 			&Version{
 				ID:        cacheID,
@@ -823,7 +824,7 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	}
 	err = tx.Find(&kv).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			b := make([]byte, 8)
 			binary.LittleEndian.PutUint64(b, 0)
 			kv := KeyValue{
@@ -1030,7 +1031,7 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 		Where("id = ?", cacheID).
 		Find(&v).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Debugf("version record not found for ID '%v'", cacheID)
 		err = cache.ErrNoVersionRecord
 	} else if v.Version != cacheVersion {

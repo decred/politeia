@@ -1,10 +1,11 @@
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -67,7 +68,7 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 	for userID, poolMember := range pool {
 		u, err := p.db.UserGetById(userID)
 		if err != nil {
-			if err == user.ErrShutdown {
+			if errors.Is(err, user.ErrShutdown) {
 				// The database is shutdown, so stop the thread.
 				return false, nil
 			}
@@ -97,7 +98,7 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 
 		tx, err := p.verifyProposalPayment(u)
 		if err != nil {
-			if err == user.ErrShutdown {
+			if errors.Is(err, user.ErrShutdown) {
 				// The database is shutdown, so stop the thread.
 				return false, nil
 			}

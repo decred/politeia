@@ -1,10 +1,11 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package cockroachdb
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -139,7 +140,7 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 		Preload("Payments").
 		Find(&invoice).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrInvoiceNotFound
 		}
 		return nil, err
@@ -160,7 +161,7 @@ func (c *cockroachdb) InvoiceByTokenVersion(token string, version string) (*data
 		Preload("Payments").
 		Find(&invoice).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrInvoiceNotFound
 		}
 		return nil, err
@@ -480,7 +481,7 @@ func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, err
 		Find(&exchangeRate).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrExchangeRateNotFound
 		}
 		return nil, err
@@ -714,7 +715,7 @@ func createCmsTables(tx *gorm.DB) error {
 	err := tx.Where("id = ?", cacheID).
 		Find(&v).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		err = tx.Create(
 			&Version{
 				ID:        cacheID,
@@ -898,7 +899,7 @@ func New(host, net, rootCert, cert, key string) (*cockroachdb, error) {
 		Where("id = ?", cacheID).
 		Find(&v).
 		Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Debugf("version record not found for ID '%v'", cacheID)
 		err = database.ErrNoVersionRecord
 	} else if v.Version != cmsVersion {
@@ -930,7 +931,7 @@ func (c *cockroachdb) PaymentsByAddress(address string) (*database.Payments, err
 		Where("address = ?", address).
 		Find(&payments).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrInvoiceNotFound
 		}
 		return nil, err
@@ -949,7 +950,7 @@ func (c *cockroachdb) PaymentsByStatus(status uint) ([]database.Payments, error)
 		Find(&payments).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrInvoiceNotFound
 		}
 		return nil, err
@@ -992,7 +993,7 @@ func (c *cockroachdb) DCCByToken(token string) (*database.DCC, error) {
 	err := c.recordsdb.
 		Find(&dcc).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrDCCNotFound
 		}
 		return nil, err
@@ -1011,7 +1012,7 @@ func (c *cockroachdb) DCCsByStatus(status int) ([]*database.DCC, error) {
 		Find(&dccs).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrDCCNotFound
 		}
 		return nil, err
@@ -1033,7 +1034,7 @@ func (c *cockroachdb) DCCsAll() ([]*database.DCC, error) {
 		Find(&dccs).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = database.ErrDCCNotFound
 		}
 		return nil, err
