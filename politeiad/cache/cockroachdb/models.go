@@ -90,7 +90,7 @@ type ProposalMetadata struct {
 	Name     string `gorm:"not null"`    // Proposal name
 	LinkTo   string `gorm:""`            // Token of proposal to link to
 	LinkBy   int64  `gorm:""`            // UNIX timestamp of RFP deadline
-	Category int    `gorm:""`            // Proposal category
+	Category string `gorm:""`            // Proposal category
 }
 
 // Comment represents a record comment, including all of the server side

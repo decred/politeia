@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -148,24 +147,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		LinkBy: cmd.LinkBy,
 	}
 	if cmd.Category != "" {
-		// Create inverse categories map from policy for validation
-		PropCategories := make(map[string]v1.CategoryT)
-		for k, v := range v1.PolicyProposalCategories {
-			PropCategories[v] = k
-		}
-		// Parse proposal category. Accepts either the numeric category
-		// code or the human readable equivalent
-		c, err := strconv.ParseUint(cmd.Category, 10, 32)
-		if err == nil {
-			// Numeric category code found
-			pm.Category = v1.CategoryT(c)
-		} else if c, ok := PropCategories[cmd.Category]; ok {
-			// Human readable category found
-			pm.Category = c
-		} else {
-			return fmt.Errorf("Invalid proposal category '%v'. Please check "+
-				"policy for further guidance.", pm.Category)
-		}
+		pm.Category = cmd.Category
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {

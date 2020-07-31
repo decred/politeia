@@ -17,7 +17,6 @@ type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
 type VoteT int
-type CategoryT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -287,17 +286,6 @@ const (
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
-
-	// Category types
-	//
-	// These types are defined based on the available categories a contractor
-	// can select for completed work on CMS invoices
-	CategoryInvalid       CategoryT = 0
-	CategoryDevelopment   CategoryT = 1
-	CategoryMarketing     CategoryT = 2
-	CategoryResearch      CategoryT = 3
-	CategoryDesign        CategoryT = 4
-	CategoryDocumentation CategoryT = 5
 )
 
 var (
@@ -314,12 +302,12 @@ var (
 
 	// PolicyProposalCategories describes the valid categories a user can define
 	// for a proposal
-	PolicyProposalCategories = map[CategoryT]string{
-		CategoryDevelopment:   "development",
-		CategoryMarketing:     "marketing",
-		CategoryResearch:      "research",
-		CategoryDesign:        "design",
-		CategoryDocumentation: "documentation",
+	PolicyProposalCategories = []string{
+		"development",
+		"marketing",
+		"research",
+		"design",
+		"documentation",
 	}
 
 	// PoliteiaWWWAPIRoute is the prefix to the API route
@@ -468,10 +456,10 @@ const (
 // proposal submission and before the proposal vote is started to ensure that
 // the RFP submissions have sufficient time to be submitted.
 type ProposalMetadata struct {
-	Name     string    `json:"name"`               // Proposal name
-	LinkTo   string    `json:"linkto,omitempty"`   // Token of proposal to link to
-	LinkBy   int64     `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
-	Category CategoryT `json:"category,omitempty"` // Proposal category
+	Name     string `json:"name"`               // Proposal name
+	LinkTo   string `json:"linkto,omitempty"`   // Token of proposal to link to
+	LinkBy   int64  `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
+	Category string `json:"category,omitempty"` // Proposal category
 }
 
 // Metadata describes user specified metadata.
@@ -535,7 +523,7 @@ type ProposalRecord struct {
 	LinkTo              string      `json:"linkto,omitempty"`              // Token of linked parent proposal
 	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
 	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
-	Category            CategoryT   `json:"category,omitempty"`            // Proposal category
+	Category            string      `json:"category,omitempty"`            // Proposal category
 
 	Files            []File           `json:"files"`
 	Metadata         []Metadata       `json:"metadata"`
@@ -962,31 +950,31 @@ type Policy struct{}
 // PolicyReply is used to reply to the policy command. It returns
 // the file upload restrictions set for Politeia.
 type PolicyReply struct {
-	MinPasswordLength          uint                 `json:"minpasswordlength"`
-	MinUsernameLength          uint                 `json:"minusernamelength"`
-	MaxUsernameLength          uint                 `json:"maxusernamelength"`
-	UsernameSupportedChars     []string             `json:"usernamesupportedchars"`
-	ProposalListPageSize       uint                 `json:"proposallistpagesize"`
-	UserListPageSize           uint                 `json:"userlistpagesize"`
-	MaxImages                  uint                 `json:"maximages"`
-	MaxImageSize               uint                 `json:"maximagesize"`
-	MaxMDs                     uint                 `json:"maxmds"`
-	MaxMDSize                  uint                 `json:"maxmdsize"`
-	ValidMIMETypes             []string             `json:"validmimetypes"`
-	MinProposalNameLength      uint                 `json:"minproposalnamelength"`
-	MaxProposalNameLength      uint                 `json:"maxproposalnamelength"`
-	PaywallEnabled             bool                 `json:"paywallenabled"`
-	ProposalNameSupportedChars []string             `json:"proposalnamesupportedchars"`
-	MaxCommentLength           uint                 `json:"maxcommentlength"`
-	BackendPublicKey           string               `json:"backendpublickey"`
-	TokenPrefixLength          int                  `json:"tokenprefixlength"`
-	BuildInformation           []string             `json:"buildinformation"`
-	IndexFilename              string               `json:"indexfilename"`
-	MinLinkByPeriod            int64                `json:"minlinkbyperiod"`
-	MaxLinkByPeriod            int64                `json:"maxlinkbyperiod"`
-	MinVoteDuration            uint32               `json:"minvoteduration"`
-	MaxVoteDuration            uint32               `json:"maxvoteduration"`
-	ProposalCategories         map[CategoryT]string `json:"proposalcategories"`
+	MinPasswordLength          uint     `json:"minpasswordlength"`
+	MinUsernameLength          uint     `json:"minusernamelength"`
+	MaxUsernameLength          uint     `json:"maxusernamelength"`
+	UsernameSupportedChars     []string `json:"usernamesupportedchars"`
+	ProposalListPageSize       uint     `json:"proposallistpagesize"`
+	UserListPageSize           uint     `json:"userlistpagesize"`
+	MaxImages                  uint     `json:"maximages"`
+	MaxImageSize               uint     `json:"maximagesize"`
+	MaxMDs                     uint     `json:"maxmds"`
+	MaxMDSize                  uint     `json:"maxmdsize"`
+	ValidMIMETypes             []string `json:"validmimetypes"`
+	MinProposalNameLength      uint     `json:"minproposalnamelength"`
+	MaxProposalNameLength      uint     `json:"maxproposalnamelength"`
+	PaywallEnabled             bool     `json:"paywallenabled"`
+	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
+	MaxCommentLength           uint     `json:"maxcommentlength"`
+	BackendPublicKey           string   `json:"backendpublickey"`
+	TokenPrefixLength          int      `json:"tokenprefixlength"`
+	BuildInformation           []string `json:"buildinformation"`
+	IndexFilename              string   `json:"indexfilename"`
+	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
+	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
+	MinVoteDuration            uint32   `json:"minvoteduration"`
+	MaxVoteDuration            uint32   `json:"maxvoteduration"`
+	ProposalCategories         []string `json:"proposalcategories"`
 }
 
 // VoteOption describes a single vote option.
