@@ -34,7 +34,7 @@ func DecodeBestBlock(payload []byte) (*BestBlock, error) {
 
 // BestBlockReply is the reply to the BestBlock command.
 type BestBlockReply struct {
-	BestBlock uint64 `json:"bestblock"`
+	BestBlock uint32 `json:"bestblock"`
 }
 
 // EncodeBestBlockReply encodes an BestBlockReply into a JSON byte slice.

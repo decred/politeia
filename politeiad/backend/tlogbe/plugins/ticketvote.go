@@ -120,6 +120,8 @@ func (p *ticketVotePlugin) Fsck() error {
 func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("ticketvote Setup")
 
+	// Ensure dcrdata plugin has been registered
+
 	return nil
 }
 

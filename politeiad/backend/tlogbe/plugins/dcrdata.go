@@ -14,7 +14,10 @@ import (
 	"time"
 
 	v4 "github.com/decred/dcrdata/api/types/v4"
+	exptypes "github.com/decred/dcrdata/explorer/types/v2"
+	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/plugins/dcrdata"
+	"github.com/decred/politeia/wsdcrdata"
 )
 
 const (
@@ -30,18 +33,25 @@ var (
 type dcrdataPlugin struct {
 	sync.Mutex
 	host      string
-	client    *http.Client
-	bestBlock uint64
+	client    *http.Client      // HTTP client
+	ws        *wsdcrdata.Client // Websocket client
+	bestBlock uint32
 }
 
-func (p *dcrdataPlugin) bestBlockGet() uint64 {
+func (p *dcrdataPlugin) bestBlockGet() uint32 {
 	p.Lock()
 	defer p.Unlock()
 
 	return p.bestBlock
 }
 
-// TODO move this to util
+func (p *dcrdataPlugin) bestBlockSet(bb uint32) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.bestBlock = bb
+}
+
 // bestBlockHTTP fetches the best block from the dcrdata API.
 func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
 	url := p.host + routeBestBlock
@@ -72,6 +82,90 @@ func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
 	}
 
 	return &bdb, nil
+}
+
+func (p *dcrdataPlugin) monitorWebsocket() {
+	defer func() {
+		log.Infof("Dcrdata websocket closed")
+	}()
+
+	// Setup messages channel
+	receiver, err := p.ws.Receive()
+	if err == wsdcrdata.ErrShutdown {
+		return
+	} else if err != nil {
+		log.Errorf("dcrdata Receive: %v", err)
+	}
+
+	for {
+		// Monitor for a new message
+		msg, ok := <-receiver
+		if !ok {
+			log.Infof("Dcrdata websocket channel closed. Will reconnect.")
+			goto reconnect
+		}
+
+		// Handle new message
+		switch m := msg.Message.(type) {
+		case *exptypes.WebsocketBlock:
+			log.Debugf("Dcrdata websocket new block %v", m.Block.Height)
+			p.bestBlockSet(uint32(m.Block.Height))
+
+		case *pstypes.HangUp:
+			log.Infof("Dcrdata websocket has hung up. Will reconnect.")
+			goto reconnect
+
+		case int:
+			// Ping messages are of type int
+
+		default:
+			log.Errorf("Dcrdata websocket unhandled msg %v", msg)
+		}
+
+		// Check for next message
+		continue
+
+	reconnect:
+		// Connection was closed for some reason. Set the best block
+		// to 0 to indicate that its stale then reconnect to dcrdata.
+		p.bestBlockSet(0)
+		err = p.ws.Reconnect()
+		if err == wsdcrdata.ErrShutdown {
+			return
+		} else if err != nil {
+			log.Errorf("dcrdata Reconnect: %v", err)
+			continue
+		}
+
+		// Setup a new messages channel using the new connection.
+		receiver, err = p.ws.Receive()
+		if err == wsdcrdata.ErrShutdown {
+			return
+		} else if err != nil {
+			log.Errorf("dcrdata Receive: %v", err)
+			continue
+		}
+
+		log.Infof("Successfully reconnected dcrdata websocket")
+	}
+}
+
+func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
+	log.Tracef("dcrdata cmdBestBlock")
+
+	// Payload is empty. No need to decode it.
+
+	bb := p.bestBlockGet()
+	if bb == 0 {
+		// No cached best block means the websocket connection is down.
+		// Get the best block from the dcrdata API.
+		block, err := p.bestBlockHTTP()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return "", nil
 }
 
 // Cmd executes a plugin command.
@@ -112,6 +206,15 @@ func (p *dcrdataPlugin) Fsck() error {
 func (p *dcrdataPlugin) Setup() error {
 	log.Tracef("dcrdata Setup")
 
+	// Setup websocket subscriptions
+	err := p.ws.NewBlockSubscribe()
+	if err != nil {
+		return err
+	}
+
+	// Monitor websocket connection in a new go routine
+	go p.monitorWebsocket()
+
 	return nil
 }
 
@@ -128,8 +231,15 @@ func DcrdataPluginNew(dcrdataHost string) *dcrdataPlugin {
 		},
 	}
 
+	// Setup websocket client
+	ws, err := wsdcrdata.New(dcrdataHost)
+	if err != nil {
+		// TODO reconnect logic
+	}
+
 	return &dcrdataPlugin{
 		host:   dcrdataHost,
 		client: client,
+		ws:     ws,
 	}
 }

@@ -317,7 +317,7 @@ func (c *Client) Close() error {
 	return c.client.Close()
 }
 
-// New return a new Client.
+// New returns a new Client.
 func New(dcrdataURL string) (*Client, error) {
 	client, err := newDcrdataWSClient(dcrdataURL)
 	if err != nil {
