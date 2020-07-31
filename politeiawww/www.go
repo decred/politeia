@@ -35,6 +35,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
+	"github.com/decred/politeia/wsdcrdata"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -350,7 +351,6 @@ func _main() error {
 	// Setup user database
 	switch p.cfg.UserDB {
 	case userDBLevel:
-		// localdb.UseLogger(localdbLog)
 		db, err := localdb.New(p.cfg.DataDir)
 		if err != nil {
 			return err
@@ -366,9 +366,6 @@ func _main() error {
 		} else {
 			encryptionKey = p.cfg.EncryptionKey
 		}
-
-		// Setup logging
-		userdb.UseLogger(cockroachdbLog)
 
 		// Open db connection
 		network := filepath.Base(p.cfg.DataDir)
@@ -397,7 +394,6 @@ func _main() error {
 	}
 
 	// Setup cache connection
-	cachedb.UseLogger(cockroachdbLog)
 	net := filepath.Base(p.cfg.DataDir)
 	p.cache, err = cachedb.New(cachedb.UserPoliteiawww, p.cfg.DBHost,
 		net, p.cfg.DBRootCert, p.cfg.DBCert, p.cfg.DBKey)
@@ -506,7 +502,7 @@ func _main() error {
 	p.router.Use(recoverMiddleware)
 
 	// Setup dcrdata websocket connection
-	ws, err := newWSDcrdata(p.dcrdataHostWS())
+	ws, err := wsdcrdata.New(p.dcrdataHostWS())
 	if err != nil {
 		return fmt.Errorf("new wsDcrdata: %v", err)
 	}
@@ -540,7 +536,6 @@ func _main() error {
 		p.setCMSUserWWWRoutes()
 
 		// Setup cmsdb
-		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
 		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
 			p.cfg.DBCert, p.cfg.DBKey)
@@ -705,7 +700,7 @@ done:
 
 	// Shutdown all dcrdata websockets
 	if p.wsDcrdata != nil {
-		p.wsDcrdata.close()
+		p.wsDcrdata.Close()
 	}
 
 	return nil
