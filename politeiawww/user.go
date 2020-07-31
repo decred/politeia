@@ -1762,7 +1762,7 @@ func (p *politeiawww) logAdminProposalAction(adminUser *user.User, token, action
 // processManageUser processes the admin ManageUser command.
 func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User) (*www.ManageUserReply, error) {
 	// Fetch the database user.
-	user, err := p.userByIDStr(mu.UserID)
+	u, err := p.userByIDStr(mu.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -1787,30 +1787,30 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 
 	switch mu.Action {
 	case www.UserManageExpireNewUserVerification:
-		user.NewUserVerificationExpiry = expiredTime
-		user.ResendNewUserVerificationExpiry = expiredTime
+		u.NewUserVerificationExpiry = expiredTime
+		u.ResendNewUserVerificationExpiry = expiredTime
 	case www.UserManageExpireUpdateKeyVerification:
-		user.UpdateKeyVerificationExpiry = expiredTime
+		u.UpdateKeyVerificationExpiry = expiredTime
 	case www.UserManageExpireResetPasswordVerification:
-		user.ResetPasswordVerificationExpiry = expiredTime
+		u.ResetPasswordVerificationExpiry = expiredTime
 	case www.UserManageClearUserPaywall:
-		p.removeUsersFromPool([]uuid.UUID{user.ID}, paywallTypeUser)
-		user.NewUserPaywallAmount = 0
-		user.NewUserPaywallTx = "cleared_by_admin"
-		user.NewUserPaywallPollExpiry = 0
+		p.removeUsersFromPool([]uuid.UUID{u.ID}, paywallTypeUser)
+		u.NewUserPaywallAmount = 0
+		u.NewUserPaywallTx = "cleared_by_admin"
+		u.NewUserPaywallPollExpiry = 0
 	case www.UserManageUnlock:
-		user.FailedLoginAttempts = 0
+		u.FailedLoginAttempts = 0
 	case www.UserManageDeactivate:
-		user.Deactivated = true
+		u.Deactivated = true
 	case www.UserManageReactivate:
-		user.Deactivated = false
+		u.Deactivated = false
 	default:
 		return nil, fmt.Errorf("unsupported user edit action: %v",
 			www.UserManageAction[mu.Action])
 	}
 
 	// Update the user in the database.
-	err = p.db.UserUpdate(*user)
+	err = p.db.UserUpdate(*u)
 	if err != nil {
 		if err == user.ErrQuiesced {
 			err = www.UserError{
@@ -1823,7 +1823,7 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 	if !p.test {
 		p.fireEvent(EventTypeUserManage, EventDataUserManage{
 			AdminUser:  adminUser,
-			User:       user,
+			User:       u,
 			ManageUser: mu,
 		})
 	}

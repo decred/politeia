@@ -249,14 +249,14 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 	// Delete all existing sessions for the user. Return a 200 if
 	// either of these calls fail since the password was verified
 	// correctly.
-	user, err := p.db.UserGetByUsername(vrp.Username)
+	u, err := p.db.UserGetByUsername(vrp.Username)
 	if err != nil {
 		log.Errorf("handleVerifyResetPassword: UserGetByUsername(%v): %v",
 			vrp.Username, err)
 		util.RespondWithJSON(w, http.StatusOK, reply)
 		return
 	}
-	err = p.db.SessionsDeleteByUserID(user.ID, []string{})
+	err = p.db.SessionsDeleteByUserID(u.ID, []string{})
 	if err != nil {
 		if err == user.ErrQuiesced {
 			err = www.UserError{
@@ -264,7 +264,7 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 			}
 		}
 		log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserID(%v, %v): %v",
-			user.ID, []string{}, err)
+			u.ID, []string{}, err)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -462,14 +462,14 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 			"handleChangePassword: getSession %v", err)
 		return
 	}
-	user, err := p.getSessionUser(w, r)
+	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: getSessionUser %v", err)
 		return
 	}
 
-	reply, err := p.processChangePassword(user.Email, cp)
+	reply, err := p.processChangePassword(u.Email, cp)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: processChangePassword %v", err)
@@ -479,7 +479,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	// Delete all existing sessions for the user except the current.
 	// Return a 200 if this call fails since the password was changed
 	// correctly.
-	err = p.db.SessionsDeleteByUserID(user.ID, []string{session.ID})
+	err = p.db.SessionsDeleteByUserID(u.ID, []string{session.ID})
 	if err != nil {
 		if err == user.ErrQuiesced {
 			err = www.UserError{
@@ -487,7 +487,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 			}
 		}
 		log.Errorf("handleChangePassword: SessionsDeleteByUserID(%v, %v): %v",
-			user.ID, []string{session.ID}, err)
+			u.ID, []string{session.ID}, err)
 	}
 
 	// Reply with the error code.
