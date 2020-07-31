@@ -1950,6 +1950,11 @@ func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCo
 		u.ProposalCommentsAccessTimes[token] = time.Now().Unix()
 		err = p.db.UserUpdate(*u)
 		if err != nil {
+			if err == user.ErrQuiesced {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusIsQuiesced,
+				}
+			}
 			return nil, err
 		}
 	}

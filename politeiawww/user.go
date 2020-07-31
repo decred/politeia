@@ -471,6 +471,11 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		u.NewUserVerificationExpiry = expiry
 		err = p.db.UserUpdate(*u)
 		if err != nil {
+			if err == user.ErrQuiesced {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusIsQuiesced,
+				}
+			}
 			return nil, err
 		}
 
@@ -561,6 +566,11 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 	// Save new user to the database
 	err = p.db.UserNew(newUser)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -618,14 +628,19 @@ func (p *politeiawww) processUserDetails(ud *www.UserDetails, isCurrentUser bool
 }
 
 // processEditUser edits a user's preferences.
-func (p *politeiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.EditUserReply, error) {
+func (p *politeiawww) processEditUser(eu *www.EditUser, u *user.User) (*www.EditUserReply, error) {
 	if eu.EmailNotifications != nil {
-		user.EmailNotifications = *eu.EmailNotifications
+		u.EmailNotifications = *eu.EmailNotifications
 	}
 
 	// Update the user in the database.
-	err := p.db.UserUpdate(*user)
+	err := p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -829,6 +844,11 @@ func (p *politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 	}
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -931,6 +951,11 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	// Update the user in the db.
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -1008,6 +1033,11 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 	// Save user changes to the database
 	err = p.db.UserUpdate(*usr)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -1091,8 +1121,15 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	if err != nil {
 		return nil, err
 	}
-
-	return u, p.db.UserUpdate(*u)
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
+	}
+	return u, err
 }
 
 func (p *politeiawww) login(l www.Login) loginResult {
@@ -1122,6 +1159,11 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			u.FailedLoginAttempts++
 			err := p.db.UserUpdate(*u)
 			if err != nil {
+				if err == user.ErrQuiesced {
+					err = www.UserError{
+						ErrorCode: www.ErrorStatusIsQuiesced,
+					}
+				}
 				return loginResult{
 					reply: nil,
 					err:   err,
@@ -1180,6 +1222,11 @@ func (p *politeiawww) login(l www.Login) loginResult {
 	u.LastLoginTime = time.Now().Unix()
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return loginResult{
 			reply: nil,
 			err:   err,
@@ -1350,6 +1397,11 @@ func (p *politeiawww) processChangeUsername(email string, cu www.ChangeUsername)
 	u.Username = newUsername
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -1400,6 +1452,11 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -1468,6 +1525,11 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 	u.ResetPasswordVerificationExpiry = expiry
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return resetPasswordResult{
 			err: err,
 		}
@@ -1581,6 +1643,11 @@ func (p *politeiawww) processVerifyResetPassword(vrp www.VerifyResetPassword) (*
 
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -1745,6 +1812,11 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 	// Update the user in the database.
 	err = p.db.UserUpdate(*user)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -2020,6 +2092,11 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, fmt.Errorf("UserUpdate %v", err)
 	}
 
@@ -2167,7 +2244,15 @@ func (p *politeiawww) addUsersToPaywallPool() error {
 func (p *politeiawww) updateUserAsPaid(u *user.User, tx string) error {
 	u.NewUserPaywallTx = tx
 	u.NewUserPaywallPollExpiry = 0
-	return p.db.UserUpdate(*u)
+	err := p.db.UserUpdate(*u)
+	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
+	}
+	return err
 }
 
 // derivePaywallInfo derives a new paywall address for the user.
@@ -2302,6 +2387,11 @@ func (p *politeiawww) GenerateNewUserPaywall(u *user.User) error {
 
 	err := p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return err
 	}
 

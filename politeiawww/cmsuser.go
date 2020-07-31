@@ -97,6 +97,11 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 		existingUser.NewUserVerificationExpiry = expiry
 		err = p.db.UserUpdate(*existingUser)
 		if err != nil {
+			if err == user.ErrQuiesced {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusIsQuiesced,
+				}
+			}
 			return nil, err
 		}
 
@@ -138,6 +143,11 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	}
 	_, err = p.db.PluginExec(pc)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -281,6 +291,11 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	// Update the user in the db.
 	err = p.db.UserUpdate(newUser)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -294,6 +309,11 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	err = p.db.UserUpdate(newUser)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 	return &reply, nil
@@ -339,6 +359,11 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	}
 	_, err = p.db.PluginExec(pc)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 	return &reply, nil
@@ -409,6 +434,11 @@ func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManage
 	}
 	_, err = p.db.PluginExec(pc)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 	return &cms.CMSManageUserReply{}, nil
@@ -718,6 +748,11 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	}
 	_, err = p.db.PluginExec(pc)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return err
 	}
 
@@ -756,6 +791,11 @@ func (p *politeiawww) revokeDCCUser(userid string) error {
 	}
 	_, err = p.db.PluginExec(pc)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return err
 	}
 	return nil

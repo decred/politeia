@@ -195,6 +195,11 @@ func (p *politeiawww) generateProposalPaywall(u *user.User) (*user.ProposalPaywa
 
 	err = p.db.UserUpdate(*u)
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		return nil, err
 	}
 
@@ -254,6 +259,11 @@ func (p *politeiawww) verifyProposalPayment(u *user.User) (*util.TxDetails, erro
 			// Update user database.
 			err = p.db.UserUpdate(*u)
 			if err != nil {
+				if err == user.ErrQuiesced {
+					err = www.UserError{
+						ErrorCode: www.ErrorStatusIsQuiesced,
+					}
+				}
 				return nil, fmt.Errorf("database UserUpdate: %v", err)
 			}
 
@@ -301,5 +311,10 @@ func (p *politeiawww) SpendProposalCredit(u *user.User, token string) error {
 	u.UnspentProposalCredits = u.UnspentProposalCredits[1:]
 
 	err := p.db.UserUpdate(*u)
+	if err == user.ErrQuiesced {
+		err = www.UserError{
+			ErrorCode: www.ErrorStatusIsQuiesced,
+		}
+	}
 	return err
 }

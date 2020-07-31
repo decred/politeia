@@ -473,6 +473,11 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 		}
 		_, err = p.db.PluginExec(pc)
 		if err != nil {
+			if err == user.ErrQuiesced {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusIsQuiesced,
+				}
+			}
 			return err
 		}
 	}

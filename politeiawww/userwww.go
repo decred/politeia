@@ -258,6 +258,11 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 	}
 	err = p.db.SessionsDeleteByUserID(user.ID, []string{})
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserID(%v, %v): %v",
 			user.ID, []string{}, err)
 	}
@@ -476,6 +481,11 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	// correctly.
 	err = p.db.SessionsDeleteByUserID(user.ID, []string{session.ID})
 	if err != nil {
+		if err == user.ErrQuiesced {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusIsQuiesced,
+			}
+		}
 		log.Errorf("handleChangePassword: SessionsDeleteByUserID(%v, %v): %v",
 			user.ID, []string{session.ID}, err)
 	}
