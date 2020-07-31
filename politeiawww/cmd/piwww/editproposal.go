@@ -23,14 +23,28 @@ import (
 // EditProposalCmd edits an existing proposal.
 type EditProposalCmd struct {
 	Args struct {
-		Token       string   `positional-arg-name:"token" required:"true"` // Censorship token
-		Markdown    string   `positional-arg-name:"markdownfile"`          // Proposal MD file
-		Attachments []string `positional-arg-name:"attachmentfiles"`       // Proposal attachments
+		Token       string   `positional-arg-name:"token" required:"true"`
+		Markdown    string   `positional-arg-name:"markdownfile"`
+		Attachments []string `positional-arg-name:"attachmentfiles"`
 	} `positional-args:"true" optional:"true"`
-	Random bool   `long:"random" optional:"true"` // Generate random proposal data
 	Name   string `long:"name" optional:"true"`
-	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
-	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
+	LinkTo string `long:"linkto" optional:"true"`
+	LinkBy int64  `long:"linkby" optional:"true"`
+
+	// Random can be used in place of editing proposal name & data. When
+	// specified, random proposal name & data will be created and submitted.
+	Random bool `long:"random" optional:"true"`
+
+	// RFP is a flag that is intended to make editing an RFP easier
+	// by calculating and inserting a linkby timestamp automatically
+	// instead of having to pass in a specific timestamp using the
+	// --linkby flag.
+	RFP bool `long:"rfp" optional:"true"`
+
+	// Usemd is a flag that is intended to make editing propsoal metadata easier
+	// by using exisiting proposal metadata values instead of having to pass in
+	// specific values
+	UseMd bool `long:"usemd" optional:"true"`
 }
 
 // Execute executes the edit proposal command.
@@ -46,6 +60,16 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
+	}
+
+	// RFP & linkby flags conflict
+	if cmd.RFP && cmd.LinkBy != 0 {
+		return errEditProposalRfpAndLinkbyFound
+	}
+
+	// Random & name flags conflict
+	if cmd.Random && cmd.Name != "" {
+		return errEditProposalRandomAndNameFound
 	}
 
 	// Get server public key
@@ -109,19 +133,36 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	}
 
 	// Setup metadata
-	if cmd.Name == "" {
+	var pm v1.ProposalMetadata
+
+	if cmd.UseMd {
+		pdr, err := client.ProposalDetails(cmd.Args.Token,
+			&v1.ProposalsDetails{})
+		if err != nil {
+			return err
+		}
+		// Prefill existing metadata
+		pm.Name = pdr.Proposal.Name
+		pm.LinkTo = pdr.Proposal.LinkTo
+		pm.LinkBy = pdr.Proposal.LinkBy
+	}
+	if cmd.Random {
+		// Generate random name
 		r, err := util.Random(v1.PolicyMinProposalNameLength)
 		if err != nil {
 			return err
 		}
-		cmd.Name = hex.EncodeToString(r)
-	}
-	pm := v1.ProposalMetadata{
-		Name: cmd.Name,
+		pm.Name = hex.EncodeToString(r)
 	}
 	if cmd.RFP {
 		// Set linkby to a month from now
 		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	}
+	if cmd.Name != "" {
+		pm.Name = cmd.Name
+	}
+	if cmd.LinkBy != 0 {
+		pm.LinkBy = cmd.LinkBy
 	}
 	if cmd.LinkTo != "" {
 		pm.LinkTo = cmd.LinkTo
@@ -188,12 +229,19 @@ Arguments:
 3. attachmentfiles   (string, optional)   Attachments 
 
 Flags:
-  --random   (bool, optional)    Generate a random proposal to submit
-  --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy timestamp into the
-                                 proposal data JSON file. The LinkBy timestamp is set to be one
-                                 week from the current time.
-  --linkto   (string, optional)  Token of an existing public proposal to link to. The token is
-                                 used to populate the LinkTo field in the proposal data JSON file.
+  --random   (bool, optional)   Generate a random proposal name & files to submit.
+                                If this flag is used then the markdown file 
+                                argument is no longer required and any provided files will be
+                                ignored.
+  --usemd    (bool, optional)   Use the existing metadata if value isn't provided explicitly.
+  --name   (string, optional)   The name of the proposal
+  --linkto (string, optional)   Token of an existing public proposal to link to. The token is
+                                used to populate the LinkTo field in the proposal data JSON file.
+  --linkby  (int64, optional)   UNIX timestamp of RFP deadline.
+  --rfp      (bool, optional)   Make the proposal an RFP by inserting a LinkBy timestamp into the
+                                proposal data JSON file. The LinkBy timestamp is set to be one
+                                month from the current time.
+                                This is intended to be used in place of --linkby.
 
 Request:
 {
@@ -230,8 +278,8 @@ Response:
       }
     ],
     "numcomments":   (uint)    Number of comments on the proposal
-    "version": 		 (string)  Version of proposal
-    "censorshiprecord": {	
+    "version":          (string)  Version of proposal
+    "censorshiprecord": {    
       "token":       (string)  Censorship token
       "merkle":      (string)  Merkle root of proposal
       "signature":   (string)  Server side signature of []byte(Merkle+Token)

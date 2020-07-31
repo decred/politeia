@@ -1786,3 +1786,157 @@ func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
 	}
 	return &invInput, nil
 }
+
+func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
+	reply := &cms.ProposalBillingSummaryReply{}
+
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var tvr www.TokenInventoryReply
+	err = json.Unmarshal(data, &tvr)
+	if err != nil {
+		return nil, err
+	}
+
+	approvedProposals := tvr.Approved
+
+	approvedProposalDetails := make([]www.ProposalRecord, 0, len(approvedProposals))
+	if len(approvedProposals) > 0 {
+		startOffset := 0
+		endOffset := www.ProposalListPageSize
+		if endOffset > len(approvedProposals) {
+			endOffset = len(approvedProposals)
+		}
+		for i := endOffset; i <= len(approvedProposals); {
+			// Go fetch proposal information to get name/title.
+			bp := &www.BatchProposals{
+				Tokens: approvedProposals[startOffset:i],
+			}
+
+			data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+			if err != nil {
+				return nil, err
+			}
+
+			var bpr www.BatchProposalsReply
+			err = json.Unmarshal(data, &bpr)
+			if err != nil {
+				return nil, err
+			}
+			approvedProposalDetails = append(approvedProposalDetails, bpr.Proposals...)
+
+			startOffset = i
+			i += www.ProposalListPageSize
+			if i > len(approvedProposals) {
+				i = len(approvedProposals)
+			}
+			if i == startOffset {
+				break
+			}
+		}
+	}
+
+	count := pbs.Count
+	if count > cms.ProposalBillingListPageSize {
+		count = cms.ProposalBillingListPageSize
+	}
+
+	proposalInvoices := make(map[string][]*database.Invoice, len(approvedProposals))
+	for i, prop := range approvedProposals {
+		if i < pbs.Offset {
+			continue
+		}
+		propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(prop)
+		if err != nil {
+			return nil, err
+		}
+		if len(propInvoices) > 0 {
+			proposalInvoices[prop] = propInvoices
+		} else {
+			proposalInvoices[prop] = make([]*database.Invoice, 0)
+		}
+
+		if count != 0 && len(proposalInvoices) >= count {
+			break
+		}
+	}
+
+	spendingSummaries := make([]cms.ProposalSpending, 0, len(proposalInvoices))
+	for prop, invoices := range proposalInvoices {
+		spendingSummary := cms.ProposalSpending{}
+		spendingSummary.Token = prop
+
+		totalSpent := int64(0)
+		for _, dbInv := range invoices {
+			payout, err := calculatePayout(*dbInv)
+			if err != nil {
+				return nil, err
+			}
+			totalSpent += int64(payout.Total)
+		}
+		// Look across approved proposals batch reply for proposal name.
+		for _, propDetails := range approvedProposalDetails {
+			if propDetails.CensorshipRecord.Token == prop {
+				spendingSummary.Title = propDetails.Name
+				break
+			}
+		}
+		spendingSummary.TotalBilled = totalSpent
+		spendingSummaries = append(spendingSummaries, spendingSummary)
+	}
+
+	reply.Proposals = spendingSummaries
+
+	return reply, nil
+}
+
+func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
+	reply := &cms.ProposalBillingDetailsReply{}
+
+	propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pbd.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	spendingSummary := cms.ProposalSpending{}
+	spendingSummary.Token = pbd.Token
+
+	invRecs := make([]cms.InvoiceRecord, 0, len(propInvoices))
+	totalSpent := int64(0)
+	for _, dbInv := range propInvoices {
+		u, err := p.db.UserGetByPubKey(dbInv.PublicKey)
+		if err != nil {
+			log.Errorf("getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", dbInv.PublicKey, err)
+		} else {
+			dbInv.Username = u.Username
+		}
+		payout, err := calculatePayout(*dbInv)
+		if err != nil {
+			return nil, err
+		}
+		totalSpent += int64(payout.Total)
+		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
+	}
+
+	data, err := p.makeProposalsRequest(http.MethodGet, "/proposals/"+pbd.Token, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdr www.ProposalDetailsReply
+	err = json.Unmarshal(data, &pdr)
+	if err != nil {
+		return nil, err
+	}
+
+	spendingSummary.Title = pdr.Proposal.Name
+	spendingSummary.Invoices = invRecs
+	spendingSummary.TotalBilled = totalSpent
+
+	reply.Details = spendingSummary
+	return reply, nil
+}

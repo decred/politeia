@@ -143,8 +143,7 @@ type PluginDriver interface {
 	// Setup the plugin tables
 	Setup() error
 
-	// Build the plugin tables from scratch. The given payload should
-	// provide all data necessary to build the plugin tables.
+	// Drop the existing plugin tables and rebuild them
 	Build(payload string) error
 
 	// Execute a plugin command. Some commands are executed by
@@ -196,7 +195,7 @@ type Cache interface {
 	// Setup the record cache tables
 	Setup() error
 
-	// Build the records cache from scratch
+	// Drop existing tables and rebuild them
 	Build([]Record) error
 
 	// Register a plugin with the cache
@@ -205,7 +204,7 @@ type Cache interface {
 	// Setup the database tables for a plugin
 	PluginSetup(string) error
 
-	// Build the cache for a plugin
+	// Drop existing plugin tables and rebuild them
 	PluginBuild(string, string) error
 
 	// Execute a plugin command

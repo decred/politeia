@@ -331,6 +331,12 @@ type Backend interface {
 	// Check if a vetted record exists
 	VettedExists([]byte) bool
 
+	// Get all unvetted record tokens
+	UnvettedTokens() ([][]byte, error)
+
+	// Get all vetted record tokens
+	VettedTokens() ([][]byte, error)
+
 	// Get unvetted record
 	GetUnvetted([]byte, string) (*Record, error)
 

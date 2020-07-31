@@ -12,6 +12,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/go-test/deep"
 	"golang.org/x/crypto/bcrypt"
@@ -618,6 +619,222 @@ func TestProcessResendVerification(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			_, err := p.processResendVerification(&v.rv)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestProcessUpdateUserKey(t *testing.T) {
+
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// Create an user with an unexpired verification token
+	usrUnexpired, id := newUser(t, p, true, false)
+	token, expiry, err := newVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrUnexpired.UpdateKeyVerificationToken = token
+	usrUnexpired.UpdateKeyVerificationExpiry = expiry
+	duppk := id.Public.String()
+
+	err = p.db.UserUpdate(*usrUnexpired)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user with an expired verification token.
+	usr, _ := newUser(t, p, true, false)
+	tokenb, _, err := newVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usr.UpdateKeyVerificationToken = tokenb
+	usr.UpdateKeyVerificationExpiry = time.Now().Unix() - 1
+	err = p.db.UserUpdate(*usr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newid, _ := identity.New()
+	newpk := newid.Public.String()
+
+	var tests = []struct {
+		name string
+		usr  *user.User
+		uuk  www.UpdateUserKey
+		want error
+	}{
+		{
+			"user with duplicate pubkey",
+			usrUnexpired,
+			www.UpdateUserKey{
+				PublicKey: duppk,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicatePublicKey,
+			},
+		},
+		{
+			"user with expired verification token",
+			usrUnexpired,
+			www.UpdateUserKey{
+				PublicKey: newpk,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenUnexpired,
+			},
+		},
+		{
+			"success with new pubkey",
+			usr,
+			www.UpdateUserKey{
+				PublicKey: newpk,
+			},
+			nil,
+		},
+	}
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processUpdateUserKey(v.usr, v.uuk)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestProcessVerifyUpdateUserKey(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// Create an user with an unexpired verification token
+	usr, id := newUser(t, p, true, false)
+	token, expiry, err := newVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usr.UpdateKeyVerificationToken = token
+	usr.UpdateKeyVerificationExpiry = expiry
+
+	pubkey := hex.EncodeToString(id.Public.Key[:])
+	newid, _ := user.NewIdentity(pubkey)
+	usr.Identities = []user.Identity{
+		*newid,
+	}
+
+	usrToken := hex.EncodeToString(token)
+
+	s := id.SignMessage([]byte(usrToken))
+	sig := hex.EncodeToString(s[:])
+
+	err = p.db.UserUpdate(*usr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user with an expired verification token.
+	usrExpired, idex := newUser(t, p, true, false)
+	tokenb, _, err := newVerificationTokenAndExpiry()
+	usrExpiredToken := hex.EncodeToString(tokenb)
+	sxp := idex.SignMessage([]byte(usrExpiredToken))
+	sigxp := hex.EncodeToString(sxp[:])
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrExpired.UpdateKeyVerificationToken = tokenb
+	usrExpired.UpdateKeyVerificationExpiry = time.Now().Unix() - 1
+	err = p.db.UserUpdate(*usrExpired)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var tests = []struct {
+		name string
+		usr  *user.User
+		vu   www.VerifyUpdateUserKey
+		want error
+	}{
+		{
+			"invalid verification token",
+			usr,
+			www.VerifyUpdateUserKey{
+				VerificationToken: "",
+				Signature:         sig,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+		},
+		{
+			"unmatching verification tokens",
+			usr,
+			www.VerifyUpdateUserKey{
+				VerificationToken: usrExpiredToken,
+				Signature:         sigxp,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+		},
+		{
+			"expired verification token",
+			usrExpired,
+			www.VerifyUpdateUserKey{
+				VerificationToken: usrExpiredToken,
+				Signature:         sigxp,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenExpired,
+			},
+		},
+		{
+			"invalid signature",
+			usr,
+			www.VerifyUpdateUserKey{
+				VerificationToken: usrToken,
+				Signature:         "",
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			},
+		},
+		{
+			"signature not matching pubkey",
+			usr,
+			www.VerifyUpdateUserKey{
+				VerificationToken: usrToken,
+				Signature:         sigxp,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			},
+		},
+		{
+			"verify update user key",
+			usr,
+			www.VerifyUpdateUserKey{
+				VerificationToken: usrToken,
+				Signature:         sig,
+			},
+			nil,
+		},
+	}
+
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processVerifyUpdateUserKey(v.usr, v.vu)
 			got := errToStr(err)
 			want := errToStr(v.want)
 			if got != want {

@@ -45,9 +45,27 @@ func login(email, password string) error {
 	return lc.Execute(nil)
 }
 
-// newProposal returns a NewProposal object contains randomly generated
-// markdown text and a signature from the logged in user.
-func newProposal() (*v1.NewProposal, error) {
+// newRFPProposal is a wrapper func which creates a RFP by calling newProposal
+func newRFPProposal() (*v1.NewProposal, error) {
+	return newProposal(true, "")
+}
+
+// newSubmissionProposal is a wrapper func which creates a RFP submission by
+// calling newProposal func with a given linkto token.
+func newSubmissionProposal(linkto string) (*v1.NewProposal, error) {
+	return newProposal(false, linkto)
+}
+
+// newNormalProposal is a wrapper func which creates a proposal by calling
+// newProposal
+func newNormalProposal() (*v1.NewProposal, error) {
+	return newProposal(false, "")
+}
+
+// newProposal returns a NewProposal object contains randonly generated
+// markdown text and a signature from the logged in user. If given `rfp` bool
+// is true it creates an RFP. If given `linkto` it creates a RFP submission.
+func newProposal(rfp bool, linkto string) (*v1.NewProposal, error) {
 	md, err := createMDFile()
 	if err != nil {
 		return nil, fmt.Errorf("create MD file: %v", err)
@@ -56,6 +74,12 @@ func newProposal() (*v1.NewProposal, error) {
 
 	pm := v1.ProposalMetadata{
 		Name: "Some proposal name",
+	}
+	if rfp {
+		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	}
+	if linkto != "" {
+		pm.LinkTo = linkto
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
@@ -82,11 +106,41 @@ func newProposal() (*v1.NewProposal, error) {
 	}, nil
 }
 
+// castVotes casts votes on a proposal with a given voteId. If it fails it
+// returns the error and in case of dcrwallet connection error it returns
+// true as first returned value
+func castVotes(token string, voteID string) (bool, error) {
+	var vc VoteCmd
+	vc.Args.Token = token
+	vc.Args.VoteID = voteID
+	err := vc.Execute(nil)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "connection refused"):
+			// User is not running a dcrwallet instance locally.
+			// This is ok. Print a warning and continue.
+			fmt.Printf("  WARNING: could not connect to dcrwallet\n")
+			return true, err
+
+		case strings.Contains(err.Error(), "no eligible tickets"):
+			// User doesn't have any eligible tickets. This is ok.
+			// Print a warning and continue.
+			fmt.Printf("  WARNING: user has no elibigle tickets\n")
+			return true, err
+
+		default:
+			return false, err
+		}
+	}
+	return false, err
+}
+
 // Execute executes the test run command.
 func (cmd *TestRunCmd) Execute(args []string) error {
 	const (
 		// sleepInterval is the time to wait in between requests
-		// when polling politeiawww for paywall tx confirmations.
+		// when polling politeiawww for paywall tx confirmations
+		// or RFP vote results.
 		sleepInterval = 15 * time.Second
 
 		// Comment actions
@@ -112,6 +166,13 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Suppress output from cli commands
 	cfg.Silent = true
 
+	// Policy
+	fmt.Printf("Policy\n")
+	policy, err := client.Policy()
+	if err != nil {
+		return err
+	}
+
 	// Version (CSRF tokens)
 	fmt.Printf("Version\n")
 	version, err := client.Version()
@@ -122,8 +183,15 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// We only allow this to be run on testnet for right now.
 	// Running it on mainnet would require changing the user
 	// email verification flow.
-	if !version.TestNet {
+	// We ensure vote duration isn't longer than
+	// 3 blocks as we need to approve an RFP and it's
+	// submission as part of our tests.
+	switch {
+	case !version.TestNet:
 		return fmt.Errorf("this command must be run on testnet")
+	case policy.MinVoteDuration > 3:
+		return fmt.Errorf("--votedurationmin flag should be <= 3, as the " +
+			"tests include RFP & submssions voting")
 	}
 
 	// Ensure admin credentials are valid and that the admin has
@@ -146,13 +214,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	lc := shared.LogoutCmd{}
 	err = lc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
-	// Policy
-	fmt.Printf("Policy\n")
-	policy, err := client.Policy()
 	if err != nil {
 		return err
 	}
@@ -238,18 +299,14 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 
 	// Wait for user registration payment confirmations
-	for {
-		vupr, err := client.VerifyUserPayment()
+	// If the paywall has been disable this will be marked
+	// as true. If the paywall has been enabled this will
+	// be true once the payment tx has the required number
+	// of confirmations.
+	for !vupr.HasPaid {
+		vupr, err = client.VerifyUserPayment()
 		if err != nil {
 			return err
-		}
-
-		// If the paywall has been disable this will be marked
-		// as true. If the paywall has been enabled this will
-		// be true once the payment tx has the required number
-		// of confirmations.
-		if vupr.HasPaid {
-			break
 		}
 
 		fmt.Printf("  Verify user payment: waiting for tx confirmations...\n")
@@ -370,7 +427,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Submit new proposal
 	fmt.Printf("  New proposal\n")
-	np, err := newProposal()
+	np, err := newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -706,7 +763,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		unreviewedPropToken string
 	)
 
-	np, err = newProposal()
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -716,7 +773,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	notReviewed1 = npr.CensorshipRecord.Token
 
-	np, err = newProposal()
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -726,7 +783,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	notReviewed2 = npr.CensorshipRecord.Token
 
-	np, err = newProposal()
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -744,7 +801,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	unreviewedChanges1 = npr.CensorshipRecord.Token
 
-	np, err = newProposal()
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -762,7 +819,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	}
 	unreviewedChanges2 = npr.CensorshipRecord.Token
 
-	np, err = newProposal()
+	np, err = newNormalProposal()
 	if err != nil {
 		return err
 	}
@@ -1088,7 +1145,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	fmt.Printf("  Submitting a page of proposals to test vetted route\n")
 	for i := 0; i < v1.ProposalListPageSize; i++ {
-		np, err = newProposal()
+		np, err = newNormalProposal()
 		if err != nil {
 			return err
 		}
@@ -1246,36 +1303,12 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Cast votes
 	fmt.Printf("  Cast votes\n")
-	var skipCastVotes bool
-	var vc VoteCmd
-	vc.Args.Token = token
-	vc.Args.VoteID = vsr.OptionsResult[0].Option.Id
-	err = vc.Execute(nil)
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "connection refused"):
-			// User is not running a dcrwallet instance locally.
-			// This is ok. Print a warning and continue.
-			fmt.Printf("  WARNING: could not connect to dcrwallet; " +
-				"skipping cast votes\n")
-			skipCastVotes = true
-
-		case strings.Contains(err.Error(), "no eligible tickets"):
-			// User doesn't have any eligible tickets. This is ok.
-			// Print a warning and continue.
-			fmt.Printf("  WARNING: user has no elibigle tickets; " +
-				"skipping cast votes\n")
-			skipCastVotes = true
-
-		default:
-			return err
-		}
-	}
+	dcrwalletFailed, err := castVotes(token, vsr.OptionsResult[0].Option.Id)
 
 	// Find how many votes the user cast so that
 	// we can compare it against the vote results.
 	var voteCount int
-	if !skipCastVotes {
+	if !dcrwalletFailed {
 		// Get proposal vote details
 		var pvt v1.ProposalVoteTuple
 		for _, v := range avr.Votes {
@@ -1318,6 +1351,352 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	if len(vrr.CastVotes) != voteCount {
 		return fmt.Errorf("num cast votes got %v, want %v",
 			len(vrr.CastVotes), voteCount)
+	}
+
+	// RFP routes
+	fmt.Println("Running RFP routes")
+
+	// Login with admin to create an RFP
+	// and make it public.
+	fmt.Printf("  Login admin\n")
+	err = login(admin.email, admin.password)
+	if err != nil {
+		return err
+	}
+
+	// Create RFP
+	fmt.Println("  Create a RFP")
+	np, err = newRFPProposal()
+	if err != nil {
+		return err
+	}
+	npr, err = client.NewProposal(np)
+	if err != nil {
+		return err
+	}
+
+	// Verify RFP censorship record
+	rpr := v1.ProposalRecord{
+		Files:            np.Files,
+		Metadata:         np.Metadata,
+		PublicKey:        np.PublicKey,
+		Signature:        np.Signature,
+		CensorshipRecord: npr.CensorshipRecord,
+	}
+	err = shared.VerifyProposal(rpr, version.PubKey)
+	if err != nil {
+		return fmt.Errorf("verify RFP failed: %v", err)
+	}
+
+	token = rpr.CensorshipRecord.Token
+	fmt.Printf("  RFP submitted: %v\n", token)
+
+	// Make RFP public
+	fmt.Printf("  Set RFP status: not reviewed to public\n")
+	spsc = SetProposalStatusCmd{}
+	spsc.Args.Token = token
+	spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+	err = spsc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	pdr, err = client.ProposalDetails(spsc.Args.Token, nil)
+	if err != nil {
+		return err
+	}
+
+	if pdr.Proposal.Status != v1.PropStatusPublic {
+		return fmt.Errorf("RFP status got %v, want %v",
+			pdr.Proposal.Status, v1.PropStatusPublic)
+	}
+
+	// Try to submit a RFP submission before RFP approval & expect to fail
+	fmt.Println("  Try submitting a submission before RFP voting")
+	np, err = newSubmissionProposal(token)
+	if err != nil {
+		return err
+	}
+	npr, err = client.NewProposal(np)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "rfp proposal vote did not pass"):
+			fmt.Println("  Submission failed with expected error")
+		default:
+			return err
+		}
+	}
+
+	// Authorize vote
+	fmt.Printf("  Authorize vote: authorize\n")
+	avc = AuthorizeVoteCmd{}
+	avc.Args.Token = token
+	avc.Args.Action = decredplugin.AuthVoteActionAuthorize
+	err = avc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Start RFP vote
+	fmt.Printf("  Start RFP vote\n")
+	svc = StartVoteCmd{}
+	svc.Args.Token = token
+	svc.Args.Duration = policy.MinVoteDuration
+	svc.Args.PassPercentage = "1"
+	svc.Args.QuorumPercentage = "1"
+	err = svc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Wait to RFP to finish voting
+	var vs v1.VoteSummary
+	for vs.Status != v1.PropVoteStatusFinished {
+		bvs := v1.BatchVoteSummary{
+			Tokens: []string{token},
+		}
+		bvsr, err := client.BatchVoteSummary(&bvs)
+		if err != nil {
+			return err
+		}
+
+		vs = bvsr.Summaries[token]
+
+		fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+			bvsr.BestBlock, vs.EndHeight)
+		time.Sleep(sleepInterval)
+	}
+	if !vs.Approved {
+		fmt.Println("  RFP rejected")
+	} else {
+		return fmt.Errorf("RFP approved? %v, want false",
+			vs.Approved)
+	}
+
+	// Try to submit a RFP submission on rejected RFP
+	fmt.Println("  Try submitting a submission on rejected RFP")
+	np, err = newSubmissionProposal(token)
+	if err != nil {
+		return err
+	}
+	npr, err = client.NewProposal(np)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "rfp proposal vote did not pass"):
+			fmt.Println("  Submission failed with expected error")
+		default:
+			return err
+		}
+	}
+
+	// Create another RFP
+	fmt.Println("  Create another RFP")
+	np, err = newRFPProposal()
+	if err != nil {
+		return err
+	}
+	npr, err = client.NewProposal(np)
+	if err != nil {
+		return err
+	}
+	token = npr.CensorshipRecord.Token
+
+	// Make second RFP public
+	fmt.Printf("  Set RFP status: not reviewed to public\n")
+	spsc = SetProposalStatusCmd{}
+	spsc.Args.Token = token
+	spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+	err = spsc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Authorize vote
+	fmt.Printf("  Authorize vote: authorize\n")
+	avc = AuthorizeVoteCmd{}
+	avc.Args.Token = token
+	avc.Args.Action = decredplugin.AuthVoteActionAuthorize
+	err = avc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Start RFP vote
+	fmt.Printf("  Start RFP vote\n")
+	svc = StartVoteCmd{}
+	svc.Args.Token = token
+	svc.Args.Duration = policy.MinVoteDuration
+	svc.Args.PassPercentage = "0"
+	svc.Args.QuorumPercentage = "0"
+	err = svc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Cast RFP votes
+	fmt.Printf("  Cast 'Yes' votes\n")
+	dcrwalletFailed, err = castVotes(token, vsr.OptionsResult[0].Option.Id)
+
+	if !dcrwalletFailed {
+		// Wait to RFP to finish voting
+		var vs v1.VoteSummary
+		for vs.Status != v1.PropVoteStatusFinished {
+			bvs := v1.BatchVoteSummary{
+				Tokens: []string{token},
+			}
+			bvsr, err := client.BatchVoteSummary(&bvs)
+			if err != nil {
+				return err
+			}
+
+			vs = bvsr.Summaries[token]
+
+			fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+				bvsr.BestBlock, vs.EndHeight)
+			time.Sleep(sleepInterval)
+		}
+		if !vs.Approved {
+			return fmt.Errorf("RFP approved? %v, want true",
+				vs.Approved)
+		}
+
+		fmt.Printf("  RFP approved successfully\n")
+		// Create 4 RFP submissions.
+		// 1 Unreviewd
+		fmt.Println("  Create unreviewed RFP submission")
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		// 2 Public
+		fmt.Println("  Create 2 more submissions & make them public")
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		firststoken := npr.CensorshipRecord.Token
+		fmt.Printf("  Set first submission status: not reviewed to" +
+			" public\n")
+		spsc = SetProposalStatusCmd{}
+		spsc.Args.Token = firststoken
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		secondstoken := npr.CensorshipRecord.Token
+		fmt.Printf("  Set second submission status: not reviewed to" +
+			" public\n")
+		spsc = SetProposalStatusCmd{}
+		spsc.Args.Token = secondstoken
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		// 1 Abandoned, first make public
+		// then abandon
+		np, err = newSubmissionProposal(token)
+		if err != nil {
+			return err
+		}
+		npr, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+		thirdstoken := npr.CensorshipRecord.Token
+		fmt.Printf("  Set third submission status: not reviewed to" +
+			" abandoned\n")
+		spsc = SetProposalStatusCmd{}
+		spsc.Args.Token = thirdstoken
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		spsc.Args.Status = "abandoned"
+		spsc.Args.Message = "this is spam"
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		// Start runoff vote
+		fmt.Printf("  Start RFP submissions runoff vote\n")
+		svrc := StartVoteRunoffCmd{}
+		svrc.Args.TokenRFP = token
+		svrc.Args.Duration = policy.MinVoteDuration
+		svrc.Args.PassPercentage = "0"
+		svrc.Args.QuorumPercentage = "0"
+		err = svrc.Execute(nil)
+		if err != nil {
+			return err
+		}
+		// Cast first submission votes
+		fmt.Printf("  Cast first submission votes\n")
+		dcrwalletFailed, err = castVotes(firststoken, vsr.OptionsResult[0].Option.Id)
+		if err != nil {
+			return err
+		}
+		if !dcrwalletFailed {
+			// Try cast votes on abandoned & expect error
+			fmt.Println("  Try casting votes on abandoned RFP submission")
+			_, err = castVotes(thirdstoken, vsr.OptionsResult[0].Option.Id)
+			if err != nil {
+				switch {
+				case strings.Contains(err.Error(), "proposal not found"):
+					fmt.Println("  Casting votes on abandoned submission failed")
+				default:
+					return err
+				}
+			}
+
+			// Wait to runoff vote finish
+			var vs v1.VoteSummary
+			for vs.Status != v1.PropVoteStatusFinished {
+				bvs := v1.BatchVoteSummary{
+					Tokens: []string{firststoken},
+				}
+				bvsr, err := client.BatchVoteSummary(&bvs)
+				if err != nil {
+					return err
+				}
+
+				vs = bvsr.Summaries[firststoken]
+
+				fmt.Printf("  Runoff vote still going on, block %v\\%v \n",
+					bvsr.BestBlock, vs.EndHeight)
+				time.Sleep(sleepInterval)
+			}
+			if !vs.Approved {
+				return fmt.Errorf("First submission approved? %v, want true",
+					vs.Approved)
+			}
+			fmt.Printf("  First submission approved successfully\n")
+		}
+	}
+
+	// Logout
+	fmt.Printf("  Logout\n")
+	lc = shared.LogoutCmd{}
+	err = lc.Execute(nil)
+	if err != nil {
+		return err
 	}
 
 	// Websockets

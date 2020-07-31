@@ -1765,6 +1765,188 @@ Reply:
 }
 ```
 
+### `Proposal Billing Summary`
+
+Retrieve all billing information for all approved proposals.
+
+This retrieves the tokens for approved proposals and uses those tokens to
+search through the database for invoices that have line-items that have that
+as proposal token added.
+
+There is also a basic pagination feature implemented with an offset and a 
+page count of proposals to return.  Note, there is a max proposal
+spending list page count.  If above 20, then it will be set to that max.
+These are optional and if both unset, all proposal summaries will be returned.  
+
+Note: This call requires admin privileges.
+
+**Route:** `GET /v1/proposals/spendingsummary`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| offset | int | Page offset | No |
+| count | int | Page count | No |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| proposals | Array of ProposalSpending | Aggregated information of spending for all approved proposals. |
+
+**ProposalSpending:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship record token of proposal. |
+| title | string | Title of approved proposal. |
+| totalbilled | int64 | Total billed against the proposal (in US Cents) |
+| invoices | Array of InvoiceRecord | All (partially filled) invoice records that have line items with the proposal token. |
+
+**Example**
+
+Request:
+
+``` json
+{}
+```
+
+Reply:
+
+```json
+{
+  "proposals": [{
+    "token": "8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+    "title": "Super awesome proposal!",
+    "totalbilled": 115000,
+    "invoices": [
+        {
+          "status": 0,
+          "timestamp": 0,
+          "userid": "5c36086c-fa22-4c53-aee1-adafc4446751",
+          "username": "admin",
+          "publickey": "c0876a34451431b77ee9cd2e65662d0829010e0285d9fe1cc1e3ea20005b88bf",
+          "signature": "",
+          "file": null,
+          "version": "",
+          "input": {
+            "version": 0,
+            "month": 5,
+            "year": 2020,
+            "exchangerate": 1411,
+            "contractorname": "",
+            "contractorlocation": "",
+            "contractorcontact": "",
+            "contractorrate": 5000,
+            "paymentaddress": "",
+            "lineitems": [  {
+                "type": 1,
+                "domain": "Development",
+                "subdomain": "dvdddasf",
+                "description": "sadfasdfsdf",
+                "proposaltoken": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87",
+                "subuserid": "",
+                "subrate": 0,
+                "labor": 1380,
+                "expenses": 0
+              }
+            ]
+          }
+        }
+      ]
+    }]
+  }
+}
+```
+
+### `Proposal Billing Details`
+
+Retrieve all billing information for the given proposal token.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/proposals/spendingdetails`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token for approved proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| details | ProposalSpending | Aggregated information for the given proposal token. |
+
+**ProposalSpending:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship record token of proposal. |
+| title | string | Title of approved proposal. |
+| totalbilled | int64 | Total billed against the proposal (in US Cents) |
+| invoices | Array of InvoiceRecord | All (partially filled) invoice records that have line items with the proposal token. |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "token": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87"
+}
+```
+
+Reply:
+
+```json
+{
+  "details": {
+    "token": "8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+    "title": "Super awesome proposal!",
+    "totalbilled": 115000,
+    "invoices": [
+        {
+          "status": 0,
+          "timestamp": 0,
+          "userid": "5c36086c-fa22-4c53-aee1-adafc4446751",
+          "username": "admin",
+          "publickey": "c0876a34451431b77ee9cd2e65662d0829010e0285d9fe1cc1e3ea20005b88bf",
+          "signature": "",
+          "file": null,
+          "version": "",
+          "input": {
+            "version": 0,
+            "month": 5,
+            "year": 2020,
+            "exchangerate": 1411,
+            "contractorname": "",
+            "contractorlocation": "",
+            "contractorcontact": "",
+            "contractorrate": 5000,
+            "paymentaddress": "",
+            "lineitems": [  {
+                "type": 1,
+                "domain": "Development",
+                "subdomain": "dvdddasf",
+                "description": "sadfasdfsdf",
+                "proposaltoken": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87",
+                "subuserid": "",
+                "subrate": 0,
+                "labor": 1380,
+                "expenses": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+    
+```
+
 ### Error codes
 
 | Status | Value | Description |

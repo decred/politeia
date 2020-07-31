@@ -27,6 +27,7 @@ import (
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
+	"github.com/decred/politeia/wsdcrdata"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -132,9 +133,8 @@ type politeiawww struct {
 	cmsDB cmsdatabase.Database
 	cron  *cron.Cron
 
-	// wsDcrdata contains the client and list of current subscriptions to
-	// dcrdata's public subscription websocket
-	wsDcrdata *wsDcrdata
+	// wsDcrdata is a dcrdata websocket client
+	wsDcrdata *wsdcrdata.Client
 
 	// The current best block is cached and updated using a websocket
 	// subscription to dcrdata. If the websocket connection is not active,
@@ -364,6 +364,8 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		IndexFilename:              www.PolicyIndexFilename,
 		MinLinkByPeriod:            p.linkByPeriodMin(),
 		MaxLinkByPeriod:            p.linkByPeriodMax(),
+		MinVoteDuration:            p.cfg.VoteDurationMin,
+		MaxVoteDuration:            p.cfg.VoteDurationMax,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -920,82 +922,92 @@ func (p *politeiawww) resetPiDcrdataWSSubs() error {
 	// using the old cached value, politeiad is queried for the best block.
 	p.updateBestBlock(0)
 
-	return p.wsDcrdata.reconnect()
+	return p.wsDcrdata.Reconnect()
 }
 
 // setupPiDcrdataWSSubs subscribes and listens to websocket messages from
 // dcrdata that are needed for pi.
 func (p *politeiawww) setupPiDcrdataWSSubs() error {
-	err := p.wsDcrdata.subscribe(newBlockSub)
+	// Setup subscriptions
+	err := p.wsDcrdata.NewBlockSubscribe()
 	if err != nil {
 		return err
 	}
 
+	// Monitor websocket connection in a new go routine
 	go func() {
+		defer func() {
+			log.Infof("Dcrdata websocket closed")
+		}()
+
+		// Setup messages channel
+		receiver, err := p.wsDcrdata.Receive()
+		if err == wsdcrdata.ErrShutdown {
+			return
+		} else if err != nil {
+			log.Errorf("wsDcrdata receive: %v", err)
+			return
+		}
+
 		for {
-			receiver, err := p.wsDcrdata.receive()
-			if err == errShutdown {
-				log.Infof("Dcrdata websocket closed")
-				return
-			} else if err != nil {
-				log.Errorf("wsDcrdata receive: %v", err)
-				log.Infof("Dcrdata websocket closed")
-				return
-			}
-
+			// Monitor for a new message
 			msg, ok := <-receiver
-
 			if !ok {
-				// This check is here to avoid a spew of unnecessary error
-				// messages. The channel is expected to be closed if wsDcrdata
-				// is shut down.
-				if p.wsDcrdata.isShutdown() {
-					return
-				}
-
-				log.Errorf("wsDcrdata receive channel closed. Will reconnect.")
-				err = p.resetPiDcrdataWSSubs()
-				if err == errShutdown {
-					log.Infof("Dcrdata websocket closed")
-					return
-				} else if err != nil {
-					log.Errorf("resetPiDcrdataWSSub: %v", err)
-					log.Infof("Dcrdata websocket closed")
-					return
-				}
-
-				continue
+				log.Infof("Dcrdata websocket channel closed. Will reconnect.")
+				goto reconnect
 			}
 
+			// Handle new message
 			switch m := msg.Message.(type) {
 			case *exptypes.WebsocketBlock:
 				log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
 					m.Block.Height)
+
+				// Update cached best block
 				bb := uint64(m.Block.Height)
 				p.updateBestBlock(bb)
+
 				// Keep VoteResults table updated with received best block
-				_, err = p.decredLoadVoteResults(bb)
+				_, err := p.decredLoadVoteResults(bb)
 				if err != nil {
 					log.Errorf("decredLoadVoteResults: %v", err)
 				}
+
 			case *pstypes.HangUp:
-				log.Infof("Dcrdata has hung up. Will reconnect.")
-				err = p.resetPiDcrdataWSSubs()
-				if err == errShutdown {
-					log.Infof("Dcrdata websocket closed")
-					return
-				} else if err != nil {
-					log.Errorf("resetPiDcrdataWSSub: %v", err)
-					log.Infof("Dcrdata websocket closed")
-					return
-				}
-				log.Infof("Successfully reconnected to dcrdata")
+				log.Infof("Dcrdata websocket has hung up. Will reconnect.")
+				goto reconnect
+
 			case int:
 				// Ping messages are of type int
+
 			default:
-				log.Errorf("wsDcrdata message of type %v unhandled. %v",
+				log.Errorf("wsDcrdata message of type %v unhandled: %v",
 					msg.EventId, m)
 			}
+
+			// Check for next message
+			continue
+
+		reconnect:
+			// Connection was closed for some reason. Reconnect.
+			err = p.resetPiDcrdataWSSubs()
+			if err == wsdcrdata.ErrShutdown {
+				return
+			} else if err != nil {
+				log.Errorf("resetPiDcrdataWSSub: %v", err)
+				return
+			}
+
+			// Setup a new messages channel using the new connection.
+			receiver, err = p.wsDcrdata.Receive()
+			if err == wsdcrdata.ErrShutdown {
+				return
+			} else if err != nil {
+				log.Errorf("wsDcrdata receive: %v", err)
+				return
+			}
+
+			log.Infof("Successfully reconnected dcrdata websocket")
 		}
 	}()
 
