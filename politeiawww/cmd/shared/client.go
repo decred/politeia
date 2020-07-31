@@ -944,19 +944,19 @@ func (c *Client) ProposalBillingSummary(pbd *cms.ProposalBillingSummary) (*cms.P
 	return &pbdr, nil
 }
 
-// AdminInvoices retrieves invoices base on possible field set in the request
+// Invoices retrieves invoices base on possible field set in the request
 // month/year and/or status
-func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
+func (c *Client) Invoices(ai *cms.Invoices) (*cms.InvoicesReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		cms.APIRoute, cms.RouteAdminInvoices, ai)
+		cms.APIRoute, cms.RouteInvoices, ai)
 	if err != nil {
 		return nil, err
 	}
 
-	var air cms.AdminInvoicesReply
+	var air cms.InvoicesReply
 	err = json.Unmarshal(responseBody, &air)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal AdminInvoicesReply: %v", err)
+		return nil, fmt.Errorf("unmarshal InvoicesReply: %v", err)
 	}
 
 	if c.cfg.Verbose {

@@ -56,7 +56,6 @@ type cmswww struct {
 
 	// Commands
 	ActiveVotes            ActiveVotesCmd            `command:"activevotes" description:"(user) get the dccs that are being voted on"`
-	AdminInvoices          AdminInvoicesCmd          `command:"admininvoices" description:"(admin)  get all invoices (optional by month/year and/or status)"`
 	BatchProposals         shared.BatchProposalsCmd  `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	CensorComment          shared.CensorCommentCmd   `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
@@ -74,6 +73,7 @@ type cmswww struct {
 	InviteNewUser          InviteNewUserCmd          `command:"invite" description:"(admin)  invite a new user"`
 	InvoiceDetails         InvoiceDetailsCmd         `command:"invoicedetails" description:"(public) get the details of a proposal"`
 	InvoicePayouts         InvoicePayoutsCmd         `command:"invoicepayouts" description:"(admin)  generate paid invoice list for a given date range"`
+	Invoices               InvoicesCmd               `command:"invoices" description:"(user)  get all invoices (optional with optional parameters)"`
 	Login                  shared.LoginCmd           `command:"login" description:"(public) login to Politeia"`
 	Logout                 shared.LogoutCmd          `command:"logout" description:"(public) logout of Politeia"`
 	CMSManageUser          CMSManageUserCmd          `command:"cmsmanageuser" description:"(admin)  edit certain properties of the specified user"`
