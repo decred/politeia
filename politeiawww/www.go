@@ -653,7 +653,6 @@ func _main() error {
 			if err != nil {
 				return fmt.Errorf("code tracker failed to load: %v", err)
 			}
-			p.tracker.UseLogger(trackerLog)
 		}
 
 		// Register cms userdb plugin

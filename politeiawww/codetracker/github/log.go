@@ -11,6 +11,6 @@ var log = slog.Disabled
 
 // UseLogger sets the package-wide logger.  Any calls to this function must be
 // made before a server is created and used (it is not concurrent safe).
-func (g *github) UseLogger(logger slog.Logger) {
+func UseLogger(logger slog.Logger) {
 	log = logger
 }
