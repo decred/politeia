@@ -682,6 +682,7 @@ func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
 // PluginExec is a pass through function for plugin commands.
 func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandReply, error) {
 	log.Tracef("PluginExec: %v", pc.ID)
+
 	if c.isQuiesced() {
 		return nil, cache.ErrQuiesced
 	}

@@ -157,6 +157,7 @@ func (p *politeiawww) getQuiesce() bool {
 func (p *politeiawww) setQuiesce(quiesce bool) {
 	p.Lock()
 	defer p.Unlock()
+
 	p.quiesce = quiesce
 }
 

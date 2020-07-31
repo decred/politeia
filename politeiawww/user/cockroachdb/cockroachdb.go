@@ -686,6 +686,7 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 // intended to be used for migrations between databases.
 func (c *cockroachdb) InsertUser(u user.User) error {
 	log.Tracef("InsertUser: %v", u.ID)
+
 	if c.isQuiesced() {
 		return user.ErrQuiesced
 	}

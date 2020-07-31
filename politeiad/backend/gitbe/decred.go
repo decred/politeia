@@ -1237,6 +1237,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	log.Tracef("pluginCensorComment")
+
 	g.Lock()
 	defer g.Unlock()
 	if g.quiesce {
