@@ -43,10 +43,18 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 		"revoked":    cms.ContractorTypeRevoked,
 	}
 
+	userID := cmd.Args.UserID
+
 	// Validate user ID
-	_, err := uuid.Parse(cmd.Args.UserID)
+	_, err := uuid.Parse(userID)
 	if err != nil {
 		return fmt.Errorf("invalid user ID: %v", err)
+	}
+
+	// Retrieve user details
+	details, err := client.CMSUserDetails(strings.TrimSpace(userID))
+	if err != nil {
+		return err
 	}
 
 	// Validate domain. The domain can be either the numeric code
@@ -95,12 +103,18 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 				return fmt.Errorf("invalid supervisor ID '%v': %v", v, err)
 			}
 		}
+	} else {
+		// Persist the value from the previous user details
+		supervisorIDs = details.User.SupervisorUserIDs
 	}
 
 	// Validate supervisor user IDs
 	proposalsOwned := make([]string, 0, 16)
 	if cmd.ProposalsOwned != "" {
 		proposalsOwned = strings.Split(cmd.ProposalsOwned, ",")
+	} else {
+		// Persist the value from the previous user details
+		proposalsOwned = details.User.ProposalsOwned
 	}
 
 	// Send request
