@@ -435,13 +435,6 @@ func _main() error {
 		return err
 	}
 
-	// Setup VoteResults cache table
-	log.Infof("Loading vote results cache table")
-	err = p.initVoteResults()
-	if err != nil {
-		return err
-	}
-
 	// Setup the code that checks for paywall payments.
 	if p.cfg.Mode == "piwww" {
 		err = p.initPaywallChecker()
@@ -504,21 +497,35 @@ func _main() error {
 	// Setup dcrdata websocket connection
 	ws, err := wsdcrdata.New(p.dcrdataHostWS())
 	if err != nil {
-		return fmt.Errorf("new wsDcrdata: %v", err)
+		// Continue even if a websocket connection was not able to be
+		// made. The application specific websocket setup (pi, cms, etc)
+		// can decide whether to attempt reconnection or to exit.
+		log.Errorf("wsdcrdata New: %v", err)
 	}
 	p.wsDcrdata = ws
 
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
+		// Setup routes
 		p.setPoliteiaWWWRoutes()
-		// XXX setup user routes
 		p.setUserWWWRoutes()
-		err = p.setupPiDcrdataWSSubs()
+
+		// Setup dcrdata websocket subscriptions and monitoring. This is
+		// done in a go routine so politeiawww startup will continue in
+		// the event that a dcrdata websocket connection was not able to
+		// be made during client initialization and reconnection attempts
+		// are required.
+		go func() {
+			p.setupWSDcrdataPi()
+		}()
+
+		// Setup VoteResults cache table
+		log.Infof("Loading vote results cache table")
+		err = p.initVoteResults()
 		if err != nil {
-			// Politeiawww can run without a dcrdata subscription, but this
-			// should be logged.
-			log.Errorf("Unable to setup pi dcrdata subs: %v", err)
+			return err
 		}
+
 	case cmsWWWMode:
 		pluginFound := false
 		for _, plugin := range p.plugins {

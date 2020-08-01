@@ -57,10 +57,7 @@ func (p *politeiawww) removeWatchAddress(address string) {
 func (p *politeiawww) setupCMSAddressWatcher() {
 	go func() {
 		for {
-			receiver, err := p.wsDcrdata.Receive()
-			if err == wsdcrdata.ErrShutdown {
-				return
-			}
+			receiver := p.wsDcrdata.Receive()
 
 			msg, ok := <-receiver
 			if !ok {
