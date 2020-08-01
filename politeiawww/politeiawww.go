@@ -23,10 +23,12 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/paywall"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/txfetcher"
 	"github.com/decred/politeia/util/version"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
@@ -135,13 +137,16 @@ type politeiawww struct {
 
 	// WSDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket
-	wsDcrdata *wsdcrdata.WSDcrdata
+	wsDcrdata wsdcrdata.WSDcrdata
 
 	// The current best block is cached and updated using a websocket
 	// subscription to dcrdata. If the websocket connection is not active,
 	// the dcrdata best block route of politeiad is used as a fallback.
 	bestBlock uint64
 	bbMtx     sync.RWMutex
+
+	paywallManager paywall.Manager
+	txFetcher      txfetcher.TxFetcher
 }
 
 // XXX rig this up

@@ -28,6 +28,7 @@ import (
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/txfetcher"
 )
 
 const (
@@ -260,8 +261,9 @@ func _main() error {
 			validTxIds := ""
 			if len(txs) > 1 {
 				paymentReceived := uint64(0)
+				txFetcher := txfetcher.NewDcrdataTxFetcher(dcrdataHost)
 				for i, txid := range txs {
-					tx, err := util.FetchTx(payment.Address, txid, dcrdataHost)
+					tx, err := txFetcher.FetchTx(payment.Address, txid)
 					if err != nil {
 						fmt.Printf("error fetching txid %v %v\n", txid, err)
 						break

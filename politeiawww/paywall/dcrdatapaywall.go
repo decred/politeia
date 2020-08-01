@@ -1,23 +1,22 @@
 package paywall
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
-	"github.com/decred/politeia/politeiawww/dcrdata"
-	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/politeiawww/wsdcrdata"
+	"github.com/decred/politeia/util/txfetcher"
 )
 
 type DcrdataManager struct {
 	sync.RWMutex
 
-	wsDcrdata       *dcrdata.WSDcrdata
-	callback        Callback
-	entries         map[string]*Entry
-	dcrdataHTTPHost string
+	wsDcrdata wsdcrdata.WSDcrdata
+	txFetcher txfetcher.TxFetcher
+	callback  Callback
+	entries   map[string]*Entry
 }
 
 func (d *DcrdataManager) SetCallback(cb Callback) {
@@ -27,7 +26,7 @@ func (d *DcrdataManager) SetCallback(cb Callback) {
 	d.callback = cb
 }
 
-func transactionsFulfillPaywall(txs []util.TxDetails, entry *Entry) bool {
+func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry *Entry) bool {
 	var totalPaid uint64
 
 	for i := 0; i < len(txs); i++ {
@@ -43,7 +42,7 @@ func (d *DcrdataManager) RegisterPaywall(entry *Entry) error {
 		return ErrDuplicateEntry
 	}
 
-	txs, err := util.FetchTxsForAddressNotBefore(entry.address, entry.txNotBefore, d.dcrdataHTTPHost)
+	txs, err := d.txFetcher.FetchTxsForAddressNotBefore(entry.address, entry.txNotBefore)
 	if err != nil {
 		return err
 	}
@@ -83,7 +82,7 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 	callback := d.callback
 	d.RUnlock()
 
-	if !ok || callback == nil{
+	if !ok || callback == nil {
 		return
 	}
 
@@ -92,22 +91,21 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 		var tries int
 
 		for {
-			txs, err := util.FetchTxsForAddressNotBefore(address, 
-														 entry.txNotBefore,
-														 d.dcrdataHTTPHost)
+			txs, err := d.txFetcher.FetchTxsForAddressNotBefore(address,
+				entry.txNotBefore)
 			if err != nil {
 				log.Errorf("FetchTxsForAddressNotBefore: %v", err)
 				return
 			}
 			txFound := false
-			
+
 			for i := 0; i < len(txs); i++ {
 				if txs[i].TxID == txID {
 					txFound = true
 					break
 				}
 			}
-			
+
 			if !txFound {
 				if tries >= 10 {
 					return
@@ -117,7 +115,7 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 				time.Sleep(30 * time.Second)
 				continue
 			}
-			
+
 			paywallFulfilled := transactionsFulfillPaywall(txs, entry)
 			if paywallFulfilled {
 				d.Lock()
@@ -132,7 +130,7 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 func (d *DcrdataManager) listenForPayments() {
 	for {
 		receiver, err := d.wsDcrdata.Receive()
-		if err == dcrdata.ErrShutdown {
+		if err == wsdcrdata.ErrShutdown {
 			log.Infof("Dcrdata websocket closed")
 			return
 		} else if err != nil {
@@ -153,7 +151,7 @@ func (d *DcrdataManager) listenForPayments() {
 
 			log.Errorf("WSDcrdata receive channel closed. Will reconnect.")
 			err = d.wsDcrdata.Reconnect()
-			if err == dcrdata.ErrShutdown {
+			if err == wsdcrdata.ErrShutdown {
 				log.Infof("Dcrdata websocket closed")
 				return
 			} else if err != nil {
@@ -172,7 +170,7 @@ func (d *DcrdataManager) listenForPayments() {
 		case *pstypes.HangUp:
 			log.Infof("Dcrdata has hung up. Will reconnect.")
 			err = d.wsDcrdata.Reconnect()
-			if err == dcrdata.ErrShutdown {
+			if err == wsdcrdata.ErrShutdown {
 				log.Infof("Dcrdata websocket closed")
 				return
 			} else if err != nil {
@@ -183,7 +181,7 @@ func (d *DcrdataManager) listenForPayments() {
 			log.Infof("Successfully reconnected to dcrdata")
 		case *pstypes.AddressMessage:
 			log.Debugf("WSDcrdata message AddressMessage(addres=%v , tx=%v)",
-						m.Address, m.TxHash)
+				m.Address, m.TxHash)
 			d.processPaymentReceived(m.Address, m.TxHash)
 		case int:
 			// Ping messages are of type int
@@ -194,18 +192,16 @@ func (d *DcrdataManager) listenForPayments() {
 	}
 }
 
-func NewDcrdataManager(dcrdataWSHost, dcrdataHTTPHost string) (DcrdataManager, error) {
-	d := DcrdataManager{}
-
-	ws, err := dcrdata.NewWSDcrdata(dcrdataWSHost)
-	if err != nil {
-		return d, fmt.Errorf("new wsDcrdata: %v", err)
+// NewDcrdataManager creates a new DcrdataManger struct
+func NewDcrdataManager(ws wsdcrdata.WSDcrdata, txFetcher txfetcher.TxFetcher) *DcrdataManager {
+	d := DcrdataManager{
+		entries: make(map[string]*Entry),
 	}
 
-	d.dcrdataHTTPHost = dcrdataHTTPHost
 	d.wsDcrdata = ws
+	d.txFetcher = txFetcher
 
 	go d.listenForPayments()
 
-	return d, nil
+	return &d
 }

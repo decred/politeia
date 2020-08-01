@@ -35,6 +35,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/txfetcher"
 	"github.com/decred/politeia/util/version"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
@@ -332,6 +333,8 @@ func _main() error {
 		voteSummaries:   make(map[string]www.VoteSummary),
 		params:          activeNetParams.Params,
 	}
+
+	p.txFetcher = txfetcher.NewDcrdataTxFetcher(p.dcrdataHostHTTP())
 
 	// Check if this command is being run to fetch the identity.
 	if p.cfg.FetchIdentity {

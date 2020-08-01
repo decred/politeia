@@ -3,7 +3,7 @@ package paywall
 import (
 	"errors"
 
-	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/txfetcher"
 )
 
 var (
@@ -18,19 +18,18 @@ var (
 
 // Entry is an entry to a paywall.
 type Entry struct {
-	id              string           // Used by clients to identify different types of paywalls
-	address         string           // Paywall address
-	amount          uint64           // Minimum tx amount required to satisfy paywall
-	txNotBefore     int64            // Minimum timestamp for paywall tx
+	address     string // Paywall address
+	amount      uint64 // Minimum tx amount required to satisfy paywall
+	txNotBefore int64  // Minimum timestamp for paywall tx
 }
 
 // Callback is the function the PaywallManager calls when a payment is
 // recieved.
-type Callback func(*Entry, []util.TxDetails, bool) error
+type Callback func(*Entry, []txfetcher.TxDetails, bool) error
 
 // Manager is an interface that manages a set of paywalls.
 type Manager interface {
-	RegisterPaywall(*Entry) ([]util.TxDetails, error)
-	RemovePaywall(string) error
+	RegisterPaywall(*Entry) error
+	RemovePaywall(string)
 	SetCallback(Callback)
 }

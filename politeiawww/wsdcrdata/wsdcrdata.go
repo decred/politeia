@@ -35,8 +35,22 @@ var (
 	ErrShutdown = errors.New("dcrdata ws connection is shut down")
 )
 
-// WSDcrdata is the context used for managing a dcrdata websocket connection.
-type WSDcrdata struct {
+// WSDcrdata is an interface that can be used for managing a dcrdata websocket
+// connection.
+type WSDcrdata interface {
+	IsShutdown() bool
+	Close() error
+	Subscribe(string) error
+	Unsubscribe(string) error
+	Receive() (<-chan *client.ClientMessage, error)
+	SubToAddr(string) error
+	UnsubFromAddr(string) error
+	Reconnect() error
+}
+
+// WebsocketDcrdata is the context used for managing a dcrdata websocket
+// connection.
+type WebsocketDcrdata struct {
 	sync.RWMutex
 	shutdown      bool
 	client        *client.Client      // dcrdata websocket client
@@ -45,7 +59,7 @@ type WSDcrdata struct {
 }
 
 // IsShutdown returns whether the connection has been shutdown.
-func (w *WSDcrdata) IsShutdown() bool {
+func (w *WebsocketDcrdata) IsShutdown() bool {
 	w.RLock()
 	defer w.RUnlock()
 
@@ -53,7 +67,7 @@ func (w *WSDcrdata) IsShutdown() bool {
 }
 
 // addSub adds an event subscription to the subscriptions map.
-func (w *WSDcrdata) addSub(event string) {
+func (w *WebsocketDcrdata) addSub(event string) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -61,7 +75,7 @@ func (w *WSDcrdata) addSub(event string) {
 }
 
 // removeSub removes an event subscription from the subscriptions map.
-func (w *WSDcrdata) removeSub(event string) {
+func (w *WebsocketDcrdata) removeSub(event string) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -69,7 +83,7 @@ func (w *WSDcrdata) removeSub(event string) {
 }
 
 // removeAllSubs removes all of the subscriptions from the subscriptions map.
-func (w *WSDcrdata) removeAllSubs() {
+func (w *WebsocketDcrdata) removeAllSubs() {
 	w.Lock()
 	defer w.Unlock()
 
@@ -77,7 +91,7 @@ func (w *WSDcrdata) removeAllSubs() {
 }
 
 // isSubscribed returns whether the client is subscribed to the provided event.
-func (w *WSDcrdata) isSubscribed(event string) bool {
+func (w *WebsocketDcrdata) isSubscribed(event string) bool {
 	w.RLock()
 	defer w.RUnlock()
 
@@ -86,7 +100,7 @@ func (w *WSDcrdata) isSubscribed(event string) bool {
 }
 
 // Close closes the dcrdata websocket client.
-func (w *WSDcrdata) Close() error {
+func (w *WebsocketDcrdata) Close() error {
 	w.Lock()
 	w.shutdown = true
 	w.Unlock()
@@ -96,7 +110,7 @@ func (w *WSDcrdata) Close() error {
 }
 
 // Subscribe subscribes the dcrdata client to an event.
-func (w *WSDcrdata) Subscribe(event string) error {
+func (w *WebsocketDcrdata) Subscribe(event string) error {
 	if w.IsShutdown() {
 		return ErrShutdown
 	}
@@ -117,7 +131,7 @@ func (w *WSDcrdata) Subscribe(event string) error {
 }
 
 // Unsubscribe ubsubscribes the dcrdata client from an event.
-func (w *WSDcrdata) Unsubscribe(event string) error {
+func (w *WebsocketDcrdata) Unsubscribe(event string) error {
 	if w.IsShutdown() {
 		return ErrShutdown
 	}
@@ -138,7 +152,7 @@ func (w *WSDcrdata) Unsubscribe(event string) error {
 }
 
 // Receive returns a channel that is listening for messages from dcrdata.
-func (w *WSDcrdata) Receive() (<-chan *client.ClientMessage, error) {
+func (w *WebsocketDcrdata) Receive() (<-chan *client.ClientMessage, error) {
 	if w.IsShutdown() {
 		return nil, ErrShutdown
 	}
@@ -147,7 +161,7 @@ func (w *WSDcrdata) Receive() (<-chan *client.ClientMessage, error) {
 }
 
 // Ping pings the dcrdata server.
-func (w *WSDcrdata) Ping() error {
+func (w *WebsocketDcrdata) Ping() error {
 	if w.IsShutdown() {
 		return ErrShutdown
 	}
@@ -156,12 +170,12 @@ func (w *WSDcrdata) Ping() error {
 }
 
 // SubToAddr adds a subscription to a decred address
-func (w *WSDcrdata) SubToAddr(address string) error {
+func (w *WebsocketDcrdata) SubToAddr(address string) error {
 	return w.Subscribe(AddrSubPrefix + address)
 }
 
 // UnsubFromAddr removes a subscription to a decred address.
-func (w *WSDcrdata) UnsubFromAddr(address string) error {
+func (w *WebsocketDcrdata) UnsubFromAddr(address string) error {
 	return w.Unsubscribe(AddrSubPrefix + address)
 }
 
@@ -197,7 +211,7 @@ func newDcrdataWSClient(url string) (*client.Client, error) {
 
 // Reconnect creates a new websocket client, and subscribes to the
 // same subscriptions as the previous client.
-func (w *WSDcrdata) Reconnect() error {
+func (w *WebsocketDcrdata) Reconnect() error {
 	if w.IsShutdown() {
 		return ErrShutdown
 	}
@@ -271,13 +285,13 @@ func (w *WSDcrdata) Reconnect() error {
 }
 
 // NewWSDcrdata return a new WSDcrdata context.
-func NewWSDcrdata(dcrdataURL string) (*WSDcrdata, error) {
+func NewWSDcrdata(dcrdataURL string) (*WebsocketDcrdata, error) {
 	client, err := newDcrdataWSClient(dcrdataURL)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WSDcrdata{
+	return &WebsocketDcrdata{
 		client:        client,
 		subscriptions: make(map[string]struct{}),
 		url:           dcrdataURL,
