@@ -79,7 +79,7 @@ type Client struct {
 	// pending contains events that were attempted to be subscribed to
 	// or unsubscribed from while the client was in a StateReconnecting
 	// state. Once a new connection has been established the pending
-	// events are replayed in the order in which they were recieved.
+	// events are replayed in the order in which they were received.
 	pending []pendingEvent
 }
 
@@ -169,9 +169,7 @@ func (c *Client) pendingGet() []pendingEvent {
 	defer c.Unlock()
 
 	p := make([]pendingEvent, 0, len(c.pending))
-	for _, v := range c.pending {
-		p = append(p, v)
-	}
+	p = append(p, c.pending...)
 
 	return p
 }
