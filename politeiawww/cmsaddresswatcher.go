@@ -126,6 +126,12 @@ func (p *politeiawww) setupCMSAddressWatcher() {
 		p.wsDcrdata.Reconnect()
 	}
 
+	err := p.restartCMSAddressesWatching()
+	if err != nil {
+		log.Errorf("error restarting address watcher %v", err)
+		return
+	}
+
 	// Monitor websocket connection in a new go routine
 	go p.monitorCMSAddressWatcher()
 
