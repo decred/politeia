@@ -618,11 +618,14 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		p.setupCMSAddressWatcher()
-		err = p.restartCMSAddressesWatching()
-		if err != nil {
-			log.Errorf("error restarting address watcher %v", err)
-		}
+		// Setup dcrdata websocket subscriptions and monitoring. This is
+		// done in a go routine so cmswww startup will continue in
+		// the event that a dcrdata websocket connection was not able to
+		// be made during client initialization and reconnection attempts
+		// are required.
+		go func() {
+			p.setupCMSAddressWatcher()
+		}()
 
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
