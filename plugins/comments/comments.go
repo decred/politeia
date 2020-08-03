@@ -90,6 +90,7 @@ type Comment struct {
 	Timestamp int64  `json:"timestamp"` // UNIX timestamp of last edit
 	Score     int64  `json:"score"`     // Vote score
 	Deleted   bool   `json:"deleted"`   // Comment has been deleted
+	Reason    string `json:"reason"`    // Reason for deletion
 }
 
 // New creates a new comment. A parent ID of 0 indicates that the comment is
@@ -233,7 +234,7 @@ func DecodeDelReply(payload []byte) (*DelReply, error) {
 
 // Get returns the latest version of the comments for the provided comment IDs.
 // An error is not returned if a comment is not found for one or more of the
-// comment IDs.  Those entries will simply not be included in the reply.
+// comment IDs. Those entries will simply not be included in the reply.
 type Get struct {
 	Token      string   `json:"token"`
 	CommentIDs []uint32 `json:"commentids"`

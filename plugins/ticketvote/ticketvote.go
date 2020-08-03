@@ -177,10 +177,10 @@ func DecodeStartVote(payload []byte) (*Start, error) {
 
 // StartReply is the reply to the Start command.
 type StartReply struct {
-	StartBlockHeight uint32   `json:"startblockheight"` // Block height
-	StartBlockHash   string   `json:"startblockhash"`   // Block hash
-	EndBlockHeight   uint32   `json:"endblockheight"`   // Height of vote end
-	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting tickets
+	StartBlockHeight uint32   `json:"startblockheight"`
+	StartBlockHash   string   `json:"startblockhash"`
+	EndBlockHeight   uint32   `json:"endblockheight"`
+	EligibleTickets  []string `json:"eligibletickets"`
 }
 
 // EncodeStartReply encodes a StartReply into a JSON byte slice.
@@ -201,6 +201,7 @@ func DecodeStartReplyVote(payload []byte) (*StartReply, error) {
 // StartRunoff starts a runoff vote between the provided submissions. Each
 // submission is required to have its own Authorize and Start.
 type StartRunoff struct {
+	Token          string      `json:"token"` // RFP token
 	Authorizations []Authorize `json:"authorizations"`
 	Votes          []Start     `json:"votes"`
 }

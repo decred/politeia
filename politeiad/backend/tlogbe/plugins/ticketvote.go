@@ -20,8 +20,45 @@ type ticketVotePlugin struct {
 	backend *tlogbe.Tlogbe
 }
 
+// authorize is the structure that is saved to disk when a vote is authorized
+// or a previous authorizatio is revoked.
+type authorize struct {
+	Token     string `json:"token"`     // Record token
+	Version   uint32 `json:"version"`   // Record version
+	Action    string `json:"action"`    // Authorize or revoke
+	PublicKey string `json:"publickey"` // Public key used for signature
+	Signature string `json:"signature"` // Signature of token+version+action
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// start is the structure that is saved to disk when a vote is started.
+type start struct {
+	Vote             ticketvote.Vote `json:"vote"`
+	PublicKey        string          `json:"publickey"`
+	StartBlockHeight uint32          `json:"startblockheight"`
+	StartBlockHash   string          `json:"startblockhash"`
+	EndBlockHeight   uint32          `json:"endblockheight"`
+	EligibleTickets  []string        `json:"eligibletickets"` // Ticket hashes
+
+	// Signature is a signature of the SHA256 digest of the JSON
+	// encoded Vote struct.
+	Signature string `json:"signature"`
+}
+
 func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 	log.Tracef("ticketvote cmdAuthorize: %v", payload)
+
+	a, err := ticketvote.DecodeAuthorize([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	_ = a
+
+	// Ensure record exists
+	// Verify action
+	// Verify record state
+	// Prepare
 
 	return "", nil
 }

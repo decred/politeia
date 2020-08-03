@@ -163,6 +163,7 @@ func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		_ = block
 	}
 
 	return "", nil
