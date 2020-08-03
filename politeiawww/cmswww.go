@@ -215,22 +215,29 @@ func (p *politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleAdminInvoices handles the request to get all of the  of a new contractor by an
+// handleInvoices handles the request to get all of the  of a new contractor by an
 // administrator for the Contractor Management System.
-func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAdminInvoices")
-	var ai cms.AdminInvoices
+func (p *politeiawww) handleInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInvoices")
+	var ai cms.Invoices
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ai); err != nil {
-		RespondWithError(w, r, 0, "handleAdminInvoices: unmarshal", www.UserError{
+		RespondWithError(w, r, 0, "handleInvoices: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
 	}
 
-	reply, err := p.processAdminInvoices(ai)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleAdminInvoices: processAdminInvoices %v", err)
+		RespondWithError(w, r, 0,
+			"handleInvoices: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processInvoices(ai, user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleInvoices: processInvoices %v", err)
 		return
 	}
 
@@ -297,7 +304,7 @@ func (p *politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Reque
 
 	reply, err := p.processGeneratePayouts(gp, user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleGeneratePayouts: processAdminInvoices %v", err)
+		RespondWithError(w, r, 0, "handleGeneratePayouts: processGeneratePayouts %v", err)
 		return
 	}
 
@@ -1126,6 +1133,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteUserInvoices, p.handleUserInvoices,
 		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteInvoices, p.handleInvoices,
+		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteInvoiceComments, p.handleInvoiceComments,
 		permissionLogin)
@@ -1190,9 +1200,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, p.handleCensorComment,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteAdminInvoices, p.handleAdminInvoices,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,

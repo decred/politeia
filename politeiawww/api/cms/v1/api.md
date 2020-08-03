@@ -15,7 +15,7 @@ server side notifications.  It does not render HTML.
     - [`New invoice`](#new-invoice)
     - [`User invoices`](#user-invoices)
     - [`Set invoice status`](#set-invoice-status)
-    - [`Admin invoices`](#admin-invoices)
+    - [`Invoices`](#invoices)
     - [`Edit invoice`](#edit-invoice)
     - [`Generate payouts`](#generate-payouts)
     - [`Support/Oppose DCC`](#supportoppose-dcc)
@@ -321,21 +321,36 @@ Reply:
 }
 ```
 
-### `Admin invoices`
+### `Invoices`
 
-Retrieve a page of invoices given the month and year and status.
+This request allows administrators or invoice owners to have full view of any 
+of their past invoices.  Users of the same domain may be able to see limited
+information from the invoices.  This will allow for inter-domain checks and
+auditing of invoices.  All private infomation will be hidden to non-admins or
+invoice owners (rates, expenses, payouts, address, locations etc).  This will be
+merely used to audit hours billed.
 
-Note: This call requires admin privileges.
+There are a few optional parameters that are available to ease searching:
+Month/Year will return all the invoices submitted for that month, Status
+will return all invoices of that status. UserID will only return invoices that
+are owned by that userid and start time/end time will return all invoices that
+were submitted in that date range.  Note: There is a max page size for date
+range requests.
 
-**Route:** `POST /v1/admin/invoices`
+
+**Route:** `POST /v1/invoices`
 
 **Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| month | int16 | An optional filter that can be set (along with year) to return invoices from a given month, from 1 to 12. | |
-| year | int16 | An optional filter that can be set (along with month) to return invoices from a given year. | |
-| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | |
+| month | int16 | An optional filter that can be set (along with year) to return invoices from a given month, from 1 to 12. | No |
+| year | int16 | An optional filter that can be set (along with month) to return invoices from a given year. | No |
+| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | No |
+| starttime | int64 | An optional filter that can be set with endtime for date range of submitted invoices. | No |
+| endtime | int64 | An optional filter that can be set with starttime for date range of submitted invoices. | No |
+| userid | int64 | An optional filter that can be set to return invoices that only match the provided userid. | No |
+
 
 **Results:**
 
