@@ -89,6 +89,7 @@ const (
 	ContractorTypeRevoked         ContractorTypeT = 5 // Revoked CMS User
 	ContractorTypeTemp            ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
 	ContractorTypeTempDeactivated ContractorTypeT = 7 // Temporary Contractor that has been deactivated
+	ContractorTypeProposal        ContractorTypeT = 8 // Contractor appproved by proposal, but not DCC
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
