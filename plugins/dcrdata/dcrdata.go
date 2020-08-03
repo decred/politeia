@@ -6,15 +6,30 @@ package dcrdata
 
 import "encoding/json"
 
+type StatusT int
+
 const (
 	Version uint32 = 1
 	ID             = "dcrdata"
 
 	// Plugin commands
 	CmdBestBlock = "bestblock"
+
+	// Dcrdata connection statuses.
+	//
+	// Some commands will return cached results with the connection
+	// status when dcrdata cannot be reached. It is the callers
+	// responsibilty to determine the correct course of action when
+	// dcrdata cannot be reached.
+	StatusInvalid      StatusT = 0
+	StatusConnected    StatusT = 1
+	StatusDisconnected StatusT = 2
 )
 
-// BestBlock requests the best block.
+// BestBlock requests the best block. If dcrdata cannot be reached then the
+// most recent cached best block will be returned along with a status of
+// StatusDisconnected. It is the callers responsibility to determine if the
+// stale best block should be used.
 type BestBlock struct{}
 
 // EncodeBestBlock encodes an BestBlock into a JSON byte slice.
@@ -34,7 +49,8 @@ func DecodeBestBlock(payload []byte) (*BestBlock, error) {
 
 // BestBlockReply is the reply to the BestBlock command.
 type BestBlockReply struct {
-	BestBlock uint32 `json:"bestblock"`
+	Status    StatusT `json:"status"`
+	BestBlock uint32  `json:"bestblock"`
 }
 
 // EncodeBestBlockReply encodes an BestBlockReply into a JSON byte slice.

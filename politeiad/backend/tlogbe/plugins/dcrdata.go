@@ -32,10 +32,17 @@ var (
 // dcrdataplugin satisfies the Plugin interface.
 type dcrdataPlugin struct {
 	sync.Mutex
-	host      string
-	client    *http.Client      // HTTP client
-	ws        *wsdcrdata.Client // Websocket client
-	bestBlock uint32
+	host   string
+	client *http.Client      // HTTP client
+	ws     *wsdcrdata.Client // Websocket client
+
+	// bestBlock is the cached best block. This field is kept up to
+	// date by the websocket connection. If the websocket connection
+	// drops, the best block is marked as stale and is not marked as
+	// current again until the connection has been re-established and
+	// a new best block message is received.
+	bestBlock      uint32
+	bestBlockStale bool
 }
 
 func (p *dcrdataPlugin) bestBlockGet() uint32 {
@@ -50,6 +57,21 @@ func (p *dcrdataPlugin) bestBlockSet(bb uint32) {
 	defer p.Unlock()
 
 	p.bestBlock = bb
+	p.bestBlockStale = false
+}
+
+func (p *dcrdataPlugin) bestBlockSetStale() {
+	p.Lock()
+	defer p.Unlock()
+
+	p.bestBlockStale = true
+}
+
+func (p *dcrdataPlugin) bestBlockIsStale() bool {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.bestBlockStale
 }
 
 // bestBlockHTTP fetches the best block from the dcrdata API.
@@ -84,31 +106,96 @@ func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
 	return &bdb, nil
 }
 
-func (p *dcrdataPlugin) monitorWebsocket() {
+// cmdBestBlock returns the best block. If the dcrdata websocket has been
+// disconnected the best block will be fetched from the dcrdata API. If dcrdata
+// cannot be reached then the most recent cached best block will be returned
+// along with a status of StatusDisconnected. It is the callers responsibility
+// to determine if the stale best block should be used.
+func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
+	log.Tracef("dcrdata cmdBestBlock")
+
+	// Payload is empty. Nothing to decode.
+
+	// Get the cached best block
+	bb := p.bestBlockGet()
+	var (
+		fetch  bool
+		stale  uint32
+		status = dcrdata.StatusConnected
+	)
+	switch {
+	case bb == 0:
+		// No cached best block means that the best block has not been
+		// populated by the websocket yet. Fetch is manually.
+		fetch = true
+	case p.bestBlockIsStale():
+		// The cached best block has been populated by the websocket, but
+		// the websocket is currently disconnected and the cached value
+		// is stale. Try to fetch the best block manually and only use
+		// the stale value if manually fetching it fails.
+		fetch = true
+		stale = bb
+	}
+
+	// Fetch the best block manually if required
+	if fetch {
+		block, err := p.bestBlockHTTP()
+		switch {
+		case err == nil:
+			// We got the best block. Use it.
+			bb = block.Height
+		case stale != 0:
+			// Unable to fetch the best block manually. Use the stale
+			// value and mark the connection status as disconnected.
+			bb = stale
+			status = dcrdata.StatusDisconnected
+		default:
+			// Unable to fetch the best block manually and there is no
+			// stale cached value to return.
+			return "", err
+		}
+	}
+
+	// Prepare reply
+	bbr := dcrdata.BestBlockReply{
+		Status:    status,
+		BestBlock: bb,
+	}
+	reply, err := dcrdata.EncodeBestBlockReply(bbr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *dcrdataPlugin) websocketMonitor() {
 	defer func() {
 		log.Infof("Dcrdata websocket closed")
 	}()
 
 	// Setup messages channel
-	receiver, err := p.ws.Receive()
-	if err == wsdcrdata.ErrShutdown {
-		return
-	} else if err != nil {
-		log.Errorf("dcrdata Receive: %v", err)
-	}
+	receiver := p.ws.Receive()
 
 	for {
 		// Monitor for a new message
 		msg, ok := <-receiver
 		if !ok {
-			log.Infof("Dcrdata websocket channel closed. Will reconnect.")
+			// Check if the websocket was shut down intentionally or was
+			// dropped unexpectedly.
+			if p.ws.Status() == wsdcrdata.StatusShutdown {
+				return
+			}
+			log.Infof("Dcrdata websocket connection unexpectedly dropped")
 			goto reconnect
 		}
 
 		// Handle new message
 		switch m := msg.Message.(type) {
 		case *exptypes.WebsocketBlock:
-			log.Debugf("Dcrdata websocket new block %v", m.Block.Height)
+			log.Debugf("dcrdata WebsocketBlock: %v", m.Block.Height)
+
+			// Update cached best block
 			p.bestBlockSet(uint32(m.Block.Height))
 
 		case *pstypes.HangUp:
@@ -119,54 +206,48 @@ func (p *dcrdataPlugin) monitorWebsocket() {
 			// Ping messages are of type int
 
 		default:
-			log.Errorf("Dcrdata websocket unhandled msg %v", msg)
+			log.Errorf("ws message of type %v unhandled: %v",
+				msg.EventId, m)
 		}
 
 		// Check for next message
 		continue
 
 	reconnect:
-		// Connection was closed for some reason. Set the best block
-		// to 0 to indicate that its stale then reconnect to dcrdata.
-		p.bestBlockSet(0)
-		err = p.ws.Reconnect()
-		if err == wsdcrdata.ErrShutdown {
-			return
-		} else if err != nil {
-			log.Errorf("dcrdata Reconnect: %v", err)
-			continue
-		}
+		// Mark cached best block as stale
+		p.bestBlockSetStale()
+
+		// Reconnect
+		p.ws.Reconnect()
 
 		// Setup a new messages channel using the new connection.
-		receiver, err = p.ws.Receive()
-		if err == wsdcrdata.ErrShutdown {
-			return
-		} else if err != nil {
-			log.Errorf("dcrdata Receive: %v", err)
-			continue
-		}
+		receiver = p.ws.Receive()
 
 		log.Infof("Successfully reconnected dcrdata websocket")
 	}
 }
 
-func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
-	log.Tracef("dcrdata cmdBestBlock")
-
-	// Payload is empty. No need to decode it.
-
-	bb := p.bestBlockGet()
-	if bb == 0 {
-		// No cached best block means the websocket connection is down.
-		// Get the best block from the dcrdata API.
-		block, err := p.bestBlockHTTP()
-		if err != nil {
-			return "", err
+func (p *dcrdataPlugin) websocketSetup() {
+	// Setup websocket subscriptions
+	var done bool
+	for !done {
+		// Best block
+		err := p.ws.NewBlockSubscribe()
+		if err != nil && err != wsdcrdata.ErrDuplicateSub {
+			log.Errorf("NewBlockSubscribe: %v", err)
+			goto reconnect
 		}
-		_ = block
+
+		// All subscriptions setup
+		done = true
+		continue
+
+	reconnect:
+		p.ws.Reconnect()
 	}
 
-	return "", nil
+	// Monitor websocket connection
+	go p.websocketMonitor()
 }
 
 // Cmd executes a plugin command.
@@ -207,14 +288,11 @@ func (p *dcrdataPlugin) Fsck() error {
 func (p *dcrdataPlugin) Setup() error {
 	log.Tracef("dcrdata Setup")
 
-	// Setup websocket subscriptions
-	err := p.ws.NewBlockSubscribe()
-	if err != nil {
-		return err
-	}
-
-	// Monitor websocket connection in a new go routine
-	go p.monitorWebsocket()
+	// Setup dcrdata websocket subscriptions and monitoring. This is
+	// done in a go routine so setup will continue in the event that
+	// a dcrdata websocket connection was not able to be made during
+	// client initialization and reconnection attempts are required.
+	go p.websocketSetup()
 
 	return nil
 }
@@ -235,7 +313,9 @@ func DcrdataPluginNew(dcrdataHost string) *dcrdataPlugin {
 	// Setup websocket client
 	ws, err := wsdcrdata.New(dcrdataHost)
 	if err != nil {
-		// TODO reconnect logic
+		// Continue even if a websocket connection was not able to be
+		// made. Reconnection attempts will be made in the plugin setup.
+		log.Errorf("wsdcrdata New: %v", err)
 	}
 
 	return &dcrdataPlugin{
