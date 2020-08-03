@@ -37,6 +37,8 @@ const (
 	// Sanity check for Contractor Rates
 	minRate = 500   // 5 USD (in cents)
 	maxRate = 50000 // 500 USD (in cents)
+
+	domainInvoiceLimit = time.Minute * 60 * 24 * 180 // 180 days in minutes
 )
 
 var (
@@ -1513,8 +1515,18 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 		}
 
 		// If the user is not an admin AND not the invoice owner
-		// filter out the information for domain viewing.
+		// filter out the information for domain viewing an only allow to see
+		// invoices that are less than 6 months old.
+
 		if !u.Admin && inv.UserID != u.ID.String() {
+			date := time.Date(int(inv.Input.Year), time.Month(inv.Input.Month), 0, 0, 0, 0, 0, time.UTC)
+
+			// Skip if month/year of invoice is BEFORE the current time minus
+			// the domain invoice limit duration.
+			if date.Before(time.Now().Add(-1 * domainInvoiceLimit)) {
+				continue
+			}
+
 			inv = filterDomainInvoice(&inv)
 		}
 		invRecs = append(invRecs, inv)
