@@ -54,6 +54,8 @@ type commentsPlugin struct {
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
+// TODO move these to the plugin API since this is what the inclusion proof
+// is for
 // commentAdd is the structure that is saved to disk when a comment is created
 // or edited.
 type commentAdd struct {
@@ -266,7 +268,7 @@ func convertCommentAddFromBlobEntry(be store.BlobEntry) (*commentAdd, error) {
 	var c commentAdd
 	err = json.Unmarshal(b, &c)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal index: %v", err)
+		return nil, fmt.Errorf("unmarshal commentAdd: %v", err)
 	}
 
 	return &c, nil
@@ -304,7 +306,7 @@ func convertCommentDelFromBlobEntry(be store.BlobEntry) (*commentDel, error) {
 	var c commentDel
 	err = json.Unmarshal(b, &c)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal index: %v", err)
+		return nil, fmt.Errorf("unmarshal commentDel: %v", err)
 	}
 
 	return &c, nil
@@ -1552,7 +1554,10 @@ func (p *commentsPlugin) Setup() error {
 }
 
 // CommentsPluginNew returns a new comments plugin.
-func CommentsPluginNew(id *identity.FullIdentity, backend *tlogbe.Tlogbe) *commentsPlugin {
+func CommentsPluginNew(backend *tlogbe.Tlogbe, settings []backend.PluginSetting) *commentsPlugin {
+	// TODO these should be passed in as plugin settings
+	id := &identity.FullIdentity{}
+
 	return &commentsPlugin{
 		id:      id,
 		backend: backend,

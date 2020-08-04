@@ -32,8 +32,8 @@ func (e SignatureError) Error() string {
 	return fmt.Sprintf("signature error code: %v", e.ErrorCode)
 }
 
-// VerifySignature verifies a Ed25519 signature.
-func VerifySignature(signature, pubkey, msg string) error {
+// VerifySignature verifies a hex encoded Ed25519 signature.
+func VerifySignature(signature, pubKey, msg string) error {
 	sig, err := ConvertSignature(signature)
 	if err != nil {
 		return SignatureError{
@@ -41,7 +41,7 @@ func VerifySignature(signature, pubkey, msg string) error {
 			ErrorContext: []string{err.Error()},
 		}
 	}
-	b, err := hex.DecodeString(pubkey)
+	b, err := hex.DecodeString(pubKey)
 	if err != nil {
 		return SignatureError{
 			ErrorCode:    ErrorStatusPublicKeyInvalid,

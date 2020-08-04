@@ -930,6 +930,7 @@ func (p *politeiawww) getUserProps(filter proposalsFilter) ([]www.ProposalRecord
 	}
 
 	// Get the latest version of all proposals from the cache
+	// TODO do not use getAllProps
 	all, err := p.getAllProps()
 	if err != nil {
 		return nil, nil, fmt.Errorf("getAllProps: %v", err)
@@ -1893,6 +1894,7 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	}
 
 	// Fetch all proposals from the cache
+	// TODO do not use getAllProps
 	all, err := p.getAllProps()
 	if err != nil {
 		return nil, fmt.Errorf("getAllProps: %v", err)
@@ -2127,6 +2129,7 @@ func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 	}
 
 	// Get all proposals from cache
+	// TODO do not use getAllProps
 	all, err := p.getAllProps()
 	if err != nil {
 		return nil, fmt.Errorf("getAllProps: %v", err)

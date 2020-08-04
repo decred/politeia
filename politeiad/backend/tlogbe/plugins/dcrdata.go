@@ -5,11 +5,14 @@
 package plugins
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,12 +20,17 @@ import (
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
 )
 
 const (
 	// Dcrdata routes
-	routeBestBlock = "/api/block/best"
+	routeBestBlock    = "/api/block/best"
+	routeBlockDetails = "/api/block/{height}"
+	routeTicketPool   = "/api/stake/pool/b/{hash}/full"
+	routeTxsTrimmed   = "/api/txs/trimmed"
 )
 
 var (
@@ -36,8 +44,8 @@ type dcrdataPlugin struct {
 	client *http.Client      // HTTP client
 	ws     *wsdcrdata.Client // Websocket client
 
-	// bestBlock is the cached best block. This field is kept up to
-	// date by the websocket connection. If the websocket connection
+	// bestBlock is the cached best block height. This field is kept up
+	// to date by the websocket connection. If the websocket connection
 	// drops, the best block is marked as stale and is not marked as
 	// current again until the connection has been re-established and
 	// a new best block message is received.
@@ -74,36 +82,122 @@ func (p *dcrdataPlugin) bestBlockIsStale() bool {
 	return p.bestBlockStale
 }
 
-// bestBlockHTTP fetches the best block from the dcrdata API.
-func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
-	url := p.host + routeBestBlock
+func (p *dcrdataPlugin) makeReq(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		url     = p.host + route
+		reqBody []byte
+		err     error
+	)
 
-	log.Tracef("dcrdata bestBlock: %v", url)
+	log.Tracef("%v %v", method, url)
 
-	r, err := p.client.Get(url)
-	log.Debugf("http connecting to %v", url)
+	// Setup request body
+	if v != nil {
+		reqBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Send request
+	req, err := http.NewRequest(method, url, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Body.Close()
 
+	// Handle response
 	if r.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			return nil, fmt.Errorf("dcrdata error: %v %v %v",
-				r.StatusCode, url, err)
+			return nil, fmt.Errorf("%v %v %v %v",
+				r.StatusCode, method, url, err)
 		}
-		return nil, fmt.Errorf("dcrdata error: %v %v %s",
-			r.StatusCode, url, body)
+		return nil, fmt.Errorf("%v %v %v %s",
+			r.StatusCode, method, url, body)
+	}
+
+	resBody := util.ConvertBodyToByteArray(r.Body, false)
+	return resBody, nil
+}
+
+// bestBlockHTTP fetches and returns the best block from the dcrdata http API.
+func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
+	resBody, err := p.makeReq(http.MethodGet, routeBestBlock, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	var bdb v4.BlockDataBasic
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bdb); err != nil {
+	err = json.Unmarshal(resBody, &bdb)
+	if err != nil {
 		return nil, err
 	}
 
 	return &bdb, nil
+}
+
+// blockDetailsHTTP fetches and returns the block details from the dcrdata API
+// for the provided block height.
+func (p *dcrdataPlugin) blockDetailsHTTP(height uint32) (*v4.BlockDataBasic, error) {
+	h := strconv.FormatUint(uint64(height), 10)
+
+	route := strings.Replace(routeBlockDetails, "{height}", h, 1)
+	resBody, err := p.makeReq(http.MethodGet, route, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var bdb v4.BlockDataBasic
+	err = json.Unmarshal(resBody, &bdb)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bdb, nil
+}
+
+// ticketPoolHTTP fetches and returns the list of tickets in the ticket pool
+// from the dcrdata API at the provided block hash.
+func (p *dcrdataPlugin) ticketPoolHTTP(blockHash string) ([]string, error) {
+	route := strings.Replace(routeTicketPool, "{hash}", blockHash, 1)
+	route += "?sort=true"
+	resBody, err := p.makeReq(http.MethodGet, route, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var tickets []string
+	err = json.Unmarshal(resBody, &tickets)
+	if err != nil {
+		return nil, err
+	}
+
+	return tickets, nil
+}
+
+// txsTrimmedHTTP fetches and returns the TrimmedTx from the dcrdata API for
+// the provided tx IDs.
+func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v4.TrimmedTx, error) {
+	t := v4.Txns{
+		Transactions: txIDs,
+	}
+	resBody, err := p.makeReq(http.MethodPost, routeTxsTrimmed, t)
+	if err != nil {
+		return nil, err
+	}
+
+	var txs []v4.TrimmedTx
+	err = json.Unmarshal(resBody, &txs)
+	if err != nil {
+		return nil, err
+	}
+
+	return txs, nil
 }
 
 // cmdBestBlock returns the best block. If the dcrdata websocket has been
@@ -152,14 +246,14 @@ func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
 		default:
 			// Unable to fetch the best block manually and there is no
 			// stale cached value to return.
-			return "", err
+			return "", fmt.Errorf("bestBlockHTTP: %v", err)
 		}
 	}
 
 	// Prepare reply
 	bbr := dcrdata.BestBlockReply{
-		Status:    status,
-		BestBlock: bb,
+		Status: status,
+		Height: bb,
 	}
 	reply, err := dcrdata.EncodeBestBlockReply(bbr)
 	if err != nil {
@@ -167,6 +261,125 @@ func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+func (p *dcrdataPlugin) cmdBlockDetails(payload string) (string, error) {
+	log.Tracef("dcrdata cmdBlockDetails: %v", payload)
+
+	// Decode payload
+	bd, err := dcrdata.DecodeBlockDetails([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Fetch block details
+	bdb, err := p.blockDetailsHTTP(bd.Height)
+	if err != nil {
+		return "", fmt.Errorf("blockDetailsHTTP: %v", err)
+	}
+
+	// Prepare reply
+	bdr := dcrdata.BlockDetailsReply{
+		Block: *bdb,
+	}
+	reply, err := dcrdata.EncodeBlockDetailsReply(bdr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *dcrdataPlugin) cmdTicketPool(payload string) (string, error) {
+	log.Tracef("dcrdata cmdTicketPool: %v", payload)
+
+	// Decode payload
+	tp, err := dcrdata.DecodeTicketPool([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Get the ticket pool
+	tickets, err := p.ticketPoolHTTP(tp.BlockHash)
+	if err != nil {
+		return "", fmt.Errorf("ticketPoolHTTP: %v", err)
+	}
+
+	// Prepare reply
+	tpr := dcrdata.TicketPoolReply{
+		Tickets: tickets,
+	}
+	reply, err := dcrdata.EncodeTicketPoolReply(tpr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *dcrdataPlugin) cmdTxsTrimmed(payload string) (string, error) {
+	log.Tracef("cmdTxsTrimmed: %v", payload)
+
+	// Decode payload
+	tt, err := dcrdata.DecodeTxsTrimmed([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Get trimmed txs
+	txs, err := p.txsTrimmedHTTP(tt.TxIDs)
+	if err != nil {
+		return "", fmt.Errorf("txsTrimmedHTTP: %v", err)
+	}
+
+	// Prepare reply
+	ttr := dcrdata.TxsTrimmedReply{
+		Txs: txs,
+	}
+	reply, err := dcrdata.EncodeTxsTrimmedReply(ttr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+// Cmd executes a plugin command.
+//
+// This function satisfies the Plugin interface.
+func (p *dcrdataPlugin) Cmd(cmd, payload string) (string, error) {
+	log.Tracef("dcrdata Cmd: %v", cmd)
+
+	switch cmd {
+	case dcrdata.CmdBestBlock:
+		return p.cmdBestBlock(payload)
+	case dcrdata.CmdBlockDetails:
+		return p.cmdBlockDetails(payload)
+	case dcrdata.CmdTicketPool:
+		return p.cmdTicketPool(payload)
+	case dcrdata.CmdTxsTrimmed:
+		return p.cmdTxsTrimmed(payload)
+	}
+
+	return "", ErrInvalidPluginCmd
+}
+
+// Hook executes a plugin hook.
+//
+// This function satisfies the Plugin interface.
+func (p *dcrdataPlugin) Hook(h HookT, payload string) error {
+	log.Tracef("dcrdata Hook: %v %v", h, payload)
+
+	return nil
+}
+
+// Fsck performs a plugin filesystem check.
+//
+// This function satisfies the Plugin interface.
+func (p *dcrdataPlugin) Fsck() error {
+	log.Tracef("dcrdata Fsck")
+
+	return nil
 }
 
 func (p *dcrdataPlugin) websocketMonitor() {
@@ -250,38 +463,6 @@ func (p *dcrdataPlugin) websocketSetup() {
 	go p.websocketMonitor()
 }
 
-// Cmd executes a plugin command.
-//
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Cmd(cmd, payload string) (string, error) {
-	log.Tracef("dcrdata Cmd: %v", cmd)
-
-	switch cmd {
-	case dcrdata.CmdBestBlock:
-		return p.cmdBestBlock(payload)
-	}
-
-	return "", ErrInvalidPluginCmd
-}
-
-// Hook executes a plugin hook.
-//
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Hook(h HookT, payload string) error {
-	log.Tracef("dcrdata Hook: %v %v", h, payload)
-
-	return nil
-}
-
-// Fsck performs a plugin filesystem check.
-//
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Fsck() error {
-	log.Tracef("dcrdata Fsck")
-
-	return nil
-}
-
 // Setup performs any plugin setup work that needs to be done.
 //
 // This function satisfies the Plugin interface.
@@ -297,7 +478,10 @@ func (p *dcrdataPlugin) Setup() error {
 	return nil
 }
 
-func DcrdataPluginNew(dcrdataHost string) *dcrdataPlugin {
+func DcrdataPluginNew(settings []backend.PluginSetting) *dcrdataPlugin {
+	// TODO these should be passed in as plugin settings
+	var dcrdataHost string
+
 	// Setup http client
 	client := &http.Client{
 		Timeout: 1 * time.Minute,
