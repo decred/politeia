@@ -73,20 +73,25 @@ const (
 
 	// Error status codes
 	// TODO change politeiavoter to use these error codes
-	ErrorStatusInvalid          ErrorStatusT = 0
-	ErrorStatusTokenInvalid     ErrorStatusT = 1
-	ErrorStatusPublicKeyInvalid ErrorStatusT = 2
-	ErrorStatusSignatureInvalid ErrorStatusT = 3
-	ErrorStatusRecordNotFound   ErrorStatusT = 4
+	ErrorStatusInvalid                ErrorStatusT = 0
+	ErrorStatusTokenInvalid           ErrorStatusT = 1
+	ErrorStatusPublicKeyInvalid       ErrorStatusT = 2
+	ErrorStatusSignatureInvalid       ErrorStatusT = 3
+	ErrorStatusRecordNotFound         ErrorStatusT = 4
+	ErrorStatusRecordStateInvalid     ErrorStatusT = 5
+	ErrorStatusAuthorizeActionInvalid ErrorStatusT = 6
 )
 
 var (
 	// ErrorStatus contains human readable error statuses.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:          "invalid error status",
-		ErrorStatusTokenInvalid:     "invalid token",
-		ErrorStatusPublicKeyInvalid: "invalid public key",
-		ErrorStatusSignatureInvalid: "invalid signature",
+		ErrorStatusInvalid:                "invalid error status",
+		ErrorStatusTokenInvalid:           "invalid token",
+		ErrorStatusPublicKeyInvalid:       "invalid public key",
+		ErrorStatusSignatureInvalid:       "invalid signature",
+		ErrorStatusRecordNotFound:         "record not found",
+		ErrorStatusRecordStateInvalid:     "record state invalid",
+		ErrorStatusAuthorizeActionInvalid: "authorize action invalid",
 	}
 )
 
@@ -98,7 +103,7 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("ticketvote plugin error code: %v", e.ErrorCode)
+	return fmt.Sprintf("ticketvote error code: %v", e.ErrorCode)
 }
 
 // Authorize authorizes a ticket vote or revokes a previous authorization.
@@ -129,6 +134,21 @@ func DecodeAuthorize(payload []byte) (*Authorize, error) {
 type AuthorizeReply struct {
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
 	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// EncodeAuthorizeReply encodes an AuthorizeReply into a JSON byte slice.
+func EncodeAuthorizeReply(ar AuthorizeReply) ([]byte, error) {
+	return json.Marshal(ar)
+}
+
+// DecodeAuthorizeReply decodes a JSON byte slice into a AuthorizeReply.
+func DecodeAuthorizeReply(payload []byte) (*AuthorizeReply, error) {
+	var ar AuthorizeReply
+	err := json.Unmarshal(payload, &ar)
+	if err != nil {
+		return nil, err
+	}
+	return &ar, nil
 }
 
 // VoteOption describes a single vote option.

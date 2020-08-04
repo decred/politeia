@@ -74,7 +74,7 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("comments plugin error code: %v", e.ErrorCode)
+	return fmt.Sprintf("comments error code: %v", e.ErrorCode)
 }
 
 // Comment represent a record comment.
@@ -86,8 +86,8 @@ type Comment struct {
 	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
 	CommentID uint32 `json:"commentid"` // Comment ID
 	Version   uint32 `json:"version"`   // Comment version
-	Receipt   string `json:"receipt"`   // Server signature of client signature
 	Timestamp int64  `json:"timestamp"` // UNIX timestamp of last edit
+	Receipt   string `json:"receipt"`   // Server signature of client signature
 	Score     int64  `json:"score"`     // Vote score
 	Deleted   bool   `json:"deleted"`   // Comment has been deleted
 	Reason    string `json:"reason"`    // Reason for deletion
@@ -121,8 +121,8 @@ func DecodeNew(payload []byte) (*New, error) {
 // NewReply is the reply to the New command.
 type NewReply struct {
 	CommentID uint32 `json:"commentid"` // Comment ID
-	Receipt   string `json:"receipt"`   // Server sig of client sig
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server sig of client sig
 }
 
 // EncodeNew encodes a NewReply into a JSON byte slice.
@@ -168,8 +168,8 @@ func DecodeEdit(payload []byte) (*Edit, error) {
 // EditReply is the reply to the Edit command.
 type EditReply struct {
 	Version   uint32 `json:"version"`   // Comment version
-	Receipt   string `json:"receipt"`   // Server signature of client signature
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
 }
 
 // EncodeEdit encodes a EditReply into a JSON byte slice.
@@ -213,8 +213,8 @@ func DecodeDel(payload []byte) (*Del, error) {
 
 // DelReply is the reply to the Del command.
 type DelReply struct {
-	Receipt   string `json:"receipt"`   // Server signature of client signature
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
 }
 
 // EncodeDelReply encodes a DelReply into a JSON byte slice.
@@ -434,8 +434,8 @@ func DecodeVote(payload []byte) (*Vote, error) {
 // VoteReply is the reply to the Vote command.
 type VoteReply struct {
 	Score     int64  `json:"score"`     // Overall comment vote score
-	Receipt   string `json:"receipt"`   // Server signature of client signature
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
 }
 
 // EncodeVoteReply encodes a VoteReply into a JSON byte slice.

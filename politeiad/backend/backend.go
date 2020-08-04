@@ -322,9 +322,6 @@ type Backend interface {
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
 
-	// Update README.md file at the root of git repo
-	UpdateReadme(string) error
-
 	// Check if an unvetted record exists
 	UnvettedExists([]byte) bool
 

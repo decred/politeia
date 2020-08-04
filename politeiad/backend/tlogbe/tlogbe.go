@@ -526,11 +526,6 @@ func (t *Tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []back
 	return t.vetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
 }
 
-// TODO remove
-func (t *Tlogbe) UpdateReadme(content string) error {
-	return fmt.Errorf("not implemented")
-}
-
 // UnvettedExists returns whether the provided token corresponds to an unvetted
 // record.
 //
