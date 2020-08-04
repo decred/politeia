@@ -5,9 +5,15 @@
 package plugins
 
 import (
+	"encoding/hex"
+	"errors"
+	"strconv"
+
 	"github.com/decred/politeia/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -33,17 +39,34 @@ type authorize struct {
 }
 
 // start is the structure that is saved to disk when a vote is started.
+//
+// Signature is a signature of the SHA256 digest of the JSON encoded Vote
+// struct.
 type start struct {
 	Vote             ticketvote.Vote `json:"vote"`
 	PublicKey        string          `json:"publickey"`
+	Signature        string          `json:"signature"`
 	StartBlockHeight uint32          `json:"startblockheight"`
 	StartBlockHash   string          `json:"startblockhash"`
 	EndBlockHeight   uint32          `json:"endblockheight"`
 	EligibleTickets  []string        `json:"eligibletickets"` // Ticket hashes
+}
 
-	// Signature is a signature of the SHA256 digest of the JSON
-	// encoded Vote struct.
-	Signature string `json:"signature"`
+func convertTicketVoteErrFromSignatureErr(err error) ticketvote.UserError {
+	var e util.SignatureError
+	var s ticketvote.ErrorStatusT
+	if errors.As(err, &e) {
+		switch e.ErrorCode {
+		case util.ErrorStatusPublicKeyInvalid:
+			s = ticketvote.ErrorStatusPublicKeyInvalid
+		case util.ErrorStatusSignatureInvalid:
+			s = ticketvote.ErrorStatusSignatureInvalid
+		}
+	}
+	return ticketvote.UserError{
+		ErrorCode:    s,
+		ErrorContext: e.ErrorContext,
+	}
 }
 
 func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
@@ -53,9 +76,34 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_ = a
 
-	// Ensure record exists
+	// Verify signature
+	msg := a.Token + strconv.FormatUint(uint64(a.Version), 10) + string(a.Action)
+	err = util.VerifySignature(a.Signature, a.PublicKey, msg)
+	if err != nil {
+		return "", convertTicketVoteErrFromSignatureErr(err)
+	}
+
+	// Get plugin client
+	token, err := hex.DecodeString(a.Token)
+	if err != nil {
+		return "", ticketvote.UserError{
+			ErrorCode: ticketvote.ErrorStatusTokenInvalid,
+		}
+	}
+	client, err := p.backend.PluginClient(token)
+	if err != nil {
+		if err == backend.ErrRecordNotFound {
+			return "", ticketvote.UserError{
+				ErrorCode: ticketvote.ErrorStatusRecordNotFound,
+			}
+		}
+		return "", err
+	}
+
+	_ = client
+
+	// Verify version
 	// Verify action
 	// Verify record state
 	// Prepare

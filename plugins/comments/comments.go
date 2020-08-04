@@ -74,7 +74,7 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("plugin error code: %v", e.ErrorCode)
+	return fmt.Sprintf("comments plugin error code: %v", e.ErrorCode)
 }
 
 // Comment represent a record comment.

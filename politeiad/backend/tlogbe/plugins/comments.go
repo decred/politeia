@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -133,38 +134,6 @@ type index struct {
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
-// TODO this needs to go in util
-func verifySignature(signature, pubkey, msg string) error {
-	sig, err := util.ConvertSignature(signature)
-	if err != nil {
-		return comments.UserError{
-			ErrorCode:    comments.ErrorStatusSignatureInvalid,
-			ErrorContext: []string{err.Error()},
-		}
-	}
-	b, err := hex.DecodeString(pubkey)
-	if err != nil {
-		return comments.UserError{
-			ErrorCode:    comments.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"key is not hex"},
-		}
-	}
-	pk, err := identity.PublicIdentityFromBytes(b)
-	if err != nil {
-		return comments.UserError{
-			ErrorCode:    comments.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{err.Error()},
-		}
-	}
-	if !pk.VerifyMessage([]byte(msg), sig) {
-		return comments.UserError{
-			ErrorCode:    comments.ErrorStatusSignatureInvalid,
-			ErrorContext: []string{err.Error()},
-		}
-	}
-	return nil
-}
-
 // mutex returns the mutex for the specified record.
 func (p *commentsPlugin) mutex(token string) *sync.Mutex {
 	p.Lock()
@@ -178,6 +147,23 @@ func (p *commentsPlugin) mutex(token string) *sync.Mutex {
 	}
 
 	return m
+}
+
+func convertCommentsErrFromSignatureErr(err error) comments.UserError {
+	var e util.SignatureError
+	var s comments.ErrorStatusT
+	if errors.As(err, &e) {
+		switch e.ErrorCode {
+		case util.ErrorStatusPublicKeyInvalid:
+			s = comments.ErrorStatusPublicKeyInvalid
+		case util.ErrorStatusSignatureInvalid:
+			s = comments.ErrorStatusSignatureInvalid
+		}
+	}
+	return comments.UserError{
+		ErrorCode:    s,
+		ErrorContext: e.ErrorContext,
+	}
 }
 
 func convertBlobEntryFromCommentAdd(c commentAdd) (*store.BlobEntry, error) {
@@ -826,9 +812,9 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 
 	// Verify signature
 	msg := n.Token + strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
-	err = verifySignature(n.Signature, n.PublicKey, msg)
+	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
 	if err != nil {
-		return "", err
+		return "", convertCommentsErrFromSignatureErr(err)
 	}
 
 	// Get plugin client
@@ -966,9 +952,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 
 	// Verify signature
 	msg := e.Token + strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
-	err = verifySignature(e.Signature, e.PublicKey, msg)
+	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
-		return "", err
+		return "", convertCommentsErrFromSignatureErr(err)
 	}
 
 	// Get plugin client
@@ -1099,9 +1085,9 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 
 	// Verify signature
 	msg := d.Token + strconv.FormatUint(uint64(d.CommentID), 10) + d.Reason
-	err = verifySignature(d.Signature, d.PublicKey, msg)
+	err = util.VerifySignature(d.Signature, d.PublicKey, msg)
 	if err != nil {
-		return "", err
+		return "", convertCommentsErrFromSignatureErr(err)
 	}
 
 	// Get plugin client
@@ -1408,9 +1394,9 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Validate signature
 	msg := v.Token + strconv.FormatUint(uint64(v.CommentID), 10) +
 		strconv.FormatInt(int64(v.Vote), 10)
-	err = verifySignature(v.Signature, v.PublicKey, msg)
+	err = util.VerifySignature(v.Signature, v.PublicKey, msg)
 	if err != nil {
-		return "", err
+		return "", convertCommentsErrFromSignatureErr(err)
 	}
 
 	// Get plugin client

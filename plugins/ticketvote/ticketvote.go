@@ -73,13 +73,20 @@ const (
 
 	// Error status codes
 	// TODO change politeiavoter to use these error codes
-	ErrorStatusInvalid ErrorStatusT = 0
+	ErrorStatusInvalid          ErrorStatusT = 0
+	ErrorStatusTokenInvalid     ErrorStatusT = 1
+	ErrorStatusPublicKeyInvalid ErrorStatusT = 2
+	ErrorStatusSignatureInvalid ErrorStatusT = 3
+	ErrorStatusRecordNotFound   ErrorStatusT = 4
 )
 
 var (
 	// ErrorStatus contains human readable error statuses.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid: "invalid error status",
+		ErrorStatusInvalid:          "invalid error status",
+		ErrorStatusTokenInvalid:     "invalid token",
+		ErrorStatusPublicKeyInvalid: "invalid public key",
+		ErrorStatusSignatureInvalid: "invalid signature",
 	}
 )
 
@@ -91,7 +98,7 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("plugin error code: %v", e.ErrorCode)
+	return fmt.Sprintf("ticketvote plugin error code: %v", e.ErrorCode)
 }
 
 // Authorize authorizes a ticket vote or revokes a previous authorization.
@@ -226,7 +233,7 @@ type StartRunoffReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"`
 	StartBlockHash   string   `json:"startblockhash"`
 	EndBlockHeight   uint32   `json:"endblockheight"`
-	EligibleTickets  []string `json:"eligibletickets"`
+	EligibleTickets  []string `json:"eligibletickets"` // Ticket hashes
 }
 
 // EncodeStartRunoffReply encodes a StartRunoffReply into a JSON byte slice.
@@ -461,7 +468,7 @@ type SummariesReply struct {
 	Summaries map[string]Summary `json:"summaries"` // [token]Summary
 
 	// BestBlock is the best block value that was used to prepare the
-	// the summaries.
+	// summaries.
 	BestBlock uint64 `json:"bestblock"`
 }
 
@@ -507,8 +514,8 @@ type InventoryReply struct {
 	Started      []string `json:"started"`
 	Finished     []string `json:"finished"`
 
-	// BestBlock is the best block value that was used to prepare
-	// the inventory.
+	// BestBlock is the best block value that was used to prepare the
+	// inventory.
 	BestBlock uint64 `json:"bestblock"`
 }
 
