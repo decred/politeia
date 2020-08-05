@@ -123,15 +123,14 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 			ErrorCode: cms.ErrorStatusTrackerNotStarted,
 		}
 	}
-	// First update PR/Commit/Review information in Github DB
-	if !ugh.OnlyCodeStats {
+
+	// If month and year are not both set, then update tracker data before
+	// updating users' codestats, then update the previous month's codestats.
+	if ugh.Month == 0 && ugh.Year == 0 {
 		err := p.tracker.Update(ugh.Organization, ugh.Repository)
 		if err != nil {
 			return nil, err
 		}
-	}
-	// If Year is unset set it to previous month.
-	if ugh.Month == 0 || ugh.Year == 0 {
 		if time.Now().Month() == 1 {
 			ugh.Month = 12
 			ugh.Year = time.Now().Year() - 1

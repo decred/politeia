@@ -1123,11 +1123,10 @@ type ReviewInformation struct {
 }
 
 type UpdateGithub struct {
-	Organization  string `json:"organization"`
-	Repository    string `json:"repo"`
-	Year          int    `json:"year"`
-	Month         int    `json:"month"`
-	OnlyCodeStats bool   `json:"onlycodestats"`
+	Organization string `json:"organization"`
+	Repository   string `json:"repo"`
+	Year         int    `json:"year"`
+	Month        int    `json:"month"`
 }
 
 type UpdateGithubReply struct {

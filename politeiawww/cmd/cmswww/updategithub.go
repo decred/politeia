@@ -16,8 +16,9 @@ type UpdateGithubCmd struct {
 	Args struct {
 		Organization string `positional-arg-name:"organization"`
 	} `positional-args:"true" optional:"true"`
-	Repository    string `long:"repo" optional:"true" description:"Optional repository argument to only update a singular repo"`
-	OnlyCodeStats bool   `long:"onlycodestats" optional:"true" description:"Optional flag to only update codestats and not query github api"`
+	Repository string `long:"repo" optional:"true" description:"Optional repository argument to only update a singular repo"`
+	Month      int    `long:"month" optional:"true" description:"Optional argument to update codestats for a given month"`
+	Year       int    `long:"year" optional:"true" description:"Optional argument to update codestats for a given year"`
 }
 
 func (cmd *UpdateGithubCmd) Execute(args []string) error {
@@ -29,9 +30,10 @@ func (cmd *UpdateGithubCmd) Execute(args []string) error {
 
 	pir, err := client.UpdateGithub(
 		&v1.UpdateGithub{
-			Organization:  cmd.Args.Organization,
-			Repository:    cmd.Repository,
-			OnlyCodeStats: cmd.OnlyCodeStats,
+			Organization: cmd.Args.Organization,
+			Repository:   cmd.Repository,
+			Month:        cmd.Month,
+			Year:         cmd.Year,
 		})
 	if err != nil {
 		return err
