@@ -837,7 +837,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
 	var reply cms.InvoiceDetailsReply
-	if !u.Admin {
+	if u.Admin || dbInv.UserID == u.ID.String() {
 		payout, err := calculatePayout(*dbInv)
 		if err != nil {
 			return nil, err
