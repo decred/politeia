@@ -58,12 +58,19 @@ var (
 			cms.InvoiceStatusDisputed,
 		},
 	}
-	// The valid contractor
+	// The invalid contractor types for new invoice submission
 	invalidNewInvoiceContractorType = map[cms.ContractorTypeT]bool{
 		cms.ContractorTypeNominee:         true,
 		cms.ContractorTypeInvalid:         true,
 		cms.ContractorTypeSubContractor:   true,
 		cms.ContractorTypeTempDeactivated: true,
+	}
+
+	// The valid contractor types for domain invoice viewing
+	validDomainInvoiceViewingContractorType = map[cms.ContractorTypeT]bool{
+		cms.ContractorTypeDirect:        true,
+		cms.ContractorTypeSupervisor:    true,
+		cms.ContractorTypeSubContractor: true,
 	}
 
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
@@ -1403,6 +1410,19 @@ func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.
 func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserInvoicesReply, error) {
 	log.Tracef("processInvoices")
 
+	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure that the user is authorized to view domain invoices.
+	if _, ok := validDomainInvoiceViewingContractorType[cms.ContractorTypeT(
+		requestingUser.ContractorType)]; !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
 	// Make sure month AND year are set, if any.
 	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
 		return nil, www.UserError{
@@ -1434,7 +1454,6 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 	}
 
 	var dbInvs []database.Invoice
-	var err error
 	switch {
 	case (ai.Month != 0 && ai.Year != 0) && ai.Status != 0:
 		dbInvs, err = p.cmsDB.InvoicesByMonthYearStatus(ai.Month, ai.Year, int(ai.Status))
@@ -1467,11 +1486,6 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
-	if err != nil {
-		return nil, err
 	}
 
 	// Sort returned invoices by time submitted
