@@ -238,6 +238,8 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 						updated = true
 					}
 				}
+			} else {
+				updated = true
 			}
 			if updated {
 				log.Tracef("Updated UserCodeStats: %v %v %v", u.GitHubName,

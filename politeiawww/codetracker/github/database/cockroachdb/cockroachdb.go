@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,20 +126,15 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 	for _, vv := range reviews {
 		pr := PullRequest{}
 
-		// TEMP CHECK TO MAKE SURE THAT IT REPO NAME MATCHES
-		repo := vv.Repo
-		if !strings.Contains(repo, "decred") {
-			repo = "decred/" + repo
-		}
 		err := c.recordsdb.
 			Table(tableNamePullRequest).
 			Where("repo = ? AND number = ?",
-				repo,
+				vv.Repo,
 				vv.Number).
 			Find(&pr).
 			Error
 		if err != nil {
-			log.Errorf("pull request %v %v for review not found\n", repo, vv.Number)
+			log.Errorf("pull request %v %v for review not found\n", vv.Repo, vv.Number)
 			continue
 		}
 		dbReview := DecodePullRequestReview(&vv)
