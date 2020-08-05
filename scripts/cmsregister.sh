@@ -41,7 +41,7 @@ while [ "$counter" -le "$numUsers" ]
 do
 username="test$counter"
 invite=`cmswww invite $username@decred.org false | jq -r ".verificationtoken"`
-register=cmswww register $username@decred.org $username password $invite
+register=`cmswww register $username@decred.org $username password $invite`
 
 login=`cmswww login $username@decred.org password`
 echo $username created successfully! email/user/pass: $username@decred.org/$username/password
