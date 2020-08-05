@@ -28,6 +28,8 @@ server side notifications.  It does not render HTML.
     - [`Vote Details`](#vote-details)
     - [`Active votes`](#active-votes)
     - [`Start vote`](#start-vote)
+    - [`Update github`](#update-github)
+    - [`User code stats`](#user-code-stats)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
     - [Line item type codes](#line-item-type-codes)
@@ -1971,9 +1973,8 @@ Request to update all pull request, review and commit information for a given or
 |-|-|-|-|
 |	organization | string | The github organization to crawl for repos. | Yes |
 |	repo | string | A specific repository to crawl for pull requests instead of all in the provided organization. | No |
-|	year | int | A specific year to update code stats of a users. | No |
+|	year | int | A specific year to update code stats of users. | No |
 |	month | int | A specific month to update code stats of users.  If both month and year aren't provided then it will just update last month. | No |
-|	onlycodestas | bool | Using this will avoid crawling github for updates and will simply update codestats db based on current github-tracker db information. | No |
 
 **Results:**
 
@@ -1986,7 +1987,9 @@ Request:
 
 ```json
 {
-  "organization": "decred"
+  "organization": "decred",
+  "repo": "politeia"
+}
 ```
 
 Reply:
@@ -1998,7 +2001,12 @@ Reply:
 
 ### `User code stats`
 
-Returns all code stats based on provided userid and month/year.
+Returns all code stats based on provided userid and start/endtime.  
+
+This will return arrays of Repository Statistics for each month/year and
+repo that has been found for the range specified.  If no range, it just returns
+last month's data.  Repo stats include merge additions/deletions, review 
+additions/deletions, and pull request and review links.
 
 **Route:** `POST /user/codestats`
 
@@ -2007,16 +2015,14 @@ Returns all code stats based on provided userid and month/year.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | userid | string | The userid to return code statistics for. | Yes |
-| month | int64 | The month of code stats to return. | No |
-| year | int64 | The year of the code stats to return. (If month and year aren't both populated then last month will be returned.) | No |
+| starttime | int64 | The start of time range to return code stats. | No |
+| endtime | int64 | The end of time range to return code stats. | No |
 
 **Results:**
 
 | Parameter | Type | Description |
 |-|-|-|
 | repostats | []CodeStats | An array of repository details based on work performed. |
-
-This call can return one of the following error codes:
 
 **Example**
 
@@ -2025,8 +2031,8 @@ Request:
 ```json
 {
   "userid": "6638a1c9-271f-433e-bf2c-6144ddd8bed5",
-  "month": 4,
-  "year": 2020,
+  "starttime": "1559460156",
+  "endtime": "1560460156"
 }
 ```
 
