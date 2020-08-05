@@ -17,6 +17,7 @@ type ContractorTypeT int
 type DCCTypeT int
 type DCCStatusT int
 type DCCVoteStatusT int
+type ManageUserActionT int
 
 const (
 	APIVersion = 1
@@ -111,6 +112,11 @@ const (
 	DCCVoteStatusNotStarted DCCVoteStatusT = 1
 	DCCVoteStatusStarted    DCCVoteStatusT = 2
 	DCCVoteStatusFinished   DCCVoteStatusT = 3
+
+	// Manage user available actions
+	Nothing ManageUserActionT = 0
+	Set     ManageUserActionT = 1
+	Reset   ManageUserActionT = 2
 
 	InvoiceInputVersion = 1
 
@@ -235,6 +241,7 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+	ErrorStatusInvalidManageUserAction        www.ErrorStatusT = 1057
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
@@ -374,6 +381,7 @@ var (
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
+		ErrorStatusInvalidManageUserAction:        "the client selected an invalid manage user action",
 	}
 )
 
@@ -700,13 +708,23 @@ type EditUser struct {
 // EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
 
+type CMSManageSupervisors struct {
+	Action  ManageUserActionT // Set or reset
+	Payload []string
+}
+
+type CMSManageProposalsOwned struct {
+	Action  ManageUserActionT // Set or reset
+	Payload []string
+}
+
 // CMSManageUser updates the various fields for a given user.
 type CMSManageUser struct {
-	UserID            string          `json:"userid"`
-	Domain            DomainTypeT     `json:"domain,omitempty"`
-	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
-	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
-	ProposalsOwned    []string        `json:"proposalsowned,omitempty"`
+	UserID            string                  `json:"userid"`
+	Domain            DomainTypeT             `json:"domain,omitempty"`
+	ContractorType    ContractorTypeT         `json:"contractortype,omitempty"`
+	SupervisorUserIDs CMSManageSupervisors    `json:"supervisoruserids,omitempty"`
+	ProposalsOwned    CMSManageProposalsOwned `json:"proposalsowned,omitempty"`
 }
 
 // CMSManageUserReply is the reply for the CMSManageUserReply command.

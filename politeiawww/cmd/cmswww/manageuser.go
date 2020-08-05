@@ -51,11 +51,11 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 		return fmt.Errorf("invalid user ID: %v", err)
 	}
 
-	// Retrieve user details
-	details, err := client.CMSUserDetails(strings.TrimSpace(userID))
-	if err != nil {
-		return err
-	}
+	// // Retrieve user details
+	// details, err := client.CMSUserDetails(strings.TrimSpace(userID))
+	// if err != nil {
+	// 	return err
+	// }
 
 	// Validate domain. The domain can be either the numeric code
 	// or the human readable equivalent.
@@ -94,8 +94,13 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 	}
 
 	// Validate supervisor user IDs
+	var manageSupervisors cms.CMSManageSupervisors
 	supervisorIDs := make([]string, 0, 16)
-	if cmd.SupervisorUserIDs != "" {
+	if cmd.SupervisorUserIDs == "" {
+		manageSupervisors.Action = cms.Nothing
+	} else if cmd.SupervisorUserIDs == "reset" {
+		manageSupervisors.Action = cms.Reset
+	} else {
 		supervisorIDs = strings.Split(cmd.SupervisorUserIDs, ",")
 		for _, v := range supervisorIDs {
 			_, err := uuid.Parse(v)
@@ -103,18 +108,19 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 				return fmt.Errorf("invalid supervisor ID '%v': %v", v, err)
 			}
 		}
-	} else {
-		// Persist the value from the previous user details
-		supervisorIDs = details.User.SupervisorUserIDs
+		manageSupervisors.Action = cms.Set
+		manageSupervisors.Payload = supervisorIDs
 	}
 
 	// Validate supervisor user IDs
-	proposalsOwned := make([]string, 0, 16)
-	if cmd.ProposalsOwned != "" {
-		proposalsOwned = strings.Split(cmd.ProposalsOwned, ",")
+	var manageProposalsOwned cms.CMSManageProposalsOwned
+	if cmd.ProposalsOwned == "" {
+		manageProposalsOwned.Action = cms.Nothing
+	} else if cmd.ProposalsOwned == "reset" {
+		manageProposalsOwned.Action = cms.Reset
 	} else {
-		// Persist the value from the previous user details
-		proposalsOwned = details.User.ProposalsOwned
+		manageProposalsOwned.Action = cms.Set
+		manageProposalsOwned.Payload = strings.Split(cmd.ProposalsOwned, ",")
 	}
 
 	// Send request
@@ -122,8 +128,8 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 		UserID:            cmd.Args.UserID,
 		Domain:            domain,
 		ContractorType:    contractorType,
-		SupervisorUserIDs: supervisorIDs,
-		ProposalsOwned:    proposalsOwned,
+		SupervisorUserIDs: manageSupervisors,
+		ProposalsOwned:    manageProposalsOwned,
 	}
 	err = shared.PrintJSON(mu)
 	if err != nil {
