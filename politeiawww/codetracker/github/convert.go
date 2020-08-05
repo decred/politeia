@@ -161,6 +161,7 @@ func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews 
 			repoStats = append(repoStats, repoStat)
 		}
 		reviewInfo = append(reviewInfo, cms.ReviewInformation{
+			URL:        review.PullRequestURL,
 			State:      review.State,
 			Number:     review.Number,
 			Repository: review.Repo,

@@ -84,13 +84,14 @@ type Commit struct {
 // PullRequestReview contains any information about reviews that a user
 // has submitted to a matching organization PR.
 type PullRequestReview struct {
-	ID          int64
-	Author      string
-	State       string
-	SubmittedAt int64
-	CommitID    string
-	Repo        string
-	Number      int
-	Additions   int
-	Deletions   int
+	PullRequestURL string
+	ID             int64
+	Author         string
+	State          string
+	SubmittedAt    int64
+	CommitID       string
+	Repo           string
+	Number         int
+	Additions      int
+	Deletions      int
 }

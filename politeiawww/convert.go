@@ -1619,7 +1619,7 @@ func convertPRsToUserCodeStats(githubName string, month, year int, prs []cms.Pul
 				repoFound = true
 				repoStat.ReviewAdditions += int64(review.Additions)
 				repoStat.ReviewDeletions += int64(review.Deletions)
-				repoStat.Reviews = append(repoStat.Reviews, review.Repository+"/"+strconv.Itoa(review.Number))
+				repoStat.Reviews = append(repoStat.Reviews, review.URL)
 				repoStats[i] = repoStat
 				break
 			}

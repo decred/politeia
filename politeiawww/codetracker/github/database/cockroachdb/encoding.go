@@ -49,6 +49,7 @@ func EncodePullRequestReview(dbPullRequestReview *database.PullRequestReview) Pu
 // DecodePullRequestReview decodes a cockroachdb PullRequestReview into a generic database.PullRequestReview
 func DecodePullRequestReview(prReview *PullRequestReview) database.PullRequestReview {
 	dbPullRequestReview := database.PullRequestReview{}
+	dbPullRequestReview.PullRequestURL = prReview.PullRequestURL
 	dbPullRequestReview.Author = prReview.Author
 	dbPullRequestReview.State = prReview.State
 	dbPullRequestReview.SubmittedAt = prReview.SubmittedAt
