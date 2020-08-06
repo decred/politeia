@@ -997,8 +997,14 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 
 	dbInvoice.Username = invRec.Username
 	// Return the reply.
+
+	dbRec, err := convertDatabaseInvoiceToInvoiceRecord(*dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+
 	sisr := cms.SetInvoiceStatusReply{
-		Invoice: convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
+		Invoice: dbRec,
 	}
 	return &sisr, nil
 }
@@ -1518,8 +1524,10 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 			continue
 		}
 
-		inv := convertDatabaseInvoiceToInvoiceRecord(v)
-
+		inv, err := convertDatabaseInvoiceToInvoiceRecord(v)
+		if err != nil {
+			return nil, err
+		}
 		invUser, err := p.db.UserGetByPubKey(inv.PublicKey)
 		if err != nil {
 			log.Errorf("getInvoice: getUserByPubKey: token:%v "+
@@ -1727,7 +1735,11 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 	}
 	invoices := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, inv := range dbInvs {
-		invRec := convertDatabaseInvoiceToInvoiceRecord(inv)
+		invRec, err := convertDatabaseInvoiceToInvoiceRecord(inv)
+		if err != nil {
+			return nil, err
+		}
+
 		invoices = append(invoices, invRec)
 	}
 	reply.Invoices = invoices
@@ -1937,7 +1949,7 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 		count = cms.ProposalBillingListPageSize
 	}
 
-	proposalInvoices := make(map[string][]*database.Invoice, len(approvedProposals))
+	proposalInvoices := make(map[string][]database.Invoice, len(approvedProposals))
 	for i, prop := range approvedProposals {
 		if i < pbs.Offset {
 			continue
@@ -1949,7 +1961,7 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 		if len(propInvoices) > 0 {
 			proposalInvoices[prop] = propInvoices
 		} else {
-			proposalInvoices[prop] = make([]*database.Invoice, 0)
+			proposalInvoices[prop] = make([]database.Invoice, 0)
 		}
 
 		if count != 0 && len(proposalInvoices) >= count {
@@ -1964,7 +1976,7 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 
 		totalSpent := int64(0)
 		for _, dbInv := range invoices {
-			payout, err := calculatePayout(*dbInv)
+			payout, err := calculatePayout(dbInv)
 			if err != nil {
 				return nil, err
 			}
@@ -2007,12 +2019,16 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 		} else {
 			dbInv.Username = u.Username
 		}
-		payout, err := calculatePayout(*dbInv)
+		payout, err := calculatePayout(dbInv)
 		if err != nil {
 			return nil, err
 		}
 		totalSpent += int64(payout.Total)
-		invRecs = append(invRecs, convertDatabaseInvoiceToInvoiceRecord(*dbInv))
+		invRec, err := convertDatabaseInvoiceToInvoiceRecord(dbInv)
+		if err != nil {
+			return nil, err
+		}
+		invRecs = append(invRecs, invRec)
 	}
 
 	data, err := p.makeProposalsRequest(http.MethodGet, "/proposals/"+pbd.Token, nil)

@@ -463,6 +463,7 @@ type InvoiceRecord struct {
 	Version            string               `json:"version"`                      // Record version
 	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
 	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
+	Total              int64                `json:"total"`                        // Total amount that the invoice is billing
 	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 
