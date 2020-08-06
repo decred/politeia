@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/codetracker/github/api"
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
 	"github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
@@ -154,7 +154,7 @@ func yearMonth(t time.Time) string {
 
 // UserInfo provides the converted information from pull requests and
 // reviews for a given user of a given period of time.
-func (g *github) UserInfo(org string, user string, year, month int) (*cms.UserInformationResult, error) {
+func (g *github) UserInfo(org string, user string, year, month int) (*codetracker.UserInformationResult, error) {
 	startDate := time.Date(year, time.Month(month), 0, 0, 0, 0, 0,
 		time.UTC).Unix()
 	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0,

@@ -21,6 +21,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -1584,7 +1585,7 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 	return cmsCodeStats
 }
 
-func convertPRsToUserCodeStats(githubName string, month, year int, prs []cms.PullRequestInformation, reviews []cms.ReviewInformation) []user.CodeStats {
+func convertPRsToUserCodeStats(githubName string, month, year int, prs []codetracker.PullRequestInformation, reviews []codetracker.ReviewInformation) []user.CodeStats {
 	repoStats := make([]user.CodeStats, 0, 1048) // PNOOMA
 	for _, pr := range prs {
 		repoFound := false

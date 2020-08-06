@@ -226,6 +226,7 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 				u.GitHubName, ugh.Year, ugh.Month, err)
 			continue
 		}
+
 		codeStats := convertPRsToUserCodeStats(u.GitHubName, ugh.Month,
 			ugh.Year, githubUserInfo.PRs, githubUserInfo.Reviews)
 

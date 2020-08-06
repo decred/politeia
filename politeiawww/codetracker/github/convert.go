@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/codetracker/github/api"
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
 )
@@ -89,11 +89,11 @@ func convertAPIReviewToDbReview(apiReview api.PullRequestReview) database.PullRe
 	return dbReview
 }
 
-func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []cms.PullRequestInformation {
-	prInfo := make([]cms.PullRequestInformation, 0, len(dbPRs))
+func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetracker.PullRequestInformation {
+	prInfo := make([]codetracker.PullRequestInformation, 0, len(dbPRs))
 
 	for _, dbPR := range dbPRs {
-		pr := cms.PullRequestInformation{
+		pr := codetracker.PullRequestInformation{
 			Repository: dbPR.Repo,
 			Additions:  int64(dbPR.Additions),
 			Deletions:  int64(dbPR.Deletions),
@@ -105,11 +105,11 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []cms.Pu
 	return prInfo
 }
 
-func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews []database.PullRequestReview) *cms.UserInformationResult {
-	repoStats := make([]cms.RepositoryInformation, 0, 1048) // PNOOMA
-	userInfo := &cms.UserInformationResult{}
-	prInfo := make([]cms.PullRequestInformation, 0, len(prs))
-	reviewInfo := make([]cms.ReviewInformation, 0, len(reviews))
+func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews []database.PullRequestReview) *codetracker.UserInformationResult {
+	repoStats := make([]codetracker.RepositoryInformation, 0, 1048) // PNOOMA
+	userInfo := &codetracker.UserInformationResult{}
+	prInfo := make([]codetracker.PullRequestInformation, 0, len(prs))
+	reviewInfo := make([]codetracker.ReviewInformation, 0, len(reviews))
 	for _, pr := range prs {
 		repoFound := false
 		for i, repoStat := range repoStats {
@@ -123,7 +123,7 @@ func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews 
 			}
 		}
 		if !repoFound {
-			repoStat := cms.RepositoryInformation{
+			repoStat := codetracker.RepositoryInformation{
 				PRs:            []string{pr.URL},
 				Repository:     pr.Repo,
 				MergeAdditions: int64(pr.Additions),
@@ -131,7 +131,7 @@ func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews 
 			}
 			repoStats = append(repoStats, repoStat)
 		}
-		prInfo = append(prInfo, cms.PullRequestInformation{
+		prInfo = append(prInfo, codetracker.PullRequestInformation{
 			Repository: pr.Repo,
 			URL:        pr.URL,
 			Number:     pr.Number,
@@ -154,14 +154,14 @@ func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews 
 			}
 		}
 		if !repoFound {
-			repoStat := cms.RepositoryInformation{
+			repoStat := codetracker.RepositoryInformation{
 				Repository:      review.Repo,
 				ReviewAdditions: int64(review.Additions),
 				ReviewDeletions: int64(review.Deletions),
 			}
 			repoStats = append(repoStats, repoStat)
 		}
-		reviewInfo = append(reviewInfo, cms.ReviewInformation{
+		reviewInfo = append(reviewInfo, codetracker.ReviewInformation{
 			URL:        review.PullRequestURL,
 			State:      review.State,
 			Number:     review.Number,
