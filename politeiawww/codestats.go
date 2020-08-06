@@ -30,13 +30,33 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	log.Tracef("processUserCodeStats")
 
 	cmsUser, err := p.getCMSUserByID(u.ID.String())
-	if err != nil {
-		return nil, err
+	if err == user.ErrUserNotFound {
+		log.Debugf("processUserCodeStats failure for %v: cmsuser not found",
+			u.ID.String())
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	} else if err != nil {
+		log.Debugf("processUserCodeStats failure for %v: getCMSUser %v",
+			ucs.UserID)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
 	}
 
 	requestedUser, err := p.getCMSUserByID(ucs.UserID)
-	if err != nil {
-		return nil, err
+	if err == user.ErrUserNotFound {
+		log.Debugf("processUserCodeStats failure for %v: cmsuser not found",
+			ucs.UserID)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	} else if err != nil {
+		log.Debugf("processUserCodeStats failure for %v: getCMSUser %v",
+			ucs.UserID, err)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
 	}
 
 	// If domains don't match then just return empty reply rather than erroring.
