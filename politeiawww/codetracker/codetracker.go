@@ -11,6 +11,10 @@ import (
 // CodeTracker interface for getting Code Stats from a git based code tracking
 // site (Github/Gitlab etc).
 type CodeTracker interface {
-	Update(string, string) error                                                  // Use implementation to update the user-information.
-	UserInformation(string, string, int, int) (*cms.UserInformationResult, error) // Request user codestats information based on received data.
+	// Update updates the code stats for a (organization, repo)
+	Update(org, repo string) error
+
+	// UserInfo returns pull request, review and commit information about
+	// a given user over a given start and stop time.
+	UserInfo(org, username string, start, end int) (*cms.UserInformationResult, error)
 }

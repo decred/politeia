@@ -219,7 +219,7 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 			return nil, err
 		}
 
-		githubUserInfo, err := p.tracker.UserInformation(ugh.Organization,
+		githubUserInfo, err := p.tracker.UserInfo(ugh.Organization,
 			u.GitHubName, ugh.Year, ugh.Month)
 		if err != nil {
 			log.Errorf("github user information failed: %v %v %v %v",

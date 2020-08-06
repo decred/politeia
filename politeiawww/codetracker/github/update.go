@@ -5,7 +5,6 @@
 package github
 
 import (
-	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -71,71 +70,10 @@ func (g *github) Update(org string, repoRequest string) error {
 		}
 
 		for _, pr := range prs {
-			var prNum [8]byte
-			binary.LittleEndian.PutUint64(prNum[:], uint64(pr.Number))
-
-			apiPR, err := g.tc.FetchPullRequest(org, repo.Name, pr.Number)
+			err := g.updatePullRequest(org, repo.Name, pr)
 			if err != nil {
-				return err
-			}
-			dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, *repo, org)
-			if err != nil {
-				log.Errorf("error converting api PR to database: %v", err)
-				continue
-			}
-			dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
-			if err != nil {
-				if err == database.ErrNoPullRequestFound {
-					prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number)
-					if err != nil {
-						return err
-					}
-
-					commits := convertAPICommitsToDbCommits(prCommits)
-					dbPullRequest.Commits = commits
-
-					prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number)
-					if err != nil {
-						panic(err)
-					}
-					reviews := convertAPIReviewsToDbReviews(prReviews, repo.Name, pr.Number)
-					dbPullRequest.Reviews = reviews
-
-					err = g.codedb.NewPullRequest(dbPullRequest)
-					if err != nil {
-						log.Errorf("error adding new pull request: %v", err)
-						continue
-					}
-				} else {
-					log.Errorf("error locating pull request: %v", err)
-					continue
-				}
-			}
-			// Only update if dbPR is found and Uqpdated is more recent than what is currently stored.
-			if dbPR != nil && time.Unix(dbPR.UpdatedAt, 0).After(parseTime(pr.UpdatedAt)) {
-				log.Infof("\tUpdate PR %d", pr.Number)
-				prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number)
-				if err != nil {
-					return err
-				}
-
-				commits := convertAPICommitsToDbCommits(prCommits)
-				dbPullRequest.Commits = commits
-
-				prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number)
-				if err != nil {
-					panic(err)
-				}
-
-				reviews := convertAPIReviewsToDbReviews(prReviews, repo.Name, pr.Number)
-				dbPullRequest.Reviews = reviews
-
-				err = g.codedb.UpdatePullRequest(dbPullRequest)
-				if err != nil {
-					log.Errorf("error updating new pull request: %v", err)
-					continue
-				}
-
+				log.Errorf("updatePullRequest fpr %v %v %v", repo.Name,
+					pr.Number, err)
 			}
 		}
 	}
@@ -143,15 +81,84 @@ func (g *github) Update(org string, repoRequest string) error {
 	return nil
 }
 
+func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest) error {
+	apiPR, err := g.tc.FetchPullRequest(org, repoName, pr.Number)
+	if err != nil {
+		return err
+	}
+	dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, repoName,
+		org)
+	if err != nil {
+		log.Errorf("error converting api PR to database: %v", err)
+		return err
+	}
+	dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
+	if err == database.ErrNoPullRequestFound {
+		log.Infof("New PR %d", pr.Number)
+		commits, reviews, err := g.fetchPullRequestReviewsCommits(org,
+			repoName, pr.Number)
+		if err != nil {
+			return err
+		}
+		dbPullRequest.Commits = commits
+		dbPullRequest.Reviews = reviews
+		err = g.codedb.NewPullRequest(dbPullRequest)
+		if err != nil {
+			log.Errorf("error adding new pull request: %v", err)
+			return err
+		}
+		return nil
+	} else if err != nil {
+		log.Errorf("error locating pull request: %v", err)
+		return err
+	} else if dbPR != nil &&
+		time.Unix(dbPR.UpdatedAt, 0).After(parseTime(pr.UpdatedAt)) {
+		// Only update if dbPR is found and pr.Updated is more recent than what
+		// is currently stored.
+		log.Infof("Update PR %d", pr.Number)
+		commits, reviews, err := g.fetchPullRequestReviewsCommits(org,
+			repoName, pr.Number)
+		if err != nil {
+			return err
+		}
+		dbPullRequest.Commits = commits
+		dbPullRequest.Reviews = reviews
+		err = g.codedb.UpdatePullRequest(dbPullRequest)
+		if err != nil {
+			log.Errorf("error updating new pull request: %v", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (g *github) fetchPullRequestReviewsCommits(org, repoName string, prNum int) ([]database.Commit, []database.PullRequestReview, error) {
+	prCommits, err := g.tc.FetchPullRequestCommits(org, repoName,
+		prNum)
+	if err != nil {
+		return nil, nil, err
+	}
+	commits := convertAPICommitsToDbCommits(prCommits)
+	prReviews, err := g.tc.FetchPullRequestReviews(org, repoName,
+		prNum)
+	if err != nil {
+		return commits, nil, err
+	}
+
+	reviews := convertAPIReviewsToDbReviews(prReviews, repoName, prNum)
+	return commits, reviews, nil
+}
 func yearMonth(t time.Time) string {
 	return fmt.Sprintf("%d%02d", t.Year(), t.Month())
 }
 
-// UserInformation provides the converted information from pull requests and
+// UserInfo provides the converted information from pull requests and
 // reviews for a given user of a given period of time.
-func (g *github) UserInformation(org string, user string, year, month int) (*cms.UserInformationResult, error) {
-	startDate := time.Date(year, time.Month(month), 0, 0, 0, 0, 0, time.UTC).Unix()
-	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Unix()
+func (g *github) UserInfo(org string, user string, year, month int) (*cms.UserInformationResult, error) {
+	startDate := time.Date(year, time.Month(month), 0, 0, 0, 0, 0,
+		time.UTC).Unix()
+	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0,
+		time.UTC).Unix()
 	dbUserPRs, err := g.codedb.PullRequestsByUserDates(user, startDate, endDate)
 	if err != nil {
 		return nil, err

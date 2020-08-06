@@ -15,10 +15,11 @@ import (
 
 const githubPullURL = "https://github.com"
 
-func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repo api.Repository, org string) (*database.PullRequest, error) {
-	url := githubPullURL + "/" + org + "/" + repo.Name + "/pull/" + strconv.Itoa(apiPR.Number)
+func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repoName, org string) (*database.PullRequest, error) {
+	url := githubPullURL + "/" + org + "/" + repoName + "/pull/" +
+		strconv.Itoa(apiPR.Number)
 	dbPR := &database.PullRequest{
-		Repo:         repo.Name,
+		Repo:         repoName,
 		Organization: org,
 		User:         apiPR.User.Login,
 		URL:          url,
