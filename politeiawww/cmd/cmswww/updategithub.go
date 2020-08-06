@@ -11,8 +11,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// UpdateGithubCmd
-type UpdateGithubCmd struct {
+// UpdateCodeStatsCmd
+type UpdateCodeStatsCmd struct {
 	Args struct {
 		Organization string `positional-arg-name:"organization"`
 	} `positional-args:"true" optional:"true"`
@@ -21,15 +21,15 @@ type UpdateGithubCmd struct {
 	Year       int    `long:"year" optional:"true" description:"Optional argument to update codestats for a given year"`
 }
 
-func (cmd *UpdateGithubCmd) Execute(args []string) error {
+func (cmd *UpdateCodeStatsCmd) Execute(args []string) error {
 	org := cmd.Args.Organization
 
 	if org == "" {
 		return fmt.Errorf("you must specify an organization.")
 	}
 
-	pir, err := client.UpdateGithub(
-		&v1.UpdateGithub{
+	pir, err := client.UpdateCodeStats(
+		&v1.UpdateCodeStats{
 			Organization: cmd.Args.Organization,
 			Repository:   cmd.Repository,
 			Month:        cmd.Month,

@@ -106,7 +106,7 @@ type cmswww struct {
 	Users                  shared.UsersCmd           `command:"users" description:"(user)   get a list of users"`
 	Secret                 shared.SecretCmd          `command:"secret" description:"(user)   ping politeiawww"`
 	VerifyTOTP             shared.VerifyTOTPCmd      `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
-	UpdateGithub           UpdateGithubCmd           `command:"updategithub" description:"(admin)  start the github-tracker update process"`
+	UpdateCodeStats        UpdateCodeStatsCmd        `command:"updatecodestats" description:"(admin)  start the github-tracker update process"`
 	Version                shared.VersionCmd         `command:"version" description:"(public) get server info and CSRF token"`
 	VoteDCC                VoteDCCCmd                `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
 	VoteDetails            VoteDetailsCmd            `command:"votedetails" description:"(user) get the details for a dcc vote"`

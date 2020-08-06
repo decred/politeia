@@ -55,7 +55,7 @@ const (
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
 	RouteUserCodeStats          = "/user/codestats"
-	RouteUpdateGithub           = "/admin/updategithub"
+	RouteUpdateCodeStats        = "/admin/updatecodestats"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -243,7 +243,7 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
-	ErrorStatusMissingGithubName              www.ErrorStatusT = 1057
+	ErrorStatusMissingCodeStatsUsername       www.ErrorStatusT = 1057
 	ErrorStatusTrackerNotStarted              www.ErrorStatusT = 1058
 
 	ProposalsMainnet = "https://proposals.decred.org"
@@ -384,7 +384,7 @@ var (
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
-		ErrorStatusMissingGithubName:              "Github Name required to receive code stats",
+		ErrorStatusMissingCodeStatsUsername:       "Codestats site username is required to receive code stats",
 		ErrorStatusTrackerNotStarted:              "code tracker required for attempted request, check token setting in config",
 	}
 )
@@ -1122,12 +1122,12 @@ type ReviewInformation struct {
 	State      string `json:"state"`
 }
 
-type UpdateGithub struct {
+type UpdateCodeStats struct {
 	Organization string `json:"organization"`
 	Repository   string `json:"repo"`
 	Year         int    `json:"year"`
 	Month        int    `json:"month"`
 }
 
-type UpdateGithubReply struct {
+type UpdateCodeStatsReply struct {
 }

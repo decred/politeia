@@ -66,7 +66,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 
 	if requestedUser.GitHubName == "" {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusMissingGithubName,
+			ErrorCode: cms.ErrorStatusMissingCodeStatsUsername,
 		}
 	}
 	startDate := time.Unix(ucs.StartTime, 0)
@@ -134,7 +134,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}, nil
 }
 
-func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGithubReply, error) {
+func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.UpdateCodeStatsReply, error) {
 
 	// make sure tracker was created, if not alert for them to check github api
 	// token config
@@ -306,5 +306,5 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 
 	}
 
-	return &cms.UpdateGithubReply{}, nil
+	return &cms.UpdateCodeStatsReply{}, nil
 }

@@ -28,7 +28,7 @@ server side notifications.  It does not render HTML.
     - [`Vote Details`](#vote-details)
     - [`Active votes`](#active-votes)
     - [`Start vote`](#start-vote)
-    - [`Update github`](#update-github)
+    - [`Update codestats`](#update-codestats)
     - [`User code stats`](#user-code-stats)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
@@ -1961,7 +1961,7 @@ Reply:
   }
 ```
 
-### `Update github`
+### `Update codestats`
 
 Request to update all pull request, review and commit information for a given 
 organization.  When no month or year is provided, this request will crawl 

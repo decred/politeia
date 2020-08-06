@@ -2455,14 +2455,14 @@ func (c *Client) LoadWalletClient() error {
 	return nil
 }
 
-func (c *Client) UpdateGithub(pi *cms.UpdateGithub) (*cms.UpdateGithubReply, error) {
+func (c *Client) UpdateCodeStats(pi *cms.UpdateCodeStats) (*cms.UpdateCodeStatsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet,
-		cms.APIRoute, cms.RouteUpdateGithub, pi)
+		cms.APIRoute, cms.RouteUpdateCodeStats, pi)
 	if err != nil {
 		return nil, err
 	}
 
-	var pir cms.UpdateGithubReply
+	var pir cms.UpdateCodeStatsReply
 	err = json.Unmarshal(responseBody, &pir)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal PayInvoiceReply: %v", err)

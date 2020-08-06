@@ -1125,27 +1125,27 @@ func (p *politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, uscr)
 }
 
-func (p *politeiawww) handleUpdateGithub(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUpdateGithub")
+func (p *politeiawww) handleUpdateCodeStats(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUpdateCodeStats")
 
-	var ugh cms.UpdateGithub
-	err := util.ParseGetParams(r, &ugh)
+	var ucs cms.UpdateCodeStats
+	err := util.ParseGetParams(r, &ucs)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleUpdateGithub: ParseGetParams",
+		RespondWithError(w, r, 0, "handleUpdateCodeStats: ParseGetParams",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
 
-	ughr, err := p.processUpdateGithub(ugh)
+	ucsr, err := p.processUpdateCodeStats(ucs)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleUpdateGithub: processUpdateGithub: %v", err)
+			"handleUpdateCodeStats: processUpdateCodeStats: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, ughr)
+	util.RespondWithJSON(w, http.StatusOK, ucsr)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -1292,6 +1292,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
 		permissionAdmin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteUpdateGithub, p.handleUpdateGithub,
+		cms.RouteUpdateCodeStats, p.handleUpdateCodeStats,
 		permissionAdmin)
 }
