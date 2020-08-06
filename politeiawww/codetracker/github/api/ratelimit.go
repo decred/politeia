@@ -14,7 +14,9 @@ const (
 	rateLimitURL = "https://api.github.com/rate_limit"
 )
 
-func (a *Client) RateLimit() (ApiRateLimitRule, error) {
+// RateLimit determines if the current rate limit for the client is about
+// to be tripped.  If so, it will go to sleep for a given perioud of time.
+func (a *Client) RateLimit() (RateLimitRule, error) {
 	defer a.rateLimitMtx.Unlock()
 	a.rateLimitMtx.Lock()
 
@@ -22,17 +24,17 @@ func (a *Client) RateLimit() (ApiRateLimitRule, error) {
 		if a.rateLimit.Remaining == 0 {
 			b, err := a.gh.Get(rateLimitURL)
 			if err != nil {
-				return ApiRateLimitRule{}, err
+				return RateLimitRule{}, err
 			}
 			bo, err := ioutil.ReadAll(b.Body)
 			b.Body.Close()
 			if err != nil {
-				return ApiRateLimitRule{}, err
+				return RateLimitRule{}, err
 			}
-			var apiRateLimit ApiRateLimit
+			var apiRateLimit RateLimit
 			err = json.Unmarshal(bo, &apiRateLimit)
 			if err != nil {
-				return ApiRateLimitRule{}, err
+				return RateLimitRule{}, err
 			}
 			core := apiRateLimit.Resources.Core
 			if core.Remaining == 0 {

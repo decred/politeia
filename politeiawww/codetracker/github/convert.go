@@ -15,7 +15,7 @@ import (
 
 const githubPullURL = "https://github.com"
 
-func convertAPIPullRequestToDbPullRequest(apiPR *api.ApiPullRequest, repo api.ApiRepository, org string) (*database.PullRequest, error) {
+func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repo api.Repository, org string) (*database.PullRequest, error) {
 	url := githubPullURL + "/" + org + "/" + repo.Name + "/pull/" + strconv.Itoa(apiPR.Number)
 	dbPR := &database.PullRequest{
 		Repo:         repo.Name,
@@ -44,7 +44,7 @@ func convertAPIPullRequestToDbPullRequest(apiPR *api.ApiPullRequest, repo api.Ap
 	return dbPR, nil
 }
 
-func convertAPICommitsToDbCommits(apiCommits []api.ApiPullRequestCommit) []database.Commit {
+func convertAPICommitsToDbCommits(apiCommits []api.PullRequestCommit) []database.Commit {
 	dbCommits := make([]database.Commit, 0, len(apiCommits))
 	for _, commit := range apiCommits {
 		dbCommit := convertAPICommitToDbCommit(commit)
@@ -53,7 +53,7 @@ func convertAPICommitsToDbCommits(apiCommits []api.ApiPullRequestCommit) []datab
 	return dbCommits
 }
 
-func convertAPICommitToDbCommit(apiCommit api.ApiPullRequestCommit) database.Commit {
+func convertAPICommitToDbCommit(apiCommit api.PullRequestCommit) database.Commit {
 	dbCommit := database.Commit{
 		SHA:       apiCommit.SHA,
 		URL:       apiCommit.URL,
@@ -66,7 +66,7 @@ func convertAPICommitToDbCommit(apiCommit api.ApiPullRequestCommit) database.Com
 	return dbCommit
 }
 
-func convertAPIReviewsToDbReviews(apiReviews []api.ApiPullRequestReview, repo string, prNumber int) []database.PullRequestReview {
+func convertAPIReviewsToDbReviews(apiReviews []api.PullRequestReview, repo string, prNumber int) []database.PullRequestReview {
 	dbReviews := make([]database.PullRequestReview, 0, len(apiReviews))
 	for _, review := range apiReviews {
 		dbReview := convertAPIReviewToDbReview(review)
@@ -77,7 +77,7 @@ func convertAPIReviewsToDbReviews(apiReviews []api.ApiPullRequestReview, repo st
 	return dbReviews
 }
 
-func convertAPIReviewToDbReview(apiReview api.ApiPullRequestReview) database.PullRequestReview {
+func convertAPIReviewToDbReview(apiReview api.PullRequestReview) database.PullRequestReview {
 	dbReview := database.PullRequestReview{
 		ID:          apiReview.ID,
 		Author:      apiReview.User.Login,

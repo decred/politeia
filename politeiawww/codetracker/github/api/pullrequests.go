@@ -7,41 +7,29 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"time"
 )
 
 const (
-	apiPullsRequestURL       = `https://api.github.com/repos/%s/%s/pulls?per_page=250&page=%d&state=all&sort=updated&direction=desc`
-	apiPullRequestURL        = `https://api.github.com/repos/%s/%s/pulls/%d`
-	apiPullRequestCommitsURL = `https://api.github.com/repos/%s/%s/pulls/%d/commits?per_page=250&page=%d&sort=updated&direction=desc`
+	apiPullsRequestURL = `https://api.github.com/repos/%s/%s/pulls?per_page=250&page=%d&state=all&sort=updated&direction=desc`
+	apiPullRequestURL  = `https://api.github.com/repos/%s/%s/pulls/%d`
 )
 
-func (a *Client) FetchPullRequest(org, repo string, prNum int) (*ApiPullRequest, error) {
+// FetchPullRequest requests information about a given pull request based on
+// organization, repo and pull request number.
+func (a *Client) FetchPullRequest(org, repo string, prNum int) (*PullRequest, error) {
 	url := fmt.Sprintf(apiPullRequestURL, org, repo, prNum)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	a.RateLimit()
-	res, err := a.gh.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http returned %v", res.StatusCode)
-	}
-
-	body, err := ioutil.ReadAll(res.Body)
-	res.Body.Close()
+	body, err := a.sendGithubRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	var pullRequest ApiPullRequest
+	var pullRequest PullRequest
 	err = json.Unmarshal(body, &pullRequest)
 	if err != nil {
 		return nil, err
@@ -50,9 +38,10 @@ func (a *Client) FetchPullRequest(org, repo string, prNum int) (*ApiPullRequest,
 	return &pullRequest, nil
 }
 
-// FetchPullsRequest
-func (a *Client) FetchPullsRequest(org, repo string) ([]ApiPullsRequest, error) {
-	var totalPullsRequests []ApiPullsRequest
+// FetchPullsRequest requests all of the pull requests from a given repo
+// under an organization.
+func (a *Client) FetchPullsRequest(org, repo string) ([]PullsRequest, error) {
+	var totalPullsRequests []PullsRequest
 	page := 1
 	for {
 		url := fmt.Sprintf(apiPullsRequestURL, org, repo, page)
@@ -60,19 +49,12 @@ func (a *Client) FetchPullsRequest(org, repo string) ([]ApiPullsRequest, error) 
 		if err != nil {
 			return totalPullsRequests, err
 		}
-		a.RateLimit()
-		res, err := a.gh.Do(req)
+		body, err := a.sendGithubRequest(req)
 		if err != nil {
 			return totalPullsRequests, err
 		}
 
-		body, err := ioutil.ReadAll(res.Body)
-		res.Body.Close()
-		if err != nil {
-			return totalPullsRequests, err
-		}
-
-		var pullsRequests []ApiPullsRequest
+		var pullsRequests []PullsRequest
 		err = json.Unmarshal(body, &pullsRequests)
 		if err != nil {
 			return totalPullsRequests, err
@@ -87,43 +69,4 @@ func (a *Client) FetchPullsRequest(org, repo string) ([]ApiPullsRequest, error) 
 		page++
 	}
 	return totalPullsRequests, nil
-}
-
-func (a *Client) FetchPullRequestCommits(org, repo string, prNum int, monthYear time.Time) ([]ApiPullRequestCommit, error) {
-	var totalPullRequestCommits []ApiPullRequestCommit
-	page := 1
-	for {
-		url := fmt.Sprintf(apiPullRequestCommitsURL, org, repo, prNum, page)
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return totalPullRequestCommits, err
-		}
-		a.RateLimit()
-		res, err := a.gh.Do(req)
-		if err != nil {
-			return totalPullRequestCommits, err
-		}
-
-		body, err := ioutil.ReadAll(res.Body)
-		res.Body.Close()
-		if err != nil {
-			return totalPullRequestCommits, err
-		}
-
-		var pullRequestCommits []ApiPullRequestCommit
-		err = json.Unmarshal(body, &pullRequestCommits)
-		if err != nil {
-			return totalPullRequestCommits, err
-		}
-
-		// no more left
-		if len(pullRequestCommits) == 0 {
-			break
-		}
-
-		totalPullRequestCommits = append(totalPullRequestCommits, pullRequestCommits...)
-		page++
-	}
-	return totalPullRequestCommits, nil
-
 }

@@ -86,7 +86,7 @@ func (g *github) Update(org string, repoRequest string) error {
 			dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
 			if err != nil {
 				if err == database.ErrNoPullRequestFound {
-					prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+					prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number)
 					if err != nil {
 						return err
 					}
@@ -94,7 +94,7 @@ func (g *github) Update(org string, repoRequest string) error {
 					commits := convertAPICommitsToDbCommits(prCommits)
 					dbPullRequest.Commits = commits
 
-					prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+					prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number)
 					if err != nil {
 						panic(err)
 					}
@@ -114,7 +114,7 @@ func (g *github) Update(org string, repoRequest string) error {
 			// Only update if dbPR is found and Uqpdated is more recent than what is currently stored.
 			if dbPR != nil && time.Unix(dbPR.UpdatedAt, 0).After(parseTime(pr.UpdatedAt)) {
 				log.Infof("\tUpdate PR %d", pr.Number)
-				prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+				prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number)
 				if err != nil {
 					return err
 				}
@@ -122,7 +122,7 @@ func (g *github) Update(org string, repoRequest string) error {
 				commits := convertAPICommitsToDbCommits(prCommits)
 				dbPullRequest.Commits = commits
 
-				prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+				prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number)
 				if err != nil {
 					panic(err)
 				}
