@@ -112,9 +112,10 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 	reviews := make([]PullRequestReview, 0, 1024) // PNOOMA
 	err := c.recordsdb.
 		Table(tableNameReviews).
-		Where("author = ? AND "+
+		Where("author = ? AND state = ? AND "+
 			"submitted_at BETWEEN ? AND ?",
 			username,
+			"APPROVED",
 			start,
 			end).
 		Find(&reviews).
