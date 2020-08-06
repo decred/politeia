@@ -15,7 +15,7 @@ const (
 )
 
 // FetchPullRequestReviews requests all of the reviews from a given pull request
-// based on organization, repoistory, pull request number and time.
+// based on organization, repository, pull request number and time.
 func (a *Client) FetchPullRequestReviews(org, repo string, prNum int) ([]PullRequestReview, error) {
 	var totalPullRequestReviews []PullRequestReview
 	url := fmt.Sprintf(apiPullRequestReviewsURL, org, repo, prNum)
