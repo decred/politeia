@@ -65,7 +65,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 	u.TOTPType = int(st.Type)
 	u.TOTPSecret = key.Secret()
 	u.TOTPVerified = false
-	u.TOTPLastUpdated = time.Now().Unix()
+	u.TOTPLastUpdated = append(u.TOTPLastUpdated, time.Now().Unix())
 
 	err = p.db.UserUpdate(*u)
 	if err != nil {
@@ -89,7 +89,7 @@ func (p *politeiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.V
 	}
 
 	u.TOTPVerified = true
-	u.TOTPLastUpdated = time.Now().Unix()
+	u.TOTPLastUpdated = append(u.TOTPLastUpdated, time.Now().Unix())
 
 	err := p.db.UserUpdate(*u)
 	if err != nil {

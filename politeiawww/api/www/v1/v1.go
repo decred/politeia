@@ -1373,18 +1373,25 @@ type WSPing struct {
 }
 
 // SetTOTP attempts to set a TOTP key for the chosen TOTP type (Basic/UFI2 etc).
+// When the user issues this request, the server generates a new key pair for
+// them and returns the key/image that will allow them to save it to their
+// TOTP app of choice.  The server saves the generated TOTP secret in the
+// userdb user information blob.
 type SetTOTP struct {
 	Type TOTPMethodT `json:"type"`
 	Code string      `json:"code"`
 }
 
-// SetTOTPReply will return an empty reply if no errors occurred.
+// SetTOTPReply returns the generated key and image that are used to add
+// the key pair to the TOTP app of choice.
 type SetTOTPReply struct {
 	Key   string `json:"key"`
 	Image string `json:"image"`
 }
 
-// VerifyTOTP is used to confirm the previously set TOTP key.
+// VerifyTOTP must be used by a user before their TOTP is ready to use.  Once
+// receiving the key/image from SetTOTP they can add it to their TOTP app.
+// Upon adding it to their TOTP app, they can generate new TOTP codes at will.
 type VerifyTOTP struct {
 	Code string `json:"code"`
 }
