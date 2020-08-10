@@ -572,6 +572,7 @@ func _main() error {
 			pdCommand := pd.Inventory{
 				Challenge:    hex.EncodeToString(challenge),
 				IncludeFiles: true,
+				AllVersions:  true,
 			}
 
 			responseBody, err := p.makeRequest(http.MethodPost,

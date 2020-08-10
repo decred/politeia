@@ -18,6 +18,7 @@ import (
 func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 	invoice := Invoice{}
 
+	invoice.Key = dbInvoice.Token + dbInvoice.Version
 	invoice.Token = dbInvoice.Token
 	invoice.UserID = dbInvoice.UserID
 	invoice.Month = dbInvoice.Month

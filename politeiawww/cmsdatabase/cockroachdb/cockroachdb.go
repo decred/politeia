@@ -111,10 +111,11 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
 func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	log.Debugf("InvoiceByToken: %v", token)
 
-	invoice := Invoice{
-		Token: token,
-	}
+	invoice := Invoice{}
 	err := c.recordsdb.
+		Where("token = ?", token).
+		Order("version desc").
+		Limit(1).
 		Preload("LineItems").
 		Preload("Changes").
 		Preload("Payments").
@@ -133,11 +134,9 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 func (c *cockroachdb) InvoiceByTokenVersion(token string, version string) (*database.Invoice, error) {
 	log.Debugf("InvoiceByTokenVersion: %v", token)
 
-	invoice := Invoice{
-		Token:   token,
-		Version: version,
-	}
+	invoice := Invoice{}
 	err := c.recordsdb.
+		Where("key = ?", token+version).
 		Preload("LineItems").
 		Preload("Changes").
 		Preload("Payments").
