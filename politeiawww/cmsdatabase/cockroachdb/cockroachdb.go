@@ -434,7 +434,7 @@ func (c *cockroachdb) InvoicesByDateRange(start, end int64) ([]database.Invoice,
 // returns all invoices that have line items corresponding with that token.
 // All line items that are not considered relevant to the proposal token will
 // be omitted.
-func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*database.Invoice, error) {
+func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database.Invoice, error) {
 	log.Debugf("InvoicesByLineItemsProposalToken: %v", token)
 	// Get all line items with proposal token
 	query := `SELECT 

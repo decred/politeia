@@ -89,6 +89,7 @@ const (
 	ContractorTypeRevoked         ContractorTypeT = 5 // Revoked CMS User
 	ContractorTypeTemp            ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
 	ContractorTypeTempDeactivated ContractorTypeT = 7 // Temporary Contractor that has been deactivated
+	ContractorTypeProposal        ContractorTypeT = 8 // Contractor appproved by proposal, but not DCC
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -462,6 +463,7 @@ type InvoiceRecord struct {
 	Version            string               `json:"version"`                      // Record version
 	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
 	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
+	Total              int64                `json:"total"`                        // Total amount that the invoice is billing
 	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 
