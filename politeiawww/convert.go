@@ -1626,15 +1626,17 @@ func convertPRsToUserCodeStats(githubName string, month, year int, prs []codetra
 			}
 		}
 		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, review.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
 			repoStat := user.CodeStats{
-				ID:              githubName + "-" + review.Repository + "-" + strconv.Itoa(year) + "-" + strconv.Itoa(month),
+				ID:              id,
 				GitHubName:      githubName,
 				Month:           month,
 				Year:            year,
 				Repository:      review.Repository,
 				ReviewAdditions: int64(review.Additions),
 				ReviewDeletions: int64(review.Deletions),
-				Reviews:         []string{review.Repository + "/" + strconv.Itoa(review.Number)},
+				Reviews:         []string{review.URL},
 			}
 			repoStats = append(repoStats, repoStat)
 		}

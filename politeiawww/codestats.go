@@ -129,7 +129,6 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		}
 	}
 	return &cms.UserCodeStatsReply{
-
 		RepoStats: allRepoStats,
 	}, nil
 }

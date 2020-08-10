@@ -1079,17 +1079,6 @@ type CodeStats struct {
 	Reviews         []string `json:"reviews"`
 }
 
-// UserInformationResult models the data from the userinformation command.
-type UserInformationResult struct {
-	User         string                   `json:"user"`
-	Organization string                   `json:"organization"`
-	PRs          []PullRequestInformation `json:"prs"`
-	RepoDetails  []RepositoryInformation  `json:"repodetails"`
-	Reviews      []ReviewInformation      `json:"reviews"`
-	Year         int                      `json:"year"`
-	Month        int                      `json:"month"`
-}
-
 type RepositoryInformation struct {
 	PRs             []string `json:"prs"`
 	Reviews         []string `json:"reviews"`

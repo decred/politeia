@@ -1976,7 +1976,7 @@ but merely update users' code stats for the given month/year.
 
 Note: This call requires admin privileges.
 
-**Route:** `POST /admin/updategithub`
+**Route:** `POST /admin/updatecodestats`
 
 **Params:**
 

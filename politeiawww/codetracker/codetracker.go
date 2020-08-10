@@ -26,18 +26,20 @@ type UserInformationResult struct {
 	Month        int                      `json:"month"`
 }
 
+// RepositoryInformation contains all the information related to PRs, Reviews
+// and Commits for a given repository.  It uses basic counters to give
+// totals of merges, commits and pull requests for a given time frame.
 type RepositoryInformation struct {
 	PRs             []string `json:"prs"`
 	Reviews         []string `json:"reviews"`
 	Repository      string   `json:"repo"`
-	CommitAdditions int64    `json:"commitadditions"`
-	CommitDeletions int64    `json:"commitdeletions"`
 	MergeAdditions  int64    `json:"mergeadditions"`
 	MergeDeletions  int64    `json:"mergedeletions"`
 	ReviewAdditions int64    `json:"reviewadditions"`
 	ReviewDeletions int64    `json:"reviewdeletions"`
 }
 
+// PullRequestInformation contains all the specific details of pull request.
 type PullRequestInformation struct {
 	Repository string `json:"repo"`
 	URL        string `json:"url"`
@@ -48,6 +50,7 @@ type PullRequestInformation struct {
 	State      string `json:"state"`
 }
 
+// ReviewInformation contains all the details of a review of a pull request.
 type ReviewInformation struct {
 	Repository string `json:"repo"`
 	URL        string `json:"url"`
