@@ -129,6 +129,29 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	return DecodeInvoice(&invoice)
 }
 
+// InvoiceByTokenVersion Return invoice by its token and version
+func (c *cockroachdb) InvoiceByTokenVersion(token string, version string) (*database.Invoice, error) {
+	log.Debugf("InvoiceByTokenVersion: %v", token)
+
+	invoice := Invoice{
+		Token:   token,
+		Version: version,
+	}
+	err := c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Preload("Payments").
+		Find(&invoice).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+
+	return DecodeInvoice(&invoice)
+}
+
 // InvoicesByMonthYearStatus returns all invoices by month year and status
 func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByMonthYearStatus")
