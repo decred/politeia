@@ -1047,7 +1047,7 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 
 	route = dest + "/api/v1" + route
 
-	content := p.memorycache.Get(route)
+	content := p.memorycache.Get(route + string(requestBody))
 	if content != nil {
 		return content, nil
 	} else {
@@ -1096,7 +1096,7 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 		}
 
 		responseBody = util.ConvertBodyToByteArray(r.Body, false)
-		p.memorycache.Set(route, responseBody, "1h")
+		p.memorycache.Set(route+string(requestBody), responseBody, "1h")
 		return responseBody, nil
 	}
 }
