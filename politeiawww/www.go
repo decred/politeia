@@ -685,7 +685,7 @@ func _main() error {
 	}
 
 	// Setup memorycache
-	p.memorycache = p.NewStorage()
+	p.memorycache = p.newStorage()
 
 	// Tell user we are ready to go.
 	log.Infof("Start of day")

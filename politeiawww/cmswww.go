@@ -938,7 +938,7 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
-	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
+	data, err := p.makePropsoalsRequestCached(http.MethodGet, www.RouteTokenInventory, nil, "1h")
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
@@ -960,7 +960,7 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 		return
 	}
 
-	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+	data, err := p.makePropsoalsRequestCached(http.MethodPost, www.RouteBatchProposals, bp, "1h")
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
@@ -1016,6 +1016,46 @@ func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+// makePropsoalsRequestCached passes a request to makeProposalsRequest and caches a valid result. It takes the same inputs as
+// makeProposalsRequest plus a time parsed string "cachetime" which determines how long a response is cached.
+
+func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v interface{}, cachetime string) ([]byte, error) {
+	var (
+		requestBody []byte
+		err         error
+	)
+
+	if v != nil {
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+
+	// Store in cache_route as to not messup the route being passed to makeProposalsRequest.
+	cache_route := dest + "/api/v1" + route
+
+	// Check cache and return if found.
+	content := p.memorycache.get(cache_route + string(requestBody))
+	if content != nil {
+		return content, nil
+	}
+
+	response, err := p.makeProposalsRequest(method, route, v)
+
+	// Set cache if no errors.
+	if err == nil {
+		p.memorycache.set(cache_route+string(requestBody), response, cachetime)
+	}
+	return response, err
+
+}
+
 // makeProposalsRequest submits pass through requests to the proposals sites
 // (testnet or mainnet).  It takes a http method type, proposals route and a
 // request interface as arguments.  It returns the response body as byte array
@@ -1047,41 +1087,14 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 
 	route = dest + "/api/v1" + route
 
-	content := p.memorycache.Get(route + string(requestBody))
-	if content != nil {
-		return content, nil
-	} else {
-
-		// We have to special case post requests since they require to first get
-		// cookies and csrf headers from a Version GET request.
-		if method == http.MethodPost {
-			versionRoute := dest + "/api/v1" + www.RouteVersion
-			req, err := http.NewRequest(http.MethodGet, versionRoute, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			r, err := client.Do(req)
-			if err != nil {
-				return nil, err
-			}
-			defer r.Body.Close()
-
-			cookies = r.Cookies()
-			csrf = r.Header.Get(www.CsrfToken)
-		}
-
-		req, err := http.NewRequest(method, route,
-			bytes.NewReader(requestBody))
+	// We have to special case post requests since they require to first get
+	// cookies and csrf headers from a Version GET request.
+	if method == http.MethodPost {
+		versionRoute := dest + "/api/v1" + www.RouteVersion
+		req, err := http.NewRequest(http.MethodGet, versionRoute, nil)
 		if err != nil {
 			return nil, err
 		}
-
-		for _, cookie := range cookies {
-			req.AddCookie(cookie)
-		}
-
-		req.Header.Set(www.CsrfToken, csrf)
 
 		r, err := client.Do(req)
 		if err != nil {
@@ -1089,16 +1102,36 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 		}
 		defer r.Body.Close()
 
-		if r.StatusCode != http.StatusOK {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusT(r.StatusCode),
-			}
-		}
-
-		responseBody = util.ConvertBodyToByteArray(r.Body, false)
-		p.memorycache.Set(route+string(requestBody), responseBody, "1h")
-		return responseBody, nil
+		cookies = r.Cookies()
+		csrf = r.Header.Get(www.CsrfToken)
 	}
+
+	req, err := http.NewRequest(method, route,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	req.Header.Set(www.CsrfToken, csrf)
+
+	r, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusT(r.StatusCode),
+		}
+	}
+
+	responseBody = util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
