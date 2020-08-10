@@ -233,29 +233,47 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByStatus")
 
-	invoices := make([]Invoice, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Where("status = ?", status).
-		Find(&invoices).
-		Error
+	// Lookup the latest version of each invoice
+	query := `SELECT a.*
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL
+              AND a.status = ?`
+	rows, err := c.recordsdb.Raw(query, status).Rows()
 	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	for rows.Next() {
+		var i Invoice
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, i)
+	}
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	tokens := make([]string, 0, len(invoices))
-	for _, r := range invoices {
-		tokens = append(tokens, r.Token)
+	// Compile a list of record primary keys
+	keys := make([]string, 0, len(invoices))
+	for _, v := range invoices {
+		keys = append(keys, v.Key)
 	}
+
+	// Lookup files and metadata streams for each of the
+	// previously queried records.
 	err = c.recordsdb.
-		Preload("LineItems").
-		Preload("Changes").
-		Preload("Payments").
-		Where(tokens).
+		Preload("Metadata").
+		Preload("Files").
+		Where(keys).
 		Find(&invoices).
 		Error
-	if err != nil {
-		return nil, err
-	}
 
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
@@ -270,31 +288,45 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 
 // InvoicesAll returns all invoices
 func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
-	log.Tracef("InvoicesAll")
+	// Lookup the latest version of each invoice
+	query := `SELECT a.*
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version`
+	rows, err := c.recordsdb.Raw(query).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
 	invoices := make([]Invoice, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Find(&invoices).
-		Error
-	if err != nil {
+	for rows.Next() {
+		var i Invoice
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, i)
+	}
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	tokens := make([]string, 0, len(invoices))
-	for _, r := range invoices {
-		tokens = append(tokens, r.Token)
+	// Compile a list of record primary keys
+	keys := make([]string, 0, len(invoices))
+	for _, v := range invoices {
+		keys = append(keys, v.Key)
 	}
+
+	// Lookup files and metadata streams for each of the
+	// previously queried records.
 	err = c.recordsdb.
-		Preload("LineItems").
-		Preload("Changes").
-		Preload("Payments").
-		Where(tokens).
+		Preload("Metadata").
+		Preload("Files").
+		Where(keys).
 		Find(&invoices).
 		Error
-	if err != nil {
-		return nil, err
-	}
-
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
 		dbInvoice, err := DecodeInvoice(&v)
