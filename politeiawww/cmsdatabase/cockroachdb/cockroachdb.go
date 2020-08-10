@@ -274,7 +274,9 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 		Where(keys).
 		Find(&invoices).
 		Error
-
+	if err != nil {
+		return nil, err
+	}
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
 		dbInvoice, err := DecodeInvoice(&v)
@@ -327,6 +329,10 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 		Where(keys).
 		Find(&invoices).
 		Error
+	if err != nil {
+		return nil, err
+	}
+
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
 		dbInvoice, err := DecodeInvoice(&v)
