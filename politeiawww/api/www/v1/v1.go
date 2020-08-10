@@ -1377,6 +1377,8 @@ type WSPing struct {
 // them and returns the key/image that will allow them to save it to their
 // TOTP app of choice.  The server saves the generated TOTP secret in the
 // userdb user information blob.
+// If the user already has a TOTP set, they must also add a code generated from
+// the currently set secret.
 type SetTOTP struct {
 	Type TOTPMethodT `json:"type"`
 	Code string      `json:"code"`
@@ -1386,7 +1388,7 @@ type SetTOTP struct {
 // the key pair to the TOTP app of choice.
 type SetTOTPReply struct {
 	Key   string `json:"key"`
-	Image string `json:"image"`
+	Image string `json:"image"` // Base64 encoded PNG
 }
 
 // VerifyTOTP must be used by a user before their TOTP is ready to use.  Once
