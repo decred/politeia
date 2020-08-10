@@ -11,11 +11,14 @@ import (
 // EncodeCommit encodes a database.Commit into a cockroachdb Commit.
 func EncodeCommit(dbCommit *database.Commit) Commit {
 	commit := Commit{}
+	commit.Repo = dbCommit.Repo
 	commit.URL = dbCommit.URL
 	commit.SHA = dbCommit.SHA
 	commit.Message = dbCommit.Message
 	commit.Author = dbCommit.Author
 	commit.Committer = dbCommit.Committer
+	commit.Additions = dbCommit.Additions
+	commit.Deletions = dbCommit.Deletions
 
 	return commit
 }
@@ -23,11 +26,14 @@ func EncodeCommit(dbCommit *database.Commit) Commit {
 // DecodeCommit decodes a cockroachdb Commit into a generic database.Commit
 func DecodeCommit(commit *Commit) database.Commit {
 	dbCommit := database.Commit{}
+	dbCommit.Repo = commit.Repo
 	dbCommit.URL = commit.URL
 	dbCommit.SHA = commit.SHA
 	dbCommit.Message = commit.Message
 	dbCommit.Author = commit.Author
 	dbCommit.Committer = commit.Committer
+	dbCommit.Additions = commit.Additions
+	dbCommit.Deletions = commit.Deletions
 
 	return dbCommit
 }

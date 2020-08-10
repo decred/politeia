@@ -39,9 +39,10 @@ type Database interface {
 	NewCommit(*Commit) error    // Create new commit
 	UpdateCommit(*Commit) error // Update existing commit
 
-	NewPullRequestReview(*PullRequestReview) error                        // Create new pull request review
-	UpdatePullRequestReview(*PullRequestReview) error                     // Update existing pull request review
-	ReviewsByUserDates(string, int64, int64) ([]PullRequestReview, error) // Retrieve all reviews that match username between dates
+	NewPullRequestReview(*PullRequestReview) error                                       // Create new pull request review
+	UpdatePullRequestReview(*PullRequestReview) error                                    // Update existing pull request review
+	ReviewsByUserDates(user string, start int64, end int64) ([]PullRequestReview, error) // Retrieve all reviews that match username between dates
+	CommitsByUserDates(user string, start int64, end int64) ([]Commit, error)            // Retrieve all commits that were AUTHORED by user between dates
 
 	Setup() error
 
@@ -72,6 +73,7 @@ type PullRequest struct {
 // Commit contains more granular information about commits that make up
 // Pull Requests.
 type Commit struct {
+	Repo      string
 	SHA       string
 	URL       string
 	Message   string

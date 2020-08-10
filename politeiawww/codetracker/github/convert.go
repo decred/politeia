@@ -45,10 +45,11 @@ func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repoName, org 
 	return dbPR, nil
 }
 
-func convertAPICommitsToDbCommits(apiCommits []api.PullRequestCommit) []database.Commit {
+func convertAPICommitsToDbCommits(apiCommits []api.PullRequestCommit, repoName string) []database.Commit {
 	dbCommits := make([]database.Commit, 0, len(apiCommits))
 	for _, commit := range apiCommits {
 		dbCommit := convertAPICommitToDbCommit(commit)
+		dbCommit.Repo = repoName
 		dbCommits = append(dbCommits, dbCommit)
 	}
 	return dbCommits
@@ -105,11 +106,12 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetr
 	return prInfo
 }
 
-func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews []database.PullRequestReview) *codetracker.UserInformationResult {
+func convertCodeStatsToUserInformation(prs []*database.PullRequest, reviews []database.PullRequestReview, commits []database.Commit) *codetracker.UserInformationResult {
 	repoStats := make([]codetracker.RepositoryInformation, 0, 1048) // PNOOMA
 	userInfo := &codetracker.UserInformationResult{}
 	prInfo := make([]codetracker.PullRequestInformation, 0, len(prs))
 	reviewInfo := make([]codetracker.ReviewInformation, 0, len(reviews))
+	commitInfo := make([]codetracker.CommitInformation, 0, len(commits))
 	for _, pr := range prs {
 		repoFound := false
 		for i, repoStat := range repoStats {
@@ -171,8 +173,37 @@ func convertPRsandReviewsToUserInformation(prs []*database.PullRequest, reviews 
 		})
 	}
 
+	for _, commit := range commits {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == commit.Repo {
+				repoFound = true
+				repoStat.CommitAdditions += int64(commit.Additions)
+				repoStat.CommitDeletions += int64(commit.Deletions)
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			repoStat := codetracker.RepositoryInformation{
+				Repository:      commit.Repo,
+				CommitAdditions: int64(commit.Additions),
+				CommitDeletions: int64(commit.Deletions),
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+		commitInfo = append(commitInfo, codetracker.CommitInformation{
+			URL:       commit.URL,
+			Additions: commit.Additions,
+			Deletions: commit.Deletions,
+			SHA:       commit.SHA,
+			Author:    commit.Author,
+			Committer: commit.Committer,
+		})
+	}
 	userInfo.RepoDetails = repoStats
 	userInfo.PRs = prInfo
 	userInfo.Reviews = reviewInfo
+	userInfo.Commits = commitInfo
 	return userInfo
 }

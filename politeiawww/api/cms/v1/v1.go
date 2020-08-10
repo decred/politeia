@@ -1071,44 +1071,14 @@ type CodeStats struct {
 	Month           int      `json:"month"`
 	Year            int      `json:"year"`
 	Repository      string   `json:"repository"`
-	MergeAdditions  int64    `json:"mergeadditions"`
-	MergeDeletions  int64    `json:"mergedeletions"`
-	ReviewAdditions int64    `json:"reviewadditions"`
-	ReviewDeletions int64    `json:"reviewdeletions"`
-	PRs             []string `json:"prs"`
-	Reviews         []string `json:"reviews"`
-}
-
-type RepositoryInformation struct {
-	PRs             []string `json:"prs"`
-	Reviews         []string `json:"reviews"`
-	Repository      string   `json:"repo"`
 	CommitAdditions int64    `json:"commitadditions"`
 	CommitDeletions int64    `json:"commitdeletions"`
 	MergeAdditions  int64    `json:"mergeadditions"`
 	MergeDeletions  int64    `json:"mergedeletions"`
 	ReviewAdditions int64    `json:"reviewadditions"`
 	ReviewDeletions int64    `json:"reviewdeletions"`
-}
-
-type PullRequestInformation struct {
-	Repository string `json:"repo"`
-	URL        string `json:"url"`
-	Number     int    `json:"number"`
-	Additions  int64  `json:"additions"`
-	Deletions  int64  `json:"deletions"`
-	Date       string `json:"date"`
-	State      string `json:"state"`
-}
-
-type ReviewInformation struct {
-	Repository string `json:"repo"`
-	URL        string `json:"url"`
-	Number     int    `json:"number"`
-	Additions  int    `json:"additions"`
-	Deletions  int    `json:"deletions"`
-	Date       string `json:"date"`
-	State      string `json:"state"`
+	PRs             []string `json:"prs"`
+	Reviews         []string `json:"reviews"`
 }
 
 type UpdateCodeStats struct {

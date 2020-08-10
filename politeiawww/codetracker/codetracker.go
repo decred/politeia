@@ -22,6 +22,7 @@ type UserInformationResult struct {
 	PRs          []PullRequestInformation `json:"prs"`
 	RepoDetails  []RepositoryInformation  `json:"repodetails"`
 	Reviews      []ReviewInformation      `json:"reviews"`
+	Commits      []CommitInformation      `json:"commits"`
 	Year         int                      `json:"year"`
 	Month        int                      `json:"month"`
 }
@@ -33,6 +34,8 @@ type RepositoryInformation struct {
 	PRs             []string `json:"prs"`
 	Reviews         []string `json:"reviews"`
 	Repository      string   `json:"repo"`
+	CommitAdditions int64    `json:"commitadditions"`
+	CommitDeletions int64    `json:"commitdeletions"`
 	MergeAdditions  int64    `json:"mergeadditions"`
 	MergeDeletions  int64    `json:"mergedeletions"`
 	ReviewAdditions int64    `json:"reviewadditions"`
@@ -59,4 +62,15 @@ type ReviewInformation struct {
 	Deletions  int    `json:"deletions"`
 	Date       string `json:"date"`
 	State      string `json:"state"`
+}
+
+// CommitInformation contains all the details of a commit within a pull request.
+type CommitInformation struct {
+	SHA       string
+	URL       string
+	Message   string
+	Author    string
+	Committer string
+	Additions int
+	Deletions int
 }

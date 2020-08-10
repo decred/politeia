@@ -49,10 +49,11 @@ func (PullRequest) TableName() string {
 
 // Commit has all of the information for any commit underneathe a PR.
 type Commit struct {
-	PullRequestURL string `gorm:"primary_key"`
+	PullRequestURL string `gorm:"not null"`
+	Repo           string `gorm:"not null"`
 	Author         string `gorm:"not null"`
 	Committer      string `gorm:"not null"`
-	SHA            string `gorm:"not null"`
+	SHA            string `gorm:"primary_key"`
 	URL            string `gorm:"not null"`
 	Message        string `gorm:"not null"`
 	Additions      int    `gorm:"not null"`

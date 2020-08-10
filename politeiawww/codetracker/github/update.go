@@ -138,7 +138,7 @@ func (g *github) fetchPullRequestReviewsCommits(org, repoName string, prNum int)
 	if err != nil {
 		return nil, nil, err
 	}
-	commits := convertAPICommitsToDbCommits(prCommits)
+	commits := convertAPICommitsToDbCommits(prCommits, repoName)
 	prReviews, err := g.tc.FetchPullRequestReviews(org, repoName,
 		prNum)
 	if err != nil {
@@ -167,7 +167,11 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
-	userInfo := convertPRsandReviewsToUserInformation(dbUserPRs, dbReviews)
+	dbCommits, err := g.codedb.CommitsByUserDates(user, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	userInfo := convertCodeStatsToUserInformation(dbUserPRs, dbReviews, dbCommits)
 	userInfo.User = user
 	userInfo.Organization = org
 	return userInfo, nil
