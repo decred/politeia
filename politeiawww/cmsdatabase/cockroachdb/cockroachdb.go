@@ -72,24 +72,42 @@ func (c *cockroachdb) RemoveInvoiceLineItems(invoiceToken string) error {
 func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByUserID")
 
-	invoices := make([]Invoice, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Where("user_id = ?", userid).
-		Find(&invoices).
-		Error
+	// Lookup the latest version of each invoice
+	query := `SELECT *
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL
+              AND user_id = ? AND year = ? AND status = ?`
+	rows, err := c.recordsdb.Raw(query, userid).Rows()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	tokens := make([]string, 0, len(invoices))
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	for rows.Next() {
+		var i Invoice
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, i)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(invoices))
 	for _, r := range invoices {
-		tokens = append(tokens, r.Token)
+		keys = append(keys, r.Key)
 	}
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
 		Preload("Payments").
-		Where(tokens).
+		Where(keys).
 		Find(&invoices).
 		Error
 	if err != nil {
@@ -155,24 +173,41 @@ func (c *cockroachdb) InvoiceByTokenVersion(token string, version string) (*data
 func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByMonthYearStatus")
 
-	invoices := make([]Invoice, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Where("month = ? AND year = ? AND status = ?", month, year, status).
-		Find(&invoices).
-		Error
+	// Lookup the latest version of each invoice
+	query := `SELECT *
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL
+              AND month = ? AND year = ? AND status = ?`
+	rows, err := c.recordsdb.Raw(query, month, year, status).Rows()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	tokens := make([]string, 0, len(invoices))
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	for rows.Next() {
+		var i Invoice
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, i)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(invoices))
 	for _, r := range invoices {
-		tokens = append(tokens, r.Token)
+		keys = append(keys, r.Key)
 	}
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
 		Preload("Payments").
-		Where(tokens).
+		Where(keys).
 		Find(&invoices).
 		Error
 	if err != nil {
@@ -194,24 +229,42 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByMonthYear")
 
-	invoices := make([]Invoice, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Where("month = ? AND year = ?", month, year).
-		Find(&invoices).
-		Error
+	// Lookup the latest version of each invoice
+	query := `SELECT *
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL
+              AND month = ? AND year = ?`
+	rows, err := c.recordsdb.Raw(query, month, year).Rows()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	tokens := make([]string, 0, len(invoices))
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	for rows.Next() {
+		var i Invoice
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, i)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(invoices))
 	for _, r := range invoices {
-		tokens = append(tokens, r.Token)
+		keys = append(keys, r.Key)
 	}
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
 		Preload("Payments").
-		Where(tokens).
+		Where(keys).
 		Find(&invoices).
 		Error
 	if err != nil {
@@ -234,13 +287,12 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByStatus")
 
 	// Lookup the latest version of each invoice
-	query := `SELECT a.*
+	query := `SELECT *
             FROM invoices a
             LEFT OUTER JOIN invoices b
               ON a.token = b.token
               AND a.version < b.version
-              WHERE b.token IS NULL
-              AND a.status = ?`
+              WHERE a.status = ?`
 	rows, err := c.recordsdb.Raw(query, status).Rows()
 	if err != nil {
 		return nil, err
@@ -269,8 +321,9 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	// Lookup files and metadata streams for each of the
 	// previously queried records.
 	err = c.recordsdb.
-		Preload("Metadata").
-		Preload("Files").
+		Preload("LineItems").
+		Preload("Changes").
+		Preload("Payments").
 		Where(keys).
 		Find(&invoices).
 		Error
@@ -291,7 +344,7 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 // InvoicesAll returns all invoices
 func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	// Lookup the latest version of each invoice
-	query := `SELECT a.*
+	query := `SELECT *
             FROM invoices a
             LEFT OUTER JOIN invoices b
               ON a.token = b.token
@@ -324,8 +377,9 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	// Lookup files and metadata streams for each of the
 	// previously queried records.
 	err = c.recordsdb.
-		Preload("Metadata").
-		Preload("Files").
+		Preload("LineItems").
+		Preload("Changes").
+		Preload("Payments").
 		Where(keys).
 		Find(&invoices).
 		Error
@@ -348,9 +402,46 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 func (c *cockroachdb) InvoicesByAddress(address string) ([]database.Invoice, error) {
 	log.Debugf("InvoiceByAddress: %v", address)
 
+	// Lookup the latest version of each invoice
+	query := `SELECT *
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL
+              AND a.payment_address = ?`
+	rows, err := c.recordsdb.Raw(query, address).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	invoices := make([]Invoice, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Where("payment_address = ?", address).
+	for rows.Next() {
+		var i Invoice
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, i)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Compile a list of record primary keys
+	keys := make([]string, 0, len(invoices))
+	for _, v := range invoices {
+		keys = append(keys, v.Key)
+	}
+
+	// Lookup files and metadata streams for each of the
+	// previously queried records.
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Preload("Payments").
+		Where(keys).
 		Find(&invoices).
 		Error
 	if err != nil {
