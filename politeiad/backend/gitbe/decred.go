@@ -251,6 +251,14 @@ func setDecredPluginHook(name string, f func(string) error) {
 	decredPluginHooks[name] = f
 }
 
+func (g *gitBackEnd) unvettedPropExists(token string) bool {
+	tokenb, err := util.ConvertStringToken(token)
+	if err != nil {
+		return false
+	}
+	return g.UnvettedExists(tokenb)
+}
+
 func (g *gitBackEnd) vettedPropExists(token string) bool {
 	tokenb, err := util.ConvertStringToken(token)
 	if err != nil {
@@ -1025,7 +1033,8 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	}
 
 	// Verify proposal exists, we can run this lockless
-	if !g.vettedPropExists(comment.Token) {
+	if !g.unvettedPropExists(comment.Token) &&
+		!g.vettedPropExists(comment.Token) {
 		return "", fmt.Errorf("unknown proposal: %v", comment.Token)
 	}
 

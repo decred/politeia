@@ -233,7 +233,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Ensure proposal exists and is public
-	pr, err := p.getProp(nc.Token)
+	_, err = p.getProp(nc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -243,12 +243,15 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		return nil, err
 	}
 
-	if pr.Status != www.PropStatusPublic {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongStatus,
-			ErrorContext: []string{"proposal is not public"},
-		}
-	}
+	/*
+		XXX Remove check since we would like to allow unvetted comments
+			if pr.Status != www.PropStatusPublic {
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusWrongStatus,
+					ErrorContext: []string{"proposal is not public"},
+				}
+			}
+	*/
 
 	// Ensure proposal voting has not ended
 	bb, err := p.getBestBlock()
@@ -505,7 +508,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		return nil, err
 	}
 
-	// Ensure proposal exists and is public
+	// Ensure proposal exists
 	pr, err := p.getProp(lc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -515,13 +518,13 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		}
 		return nil, err
 	}
-
-	if pr.Status != www.PropStatusPublic {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongStatus,
+	/*
+		if pr.Status != www.PropStatusPublic {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusWrongStatus,
+			}
 		}
-	}
-
+	*/
 	// Ensure proposal voting has not ended
 	bb, err := p.getBestBlock()
 	if err != nil {
