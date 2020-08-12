@@ -69,6 +69,7 @@ type LineItem struct {
 	Expenses       uint   `gorm:"not null"`    // Total cost of line item (in USD cents)
 	ContractorRate uint   `gorm:"not null"`    // Optional contractor rate for line item, typically used for Sub Contractors
 	SubUserID      string `gorm:"not null"`    // SubContractor User ID if Subcontractor Line Item
+	Approved       bool   `gorm:"not null"`    // Proposal owner approved line item
 }
 
 // TableName returns the table name of the line items table.

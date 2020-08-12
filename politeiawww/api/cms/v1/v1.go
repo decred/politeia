@@ -513,6 +513,7 @@ type LineItemsInput struct {
 	SubRate       uint          `json:"subrate"`       // The payrate of the subcontractor
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
+	Approved      bool          `json:"approved"`      // Proposal owner approved this line item (if proposal token specified)
 }
 
 // PolicyReply returns the various policy information while in CMS mode.

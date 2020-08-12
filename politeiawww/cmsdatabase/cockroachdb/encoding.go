@@ -114,6 +114,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.Expenses = dbLineItem.Expenses
 	lineItem.ContractorRate = dbLineItem.ContractorRate
 	lineItem.SubUserID = dbLineItem.SubUserID
+	lineItem.Approved = dbLineItem.Approved
 	return lineItem
 }
 
@@ -130,6 +131,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.Expenses = lineItem.Expenses
 	dbLineItem.ContractorRate = lineItem.ContractorRate
 	dbLineItem.SubUserID = lineItem.SubUserID
+	dbLineItem.Approved = lineItem.Approved
 
 	return dbLineItem
 }
@@ -274,6 +276,7 @@ func convertMatchingLineItemToInvoices(matching []MatchingLineItems) []database.
 			ProposalURL:    vv.ProposalURL,
 			ContractorRate: vv.SubRate,
 			SubUserID:      vv.SubUser,
+			Approved:       vv.Approved,
 		}
 		inv := database.Invoice{
 			PublicKey:      vv.PublicKey,

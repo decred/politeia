@@ -2134,7 +2134,7 @@ func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove
 		return nil, err
 	}
 	proposalFound := false
-	for _, lineItem := range invRec.Input.LineItems {
+	for i, lineItem := range invRec.Input.LineItems {
 		// If the proposal token is empty then don't display it for the
 		// non invoice owner or admin.
 		if lineItem.ProposalToken == "" {
@@ -2145,6 +2145,7 @@ func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove
 		// list of line items to display.
 		if stringInSlice(cmsUser.ProposalsOwned, lineItem.ProposalToken) {
 			proposalFound = true
+			invRec.Input.LineItems[i].Approved = true
 		}
 	}
 	if !proposalFound {
@@ -2214,5 +2215,10 @@ func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove
 		return nil, err
 	}
 
+	// Update Invoice in db so line items are approved
+	err = p.cmsDB.UpdateInvoice(convertInvoiceRecordToDatabaseInvoice(invRec))
+	if err != nil {
+		return nil, err
+	}
 	return &cms.ProposalOwnerApproveReply{}, nil
 }

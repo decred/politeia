@@ -129,6 +129,7 @@ type LineItem struct {
 	Expenses       uint
 	ContractorRate uint
 	SubUserID      string
+	Approved       bool
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given
