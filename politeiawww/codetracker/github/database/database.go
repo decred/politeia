@@ -36,13 +36,9 @@ type Database interface {
 
 	AllUsersByDates(int64, int64) ([]string, error)
 
-	NewCommit(*Commit) error    // Create new commit
-	UpdateCommit(*Commit) error // Update existing commit
-
 	NewPullRequestReview(*PullRequestReview) error                                       // Create new pull request review
 	UpdatePullRequestReview(*PullRequestReview) error                                    // Update existing pull request review
 	ReviewsByUserDates(user string, start int64, end int64) ([]PullRequestReview, error) // Retrieve all reviews that match username between dates
-	CommitsByUserDates(user string, start int64, end int64) ([]Commit, error)            // Retrieve all commits that were AUTHORED by user between dates
 
 	Setup() error
 
@@ -66,21 +62,7 @@ type PullRequest struct {
 	Deletions    int
 	MergedBy     string
 
-	Commits []Commit
 	Reviews []PullRequestReview
-}
-
-// Commit contains more granular information about commits that make up
-// Pull Requests.
-type Commit struct {
-	Repo      string
-	SHA       string
-	URL       string
-	Message   string
-	Author    string
-	Committer string
-	Additions int
-	Deletions int
 }
 
 // PullRequestReview contains any information about reviews that a user

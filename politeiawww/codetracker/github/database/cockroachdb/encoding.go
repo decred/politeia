@@ -8,36 +8,6 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
 )
 
-// EncodeCommit encodes a database.Commit into a cockroachdb Commit.
-func EncodeCommit(dbCommit *database.Commit) Commit {
-	commit := Commit{}
-	commit.Repo = dbCommit.Repo
-	commit.URL = dbCommit.URL
-	commit.SHA = dbCommit.SHA
-	commit.Message = dbCommit.Message
-	commit.Author = dbCommit.Author
-	commit.Committer = dbCommit.Committer
-	commit.Additions = dbCommit.Additions
-	commit.Deletions = dbCommit.Deletions
-
-	return commit
-}
-
-// DecodeCommit decodes a cockroachdb Commit into a generic database.Commit
-func DecodeCommit(commit *Commit) database.Commit {
-	dbCommit := database.Commit{}
-	dbCommit.Repo = commit.Repo
-	dbCommit.URL = commit.URL
-	dbCommit.SHA = commit.SHA
-	dbCommit.Message = commit.Message
-	dbCommit.Author = commit.Author
-	dbCommit.Committer = commit.Committer
-	dbCommit.Additions = commit.Additions
-	dbCommit.Deletions = commit.Deletions
-
-	return dbCommit
-}
-
 // EncodePullRequestReview encodes a database.PullRequestReview into a cockroachdb PullRequestReview.
 func EncodePullRequestReview(dbPullRequestReview *database.PullRequestReview) PullRequestReview {
 	prReview := PullRequestReview{}
@@ -84,17 +54,11 @@ func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
 	pr.Deletions = dbPullRequest.Deletions
 	pr.MergedBy = dbPullRequest.MergedBy
 
-	commits := make([]Commit, 0, len(dbPullRequest.Commits))
-	for _, dbCommit := range dbPullRequest.Commits {
-		commits = append(commits, EncodeCommit(&dbCommit))
-	}
-
 	reviews := make([]PullRequestReview, 0, len(dbPullRequest.Reviews))
 	for _, dbReview := range dbPullRequest.Reviews {
 		reviews = append(reviews, EncodePullRequestReview(&dbReview))
 	}
 	pr.Reviews = reviews
-	pr.Commits = commits
 	return pr
 }
 
@@ -115,17 +79,11 @@ func DecodePullRequest(pr *PullRequest) *database.PullRequest {
 	dbPullRequest.Deletions = pr.Deletions
 	dbPullRequest.MergedBy = pr.MergedBy
 
-	dbCommits := make([]database.Commit, 0, len(pr.Commits))
-	for _, commit := range pr.Commits {
-		dbCommits = append(dbCommits, DecodeCommit(&commit))
-	}
-
 	dbReviews := make([]database.PullRequestReview, 0, len(pr.Reviews))
 	for _, review := range pr.Reviews {
 		dbReviews = append(dbReviews, DecodePullRequestReview(&review))
 	}
 	dbPullRequest.Reviews = dbReviews
-	dbPullRequest.Commits = dbCommits
 
 	return dbPullRequest
 }

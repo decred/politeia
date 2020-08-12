@@ -4,35 +4,6 @@
 
 package api
 
-// Author has basic information about the creator of a commit.
-type Author struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Date  string `json:"date"`
-}
-
-// Commit holds basic information about a given commit, but no details
-// about the actual changes.
-type Commit struct {
-	Author    Author `json:"author"`
-	Committer Author `json:"committer"`
-	Message   string `json:"message"`
-	URL       string `json:"url"`
-}
-
-// CommitParent has information about a commit's parent commit.
-type CommitParent struct {
-	SHA string `json:"sha"`
-	URL string `json:"url"`
-}
-
-// CommitStats contains basic LOC information about a given commit.
-type CommitStats struct {
-	Additions int `json:"additions"`
-	Deletions int `json:"deletions"`
-	Total     int `json:"total"`
-}
-
 // PullsRequest contains all high level information returned from the
 // PullsRequest request.
 type PullsRequest struct {
@@ -60,21 +31,6 @@ type PullRequest struct {
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	MergedBy  User   `json:"merged_by"`
-}
-
-// PullRequestCommit contains information about each commit within a given
-// Pull request.
-type PullRequestCommit struct {
-	SHA       string         `json:"sha"`
-	Commit    Commit         `json:"commit"`
-	URL       string         `json:"url"`
-	Author    User           `json:"author"`
-	Committer User           `json:"committer"`
-	Parents   []CommitParent `json:"parents"`
-	Stats     CommitStats    `json:"stats"`
-
-	// local change
-	Discarded bool `json:"discarded"`
 }
 
 // RateLimitRule has the limit, the number of requests remaining and the

@@ -95,12 +95,10 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest) er
 	dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
 	if err == database.ErrNoPullRequestFound {
 		log.Infof("New PR %d", pr.Number)
-		commits, reviews, err := g.fetchPullRequestReviewsCommits(org,
-			repoName, pr.Number)
+		reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number)
 		if err != nil {
 			return err
 		}
-		dbPullRequest.Commits = commits
 		dbPullRequest.Reviews = reviews
 		err = g.codedb.NewPullRequest(dbPullRequest)
 		if err != nil {
@@ -116,12 +114,11 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest) er
 		// Only update if dbPR is found and pr.Updated is more recent than what
 		// is currently stored.
 		log.Infof("Update PR %d", pr.Number)
-		commits, reviews, err := g.fetchPullRequestReviewsCommits(org,
+		reviews, err := g.fetchPullRequestReviews(org,
 			repoName, pr.Number)
 		if err != nil {
 			return err
 		}
-		dbPullRequest.Commits = commits
 		dbPullRequest.Reviews = reviews
 		err = g.codedb.UpdatePullRequest(dbPullRequest)
 		if err != nil {
@@ -132,21 +129,15 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest) er
 	return nil
 }
 
-func (g *github) fetchPullRequestReviewsCommits(org, repoName string, prNum int) ([]database.Commit, []database.PullRequestReview, error) {
-	prCommits, err := g.tc.FetchPullRequestCommits(org, repoName,
-		prNum)
-	if err != nil {
-		return nil, nil, err
-	}
-	commits := convertAPICommitsToDbCommits(prCommits, repoName)
+func (g *github) fetchPullRequestReviews(org, repoName string, prNum int) ([]database.PullRequestReview, error) {
 	prReviews, err := g.tc.FetchPullRequestReviews(org, repoName,
 		prNum)
 	if err != nil {
-		return commits, nil, err
+		return nil, err
 	}
 
 	reviews := convertAPIReviewsToDbReviews(prReviews, repoName, prNum)
-	return commits, reviews, nil
+	return reviews, nil
 }
 func yearMonth(t time.Time) string {
 	return fmt.Sprintf("%d%02d", t.Year(), t.Month())
@@ -167,11 +158,7 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
-	dbCommits, err := g.codedb.CommitsByUserDates(user, startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-	userInfo := convertCodeStatsToUserInformation(dbUserPRs, dbReviews, dbCommits)
+	userInfo := convertCodeStatsToUserInformation(dbUserPRs, dbReviews)
 	userInfo.User = user
 	userInfo.Organization = org
 	return userInfo, nil

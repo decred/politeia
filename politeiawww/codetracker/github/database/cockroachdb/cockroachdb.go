@@ -146,44 +146,6 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 	return dbReviews, nil
 }
 
-// CommitsByUserDates takes username, start and end date and returns all commits
-// that match the provided criteria.
-func (c *cockroachdb) CommitsByUserDates(username string, start, end int64) ([]database.Commit, error) {
-	log.Debugf("CommitsByUserDates: %v %v", time.Unix(start, 0),
-		time.Unix(end, 0))
-	query := `SELECT 
-	  *
-	  FROM commits
-	  INNER JOIN pullrequests
-		ON commits.pull_request_url = pullrequests.url
-		WHERE commits.author = ? AND
-		pullrequests.merged_at BETWEEN ? AND ?`
-	rows, err := c.recordsdb.Raw(query, username, start, end).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	commits := make([]Commit, 0, 1024)
-	for rows.Next() {
-		var i Commit
-		err := c.recordsdb.ScanRows(rows, &i)
-		if err != nil {
-			return nil, err
-		}
-		commits = append(commits, i)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	dbCommits := make([]database.Commit, 0, len(commits))
-	for _, vv := range commits {
-		dbCommit := DecodeCommit(&vv)
-		dbCommits = append(dbCommits, dbCommit)
-	}
-	return dbCommits, nil
-}
-
 // Return all users that have any merged PRs in the provided range.
 func (c *cockroachdb) AllUsersByDates(start, end int64) ([]string, error) {
 	log.Debugf("AllUsersByDates: %v %v", time.Unix(start, 0),
@@ -211,26 +173,6 @@ func (c *cockroachdb) AllUsersByDates(start, end int64) ([]string, error) {
 		names = append(names, vv.User)
 	}
 	return names, nil
-}
-
-// Create new commit.
-//
-// NewCommit satisfies the database interface.
-func (c *cockroachdb) NewCommit(dbCommit *database.Commit) error {
-	pr := EncodeCommit(dbCommit)
-
-	log.Debugf("NewCommit: %v", pr.URL)
-	return c.recordsdb.Create(&pr).Error
-}
-
-// Update existing commit.
-//
-// UpdateCommit satisfies the database interface.
-func (c *cockroachdb) UpdateCommit(dbCommit *database.Commit) error {
-	pr := EncodeCommit(dbCommit)
-
-	log.Debugf("UpdateCommit: %v", pr.URL)
-	return c.recordsdb.Save(&pr).Error
 }
 
 // Create new review.
