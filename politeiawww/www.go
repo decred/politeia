@@ -10,6 +10,7 @@ import (
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/mdstream"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -561,22 +563,47 @@ func _main() error {
 
 		// Build the cms database
 		if p.cfg.BuildCMSDB {
-			// Fetch all versions of all records from the inventory and
-			// use them to build the cache.
-			vetted, err := p.cache.Inventory()
+			// Request full record inventory from backend
+			challenge, err := util.Random(pd.ChallengeSize)
 			if err != nil {
-				return fmt.Errorf("backend inventory: %v", err)
+				return err
 			}
 
+			pdCommand := pd.Inventory{
+				Challenge:    hex.EncodeToString(challenge),
+				IncludeFiles: true,
+				AllVersions:  true,
+			}
+
+			responseBody, err := p.makeRequest(http.MethodPost,
+				pd.InventoryRoute, pdCommand)
+			if err != nil {
+				return err
+			}
+
+			var pdReply pd.InventoryReply
+			err = json.Unmarshal(responseBody, &pdReply)
+			if err != nil {
+				return fmt.Errorf("Could not unmarshal InventoryReply: %v",
+					err)
+			}
+
+			// Verify the UpdateVettedMetadata challenge.
+			err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+			if err != nil {
+				return err
+			}
+
+			vetted := pdReply.Vetted
 			dbInvs := make([]database.Invoice, 0, len(vetted))
 			dbDCCs := make([]database.DCC, 0, len(vetted))
 			for _, r := range vetted {
 				for _, m := range r.Metadata {
 					switch m.ID {
 					case mdstream.IDInvoiceGeneral:
-						i, err := convertCacheToDatabaseInvoice(r)
+						i, err := convertRecordToDatabaseInvoice(r)
 						if err != nil {
-							log.Errorf("convertCacheToDatabaseInvoice: %v", err)
+							log.Errorf("convertRecordToDatabaseInvoice: %v", err)
 							break
 						}
 						u, err := p.db.UserGetByPubKey(i.PublicKey)
@@ -588,9 +615,9 @@ func _main() error {
 						i.Username = u.Username
 						dbInvs = append(dbInvs, *i)
 					case mdstream.IDDCCGeneral:
-						d, err := convertCacheToDatabaseDCC(r)
+						d, err := convertRecordToDatabaseDCC(r)
 						if err != nil {
-							log.Errorf("convertCacheToDatabaseDCC: %v", err)
+							log.Errorf("convertRecordToDatabaseDCC: %v", err)
 							break
 						}
 						dbDCCs = append(dbDCCs, *d)

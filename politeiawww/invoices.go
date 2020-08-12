@@ -21,7 +21,6 @@ import (
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -793,8 +792,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	return nil
 }
 
-// processInvoiceDetails fetches a specific proposal version from the records
-// cache and returns it.
+// processInvoiceDetails fetches a specific proposal version from the invoice
+// db and returns it.
 func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
@@ -812,11 +811,6 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 		invRec, err = p.getInvoiceVersion(invDetails.Token, invDetails.Version)
 	}
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
 		return nil, err
 	}
 
@@ -861,11 +855,6 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 
 	invRec, err := p.getInvoice(sis.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
 		return nil, err
 	}
 
@@ -886,7 +875,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 
 	dbInvoice, err := p.cmsDB.InvoiceByToken(sis.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == database.ErrInvoiceNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
@@ -1053,11 +1042,6 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 
 	invRec, err := p.getInvoice(ei.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
 		return nil, err
 	}
 
@@ -1273,7 +1257,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	// Get updated invoice from the cache
+	// Get updated invoice from the database
 	inv, err := p.getInvoice(dbInvoice.Token)
 	if err != nil {
 		log.Errorf("processEditInvoice: getInvoice %v: %v",
@@ -1313,16 +1297,18 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	return reply, err
 }
 
-// getInvoice gets the most recent verions of the given invoice from the cache
+// getInvoice gets the most recent verions of the given invoice from the db
 // then fills in any missing user fields before returning the invoice record.
 func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
-	// Get invoice from cache
-	r, err := p.cache.Record(token)
+	// Get invoice from db
+	r, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
 		return nil, err
 	}
-	i := convertInvoiceFromCache(*r)
-
+	i, err := convertDatabaseInvoiceToInvoiceRecord(*r)
+	if err != nil {
+		return nil, err
+	}
 	// Fill in userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
 	if err != nil {
@@ -1336,16 +1322,19 @@ func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 	return &i, nil
 }
 
-// getInvoiceVersion gets a specific version of an invoice from the cache.
+// getInvoiceVersion gets a specific version of an invoice from the db.
 func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceRecord, error) {
 	log.Tracef("getInvoiceVersion: %v %v", token, version)
 
-	r, err := p.cache.RecordVersion(token, version)
+	r, err := p.cmsDB.InvoiceByTokenVersion(token, version)
 	if err != nil {
 		return nil, err
 	}
 
-	i := convertInvoiceFromCache(*r)
+	i, err := convertDatabaseInvoiceToInvoiceRecord(*r)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fill in userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
@@ -1569,7 +1558,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 
 	ir, err := p.getInvoice(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == database.ErrInvoiceNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
