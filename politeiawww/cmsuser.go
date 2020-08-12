@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -370,7 +371,7 @@ func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManage
 
 	// Manage a user's supervisors
 	switch mu.SupervisorUserIDs.Action {
-	case cms.Set:
+	case "set":
 		supervisors := mu.SupervisorUserIDs.Payload
 		parseSupervisors := make([]uuid.UUID, 0, len(supervisors))
 		for _, id := range supervisors {
@@ -401,12 +402,11 @@ func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManage
 				}
 			}
 			parseSupervisors = append(parseSupervisors, parseUUID)
-
 		}
 		uu.SupervisorUserIDs = parseSupervisors
-	case cms.Reset:
+	case "reset":
 		uu.SupervisorUserIDs = []uuid.UUID{}
-	case cms.Nothing:
+	case "":
 		uu.SupervisorUserIDs = previousCMSUser.SupervisorUserIDs
 	default:
 		e := fmt.Sprintf("invalid action: %v", mu.SupervisorUserIDs.Action)
@@ -418,14 +418,24 @@ func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManage
 
 	// Manage a user's owned proposal
 	switch mu.ProposalsOwned.Action {
-	case cms.Set:
-		uu.ProposalsOwned = mu.ProposalsOwned.Payload
-	case cms.Reset:
+	case "set":
+		tokens := mu.ProposalsOwned.Payload
+		for _, token := range tokens {
+			b, err := hex.DecodeString(token)
+			if err != nil || len(b) != pd.TokenSize {
+				return nil, www.UserError{
+					ErrorCode:    cms.ErrorStatusMalformedProposalToken,
+					ErrorContext: []string{token},
+				}
+			}
+		}
+		uu.ProposalsOwned = tokens
+	case "reset":
 		uu.ProposalsOwned = []string{}
-	case cms.Nothing:
+	case "":
 		uu.ProposalsOwned = previousCMSUser.ProposalsOwned
 	default:
-		e := fmt.Sprintf("invalid action: %v", mu.SupervisorUserIDs.Action)
+		e := fmt.Sprintf("invalid action: %v", mu.ProposalsOwned.Action)
 		return nil, www.UserError{
 			ErrorCode:    cms.ErrorStatusInvalidManageUserAction,
 			ErrorContext: []string{e},

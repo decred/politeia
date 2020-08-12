@@ -5,10 +5,12 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
 
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/google/uuid"
@@ -94,33 +96,41 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 	}
 
 	// Validate supervisor user IDs
-	var manageSupervisors cms.CMSManageSupervisors
-	supervisorIDs := make([]string, 0, 16)
-	if cmd.SupervisorUserIDs == "" {
-		manageSupervisors.Action = cms.Nothing
-	} else if cmd.SupervisorUserIDs == "reset" {
-		manageSupervisors.Action = cms.Reset
-	} else {
-		supervisorIDs = strings.Split(cmd.SupervisorUserIDs, ",")
-		for _, v := range supervisorIDs {
-			_, err := uuid.Parse(v)
+	var manageSupervisors cms.CMSManageUserAction
+	switch cmd.SupervisorUserIDs {
+	case "":
+		manageSupervisors.Action = cmd.SupervisorUserIDs
+	case "reset":
+		manageSupervisors.Action = cmd.SupervisorUserIDs
+	default:
+		ids := strings.Split(cmd.SupervisorUserIDs, ",")
+		for _, id := range ids {
+			_, err := uuid.Parse(id)
 			if err != nil {
-				return fmt.Errorf("invalid supervisor ID '%v': %v", v, err)
+				return fmt.Errorf("invalid supervisor ID '%v': %v", id, err)
 			}
 		}
-		manageSupervisors.Action = cms.Set
-		manageSupervisors.Payload = supervisorIDs
+		manageSupervisors.Action = "set"
+		manageSupervisors.Payload = ids
 	}
 
-	// Validate supervisor user IDs
-	var manageProposalsOwned cms.CMSManageProposalsOwned
-	if cmd.ProposalsOwned == "" {
-		manageProposalsOwned.Action = cms.Nothing
-	} else if cmd.ProposalsOwned == "reset" {
-		manageProposalsOwned.Action = cms.Reset
-	} else {
-		manageProposalsOwned.Action = cms.Set
-		manageProposalsOwned.Payload = strings.Split(cmd.ProposalsOwned, ",")
+	// Validate proposals owned
+	var manageProposalsOwned cms.CMSManageUserAction
+	switch cmd.ProposalsOwned {
+	case "":
+		manageProposalsOwned.Action = cmd.ProposalsOwned
+	case "reset":
+		manageProposalsOwned.Action = cmd.ProposalsOwned
+	default:
+		tokens := strings.Split(cmd.ProposalsOwned, ",")
+		for _, token := range tokens {
+			b, err := hex.DecodeString(token)
+			if err != nil || len(b) != pd.TokenSize {
+				return fmt.Errorf("invalid proposal token '%v': %v", token, err)
+			}
+		}
+		manageProposalsOwned.Action = "set"
+		manageProposalsOwned.Payload = tokens
 	}
 
 	// Send request
