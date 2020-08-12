@@ -138,6 +138,9 @@ const (
 	// for the routes that return lists of users
 	UserListPageSize = 20
 
+	// PolicyMaxProposalDuration is the max time a proposal can run (in seconds)
+	PolicyMaxProposalDuration = 60 * 60 * 24 * 7 * 52 * 2 // 60s * 60m * 24h * 7d * 52w * 2y = 2 Years in seconds
+
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidPassword             ErrorStatusT = 1
@@ -218,6 +221,8 @@ const (
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
 	ErrorStatusInvalidProposalCategory     ErrorStatusT = 79
+	ErrorStatusInvalidProposalDuration     ErrorStatusT = 80
+	ErrorStatusInvalidProposalBudget       ErrorStatusT = 81
 
 	// Proposal state codes
 	//
@@ -418,6 +423,8 @@ var (
 		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
 		ErrorStatusTOTPInvalidType:             "invalid totp type",
 		ErrorStatusInvalidProposalCategory:     "invalid proposal category",
+		ErrorStatusInvalidProposalDuration:     "invalid proposal duration",
+		ErrorStatusInvalidProposalBudget:       "invalid proposal budget",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

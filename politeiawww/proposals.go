@@ -319,12 +319,22 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 	// Validate Duration
 	if pm.Duration != 0 {
+		if pm.Duration < 0 || pm.Duration > www.PolicyMaxProposalDuration {
+			return www.UserError{
+				ErrorCode: www.ErrorStatusInvalidProposalDuration,
+			}
+		}
 
 	}
 
 	// Validate Budget
 	if pm.Budget != 0 {
-
+		// Currently no upper bound, only checking if it's above 0
+		if pm.Budget < 0 {
+			return www.UserError{
+				ErrorCode: www.ErrorStatusInvalidProposalBudget,
+			}
+		}
 	}
 
 	return nil
