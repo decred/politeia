@@ -53,12 +53,6 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 		return fmt.Errorf("invalid user ID: %v", err)
 	}
 
-	// // Retrieve user details
-	// details, err := client.CMSUserDetails(strings.TrimSpace(userID))
-	// if err != nil {
-	// 	return err
-	// }
-
 	// Validate domain. The domain can be either the numeric code
 	// or the human readable equivalent.
 	var domain cms.DomainTypeT
