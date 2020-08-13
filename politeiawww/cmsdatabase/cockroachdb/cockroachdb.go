@@ -79,7 +79,7 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
               ON a.token = b.token
               AND a.version < b.version
               WHERE b.token IS NULL
-              AND user_id = ?`
+              AND a.user_id = ?`
 	rows, err := c.recordsdb.Raw(query, userid).Rows()
 	if err != nil {
 		return nil, err
