@@ -79,7 +79,7 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
               ON a.token = b.token
               AND a.version < b.version
               WHERE b.token IS NULL
-              AND user_id = ? AND year = ? AND status = ?`
+              AND user_id = ?`
 	rows, err := c.recordsdb.Raw(query, userid).Rows()
 	if err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
               ON a.token = b.token
               AND a.version < b.version
               WHERE b.token IS NULL
-              AND month = ? AND year = ?`
+              AND a.month = ? AND a.year = ?`
 	rows, err := c.recordsdb.Raw(query, month, year).Rows()
 	if err != nil {
 		return nil, err
@@ -519,6 +519,7 @@ func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Payments").
+		Preload("Changes").
 		Where(tokens).
 		Find(&invoices).
 		Error
@@ -564,6 +565,7 @@ func (c *cockroachdb) InvoicesByDateRange(start, end int64) ([]database.Invoice,
 	dbInvoices := make([]database.Invoice, 0, len(tokens))
 	err = c.recordsdb.
 		Preload("LineItems").
+		Preload("Changes").
 		Preload("Payments").
 		Where(tokens).
 		Find(&invoices).
@@ -604,10 +606,13 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
               line_items.labor,
               line_items.expenses,
               line_items.contractor_rate AS sub_rate
-            FROM invoices
+            FROM invoices a
+            LEFT OUTER JOIN invoices b
+              ON a.token = b.token
+              AND a.version < b.version
             INNER JOIN line_items
-              ON invoices.token = line_items.invoice_token
-              WHERE line_items.proposal_url = ? AND invoices.status = ?`
+              ON a.token = line_items.invoice_token
+              WHERE line_items.proposal_url = ? AND a.status = ?`
 	rows, err := c.recordsdb.Raw(query, token, int(v1.InvoiceStatusPaid)).Rows()
 	if err != nil {
 		return nil, err
