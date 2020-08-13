@@ -195,10 +195,10 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	if nu.ContractorContact != "" {
 		cms.ContractorContact = nu.ContractorContact
 	}
-	if superVisorUserIds != "" || cms.SupervisorUserID != superVisorUserIds {
+	if superVisorUserIds != "" {
 		cms.SupervisorUserID = superVisorUserIds
 	}
-	if proposalsOwned != "" || cms.ProposalsOwned != proposalsOwned {
+	if proposalsOwned != "" {
 		cms.ProposalsOwned = proposalsOwned
 	}
 
