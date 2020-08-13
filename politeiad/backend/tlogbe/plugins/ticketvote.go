@@ -37,8 +37,8 @@ const (
 	// ticketVoteDirname is the ticket vote data directory name.
 	ticketVoteDirname = "ticketvote"
 
-	// Filenames of memoized data saved to data dir.
-	summaryFilename = "{token}-summary.json"
+	// Filenames of memoized data saved to the data dir.
+	filenameSummary = "{token}-summary.json"
 
 	// Blob entry data descriptors
 	dataDescriptorAuthorizeVote = "authorizevote"
@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	_ Plugin = (*ticketVotePlugin)(nil)
+	_ tlogbe.Plugin = (*ticketVotePlugin)(nil)
 
 	// Local errors
 	errRecordNotFound = errors.New("record not found")
@@ -76,23 +76,74 @@ type ticketVotePlugin struct {
 	// once a record vote has ended.
 	dataDir string
 
-	// castVotes contains the cast votes of ongoing record votes.
-	// TODO load on startup and cleanup once vote is finished. If we
-	// save these to the data dir instead of memory then there won't
-	// be anything to build on startup.
-	castVotes map[string]map[string]string // [token][ticket]voteBit
+	// inv contains the record inventory catagorized by vote status.
+	// The inventory will only contain public, non-abandoned records.
+	// This cache is built on startup.
+	inv inventory
+
+	// votes contains the cast votes of ongoing record votes. This
+	// cache is built on startup and record entries are removed once
+	// the vote has ended and the vote summary has been saved.
+	votes map[string]map[string]string // [token][ticket]voteBit
 
 	// Mutexes contains a mutex for each record. The mutexes are lazy
 	// loaded.
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
-func (p *ticketVotePlugin) cachedCastVotes(token string) map[string]string {
+type inventory struct {
+	unauthorized []string          // Unauthorized tokens
+	authorized   []string          // Authorized tokens
+	started      map[string]uint32 // [token]endHeight
+	finished     []string          // Finished tokens
+	bestBlock    uint32            // Height of last inventory update
+}
+
+func (p *ticketVotePlugin) cachedInventory() inventory {
+	p.Lock()
+	defer p.Unlock()
+
+	// Return a copy of the inventory
+	var (
+		unauthorized = make([]string, len(p.inv.unauthorized))
+		authorized   = make([]string, len(p.inv.authorized))
+		started      = make(map[string]uint32, len(p.inv.started))
+		finished     = make([]string, len(p.inv.finished))
+	)
+	for k, v := range p.inv.unauthorized {
+		unauthorized[k] = v
+	}
+	for k, v := range p.inv.authorized {
+		authorized[k] = v
+	}
+	for k, v := range p.inv.started {
+		started[k] = v
+	}
+	for k, v := range p.inv.finished {
+		finished[k] = v
+	}
+
+	return inventory{
+		unauthorized: unauthorized,
+		authorized:   authorized,
+		started:      started,
+		finished:     finished,
+	}
+}
+
+func (p *ticketVotePlugin) cachedInventorySet(inv inventory) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.inv = inv
+}
+
+func (p *ticketVotePlugin) cachedVotes(token string) map[string]string {
 	p.Lock()
 	defer p.Unlock()
 
 	// Return a copy of the map
-	cv, ok := p.castVotes[token]
+	cv, ok := p.votes[token]
 	if !ok {
 		return map[string]string{}
 	}
@@ -104,20 +155,31 @@ func (p *ticketVotePlugin) cachedCastVotes(token string) map[string]string {
 	return c
 }
 
-func (p *ticketVotePlugin) cachedCastVotesSave(token, ticket, voteBit string) {
+func (p *ticketVotePlugin) cachedVotesSet(token, ticket, voteBit string) {
 	p.Lock()
 	defer p.Unlock()
 
-	_, ok := p.castVotes[token]
+	_, ok := p.votes[token]
 	if !ok {
-		p.castVotes[token] = make(map[string]string, 40960) // Ticket pool size
+		p.votes[token] = make(map[string]string, 40960) // Ticket pool size
 	}
 
-	p.castVotes[token][ticket] = voteBit
+	p.votes[token][ticket] = voteBit
+
+	log.Debugf("Votes add: %v %v %v", token, ticket, voteBit)
+}
+
+func (p *ticketVotePlugin) cachedVotesDel(token string) {
+	p.Lock()
+	defer p.Unlock()
+
+	delete(p.votes, token)
+
+	log.Debugf("Votes del: %v", token)
 }
 
 func (p *ticketVotePlugin) cachedSummaryPath(token string) string {
-	fn := strings.Replace(summaryFilename, "{token}", token, 1)
+	fn := strings.Replace(filenameSummary, "{token}", token, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
@@ -146,7 +208,7 @@ func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.Summary, err
 	return &s, nil
 }
 
-func (p *ticketVotePlugin) cachedSummarySave(token string, s ticketvote.Summary) error {
+func (p *ticketVotePlugin) cachedSummarySet(token string, s ticketvote.Summary) error {
 	b, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -361,7 +423,7 @@ func convertBlobEntryFromCastVote(cv ticketvote.CastVote) (*store.BlobEntry, err
 	return &be, nil
 }
 
-func authorizeVoteSave(client *tlogbe.PluginClient, av ticketvote.AuthorizeVote) error {
+func authorizeVoteSave(client *tlogbe.RecordClient, av ticketvote.AuthorizeVote) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromAuthorizeVote(av)
 	if err != nil {
@@ -377,10 +439,10 @@ func authorizeVoteSave(client *tlogbe.PluginClient, av ticketvote.AuthorizeVote)
 	}
 
 	// Save blob
-	merkles, err := client.BlobsSave(keyPrefixAuthorizeVote,
+	merkles, err := client.Save(keyPrefixAuthorizeVote,
 		[][]byte{b}, [][]byte{h}, false)
 	if err != nil {
-		return fmt.Errorf("BlobsSave: %v", err)
+		return fmt.Errorf("Save: %v", err)
 	}
 	if len(merkles) != 1 {
 		return fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
@@ -390,7 +452,7 @@ func authorizeVoteSave(client *tlogbe.PluginClient, av ticketvote.AuthorizeVote)
 	return nil
 }
 
-func authorizeVotes(client *tlogbe.PluginClient) ([]ticketvote.AuthorizeVote, error) {
+func authorizeVotes(client *tlogbe.RecordClient) ([]ticketvote.AuthorizeVote, error) {
 	// Retrieve blobs
 	blobs, err := client.BlobsByKeyPrefix(keyPrefixAuthorizeVote)
 	if err != nil {
@@ -414,7 +476,7 @@ func authorizeVotes(client *tlogbe.PluginClient) ([]ticketvote.AuthorizeVote, er
 	return auths, nil
 }
 
-func startVoteSave(client *tlogbe.PluginClient, sv ticketvote.StartVote) error {
+func startVoteSave(client *tlogbe.RecordClient, sv ticketvote.StartVote) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromStartVote(sv)
 	if err != nil {
@@ -430,10 +492,10 @@ func startVoteSave(client *tlogbe.PluginClient, sv ticketvote.StartVote) error {
 	}
 
 	// Save blob
-	merkles, err := client.BlobsSave(keyPrefixStartVote,
+	merkles, err := client.Save(keyPrefixStartVote,
 		[][]byte{b}, [][]byte{h}, false)
 	if err != nil {
-		return fmt.Errorf("BlobsSave: %v", err)
+		return fmt.Errorf("Save: %v", err)
 	}
 	if len(merkles) != 1 {
 		return fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
@@ -444,7 +506,7 @@ func startVoteSave(client *tlogbe.PluginClient, sv ticketvote.StartVote) error {
 }
 
 // startVote returns the StartVote for the provided record if one exists.
-func startVote(client *tlogbe.PluginClient) (*ticketvote.StartVote, error) {
+func startVote(client *tlogbe.RecordClient) (*ticketvote.StartVote, error) {
 	// Retrieve blobs
 	blobs, err := client.BlobsByKeyPrefix(keyPrefixStartVote)
 	if err != nil {
@@ -476,7 +538,7 @@ func startVote(client *tlogbe.PluginClient) (*ticketvote.StartVote, error) {
 	return sv, nil
 }
 
-func castVotes(client *tlogbe.PluginClient) ([]ticketvote.CastVote, error) {
+func castVotes(client *tlogbe.RecordClient) ([]ticketvote.CastVote, error) {
 	// Retrieve blobs
 	blobs, err := client.BlobsByKeyPrefix(keyPrefixCastVote)
 	if err != nil {
@@ -500,7 +562,7 @@ func castVotes(client *tlogbe.PluginClient) ([]ticketvote.CastVote, error) {
 	return votes, nil
 }
 
-func castVoteSave(client *tlogbe.PluginClient, cv ticketvote.CastVote) error {
+func castVoteSave(client *tlogbe.RecordClient, cv ticketvote.CastVote) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromCastVote(cv)
 	if err != nil {
@@ -516,10 +578,10 @@ func castVoteSave(client *tlogbe.PluginClient, cv ticketvote.CastVote) error {
 	}
 
 	// Save blob
-	merkles, err := client.BlobsSave(keyPrefixCastVote,
+	merkles, err := client.Save(keyPrefixCastVote,
 		[][]byte{b}, [][]byte{h}, false)
 	if err != nil {
-		return fmt.Errorf("BlobsSave: %v", err)
+		return fmt.Errorf("Save: %v", err)
 	}
 	if len(merkles) != 1 {
 		return fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
@@ -530,38 +592,8 @@ func castVoteSave(client *tlogbe.PluginClient, cv ticketvote.CastVote) error {
 }
 
 // bestBlock fetches the best block from the dcrdata plugin and returns it. If
-// the dcrdata connection is not active, an error WILL NOT BE returned. The
-// dcrdata cached best block height will be returned even though it may be
-// stale. Use bestBlockSafe() if the caller requires a guarantee that the best
-// block is not stale.
+// the dcrdata connection is not active, an error will be returned.
 func (p *ticketVotePlugin) bestBlock() (uint32, error) {
-	// Get best block
-	payload, err := dcrdata.EncodeBestBlock(dcrdata.BestBlock{})
-	if err != nil {
-		return 0, err
-	}
-	_, reply, err := p.backend.Plugin(dcrdata.ID,
-		dcrdata.CmdBestBlock, string(payload))
-	if err != nil {
-		return 0, fmt.Errorf("Plugin %v %v: %v",
-			dcrdata.ID, dcrdata.CmdBestBlock, err)
-	}
-
-	// Handle response
-	bbr, err := dcrdata.DecodeBestBlockReply([]byte(reply))
-	if err != nil {
-		return 0, err
-	}
-	if bbr.Height == 0 {
-		return 0, fmt.Errorf("invalid best block height 0")
-	}
-
-	return bbr.Height, nil
-}
-
-// bestBlockSafe fetches the best block from the dcrdata plugin and returns it.
-// If the dcrdata connection is not active, an error WILL BE returned.
-func (p *ticketVotePlugin) bestBlockSafe() (uint32, error) {
 	// Get best block
 	payload, err := dcrdata.EncodeBestBlock(dcrdata.BestBlock{})
 	if err != nil {
@@ -583,6 +615,36 @@ func (p *ticketVotePlugin) bestBlockSafe() (uint32, error) {
 		// The dcrdata connection is down. The best block cannot be
 		// trusted as being accurate.
 		return 0, fmt.Errorf("dcrdata connection is down")
+	}
+	if bbr.Height == 0 {
+		return 0, fmt.Errorf("invalid best block height 0")
+	}
+
+	return bbr.Height, nil
+}
+
+// bestBlockUnsafe fetches the best block from the dcrdata plugin and returns
+// it. If the dcrdata connection is not active, an error WILL NOT be returned.
+// The dcrdata cached best block height will be returned even though it may be
+// stale. Use bestBlock() if the caller requires a guarantee that the best
+// block is not stale.
+func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
+	// Get best block
+	payload, err := dcrdata.EncodeBestBlock(dcrdata.BestBlock{})
+	if err != nil {
+		return 0, err
+	}
+	_, reply, err := p.backend.Plugin(dcrdata.ID,
+		dcrdata.CmdBestBlock, string(payload))
+	if err != nil {
+		return 0, fmt.Errorf("Plugin %v %v: %v",
+			dcrdata.ID, dcrdata.CmdBestBlock, err)
+	}
+
+	// Handle response
+	bbr, err := dcrdata.DecodeBestBlockReply([]byte(reply))
+	if err != nil {
+		return 0, err
 	}
 	if bbr.Height == 0 {
 		return 0, fmt.Errorf("invalid best block height 0")
@@ -656,9 +718,9 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmen
 // startReply fetches all required data and returns a StartReply.
 func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, error) {
 	// Get the best block height
-	bb, err := p.bestBlockSafe()
+	bb, err := p.bestBlock()
 	if err != nil {
-		return nil, fmt.Errorf("bestBlockSafe: %v", err)
+		return nil, fmt.Errorf("bestBlock: %v", err)
 	}
 
 	// Find the snapshot height. Subtract the ticket maturity from the
@@ -816,14 +878,14 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 		return "", convertTicketVoteErrFromSignatureErr(err)
 	}
 
-	// Get plugin client
+	// Get record client
 	tokenb, err := hex.DecodeString(a.Token)
 	if err != nil {
 		return "", ticketvote.UserError{
 			ErrorCode: ticketvote.ErrorStatusTokenInvalid,
 		}
 	}
-	client, err := p.backend.PluginClient(tokenb)
+	client, err := p.backend.RecordClient(tokenb)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
 			return "", ticketvote.UserError{
@@ -1099,14 +1161,14 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 		return "", err
 	}
 
-	// Get plugin client
+	// Get record client
 	tokenb, err := hex.DecodeString(s.Vote.Token)
 	if err != nil {
 		return "", ticketvote.UserError{
 			ErrorCode: ticketvote.ErrorStatusTokenInvalid,
 		}
 	}
-	client, err := p.backend.PluginClient(tokenb)
+	client, err := p.backend.RecordClient(tokenb)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
 			return "", ticketvote.UserError{
@@ -1273,7 +1335,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		return string(reply), nil
 	}
 
-	// Get plugin client
+	// Get record client
 	var (
 		votes = ballot.Votes
 		token = votes[0].Token
@@ -1284,7 +1346,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		c := fmt.Sprintf("%v: not hex", ticketvote.VoteError[e])
 		return ballotExitWithErr(votes, e, c)
 	}
-	client, err := p.backend.PluginClient(tokenb)
+	client, err := p.backend.RecordClient(tokenb)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
 			e := ticketvote.VoteErrorRecordNotFound
@@ -1310,7 +1372,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		c := fmt.Sprintf("%v: vote not started", ticketvote.VoteError[e])
 		return ballotExitWithErr(votes, e, c)
 	}
-	bb, err := p.bestBlockSafe()
+	bb, err := p.bestBlock()
 	if err != nil {
 		return "", err
 	}
@@ -1345,7 +1407,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 	defer m.Unlock()
 
 	// castVotes contains the tickets that have alread voted
-	castVotes := p.cachedCastVotes(token)
+	castVotes := p.cachedVotes(token)
 
 	// Verify and save votes
 	receipts := make([]ticketvote.VoteReply, len(votes))
@@ -1452,7 +1514,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		receipts[k].Receipt = cv.Receipt
 
 		// Update cast votes cache
-		p.cachedCastVotesSave(v.Token, v.Ticket, v.VoteBit)
+		p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
 	}
 
 	// Prepare reply
@@ -1475,14 +1537,14 @@ func (p *ticketVotePlugin) cmdDetails(payload string) (string, error) {
 		return "", err
 	}
 
-	// Get plugin client
+	// Get record client
 	tokenb, err := hex.DecodeString(d.Token)
 	if err != nil {
 		return "", ticketvote.UserError{
 			ErrorCode: ticketvote.ErrorStatusTokenInvalid,
 		}
 	}
-	client, err := p.backend.PluginClient(tokenb)
+	client, err := p.backend.RecordClient(tokenb)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
 			return "", ticketvote.UserError{
@@ -1526,14 +1588,14 @@ func (p *ticketVotePlugin) cmdCastVotes(payload string) (string, error) {
 		return "", err
 	}
 
-	// Get plugin client
+	// Get record client
 	tokenb, err := hex.DecodeString(cv.Token)
 	if err != nil {
 		return "", ticketvote.UserError{
 			ErrorCode: ticketvote.ErrorStatusTokenInvalid,
 		}
 	}
-	client, err := p.backend.PluginClient(tokenb)
+	client, err := p.backend.RecordClient(tokenb)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
 			return "", ticketvote.UserError{
@@ -1561,29 +1623,12 @@ func (p *ticketVotePlugin) cmdCastVotes(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func summaryPrepare(sv ticketvote.StartVote, castVotes map[string]string, bestBlock uint32) ticketvote.Summary {
-	// TODO
-	return ticketvote.Summary{
-		Type: sv.Vote.Type,
-		// Status: ,
-		Duration:         sv.Vote.Duration,
-		StartBlockHeight: sv.StartBlockHeight,
-		StartBlockHash:   sv.StartBlockHash,
-		EndBlockHeight:   sv.EndBlockHeight,
-		EligibleTickets:  uint32(len(sv.EligibleTickets)),
-		QuorumPercentage: sv.Vote.QuorumPercentage,
-		PassPercentage:   sv.Vote.PassPercentage,
-		// Results: ,
-		// Approved: ,
-	}
-}
-
 func (p *ticketVotePlugin) summary(token string, bestBlock uint32) (*ticketvote.Summary, error) {
 	// Check if the summary has been cached
 	s, err := p.cachedSummary(token)
 	switch {
 	case err == errRecordNotFound:
-		// Cached summary not found. This is ok; continue.
+		// Cached summary not found
 	case err != nil:
 		// Some other error
 		return nil, fmt.Errorf("cachedSummary: %v", err)
@@ -1592,17 +1637,18 @@ func (p *ticketVotePlugin) summary(token string, bestBlock uint32) (*ticketvote.
 		return s, nil
 	}
 
-	// Cached summary not found. Get the plugin client.
+	// Cached summary not found. Get the record client so we can create
+	// a summary manually.
 	tokenb, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, errRecordNotFound
 	}
-	client, err := p.backend.PluginClient(tokenb)
+	client, err := p.backend.RecordClient(tokenb)
 	if err != nil {
 		return nil, errRecordNotFound
 	}
 	if client.State != tlogbe.RecordStateVetted {
-		// Record exists but is unvetted so a vote can not have
+		// Record exists but is unvetted so a vote can not have been
 		// authorized yet.
 		return &ticketvote.Summary{
 			Status:  ticketvote.VoteStatusUnauthorized,
@@ -1647,11 +1693,100 @@ func (p *ticketVotePlugin) summary(token string, bestBlock uint32) (*ticketvote.
 		}, nil
 	}
 
-	// Vote has been started. Vote is either still in progress or has
-	// ended but the summary hasn't been cached yet. Pull the cast
-	// votes from the cache and calulate the results manually.
-	votes := p.cachedCastVotes(token)
-	summary := summaryPrepare(*sv, votes, bestBlock)
+	// Vote has been started. Check if it is still in progress or has
+	// already ended.
+	var status ticketvote.VoteStatusT
+	if bestBlock < sv.EndBlockHeight {
+		status = ticketvote.VoteStatusStarted
+	} else {
+		status = ticketvote.VoteStatusFinished
+	}
+
+	// Pull the cast votes from the cache and calculate the results
+	// manually.
+	votes := p.cachedVotes(token)
+	tally := make(map[string]int, len(sv.Vote.Options))
+	for _, voteBit := range votes {
+		tally[voteBit]++
+	}
+	results := make([]ticketvote.Result, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		bit := strconv.FormatUint(v.Bit, 16)
+		results = append(results, ticketvote.Result{
+			ID:          v.ID,
+			Description: v.Description,
+			VoteBit:     v.Bit,
+			Votes:       uint64(tally[bit]),
+		})
+	}
+
+	// Approved can only be calculated on certain types of votes
+	var approved bool
+	switch sv.Vote.Type {
+	case ticketvote.VoteTypeStandard, ticketvote.VoteTypeRunoff:
+		// Calculate results for a simple approve/reject vote
+		var total uint64
+		for _, v := range results {
+			total += v.Votes
+		}
+
+		var (
+			eligible   = float64(len(sv.EligibleTickets))
+			quorumPerc = float64(sv.Vote.QuorumPercentage)
+			passPerc   = float64(sv.Vote.PassPercentage)
+			quorum     = uint64(quorumPerc / 100 * eligible)
+			pass       = uint64(passPerc / 100 * float64(total))
+
+			approvedVotes uint64
+		)
+		for _, v := range results {
+			if v.ID == ticketvote.VoteOptionIDApprove {
+				approvedVotes++
+			}
+		}
+
+		switch {
+		case total < quorum:
+			// Quorum not met
+			approved = false
+		case approvedVotes < pass:
+			// Pass percentage not met
+			approved = false
+		default:
+			// Vote was approved
+			approved = true
+		}
+	}
+
+	// Prepare summary
+	summary := ticketvote.Summary{
+		Type:             sv.Vote.Type,
+		Status:           status,
+		Duration:         sv.Vote.Duration,
+		StartBlockHeight: sv.StartBlockHeight,
+		StartBlockHash:   sv.StartBlockHash,
+		EndBlockHeight:   sv.EndBlockHeight,
+		EligibleTickets:  uint32(len(sv.EligibleTickets)),
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+		Results:          results,
+		Approved:         approved,
+	}
+
+	// Cache the summary if the vote has finished so we don't have to
+	// calculate these results again.
+	if status == ticketvote.VoteStatusFinished {
+		// Save summary
+		err = p.cachedSummarySet(sv.Vote.Token, summary)
+		if err != nil {
+			return nil, fmt.Errorf("cachedSummarySet %v: %v %v",
+				sv.Vote.Token, err, summary)
+		}
+
+		// Remove record from the votes cache now that a summary has
+		// been saved for it.
+		p.cachedVotesDel(sv.Vote.Token)
+	}
 
 	return &summary, nil
 }
@@ -1667,7 +1802,7 @@ func (p *ticketVotePlugin) cmdSummaries(payload string) (string, error) {
 
 	// Get best block. This cmd does not write any data so we do not
 	// have to use the safe best block.
-	bb, err := p.bestBlock()
+	bb, err := p.bestBlockUnsafe()
 	if err != nil {
 		return "", fmt.Errorf("bestBlock: %v", err)
 	}
@@ -1699,10 +1834,114 @@ func (p *ticketVotePlugin) cmdSummaries(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (p *ticketVotePlugin) inventory(bestBlock uint32) (*ticketvote.InventoryReply, error) {
+	// Get existing inventory
+	inv := p.cachedInventory()
+
+	// Get backend inventory to see if there are any new unauthorized
+	// records.
+	invBackend, err := p.backend.InventoryByStatus()
+	if err != nil {
+		return nil, err
+	}
+	l := len(inv.unauthorized) + len(inv.authorized) +
+		len(inv.started) + len(inv.finished)
+	if l != len(invBackend.Vetted) {
+		// There are new unauthorized records. Put all ticket vote
+		// inventory records into a map so we can easily find what
+		// backend records are missing.
+		all := make(map[string]struct{}, l)
+		for _, v := range inv.unauthorized {
+			all[v] = struct{}{}
+		}
+		for _, v := range inv.authorized {
+			all[v] = struct{}{}
+		}
+		for k := range inv.started {
+			all[k] = struct{}{}
+		}
+		for _, v := range inv.finished {
+			all[v] = struct{}{}
+		}
+
+		// Add any missing records to the inventory
+		for _, v := range invBackend.Vetted {
+			if _, ok := all[v]; !ok {
+				inv.unauthorized = append(inv.unauthorized, v)
+			}
+		}
+
+		// Update cache
+		p.cachedInventorySet(inv)
+	}
+
+	// Check if inventory has already been updated for this block
+	// height.
+	if inv.bestBlock == bestBlock {
+		// Inventory already updated. Nothing else to do.
+		started := make([]string, 0, len(inv.started))
+		for k := range inv.started {
+			started = append(started, k)
+		}
+		return &ticketvote.InventoryReply{
+			Unauthorized: inv.unauthorized,
+			Authorized:   inv.authorized,
+			Started:      started,
+			Finished:     inv.finished,
+			BestBlock:    bestBlock,
+		}, nil
+	}
+
+	// Inventory has not been updated for this block height. Check if
+	// any proposal votes have finished.
+	started := make([]string, 0, len(inv.started))
+	for token, endHeight := range inv.started {
+		if bestBlock >= endHeight {
+			// Vote has finished
+			inv.finished = append(inv.finished, token)
+		} else {
+			// Vote is still ongoing
+			started = append(started, token)
+		}
+	}
+
+	// Update cache
+	p.cachedInventorySet(inv)
+
+	return &ticketvote.InventoryReply{
+		Unauthorized: inv.unauthorized,
+		Authorized:   inv.authorized,
+		Started:      started,
+		Finished:     inv.finished,
+		BestBlock:    bestBlock,
+	}, nil
+}
+
 func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 	log.Tracef("ticketvote cmdInventory: %v", payload)
 
-	return "", nil
+	// Payload is empty. Nothing to decode.
+
+	// Get best block. This command does not write any data so we can
+	// use the unsafe best block.
+	bb, err := p.bestBlockUnsafe()
+	if err != nil {
+		return "", err
+	}
+
+	// Get the inventory
+	ir, err := p.inventory(bb)
+	if err != nil {
+		return "", fmt.Errorf("inventory: %v", err)
+	}
+
+	// Prepare reply
+	reply, err := ticketvote.EncodeInventoryReply(*ir)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
 }
 
 // Cmd executes a plugin command.
@@ -1730,14 +1969,14 @@ func (p *ticketVotePlugin) Cmd(cmd, payload string) (string, error) {
 		return p.cmdInventory(payload)
 	}
 
-	return "", ErrInvalidPluginCmd
+	return "", backend.ErrPluginCmdInvalid
 }
 
 // Hook executes a plugin hook.
 //
 // This function satisfies the Plugin interface.
-func (p *ticketVotePlugin) Hook(h HookT, payload string) error {
-	log.Tracef("ticketvote Hook: %v %v", h, payload)
+func (p *ticketVotePlugin) Hook(h tlogbe.HookT, payload string) error {
+	log.Tracef("ticketvote Hook: %v %v", tlogbe.Hooks[h], payload)
 
 	return nil
 }
@@ -1757,8 +1996,10 @@ func (p *ticketVotePlugin) Fsck() error {
 func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("ticketvote Setup")
 
+	// TODO
 	// Ensure dcrdata plugin has been registered
-	// Build vote summaries
+	// Build votes cache
+	// Build inventory cache
 
 	return nil
 }

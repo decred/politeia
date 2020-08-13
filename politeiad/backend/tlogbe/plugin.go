@@ -13,6 +13,47 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+type HookT int
+
+const (
+	// Plugin hooks
+	HookInvalid             HookT = 0
+	HookPreNewRecord        HookT = 1
+	HookPostNewRecord       HookT = 2
+	HookPreEditRecord       HookT = 3
+	HookPostEditRecord      HookT = 4
+	HookPreEditMetadata     HookT = 5
+	HookPostEditMetadata    HookT = 6
+	HookPreSetRecordStatus  HookT = 7
+	HookPostSetRecordStatus HookT = 8
+)
+
+var (
+	// Hooks contains human readable plugin hook descriptions.
+	Hooks = map[HookT]string{
+		HookPostNewRecord:       "post new record",
+		HookPostEditRecord:      "post edit record",
+		HookPostEditMetadata:    "post edit metadata",
+		HookPostSetRecordStatus: "post set record status",
+	}
+)
+
+// Plugin provides an API for the tlogbe to use when interacting with plugins.
+// All tlogbe plugins must implement the Plugin interface.
+type Plugin interface {
+	// Perform plugin setup
+	Setup() error
+
+	// Execute a plugin command
+	Cmd(cmd, payload string) (string, error)
+
+	// Execute a plugin hook
+	Hook(h HookT, payload string) error
+
+	// Perform a plugin file system check
+	Fsck() error
+}
+
 type RecordStateT int
 
 const (
@@ -22,9 +63,9 @@ const (
 	RecordStateVetted   RecordStateT = 2
 )
 
-// PluginClient provides an API for plugins to save, retrieve, and delete
+// RecordClient provides an API for plugins to save, retrieve, and delete
 // plugin data for a specific record. Editing data is not allowed.
-type PluginClient struct {
+type RecordClient struct {
 	Token  []byte
 	State  RecordStateT
 	treeID int64
@@ -32,8 +73,8 @@ type PluginClient struct {
 }
 
 // hashes and keys must share the same ordering.
-func (c *PluginClient) BlobsSave(keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
-	log.Tracef("BlobsSave: %v %v %v %x", c.treeID, keyPrefix, encrypt, hashes)
+func (c *RecordClient) Save(keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
+	log.Tracef("Save: %x %v %v %x", c.Token, keyPrefix, encrypt, hashes)
 
 	// Ensure tree exists and is not frozen
 	if !c.tlog.treeExists(c.treeID) {
@@ -100,8 +141,8 @@ func (c *PluginClient) BlobsSave(keyPrefix string, blobs, hashes [][]byte, encry
 	return merkles, nil
 }
 
-func (c *PluginClient) BlobsDel(merkleHashes [][]byte) error {
-	log.Tracef("BlobsDel: %v %x", c.treeID, merkleHashes)
+func (c *RecordClient) Del(merkleHashes [][]byte) error {
+	log.Tracef("Del: %x %x", c.Token, merkleHashes)
 
 	// Ensure tree exists. We allow blobs to be deleted from both
 	// frozen and non frozen trees.
@@ -145,8 +186,8 @@ func (c *PluginClient) BlobsDel(merkleHashes [][]byte) error {
 // If a blob does not exist it will not be included in the returned map. It is
 // the responsibility of the caller to check that a blob is returned for each
 // of the provided merkle hashes.
-func (c *PluginClient) BlobsByMerkleHash(merkleHashes [][]byte) (map[string][]byte, error) {
-	log.Tracef("BlobsByMerkleHash: %v %x", merkleHashes)
+func (c *RecordClient) BlobsByMerkleHash(merkleHashes [][]byte) (map[string][]byte, error) {
+	log.Tracef("BlobsByMerkleHash: %x %x", c.Token, merkleHashes)
 
 	// Get leaves
 	leavesAll, err := c.tlog.trillian.leavesAll(c.treeID)
@@ -226,7 +267,9 @@ func (c *PluginClient) BlobsByMerkleHash(merkleHashes [][]byte) (map[string][]by
 	return b, nil
 }
 
-func (c *PluginClient) BlobsByKeyPrefix(keyPrefix string) ([][]byte, error) {
+func (c *RecordClient) BlobsByKeyPrefix(keyPrefix string) ([][]byte, error) {
+	log.Tracef("BlobsByKeyPrefix: %x %x", c.Token, keyPrefix)
+
 	// Get leaves
 	leaves, err := c.tlog.trillian.leavesAll(c.treeID)
 	if err != nil {
@@ -283,7 +326,7 @@ func (c *PluginClient) BlobsByKeyPrefix(keyPrefix string) ([][]byte, error) {
 	return b, nil
 }
 
-// TODO
-func (t *Tlogbe) PluginClient(token []byte) (*PluginClient, error) {
+// TODO implement RecordClient
+func (t *Tlogbe) RecordClient(token []byte) (*RecordClient, error) {
 	return nil, nil
 }

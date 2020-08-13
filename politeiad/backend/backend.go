@@ -5,18 +5,11 @@
 package backend
 
 import (
-	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"regexp"
-	"strconv"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/util"
-	"github.com/subosito/gozaru"
 )
 
 var (
@@ -45,9 +38,16 @@ var (
 	// archived record.
 	ErrRecordArchived = errors.New("record is archived")
 
-	// ErrJournalsNotReplayed is returned when the journals have not been replayed
-	// and the subsequent code expect it to be replayed
+	// ErrJournalsNotReplayed is returned when the journals have not
+	// been replayed and the subsequent code expect it to be replayed.
 	ErrJournalsNotReplayed = errors.New("journals have not been replayed")
+
+	// ErrPluginInvalid is emitted when an invalid plugin ID is used.
+	ErrPluginInvalid = errors.New("plugin invalid")
+
+	// ErrPluginCmdInvalid is emitted when an invalid plugin command is
+	// used.
+	ErrPluginCmdInvalid = errors.New("plugin command invalid")
 
 	// Plugin names must be all lowercase letters and have a length of <20
 	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
@@ -134,161 +134,6 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
-// VerifyContent verifies that all provided MetadataStream and File are sane.
-func VerifyContent(metadata []MetadataStream, files []File, filesDel []string) error {
-	// Make sure all metadata is within maxima.
-	for _, v := range metadata {
-		if v.ID > v1.MetadataStreamsMax-1 {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidMDID,
-				ErrorContext: []string{
-					strconv.FormatUint(v.ID, 10),
-				},
-			}
-		}
-	}
-	for i := range metadata {
-		for j := range metadata {
-			// Skip self and non duplicates.
-			if i == j || metadata[i].ID != metadata[j].ID {
-				continue
-			}
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusDuplicateMDID,
-				ErrorContext: []string{
-					strconv.FormatUint(metadata[i].ID, 10),
-				},
-			}
-		}
-	}
-
-	// Prevent paths
-	for i := range files {
-		if filepath.Base(files[i].Name) != files[i].Name {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidFilename,
-				ErrorContext: []string{
-					files[i].Name,
-				},
-			}
-		}
-	}
-	for _, v := range filesDel {
-		if filepath.Base(v) != v {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidFilename,
-				ErrorContext: []string{
-					v,
-				},
-			}
-		}
-	}
-
-	// Now check files
-	if len(files) == 0 {
-		return ContentVerificationError{
-			ErrorCode: v1.ErrorStatusEmpty,
-		}
-	}
-
-	// Prevent bad filenames and duplicate filenames
-	for i := range files {
-		for j := range files {
-			if i == j {
-				continue
-			}
-			if files[i].Name == files[j].Name {
-				return ContentVerificationError{
-					ErrorCode: v1.ErrorStatusDuplicateFilename,
-					ErrorContext: []string{
-						files[i].Name,
-					},
-				}
-			}
-		}
-		// Check against filesDel
-		for _, v := range filesDel {
-			if files[i].Name == v {
-				return ContentVerificationError{
-					ErrorCode: v1.ErrorStatusDuplicateFilename,
-					ErrorContext: []string{
-						files[i].Name,
-					},
-				}
-			}
-		}
-	}
-
-	for i := range files {
-		if gozaru.Sanitize(files[i].Name) != files[i].Name {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidFilename,
-				ErrorContext: []string{
-					files[i].Name,
-				},
-			}
-		}
-
-		// Validate digest
-		d, ok := util.ConvertDigest(files[i].Digest)
-		if !ok {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidFileDigest,
-				ErrorContext: []string{
-					files[i].Name,
-				},
-			}
-		}
-
-		// Decode base64 payload
-		var err error
-		payload, err := base64.StdEncoding.DecodeString(files[i].Payload)
-		if err != nil {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidBase64,
-				ErrorContext: []string{
-					files[i].Name,
-				},
-			}
-		}
-
-		// Calculate payload digest
-		dp := util.Digest(payload)
-		if !bytes.Equal(d[:], dp) {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidFileDigest,
-				ErrorContext: []string{
-					files[i].Name,
-				},
-			}
-		}
-
-		// Verify MIME
-		detectedMIMEType := mime.DetectMimeType(payload)
-		if detectedMIMEType != files[i].MIME {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusInvalidMIMEType,
-				ErrorContext: []string{
-					files[i].Name,
-					detectedMIMEType,
-				},
-			}
-		}
-
-		if !mime.MimeValid(files[i].MIME) {
-			return ContentVerificationError{
-				ErrorCode: v1.ErrorStatusUnsupportedMIMEType,
-				ErrorContext: []string{
-					files[i].Name,
-					files[i].MIME,
-				},
-			}
-		}
-	}
-
-	return nil
-}
-
 // PluginSettings
 type PluginSetting struct {
 	Key   string // Name of setting
@@ -300,6 +145,17 @@ type Plugin struct {
 	ID       string          // Identifier
 	Version  string          // Version
 	Settings []PluginSetting // Settings
+}
+
+// InventoryByStatus contains the record tokens of all records in the inventory
+// catagorized by MDStatusT. Each array is sorted by the timestamp of the
+// status change from newest to oldest.
+type InventoryByStatus struct {
+	Unvetted          []string
+	IterationUnvetted []string
+	Vetted            []string
+	Censored          []string
+	Archived          []string
 }
 
 type Backend interface {
@@ -345,8 +201,9 @@ type Backend interface {
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, bool, bool) ([]Record, []Record, error)
 
-	// TODO Inventory needs to return the token inventory grouped by
-	// record status.
+	// InventoryByStatus returns the record tokens of all records in the
+	// inventory catagorized by MDStatusT.
+	InventoryByStatus() (*InventoryByStatus, error)
 
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)

@@ -21,6 +21,7 @@ import (
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
 )
@@ -34,7 +35,7 @@ const (
 )
 
 var (
-	_ Plugin = (*dcrdataPlugin)(nil)
+	_ tlogbe.Plugin = (*dcrdataPlugin)(nil)
 )
 
 // dcrdataplugin satisfies the Plugin interface.
@@ -361,14 +362,14 @@ func (p *dcrdataPlugin) Cmd(cmd, payload string) (string, error) {
 		return p.cmdTxsTrimmed(payload)
 	}
 
-	return "", ErrInvalidPluginCmd
+	return "", backend.ErrPluginCmdInvalid
 }
 
 // Hook executes a plugin hook.
 //
 // This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Hook(h HookT, payload string) error {
-	log.Tracef("dcrdata Hook: %v %v", h, payload)
+func (p *dcrdataPlugin) Hook(h tlogbe.HookT, payload string) error {
+	log.Tracef("dcrdata Hook: %v %v", tlogbe.Hooks[h], payload)
 
 	return nil
 }

@@ -7,6 +7,7 @@ package tlogbe
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -19,13 +20,15 @@ import (
 
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
+	"github.com/subosito/gozaru"
 )
 
-// TODO populate token prefixes cache on startup
 // TODO testnet vs mainnet trillian databases
 // TODO fsck
 // TODO allow token prefix lookups
@@ -65,6 +68,14 @@ var (
 	}
 )
 
+// plugin represents a tlogbe plugin.
+type plugin struct {
+	id       string
+	version  string
+	settings []backend.PluginSetting
+	ctx      Plugin
+}
+
 // Tlogbe implements the Backend interface.
 type Tlogbe struct {
 	sync.RWMutex
@@ -73,16 +84,15 @@ type Tlogbe struct {
 	dataDir  string
 	unvetted *tlog
 	vetted   *tlog
-	plugins  []backend.Plugin
+	plugins  map[string]plugin // [pluginID]plugin
 
 	// prefixes contains the token prefix to full token mapping for all
 	// records. The prefix is the first n characters of the hex encoded
 	// record token, where n is defined by the TokenPrefixLength from
 	// the politeiad API. Record lookups by token prefix are allowed.
-	// This cache is loaded on tlogbe startup and is used to prevent
-	// prefix collisions when creating new tokens and to facilitate
-	// lookups by token prefix.
-	prefixes map[string][]byte // [tokenPrefix]fullToken
+	// This cache is used to prevent prefix collisions when creating
+	// new tokens and to facilitate lookups by token prefix.
+	prefixes map[string][]byte // [tokenPrefix]token
 
 	// vettedTreeIDs contains the token to tree ID mapping for vetted
 	// records. The token corresponds to the unvetted tree ID so
@@ -90,6 +100,11 @@ type Tlogbe struct {
 	// required pulling the freeze record from the unvetted tree to
 	// get the vetted tree ID. This cache memoizes these results.
 	vettedTreeIDs map[string]int64 // [token]treeID
+
+	// inventory contains the full record inventory grouped by record
+	// status. Each list of tokens is sorted by the timestamp of the
+	// status change from newest to oldest.
+	inventory map[backend.MDStatusT][]string
 }
 
 func tokenPrefix(token []byte) string {
@@ -104,12 +119,12 @@ func (t *Tlogbe) prefixExists(fullToken []byte) bool {
 	return ok
 }
 
-func (t *Tlogbe) prefixSet(fullToken []byte) {
+func (t *Tlogbe) prefixAdd(fullToken []byte) {
 	t.Lock()
 	defer t.Unlock()
 
 	prefix := tokenPrefix(fullToken)
-	t.prefixes[tokenPrefix(fullToken)] = fullToken
+	t.prefixes[prefix] = fullToken
 
 	log.Debugf("Token prefix cached: %v", prefix)
 }
@@ -122,7 +137,7 @@ func (t *Tlogbe) vettedTreeIDGet(token string) (int64, bool) {
 	return treeID, ok
 }
 
-func (t *Tlogbe) vettedTreeIDSet(token string, treeID int64) {
+func (t *Tlogbe) vettedTreeIDAdd(token string, treeID int64) {
 	t.Lock()
 	defer t.Unlock()
 
@@ -131,14 +146,223 @@ func (t *Tlogbe) vettedTreeIDSet(token string, treeID int64) {
 	log.Debugf("Vetted tree ID cached: %v %v", token, treeID)
 }
 
+func (t *Tlogbe) inventoryGet() map[backend.MDStatusT][]string {
+	t.RLock()
+	defer t.RUnlock()
+
+	// Return a copy of the inventory
+	inv := make(map[backend.MDStatusT][]string, len(t.inventory))
+	for status, tokens := range t.inventory {
+		tokensCopy := make([]string, len(tokens))
+		for k, v := range tokens {
+			tokensCopy[k] = v
+		}
+		inv[status] = tokensCopy
+	}
+
+	return inv
+}
+
+func (t *Tlogbe) inventoryAdd(token string, s backend.MDStatusT) {
+	t.Lock()
+	defer t.Unlock()
+
+	t.inventory[s] = append([]string{token}, t.inventory[s]...)
+
+	log.Debugf("Inventory cache added: %v %v", token, backend.MDStatus[s])
+}
+
+func (t *Tlogbe) inventoryUpdate(token string, currStatus, newStatus backend.MDStatusT) {
+	t.Lock()
+	defer t.Unlock()
+
+	// Find the index of the token in its current status list
+	var idx int
+	for k, v := range t.inventory[currStatus] {
+		if v == token {
+			// Token found
+			idx = k
+		}
+	}
+	if idx == 0 {
+		// Token was never found. This should not happen.
+		e := fmt.Sprintf("inventoryUpdate: token not found: %v %v %v",
+			token, currStatus, newStatus)
+		panic(e)
+	}
+
+	// Remove the token from its current status list
+	tokens := t.inventory[currStatus]
+	t.inventory[currStatus] = append(tokens[:idx], tokens[idx+1:]...)
+
+	// Prepend token to new status
+	t.inventory[newStatus] = append([]string{token}, t.inventory[newStatus]...)
+
+	log.Debugf("Inventory cache updated: %v %v to %v",
+		token, backend.MDStatus[currStatus], backend.MDStatus[newStatus])
+}
+
+// verifyContent verifies that all provided MetadataStream and File are sane.
+func verifyContent(metadata []backend.MetadataStream, files []backend.File, filesDel []string) error {
+	// Make sure all metadata is within maxima.
+	for _, v := range metadata {
+		if v.ID > v1.MetadataStreamsMax-1 {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidMDID,
+				ErrorContext: []string{
+					strconv.FormatUint(v.ID, 10),
+				},
+			}
+		}
+	}
+	for i := range metadata {
+		for j := range metadata {
+			// Skip self and non duplicates.
+			if i == j || metadata[i].ID != metadata[j].ID {
+				continue
+			}
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusDuplicateMDID,
+				ErrorContext: []string{
+					strconv.FormatUint(metadata[i].ID, 10),
+				},
+			}
+		}
+	}
+
+	// Prevent paths
+	for i := range files {
+		if filepath.Base(files[i].Name) != files[i].Name {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidFilename,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+	}
+	for _, v := range filesDel {
+		if filepath.Base(v) != v {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidFilename,
+				ErrorContext: []string{
+					v,
+				},
+			}
+		}
+	}
+
+	// Now check files
+	if len(files) == 0 {
+		return backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusEmpty,
+		}
+	}
+
+	// Prevent bad filenames and duplicate filenames
+	for i := range files {
+		for j := range files {
+			if i == j {
+				continue
+			}
+			if files[i].Name == files[j].Name {
+				return backend.ContentVerificationError{
+					ErrorCode: v1.ErrorStatusDuplicateFilename,
+					ErrorContext: []string{
+						files[i].Name,
+					},
+				}
+			}
+		}
+		// Check against filesDel
+		for _, v := range filesDel {
+			if files[i].Name == v {
+				return backend.ContentVerificationError{
+					ErrorCode: v1.ErrorStatusDuplicateFilename,
+					ErrorContext: []string{
+						files[i].Name,
+					},
+				}
+			}
+		}
+	}
+
+	for i := range files {
+		if gozaru.Sanitize(files[i].Name) != files[i].Name {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidFilename,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+
+		// Validate digest
+		d, ok := util.ConvertDigest(files[i].Digest)
+		if !ok {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+
+		// Decode base64 payload
+		var err error
+		payload, err := base64.StdEncoding.DecodeString(files[i].Payload)
+		if err != nil {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidBase64,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+
+		// Calculate payload digest
+		dp := util.Digest(payload)
+		if !bytes.Equal(d[:], dp) {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+
+		// Verify MIME
+		detectedMIMEType := mime.DetectMimeType(payload)
+		if detectedMIMEType != files[i].MIME {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidMIMEType,
+				ErrorContext: []string{
+					files[i].Name,
+					detectedMIMEType,
+				},
+			}
+		}
+
+		if !mime.MimeValid(files[i].MIME) {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusUnsupportedMIMEType,
+				ErrorContext: []string{
+					files[i].Name,
+					files[i].MIME,
+				},
+			}
+		}
+	}
+
+	return nil
+}
+
 // statusChangeIsAllowed returns whether the provided status change is allowed
-// by tlogbe. An invalid 'from' status will panic since the 'from' status
-// represents the existing status of a record and should never be invalid.
+// by tlogbe.
 func statusChangeIsAllowed(from, to backend.MDStatusT) bool {
 	allowed, ok := statusChanges[from]
 	if !ok {
-		e := fmt.Sprintf("status invalid: %v", from)
-		panic(e)
+		return false
 	}
 	_, ok = allowed[to]
 	return ok
@@ -243,7 +467,7 @@ func (t *Tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 	log.Tracef("New")
 
 	// Validate record contents
-	err := backend.VerifyContent(metadata, files, []string{})
+	err := verifyContent(metadata, files, []string{})
 	if err != nil {
 		return nil, err
 	}
@@ -260,8 +484,7 @@ func (t *Tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 
 		// Check for token prefix collisions
 		if !t.prefixExists(token) {
-			// Not a collision. Update token prefixes cache.
-			t.prefixSet(token)
+			// Not a collision. Use this token.
 			break
 		}
 
@@ -281,6 +504,12 @@ func (t *Tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 		return nil, fmt.Errorf("recordSave %x: %v", token, err)
 	}
 
+	// Update the prefix cache
+	t.prefixAdd(token)
+
+	// Update the inventory cache
+	t.inventoryAdd(hex.EncodeToString(token), backend.MDStatusUnvetted)
+
 	log.Infof("New record %x", token)
 
 	return rm, nil
@@ -293,7 +522,7 @@ func (t *Tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []back
 	// Validate record contents. Send in a single metadata array to
 	// verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
-	err := backend.VerifyContent(allMD, filesAdd, filesDel)
+	err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
 		e, ok := err.(backend.ContentVerificationError)
 		if !ok {
@@ -345,7 +574,13 @@ func (t *Tlogbe) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []back
 		return nil, fmt.Errorf("recordSave: %v", err)
 	}
 
-	// TODO Call plugin hooks
+	// Update inventory cache. The inventory will only need to be
+	// updated if there was a status transition.
+	if r.RecordMetadata.Status != recordMD.Status {
+		// Status was changed
+		t.inventoryUpdate(recordMD.Token, r.RecordMetadata.Status,
+			recordMD.Status)
+	}
 
 	// Return updated record
 	r, err = t.unvetted.recordLatest(treeID)
@@ -363,7 +598,7 @@ func (t *Tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backen
 	// Validate record contents. Send in a single metadata array to
 	// verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
-	err := backend.VerifyContent(allMD, filesAdd, filesDel)
+	err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
 		e, ok := err.(backend.ContentVerificationError)
 		if !ok {
@@ -415,8 +650,6 @@ func (t *Tlogbe) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backen
 		return nil, fmt.Errorf("recordSave: %v", err)
 	}
 
-	// TODO Call plugin hooks
-
 	// Return updated record
 	r, err = t.vetted.recordLatest(treeID)
 	if err != nil {
@@ -431,7 +664,7 @@ func (t *Tlogbe) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite []ba
 	// Validate record contents. Send in a single metadata array to
 	// verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
-	err := backend.VerifyContent(allMD, []backend.File{}, []string{})
+	err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
 		e, ok := err.(backend.ContentVerificationError)
 		if !ok {
@@ -472,7 +705,12 @@ func (t *Tlogbe) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite []ba
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
-	return t.unvetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+	err = t.unvetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // This function satisfies the Backend interface.
@@ -482,7 +720,7 @@ func (t *Tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []back
 	// Validate record contents. Send in a single metadata array to
 	// verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
-	err := backend.VerifyContent(allMD, []backend.File{}, []string{})
+	err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
 		e, ok := err.(backend.ContentVerificationError)
 		if !ok {
@@ -523,7 +761,12 @@ func (t *Tlogbe) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []back
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
-	return t.vetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+	err = t.vetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // UnvettedExists returns whether the provided token corresponds to an unvetted
@@ -608,7 +851,7 @@ func (t *Tlogbe) VettedExists(token []byte) bool {
 	}
 
 	// Update the vetted cache
-	t.vettedTreeIDSet(hex.EncodeToString(token), fr.TreeID)
+	t.vettedTreeIDAdd(hex.EncodeToString(token), fr.TreeID)
 
 	return true
 }
@@ -657,7 +900,7 @@ func (t *Tlogbe) unvettedPublish(token []byte, rm backend.RecordMetadata, metada
 		// Check for token prefix collisions
 		if !t.prefixExists(vettedToken) {
 			// Not a collision. Update prefixes cache.
-			t.prefixSet(vettedToken)
+			t.prefixAdd(vettedToken)
 			break
 		}
 
@@ -686,7 +929,7 @@ func (t *Tlogbe) unvettedPublish(token []byte, rm backend.RecordMetadata, metada
 	log.Debugf("Unvetted record %x frozen", token)
 
 	// Update the vetted cache
-	t.vettedTreeIDSet(hex.EncodeToString(token), vettedTreeID)
+	t.vettedTreeIDAdd(hex.EncodeToString(token), vettedTreeID)
 
 	return nil
 }
@@ -747,17 +990,18 @@ func (t *Tlogbe) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdApp
 		return nil, fmt.Errorf("recordLatest: %v", err)
 	}
 	rm := r.RecordMetadata
+	oldStatus := rm.Status
 
 	// Validate status change
-	if !statusChangeIsAllowed(rm.Status, status) {
+	if !statusChangeIsAllowed(oldStatus, status) {
 		return nil, backend.StateTransitionError{
-			From: rm.Status,
+			From: oldStatus,
 			To:   status,
 		}
 	}
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
-		token, backend.MDStatus[rm.Status], rm.Status,
+		token, backend.MDStatus[oldStatus], oldStatus,
 		backend.MDStatus[status], status)
 
 	// Apply status change
@@ -789,6 +1033,9 @@ func (t *Tlogbe) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdApp
 		return nil, fmt.Errorf("unknown status: %v (%v)",
 			backend.MDStatus[status], status)
 	}
+
+	// Update inventory cache
+	t.inventoryUpdate(rm.Token, oldStatus, status)
 
 	// Return the updated record
 	r, err = t.unvetted.recordLatest(treeID)
@@ -845,17 +1092,18 @@ func (t *Tlogbe) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppen
 		return nil, fmt.Errorf("recordLatest: %v", err)
 	}
 	rm := r.RecordMetadata
+	oldStatus := rm.Status
 
 	// Validate status change
 	if !statusChangeIsAllowed(rm.Status, status) {
 		return nil, backend.StateTransitionError{
-			From: rm.Status,
+			From: oldStatus,
 			To:   status,
 		}
 	}
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
-		token, backend.MDStatus[rm.Status], rm.Status,
+		token, backend.MDStatus[oldStatus], oldStatus,
 		backend.MDStatus[status], status)
 
 	// Apply status change
@@ -883,6 +1131,9 @@ func (t *Tlogbe) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppen
 			backend.MDStatus[status], status)
 	}
 
+	// Update inventory cache
+	t.inventoryUpdate(rm.Token, oldStatus, status)
+
 	// Return the updated record
 	r, err = t.vetted.recordLatest(treeID)
 	if err != nil {
@@ -892,33 +1143,75 @@ func (t *Tlogbe) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppen
 	return r, nil
 }
 
+// Inventory is not currenctly implemented in tlogbe.
+//
 // This function satisfies the Backend interface.
 func (t *Tlogbe) Inventory(vettedCount uint, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
 	log.Tracef("Inventory: %v %v", includeFiles, allVersions)
 
-	// TODO implement inventory
-
-	// return vetted, unvetted, nil
-	return nil, nil, nil
+	return nil, nil, fmt.Errorf("not implemented")
 }
 
+// InventoryByStatus returns the record tokens of all records in the inventory
+// catagorized by MDStatusT.
+//
+// This function satisfies the Backend interface.
+func (t *Tlogbe) InventoryByStatus() (*backend.InventoryByStatus, error) {
+	log.Tracef("InventoryByStatus")
+
+	inv := t.inventoryGet()
+	return &backend.InventoryByStatus{
+		Unvetted:          inv[backend.MDStatusUnvetted],
+		IterationUnvetted: inv[backend.MDStatusIterationUnvetted],
+		Vetted:            inv[backend.MDStatusVetted],
+		Censored:          inv[backend.MDStatusCensored],
+		Archived:          inv[backend.MDStatusArchived],
+	}, nil
+}
+
+// GetPlugins returns the backend plugins that have been registered and their
+// settings.
+//
+// This function satisfies the Backend interface.
 func (t *Tlogbe) GetPlugins() ([]backend.Plugin, error) {
 	log.Tracef("GetPlugins")
 
-	// TODO implement plugins
+	plugins := make([]backend.Plugin, 0, len(t.plugins))
+	for _, v := range t.plugins {
+		plugins = append(plugins, backend.Plugin{
+			ID:       v.id,
+			Version:  v.version,
+			Settings: v.settings,
+		})
+	}
 
-	return t.plugins, nil
+	return plugins, nil
 }
 
-// Add commandID to Plugin
+// Plugin is a pass-through function for plugin commands.
+//
+// This function satisfies the Backend interface.
 func (t *Tlogbe) Plugin(pluginID, command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v", command)
 
-	// TODO implement plugins
+	// Get plugin
+	plugin, ok := t.plugins[pluginID]
+	if !ok {
+		return "", "", backend.ErrPluginInvalid
+	}
 
-	return "", "", nil
+	// Execute plugin command
+	reply, err := plugin.ctx.Cmd(command, payload)
+	if err != nil {
+		return "", "", err
+	}
+
+	return command, reply, nil
 }
 
+// Close shuts the backend down and performs cleanup.
+//
+// This function satisfies the Backend interface.
 func (t *Tlogbe) Close() {
 	log.Tracef("Close")
 
@@ -933,7 +1226,60 @@ func (t *Tlogbe) Close() {
 	t.vetted.close()
 }
 
-func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptionKeyFile string) (*Tlogbe, error) {
+func (t *Tlogbe) setup() error {
+	// Get all trees
+	trees, err := t.unvetted.trillian.treesAll()
+	if err != nil {
+		return fmt.Errorf("unvetted treesAll: %v", err)
+	}
+
+	// Build all memory caches
+	for _, v := range trees {
+		// Add tree to prefixes cache
+		token := tokenFromTreeID(v.TreeId)
+		t.prefixAdd(token)
+
+		// Check if the tree needs to be added to the vettedTreeIDs cache
+		// by checking the freeze record of the unvetted tree.
+		var vettedTreeID int64
+		fr, err := t.unvetted.freezeRecord(v.TreeId)
+		switch err {
+		case errFreezeRecordNotFound:
+			// No freeze record means this is not a vetted record.
+			// Nothing to do. Continue.
+		case nil:
+			// A freeze record exists. If a pointer to a vetted tree has
+			// been set, add it to the vettedTreeIDs cache.
+			if fr.TreeID != 0 {
+				vettedTreeID = fr.TreeID
+				t.vettedTreeIDAdd(hex.EncodeToString(token), vettedTreeID)
+			}
+		default:
+			// All other errors
+			return fmt.Errorf("freezeRecord %v: %v", v.TreeId, err)
+		}
+
+		// Add record to the inventory cache
+		var r *backend.Record
+		if vettedTreeID != 0 {
+			r, err = t.GetVetted(token, "")
+			if err != nil {
+				return fmt.Errorf("GetVetted %x: %v", token, err)
+			}
+		} else {
+			r, err = t.GetUnvetted(token, "")
+			if err != nil {
+				return fmt.Errorf("GetUnvetted %x: %v", token, err)
+			}
+		}
+		t.inventoryAdd(hex.EncodeToString(token), r.RecordMetadata.Status)
+	}
+
+	return nil
+}
+
+// New returns a new Tlogbe.
+func New(homeDir, dataDir, dcrtimeHost, encryptionKeyFile, unvettedTrillianHost, unvettedTrillianKeyFile, vettedTrillianHost, vettedTrillianKeyFile string) (*Tlogbe, error) {
 	// Setup encryption key file
 	if encryptionKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -954,20 +1300,6 @@ func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptio
 		log.Infof("Encryption key created: %v", encryptionKeyFile)
 	}
 
-	// Setup trillian client
-	tlog, err := trillianClientNew(homeDir, trillianHost, trillianKeyFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Setup key-value store
-	fp := filepath.Join(dataDir, recordsDirname)
-	err = os.MkdirAll(fp, 0700)
-	if err != nil {
-		return nil, err
-	}
-	store := filesystem.New(fp)
-
 	// Load encryption key
 	f, err := os.Open(encryptionKeyFile)
 	if err != nil {
@@ -982,9 +1314,17 @@ func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptio
 		return nil, err
 	}
 	f.Close()
-	encryptionKey := encryptionKeyNew(&key)
+	encryptionKey := newEncryptionKey(&key)
 
 	log.Infof("Encryption key loaded")
+
+	// Setup key-value store
+	fp := filepath.Join(dataDir, recordsDirname)
+	err = os.MkdirAll(fp, 0700)
+	if err != nil {
+		return nil, err
+	}
+	store := filesystem.New(fp)
 
 	// Setup dcrtime host
 	_, err = url.Parse(dcrtimeHost)
@@ -993,27 +1333,34 @@ func New(homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptio
 	}
 	log.Infof("Anchor host: %v", dcrtimeHost)
 
-	_ = encryptionKey
-	_ = dcrtimeHost
-	_ = store
-	_ = tlog
-	t := Tlogbe{
-		homeDir: homeDir,
-		dataDir: dataDir,
-		// cron:    cron.New(),
+	// Setup tlog instances
+	unvetted, err := newTlog("unvetted", unvettedTrillianHost,
+		unvettedTrillianKeyFile, dcrtimeHost, encryptionKey, store)
+	if err != nil {
+		return nil, fmt.Errorf("newTlog unvetted: %v", err)
+	}
+	vetted, err := newTlog("vetted", vettedTrillianHost,
+		vettedTrillianKeyFile, dcrtimeHost, encryptionKey, store)
+	if err != nil {
+		return nil, fmt.Errorf("newTlog vetted: %v", err)
 	}
 
-	/*
-		// Launch cron
-		log.Infof("Launch cron anchor job")
-		err = t.cron.AddFunc(anchorSchedule, func() {
-			// t.anchorTrees()
-		})
-		if err != nil {
-			return nil, err
-		}
-		t.cron.Start()
-	*/
+	t := Tlogbe{
+		homeDir:       homeDir,
+		dataDir:       dataDir,
+		unvetted:      unvetted,
+		vetted:        vetted,
+		plugins:       make(map[string]plugin),
+		prefixes:      make(map[string][]byte),
+		vettedTreeIDs: make(map[string]int64),
+		inventory: map[backend.MDStatusT][]string{
+			backend.MDStatusUnvetted:          make([]string, 0),
+			backend.MDStatusIterationUnvetted: make([]string, 0),
+			backend.MDStatusVetted:            make([]string, 0),
+			backend.MDStatusCensored:          make([]string, 0),
+			backend.MDStatusArchived:          make([]string, 0),
+		},
+	}
 
 	return &t, nil
 }

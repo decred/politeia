@@ -439,7 +439,7 @@ func (t *trillianClient) close() {
 	t.grpc.Close()
 }
 
-func trillianClientNew(homeDir, host, keyFile string) (*trillianClient, error) {
+func newTrillianClient(homeDir, host, keyFile string) (*trillianClient, error) {
 	// Setup trillian key file
 	if keyFile == "" {
 		// No file path was given. Use the default path.

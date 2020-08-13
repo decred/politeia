@@ -16,29 +16,14 @@ import (
 )
 
 const (
-	// Data descriptor types. These may be freely edited since they are
-	// solely hints to the application.
-	DataTypeStructure = "struct" // Descriptor contains a structure
+	// Data descriptor types
+	DataTypeStructure = "struct"
 )
 
 var (
 	// ErrNotFound is emitted when a blob is not found.
 	ErrNotFound = errors.New("not found")
 )
-
-type Ops struct {
-	Put map[string][]byte
-	Del []string
-}
-
-// TODO get rid of this Blob implementation
-type Blob interface {
-	Get(string) ([]byte, error)
-	Put(string, []byte) error
-	Del(key string) error
-	Enum(func(key string, blob []byte) error) error
-	Batch(Ops) error
-}
 
 // DataDescriptor provides hints about a data blob. In practise we JSON encode
 // this struture and stuff it into BlobEntry.DataHint.
@@ -94,13 +79,7 @@ func BlobEntryNew(dataHint, data []byte) BlobEntry {
 }
 
 // Blob represents a blob key-value store.
-type Blob_ interface {
-	// Get returns blobs from the store for the provided keys. An entry
-	// will not exist in the returned map if for any blobs that are not
-	// found. It is the responsibility of the caller to ensure a blob
-	// was returned for all provided keys.
-	Get(keys []string) (map[string][]byte, error)
-
+type Blob interface {
 	// Put saves the provided blobs to the store. The keys for the
 	// blobs are returned using the same odering that the blobs were
 	// provided in. This operation is performed atomically.
@@ -109,6 +88,12 @@ type Blob_ interface {
 	// Del deletes the provided blobs from the store. This operation
 	// is performed atomically.
 	Del(keys []string) error
+
+	// Get returns blobs from the store for the provided keys. An entry
+	// will not exist in the returned map if for any blobs that are not
+	// found. It is the responsibility of the caller to ensure a blob
+	// was returned for all provided keys.
+	Get(keys []string) (map[string][]byte, error)
 
 	// Enum enumerates over all blobs in the store, invoking the
 	// provided function for each blob.

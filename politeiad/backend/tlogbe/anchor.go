@@ -13,7 +13,9 @@ import (
 	dcrtime "github.com/decred/dcrtime/api/v2"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 	"github.com/decred/politeia/util"
+	"github.com/google/trillian"
 	"github.com/google/trillian/types"
+	"google.golang.org/grpc/codes"
 )
 
 // TODO handle reorgs. A anchor record may become invalid in the case of a
@@ -55,7 +57,6 @@ func (t *tlog) anchorSave(a anchor) error {
 		return fmt.Errorf("verify digest not found")
 	}
 
-	// TODO
 	// Save the anchor record to store
 	be, err := convertBlobEntryFromAnchor(a)
 	if err != nil {
@@ -65,20 +66,94 @@ func (t *tlog) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	lrb, err := a.LogRoot.MarshalBinary()
+	keys, err := t.store.Put([][]byte{b})
+	if err != nil {
+		return fmt.Errorf("store Put: %v", err)
+	}
+	if len(keys) != 1 {
+		return fmt.Errorf("wrong number of keys: got %v, want 1",
+			len(keys))
+	}
+
+	// Append anchor leaf to trillian tree
+	h, err := hex.DecodeString(be.Hash)
 	if err != nil {
 		return err
 	}
-	logRootHash := util.Hash(lrb)[:]
-	_ = logRootHash
-	_ = b
-
-	// Append anchor leaf to trillian tree
+	prefixedKey := []byte(keyPrefixAnchorRecord + keys[0])
+	queued, _, err := t.trillian.leavesAppend(a.TreeID, []*trillian.LogLeaf{
+		logLeafNew(h, prefixedKey),
+	})
+	if len(queued) != 1 {
+		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
+			len(queued))
+	}
+	failed := make([]string, 0, len(queued))
+	for _, v := range queued {
+		c := codes.Code(v.QueuedLeaf.GetStatus().GetCode())
+		if c != codes.OK {
+			failed = append(failed, fmt.Sprintf("%v", c))
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("append leaves failed: %v", failed)
+	}
 
 	log.Debugf("Saved %v anchor for tree %v at height %v",
 		t.id, a.TreeID, a.LogRoot.TreeSize)
 
 	return nil
+}
+
+// anchorLatest returns the most recent anchor for the provided tree. A
+// errAnchorNotFound is returned if no anchor is found for the provided tree.
+func (t *tlog) anchorLatest(treeID int64) (*anchor, error) {
+	// Get tree leaves
+	leavesAll, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+
+	// Find the most recent anchor leaf
+	var key string
+	for i := len(leavesAll) - 1; i >= 0; i-- {
+		if leafIsAnchor(leavesAll[i]) {
+			// Extract key-value store key
+			key, err = extractKeyFromLeaf(leavesAll[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if key == "" {
+		return nil, errAnchorNotFound
+	}
+
+	// Pull blob from key-value store
+	blobs, err := t.store.Get([]string{key})
+	if err != nil {
+		return nil, fmt.Errorf("store Get: %v", err)
+	}
+	if len(blobs) != 1 {
+		return nil, fmt.Errorf("unexpected blobs count: got %v, want 1",
+			len(blobs))
+	}
+
+	// Decode freeze record
+	b, ok := blobs[key]
+	if !ok {
+		return nil, fmt.Errorf("blob not found %v", key)
+	}
+	be, err := store.Deblob(b)
+	if err != nil {
+		return nil, err
+	}
+	a, err := convertAnchorFromBlobEntry(*be)
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
 }
 
 // anchorWait waits for the anchor to drop. The anchor is not considered
@@ -150,6 +225,7 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 				retry = true
 				break
 			}
+
 			// Transaction will be populated once the tx has been sent,
 			// otherwise is will be a zeroed out SHA256 digest.
 			b := make([]byte, sha256.Size)
@@ -158,6 +234,7 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 				retry = true
 				break
 			}
+
 			// ChainTimestamp will be populated once the tx has 6
 			// confirmations.
 			if v.ChainInformation.ChainTimestamp == 0 {
@@ -239,21 +316,48 @@ func (t *tlog) anchor() {
 	// key-value store.
 	anchors := make([]anchor, 0, len(trees))
 
-	// Find the trees that need to be anchored
+	// Find the trees that need to be anchored. This is done by pulling
+	// the most recent anchor from the tree and checking the anchored
+	// tree height against the current tree height. We cannot rely on
+	// the anchored being the last leaf in the tree since new leaves
+	// can be added while the anchor is waiting to be dropped.
 	for _, v := range trees {
-		// TODO this needs to pull the anchor record from the store and
-		// check the anchor tree height against the current tree height
+		// Get latest anchor
+		a, err := t.anchorLatest(v.TreeId)
+		switch {
+		case err == errAnchorNotFound:
+			// Tree has not been anchored yet. Verify that the tree has
+			// leaves. A tree with no leaves does not need to be anchored.
+			leavesAll, err := t.trillian.leavesAll(v.TreeId)
+			if err != nil {
+				exitErr = fmt.Errorf("leavesAll: %v", err)
+				return
+			}
+			if len(leavesAll) == 0 {
+				// Tree does not have any leaves. Nothing to do.
+				continue
+			}
 
-		// Check if the last leaf is an anchor record
-		l, err := t.lastLeaf(v.TreeId)
-		if err != nil {
-			exitErr = fmt.Errorf("lastLeaf %v: %v", v.TreeId, err)
+		case err != nil:
+			// All other errors
+			exitErr = fmt.Errorf("anchorLatest %v: %v", v.TreeId, err)
 			return
-		}
-		if leafIsAnchorRecord(l) {
-			// Tree has already been anchored at the current height. Check
-			// the next one.
-			continue
+
+		default:
+			// Anchor record found. If the anchor height differs from the
+			// current height than the tree needs to be anchored.
+			_, lr, err := t.trillian.signedLogRootForTree(v)
+			if err != nil {
+				exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
+				return
+			}
+			// Subtract one from the current height to account for the
+			// anchor leaf.
+			if a.LogRoot.TreeSize == lr.TreeSize-1 {
+				// Tree has already been anchored at this height. Nothing to
+				// do.
+				continue
+			}
 		}
 
 		// Tree has not been anchored at current height. Add it to the

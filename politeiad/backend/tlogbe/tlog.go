@@ -68,18 +68,20 @@ var (
 	// errTreeIsFrozen is emitted when a frozen tree is attempted to be
 	// altered.
 	errTreeIsFrozen = errors.New("tree is frozen")
+
+	// errAnchorNotFound is emitted when a anchor is not found in a
+	// tree.
+	errAnchorNotFound = errors.New("anchor not found")
 )
 
 // We do not unwind.
 type tlog struct {
 	sync.Mutex
-	// TODO shutdown      bool
 	id            string
-	dataDir       string
+	dcrtimeHost   string
 	encryptionKey *encryptionKey
 	trillian      *trillianClient
-	store         store.Blob_
-	dcrtimeHost   string
+	store         store.Blob
 	cron          *cron.Cron
 
 	// droppingAnchor indicates whether tlog is in the process of
@@ -140,10 +142,15 @@ func blobIsEncrypted(b []byte) bool {
 }
 
 // treeIsFrozen deterimes if the tree is frozen given the full list of the
-// tree's leaves. A tree is considered frozen if the last leaf on the tree
-// corresponds to a freeze record.
+// tree's leaves. A tree is considered frozen if the tree contains a freeze
+// record leaf.
 func treeIsFrozen(leaves []*trillian.LogLeaf) bool {
-	return leafIsFreezeRecord(leaves[len(leaves)-1])
+	for i := len(leaves) - 1; i >= 0; i-- {
+		if leafIsFreezeRecord(leaves[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 func leafIsRecordIndex(l *trillian.LogLeaf) bool {
@@ -158,7 +165,7 @@ func leafIsFreezeRecord(l *trillian.LogLeaf) bool {
 	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixFreezeRecord))
 }
 
-func leafIsAnchorRecord(l *trillian.LogLeaf) bool {
+func leafIsAnchor(l *trillian.LogLeaf) bool {
 	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixAnchorRecord))
 }
 
@@ -348,6 +355,44 @@ func convertRecordIndexFromBlobEntry(be store.BlobEntry) (*recordIndex, error) {
 	return &ri, nil
 }
 
+func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorAnchor {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorAnchor)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	hash, err := hex.DecodeString(be.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("decode hash: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), hash) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), hash)
+	}
+	var a anchor
+	err = json.Unmarshal(b, &a)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal freezeRecord: %v", err)
+	}
+
+	return &a, nil
+}
+
 func (t *tlog) treeNew() (int64, error) {
 	tree, _, err := t.trillian.treeNew()
 	if err != nil {
@@ -368,19 +413,13 @@ type freezeRecord struct {
 	TreeID int64 `json:"treeid,omitempty"`
 }
 
-// treeFreeze freezes the trillian tree for the provided token. Once a tree
-// has been frozen it is no longer able to be appended to. The last leaf in a
-// frozen tree will correspond to a freeze record in the key-value store. A
-// tree is frozen when the status of the corresponding record is updated to a
-// status that locks the record, such as when a record is censored.
-//
-// It's possible for this function to fail in between the append leaves call
-// and the call that updates the tree status to frozen. If this happens the
-// freeze record will still be the last leaf on the tree but the tree state
-// will not be frozen. The tree is still considered frozen and no new leaves
-// should be appended to it. The tree state will be updated in the next fsck.
-// Functions that append new leaves onto the tree MUST ensure that the last
-// leaf does not contain a freeze record.
+// treeFreeze updates the status of a record and freezes the trillian tree as a
+// result of a record status change. Once a freeze record has been appended
+// onto the tree the tlog backend considers the tree to be frozen. The only
+// thing that can be appended onto a frozen tree is one additional anchor
+// record. Once a frozen tree has been anchored, the tlog fsck function will
+// update the status of the tree to frozen in trillian, at which point trillian
+// will not allow any additional leaves to be appended onto the tree.
 func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, fr freezeRecord) error {
 	// Get tree leaves
 	leavesAll, err := t.trillian.leavesAll(treeID)
@@ -504,12 +543,6 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return fmt.Errorf("append leaves failed: %v", failed)
 	}
 
-	// Update tree status to frozen
-	_, err = t.trillian.treeFreeze(treeID)
-	if err != nil {
-		return fmt.Errorf("treeFreeze: %v", err)
-	}
-
 	return nil
 }
 
@@ -534,6 +567,7 @@ func (t *tlog) lastLeaf(treeID int64) (*trillian.LogLeaf, error) {
 	return leaves[0], nil
 }
 
+// TODO the last leaf will be a anchor
 // freeze record returns the freeze record of the provided tree if one exists.
 // If one does not exists a errFreezeRecordNotFound error is returned.
 func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
@@ -1397,10 +1431,19 @@ func (t *tlog) recordLatest(treeID int64) (*backend.Record, error) {
 	return t.recordVersion(treeID, 0)
 }
 
+// TODO implement recordProof
 func (t *tlog) recordProof(treeID int64, version uint32) {}
 
+// TODO run fsck episodically
 func (t *tlog) fsck() {
-	// Failed freeze
+	/*
+		// Freeze any trees with a freeze record
+		_, err = t.trillian.treeFreeze(treeID)
+		if err != nil {
+			return fmt.Errorf("treeFreeze: %v", err)
+		}
+	*/
+
 	// Failed censor
 }
 
@@ -1415,6 +1458,25 @@ func (t *tlog) close() {
 	}
 }
 
-func tlogNew() (*tlog, error) {
-	return &tlog{}, nil
+func newTlog(id, trillianHost, trillianKeyFile, dcrtimeHost string, key *encryptionKey, store store.Blob) (*tlog, error) {
+	// Setup trillian client
+	tclient, err := newTrillianClient(homeDir, trillianHost, trillianKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Launch cron
+	log.Infof("Launch cron anchor job: %v", id)
+	c := cron.New()
+	err = cron.AddFunc(anchorSchedule, func() {
+		// t.anchorTrees()
+	})
+	if err != nil {
+		return nil, err
+	}
+	cron.Start()
+
+	return &tlog{
+		id: id,
+	}, nil
 }

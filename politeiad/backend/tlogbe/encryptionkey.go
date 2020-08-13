@@ -13,7 +13,7 @@ import (
 
 // encryptionKey provides an API for encrypting and decrypting data. The
 // encryption key is zero'd out on application exit so the lock must be held
-// anytime the key is accessed in order to prevent the goland race detector
+// anytime the key is accessed in order to prevent the golang race detector
 // from complaining.
 type encryptionKey struct {
 	sync.RWMutex
@@ -49,7 +49,7 @@ func (e *encryptionKey) Zero() {
 	e.key = nil
 }
 
-func encryptionKeyNew(key *[32]byte) *encryptionKey {
+func newEncryptionKey(key *[32]byte) *encryptionKey {
 	return &encryptionKey{
 		key: key,
 	}
