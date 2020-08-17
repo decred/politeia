@@ -676,6 +676,16 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
+					if lineInput.SubRate != 0 {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
+						}
+					}
+					if lineInput.SubUserID != "" {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
+						}
+					}
 				case cms.LineItemTypeExpense:
 					fallthrough
 				case cms.LineItemTypeMisc:
