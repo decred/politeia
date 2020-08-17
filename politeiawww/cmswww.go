@@ -1016,11 +1016,11 @@ func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
-// makePropsoalsRequestCached passes a request to makeProposalsRequest
-// and caches a valid result.  It takes the same inputs as
-// makeProposalsRequest plus a time parsed string "cachetime"
-// which determines how long a response is cached.
-func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v interface{}, cachetime string) ([]byte, error) {
+// makePropsoalsRequestCached takes the same inputs as makeProposalsRequest
+// plus a time parsed string "cacheTime" that determines how long a response is
+// cached. This function is only to be used if the data being processed is not
+// time sensitive.
+func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v interface{}, cacheTime string) ([]byte, error) {
 	var (
 		requestBody []byte
 		err         error
@@ -1038,11 +1038,11 @@ func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v 
 		dest = cms.ProposalsTestnet
 	}
 
-	// Set cache_route and pass route to makeProposalsRequest
-	cache_route := dest + "/api/v1" + route
+	// Set cacheRoute and pass route to makeProposalsRequest
+	cacheRoute := dest + "/api/v1" + route
 
 	// Check cache and return if found.
-	content := p.memorycache.get(cache_route + string(requestBody))
+	content := p.memorycache.get(cacheRoute + string(requestBody))
 	if content != nil {
 		return content, nil
 	}
@@ -1051,7 +1051,7 @@ func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v 
 
 	// Set cache if no errors.
 	if err == nil {
-		p.memorycache.set(cache_route+string(requestBody), response, cachetime)
+		p.memorycache.set(cacheRoute+string(requestBody), response, cacheTime)
 	}
 	return response, err
 
