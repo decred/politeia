@@ -183,6 +183,7 @@ const (
 	// summaries returned for the routes that return lists of proposal billing
 	// summaries.
 	ProposalBillingListPageSize = 50
+
 	// InvoiceListPageSize is the maximum number of invoices returned
 	// for routes that return lists of invoices
 	InvoiceListPageSize = 20
