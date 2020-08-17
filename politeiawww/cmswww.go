@@ -1016,9 +1016,10 @@ func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
-// makePropsoalsRequestCached passes a request to makeProposalsRequest and caches a valid result. It takes the same inputs as
-// makeProposalsRequest plus a time parsed string "cachetime" which determines how long a response is cached.
-
+// makePropsoalsRequestCached passes a request to makeProposalsRequest
+// and caches a valid result.  It takes the same inputs as
+// makeProposalsRequest plus a time parsed string "cachetime"
+// which determines how long a response is cached.
 func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v interface{}, cachetime string) ([]byte, error) {
 	var (
 		requestBody []byte
@@ -1037,7 +1038,7 @@ func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v 
 		dest = cms.ProposalsTestnet
 	}
 
-	// Store in cache_route as to not messup the route being passed to makeProposalsRequest.
+	// Set cache_route and pass route to makeProposalsRequest
 	cache_route := dest + "/api/v1" + route
 
 	// Check cache and return if found.

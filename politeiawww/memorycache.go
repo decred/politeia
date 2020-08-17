@@ -34,8 +34,8 @@ func (p *politeiawww) newStorage() *storage {
 
 // get a cached content by key.
 func (s *storage) get(key string) []byte {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 
 	item := s.items[key]
 	if item.expired() {
@@ -47,8 +47,8 @@ func (s *storage) get(key string) []byte {
 
 // set a cached content by key.
 func (s *storage) set(key string, content []byte, duration string) {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 
 	d, _ := time.ParseDuration(duration)
 
