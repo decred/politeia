@@ -184,10 +184,6 @@ const (
 	// summaries.
 	ProposalBillingListPageSize = 50
 
-	// InvoiceListPageSize is the maximum number of invoices returned
-	// for routes that return lists of invoices
-	InvoiceListPageSize = 20
-
 	// InvoiceListPageSize is the maximum number of invoices returned by the
 	// Invoices request, the date range should just be updated to return them
 	// all.
