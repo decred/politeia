@@ -310,7 +310,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	// Validate Category
 	if pm.Category != "" {
 		ok := false
-		for _, c := range www.PolicyProposalCategories {
+		for _, c := range p.cfg.ProposalCategories {
 			if c == pm.Category {
 				ok = true
 			}

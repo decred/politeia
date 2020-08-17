@@ -79,11 +79,18 @@ const (
 )
 
 var (
-	defaultHTTPSKeyFile  = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
-	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
-	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
-	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
-	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+	defaultHTTPSKeyFile       = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
+	defaultHTTPSCertFile      = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
+	defaultRPCCertFile        = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
+	defaultCookieKeyFile      = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
+	defaultLogDir             = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+	defaultProposalCategories = []string{
+		"development",
+		"marketing",
+		"research",
+		"design",
+		"documentation",
+	}
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -142,6 +149,7 @@ type config struct {
 	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
 	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
 	SystemCerts              *x509.CertPool
+	ProposalCategories       []string `long:"proposalcategories" description:"Available proposal categories (comma-separated)"`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -854,6 +862,13 @@ func loadConfig() (*config, []string, error) {
 		if cfg.SMTPSkipVerify {
 			log.Warnf("SMTPCert has been set so SMTPSkipVerify is being disregarded.")
 		}
+	}
+
+	// Parse comma-separated proposal categories
+	if len(cfg.ProposalCategories) != 0 {
+		cfg.ProposalCategories = strings.Split(cfg.ProposalCategories[0], ",")
+	} else {
+		cfg.ProposalCategories = defaultProposalCategories
 	}
 
 	return &cfg, remainingArgs, nil

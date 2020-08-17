@@ -300,16 +300,6 @@ var (
 	PolicyUsernameSupportedChars = []string{
 		"a-z", "0-9", ".", ",", ":", ";", "-", "@", "+", "(", ")", "_"}
 
-	// PolicyProposalCategories describes the valid categories a user can define
-	// for a proposal
-	PolicyProposalCategories = []string{
-		"development",
-		"marketing",
-		"research",
-		"design",
-		"documentation",
-	}
-
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
