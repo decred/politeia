@@ -109,7 +109,7 @@ You can also use the following default configurations:
     cacherootcert="~/.cockroachdb/certs/clients/politeiad/ca.crt"
     cachecert="~/.cockroachdb/certs/clients/politeiad/client.politeiad.crt"
     cachekey="~/.cockroachdb/certs/clients/politeiad/client.politeiad.key"
-    # In case you are running PostgresSQL:
+    # In case you are running PostgreSQL:
     # cachehost=localhost:5432
     # cacherootcert="~/.postgresql/certs/clients/politeiad/root.crt"
     # cachecert="~/.postgresql/certs/clients/politeiad/client.politeiad.crt"
@@ -130,7 +130,7 @@ You can also use the following default configurations:
     dbrootcert="~/.cockroachdb/certs/clients/politeiawww/ca.crt"
     dbcert="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
     dbkey="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
-    # In case you are running PostgresSQL:
+    # In case you are running PostgreSQL:
     # cachehost=localhost:5432
     # cacherootcert="~/.postgresql/certs/clients/politeiawww/root.crt"
     # cachecert="~/.postgresql/certs/clients/politeiawww/client.politeiawww.crt"
@@ -238,13 +238,13 @@ manually you can do so by opening a sql shell.
       --certs-dir=${HOME}/.cockroachdb/certs/clients/root \
       --host localhost
 
-#### 4a. Setup PostgresSQL databasee
+#### 4a. Setup PostgreSQL databasee
 
-Install PostgresSQL using the instructions found in the [PostgresSQL
+Install PostgreSQL using the instructions found in the [PostgreSQL
 Documentation](https://www.postgresql.org/download/macosx/).
 
-Run the following commands to create the PostgresSQL certificates required for
-running PostgresSQL with Politeia.
+Run the following commands to create the PostgreSQL certificates required for
+running PostgreSQL with Politeia.
 
     cd $GOPATH/src/github.com/decred/politeia
     ./scripts/postgres/postgrescerts.sh
@@ -268,11 +268,11 @@ The script creates following certificates and directories.
                  └── client.politeiawww.key
 
 In addition, it creates and copies server.key, server.crt & root.crt to postgres'
-data dir as  discribed in PostgresSQL ssl connection documentation, it uses 
+data dir as  discribed in PostgreSQL ssl connection documentation, it uses 
 environment variable $PGDATA as postgres' data dir & it restarts postgres
 server in order to load created certs.
 
-These are the certificates required to run a PostgresSQL node locally. This
+These are the certificates required to run a PostgreSQL node locally. This
 includes creating a CA certificate, a server certificate, and client certificates
 for the politeiad user, and politeiawww user. Each client directory contains all 
 of the certificates required to connect to the database with that user, 
@@ -293,7 +293,7 @@ Type "help" for help.
 postgres=> 
 ```
 
-Once PostgresSQL is restarted and cert are loaded, you can setup the cache databases using the
+Once PostgreSQL is restarted and cert are loaded, you can setup the cache databases using the
 commands below.
 
     cd $GOPATH/src/github.com/decred/politeia

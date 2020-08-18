@@ -3,12 +3,16 @@
 # locally. This includes creating a CA certificate, a node certificate, one 
 # root client to connect via cli, and two more client certificates the first
 # for politeiad, the second for politeiawww.
-# NOTE: this scripts creates and copies over the server files (server.crt, 
+#
+# NOTE: this script creates and copies over the server files (server.crt, 
 # server.key & root.crt) to postgres' data dir, is uses $PGDATA environment
 # variable to determine where to copy the files to, make sure it's exported
 # before running the script.
 # when done creating & moving certs this script restarts postgres server
 # in order to load created server certs.
+#
+# NOTE: this script requires 'openssl' to be installed, as shown in PostgreSQL
+# documentation.
 #
 # More information on PostgreSQL ssl connection usage can be found at:
 # https://www.postgresql.org/docs/9.5/ssl-tcp.html
@@ -72,7 +76,7 @@ openssl \
     -out server.crt
 
 # Copy server.key, server.crt & root.crt to postgres' data dir as discribed in
-# PostgresSQL ssl connection documentation, it uses environment variable PGDATA
+# PostgreSQL ssl connection documentation, it uses environment variable PGDATA
 # as postgres' data dir
 echo "Copying server.key server.crt root.crt to $PGDATA as postgres sys user"
 sudo -u postgres cp server.key server.crt root.crt $PGDATA
@@ -169,7 +173,7 @@ cp client.${USER_POLITEIAWWW}.key client.${USER_POLITEIAWWW}.crt root.crt \
 
 # "On Unix systems, the permissions on 
 # server.key must disallow any access to world or group"
-# Source: PostgresSQL docs - link above
+# Source: PostgreSQL docs - link above
 #
 sudo chmod og-rwx $PGDATA/server.key
 sudo chmod og-rwx $POSTGRES_DIR/certs/clients/${USER_POLITEIAWWW}/client.${USER_POLITEIAWWW}.key

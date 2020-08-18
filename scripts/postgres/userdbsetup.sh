@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# This script sets up the PostgresSQL databases for the politeiawww user data
+# This script sets up the PostgreSQL databases for the politeiawww user data
 # and assigns user privileges.
-# This script requires that you have already created PostgresSQL certificates
-# using the postgrescerts.sh script and that you have a PostgresSQL instance
+# This script requires that you have already created PostgreSQL certificates
+# using the postgrescerts.sh script and that you have a PostgreSQL instance
 # listening on the default port localhost:5432.
 
 set -ex

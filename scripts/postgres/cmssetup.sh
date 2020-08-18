@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# This script sets up the PostgresSQL databases and assigns user privileges.
-# This script requires that you have already created PostgresSQL certificates
+# This script sets up the PostgreSQL databases and assigns user privileges.
+# This script requires that you have already created PostgreSQL certificates
 # using the postgrescerts.sh script and that you have a CockroachDB instance
 # listening on the default port localhost:5432.
 
