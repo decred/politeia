@@ -1019,7 +1019,7 @@ func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *htt
 // makePropsoalsRequestCached takes the same inputs as makeProposalsRequest
 // plus a time parsed string "cacheTime" that determines how long a response is
 // cached. This function is only to be used if the data being processed is not
-// time sensitive.
+// time sensitive and not user specific.
 func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v interface{}, cacheTime string) ([]byte, error) {
 	var (
 		requestBody []byte

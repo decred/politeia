@@ -1,3 +1,9 @@
+// Copyright (c) 2017-2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+// Copyright (c) 2017 Guilherme Oenning
+// https://github.com/goenning/go-cache-demo/blob/master/LICENSE
+
 package main
 
 import (
