@@ -27,6 +27,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 const (
@@ -1363,11 +1364,14 @@ func (p *politeiawww) getInvoices(tokens []string) (map[string]cms.InvoiceRecord
 	invoices := make(map[string]cms.InvoiceRecord)
 
 	for _, t := range tokens {
-		r, err := p.cache.Record(t)
+		r, err := p.cmsDB.InvoiceByToken(t)
 		if err != nil {
 			return nil, err
 		}
-		i := convertInvoiceFromCache(*r)
+		i, err := convertDatabaseInvoiceToInvoiceRecord(*r)
+		if err != nil {
+			return nil, err
+		}
 
 		// Fill in userID and username fields
 		u, err := p.db.UserGetByPubKey(i.PublicKey)
@@ -1826,37 +1830,27 @@ func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.Use
 // separated by its status and filtered by the provided timestampMin and timestampMax
 // request parameters.
 func (p *politeiawww) processInvoiceTokenInventory(iti cms.InvoiceTokenInventory, user *user.User) (*cms.InvoiceTokenInventoryReply, error) {
-	inv, err := p.cache.Inventory()
+	invoicesAll, err := p.cmsDB.InvoicesAll()
 	if err != nil {
 		return nil, fmt.Errorf("backend inventory: %v", err)
 	}
 
 	isAdmin := user != nil && user.Admin
 
-	// Fetch all invoices from the cache
-	invoices := make([]database.Invoice, 0, len(inv))
-	for _, i := range inv {
-		for _, md := range i.Metadata {
-			if md.ID == mdstream.IDInvoiceGeneral {
-				// Convert invoice and fetch author by pubkey
-				i, err := convertCacheToDatabaseInvoice(i)
-				if err != nil {
-					return nil, err
-				}
-				u, err := p.db.UserGetByPubKey(i.PublicKey)
-				if err != nil {
-					return nil, err
-				}
-				// Check if user is admin or invoice author
-				if isAdmin || u.ID == user.ID {
-					invoices = append(invoices, *i)
-				}
-			}
+	// Filter available invoices for the user
+	invoices := make([]database.Invoice, 0, len(invoicesAll))
+	for _, i := range invoicesAll {
+		userid, err := uuid.Parse(i.UserID)
+		if err != nil {
+			return nil, err
+		}
+		if isAdmin || userid == user.ID {
+			invoices = append(invoices, i)
 		}
 	}
 
 	// Filter by timestamp min and timestamp max
-	invoicesByTimestamp := make([]database.Invoice, 0, len(inv))
+	invoicesByTimestamp := make([]database.Invoice, 0, len(invoices))
 	for _, i := range invoices {
 		maxLimitReached := iti.TimestampMax != 0 && i.Timestamp > iti.TimestampMax
 		minLimitReached := iti.TimestampMin != 0 && i.Timestamp < iti.TimestampMin
@@ -1867,12 +1861,12 @@ func (p *politeiawww) processInvoiceTokenInventory(iti cms.InvoiceTokenInventory
 	}
 
 	// Sort invoices by its status
-	unreviewed := make([]string, 0, len(inv))
-	updated := make([]string, 0, len(inv))
-	disputed := make([]string, 0, len(inv))
-	approved := make([]string, 0, len(inv))
-	paid := make([]string, 0, len(inv))
-	rejected := make([]string, 0, len(inv))
+	unreviewed := make([]string, 0, len(invoices))
+	updated := make([]string, 0, len(invoices))
+	disputed := make([]string, 0, len(invoices))
+	approved := make([]string, 0, len(invoices))
+	paid := make([]string, 0, len(invoices))
+	rejected := make([]string, 0, len(invoices))
 
 	for _, i := range invoicesByTimestamp {
 		switch i.Status {
