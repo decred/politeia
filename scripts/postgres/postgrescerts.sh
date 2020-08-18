@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # This script creates the certificates required to run a PostgreSQL node
 # locally. This includes creating a CA certificate, a node certificate, one 
 # root client to connect via cli, and two more client certificates the first

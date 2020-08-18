@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # This script sets up the CockroachDB databases for the politeiad cache and
 # assigns user privileges.
 # This script requires that you have already created CockroachDB certificates
