@@ -34,6 +34,9 @@ mkdir -p "${POSTGRES_DIR}/certs/clients/root"
 mkdir -p "${POSTGRES_DIR}/certs/clients/${USER_POLITEIAD}"
 mkdir -p "${POSTGRES_DIR}/certs/clients/${USER_POLITEIAWWW}"
 
+# Nviagate to postgres dir
+cd ${POSTGRES_DIR}
+
 # Create a CA private key
 echo "Generating root.key, please type a password:"
 openssl genrsa -des3 -out root.key 4096
