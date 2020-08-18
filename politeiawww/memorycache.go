@@ -50,7 +50,11 @@ func (s *storage) set(key string, content []byte, duration string) {
 	s.Lock()
 	defer s.Unlock()
 
-	d, _ := time.ParseDuration(duration)
+	d, err := time.ParseDuration(duration)
+	if err != nil {
+		log.Errorf("Memorycache set: %v", err)
+		return
+	}
 
 	s.items[key] = item{
 		Content:    content,
