@@ -10,7 +10,7 @@ set -ex
 # COCKROACHDB_DIR must be the same directory that was used with the
 # cockroachcerts.sh script.
 COCKROACHDB_DIR=$1
-if [ "${COCKROACHDB_DIR}" == "" ]; then
+if [ "${COCKROACHDB_DIR}" = "" ]; then
   COCKROACHDB_DIR="${HOME}/.cockroachdb"
 fi
 

@@ -15,7 +15,7 @@ readonly USER_POLITEIAWWW="politeiawww"
 
 # COCKROACHDB_DIR is where all of the certificates will be created.
 COCKROACHDB_DIR=$1
-if [ "${COCKROACHDB_DIR}" == "" ]; then
+if [ "${COCKROACHDB_DIR}" = "" ]; then
   COCKROACHDB_DIR="${HOME}/.cockroachdb"
 fi
 

@@ -25,7 +25,7 @@ readonly USER_POLITEIAWWW="politeiawww"
 
 # POSTGRES_DIR is where all of the certificates will be created.
 POSTGRES_DIR=$1
-if [ "${POSTGRES_DIR}" == "" ]; then
+if [ "${POSTGRES_DIR}" = "" ]; then
   POSTGRES_DIR="${HOME}/.postgresql"
 fi
 
@@ -39,10 +39,10 @@ cd ${POSTGRES_DIR}
 
 # Create a CA private key
 echo "Generating root.key, please type a password:"
-openssl genrsa -des3 -out root.key 4096
+openssl genrsa -des3 -passout pass:abcd -out root.key 4096
 # Remove passphrase
 echo "Removing root.key password, please re-type it:"
-openssl rsa -in root.key -out root.key -passout pass:123
+openssl rsa -passin pass:abcd -in root.key -out root.key
 
 # Create a root Certificate Authority (CA)
 openssl \
@@ -54,10 +54,10 @@ openssl \
 
 # Create server key
 echo "Generating server.key, please type a password:"
-openssl genrsa -des3 -out server.key 4096 -passout pass:123
+openssl genrsa -des3  -passout pass:abcd -out server.key 4096
 #Remove a passphrase
 echo "Removing server.key password, please re-type it:"
-openssl rsa -in server.key -out server.key -passout pass:123
+openssl rsa -passin pass:abcd -in server.key -out server.key
 
 # Create a root certificate signing request
 openssl \
@@ -85,9 +85,9 @@ echo "Copying server.key server.crt root.crt to $PGDATA as postgres sys user"
 sudo -u postgres cp server.key server.crt root.crt $PGDATA
 
 # Create root client key - used to connect via cli
-openssl genrsa -out client.root.key 4096
+openssl genrsa -passout pass:abcd -out client.root.key 4096
 # Remove passphrase
-openssl rsa -in client.root.key -out client.root.key
+openssl rsa -passin pass:abcd  -in client.root.key -out client.root.key
 
 chmod og-rwx client.root.key
 
@@ -115,9 +115,9 @@ cp client.root.key client.root.crt root.crt \
   ${POSTGRES_DIR}/certs/clients/root
 
 # Create client key for politeiad
-openssl genrsa -out client.${USER_POLITEIAD}.key 4096
+openssl genrsa -passout pass:abcd  -out client.${USER_POLITEIAD}.key 4096
 # Remove passphrase
-openssl rsa -in client.${USER_POLITEIAD}.key -out client.${USER_POLITEIAD}.key
+openssl rsa -passin pass:abcd  -in client.${USER_POLITEIAD}.key -out client.${USER_POLITEIAD}.key
 
 chmod og-rwx client.${USER_POLITEIAD}.key
 
@@ -145,9 +145,9 @@ cp client.${USER_POLITEIAD}.key client.${USER_POLITEIAD}.crt root.crt \
   ${POSTGRES_DIR}/certs/clients/${USER_POLITEIAD}
     
 # Create client key for politeiawww
-openssl genrsa -out client.${USER_POLITEIAWWW}.key 4096
+openssl genrsa -passout pass:abcd -out client.${USER_POLITEIAWWW}.key 4096
 # Remove a passphrase
-openssl rsa -in client.${USER_POLITEIAWWW}.key -out client.${USER_POLITEIAWWW}.key
+openssl rsa -passin pass:abcd -in client.${USER_POLITEIAWWW}.key -out client.${USER_POLITEIAWWW}.key
 
 chmod og-rwx client.${USER_POLITEIAWWW}.key
 

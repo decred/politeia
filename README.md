@@ -241,10 +241,13 @@ manually you can do so by opening a sql shell.
 #### 4a. Setup PostgreSQL databasee
 
 Install PostgreSQL using the instructions found in the [PostgreSQL
-Documentation](https://www.postgresql.org/download/macosx/).
+Documentation](https://www.postgresql.org/download/).
 
 Run the following commands to create the PostgreSQL certificates required for
 running PostgreSQL with Politeia.
+
+NOTE: this script requires 'openssl' to be installed, as shown in PostgreSQL
+documentation.
 
     cd $GOPATH/src/github.com/decred/politeia
     ./scripts/postgres/postgrescerts.sh

@@ -9,7 +9,7 @@ set -ex
 # POSTGRES_DIR must be the same directory that was used with the
 # cockroachcerts.sh script.
 POSTGRES_DIR=$1
-if [ "${POSTGRES_DIR}" == "" ]; then
+if [ "${POSTGRES_DIR}" = "" ]; then
   POSTGRES_DIR="${HOME}/.postgresql"
 fi
 
