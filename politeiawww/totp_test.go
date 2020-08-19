@@ -9,7 +9,6 @@ import (
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -22,7 +21,6 @@ func TestSetTOTP(t *testing.T) {
 	var tests = []struct {
 		name       string
 		body       www.SetTOTP
-		u          user.User
 		setAgain   bool
 		wantStatus int
 		wantError  error
@@ -32,7 +30,6 @@ func TestSetTOTP(t *testing.T) {
 			www.SetTOTP{
 				Type: www.TOTPTypeBasic,
 			},
-			*usr,
 			false,
 			http.StatusOK,
 			nil,
@@ -43,7 +40,6 @@ func TestSetTOTP(t *testing.T) {
 				Type: www.TOTPTypeBasic,
 				Code: "12345",
 			},
-			*usr,
 			true,
 			http.StatusBadRequest,
 			www.UserError{
@@ -56,6 +52,7 @@ func TestSetTOTP(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			// Prepare request and receive
 			r := newPostReq(t, www.RouteSetTOTP, v.body)
+			addSessionToReq(t, p, r, usr.ID.String())
 			w := httptest.NewRecorder()
 
 			p.handleSetTOTP(w, r)
@@ -83,6 +80,7 @@ func TestSetTOTP(t *testing.T) {
 			r = newPostReq(t, www.RouteVerifyTOTP, www.VerifyTOTP{
 				Code: code,
 			})
+			addSessionToReq(t, p, r, usr.ID.String())
 			w = httptest.NewRecorder()
 
 			p.handleVerifyTOTP(w, r)
@@ -90,15 +88,23 @@ func TestSetTOTP(t *testing.T) {
 			body, _ = ioutil.ReadAll(res.Body)
 			res.Body.Close()
 
-			err = json.Unmarshal(body, &gotReply)
+			var gotVerifyReply www.VerifyTOTPReply
+			err = json.Unmarshal(body, &gotVerifyReply)
 			if err != nil {
 				t.Errorf("unmarshal error with body %v", body)
+			}
+
+			// Validate http status code
+			if res.StatusCode != v.wantStatus && !v.setAgain {
+				t.Errorf("got status code %v, want %v",
+					res.StatusCode, v.wantStatus)
 			}
 
 			if v.setAgain {
 				r = newPostReq(t, www.RouteVerifyTOTP, www.VerifyTOTP{
 					Code: v.body.Code,
 				})
+				addSessionToReq(t, p, r, usr.ID.String())
 				w = httptest.NewRecorder()
 
 				p.handleVerifyTOTP(w, r)
@@ -115,6 +121,20 @@ func TestSetTOTP(t *testing.T) {
 				if res.StatusCode != v.wantStatus {
 					t.Errorf("got status code %v, want %v",
 						res.StatusCode, v.wantStatus)
+					return
+				}
+
+				var ue www.UserError
+				err := json.Unmarshal(body, &ue)
+				if err != nil {
+					t.Errorf("unmarshal UserError: %v", err)
+				}
+
+				got := errToStr(ue)
+				want := errToStr(v.wantError)
+				if got != want {
+					t.Errorf("got error %v, want %v",
+						got, want)
 				}
 			}
 		})
