@@ -22,7 +22,7 @@ func TestProcessSetTOTP(t *testing.T) {
 	alreadySetUser, _ := newUser(t, p, true, false)
 
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "politeia",
+		Issuer:      defaultPoliteiaIssuer,
 		AccountName: alreadySetUser.Username,
 	})
 	if err != nil {
@@ -118,7 +118,7 @@ func TestProcessVerifyTOTP(t *testing.T) {
 	usr, _ := newUser(t, p, true, false)
 
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "politeia",
+		Issuer:      defaultPoliteiaIssuer,
 		AccountName: usr.Username,
 	})
 	if err != nil {
