@@ -1184,6 +1184,12 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteBatchProposals, p.handlePassThroughBatchProposals,
 		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
+		permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.PoliteiaWWWAPIRoute,

@@ -90,6 +90,7 @@ type piwww struct {
 	Secret             shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
 	SetProposalStatus  SetProposalStatusCmd     `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
+	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
 	StartVote          StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a proposal"`
 	StartVoteRunoff    StartVoteRunoffCmd       `command:"startvoterunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
@@ -104,6 +105,7 @@ type piwww struct {
 	Users              shared.UsersCmd          `command:"users" description:"(public) get a list of users"`
 	VerifyUserEmail    VerifyUserEmailCmd       `command:"verifyuseremail" description:"(public) verify a user's email address"`
 	VerifyUserPayment  VerifyUserPaymentCmd     `command:"verifyuserpayment" description:"(user)   check if the logged in user has paid their user registration fee"`
+	VerifyTOTP         shared.VerifyTOTPCmd     `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	Vote               VoteCmd                  `command:"vote" description:"(public) cast votes for a proposal"`

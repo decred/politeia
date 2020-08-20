@@ -17,6 +17,7 @@ type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
 type VoteT int
+type TOTPMethodT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -47,6 +48,8 @@ const (
 	RouteUserPaymentsRescan       = "/user/payments/rescan"
 	RouteManageUser               = "/user/manage"
 	RouteEditUser                 = "/user/edit"
+	RouteSetTOTP                  = "/user/totp"
+	RouteVerifyTOTP               = "/user/verifytotp"
 	RouteUsers                    = "/users"
 	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteBatchProposals           = "/proposals/batch"
@@ -211,6 +214,8 @@ const (
 	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
 	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
+	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
+	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
 
 	// Proposal state codes
 	//
@@ -285,6 +290,10 @@ const (
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
+
+	// Time-base one time password types
+	TOTPTypeInvalid TOTPMethodT = 0 // Invalid TOTP type
+	TOTPTypeBasic   TOTPMethodT = 1
 )
 
 var (
@@ -383,6 +392,8 @@ var (
 		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
 		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
 		ErrorStatusWrongProposalType:           "wrong proposal type",
+		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
+		ErrorStatusTOTPInvalidType:             "invalid totp type",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -1361,4 +1372,35 @@ type WSSubscribe struct {
 // WSPing is a server side push to the client to see if it is still alive.
 type WSPing struct {
 	Timestamp int64 `json:"timestamp"` // Server side timestamp
+}
+
+// SetTOTP attempts to set a TOTP key for the chosen TOTP type (Basic/UFI2 etc).
+// When the user issues this request, the server generates a new key pair for
+// them and returns the key/image that will allow them to save it to their
+// TOTP app of choice.  The server saves the generated TOTP secret in the
+// userdb user information blob.
+// If the user already has a TOTP set, they must also add a code generated from
+// the currently set secret.
+type SetTOTP struct {
+	Type TOTPMethodT `json:"type"`
+	Code string      `json:"code"`
+}
+
+// SetTOTPReply returns the generated key and image that are used to add
+// the key pair to the TOTP app of choice.
+type SetTOTPReply struct {
+	Key   string `json:"key"`
+	Image string `json:"image"` // Base64 encoded PNG
+}
+
+// VerifyTOTP must be used by a user before their TOTP is ready to use.  Once
+// receiving the key/image from SetTOTP they can add it to their TOTP app.
+// Upon adding it to their TOTP app, they can generate new TOTP codes at will.
+type VerifyTOTP struct {
+	Code string `json:"code"`
+}
+
+// VerifyTOTPReply will return an empty reply if it was successfully confirmed
+// with no errors.
+type VerifyTOTPReply struct {
 }
