@@ -266,6 +266,8 @@ The go tool will process the source code and automatically download
 dependencies. If the dependencies are configured correctly, there will be no
 modifications to the `go.mod` and `go.sum` files.
 
+**Note:** Building go program creates executable at `~/go/bin` if you are building outside of `GOPATH`
+
 #### 6. Start the politeiad server by running on your terminal:
 
     politeiad
