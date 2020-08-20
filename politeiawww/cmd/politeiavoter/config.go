@@ -454,8 +454,8 @@ func loadConfig() (*config, []string, error) {
 
 	if !cfg.BypassProxyCheck {
 		if cfg.Trickle && cfg.Proxy == "" {
-			return nil, nil, fmt.Errorf("cannot use --voteduration " +
-				"without --trickle")
+			return nil, nil, fmt.Errorf("cannot use --trickle " +
+				"without --proxy")
 		}
 	}
 
