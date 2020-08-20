@@ -1348,9 +1348,6 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vtr)
 }
 
-// handleQiesce toggles qiesce mode
-func (p *politeiawww) handleQiesce(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleQiesce")
 // handleQuiesce toggles quiesce mode
 func (p *politeiawww) handleQuiesce(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleQuiesce")
