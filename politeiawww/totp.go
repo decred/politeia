@@ -14,6 +14,11 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
+const (
+	defaultPoliteiaIssuer = "politeia"
+	defaultCMSIssuer      = "cms"
+)
+
 var (
 	validTOTPTypes = map[www.TOTPMethodT]bool{
 		www.TOTPTypeBasic: true,
@@ -41,9 +46,9 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 		}
 	}
 
-	issuer := "politeia"
-	if p.cfg.Mode == "cmswww" {
-		issuer = "cms"
+	issuer := defaultPoliteiaIssuer
+	if p.cfg.Mode == cmsWWWMode {
+		issuer = defaultCMSIssuer
 	}
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      issuer,
