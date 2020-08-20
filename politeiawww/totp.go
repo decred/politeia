@@ -34,6 +34,13 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 		}
 	}
 
+	// Validate TOTP type that was selected.
+	if _, ok := validTOTPTypes[st.Type]; !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusTOTPInvalidType,
+		}
+	}
+
 	issuer := "politeia"
 	if p.cfg.Mode == "cmswww" {
 		issuer = "cms"
@@ -52,15 +59,6 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 		return nil, err
 	}
 	png.Encode(&buf, img)
-
-	// Validate TOTP type that was selected.
-	if _, ok := validTOTPTypes[st.Type]; !ok {
-		if err != nil {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			}
-		}
-	}
 
 	u.TOTPType = int(st.Type)
 	u.TOTPSecret = key.Secret()

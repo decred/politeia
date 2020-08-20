@@ -215,6 +215,7 @@ const (
 	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
+	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
 
 	// Proposal state codes
 	//
@@ -392,6 +393,7 @@ var (
 		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
 		ErrorStatusWrongProposalType:           "wrong proposal type",
 		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
+		ErrorStatusTOTPInvalidType:             "invalid totp type",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

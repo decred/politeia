@@ -15,14 +15,25 @@ func TestProcessSetTOTP(t *testing.T) {
 	usr, _ := newUser(t, p, true, false)
 
 	var tests = []struct {
-		name   string
-		params www.SetTOTP
+		name      string
+		params    www.SetTOTP
+		wantError error
 	}{
+		{
+			"error wrong type",
+			www.SetTOTP{
+				Type: www.TOTPTypeInvalid,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPInvalidType,
+			},
+		},
 		{
 			"success",
 			www.SetTOTP{
 				Type: www.TOTPTypeBasic,
 			},
+			nil,
 		},
 	}
 
@@ -30,7 +41,12 @@ func TestProcessSetTOTP(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			reply, err := p.processSetTOTP(v.params, usr)
 			if err != nil {
-				t.Errorf("unable to set totp %v", err)
+				got := errToStr(err)
+				want := errToStr(v.wantError)
+				if got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
+				return
 			}
 			userInfo, err := p.userByIDStr(usr.ID.String())
 			if err != nil {

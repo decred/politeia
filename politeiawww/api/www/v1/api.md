@@ -2798,6 +2798,7 @@ Reply:
 | <a name="ErrorStatusInvalidRunoffVote">ErrorStatusInvalidRunoffVote</a> | 75 | Invalid runoff vote. |
 | <a name="ErrorStatusWrongProposalType">ErrorStatusWrongProposalType</a> | 76 | Wrong proposal type. |
 | <a name="ErrorStatusTOTPFailedValidation">ErrorStatusTOTPFailedValidation</a> | 77 | TOTP code provided doesn't failed validation with current key. |
+| <a name="ErrorStatusTOTPInvalidType">ErrorStatusTOTPInvalidType</a> | 78 | Invalid TOTP Type. |
 
 
 ### `Proposal status codes`
