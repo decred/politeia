@@ -930,7 +930,7 @@ func TestLogin(t *testing.T) {
 		LastLoginTime:      0,
 	}
 
-	code, err := p.totpGenerateCode(key.Secret(), time.Now())
+	code, err := p.totpGenerateCode(key.Secret(), time.Now().Add(50*time.Millisecond))
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}
@@ -944,7 +944,7 @@ func TestLogin(t *testing.T) {
 		t.Errorf("unable to generate secret key %v", err)
 	}
 
-	futureCode, err := p.totpGenerateCode(key.Secret(), time.Now().Add(1*time.Second))
+	futureCode, err := p.totpGenerateCode(key.Secret(), time.Now().Add(1*time.Second+50*time.Millisecond))
 	if err != nil {
 		t.Errorf("unable to generate future code %v", err)
 	}
