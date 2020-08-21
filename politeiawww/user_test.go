@@ -1042,7 +1042,7 @@ func TestLogin(t *testing.T) {
 			},
 			nil,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidTOTPCode,
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			},
 		},
 		{

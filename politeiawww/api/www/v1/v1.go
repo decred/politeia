@@ -217,8 +217,7 @@ const (
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
 	ErrorStatusRequiresTOTPCode            ErrorStatusT = 79
-	ErrorStatusInvalidTOTPCode             ErrorStatusT = 80
-	ErrorStatusTOTPWaitForNewCode          ErrorStatusT = 81
+	ErrorStatusTOTPWaitForNewCode          ErrorStatusT = 80
 
 	// Proposal state codes
 	//
@@ -397,6 +396,8 @@ var (
 		ErrorStatusWrongProposalType:           "wrong proposal type",
 		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
 		ErrorStatusTOTPInvalidType:             "invalid totp type",
+		ErrorStatusRequiresTOTPCode:            "login requires totp code",
+		ErrorStatusTOTPWaitForNewCode:          "must wait until next totp code window",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

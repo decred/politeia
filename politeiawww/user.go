@@ -1163,8 +1163,17 @@ func (p *politeiawww) login(l www.Login) loginResult {
 					time.Unix(u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1], 0))
 				if err != nil {
 					log.Debugf("login: new totp oldcode failure %v", err)
+					// Update user information with failed attempts and time.
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+					err = p.db.UserUpdate(*u)
+					if err != nil {
+						return loginResult{
+							reply: nil,
+							err:   err,
+						}
+					}
 					err = www.UserError{
-						ErrorCode: www.ErrorStatusInvalidTOTPCode,
+						ErrorCode: www.ErrorStatusTOTPFailedValidation,
 					}
 					return loginResult{
 						reply: nil,
@@ -1194,7 +1203,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				}
 			}
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvalidTOTPCode,
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			}
 			return loginResult{
 				reply: nil,
