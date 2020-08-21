@@ -1133,7 +1133,7 @@ func TestLogin(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			// Pause for the timeout totp test
 			if v.name == "sucess after timeout" {
-				time.Sleep(1 * time.Second)
+				time.Sleep(totpTestPeriod * time.Second)
 			}
 			lr := p.login(v.login)
 			gotErr := errToStr(lr.err)
