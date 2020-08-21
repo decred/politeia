@@ -16,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/go-test/deep"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -876,6 +877,47 @@ func TestLogin(t *testing.T) {
 	}
 	usrDeactivatedPassword := usrDeactivated.Username
 
+	// Create TOTP Verified user
+	usrTOTPVerified, idTOTP := newUser(t, p, true, false)
+
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      defaultPoliteiaIssuer,
+		AccountName: usrTOTPVerified.Username,
+	})
+	if err != nil {
+		t.Errorf("unable to generate secret key %v", err)
+	}
+
+	usrTOTPVerified.TOTPType = int(www.TOTPTypeBasic)
+	usrTOTPVerified.TOTPSecret = key.Secret()
+	usrTOTPVerified.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerified.TOTPVerified = true
+	err = p.db.UserUpdate(*usrTOTPVerified)
+	if err != nil {
+		t.Errorf("unable to update totp verified user %v", err)
+	}
+
+	usrTOTPVerifiedPassword := usrTOTPVerified.Username
+
+	code, err := totp.GenerateCode(key.Secret(), time.Now())
+	if err != nil {
+		t.Errorf("unable to generate code %v", err)
+	}
+
+	successTOTPReply := www.LoginReply{
+		IsAdmin:            false,
+		UserID:             usrTOTPVerified.ID.String(),
+		Email:              usrTOTPVerified.Email,
+		Username:           usrTOTPVerified.Username,
+		PublicKey:          idTOTP.Public.String(),
+		PaywallAddress:     usrTOTPVerified.NewUserPaywallAddress,
+		PaywallAmount:      usrTOTPVerified.NewUserPaywallAmount,
+		PaywallTxNotBefore: usrTOTPVerified.NewUserPaywallTxNotBefore,
+		PaywallTxID:        "",
+		ProposalCredits:    0,
+		LastLoginTime:      0,
+	}
+
 	// Create a verified user and the expected login reply
 	// for the success case.
 	usr, id := newUser(t, p, true, false)
@@ -955,6 +997,40 @@ func TestLogin(t *testing.T) {
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserLocked,
 			},
+		},
+		{
+			"totp verified no code",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     "",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusRequiresTOTPCode,
+			},
+		},
+		{
+			"totp verified wrong code",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidTOTPCode,
+			},
+		},
+		{
+			"success totp verified",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     code,
+			},
+			&successTOTPReply,
+			nil,
 		},
 		{
 			"success",
