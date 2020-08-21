@@ -23,7 +23,6 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
-	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,6 +31,9 @@ const (
 
 	// Number of attempts until totp locks until the next window
 	totpFailedAttempts = 2
+
+	// Period of totp for testing
+	totpTestPeriod = 1
 
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
@@ -1129,19 +1131,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				err:   err,
 			}
 		}
-		// Check to see if the user has already attempted more than 2
-		// TOTP codes for this window.
-		if len(u.TOTPLastFailedCodeTime) >= totpFailedAttempts {
-			log.Debugf("login: too many totp attempts in same window %v", u.Email)
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
-			}
-			return loginResult{
-				reply: nil,
-				err:   err,
-			}
-		}
-		currentCode, err := totp.GenerateCode(u.TOTPSecret, time.Now())
+		currentCode, err := p.totpGenerateCode(u.TOTPSecret, time.Now())
 		if err != nil {
 			return loginResult{
 				reply: nil,
@@ -1159,7 +1149,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			} else {
 				// A code has already been generated, check to see if it
 				// matches the recently generated code.
-				oldCode, err := totp.GenerateCode(u.TOTPSecret,
+				oldCode, err := p.totpGenerateCode(u.TOTPSecret,
 					time.Unix(u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1], 0))
 				if err != nil {
 					log.Debugf("login: new totp oldcode failure %v", err)
@@ -1185,6 +1175,27 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				if currentCode == oldCode {
 					log.Debugf("login: another failed window attempt %v", u.Email)
 					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+
+					// Check to see if the user has already attempted more than 2
+					// TOTP codes for this window.
+					if len(u.TOTPLastFailedCodeTime) > totpFailedAttempts {
+						// Update user information with failed attempts and time.
+						err = p.db.UserUpdate(*u)
+						if err != nil {
+							return loginResult{
+								reply: nil,
+								err:   err,
+							}
+						}
+						log.Debugf("login: too many totp attempts in same window %v", u.Email)
+						err = www.UserError{
+							ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
+						}
+						return loginResult{
+							reply: nil,
+							err:   err,
+						}
+					}
 				} else {
 					log.Debugf("login: new totp code failure %v", u.Email)
 					// Code don't match so reset time to now, and failed

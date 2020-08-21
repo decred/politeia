@@ -21,10 +21,8 @@ func TestProcessSetTOTP(t *testing.T) {
 
 	alreadySetUser, _ := newUser(t, p, true, false)
 
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      defaultPoliteiaIssuer,
-		AccountName: alreadySetUser.Username,
-	})
+	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, alreadySetUser.Username)
+	key, err := totp.Generate(opts)
 	if err != nil {
 		t.Errorf("unable to generate secret key %v", err)
 	}
@@ -39,10 +37,11 @@ func TestProcessSetTOTP(t *testing.T) {
 		t.Errorf("unable to update user secret key %v", err)
 	}
 
-	code, err := totp.GenerateCode(key.Secret(), time.Now())
+	code, err := p.totpGenerateCode(key.Secret(), time.Now())
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}
+	t.Log(code)
 	var tests = []struct {
 		name      string
 		params    www.SetTOTP
@@ -117,10 +116,8 @@ func TestProcessVerifyTOTP(t *testing.T) {
 
 	usr, _ := newUser(t, p, true, false)
 
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      defaultPoliteiaIssuer,
-		AccountName: usr.Username,
-	})
+	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, usr.Username)
+	key, err := totp.Generate(opts)
 	if err != nil {
 		t.Errorf("unable to generate secret key %v", err)
 	}
@@ -135,7 +132,7 @@ func TestProcessVerifyTOTP(t *testing.T) {
 		t.Errorf("unable to update user secret key %v", err)
 	}
 
-	code, err := totp.GenerateCode(key.Secret(), time.Now())
+	code, err := p.totpGenerateCode(key.Secret(), time.Now())
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}

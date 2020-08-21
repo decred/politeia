@@ -877,13 +877,29 @@ func TestLogin(t *testing.T) {
 	}
 	usrDeactivatedPassword := usrDeactivated.Username
 
+	// Create a verified user and the expected login reply
+	// for the success case.
+	usr, id := newUser(t, p, true, false)
+	usrPassword := usr.Username
+	successReply := www.LoginReply{
+		IsAdmin:            false,
+		UserID:             usr.ID.String(),
+		Email:              usr.Email,
+		Username:           usr.Username,
+		PublicKey:          id.Public.String(),
+		PaywallAddress:     usr.NewUserPaywallAddress,
+		PaywallAmount:      usr.NewUserPaywallAmount,
+		PaywallTxNotBefore: usr.NewUserPaywallTxNotBefore,
+		PaywallTxID:        "",
+		ProposalCredits:    0,
+		LastLoginTime:      0,
+	}
+
 	// Create TOTP Verified user
 	usrTOTPVerified, idTOTP := newUser(t, p, true, false)
 
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      defaultPoliteiaIssuer,
-		AccountName: usrTOTPVerified.Username,
-	})
+	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerified.Username)
+	key, err := totp.Generate(opts)
 	if err != nil {
 		t.Errorf("unable to generate secret key %v", err)
 	}
@@ -898,33 +914,6 @@ func TestLogin(t *testing.T) {
 	}
 
 	usrTOTPVerifiedPassword := usrTOTPVerified.Username
-
-	code, err := totp.GenerateCode(key.Secret(), time.Now())
-	if err != nil {
-		t.Errorf("unable to generate code %v", err)
-	}
-	// Create TOTP Verified Timed out user
-	usrTOTPVerifiedTimeout, _ := newUser(t, p, true, false)
-
-	key, err = totp.Generate(totp.GenerateOpts{
-		Issuer:      defaultPoliteiaIssuer,
-		AccountName: usrTOTPVerifiedTimeout.Username,
-	})
-	if err != nil {
-		t.Errorf("unable to generate secret key %v", err)
-	}
-
-	usrTOTPVerifiedTimeout.TOTPType = int(www.TOTPTypeBasic)
-	usrTOTPVerifiedTimeout.TOTPSecret = key.Secret()
-	usrTOTPVerifiedTimeout.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
-	usrTOTPVerifiedTimeout.TOTPVerified = true
-	usrTOTPVerifiedTimeout.TOTPLastFailedCodeTime = []int64{time.Now().Unix(), time.Now().Unix()}
-	err = p.db.UserUpdate(*usrTOTPVerifiedTimeout)
-	if err != nil {
-		t.Errorf("unable to update totp verified user %v", err)
-	}
-
-	usrTOTPVerifiedTimeoutPassword := usrTOTPVerifiedTimeout.Username
 
 	// Successful TOTP user reply
 	successTOTPReply := www.LoginReply{
@@ -941,19 +930,46 @@ func TestLogin(t *testing.T) {
 		LastLoginTime:      0,
 	}
 
-	// Create a verified user and the expected login reply
-	// for the success case.
-	usr, id := newUser(t, p, true, false)
-	usrPassword := usr.Username
-	successReply := www.LoginReply{
+	code, err := p.totpGenerateCode(key.Secret(), time.Now())
+	if err != nil {
+		t.Errorf("unable to generate code %v", err)
+	}
+
+	// Create TOTP Verified Timed out user
+	usrTOTPVerifiedTimeout, idTOTPTimeout := newUser(t, p, true, false)
+
+	opts = p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerifiedTimeout.Username)
+	key, err = totp.Generate(opts)
+	if err != nil {
+		t.Errorf("unable to generate secret key %v", err)
+	}
+
+	futureCode, err := p.totpGenerateCode(key.Secret(), time.Now().Add(1*time.Second))
+	if err != nil {
+		t.Errorf("unable to generate future code %v", err)
+	}
+
+	usrTOTPVerifiedTimeout.TOTPType = int(www.TOTPTypeBasic)
+	usrTOTPVerifiedTimeout.TOTPSecret = key.Secret()
+	usrTOTPVerifiedTimeout.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerifiedTimeout.TOTPVerified = true
+	err = p.db.UserUpdate(*usrTOTPVerifiedTimeout)
+	if err != nil {
+		t.Errorf("unable to update totp verified user %v", err)
+	}
+
+	usrTOTPVerifiedTimeoutPassword := usrTOTPVerifiedTimeout.Username
+
+	// Successful TOTP user reply
+	successTOTPTimeoutReply := www.LoginReply{
 		IsAdmin:            false,
-		UserID:             usr.ID.String(),
-		Email:              usr.Email,
-		Username:           usr.Username,
-		PublicKey:          id.Public.String(),
-		PaywallAddress:     usr.NewUserPaywallAddress,
-		PaywallAmount:      usr.NewUserPaywallAmount,
-		PaywallTxNotBefore: usr.NewUserPaywallTxNotBefore,
+		UserID:             usrTOTPVerifiedTimeout.ID.String(),
+		Email:              usrTOTPVerifiedTimeout.Email,
+		Username:           usrTOTPVerifiedTimeout.Username,
+		PublicKey:          idTOTPTimeout.Public.String(),
+		PaywallAddress:     usrTOTPVerifiedTimeout.NewUserPaywallAddress,
+		PaywallAmount:      usrTOTPVerifiedTimeout.NewUserPaywallAmount,
+		PaywallTxNotBefore: usrTOTPVerifiedTimeout.NewUserPaywallTxNotBefore,
 		PaywallTxID:        "",
 		ProposalCredits:    0,
 		LastLoginTime:      0,
@@ -1046,7 +1062,41 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			"totp verified timeout",
+			"success totp verified",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     code,
+			},
+			&successTOTPReply,
+			nil,
+		},
+		{
+			"totp verified timeout first incorrect",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			},
+		},
+		{
+			"totp verified timeout second incorrect",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			},
+		},
+		{
+			"totp verified timeout third incorrect timeout",
 			www.Login{
 				Email:    usrTOTPVerifiedTimeout.Email,
 				Password: usrTOTPVerifiedTimeoutPassword,
@@ -1058,13 +1108,13 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			"success totp verified",
+			"sucess after timeout",
 			www.Login{
-				Email:    usrTOTPVerified.Email,
-				Password: usrTOTPVerifiedPassword,
-				Code:     code,
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     futureCode,
 			},
-			&successTOTPReply,
+			&successTOTPTimeoutReply,
 			nil,
 		},
 		{
@@ -1081,10 +1131,15 @@ func TestLogin(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
+			// Pause for the timeout totp test
+			if v.name == "sucess after timeout" {
+				time.Sleep(1 * time.Second)
+			}
 			lr := p.login(v.login)
 			gotErr := errToStr(lr.err)
 			wantErr := errToStr(v.wantError)
 			if gotErr != wantErr {
+				t.Log(v.login)
 				t.Errorf("got error %v, want %v",
 					gotErr, wantErr)
 			}
