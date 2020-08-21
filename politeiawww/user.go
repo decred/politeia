@@ -30,6 +30,9 @@ import (
 const (
 	LoginAttemptsToLockUser = 5
 
+	// Number of attempts until totp locks until the next window
+	totpFailedAttempts = 2
+
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
 
@@ -1128,7 +1131,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 		}
 		// Check to see if the user has already attempted more than 2
 		// TOTP codes for this window.
-		if len(u.TOTPLastFailedCodeTime) >= 2 {
+		if len(u.TOTPLastFailedCodeTime) >= totpFailedAttempts {
 			log.Debugf("login: too many totp attempts in same window %v", u.Email)
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
@@ -1159,6 +1162,10 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				oldCode, err := totp.GenerateCode(u.TOTPSecret,
 					time.Unix(u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1], 0))
 				if err != nil {
+					log.Debugf("login: new totp oldcode failure %v", err)
+					err = www.UserError{
+						ErrorCode: www.ErrorStatusInvalidTOTPCode,
+					}
 					return loginResult{
 						reply: nil,
 						err:   err,

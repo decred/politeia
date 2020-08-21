@@ -903,7 +903,30 @@ func TestLogin(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}
+	// Create TOTP Verified Timed out user
+	usrTOTPVerifiedTimeout, _ := newUser(t, p, true, false)
 
+	key, err = totp.Generate(totp.GenerateOpts{
+		Issuer:      defaultPoliteiaIssuer,
+		AccountName: usrTOTPVerifiedTimeout.Username,
+	})
+	if err != nil {
+		t.Errorf("unable to generate secret key %v", err)
+	}
+
+	usrTOTPVerifiedTimeout.TOTPType = int(www.TOTPTypeBasic)
+	usrTOTPVerifiedTimeout.TOTPSecret = key.Secret()
+	usrTOTPVerifiedTimeout.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerifiedTimeout.TOTPVerified = true
+	usrTOTPVerifiedTimeout.TOTPLastFailedCodeTime = []int64{time.Now().Unix(), time.Now().Unix()}
+	err = p.db.UserUpdate(*usrTOTPVerifiedTimeout)
+	if err != nil {
+		t.Errorf("unable to update totp verified user %v", err)
+	}
+
+	usrTOTPVerifiedTimeoutPassword := usrTOTPVerifiedTimeout.Username
+
+	// Successful TOTP user reply
 	successTOTPReply := www.LoginReply{
 		IsAdmin:            false,
 		UserID:             usrTOTPVerified.ID.String(),
@@ -1020,6 +1043,18 @@ func TestLogin(t *testing.T) {
 			nil,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidTOTPCode,
+			},
+		},
+		{
+			"totp verified timeout",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
 			},
 		},
 		{
