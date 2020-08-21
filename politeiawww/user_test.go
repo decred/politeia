@@ -1108,7 +1108,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			"sucess after timeout",
+			"success after timeout",
 			www.Login{
 				Email:    usrTOTPVerifiedTimeout.Email,
 				Password: usrTOTPVerifiedTimeoutPassword,
@@ -1132,7 +1132,7 @@ func TestLogin(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Pause for the timeout totp test
-			if v.name == "sucess after timeout" {
+			if v.name == "success after timeout" {
 				time.Sleep(totpTestPeriod * time.Second)
 			}
 			lr := p.login(v.login)
