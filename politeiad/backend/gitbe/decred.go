@@ -1011,10 +1011,10 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	// XXX this should become part of some sort of context
 	log.Tracef("pluginNewComment")
 	g.Lock()
-	defer g.Unlock()
 	if g.quiesce {
 		return "", backend.ErrQuiesced
 	}
+	g.Unlock()
 	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
 	if !ok {
 		return "", fmt.Errorf("full identity not set")
@@ -1239,10 +1239,10 @@ func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	log.Tracef("pluginCensorComment")
 
 	g.Lock()
-	defer g.Unlock()
 	if g.quiesce {
 		return "", backend.ErrQuiesced
 	}
+	g.Unlock()
 	// Check if journals were replayed
 	if !journalsReplayed {
 		return "", backend.ErrJournalsNotReplayed
