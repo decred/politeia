@@ -1119,10 +1119,10 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	log.Tracef("pluginLikeComment")
 	g.Lock()
-	defer g.Unlock()
 	if g.quiesce {
 		return "", backend.ErrQuiesced
 	}
+	g.Unlock()
 
 	// Check if journals were replayed
 	if !journalsReplayed {
@@ -2542,10 +2542,10 @@ func (g *gitBackEnd) writeVote(v decredplugin.CastVote, receipt, journalPath str
 func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	log.Tracef("pluginBallot")
 	g.Lock()
-	defer g.Unlock()
 	if g.quiesce {
 		return "", backend.ErrQuiesced
 	}
+	g.Unlock()
 
 	// Check if journals were replayed
 	if !journalsReplayed {
