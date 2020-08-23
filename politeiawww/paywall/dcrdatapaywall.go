@@ -1,7 +1,6 @@
 package paywall
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/decred/politeia/util/txfetcher"
 )
 
+// DcrdataManager implements the Manager interface.
 type DcrdataManager struct {
 	sync.RWMutex
 
@@ -19,13 +19,6 @@ type DcrdataManager struct {
 	entries   map[string]*Entry
 }
 
-func (d *DcrdataManager) SetCallback(cb Callback) {
-	d.Lock()
-	defer d.Unlock()
-
-	d.callback = cb
-}
-
 func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry Entry) bool {
 	var totalPaid uint64
 
@@ -33,74 +26,73 @@ func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry Entry) bool {
 		totalPaid += txs[i].Amount
 	}
 
-	return totalPaid >= entry.amount
+	return totalPaid >= entry.Amount
 }
 
+// RegisterPaywall satisfies the Manager interface.
 func (d *DcrdataManager) RegisterPaywall(entry Entry) error {
-	_, ok := d.entries[entry.address]
-	if ok {
-		return ErrDuplicateEntry
-	}
-
-	txs, err := d.txFetcher.FetchTxsForAddressNotBefore(entry.address, entry.txNotBefore)
+	txs, err := d.txFetcher.FetchTxsForAddressNotBefore(entry.Address, entry.TxNotBefore)
 	if err != nil {
 		return err
 	}
-
 	if transactionsFulfillPaywall(txs, entry) {
 		return ErrAlreadyPaid
 	}
 
 	d.Lock()
-	d.entries[entry.address] = &entry
-	d.Unlock()
+	defer d.Unlock()
 
-	fmt.Printf("%v -- entries", d.entries)
+	_, ok := d.entries[entry.Address]
+	if ok {
+		return ErrDuplicateEntry
+	}
 
-	err = d.wsDcrdata.SubToAddr(entry.address)
+	err = d.wsDcrdata.SubToAddr(entry.Address)
 	if err != nil {
-		d.Lock()
-		delete(d.entries, entry.address)
-		d.Unlock()
 		return err
 	}
 
+	d.entries[entry.Address] = &entry
 	return nil
 }
 
+// RemovePaywall satisfies the manager interface.
 func (d *DcrdataManager) RemovePaywall(address string) {
 	d.Lock()
 	defer d.Unlock()
 
-	_, ok := d.entries[address]
-	if ok {
-		delete(d.entries, address)
-	}
+	delete(d.entries, address)
 }
 
 func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 	d.RLock()
 	entry, ok := d.entries[address]
-	callback := d.callback
 	d.RUnlock()
-
-	if !ok || callback == nil {
+	if !ok {
 		return
 	}
 
-	go func() {
+	// Sometimes, dcrdata sends a websocket messasge about a transaction,
+	// but it is not yet available through the HTTP API. Therefore, we
+	// query dcrdata multiple times until the response contains the
+	// transaction.
+	const (
+		NumTries     = 10
+		SecondsSleep = 30
+	)
 
+	go func() {
 		var tries int
 
 		for {
 			txs, err := d.txFetcher.FetchTxsForAddressNotBefore(address,
-				entry.txNotBefore)
+				entry.TxNotBefore)
 			if err != nil {
 				log.Errorf("FetchTxsForAddressNotBefore: %v", err)
 				return
 			}
-			txFound := false
 
+			txFound := false
 			for i := 0; i < len(txs); i++ {
 				if txs[i].TxID == txID {
 					txFound = true
@@ -109,22 +101,30 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 			}
 
 			if !txFound {
-				if tries >= 10 {
+				if tries >= NumTries {
 					return
 				}
 
 				tries++
-				time.Sleep(30 * time.Second)
+				time.Sleep(SecondsSleep * time.Second)
 				continue
 			}
 
 			paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
-			if paywallFulfilled {
-				d.Lock()
-				delete(d.entries, address)
-				d.Unlock()
+
+			// We check if the entry is still in the map, because we don't want
+			// to call the callback if the entry has been removed by another
+			// goroutine.
+			d.Lock()
+			defer d.Unlock()
+			entry, ok = d.entries[address]
+			if !ok {
+				return
 			}
-			callback(entry, txs, paywallFulfilled)
+			if paywallFulfilled {
+				delete(d.entries, address)
+			}
+			d.callback(entry, txs, paywallFulfilled)
 			return
 		}
 	}()
@@ -192,14 +192,14 @@ func (d *DcrdataManager) listenForPayments() {
 	}
 }
 
-// NewDcrdataManager creates a new DcrdataManger struct
-func NewDcrdataManager(ws wsdcrdata.WSDcrdata, txFetcher txfetcher.TxFetcher) *DcrdataManager {
+// NewDcrdataManager creates a new DcrdataManger.
+func NewDcrdataManager(ws wsdcrdata.WSDcrdata, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
 	d := DcrdataManager{
-		entries: make(map[string]*Entry),
+		entries:   make(map[string]*Entry),
+		callback:  cb,
+		wsDcrdata: ws,
+		txFetcher: txFetcher,
 	}
-
-	d.wsDcrdata = ws
-	d.txFetcher = txFetcher
 
 	go d.listenForPayments()
 

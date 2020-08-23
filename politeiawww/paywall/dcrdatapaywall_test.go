@@ -26,7 +26,7 @@ func createUpdatePaywallsCallback(paywalls *[]*AddressPaywall) Callback {
 
 		for _, paywall := range *paywalls {
 
-			if paywall.Address == entry.address {
+			if paywall.Address == entry.Address {
 				foundPaywall = true
 			} else {
 				continue
@@ -40,7 +40,7 @@ func createUpdatePaywallsCallback(paywalls *[]*AddressPaywall) Callback {
 			paywall.AmountPaid = amount
 			paywall.Fulfilled = fulfilled
 
-			if fulfilled && amount < entry.amount {
+			if fulfilled && amount < entry.Amount {
 				return fmt.Errorf("fulfilled but not enough paid")
 			}
 
@@ -55,27 +55,32 @@ func createUpdatePaywallsCallback(paywalls *[]*AddressPaywall) Callback {
 	}
 }
 
-func TestTransactionsFulfillPaywall(t *testing.T) {
+func TestDcrdataPaywall(t *testing.T) {
 	testEntries := []Entry{
 		{
-			address:     "1",
-			amount:      1000,
-			txNotBefore: 100,
+			Address:     "1",
+			Amount:      1000,
+			TxNotBefore: 100,
 		},
 		{
-			address:     "2",
-			amount:      1000,
-			txNotBefore: 100,
+			Address:     "2",
+			Amount:      1000,
+			TxNotBefore: 100,
 		},
 		{
-			address:     "3",
-			amount:      1000,
-			txNotBefore: 100,
+			Address:     "3",
+			Amount:      1000,
+			TxNotBefore: 100,
 		},
 		{
-			address:     "4",
-			amount:      1000,
-			txNotBefore: 100,
+			Address:     "4",
+			Amount:      1000,
+			TxNotBefore: 100,
+		},
+		{
+			Address:     "5",
+			Amount:      1000,
+			TxNotBefore: 100,
 		},
 	}
 
@@ -110,6 +115,12 @@ func TestTransactionsFulfillPaywall(t *testing.T) {
 			Amount:    700,
 			Timestamp: 120,
 		},
+		txfetcher.TxDetails{
+			Address:   "5",
+			TxID:      "6",
+			Amount:    700,
+			Timestamp: 120,
+		},
 	}
 
 	expectedResults := []AddressPaywall{
@@ -133,6 +144,11 @@ func TestTransactionsFulfillPaywall(t *testing.T) {
 			AmountPaid: 1200,
 			Fulfilled:  true,
 		},
+		AddressPaywall{
+			Address:    "5",
+			AmountPaid: 0,
+			Fulfilled:  false,
+		},
 	}
 
 	paywalls := make([]*AddressPaywall, 0)
@@ -140,17 +156,17 @@ func TestTransactionsFulfillPaywall(t *testing.T) {
 	txFetcher := txfetcher.NewTestTxFetcher()
 	wsDcrdata := wsdcrdata.NewTestWSDcrdata()
 
-	paywallManager := NewDcrdataManager(wsDcrdata, txFetcher)
+	callback := createUpdatePaywallsCallback(&paywalls)
+	paywallManager := NewDcrdataManager(wsDcrdata, txFetcher, callback)
 
 	for _, entry := range testEntries {
 		paywallManager.RegisterPaywall(entry)
 		paywalls = append(paywalls, &AddressPaywall{
-			Address: entry.address,
+			Address: entry.Address,
 		})
 	}
 
-	callback := createUpdatePaywallsCallback(&paywalls)
-	paywallManager.SetCallback(callback)
+	paywallManager.RemovePaywall("5")
 
 	for _, tx := range testTXs {
 		txFetcher.InsertTx(tx)

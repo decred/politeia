@@ -18,18 +18,17 @@ var (
 
 // Entry is an entry to a paywall.
 type Entry struct {
-	address     string // Paywall address
-	amount      uint64 // Minimum tx amount required to satisfy paywall
-	txNotBefore int64  // Minimum timestamp for paywall tx
+	Address     string // Paywall address
+	Amount      uint64 // Minimum tx amount required to satisfy paywall
+	TxNotBefore int64  // Minimum timestamp for paywall tx
 }
 
-// Callback is the function the PaywallManager calls when a payment is
-// recieved.
+// Callback is the signature of the function the paywall Manager calls when a
+// payment is recieved.
 type Callback func(*Entry, []txfetcher.TxDetails, bool) error
 
 // Manager is an interface that manages a set of paywalls.
 type Manager interface {
 	RegisterPaywall(Entry) error
 	RemovePaywall(string)
-	SetCallback(Callback)
 }
