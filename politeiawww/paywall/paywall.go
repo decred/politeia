@@ -29,7 +29,7 @@ type Callback func(*Entry, []txfetcher.TxDetails, bool) error
 
 // Manager is an interface that manages a set of paywalls.
 type Manager interface {
-	RegisterPaywall(*Entry) error
+	RegisterPaywall(Entry) error
 	RemovePaywall(string)
 	SetCallback(Callback)
 }

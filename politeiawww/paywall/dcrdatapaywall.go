@@ -1,10 +1,10 @@
 package paywall
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
-	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util/txfetcher"
@@ -26,7 +26,7 @@ func (d *DcrdataManager) SetCallback(cb Callback) {
 	d.callback = cb
 }
 
-func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry *Entry) bool {
+func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry Entry) bool {
 	var totalPaid uint64
 
 	for i := 0; i < len(txs); i++ {
@@ -36,7 +36,7 @@ func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry *Entry) bool {
 	return totalPaid >= entry.amount
 }
 
-func (d *DcrdataManager) RegisterPaywall(entry *Entry) error {
+func (d *DcrdataManager) RegisterPaywall(entry Entry) error {
 	_, ok := d.entries[entry.address]
 	if ok {
 		return ErrDuplicateEntry
@@ -52,8 +52,10 @@ func (d *DcrdataManager) RegisterPaywall(entry *Entry) error {
 	}
 
 	d.Lock()
-	d.entries[entry.address] = entry
+	d.entries[entry.address] = &entry
 	d.Unlock()
+
+	fmt.Printf("%v -- entries", d.entries)
 
 	err = d.wsDcrdata.SubToAddr(entry.address)
 	if err != nil {
@@ -116,13 +118,14 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 				continue
 			}
 
-			paywallFulfilled := transactionsFulfillPaywall(txs, entry)
+			paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
 			if paywallFulfilled {
 				d.Lock()
 				delete(d.entries, address)
 				d.Unlock()
 			}
 			callback(entry, txs, paywallFulfilled)
+			return
 		}
 	}()
 }
@@ -164,9 +167,6 @@ func (d *DcrdataManager) listenForPayments() {
 		}
 
 		switch m := msg.Message.(type) {
-		case *exptypes.WebsocketBlock:
-			log.Debugf("WSDcrdata message WebsocketBlock(height=%v)",
-				m.Block.Height)
 		case *pstypes.HangUp:
 			log.Infof("Dcrdata has hung up. Will reconnect.")
 			err = d.wsDcrdata.Reconnect()
@@ -180,7 +180,7 @@ func (d *DcrdataManager) listenForPayments() {
 			}
 			log.Infof("Successfully reconnected to dcrdata")
 		case *pstypes.AddressMessage:
-			log.Debugf("WSDcrdata message AddressMessage(addres=%v , tx=%v)",
+			log.Debugf("WSDcrdata message AddressMessage(addres=%v , tx=%v)\n",
 				m.Address, m.TxHash)
 			d.processPaymentReceived(m.Address, m.TxHash)
 		case int:

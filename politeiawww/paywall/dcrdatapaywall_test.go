@@ -3,6 +3,7 @@ package paywall
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	client "github.com/decred/dcrdata/pubsub/v4/psclient"
@@ -18,13 +19,14 @@ type AddressPaywall struct {
 	Fulfilled  bool
 }
 
-func createUpdatePaywallsCallback(paywalls []AddressPaywall) Callback {
+func createUpdatePaywallsCallback(paywalls *[]*AddressPaywall) Callback {
+
 	return func(entry *Entry, txs []txfetcher.TxDetails, fulfilled bool) error {
 		var foundPaywall bool
 
-		for _, paywall := range paywalls {
+		for _, paywall := range *paywalls {
 
-			if paywall.address == entry.address {
+			if paywall.Address == entry.address {
 				foundPaywall = true
 			} else {
 				continue
@@ -35,8 +37,8 @@ func createUpdatePaywallsCallback(paywalls []AddressPaywall) Callback {
 				amount += txs[i].Amount
 			}
 
-			paywall.amountPaid = amount
-			paywall.fulfilled = fulfilled
+			paywall.AmountPaid = amount
+			paywall.Fulfilled = fulfilled
 
 			if fulfilled && amount < entry.amount {
 				return fmt.Errorf("fulfilled but not enough paid")
@@ -54,15 +56,6 @@ func createUpdatePaywallsCallback(paywalls []AddressPaywall) Callback {
 }
 
 func TestTransactionsFulfillPaywall(t *testing.T) {
-	paywalls := make([]AddressPaywall, 0)
-	callback := createUpdatePaywallsCallback(paywalls)
-
-	txFetcher := txfetcher.NewTestTxFetcher()
-	wsDcrdata := wsdcrdata.NewTestWSDcrdata()
-
-	paywallManager := NewDcrdataManager(wsDcrdata, txFetcher)
-	paywallManager.SetCallback(callback)
-
 	testEntries := []Entry{
 		{
 			address:     "1",
@@ -119,9 +112,45 @@ func TestTransactionsFulfillPaywall(t *testing.T) {
 		},
 	}
 
-	for _, entry := range testEntries {
-		paywallManager.RegisterPaywall(&entry)
+	expectedResults := []AddressPaywall{
+		AddressPaywall{
+			Address:    "1",
+			AmountPaid: 0,
+			Fulfilled:  false,
+		},
+		AddressPaywall{
+			Address:    "2",
+			AmountPaid: 1000,
+			Fulfilled:  true,
+		},
+		AddressPaywall{
+			Address:    "3",
+			AmountPaid: 800,
+			Fulfilled:  false,
+		},
+		AddressPaywall{
+			Address:    "4",
+			AmountPaid: 1200,
+			Fulfilled:  true,
+		},
 	}
+
+	paywalls := make([]*AddressPaywall, 0)
+
+	txFetcher := txfetcher.NewTestTxFetcher()
+	wsDcrdata := wsdcrdata.NewTestWSDcrdata()
+
+	paywallManager := NewDcrdataManager(wsDcrdata, txFetcher)
+
+	for _, entry := range testEntries {
+		paywallManager.RegisterPaywall(entry)
+		paywalls = append(paywalls, &AddressPaywall{
+			Address: entry.address,
+		})
+	}
+
+	callback := createUpdatePaywallsCallback(&paywalls)
+	paywallManager.SetCallback(callback)
 
 	for _, tx := range testTXs {
 		txFetcher.InsertTx(tx)
@@ -129,11 +158,28 @@ func TestTransactionsFulfillPaywall(t *testing.T) {
 		wsDcrdata.SendMessage(
 			&client.ClientMessage{
 				EventId: "",
-				Message: pstypes.AddressMessage{
+				Message: &pstypes.AddressMessage{
 					Address: tx.Address,
 					TxHash:  tx.TxID,
 				},
 			})
 	}
 
+	time.Sleep(1 * time.Second)
+
+	if len(expectedResults) != len(paywalls) {
+		t.Fatal("results and expected results have different lengths")
+	}
+
+	for i := 0; i < len(expectedResults); i++ {
+		if expectedResults[i].Address != paywalls[i].Address {
+			t.Fatal("results and expected results are in the wrong order")
+		}
+		if expectedResults[i].AmountPaid != paywalls[i].AmountPaid {
+			t.Fatal("results and expected results amount paid does not match")
+		}
+		if expectedResults[i].Fulfilled != paywalls[i].Fulfilled {
+			t.Fatal("results and expected results fulfilled does not match")
+		}
+	}
 }
