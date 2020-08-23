@@ -6,23 +6,28 @@ package txfetcher
 
 import "fmt"
 
+// TestTxFetcher satisfies the TxFetcher interface.
 type TestTxFetcher struct {
 	txs []TxDetails
 }
 
+// InsertTx satisfies the TxFetcher interface.
 func (t *TestTxFetcher) InsertTx(tx TxDetails) {
 	t.txs = append(t.txs, tx)
 }
 
+// FetchTxWithBlockExplorers satisfies the TxFetcher interface.
 func (t *TestTxFetcher) FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, uint64, error) {
 	return "", 0, fmt.Errorf("TestTxFetcher FetchTxWithBlockExporer not yet implemented")
 }
 
+// FetchTxsForAddress satisfies the TxFetcher interface.
 func (t *TestTxFetcher) FetchTxsForAddress(address string) ([]TxDetails, error) {
 	return nil, fmt.Errorf("TestTxFetcher FetchTxsForAddress not yet implemented")
 
 }
 
+// FetchTxsForAddressNotBefore satisfies the TxFetcher interface.
 func (t *TestTxFetcher) FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, error) {
 	txs := make([]TxDetails, 0)
 
@@ -36,10 +41,12 @@ func (t *TestTxFetcher) FetchTxsForAddressNotBefore(address string, notBefore in
 	return txs, nil
 }
 
+// FetchTx satisfies the TxFetcher interface.
 func (t *TestTxFetcher) FetchTx(address, txid string) (*TxDetails, error) {
 	return nil, fmt.Errorf("FetchTx FetchTxsForAddress not yet implemented")
 }
 
+// NewTestTxFetcher returns a new TestTxFetcher struct.
 func NewTestTxFetcher() *TestTxFetcher {
 	return &TestTxFetcher{
 		txs: make([]TxDetails, 0),

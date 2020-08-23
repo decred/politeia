@@ -23,6 +23,7 @@ const (
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 )
 
+//TxFetcher defines an interfaces for fetching transactions from the blockchain.
 type TxFetcher interface {
 	FetchTxWithBlockExplorers(string, uint64, int64, uint64) (string, uint64, error)
 	FetchTxsForAddress(string) ([]TxDetails, error)
@@ -30,6 +31,7 @@ type TxFetcher interface {
 	FetchTx(string, string) (*TxDetails, error)
 }
 
+// DcrdataTxFetcher implements the TxFetcher interface.
 type DcrdataTxFetcher struct {
 	url string
 }
@@ -38,7 +40,7 @@ type DcrdataTxFetcher struct {
 // part of the data returned from the URL for the block explorer
 // when fetching the transactions for an address.
 type BETransaction struct {
-	TxId          string              `json:"txid"`          // Transaction id
+	TxID          string              `json:"TxID"`          // Transaction id
 	Vin           []BETransactionVin  `json:"vin"`           // Transaction inputs
 	Vout          []BETransactionVout `json:"vout"`          // Transaction outputs
 	Confirmations uint64              `json:"confirmations"` // Number of confirmations
@@ -176,7 +178,7 @@ func fetchTxWithBE(url string, address string, minimumAmount uint64, txnotbefore
 
 			for _, addr := range vout.ScriptPubkey.Addresses {
 				if address == addr {
-					return v.TxId, amount, nil
+					return v.TxID, amount, nil
 				}
 			}
 		}
@@ -202,13 +204,13 @@ func (d *DcrdataTxFetcher) FetchTxWithBlockExplorers(address string, amount uint
 	explorerURL := dcrdataURL + "/raw"
 
 	// Fetch transaction from dcrdata
-	txID, amount, err := fetchTxWithBE(explorerURL, address, amount,
+	TxID, amount, err := fetchTxWithBE(explorerURL, address, amount,
 		txnotbefore, minConfirmations)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
 
-	return txID, amount, nil
+	return TxID, amount, nil
 }
 
 func fetchTxsWithBE(url string) ([]BETransaction, error) {
@@ -247,7 +249,7 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 
 	return &TxDetails{
 		Address:        address,
-		TxID:           tx.TxId,
+		TxID:           tx.TxID,
 		Amount:         amount,
 		Confirmations:  tx.Confirmations,
 		Timestamp:      tx.Timestamp,
@@ -279,7 +281,7 @@ func (d *DcrdataTxFetcher) FetchTxsForAddress(address string) ([]TxDetails, erro
 		txDetail, err := convertBETransactionToTxDetails(address, tx)
 		if err != nil {
 			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
-				tx.TxId)
+				tx.TxID)
 		}
 		txs = append(txs, *txDetail)
 	}
@@ -320,7 +322,7 @@ func (d *DcrdataTxFetcher) FetchTxsForAddressNotBefore(address string, notBefore
 			txDetails, err := convertBETransactionToTxDetails(address, tx)
 			if err != nil {
 				return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
-					tx.TxId)
+					tx.TxID)
 			}
 			txs = append(txs, *txDetails)
 		}
@@ -352,8 +354,8 @@ func (d *DcrdataTxFetcher) FetchTxsForAddressNotBefore(address string, notBefore
 	return targetTxs, nil
 }
 
-// FetchTx fetches a given transaction based on the provided txid.
-func (d *DcrdataTxFetcher) FetchTx(address, txid string) (*TxDetails, error) {
+// FetchTx fetches a given transaction based on the provided TxID.
+func (d *DcrdataTxFetcher) FetchTx(address, TxID string) (*TxDetails, error) {
 	// Get block explorer URLs
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
@@ -365,26 +367,27 @@ func (d *DcrdataTxFetcher) FetchTx(address, txid string) (*TxDetails, error) {
 
 	primaryURL := dcrdataURL + "/raw"
 
-	log.Printf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
+	log.Printf("fetching tx %s %s from primary %s\n", address, TxID, primaryURL)
 	// Try the primary (dcrdata)
 	primaryTxs, err := fetchTxsWithBE(primaryURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
 	for _, tx := range primaryTxs {
-		if strings.TrimSpace(tx.TxId) != strings.TrimSpace(txid) {
+		if strings.TrimSpace(tx.TxID) != strings.TrimSpace(TxID) {
 			continue
 		}
 		txDetail, err := convertBETransactionToTxDetails(address, tx)
 		if err != nil {
 			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
-				tx.TxId)
+				tx.TxID)
 		}
 		return txDetail, nil
 	}
 	return nil, nil
 }
 
+// NewDcrdataTxFetcher returns a new DcrdataTxFetcher struct.
 func NewDcrdataTxFetcher(url string) *DcrdataTxFetcher {
 	return &DcrdataTxFetcher{
 		url: url,
