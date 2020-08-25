@@ -79,6 +79,13 @@ You can specify the following options:
           Required DB flag : -cockroachdb
           Args             : <username>
 
+      -resettotp
+          Reset a user's totp settings in case they are locked out and 
+          confirm identity. 
+          Required DB flag : -leveldb or -cockroachdb
+          LevelDB args     : <email>
+          CockroachDB args : <username>
+
 ### Examples
 
 Mainnet example:
