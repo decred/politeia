@@ -160,7 +160,7 @@ const usageMsg = `politeiawww_dbutil usage:
     -resettotp
           Reset a user's totp settings in case they are locked out and 
           confirm identity. 
-		  Required DB flag : -leveldb or -cockroachdb
+          Required DB flag : -leveldb or -cockroachdb
           LevelDB args     : <email>
           CockroachDB args : <username>
 `
