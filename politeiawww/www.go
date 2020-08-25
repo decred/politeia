@@ -648,10 +648,19 @@ func _main() error {
 			}
 		}
 		if p.cfg.GithubAPIToken != "" {
-			p.tracker, err = ghtracker.New(p.cfg.GithubAPIToken, p.cfg.DBHost, p.cfg.DBRootCert,
-				p.cfg.DBCert, p.cfg.DBKey)
-			if err != nil {
-				return fmt.Errorf("code tracker failed to load: %v", err)
+			if p.cfg.CodeStatOrganization != "" {
+				p.tracker, err = ghtracker.New(p.cfg.GithubAPIToken, p.cfg.DBHost, p.cfg.DBRootCert,
+					p.cfg.DBCert, p.cfg.DBKey)
+				if err != nil {
+					return fmt.Errorf("code tracker failed to load: %v", err)
+				}
+				go func() {
+					err = p.updateCodeStats(p.cfg.CodeStatOrganization,
+						p.cfg.CodeStatRepos, p.cfg.CodeStatStart)
+					if err != nil {
+						log.Errorf("erroring updating code stats %v", err)
+					}
+				}()
 			}
 		}
 

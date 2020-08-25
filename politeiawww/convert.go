@@ -1585,7 +1585,7 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 	return cmsCodeStats
 }
 
-func convertPRsToUserCodeStats(githubName string, month, year int, prs []codetracker.PullRequestInformation, reviews []codetracker.ReviewInformation) []user.CodeStats {
+func convertPRsToUserCodeStats(githubName string, year, month int, prs []codetracker.PullRequestInformation, reviews []codetracker.ReviewInformation) []user.CodeStats {
 	repoStats := make([]user.CodeStats, 0, 1048) // PNOOMA
 	for _, pr := range prs {
 		repoFound := false

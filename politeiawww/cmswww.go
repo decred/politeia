@@ -1125,29 +1125,6 @@ func (p *politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, uscr)
 }
 
-func (p *politeiawww) handleUpdateCodeStats(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUpdateCodeStats")
-
-	var ucs cms.UpdateCodeStats
-	err := util.ParseGetParams(r, &ucs)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleUpdateCodeStats: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	ucsr, err := p.processUpdateCodeStats(ucs)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUpdateCodeStats: processUpdateCodeStats: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, ucsr)
-}
-
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -1290,8 +1267,5 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
-		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteUpdateCodeStats, p.handleUpdateCodeStats,
 		permissionAdmin)
 }

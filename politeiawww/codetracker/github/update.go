@@ -46,46 +46,41 @@ func New(apiToken, host, rootCert, cert, key string) (*github, error) {
 // users' information once the info is fully received.  If repoRequest is
 // included then only that repo will be fetched and updated, typically
 // used for speeding up testing.
-func (g *github) Update(org string, repoRequest string) error {
-	// Fetch the organization's repositories
-	repos, err := g.tc.FetchOrgRepos(org)
-	if err != nil {
-		err = fmt.Errorf("FetchOrgRepos: %v", err)
-		return err
-	}
-
+func (g *github) Update(org string, repos []string, start int64) {
 	for _, repo := range repos {
-		// Allow for a repo argument for testing expediting.
-		if repoRequest != "" && repo.Name != repoRequest {
+		log.Infof("%s", repo)
+		log.Infof("Syncing %s/%s", org, repo)
+
+		// Grab latest sync time
+		prs, err := g.tc.FetchPullsRequest(org, repo)
+		if err != nil {
+			log.Errorf("error fetching repo pullrequest %s/%s %v", org, repo,
+				err)
 			continue
 		}
 
-		log.Infof("%s", repo.Name)
-		log.Infof("Syncing %s", repo.FullName)
-
-		// Grab latest sync time
-		prs, err := g.tc.FetchPullsRequest(org, repo.Name)
-		if err != nil {
-			return err
-		}
-
 		for _, pr := range prs {
-			err := g.updatePullRequest(org, repo.Name, pr)
+			// check to see if last updated time was before the given start date
+			if parseTime(pr.UpdatedAt).Before(time.Unix(start, 0)) {
+				continue
+			}
+			err := g.updatePullRequest(org, repo, pr, start)
 			if err != nil {
-				log.Errorf("updatePullRequest fpr %v %v %v", repo.Name,
+				log.Errorf("updatePullRequest for %s/%s %v %v", org, repo,
 					pr.Number, err)
 			}
 		}
 	}
 
-	return nil
+	return
 }
 
-func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest) error {
+func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, start int64) error {
 	apiPR, err := g.tc.FetchPullRequest(org, repoName, pr.Number)
 	if err != nil {
 		return err
 	}
+
 	dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, repoName,
 		org)
 	if err != nil {

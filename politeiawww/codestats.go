@@ -5,6 +5,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -133,31 +134,19 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}, nil
 }
 
-func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.UpdateCodeStatsReply, error) {
+func (p *politeiawww) updateCodeStats(org string, repos []string, start int64) error {
 
 	// make sure tracker was created, if not alert for them to check github api
 	// token config
 	if p.tracker == nil {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusTrackerNotStarted,
-		}
+		return fmt.Errorf("code tracker not running")
 	}
 
-	// If month and year are not both set, then update tracker data before
-	// updating users' codestats, then update the previous month's codestats.
-	if ugh.Month == 0 && ugh.Year == 0 {
-		err := p.tracker.Update(ugh.Organization, ugh.Repository)
-		if err != nil {
-			return nil, err
-		}
-		if time.Now().Month() == 1 {
-			ugh.Month = 12
-			ugh.Year = time.Now().Year() - 1
-		} else {
-			ugh.Month = int(time.Now().Month()) - 1
-			ugh.Year = time.Now().Year()
-		}
+	if time.Unix(start, 0).After(time.Now()) {
+		return fmt.Errorf("invalid code stats start time")
 	}
+
+	p.tracker.Update(org, repos, start)
 
 	// Go fetch all Development contractors to update their stats
 	cu := user.CMSUsersByDomain{
@@ -165,7 +154,7 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 	}
 	payload, err := user.EncodeCMSUsersByDomain(cu)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	pc := user.PluginCommand{
 		ID:      user.CMSPluginID,
@@ -176,14 +165,18 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 	// Execute plugin command
 	pcr, err := p.db.PluginExec(pc)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Decode reply
 	reply, err := user.DecodeCMSUsersByDomainReply([]byte(pcr.Payload))
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	currentMonth := int(time.Now().Month())
+	currentYear := time.Now().Year()
+
 	for _, u := range reply.Users {
 		if u.GitHubName == "" {
 			// Just move along since user has no github name set
@@ -192,12 +185,12 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 
 		cu := user.CMSCodeStatsByUserMonthYear{
 			GithubName: u.GitHubName,
-			Month:      ugh.Month,
-			Year:       ugh.Year,
+			Month:      currentMonth,
+			Year:       currentYear,
 		}
 		payload, err := user.EncodeCMSCodeStatsByUserMonthYear(cu)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		pc := user.PluginCommand{
 			ID:      user.CMSPluginID,
@@ -208,30 +201,30 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 		// Execute plugin command
 		pcr, err := p.db.PluginExec(pc)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Decode reply
 		reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply(
 			[]byte(pcr.Payload))
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		githubUserInfo, err := p.tracker.UserInfo(ugh.Organization,
-			u.GitHubName, ugh.Year, ugh.Month)
+		githubUserInfo, err := p.tracker.UserInfo(org,
+			u.GitHubName, currentYear, currentMonth)
 		if err != nil {
 			log.Errorf("github user information failed: %v %v %v %v",
-				u.GitHubName, ugh.Year, ugh.Month, err)
+				u.GitHubName, currentYear, currentMonth, err)
 			continue
 		}
 
-		codeStats := convertPRsToUserCodeStats(u.GitHubName, ugh.Month,
-			ugh.Year, githubUserInfo.PRs, githubUserInfo.Reviews)
+		codeStats := convertPRsToUserCodeStats(u.GitHubName, currentYear,
+			currentMonth, githubUserInfo.PRs, githubUserInfo.Reviews)
 
 		if len(reply.UserCodeStats) > 0 {
 			log.Tracef("Checking update UserCodeStats: %v %v %v", u.GitHubName,
-				ugh.Month, ugh.Year)
+				currentYear, currentMonth)
 			updated := false
 			// Check to see if current codestats match existing stats
 			if len(codeStats) == len(reply.UserCodeStats) {
@@ -262,13 +255,13 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 			}
 			if updated {
 				log.Tracef("Updated UserCodeStats: %v %v %v", u.GitHubName,
-					ugh.Month, ugh.Year)
+					currentYear, currentMonth)
 				ncs := user.UpdateCMSCodeStats{
 					UserCodeStats: codeStats,
 				}
 				payload, err = user.EncodeUpdateCMSCodeStats(ncs)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				pc = user.PluginCommand{
 					ID:      user.CMSPluginID,
@@ -277,14 +270,14 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 				}
 				_, err = p.db.PluginExec(pc)
 				if err != nil {
-					return nil, err
+					return err
 				}
 			}
 			continue
 		}
 
-		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, ugh.Month,
-			ugh.Year)
+		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, currentYear,
+			currentMonth)
 		// It'll be a new entry if no existing entry had been found
 		ncs := user.NewCMSCodeStats{
 			UserCodeStats: codeStats,
@@ -292,7 +285,7 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 
 		payload, err = user.EncodeNewCMSCodeStats(ncs)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		pc = user.PluginCommand{
 			ID:      user.CMSPluginID,
@@ -301,10 +294,10 @@ func (p *politeiawww) processUpdateCodeStats(ugh cms.UpdateCodeStats) (*cms.Upda
 		}
 		_, err = p.db.PluginExec(pc)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 	}
 
-	return &cms.UpdateCodeStatsReply{}, nil
+	return nil
 }
