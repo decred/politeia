@@ -742,8 +742,7 @@ func levelResetTOTP(email string) error {
 		return err
 	}
 
-	fmt.Printf("User with email '%v' totp reset "+
-		"to %v\n", email)
+	fmt.Printf("User with email '%v' totp reset\n", email)
 
 	return nil
 }
