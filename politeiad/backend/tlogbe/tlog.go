@@ -12,11 +12,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/robfig/cron"
@@ -40,6 +43,7 @@ const (
 	// data out of the store, which can become an issue in situations
 	// such as searching for a record index that has been buried by
 	// thousands of leaves from plugin data.
+	// TODO key prefix app-dataID:
 	keyPrefixRecordIndex   = "recordindex:"
 	keyPrefixRecordContent = "record:"
 	keyPrefixFreezeRecord  = "freeze:"
@@ -1458,25 +1462,70 @@ func (t *tlog) close() {
 	}
 }
 
-func newTlog(id, trillianHost, trillianKeyFile, dcrtimeHost string, key *encryptionKey, store store.Blob) (*tlog, error) {
+func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptionKeyFile string) (*tlog, error) {
+	// Load encryption key if provided. An encryption key is optional.
+	var ek *encryptionKey
+	if encryptionKeyFile != "" {
+		f, err := os.Open(encryptionKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		var key [32]byte
+		n, err := f.Read(key[:])
+		if n != len(key) {
+			return nil, fmt.Errorf("invalid encryption key length")
+		}
+		if err != nil {
+			return nil, err
+		}
+		f.Close()
+		ek = newEncryptionKey(&key)
+
+		log.Infof("Encryption key %v: %v", id, encryptionKeyFile)
+	}
+
+	// Setup key-value store
+	fp := filepath.Join(dataDir, id)
+	err := os.MkdirAll(fp, 0700)
+	if err != nil {
+		return nil, err
+	}
+	store := filesystem.New(fp)
+
 	// Setup trillian client
-	tclient, err := newTrillianClient(homeDir, trillianHost, trillianKeyFile)
+	if trillianKeyFile == "" {
+		// No file path was given. Use the default path.
+		fn := fmt.Sprintf("%v-%v", id, defaultTrillianKeyFilename)
+		trillianKeyFile = filepath.Join(homeDir, fn)
+	}
+
+	log.Infof("Trillian key %v: %v", id, trillianKeyFile)
+	log.Infof("Trillian host %v: %v", id, trillianHost)
+
+	tclient, err := newTrillianClient(trillianHost, trillianKeyFile)
 	if err != nil {
 		return nil, err
 	}
 
+	// Setup tlog
+	t := tlog{
+		id:            id,
+		dcrtimeHost:   dcrtimeHost,
+		encryptionKey: ek,
+		trillian:      tclient,
+		store:         store,
+		cron:          cron.New(),
+	}
+
 	// Launch cron
-	log.Infof("Launch cron anchor job: %v", id)
-	c := cron.New()
-	err = cron.AddFunc(anchorSchedule, func() {
-		// t.anchorTrees()
+	log.Infof("Launch %v cron anchor job", id)
+	err = t.cron.AddFunc(anchorSchedule, func() {
+		t.anchor()
 	})
 	if err != nil {
 		return nil, err
 	}
-	cron.Start()
+	t.cron.Start()
 
-	return &tlog{
-		id: id,
-	}, nil
+	return &t, nil
 }

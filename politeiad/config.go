@@ -6,12 +6,8 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/user"
@@ -42,18 +38,13 @@ const (
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
 
-	// Currently available modes to run politeia, by default piwww, is used.
-	politeiaWWWMode = "piwww"
-	cmsWWWMode      = "cmswww"
-
-	defaultWWWMode = politeiaWWWMode
-
 	// Backend options
 	backendGit     = "git"
 	backendTlog    = "tlog"
-	defaultBackend = backendGit
+	defaultBackend = backendTlog
 
-	defaultTrillianHost = "localhost:8090"
+	defaultTrillianHostUnvetted = "localhost:8090"
+	defaultTrillianHostVetted   = "localhost:8094"
 )
 
 var (
@@ -74,40 +65,36 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir       string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion   bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile    string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir       string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir        string   `long:"logdir" description:"Directory to log output."`
-	TestNet       bool     `long:"testnet" description:"Use the test network"`
-	SimNet        bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile       string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile    string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile    string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel    string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners     []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version       string
-	HTTPSCert     string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey      string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser       string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass       string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost   string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert   string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
-	EnableCache   bool   `long:"enablecache" description:"Enable the external cache"`
-	CacheHost     string `long:"cachehost" description:"Cache ip:port"`
-	CacheRootCert string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
-	CacheCert     string `long:"cachecert" description:"File containing the politeiad client certificate for the cache"`
-	CacheKey      string `long:"cachekey" description:"File containing the politeiad client certificate key for the cache"`
-	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
-	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
-	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
-	DcrdataHost   string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+	HomeDir     string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile  string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir     string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir      string   `long:"logdir" description:"Directory to log output."`
+	TestNet     bool     `long:"testnet" description:"Use the test network"`
+	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version     string
+	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
+	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
+	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
-	Mode          string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
-	Backend       string `long:"backend"`
-	TrillianHost  string `long:"trillianhost"`
-	TrillianKey   string `long:"trilliankey"`
-	EncryptionKey string `long:"encryptionkey"`
+	// TODO validate these config params
+	Backend              string `long:"backend"`
+	TrillianHostUnvetted string `long:"trillianhostunvetted"`
+	TrillianHostVetted   string `long:"trillianhostvetted"`
+	TrillianKeyUnvetted  string `long:"trilliankeyunvetted"`
+	TrillianKeyVetted    string `long:"trilliankeyvetted"`
+	EncryptionKey        string `long:"encryptionkey"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -302,17 +289,17 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:      defaultHomeDir,
-		ConfigFile:   defaultConfigFile,
-		DebugLevel:   defaultLogLevel,
-		DataDir:      defaultDataDir,
-		LogDir:       defaultLogDir,
-		HTTPSKey:     defaultHTTPSKeyFile,
-		HTTPSCert:    defaultHTTPSCertFile,
-		Version:      version.String(),
-		Mode:         defaultWWWMode,
-		Backend:      defaultBackend,
-		TrillianHost: defaultTrillianHost,
+		HomeDir:              defaultHomeDir,
+		ConfigFile:           defaultConfigFile,
+		DebugLevel:           defaultLogLevel,
+		DataDir:              defaultDataDir,
+		LogDir:               defaultLogDir,
+		HTTPSKey:             defaultHTTPSKeyFile,
+		HTTPSCert:            defaultHTTPSCertFile,
+		Version:              version.String(),
+		Backend:              defaultBackend,
+		TrillianHostUnvetted: defaultTrillianHostUnvetted,
+		TrillianHostVetted:   defaultTrillianHostVetted,
 	}
 
 	// Service options which are only added on Windows.
@@ -481,55 +468,6 @@ func loadConfig() (*config, []string, error) {
 		os.Exit(0)
 	}
 
-	// Validate cache options.
-	if cfg.EnableCache {
-		switch {
-		case cfg.CacheHost == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cachehost param")
-		case cfg.CacheRootCert == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cacherootcert param")
-		case cfg.CacheCert == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cachecert param")
-		case cfg.CacheKey == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cachekey param")
-		}
-
-		cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
-		cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
-		cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
-
-		// Validate cache root cert.
-		b, err := ioutil.ReadFile(cfg.CacheRootCert)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
-		}
-		block, _ := pem.Decode(b)
-		if block == nil {
-			return nil, nil, fmt.Errorf("%s is not a valid certificate",
-				cfg.CacheRootCert)
-		}
-		_, err = x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
-		}
-
-		// Validate cache key pair.
-		_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load key pair cachecert "+
-				"and cachekey: %v", err)
-		}
-	}
-
-	if cfg.BuildCache && !cfg.EnableCache {
-		return nil, nil, fmt.Errorf("the buildcache param can " +
-			"not be used without the enablecache param")
-	}
-
 	// Initialize log rotation.  After log rotation has been initialized,
 	// the logger variables may be used.
 	initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
@@ -632,16 +570,6 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
-	}
-
-	// Verify mode
-	switch cfg.Mode {
-	case cmsWWWMode:
-	case politeiaWWWMode:
-	default:
-		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
-		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other configuration is

@@ -1023,7 +1023,7 @@ func voteBitVerify(options []ticketvote.VoteOption, mask, bit uint64) error {
 }
 
 // TODO test this function
-func voteVerifyDetails(vote ticketvote.VoteDetails, voteDurationMin, voteDurationMax uint32) error {
+func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDurationMax uint32) error {
 	// Verify vote type
 	switch vote.Type {
 	case ticketvote.VoteTypeStandard:
@@ -1156,7 +1156,7 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 	}
 
 	// Verify vote options and params
-	err = voteVerifyDetails(s.Vote, p.voteDurationMin, p.voteDurationMax)
+	err = voteDetailsVerify(s.Vote, p.voteDurationMin, p.voteDurationMax)
 	if err != nil {
 		return "", err
 	}
@@ -2013,6 +2013,13 @@ func TicketVotePluginNew(backend *tlogbe.Tlogbe, settings []backend.PluginSettin
 		voteDurationMin uint32
 		voteDurationMax uint32
 	)
+
+	/*
+		switch activeNetParams.Name {
+		case chaincfg.MainNetParams.Name:
+		case chaincfg.TestNet3Params.Name:
+		}
+	*/
 
 	return &ticketVotePlugin{
 		dataDir:         filepath.Join(dataDir, ticketVoteDirname),

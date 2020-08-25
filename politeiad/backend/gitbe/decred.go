@@ -40,7 +40,6 @@ const (
 	decredPluginJournals        = "journals"
 	decredPluginVoteDurationMin = "votedurationmin"
 	decredPluginVoteDurationMax = "votedurationmax"
-	decredPluginEnableCache     = "enablecache"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -177,12 +176,6 @@ func getDecredPlugin(dcrdataHost string) backend.Plugin {
 			Value: dcrdataHost,
 		},
 	)
-
-	decredPlugin.Settings = append(decredPlugin.Settings,
-		backend.PluginSetting{
-			Key:   decredPluginEnableCache,
-			Value: "",
-		})
 
 	// Initialize hooks
 	decredPluginHooks = make(map[string]func(string) error)

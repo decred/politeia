@@ -1805,6 +1805,13 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 		false)
 }
 
+// UpdateUnvettedMetadata is not implemented.
+//
+// This function satsifies the Backend interface.
+func (g *gitBackEnd) UpdateUnvettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
+	return fmt.Errorf("not implemented")
+}
+
 // updateVettedMetadata updates metadata in the unvetted repo and pushes it
 // upstream followed by a rebase.  Record is not updated.
 // This function must be called with the lock held.
@@ -2418,8 +2425,12 @@ func (g *gitBackEnd) vettedMetadataStreamExists(token []byte, mdstreamID int) bo
 // unvetted/token directory.
 //
 // GetUnvetted satisfies the backend interface.
-func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
+func (g *gitBackEnd) GetUnvetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetUnvetted %x", token)
+
+	// The version argument is not used because gitbe does not version
+	// unvetted records.
+
 	return g.getRecordLock(token, "", g.unvetted, true)
 }
 
@@ -2773,6 +2784,13 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allV
 	return pr, br, nil
 }
 
+// InventoryByStatus is not implemented.
+//
+// This function satsifies the Backend interface.
+func (g *gitBackEnd) InventoryByStatus() (*backend.InventoryByStatus, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 // GetPlugins returns a list of currently supported plugins and their settings.
 //
 // GetPlugins satisfies the backend interface.
@@ -2786,7 +2804,7 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 // execute.
 //
 // Plugin satisfies the backend interface.
-func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
+func (g *gitBackEnd) Plugin(pluginID, command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v", command)
 	switch command {
 	case decredplugin.CmdAuthorizeVote:
@@ -2984,7 +3002,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string, mode string) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string) (*gitBackEnd, error) {
 
 	// Default to system git
 	if gitPath == "" {
@@ -3013,32 +3031,31 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
-	switch mode {
-	case piMode:
-		// Setup decred plugin settings
-		var voteDurationMin, voteDurationMax string
-		switch anp.Name {
-		case chaincfg.MainNetParams.Name:
-			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
-			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
-		case chaincfg.TestNet3Params.Name:
-			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
-			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
-		default:
-			return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
-		}
-		setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
-		setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
-	case cmsMode:
-		g.plugins = []backend.Plugin{getDecredPlugin(dcrdataHost),
-			getCMSPlugin(anp.Name != "mainnet")}
-
-		setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
-		setCMSPluginSetting(cmsPluginJournals, g.journals)
-	default:
-		return nil, fmt.Errorf("invalid mode")
+	// Register all plugins
+	g.plugins = []backend.Plugin{
+		getDecredPlugin(dcrdataHost),
+		getCMSPlugin(anp.Name != chaincfg.MainNetParams.Name),
 	}
 
+	// Setup cms plugin
+	setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
+	setCMSPluginSetting(cmsPluginJournals, g.journals)
+
+	// Setup decred plugin
+	var voteDurationMin, voteDurationMax string
+	switch anp.Name {
+	case chaincfg.MainNetParams.Name:
+		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
+		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
+	case chaincfg.TestNet3Params.Name:
+		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
+		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
+	default:
+		return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
+	}
+
+	setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
+	setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 	setDecredPluginSetting(decredPluginJournals, g.journals)
 	setDecredPluginHook(PluginPostHookEdit, g.decredPluginPostEdit)
@@ -3059,12 +3076,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
-	if mode == cmsMode {
-		// this function must be called after g.journal is created
-		err = g.initCMSPluginJournals()
-		if err != nil {
-			return nil, err
-		}
+	// this function must be called after g.journal is created
+	err = g.initCMSPluginJournals()
+	if err != nil {
+		return nil, err
 	}
 
 	err = g.newLocked()
@@ -3083,10 +3098,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	err = g.cron.AddFunc(anchorSchedule, func() {
 		// Flush journals
 		g.decredPluginJournalFlusher()
-
-		if mode == cmsMode {
-			g.cmsPluginJournalFlusher()
-		}
+		g.cmsPluginJournalFlusher()
 
 		// Anchor commit
 		g.anchorAllReposCronJob()

@@ -345,7 +345,7 @@ func (t *tlog) anchor() {
 
 		default:
 			// Anchor record found. If the anchor height differs from the
-			// current height than the tree needs to be anchored.
+			// current height then the tree needs to be anchored.
 			_, lr, err := t.trillian.signedLogRootForTree(v)
 			if err != nil {
 				exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)

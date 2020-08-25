@@ -11,7 +11,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
 	"time"
 
 	"github.com/decred/politeia/util"
@@ -439,17 +438,11 @@ func (t *trillianClient) close() {
 	t.grpc.Close()
 }
 
-func newTrillianClient(homeDir, host, keyFile string) (*trillianClient, error) {
+func newTrillianClient(host, keyFile string) (*trillianClient, error) {
 	// Setup trillian key file
-	if keyFile == "" {
-		// No file path was given. Use the default path.
-		keyFile = filepath.Join(homeDir, defaultTrillianKeyFilename)
-	}
 	if !util.FileExists(keyFile) {
 		// Trillian key file does not exist. Create one.
 		log.Infof("Generating trillian private key")
-		if keyFile == "" {
-		}
 		key, err := keys.NewFromSpec(&keyspb.Specification{
 			// TODO Params: &keyspb.Specification_Ed25519Params{},
 			Params: &keyspb.Specification_EcdsaParams{},
@@ -469,7 +462,6 @@ func newTrillianClient(homeDir, host, keyFile string) (*trillianClient, error) {
 	}
 
 	// Setup trillian connection
-	log.Infof("Trillian host: %v", host)
 	g, err := grpc.Dial(host, grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial: %v", err)
@@ -485,7 +477,6 @@ func newTrillianClient(homeDir, host, keyFile string) (*trillianClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Trillian key loaded")
 
 	t := trillianClient{
 		grpc:       g,

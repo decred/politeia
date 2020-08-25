@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -23,7 +22,6 @@ import (
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
@@ -36,8 +34,6 @@ import (
 const (
 	defaultTrillianKeyFilename   = "trillian.key"
 	defaultEncryptionKeyFilename = "tlogbe.key"
-
-	recordsDirname = "records"
 )
 
 var (
@@ -109,6 +105,13 @@ type Tlogbe struct {
 
 func tokenPrefix(token []byte) string {
 	return hex.EncodeToString(token)[:pd.TokenPrefixLength]
+}
+
+func (t *Tlogbe) isShutdown() bool {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.shutdown
 }
 
 func (t *Tlogbe) prefixExists(fullToken []byte) bool {
@@ -860,6 +863,10 @@ func (t *Tlogbe) VettedExists(token []byte) bool {
 func (t *Tlogbe) GetUnvetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetUnvetted: %x", token)
 
+	if t.isShutdown() {
+		return nil, backend.ErrShutdown
+	}
+
 	treeID := treeIDFromToken(token)
 	v, err := strconv.ParseUint(version, 10, 64)
 	if err != nil {
@@ -872,6 +879,10 @@ func (t *Tlogbe) GetUnvetted(token []byte, version string) (*backend.Record, err
 // This function satisfies the Backend interface.
 func (t *Tlogbe) GetVetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetVetted: %x", token)
+
+	if t.isShutdown() {
+		return nil, backend.ErrShutdown
+	}
 
 	treeID := treeIDFromToken(token)
 	v, err := strconv.ParseUint(version, 10, 64)
@@ -1194,6 +1205,10 @@ func (t *Tlogbe) GetPlugins() ([]backend.Plugin, error) {
 func (t *Tlogbe) Plugin(pluginID, command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v", command)
 
+	if t.isShutdown() {
+		return "", "", backend.ErrShutdown
+	}
+
 	// Get plugin
 	plugin, ok := t.plugins[pluginID]
 	if !ok {
@@ -1300,51 +1315,26 @@ func New(homeDir, dataDir, dcrtimeHost, encryptionKeyFile, unvettedTrillianHost,
 		log.Infof("Encryption key created: %v", encryptionKeyFile)
 	}
 
-	// Load encryption key
-	f, err := os.Open(encryptionKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	var key [32]byte
-	n, err := f.Read(key[:])
-	if n != len(key) {
-		return nil, fmt.Errorf("invalid encryption key length")
-	}
-	if err != nil {
-		return nil, err
-	}
-	f.Close()
-	encryptionKey := newEncryptionKey(&key)
-
-	log.Infof("Encryption key loaded")
-
-	// Setup key-value store
-	fp := filepath.Join(dataDir, recordsDirname)
-	err = os.MkdirAll(fp, 0700)
-	if err != nil {
-		return nil, err
-	}
-	store := filesystem.New(fp)
-
-	// Setup dcrtime host
-	_, err = url.Parse(dcrtimeHost)
+	// Verify dcrtime host
+	_, err := url.Parse(dcrtimeHost)
 	if err != nil {
 		return nil, fmt.Errorf("parse dcrtime host '%v': %v", dcrtimeHost, err)
 	}
 	log.Infof("Anchor host: %v", dcrtimeHost)
 
 	// Setup tlog instances
-	unvetted, err := newTlog("unvetted", unvettedTrillianHost,
-		unvettedTrillianKeyFile, dcrtimeHost, encryptionKey, store)
+	unvetted, err := newTlog("unvetted", homeDir, dataDir, unvettedTrillianHost,
+		unvettedTrillianKeyFile, dcrtimeHost, encryptionKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("newTlog unvetted: %v", err)
 	}
-	vetted, err := newTlog("vetted", vettedTrillianHost,
-		vettedTrillianKeyFile, dcrtimeHost, encryptionKey, store)
+	vetted, err := newTlog("vetted", homeDir, dataDir, vettedTrillianHost,
+		vettedTrillianKeyFile, dcrtimeHost, "")
 	if err != nil {
 		return nil, fmt.Errorf("newTlog vetted: %v", err)
 	}
 
+	// Setup tlogbe
 	t := Tlogbe{
 		homeDir:       homeDir,
 		dataDir:       dataDir,
@@ -1360,6 +1350,11 @@ func New(homeDir, dataDir, dcrtimeHost, encryptionKeyFile, unvettedTrillianHost,
 			backend.MDStatusCensored:          make([]string, 0),
 			backend.MDStatusArchived:          make([]string, 0),
 		},
+	}
+
+	err = t.setup()
+	if err != nil {
+		return nil, fmt.Errorf("setup: %v", err)
 	}
 
 	return &t, nil

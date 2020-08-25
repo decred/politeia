@@ -277,12 +277,6 @@ func _main() error {
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	// Issue a warning if pi was builded locally and does not
-	// have the main module info available.
-	if version.BuildMainVersion() == "(devel)" {
-		log.Warnf("Warning: no build information available")
-	}
-
 	if loadedCfg.PaywallAmount != 0 && loadedCfg.PaywallXpub != "" {
 		paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
 		log.Infof("Paywall : %v DCR", paywallAmountInDcr)

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -21,10 +20,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrtime/merkle"
-	decred "github.com/decred/politeia/decredplugin"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/mux"
 )
@@ -45,16 +42,7 @@ type TestPoliteiad struct {
 
 	identity *identity.FullIdentity
 	server   *httptest.Server
-	cache    cache.Cache
 	records  map[string]map[string]v1.Record // [token][version]Record
-
-	// Decred plugin
-	authorizeVotes          map[string]map[string]decred.AuthorizeVote // [token][version]AuthorizeVote
-	startVotes              map[string]decred.StartVoteV2              // [token]StartVote
-	startVoteReplies        map[string]decred.StartVoteReply           // [token]StartVoteReply
-	startVotesRunoff        map[string]decred.StartVoteRunoff          // [token]StartVoteRunoff
-	startVotesRunoffReplies map[string]decred.StartVoteRunoffReply     // [token]StartVoteRunoffReply
-
 }
 
 func respondWithUserError(w http.ResponseWriter,
@@ -239,13 +227,6 @@ func (p *TestPoliteiad) handleUpdateVettedRecord(w http.ResponseWriter, r *http.
 	// Update record in store
 	p.updateRecord(updated)
 
-	// Update record in cache
-	err = p.cache.UpdateRecord(convertRecordToCache(updated))
-	if err != nil {
-		util.RespondWithJSON(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	response := p.identity.SignMessage(challenge)
 	util.RespondWithJSON(w, http.StatusOK, v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
@@ -303,15 +284,6 @@ func (p *TestPoliteiad) handleSetUnvettedStatus(w http.ResponseWriter, r *http.R
 	rc.Metadata = append(rc.Metadata, t.MDAppend...)
 	p.addRecord(*rc)
 
-	// Update cache
-	s := convertRecordStatusToCache(rc.Status)
-	m := convertMetadataStreamsToCache(rc.Metadata)
-	err = p.cache.UpdateRecordStatus(t.Token, rc.Version,
-		s, rc.Timestamp, m)
-	if err != nil {
-		log.Printf("cache update record status: %v", err)
-	}
-
 	// Send response
 	util.RespondWithJSON(w, http.StatusOK,
 		v1.SetUnvettedStatusReply{
@@ -337,11 +309,8 @@ func (p *TestPoliteiad) handlePluginCommand(w http.ResponseWriter, r *http.Reque
 	}
 	response := p.identity.SignMessage(challenge)
 
-	payload, err := p.decredExec(t)
-	if err != nil {
-		respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
+	// TODO exec plugin command
+	var payload string
 
 	util.RespondWithJSON(w, http.StatusOK,
 		v1.PluginCommandReply{
@@ -404,15 +373,6 @@ func (p *TestPoliteiad) handleSetVettedStatus(w http.ResponseWriter, r *http.Req
 	rc.Metadata = append(rc.Metadata, t.MDAppend...)
 	p.addRecord(*rc)
 
-	// Update cache
-	s := convertRecordStatusToCache(rc.Status)
-	m := convertMetadataStreamsToCache(rc.Metadata)
-	err = p.cache.UpdateRecordStatus(t.Token, rc.Version,
-		s, rc.Timestamp, m)
-	if err != nil {
-		log.Printf("cache update record status: %v", err)
-	}
-
 	// Send response
 	util.RespondWithJSON(w, http.StatusOK,
 		v1.SetUnvettedStatusReply{
@@ -420,52 +380,25 @@ func (p *TestPoliteiad) handleSetVettedStatus(w http.ResponseWriter, r *http.Req
 		})
 }
 
-// Plugin is a pass through function for plugin commands. The plugin command
-// is executed in politeiad and is then passed to the cache. This function
-// is intended to be used as a way to setup test data.
+// Plugin is a pass through function for plugin commands. This function is
+// intended to be used as a way to setup test data.
 func (p *TestPoliteiad) Plugin(t *testing.T, pc v1.PluginCommand) {
 	t.Helper()
 
 	// Execute plugin command
-	var payload string
-	var err error
 	switch pc.ID {
-	case decred.ID:
-		payload, err = p.decredExec(pc)
 	default:
 		t.Fatalf("invalid plugin")
 	}
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Send plugin cmd to cache
-	_, err = p.cache.PluginExec(
-		cache.PluginCommand{
-			ID:             pc.ID,
-			Command:        pc.Command,
-			CommandPayload: pc.Payload,
-			ReplyPayload:   payload,
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
-// AddRecord adds a record to the politeiad records store and to the cache.
-// This function is intended to be used as a way to setup test data.
+// AddRecord adds a record to the politeiad records store. This function is
+// intended to be used as a way to setup test data.
 func (p *TestPoliteiad) AddRecord(t *testing.T, r v1.Record) {
 	t.Helper()
 
 	// Add record to memory store
 	p.addRecord(r)
-
-	// Add record to cache
-	err := p.cache.NewRecord(convertRecordToCache(r))
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 // Close shuts down the httptest server.
@@ -474,7 +407,7 @@ func (p *TestPoliteiad) Close() {
 }
 
 // New returns a new TestPoliteiad context.
-func New(t *testing.T, c cache.Cache) *TestPoliteiad {
+func New(t *testing.T) *TestPoliteiad {
 	t.Helper()
 
 	// Setup politeiad identity
@@ -485,16 +418,10 @@ func New(t *testing.T, c cache.Cache) *TestPoliteiad {
 
 	// Init context
 	p := TestPoliteiad{
-		FullIdentity:            id,
-		PublicIdentity:          &id.Public,
-		identity:                id,
-		cache:                   c,
-		records:                 make(map[string]map[string]v1.Record),
-		authorizeVotes:          make(map[string]map[string]decred.AuthorizeVote),
-		startVotes:              make(map[string]decred.StartVoteV2),
-		startVoteReplies:        make(map[string]decred.StartVoteReply),
-		startVotesRunoff:        make(map[string]decred.StartVoteRunoff),
-		startVotesRunoffReplies: make(map[string]decred.StartVoteRunoffReply),
+		FullIdentity:   id,
+		PublicIdentity: &id.Public,
+		identity:       id,
+		records:        make(map[string]map[string]v1.Record),
 	}
 
 	// Setup routes

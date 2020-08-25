@@ -63,6 +63,7 @@ const (
 	VoteTypeRunoff VoteT = 2
 
 	// Vote duration requirements in blocks
+	// TODO these are not used anywhere
 	VoteDurationMinMainnet = 2016
 	VoteDurationMaxMainnet = 4032
 	VoteDurationMinTestnet = 0
