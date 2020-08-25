@@ -155,7 +155,7 @@ const usageMsg = `politeiawww_dbutil usage:
     -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
-		  Required DB flag : -cockroachdb
+          Required DB flag : -cockroachdb
 
     -resettotp
           Reset a user's totp settings in case they are locked out and 
