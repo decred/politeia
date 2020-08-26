@@ -1071,22 +1071,10 @@ type CodeStats struct {
 	Month           int      `json:"month"`
 	Year            int      `json:"year"`
 	Repository      string   `json:"repository"`
-	CommitAdditions int64    `json:"commitadditions"`
-	CommitDeletions int64    `json:"commitdeletions"`
 	MergeAdditions  int64    `json:"mergeadditions"`
 	MergeDeletions  int64    `json:"mergedeletions"`
 	ReviewAdditions int64    `json:"reviewadditions"`
 	ReviewDeletions int64    `json:"reviewdeletions"`
 	PRs             []string `json:"prs"`
 	Reviews         []string `json:"reviews"`
-}
-
-type UpdateCodeStats struct {
-	Organization string `json:"organization"`
-	Repository   string `json:"repo"`
-	Year         int    `json:"year"`
-	Month        int    `json:"month"`
-}
-
-type UpdateCodeStatsReply struct {
 }
