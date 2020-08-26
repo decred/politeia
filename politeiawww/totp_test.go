@@ -37,11 +37,11 @@ func TestProcessSetTOTP(t *testing.T) {
 		t.Errorf("unable to update user secret key %v", err)
 	}
 
-	code, err := p.totpGenerateCode(key.Secret(), time.Now())
+	code, err := p.totpGenerateCode(key.Secret(), time.Now().Add(500*time.Millisecond))
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}
-	t.Log(code)
+
 	var tests = []struct {
 		name      string
 		params    www.SetTOTP
