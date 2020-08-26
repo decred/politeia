@@ -61,7 +61,7 @@ func (g *github) Update(org string, repos []string, start int64) {
 
 		for _, pr := range prs {
 			// check to see if last updated time was before the given start date
-			if parseTime(pr.UpdatedAt).Before(time.Unix(start, 0)) {
+			if parseTime(pr.MergedAt).Before(time.Unix(start, 0)) {
 				continue
 			}
 			err := g.updatePullRequest(org, repo, pr, start)
