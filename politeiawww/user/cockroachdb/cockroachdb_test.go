@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	_ "github.com/lib/pq"
 )
 
 // Custom go-sqlmock types for type assertion
@@ -233,12 +232,12 @@ func TestUserUpdateSuccess(t *testing.T) {
 	}
 
 	// Query
-	sql := `UPDATE "users" SET "username" = $1, "blob" = $2, "created_at" = $3, "updated_at" = $4  WHERE "users"."id" = $5`
+	sql := `UPDATE "users" SET "username" = $1, "blob" = $2, "updated_at" = $3 WHERE "users"."id" = $4`
 
 	// Expectations
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(sql)).
-		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, AnyTime{}, usr.ID).
+		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, usr.ID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -269,12 +268,12 @@ func TestUserUpdateFailure(t *testing.T) {
 	}
 
 	// Query
-	sql := `UPDATE "users" SET "username" = $1, "blob" = $2, "created_at" = $3, "updated_at" = $4  WHERE "users"."id" = $5`
+	sql := `UPDATE "users" SET "username" = $1, "blob" = $2, "updated_at" = $3 WHERE "users"."id" = $4`
 
 	// Expectations
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(sql)).
-		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, AnyTime{}, usr.ID).
+		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, usr.ID).
 		WillReturnError(fmt.Errorf("update user error"))
 	mock.ExpectRollback()
 
