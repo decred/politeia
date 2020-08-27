@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	month31Days = map[int]bool{
+	userCodeStatsRangeLimit = time.Minute * 60 * 24 * 7 * 26 // 6 months in minutes == 60mins * 24hrs * 7days * 26weeks
+	month31Days             = map[int]bool{
 		0:  true,
 		2:  true,
 		4:  true,
@@ -29,6 +30,14 @@ var (
 // and month/year provided.
 func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
 	log.Tracef("processUserCodeStats")
+
+	// Check to make sure time range requested is not greater than 6 months
+	if time.Unix(ucs.EndTime, 0).Sub(time.Unix(ucs.StartTime, 0)) >
+		userCodeStatsRangeLimit {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+		}
+	}
 
 	cmsUser, err := p.getCMSUserByID(u.ID.String())
 	if err == user.ErrUserNotFound {
