@@ -152,8 +152,12 @@ func TestUserNew(t *testing.T) {
 
 	// Queries
 	sqlSelectIndex := `SELECT * FROM "key_value" WHERE "key_value"."key" = $1`
-	sqlInsertUser := `INSERT INTO "users" ("id","username","blob","created_at","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "users"."id"`
-	sqlUpdateIndex := `UPDATE "key_value" SET "value" = $1 WHERE "key_value"."key" = $2`
+	sqlInsertUser := `INSERT INTO "users" ` +
+		`("id","username","blob","created_at","updated_at") ` +
+		`VALUES ($1,$2,$3,$4,$5) ` +
+		`RETURNING "users"."id"`
+	sqlUpdateIndex := `UPDATE "key_value" SET "value" = $1 ` +
+		`WHERE "key_value"."key" = $2`
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -213,7 +217,9 @@ func TestUserUpdate(t *testing.T) {
 	}
 
 	// Query
-	sql := `UPDATE "users" SET "username" = $1, "blob" = $2, "updated_at" = $3 WHERE "users"."id" = $4`
+	sql := `UPDATE "users" ` +
+		`SET "username" = $1, "blob" = $2, "updated_at" = $3 ` +
+		`WHERE "users"."id" = $4`
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -378,7 +384,9 @@ func TestUserGetByPubKey(t *testing.T) {
 	}).AddRow(usr.ID, usr.Username, blob, now, now)
 
 	// Query
-	sql := `SELECT * FROM users INNER JOIN identities ON users.id = identities.user_id WHERE identities.public_key = $1`
+	sql := `SELECT * FROM users ` +
+		`INNER JOIN identities ON users.id = identities.user_id ` +
+		`WHERE identities.public_key = $1`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -434,7 +442,9 @@ func TestUsersGetByPubKey(t *testing.T) {
 	}).AddRow(usr.ID, usr.Username, blob, now, now)
 
 	// Query
-	sql := `SELECT * FROM users INNER JOIN identities ON users.id = identities.user_id WHERE identities.public_key IN ($1)`
+	sql := `SELECT * FROM users ` +
+		`INNER JOIN identities ON users.id = identities.user_id ` +
+		`WHERE identities.public_key IN ($1)`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -550,7 +560,9 @@ func TestSessionSave(t *testing.T) {
 	// Query
 	sqlSelect := `SELECT * FROM "sessions"  WHERE (key = $1)`
 
-	sqlInsert := `INSERT INTO "sessions" ("key","user_id","created_at","blob") VALUES ($1,$2,$3,$4) RETURNING "sessions"."key"`
+	sqlInsert := `INSERT INTO "sessions" ` +
+		`("key","user_id","created_at","blob") ` +
+		`VALUES ($1,$2,$3,$4) RETURNING "sessions"."key"`
 
 	// Success Create Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
@@ -573,7 +585,9 @@ func TestSessionSave(t *testing.T) {
 		AddRow(sessionKey, session.UserID, session.CreatedAt, []byte{})
 
 	// Queries
-	sqlUpdate := `UPDATE "sessions" SET "user_id" = $1, "created_at" = $2, "blob" = $3  WHERE "sessions"."key" = $4`
+	sqlUpdate := `UPDATE "sessions" ` +
+		`SET "user_id" = $1, "created_at" = $2, "blob" = $3 ` +
+		`WHERE "sessions"."key" = $4`
 
 	// Success Update Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
