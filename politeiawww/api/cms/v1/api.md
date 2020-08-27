@@ -1961,55 +1961,6 @@ Reply:
   }
 ```
 
-### `Update codestats`
-
-Request to update all pull request, review and commit information for a given 
-organization.  When no month or year is provided, this request will crawl 
-the repository provided and populate the github tracker database.  This database
-contains raw information about pull request, reviews and commits from the
-organization provided.  Due to github api request limitations, there will be
-periodic request time outs.  Upon completion all users that are set to the 
-developers domain will have their userdb codestats updated.
-
-If a month and year are provided, it will not crawl github to update codestats,
-but merely update users' code stats for the given month/year.
-
-Note: This call requires admin privileges.
-
-**Route:** `POST /admin/updatecodestats`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-|	organization | string | The github organization to crawl for repos. | Yes |
-|	repo | string | A specific repository to crawl for pull requests instead of all in the provided organization. | No |
-|	year | int | A specific year to update code stats of users. | No |
-|	month | int | A specific month to update code stats of users.  If both month and year aren't provided then it will just update last month. | No |
-
-**Results:**
-
-| Parameter | Type | Description |
-|-|-|-|
-
-**Example**
-
-Request:
-
-```json
-{
-  "organization": "decred",
-  "repo": "politeia"
-}
-```
-
-Reply:
-
-```json
-{
-}
-```
-
 ### `User code stats`
 
 Returns all code stats based on provided userid and start/endtime.  

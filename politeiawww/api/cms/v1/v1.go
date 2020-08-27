@@ -55,7 +55,6 @@ const (
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
 	RouteUserCodeStats          = "/user/codestats"
-	RouteUpdateCodeStats        = "/admin/updatecodestats"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status

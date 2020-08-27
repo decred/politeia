@@ -2455,22 +2455,6 @@ func (c *Client) LoadWalletClient() error {
 	return nil
 }
 
-func (c *Client) UpdateCodeStats(pi *cms.UpdateCodeStats) (*cms.UpdateCodeStatsReply, error) {
-	responseBody, err := c.makeRequest(http.MethodGet,
-		cms.APIRoute, cms.RouteUpdateCodeStats, pi)
-	if err != nil {
-		return nil, err
-	}
-
-	var pir cms.UpdateCodeStatsReply
-	err = json.Unmarshal(responseBody, &pir)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal PayInvoiceReply: %v", err)
-	}
-
-	return &pir, nil
-}
-
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {
