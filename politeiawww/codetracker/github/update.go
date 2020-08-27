@@ -76,8 +76,6 @@ func (g *github) Update(org string, repos []string, start, end int64) {
 			}
 		}
 	}
-
-	return
 }
 
 func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, start int64) error {
