@@ -168,7 +168,8 @@ func TestUserNew(t *testing.T) {
 			AddRow(keyPaywallAddressIndex, index))
 	// Insert user to db
 	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertUser)).
-		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{}, AnyTime{}, AnyTime{}).
+		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{},
+			AnyTime{}, AnyTime{}).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(usr.ID))
 	// Update paywall address index
 	mock.ExpectExec(regexp.QuoteMeta(sqlUpdateIndex)).
@@ -460,7 +461,8 @@ func TestUsersGetByPubKey(t *testing.T) {
 	// Make sure correct user was fetched
 	fetchedUser := ur[pubkey]
 	if fetchedUser.ID != usr.ID {
-		t.Errorf("expecting user of id %s but received %s", usr.ID, fetchedUser.ID)
+		t.Errorf("expecting user of id %s but received %s",
+			usr.ID, fetchedUser.ID)
 	}
 
 	// Failure Expectations
