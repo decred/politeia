@@ -1895,7 +1895,7 @@ func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
 func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
 	reply := &cms.ProposalBillingSummaryReply{}
 
-	data, err := p.makePropsoalsRequestCached(http.MethodGet, www.RouteTokenInventory, nil, "1h")
+	data, err := p.makeProposalsRequestCached(http.MethodGet, www.RouteTokenInventory, nil, "1h")
 	if err != nil {
 		return nil, err
 	}
@@ -1921,7 +1921,7 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 				Tokens: approvedProposals[startOffset:i],
 			}
 
-			data, err := p.makePropsoalsRequestCached(http.MethodPost, www.RouteBatchProposals, bp, "1h")
+			data, err := p.makeProposalsRequestCached(http.MethodPost, www.RouteBatchProposals, bp, "1h")
 			if err != nil {
 				return nil, err
 			}
@@ -2031,7 +2031,7 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 		invRecs = append(invRecs, invRec)
 	}
 
-	data, err := p.makePropsoalsRequestCached(http.MethodGet, "/proposals/"+pbd.Token, nil, "1h")
+	data, err := p.makeProposalsRequestCached(http.MethodGet, "/proposals/"+pbd.Token, nil, "1h")
 	if err != nil {
 		return nil, err
 	}

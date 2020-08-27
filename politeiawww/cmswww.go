@@ -938,7 +938,7 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
-	data, err := p.makePropsoalsRequestCached(http.MethodGet, www.RouteTokenInventory, nil, "1h")
+	data, err := p.makeProposalsRequestCached(http.MethodGet, www.RouteTokenInventory, nil, "1h")
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
@@ -960,7 +960,7 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 		return
 	}
 
-	data, err := p.makePropsoalsRequestCached(http.MethodPost, www.RouteBatchProposals, bp, "1h")
+	data, err := p.makeProposalsRequestCached(http.MethodPost, www.RouteBatchProposals, bp, "1h")
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
@@ -1016,11 +1016,11 @@ func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
-// makePropsoalsRequestCached takes the same inputs as makeProposalsRequest
+// makeProposalsRequestCached takes the same inputs as makeProposalsRequest
 // plus a time parsed string "cacheTime" that determines how long a response is
 // cached. This function is only to be used if the data being processed is not
 // time sensitive and not user specific.
-func (p *politeiawww) makePropsoalsRequestCached(method string, route string, v interface{}, cacheTime string) ([]byte, error) {
+func (p *politeiawww) makeProposalsRequestCached(method string, route string, v interface{}, cacheTime string) ([]byte, error) {
 	var (
 		requestBody []byte
 		err         error
