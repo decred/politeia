@@ -13,8 +13,6 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -235,11 +233,14 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	// Ensure proposal exists and is public
 	pr, err := p.getProp(nc.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -274,8 +275,8 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusDuplicateComment,
 		}
-	case cache.ErrRecordNotFound:
-		// No duplicate comment; continue
+	// TODO case cache.ErrRecordNotFound:
+	// No duplicate comment; continue
 	default:
 		// Some other error
 		return nil, fmt.Errorf("decredCommentBySignature: %v", err)
@@ -347,131 +348,6 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}, nil
 }
 
-// processNewCommentInvoice sends a new comment decred plugin command to politeaid
-// then fetches the new comment from the cache and returns it.
-func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
-	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
-
-	ir, err := p.getInvoice(nc.Token)
-	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
-		return nil, err
-	}
-
-	// Check to make sure the user is either an admin or the
-	// author of the invoice.
-	if !u.Admin && (ir.Username != u.Username) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
-	}
-
-	// Ensure the public key is the user's active key
-	if nc.PublicKey != u.PublicKey() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	// Validate signature
-	msg := nc.Token + nc.ParentID + nc.Comment
-	err = validateSignature(nc.PublicKey, nc.Signature, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate comment
-	err = validateComment(nc)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check to make sure that invoice isn't already approved or paid.
-	if ir.Status == cms.InvoiceStatusApproved || ir.Status == cms.InvoiceStatusPaid {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusWrongInvoiceStatus,
-		}
-	}
-
-	// Setup plugin command
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	dnc := convertNewCommentToDecredPlugin(nc)
-	payload, err := decredplugin.EncodeNewComment(dnc)
-	if err != nil {
-		return nil, err
-	}
-
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdNewComment,
-		CommandID: decredplugin.CmdNewComment,
-		Payload:   string(payload),
-	}
-
-	// Send polieiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle response
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal "+
-			"PluginCommandReply: %v", err)
-	}
-
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	// Add comment to commentVotes in-memory cache
-	p.Lock()
-	p.commentVotes[nc.Token+ncr.CommentID] = counters{}
-	p.Unlock()
-
-	// Get comment from cache
-	c, err := p.getComment(nc.Token, ncr.CommentID)
-	if err != nil {
-		return nil, fmt.Errorf("getComment: %v", err)
-	}
-
-	if u.Admin {
-		invoiceUser, err := p.db.UserGetByUsername(ir.Username)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get user by username %v %v",
-				ir.Username, err)
-		}
-		// Fire off new invoice comment event
-		p.fireEvent(EventTypeInvoiceComment,
-			EventDataInvoiceComment{
-				Token: nc.Token,
-				User:  invoiceUser,
-			},
-		)
-	}
-	return &www.NewCommentReply{
-		Comment: *c,
-	}, nil
-}
-
 // processLikeComment processes an upvote/downvote on a comment.
 func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
 	log.Debugf("processLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
@@ -508,11 +384,14 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	// Ensure proposal exists and is public
 	pr, err := p.getProp(lc.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -541,11 +420,14 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	// Ensure comment exists and has not been censored.
 	c, err := p.decredCommentGetByID(lc.Token, lc.CommentID)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusCommentNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusCommentNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 	if c.Censored {

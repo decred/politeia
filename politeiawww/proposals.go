@@ -22,7 +22,6 @@ import (
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
@@ -255,18 +254,22 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 		// Validate the LinkTo proposal. The only type of proposal that
 		// we currently allow linking to is an RFP.
-		r, err := p.cache.Record(pm.LinkTo)
-		if err != nil {
-			if err == cache.ErrRecordNotFound {
-				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidLinkTo,
+		/*
+			// TODO
+			r, err := p.cache.Record(pm.LinkTo)
+			if err != nil {
+				if err == cache.ErrRecordNotFound {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusInvalidLinkTo,
+					}
 				}
 			}
-		}
-		pr, err := convertPropFromCache(*r)
-		if err != nil {
-			return err
-		}
+			pr, err := convertPropFromCache(*r)
+			if err != nil {
+				return err
+			}
+		*/
+		var pr *www.ProposalRecord
 		bb, err := p.getBestBlock()
 		if err != nil {
 			return err
@@ -634,21 +637,24 @@ func (p *politeiawww) fillProposalMissingFields(pr *www.ProposalRecord) error {
 func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	log.Tracef("getProp: %v", token)
 
-	var r *cache.Record
-	var err error
-	if len(token) == www.TokenPrefixLength {
-		r, err = p.cache.RecordByPrefix(token)
-	} else {
-		r, err = p.cache.Record(token)
-	}
-	if err != nil {
-		return nil, err
-	}
+	/*
+		var r *cache.Record
+		var err error
+		if len(token) == www.TokenPrefixLength {
+			r, err = p.cache.RecordByPrefix(token)
+		} else {
+			r, err = p.cache.Record(token)
+		}
+		if err != nil {
+			return nil, err
+		}
 
-	pr, err := convertPropFromCache(*r)
-	if err != nil {
-		return nil, err
-	}
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return nil, err
+		}
+	*/
+	var pr *www.ProposalRecord
 
 	err = p.fillProposalMissingFields(pr)
 	if err != nil {
@@ -667,21 +673,24 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 	log.Tracef("getProps: %v", tokens)
 
 	// Get the proposals from the cache
-	records, err := p.cache.Records(tokens, true)
-	if err != nil {
-		return nil, err
-	}
-
-	// Use pointers for now so the props can be easily updated
-	props := make(map[string]*www.ProposalRecord, len(records))
-	for _, v := range records {
-		pr, err := convertPropFromCache(v)
+	/*
+		// TODO
+		records, err := p.cache.Records(tokens, true)
 		if err != nil {
-			return nil, fmt.Errorf("convertPropFromCache %v: %v",
-				v.CensorshipRecord.Token, err)
+			return nil, err
 		}
-		props[v.CensorshipRecord.Token] = pr
-	}
+
+		// Use pointers for now so the props can be easily updated
+		for _, v := range records {
+			pr, err := convertPropFromCache(v)
+			if err != nil {
+				return nil, fmt.Errorf("convertPropFromCache %v: %v",
+					v.CensorshipRecord.Token, err)
+			}
+			props[v.CensorshipRecord.Token] = pr
+		}
+	*/
+	props := make(map[string]*www.ProposalRecord, len(records))
 
 	// Get the number of comments for each proposal. Comments
 	// are part of decred plugin so this must be fetched from
@@ -755,15 +764,18 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord, error) {
 	log.Tracef("getPropVersion: %v %v", token, version)
 
-	r, err := p.cache.RecordVersion(token, version)
-	if err != nil {
-		return nil, err
-	}
+	/*
+		r, err := p.cache.RecordVersion(token, version)
+		if err != nil {
+			return nil, err
+		}
 
-	pr, err := convertPropFromCache(*r)
-	if err != nil {
-		return nil, err
-	}
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return nil, err
+		}
+	*/
+	var pr *www.ProposalRecord
 
 	err = p.fillProposalMissingFields(pr)
 	if err != nil {
@@ -778,54 +790,9 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 	log.Tracef("getAllProps")
 
-	// Get proposals from cache
-	records, err := p.cache.Inventory()
-	if err != nil {
-		return nil, err
-	}
+	// TODO getAllProps shouldn't exist
 
-	// Convert props and fill in missing info
-	props := make([]www.ProposalRecord, 0, len(records))
-	for _, v := range records {
-		pr, err := convertPropFromCache(v)
-		if err != nil {
-			return nil, fmt.Errorf("convertPropFromCache %v: %v",
-				pr.CensorshipRecord.Token, err)
-		}
-		token := pr.CensorshipRecord.Token
-
-		// Fill in num comments
-		dc, err := p.decredGetComments(token)
-		if err != nil {
-			return nil, fmt.Errorf("decredGetComments %v: %v",
-				pr.CensorshipRecord.Token, err)
-		}
-		pr.NumComments = uint(len(dc))
-
-		// Find linked from proposals
-		lfr, err := p.decredLinkedFrom([]string{token})
-		if err != nil {
-			return nil, err
-		}
-		linkedFrom, ok := lfr.LinkedFrom[token]
-		if ok {
-			pr.LinkedFrom = linkedFrom
-		}
-
-		// Fill in author info
-		u, err := p.db.UserGetByPubKey(pr.PublicKey)
-		if err != nil {
-			return nil, fmt.Errorf("UserGetByPubKey %v %v: %v",
-				pr.CensorshipRecord.Token, pr.PublicKey, err)
-		} else {
-			pr.UserId = u.ID.String()
-			pr.Username = u.Username
-		}
-
-		props = append(props, *pr)
-	}
-
-	return props, nil
+	return nil, nil
 }
 
 // filterProps filters the given proposals according to the filtering
@@ -1043,17 +1010,20 @@ func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[s
 	for retries := 0; !done && retries <= 1; retries++ {
 		reply, err = p.decredBatchVoteSummary(tokensToLookup, bestBlock)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
-				// There are missing entries in the VoteResults
-				// cache table. Load them.
-				_, err := p.decredLoadVoteResults(bestBlock)
-				if err != nil {
-					return nil, err
-				}
+			/*
+				// TODO
+				if err == cache.ErrRecordNotFound {
+					// There are missing entries in the VoteResults
+					// cache table. Load them.
+					_, err := p.decredLoadVoteResults(bestBlock)
+					if err != nil {
+						return nil, err
+					}
 
-				// Retry the vote summaries call
-				continue
-			}
+					// Retry the vote summaries call
+					continue
+				}
+			*/
 			return nil, err
 		}
 
@@ -1125,7 +1095,8 @@ func (p *politeiawww) voteSummaryGet(token string, bestBlock uint64) (*www.VoteS
 	}
 	vs, ok := s[token]
 	if !ok {
-		return nil, cache.ErrRecordNotFound
+		// return nil, cache.ErrRecordNotFound
+		return nil, fmt.Errorf("record not found")
 	}
 	return &vs, nil
 }
@@ -1156,14 +1127,17 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	// submissions. Everything else has already been validated by the
 	// validateProposal function.
 	if pm.LinkTo != "" {
-		r, err := p.cache.Record(pm.LinkTo)
-		if err != nil {
-			return nil, err
-		}
-		pr, err := convertPropFromCache(*r)
-		if err != nil {
-			return nil, err
-		}
+		/*
+			r, err := p.cache.Record(pm.LinkTo)
+			if err != nil {
+				return nil, err
+			}
+			pr, err := convertPropFromCache(*r)
+			if err != nil {
+				return nil, err
+			}
+		*/
+		var pr *www.ProposalRecord
 		// Once the linkto deadline has expired no new submissions are
 		// allowed. Edits to existing submissions are allowed which is
 		// why this is checked here and not in the validateProposal
@@ -1308,11 +1282,14 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 		prop, err = p.getPropVersion(propDetails.Token, propDetails.Version)
 	}
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -1512,11 +1489,14 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	// Get proposal from cache
 	pr, err := p.getProp(sps.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -1714,11 +1694,14 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	// Validate proposal status
 	cachedProp, err := p.getProp(ep.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -2088,11 +2071,14 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -2242,11 +2228,14 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 
@@ -2554,11 +2543,14 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	// Validate the vote authorization
 	pr, err := p.getProp(av.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 	bb, err := p.getBestBlock()
@@ -2872,11 +2864,14 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	}
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 	bb, err := p.getBestBlock()
@@ -3049,12 +3044,15 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 		pr, err := p.getProp(token)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
-				err = www.UserError{
-					ErrorCode:    www.ErrorStatusProposalNotFound,
-					ErrorContext: []string{token},
+			/*
+				// TODO
+				if err == cache.ErrRecordNotFound {
+					err = www.UserError{
+						ErrorCode:    www.ErrorStatusProposalNotFound,
+						ErrorContext: []string{token},
+					}
 				}
-			}
+			*/
 			return nil, err
 		}
 		vs, err := p.voteSummaryGet(token, bb)
@@ -3100,12 +3098,15 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	// Validate the RFP proposal
 	rfp, err := p.getProp(sv.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode:    www.ErrorStatusProposalNotFound,
-				ErrorContext: []string{sv.Token},
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode:    www.ErrorStatusProposalNotFound,
+					ErrorContext: []string{sv.Token},
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 	switch {
@@ -3251,17 +3252,20 @@ func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.Token
 		// for non-admins.
 		ti, err := p.decredTokenInventory(bestBlock, isAdmin)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
-				// There are missing entries in the vote
-				// results cache table. Load them.
-				_, err := p.decredLoadVoteResults(bestBlock)
-				if err != nil {
-					return nil, err
-				}
+			/*
+				// TODO
+				if err == cache.ErrRecordNotFound {
+					// There are missing entries in the vote
+					// results cache table. Load them.
+					_, err := p.decredLoadVoteResults(bestBlock)
+					if err != nil {
+						return nil, err
+					}
 
-				// Retry token inventory call
-				continue
-			}
+					// Retry token inventory call
+					continue
+				}
+			*/
 			return nil, err
 		}
 
@@ -3292,11 +3296,14 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	// Validate vote status
 	dvdr, err := p.decredVoteDetails(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+		/*
+			// TODO
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode: www.ErrorStatusProposalNotFound,
+				}
 			}
-		}
+		*/
 		return nil, err
 	}
 	if dvdr.StartVoteReply.StartBlockHash == "" {

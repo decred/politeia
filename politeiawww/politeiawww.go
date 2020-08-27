@@ -19,7 +19,6 @@ import (
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -90,13 +89,10 @@ type politeiawww struct {
 	cfg      *config
 	router   *mux.Router
 	sessions sessions.Store
+	plugins  []Plugin
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
-
-	// Cache
-	cache   cache.Cache
-	plugins []Plugin
 
 	// Politeiad client
 	client *http.Client
@@ -121,10 +117,6 @@ type politeiawww struct {
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentVotes    map[string]counters             // [token+commentID]counters
 
-	// voteSummaries is a lazy loaded cache of votes summaries for
-	// proposals whose voting period has ended.
-	voteSummaries map[string]www.VoteSummary // [token]VoteSummary
-
 	// XXX userEmails is a temporary measure until the user by email
 	// lookups are completely removed from politeiawww.
 	userEmails map[string]uuid.UUID // [email]userID
@@ -135,12 +127,6 @@ type politeiawww struct {
 
 	// wsDcrdata is a dcrdata websocket client
 	wsDcrdata *wsdcrdata.Client
-
-	// The current best block is cached and updated using a websocket
-	// subscription to dcrdata. If the websocket connection is not active,
-	// the dcrdata best block route of politeiad is used as a fallback.
-	bestBlock uint64
-	bbMtx     sync.RWMutex
 }
 
 // XXX rig this up

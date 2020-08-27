@@ -16,9 +16,9 @@ import (
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -377,7 +377,7 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 func (p *politeiawww) invoiceStatusPaid(token string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrInvoiceNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}

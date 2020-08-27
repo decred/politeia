@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -45,26 +44,25 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log            = backendLog.Logger("PWWW")
-	localdbLog     = backendLog.Logger("LODB")
-	cockroachdbLog = backendLog.Logger("CODB")
-	wsdcrdataLog   = backendLog.Logger("WSDD")
+	log          = backendLog.Logger("PWWW")
+	userdbLog    = backendLog.Logger("USDB")
+	cmsdbLog     = backendLog.Logger("CMDB")
+	wsdcrdataLog = backendLog.Logger("WSDD")
 )
 
 // Initialize package-global logger variables.
 func init() {
-	localdb.UseLogger(localdbLog)
-	cockroachdb.UseLogger(cockroachdbLog)
-	cachedb.UseLogger(cockroachdbLog)
-	cmsdb.UseLogger(cockroachdbLog)
+	localdb.UseLogger(userdbLog)
+	cockroachdb.UseLogger(userdbLog)
+	cmsdb.UseLogger(cmsdbLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"PWWW": log,
-	"LODB": localdbLog,
-	"CODB": cockroachdbLog,
+	"USDB": userdbLog,
+	"CMDB": cmsdbLog,
 	"WSDD": wsdcrdataLog,
 }
 

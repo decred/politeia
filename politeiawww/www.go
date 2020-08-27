@@ -26,8 +26,6 @@ import (
 
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
-	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -389,42 +387,6 @@ func _main() error {
 		return fmt.Errorf("getPluginInventory: %v", err)
 	}
 
-	// Setup cache connection
-	net := filepath.Base(p.cfg.DataDir)
-	p.cache, err = cachedb.New(cachedb.UserPoliteiawww, p.cfg.DBHost,
-		net, p.cfg.DBRootCert, p.cfg.DBCert, p.cfg.DBKey)
-	if err != nil {
-		switch err {
-		case cache.ErrNoVersionRecord:
-			err = fmt.Errorf("cache version record not found; " +
-				"start politeiad to setup the cache")
-		case cache.ErrWrongVersion:
-			err = fmt.Errorf("wrong cache version found; " +
-				"restart politeiad to rebuild the cache")
-		}
-		return fmt.Errorf("cachedb new: %v", err)
-	}
-
-	// Register plugins with cache
-	for _, v := range p.plugins {
-		cp := convertPluginToCache(v)
-		err = p.cache.RegisterPlugin(cp)
-		if err != nil {
-			switch err {
-			case cache.ErrNoVersionRecord:
-				err = fmt.Errorf("version record not found;" +
-					"start politeiad to setup the cache")
-			case cache.ErrWrongVersion:
-				err = fmt.Errorf("wrong version found; " +
-					"restart politeiad to rebuild the cache")
-			}
-			return fmt.Errorf("cache register plugin '%v': %v",
-				v.ID, err)
-		}
-
-		log.Infof("Registered cache plugin: %v", v.ID)
-	}
-
 	// Setup email-userID map
 	err = p.initUserEmailsCache()
 	if err != nil {
@@ -490,16 +452,6 @@ func _main() error {
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
 
-	// Setup dcrdata websocket connection
-	ws, err := wsdcrdata.New(p.dcrdataHostWS())
-	if err != nil {
-		// Continue even if a websocket connection was not able to be
-		// made. The application specific websocket setup (pi, cms, etc)
-		// can decide whether to attempt reconnection or to exit.
-		log.Errorf("wsdcrdata New: %v", err)
-	}
-	p.wsDcrdata = ws
-
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		// Setup routes
@@ -515,14 +467,17 @@ func _main() error {
 			p.setupWSDcrdataPi()
 		}()
 
-		// Setup VoteResults cache table
-		log.Infof("Loading vote results cache table")
-		err = p.initVoteResults()
-		if err != nil {
-			return err
-		}
-
 	case cmsWWWMode:
+		// Setup dcrdata websocket connection
+		ws, err := wsdcrdata.New(p.dcrdataHostWS())
+		if err != nil {
+			// Continue even if a websocket connection was not able to be
+			// made. The application specific websocket setup (pi, cms, etc)
+			// can decide whether to attempt reconnection or to exit.
+			log.Errorf("wsdcrdata New: %v", err)
+		}
+		p.wsDcrdata = ws
+
 		pluginFound := false
 		for _, plugin := range p.plugins {
 			if plugin.ID == "cms" {
@@ -531,7 +486,7 @@ func _main() error {
 			}
 		}
 		if !pluginFound {
-			return fmt.Errorf("must start politeiad in cmswww mode, cms plugin not found")
+			return fmt.Errorf("politeiad plugin 'cms' not found")
 		}
 
 		p.setCMSWWWRoutes()
@@ -619,10 +574,10 @@ func _main() error {
 				}
 			}
 
-			// Build the cache
+			// Build the cmsdb
 			err = p.cmsDB.Build(dbInvs, dbDCCs)
 			if err != nil {
-				return fmt.Errorf("build cache: %v", err)
+				return fmt.Errorf("build cmsdb: %v", err)
 			}
 		}
 		// Register cms userdb plugin

@@ -28,7 +28,6 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiad/cache/testcache"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
@@ -690,7 +689,6 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	p := politeiawww{
 		cfg:             cfg,
 		db:              db,
-		cache:           testcache.New(),
 		params:          &chaincfg.TestNet3Params,
 		router:          mux.NewRouter(),
 		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
