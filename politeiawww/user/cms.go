@@ -394,6 +394,8 @@ func DecodeCMSUsersByProposalTokenReply(b []byte) (*CMSUsersByProposalTokenReply
 	return &reply, nil
 }
 
+// CodeStats is contains the all the information about a given user's code
+// work underneath a given repository over a certain month/year.
 type CodeStats struct {
 	ID              string   // UserID + GithubName + Month + Year
 	Repository      string   // Repository

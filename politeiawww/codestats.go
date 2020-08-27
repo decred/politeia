@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -120,7 +120,8 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		if err != nil {
 			return nil, err
 		}
-		allRepoStats = append(allRepoStats, convertCodeStatsFromDatabase(reply.UserCodeStats)...)
+		allRepoStats = append(allRepoStats,
+			convertCodeStatsFromDatabase(reply.UserCodeStats)...)
 
 		// Figure out if month is 31 days or 30
 		if ok := month31Days[int(month)]; ok {

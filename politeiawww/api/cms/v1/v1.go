@@ -1064,8 +1064,8 @@ type UserCodeStatsReply struct {
 	RepoStats []CodeStats `json:"repostats"`
 }
 
-// CodeStats contains various pieces of information for user's code contributions
-// per repo over a period of time.
+// CodeStats contains various pieces of information for user's code
+// contributions per repo over a period of time.
 type CodeStats struct {
 	Month           int      `json:"month"`
 	Year            int      `json:"year"`

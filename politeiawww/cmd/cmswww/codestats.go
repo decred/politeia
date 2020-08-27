@@ -32,7 +32,8 @@ func (cmd *CodeStatsCmd) Execute(args []string) error {
 		if cmd.Args.StartYear == 0 {
 			return fmt.Errorf("most supply a start year if giving an start month")
 		}
-		startDate = time.Date(int(cmd.Args.StartYear), time.Month(cmd.Args.StartMonth), 1, 0, 0, 0, 0, time.UTC).Unix()
+		startDate = time.Date(int(cmd.Args.StartYear),
+			time.Month(cmd.Args.StartMonth), 1, 0, 0, 0, 0, time.UTC).Unix()
 	}
 
 	if int(cmd.Args.EndYear) > time.Now().Year() {
@@ -43,7 +44,8 @@ func (cmd *CodeStatsCmd) Execute(args []string) error {
 		if cmd.Args.EndYear == 0 {
 			return fmt.Errorf("most supply a end year if giving an end month")
 		}
-		endDate = time.Date(int(cmd.Args.EndYear), time.Month(cmd.Args.EndMonth), 1, 0, 0, 0, 0, time.UTC).Unix()
+		endDate = time.Date(int(cmd.Args.EndYear),
+			time.Month(cmd.Args.EndMonth), 1, 0, 0, 0, 0, time.UTC).Unix()
 	} else {
 		fmt.Println("no end date provided, just getting the start date month")
 		endDate = startDate
