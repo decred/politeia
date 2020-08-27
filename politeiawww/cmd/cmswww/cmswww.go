@@ -93,6 +93,7 @@ type cmswww struct {
 	ResetPassword          shared.ResetPasswordCmd   `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	SetDCCStatus           SetDCCStatusCmd           `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
 	SetInvoiceStatus       SetInvoiceStatusCmd       `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
+	SetTOTP                shared.SetTOTPCmd         `command:"settotp" description:"(user)  set the key for TOTP"`
 	StartVote              StartVoteCmd              `command:"startvote" description:"(admin)  start the voting period on a dcc"`
 	SupportOpposeDCC       SupportOpposeDCCCmd       `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
 	TestRun                TestRunCmd                `command:"testrun" description:"         test cmswww routes"`
@@ -103,6 +104,7 @@ type cmswww struct {
 	UserSubContractors     UserSubContractorsCmd     `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
 	Users                  shared.UsersCmd           `command:"users" description:"(user)   get a list of users"`
 	Secret                 shared.SecretCmd          `command:"secret" description:"(user)   ping politeiawww"`
+	VerifyTOTP             shared.VerifyTOTPCmd      `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
 	Version                shared.VersionCmd         `command:"version" description:"(public) get server info and CSRF token"`
 	VoteDCC                VoteDCCCmd                `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
 	VoteDetails            VoteDetailsCmd            `command:"votedetails" description:"(user) get the details for a dcc vote"`

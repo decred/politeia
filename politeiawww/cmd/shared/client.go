@@ -2363,6 +2363,54 @@ func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.Sig
 	return smr, nil
 }
 
+// SetTOTP sets the logged in user's TOTP Key.
+func (c *Client) SetTOTP(st *www.SetTOTP) (*www.SetTOTPReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteSetTOTP, st)
+	if err != nil {
+		return nil, err
+	}
+
+	var str www.SetTOTPReply
+	err = json.Unmarshal(responseBody, &str)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(str)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &str, nil
+}
+
+// VerifyTOTP comfirms the logged in user's TOTP Key.
+func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteVerifyTOTP, vt)
+	if err != nil {
+		return nil, err
+	}
+
+	var vtr www.VerifyTOTPReply
+	err = json.Unmarshal(responseBody, &vtr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VerifyTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vtr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vtr, nil
+}
+
 // LoadWalletClient connects to a dcrwallet instance.
 func (c *Client) LoadWalletClient() error {
 	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert, "")

@@ -2,8 +2,8 @@
 
 # v1
 
-This document describes the REST API provided by a `politeiawww` server while in 
-`cmswww` mode.  The `politeiawww` server is the web server backend and it 
+This document describes the REST API provided by a `politeiawww` server while in
+`cmswww` mode.  The `politeiawww` server is the web server backend and it
 interacts with a JSON REST API.  This document also describes websockets for
 server side notifications.  It does not render HTML.
 
@@ -37,6 +37,7 @@ server side notifications.  It does not render HTML.
     - [DCC type codes](#dcc-type-codes)
     - [DCC status codes](#dcc-status-codes)
     - [`Abridged CMS User`](#abridged-cms-user)
+    - [`Proposal billing info`](#proposal-billing)
 
 **Invoice status codes**
 
@@ -642,7 +643,7 @@ Reply:
 ### `Pay invoices`
 
 Temporary command that allows administrators to set all approved invoices to paid.
-This command will be removed once the address watcher for approved invoices 
+This command will be removed once the address watcher for approved invoices
 is complete and properly functioning.
 
 Note: This call requires admin privileges.
@@ -676,7 +677,7 @@ Reply:
 ### `Invoice Payouts`
 
 This command would provide a list of invoices that were paid out in a given
-date range.  
+date range.
 
 Note: This call requires admin privileges.
 
@@ -726,7 +727,7 @@ Reply:
       "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
     },
     "lineitems": [
-      {  
+      {
       "type": 1,
       "domain": "Design",
       "subdomain": "dcrweb",
@@ -898,7 +899,7 @@ nominates a yet-to-be-approved user to join the contractors.  The sponsor also
 includes a statement to support the nomination of the user.  In the case of
 a revocation, an existing user (sponsor) nominates another existing user to
 have their access to the contractors' group rescinded and also includes a statement
-to support that revocation.  
+to support that revocation.
 
 In either case, issuance or revocation, other existing contractors will
 be asked to offer their support or opposition to a DCC and based upon those
@@ -926,7 +927,7 @@ Request:
 
 ```json
 {
-  "file": 
+  "file":
   {
       "name":"dcc.json",
       "mime": "text/plain; charset=utf-8",
@@ -1064,7 +1065,7 @@ Request:
 Reply:
 
 ```json
-{  
+{
   "dccs": [{
     "dcc": {
       "type": 2,
@@ -1457,7 +1458,7 @@ Reply:
 
 ### `CMS Users`
 
-Returns a list of cms users given optional filters. 
+Returns a list of cms users given optional filters.
 
 **Route:** `GET /v1/cmsusers`
 
@@ -1472,7 +1473,7 @@ Returns a list of cms users given optional filters.
 
 | Parameter | Type | Description |
 |-|-|-|
-| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that match the query. 
+| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that match the query.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -1664,7 +1665,7 @@ between the Vote versions.
 
 **Route:** `POST /dcc/votedetails`
 
-**Params:** 
+**Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
@@ -2094,3 +2095,55 @@ This is a shortened representation of a user, used for lists.
 | username | string | Unique username. |
 | contractortype | string | CMS Domain of the user. |
 | domain | string | CMS contractor type of the user. |
+
+### `Proposal Billing`
+
+**Route:** `POST /v1/proposals/billing`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| lineitems | array | Array of line items billed by a contractor |
+
+* **Example**
+
+Request:
+
+```json
+{
+  "token": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87"
+}
+```
+
+Reply:
+
+```json
+{
+  "lineitems": [
+    {
+      "userid": "8172cb38-32b6-4d0f-9607-6f9f1677746c",
+      "username": "admin",
+      "month": 5,
+      "year": 2020,
+      "lineitem": {
+        "type": 1,
+        "domain": "Development",
+        "subdomain": "uuuuu",
+        "description": "wwwwww",
+        "proposaltoken": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87",
+        "subuserid": "",
+        "subrate": 0,
+        "labor": 540,
+        "expenses": 0
+      }
+    }
+  ]
+}
+```

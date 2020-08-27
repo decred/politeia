@@ -46,8 +46,9 @@ type Database interface {
 	RemoveInvoiceLineItems(string) error // Remove invoices line items
 
 	InvoicesByUserID(string) ([]Invoice, error)
-	InvoiceByToken(string) (*Invoice, error)     // Return invoice given its token
-	InvoicesByAddress(string) ([]Invoice, error) // Return invoice by its address
+	InvoiceByToken(string) (*Invoice, error)                              // Return invoice given its token
+	InvoiceByTokenVersion(token string, version string) (*Invoice, error) // Return invoice by its token and version
+	InvoicesByAddress(string) ([]Invoice, error)                          // Return invoice by its address
 
 	InvoicesByMonthYearStatus(uint16, uint16, int) ([]Invoice, error) // Returns all invoices by month, year and status
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
