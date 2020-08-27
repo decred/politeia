@@ -135,7 +135,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}, nil
 }
 
-func (p *politeiawww) updateCodeStats(org string, repos []string, start int64) error {
+func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int64) error {
 
 	// make sure tracker was created, if not alert for them to check github api
 	// token config
@@ -143,11 +143,7 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start int64) e
 		return fmt.Errorf("code tracker not running")
 	}
 
-	if time.Unix(start, 0).After(time.Now()) {
-		return fmt.Errorf("invalid code stats start time")
-	}
-
-	p.tracker.Update(org, repos, start)
+	p.tracker.Update(org, repos, start, end)
 
 	// Go fetch all Development contractors to update their stats
 	cu := user.CMSUsersByDomain{

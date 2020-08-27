@@ -87,11 +87,14 @@ var (
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 
-	// Default start date to start pulling code statistics if none specified
-	defaultCodeStatStart = time.Date(2020, time.March, 0, 0, 0, 0, 0, time.UTC)
+	// Default start date to start pulling code statistics if none specified.
+	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
 
-	// Check to make sure code stat start time is sane 2 years from today
-	codeStatCheck = time.Now().Add(time.Minute * 60 * 24 * 7 * 52 * 2) // 2 years in minutes 60min * 24h * 7days * 52weeks * 2years
+	// Default end date to stop pull code statistics if none specified.
+	defaultCodeStatEnd = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
+
+	// Check to make sure code stat start time is sane 2 years from today.
+	codeStatCheck = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 52 * 2) // 2 years in minutes 60min * 24h * 7days * 52weeks * 2years
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -153,7 +156,8 @@ type config struct {
 	GithubAPIToken           string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
 	CodeStatRepos            []string `long:"codestatrepos" description:"Repositories under the organization to crawl for code statistics"`
 	CodeStatOrganization     string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
-	CodeStatStart            int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl"`
+	CodeStatStart            int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
+	CodeStatEnd              int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -695,13 +699,24 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	if cfg.CodeStatStart > 0 &&
-		time.Unix(cfg.CodeStatStart, 0).Before(codeStatCheck) {
+		(time.Unix(cfg.CodeStatStart, 0).Before(codeStatCheck) ||
+			time.Unix(cfg.CodeStatStart, 0).After(time.Now())) {
 		return nil, nil, fmt.Errorf("you have entered an invalid code stat " +
 			"start date")
 	}
 
+	if cfg.CodeStatEnd > 0 &&
+		time.Unix(cfg.CodeStatEnd, 0).Before(time.Unix(cfg.CodeStatStart, 0)) {
+		return nil, nil, fmt.Errorf("you have entered an invalid code stat " +
+			"end date")
+	}
+
 	if cfg.CodeStatStart <= 0 {
 		cfg.CodeStatStart = defaultCodeStatStart.Unix()
+	}
+
+	if cfg.CodeStatEnd <= 0 {
+		cfg.CodeStatEnd = defaultCodeStatEnd.Unix()
 	}
 
 	// Special show command to list supported subsystems and exit.

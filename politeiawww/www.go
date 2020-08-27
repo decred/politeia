@@ -655,7 +655,7 @@ func _main() error {
 			}
 			go func() {
 				err = p.updateCodeStats(p.cfg.CodeStatOrganization,
-					p.cfg.CodeStatRepos, p.cfg.CodeStatStart)
+					p.cfg.CodeStatRepos, p.cfg.CodeStatStart, p.cfg.CodeStatEnd)
 				if err != nil {
 					log.Errorf("erroring updating code stats %v", err)
 				}

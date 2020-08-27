@@ -14,14 +14,16 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
 )
 
-// github implements the Tracker interface for github.
+// github contains the client that communicates with the github api and an
+// instance of the codedb that contains all of the pull request/review
+// information that is fetched.
 type github struct {
 	tc     *api.Client
 	codedb database.Database
 }
 
-// Setup creates a new github tracker that saves is able to communicate with the
-// Github user/PR/issue API.
+// New creates a new github tracker that saves is able to communicate with
+// the Github user/PR/issue API.
 func New(apiToken, host, rootCert, cert, key string) (*github, error) {
 	var err error
 	g := &github{}
@@ -46,7 +48,7 @@ func New(apiToken, host, rootCert, cert, key string) (*github, error) {
 // users' information once the info is fully received.  If repoRequest is
 // included then only that repo will be fetched and updated, typically
 // used for speeding up testing.
-func (g *github) Update(org string, repos []string, start int64) {
+func (g *github) Update(org string, repos []string, start, end int64) {
 	for _, repo := range repos {
 		log.Infof("%s", repo)
 		log.Infof("Syncing %s/%s", org, repo)
@@ -62,6 +64,9 @@ func (g *github) Update(org string, repos []string, start int64) {
 		for _, pr := range prs {
 			// check to see if last updated time was before the given start date
 			if parseTime(pr.MergedAt).Before(time.Unix(start, 0)) {
+				continue
+			}
+			if parseTime(pr.MergedAt).After(time.Unix(end, 0)) {
 				continue
 			}
 			err := g.updatePullRequest(org, repo, pr, start)

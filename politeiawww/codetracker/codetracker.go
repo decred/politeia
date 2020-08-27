@@ -7,8 +7,8 @@ package codetracker
 // CodeTracker interface for getting Code Stats from a git based code tracking
 // site (Github/Gitlab etc).
 type CodeTracker interface {
-	// Update updates the code stats for a (organization, repos, start date)
-	Update(org string, repos []string, start int64)
+	// Update updates the code stats for a (organization, repos, start end date)
+	Update(org string, repos []string, start, end int64)
 
 	// UserInfo returns pull request, review and commit information about
 	// a given user over a given start and stop time.

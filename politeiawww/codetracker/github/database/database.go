@@ -27,19 +27,37 @@ var (
 	ErrUserNotFound = errors.New("user not found")
 )
 
-// Database interface that is required by the web server.
+// Database interface contains all the functions expected of any db
+// implemention for github code stats.
 type Database interface {
-	NewPullRequest(*PullRequest) error    // Create new pull request
-	UpdatePullRequest(*PullRequest) error // Update exisiting pull request
-	PullRequestByURL(string) (*PullRequest, error)
-	PullRequestsByUserDates(string, int64, int64) ([]*PullRequest, error) // Retrieve all pull requests that match username between dates
+	// NewPullRequest creates a new pull request for the github code db.
+	NewPullRequest(*PullRequest) error
 
-	AllUsersByDates(int64, int64) ([]string, error)
+	// UpdatePullRequest updates an existing pull request row.
+	UpdatePullRequest(*PullRequest) error
 
-	NewPullRequestReview(*PullRequestReview) error                                       // Create new pull request review
-	UpdatePullRequestReview(*PullRequestReview) error                                    // Update existing pull request review
-	ReviewsByUserDates(user string, start int64, end int64) ([]PullRequestReview, error) // Retrieve all reviews that match username between dates
+	// PullRequestByURL returns the pull request that matches the provided URL.
+	PullRequestByURL(url string) (*PullRequest, error)
 
+	// PullRequestsByUserDates returns all pull requests that match the
+	// username and is in between the start and end dates (in Unix).
+	PullRequestsByUserDates(username string, start int64, end int64) ([]*PullRequest, error)
+
+	// Returns all users that have submitted a PR between the given dates.
+	AllUsersByDates(start int64, end int64) ([]string, error)
+
+	// NewPullRequestReview creates a new entry for a pull request review.
+	NewPullRequestReview(*PullRequestReview) error
+
+	// UpdatePullRequestReview updates an exisiting entry for a pull request
+	// review.
+	UpdatePullRequestReview(*PullRequestReview) error
+
+	// ReviewsByUserDates retrusn all reviews from the given user between
+	// the dates provided.
+	ReviewsByUserDates(user string, start int64, end int64) ([]PullRequestReview, error)
+
+	// Setup creates the database instance and prepares it for usage.
 	Setup() error
 
 	// Close performs cleanup of the backend.
