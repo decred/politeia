@@ -1186,6 +1186,7 @@ func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply,
 	*/
 
 	// TODO
+	_ = payload
 	var reply string
 
 	vdr, err := cmsplugin.DecodeVoteDetailsReply([]byte(reply))
@@ -1224,6 +1225,7 @@ func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply,
 	*/
 
 	// TODO
+	_ = payload
 	var reply string
 
 	vdr, err := cmsplugin.DecodeVoteSummaryReply([]byte(reply))
@@ -1254,7 +1256,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 	*/
 
 	// TODO
-	active := make([]string, 0, len(vetted))
+	active := make([]string, 0, 64)
 
 	dccs, err := p.getDCCs(active)
 	if err != nil {
@@ -1306,7 +1308,7 @@ func (p *politeiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error)
 	*/
 
 	// TODO
-	dccs := make(map[string]*cms.DCCRecord, len(records))
+	dccs := make(map[string]*cms.DCCRecord, len(tokens))
 
 	// Compile a list of unique proposal author pubkeys. These
 	// are needed to lookup the proposal author info.

@@ -30,9 +30,9 @@ type Plugin struct {
 	Settings []PluginSetting // Settings
 }
 
-// getBestBlockDecredPlugin asks the decred plugin what the current best block
-// is.
-func (p *politeiawww) getBestBlockDecredPlugin() (uint64, error) {
+// getBestBlock fetches and returns the best block from politeiad using the
+// decred plugin bestblock command.
+func (p *politeiawww) getBestBlock() (uint64, error) {
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return 0, err

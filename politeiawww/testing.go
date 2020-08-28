@@ -697,7 +697,6 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
-		voteSummaries:   make(map[string]www.VoteSummary),
 	}
 
 	// Setup routes
@@ -731,7 +730,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 // newTestPoliteiad returns a new TestPoliteiad context. The relevant
 // politeiawww config params are updated with the TestPoliteiad info.
 func newTestPoliteiad(t *testing.T, p *politeiawww) *testpoliteiad.TestPoliteiad {
-	td := testpoliteiad.New(t, p.cache)
+	td := testpoliteiad.New(t)
 	p.cfg.RPCHost = td.URL
 	p.cfg.Identity = td.PublicIdentity
 	return td

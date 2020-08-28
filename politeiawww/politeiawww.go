@@ -16,8 +16,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	exptypes "github.com/decred/dcrdata/explorer/types/v2"
-	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
@@ -871,119 +869,6 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 			return
 		}
 	}
-}
-
-// updateBestBlock updates the cached best block.
-func (p *politeiawww) updateBestBlock(bestBlock uint64) {
-	p.bbMtx.Lock()
-	defer p.bbMtx.Unlock()
-	p.bestBlock = bestBlock
-}
-
-// getBestBlock returns the cached best block if there is an active websocket
-// connection to dcrdata. Otherwise, it requests the best block from politeiad
-// using the the decred plugin best block command.
-func (p *politeiawww) getBestBlock() (uint64, error) {
-	p.bbMtx.RLock()
-	bb := p.bestBlock
-	p.bbMtx.RUnlock()
-
-	// the cached best block will equal 0 if there is no active websocket
-	// connection to dcrdata, or if no new block messages have been received
-	// since a connection was established.
-	if bb == 0 {
-		return p.getBestBlockDecredPlugin()
-	}
-
-	return bb, nil
-}
-
-// monitorWSDcrdataPi monitors the websocket connection for pi and handles
-// new websocket messages.
-func (p *politeiawww) monitorWSDcrdataPi() {
-	defer func() {
-		log.Infof("Dcrdata websocket closed")
-	}()
-
-	// Setup messages channel
-	receiver := p.wsDcrdata.Receive()
-
-	for {
-		// Monitor for a new message
-		msg, ok := <-receiver
-		if !ok {
-			// Check if the websocket was shut down intentionally or was
-			// dropped unexpectedly.
-			if p.wsDcrdata.Status() == wsdcrdata.StatusShutdown {
-				return
-			}
-			log.Infof("Dcrdata websocket connection unexpectedly dropped")
-			goto reconnect
-		}
-
-		// Handle new message
-		switch m := msg.Message.(type) {
-		case *exptypes.WebsocketBlock:
-			log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
-				m.Block.Height)
-
-			// Update cached best block
-			bb := uint64(m.Block.Height)
-			p.updateBestBlock(bb)
-
-			// Keep VoteResults table updated with received best block
-			_, err := p.decredLoadVoteResults(bb)
-			if err != nil {
-				log.Errorf("decredLoadVoteResults: %v", err)
-			}
-
-		case *pstypes.HangUp:
-			log.Infof("Dcrdata websocket has hung up. Will reconnect.")
-			goto reconnect
-
-		case int:
-			// Ping messages are of type int
-
-		default:
-			log.Errorf("wsDcrdata message of type %v unhandled: %v",
-				msg.EventId, m)
-		}
-
-		// Check for next message
-		continue
-
-	reconnect:
-		// Update best block to 0 to indicate that the websocket
-		// connection is closed.
-		p.updateBestBlock(0)
-
-		// Reconnect
-		p.wsDcrdata.Reconnect()
-
-		// Setup a new messages channel using the new connection.
-		receiver = p.wsDcrdata.Receive()
-
-		log.Infof("Successfully reconnected dcrdata websocket")
-	}
-}
-
-// setupWSDcrataPi subscribes and listens to websocket messages from dcrdata
-// that are needed for pi.
-func (p *politeiawww) setupWSDcrdataPi() {
-	// Ensure connection is open. If connection is closed, establish a
-	// new connection before continuing.
-	if p.wsDcrdata.Status() != wsdcrdata.StatusOpen {
-		p.wsDcrdata.Reconnect()
-	}
-
-	// Setup subscriptions
-	err := p.wsDcrdata.NewBlockSubscribe()
-	if err != nil {
-		log.Errorf("wsdcrdata NewBlockSubscribe: %v", err)
-	}
-
-	// Monitor websocket connection in a new go routine
-	go p.monitorWSDcrdataPi()
 }
 
 // handleWebsocket upgrades a regular HTTP connection to a websocket.

@@ -14,6 +14,8 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
+// TODO clean this up
+
 // EventT is the type of event.
 type EventT int
 
@@ -24,18 +26,29 @@ type EventManager struct {
 
 const (
 	EventTypeInvalid EventT = iota
+	EventTypeComment
+	EventTypeUserManage
+
+	// Pi events
 	EventTypeProposalSubmitted
 	EventTypeProposalStatusChange
 	EventTypeProposalEdited
 	EventTypeProposalVoteStarted
 	EventTypeProposalVoteAuthorized
-	EventTypeComment
-	EventTypeUserManage
+
+	// CMS events
 	EventTypeInvoiceComment      // CMS Type
 	EventTypeInvoiceStatusUpdate // CMS Type
 	EventTypeDCCNew              // DCC Type
 	EventTypeDCCSupportOppose    // DCC Type
 )
+
+type eventDataProposalVoteAuthorized struct {
+	token          string // Proposal token
+	name           string // Proposal name
+	authorUsername string
+	authorEmail    string
+}
 
 type EventDataProposalSubmitted struct {
 	CensorshipRecord *www.CensorshipRecord
@@ -56,11 +69,6 @@ type EventDataProposalEdited struct {
 type EventDataProposalVoteStarted struct {
 	AdminUser *user.User
 	StartVote www2.StartVote
-}
-
-type EventDataProposalVoteAuthorized struct {
-	AuthorizeVote *www.AuthorizeVote
-	User          *user.User
 }
 
 type EventDataComment struct {
@@ -427,27 +435,17 @@ func (p *politeiawww) _setupProposalVoteAuthorizedEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
-			pvs, ok := data.(EventDataProposalVoteAuthorized)
+			pvs, ok := data.(eventDataProposalVoteAuthorized)
 			if !ok {
 				log.Errorf("invalid event data")
 				continue
 			}
 
-			token := pvs.AuthorizeVote.Token
-			record, err := p.cache.Record(token)
-			if err != nil {
-				log.Errorf("proposal not found: %v", err)
-				continue
-			}
-			proposal, err := convertPropFromCache(*record)
-			if err != nil {
-				log.Errorf("invalid proposal %v", token)
-			}
-
-			err = p.emailAdminsForProposalVoteAuthorized(proposal, pvs.User)
+			err := p.emailAdminsForProposalVoteAuthorized(pvs.token, pvs.name,
+				pvs.authorUsername, pvs.authorEmail)
 			if err != nil {
 				log.Errorf("email all admins for new submitted proposal %v: %v",
-					token, err)
+					pvs.token, err)
 			}
 		}
 	}()

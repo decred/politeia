@@ -384,22 +384,22 @@ func (p *politeiawww) emailAdminsForNewSubmittedProposal(token string, propName 
 	})
 }
 
-func (p *politeiawww) emailAdminsForProposalVoteAuthorized(proposal *www.ProposalRecord, authorUser *user.User) error {
+func (p *politeiawww) emailAdminsForProposalVoteAuthorized(token, title, authorUsername, authorEmail string) error {
 	if p.smtp.disabled {
 		return nil
 	}
 
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v", p.cfg.WebServerAddress,
-		proposal.CensorshipRecord.Token))
+	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v",
+		p.cfg.WebServerAddress, token))
 	if err != nil {
 		return err
 	}
 
 	tplData := proposalVoteAuthorizedTemplateData{
 		Link:     l.String(),
-		Name:     proposal.Name,
-		Username: authorUser.Username,
-		Email:    authorUser.Email,
+		Name:     title,
+		Username: authorUsername,
+		Email:    authorEmail,
 	}
 
 	subject := "Proposal Authorized To Start Voting"

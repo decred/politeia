@@ -323,7 +323,6 @@ func _main() error {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
-		voteSummaries:   make(map[string]www.VoteSummary),
 		params:          activeNetParams.Params,
 	}
 
@@ -457,15 +456,6 @@ func _main() error {
 		// Setup routes
 		p.setPoliteiaWWWRoutes()
 		p.setUserWWWRoutes()
-
-		// Setup dcrdata websocket subscriptions and monitoring. This is
-		// done in a go routine so politeiawww startup will continue in
-		// the event that a dcrdata websocket connection was not able to
-		// be made during client initialization and reconnection attempts
-		// are required.
-		go func() {
-			p.setupWSDcrdataPi()
-		}()
 
 	case cmsWWWMode:
 		// Setup dcrdata websocket connection

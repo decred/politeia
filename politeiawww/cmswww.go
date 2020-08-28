@@ -1204,9 +1204,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteInviteNewUser, p.handleInviteNewUser,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteCensorComment, p.handleCensorComment,
-		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
 		permissionAdmin)

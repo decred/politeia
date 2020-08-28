@@ -18,6 +18,7 @@ func (p *politeiawww) decredGetComment(gc decredplugin.GetComment) (*decredplugi
 	}
 
 	// TODO this needs to use the politeiad plugin command
+	_ = payload
 	var reply string
 
 	gcr, err := decredplugin.DecodeGetCommentReply([]byte(reply))
@@ -61,6 +62,7 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 	}
 
 	// TODO this needs to use the politeiad plugin command
+	_ = payload
 	var reply string
 
 	gcr, err := decredplugin.DecodeGetCommentsReply([]byte(reply))
@@ -88,6 +90,7 @@ func (p *politeiawww) decredGetNumComments(tokens []string) (map[string]int, err
 	}
 
 	// TODO this needs to use the politeiad plugin command
+	_ = payload
 	var reply string
 
 	gncr, err := decredplugin.DecodeGetNumCommentsReply([]byte(reply))
