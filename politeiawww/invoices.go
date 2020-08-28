@@ -791,7 +791,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	// Note that we need validate the string representation of the merkle
-	mr, err := wwwutil.MerkleRoot(ni.Files, nil)
+	files := convertPiFilesFromWWW(ni.Files)
+	mr, err := wwwutil.MerkleRoot(files, nil)
 	if err != nil {
 		return err
 	}

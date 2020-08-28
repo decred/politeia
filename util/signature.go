@@ -11,8 +11,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
-// TODO this doesn't need to be in util since all signature validation is
-// done in the plugins
 type ErrorStatusT int
 
 const (

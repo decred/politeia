@@ -34,6 +34,9 @@ const (
 	VoteDownvote VoteT = -1
 	VoteUpvote   VoteT = 1
 
+	// TODO should these policies be plugin settings?
+	// TODO PolicyMaxCommentLength
+
 	// PolicayMaxVoteChanges is the maximum number times a user can
 	// change their vote on a comment. This prevents a malicious user
 	// from being able to spam comment votes.

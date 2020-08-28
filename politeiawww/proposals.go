@@ -20,11 +20,9 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -544,25 +542,28 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	}
 	// Verify signature. The signature message is the merkle root
 	// of the proposal files.
-	sig, err := util.ConvertSignature(np.Signature)
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSignature,
+	/*
+		// TODO
+		sig, err := util.ConvertSignature(np.Signature)
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			}
 		}
-	}
-	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
-	if err != nil {
-		return nil, err
-	}
-	mr, err := wwwutil.MerkleRoot(np.Files, np.Metadata)
-	if err != nil {
-		return nil, err
-	}
-	if !pk.VerifyMessage([]byte(mr), sig) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSignature,
+		pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
+		if err != nil {
+			return nil, err
 		}
-	}
+		mr, err := wwwutil.MerkleRoot(np.Files, np.Metadata)
+		if err != nil {
+			return nil, err
+		}
+		if !pk.VerifyMessage([]byte(mr), sig) {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			}
+		}
+	*/
 
 	// Verify the user signed using their active identity
 	if u.PublicKey() != np.PublicKey {
@@ -1757,22 +1758,26 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	// Check if there were changes in the proposal by comparing
 	// their merkle roots. This captures changes that were made
 	// to either the files or the metadata.
-	mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
-	if err != nil {
-		return nil, err
-	}
-	if cachedProp.CensorshipRecord.Merkle == mr {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusNoProposalChanges,
+	_ = pm
+	/*
+		// TODO
+		mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
+		if err != nil {
+			return nil, err
 		}
-	}
-	if cachedProp.State == www.PropStateVetted &&
-		cachedProp.LinkTo != pm.LinkTo {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidLinkTo,
-			ErrorContext: []string{"linkto cannot change once public"},
+		if cachedProp.CensorshipRecord.Merkle == mr {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusNoProposalChanges,
+			}
 		}
-	}
+		if cachedProp.State == www.PropStateVetted &&
+			cachedProp.LinkTo != pm.LinkTo {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto cannot change once public"},
+			}
+		}
+	*/
 
 	// politeiad only includes files in its merkle root calc, not the
 	// metadata streams. This is why we include the ProposalMetadata

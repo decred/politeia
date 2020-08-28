@@ -33,6 +33,9 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// TODO don't save data to the file system. Save it to the kv store and save
+// the key to the file system. This will allow the data to be backed up.
+
 const (
 	// ticketVoteDirname is the ticket vote data directory name.
 	ticketVoteDirname = "ticketvote"

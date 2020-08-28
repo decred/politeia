@@ -1,3 +1,7 @@
+// Copyright (c) 2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package util
 
 import (
@@ -6,14 +10,15 @@ import (
 	"encoding/hex"
 
 	"github.com/decred/dcrtime/merkle"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/util"
 )
 
 // MerkleRoot converts the passed in list of files and metadata into SHA256
 // digests then calculates and returns the merkle root of the digests.
-func MerkleRoot(files []v1.File, md []v1.Metadata) (string, error) {
+func MerkleRoot(files []pi.File, md []pi.Metadata) (string, error) {
 	digests := make([]*[sha256.Size]byte, 0, len(files))
+
 	// Calculate file digests
 	for _, f := range files {
 		b, err := base64.StdEncoding.DecodeString(f.Payload)
@@ -25,6 +30,7 @@ func MerkleRoot(files []v1.File, md []v1.Metadata) (string, error) {
 		copy(hf[:], digest)
 		digests = append(digests, &hf)
 	}
+
 	// Calculate metadata digests
 	for _, v := range md {
 		b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -36,6 +42,7 @@ func MerkleRoot(files []v1.File, md []v1.Metadata) (string, error) {
 		copy(hv[:], digest)
 		digests = append(digests, &hv)
 	}
+
 	// Return merkle root
 	return hex.EncodeToString(merkle.Root(digests)[:]), nil
 }

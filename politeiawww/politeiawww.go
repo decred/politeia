@@ -1188,17 +1188,6 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 
 // setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
-	// Templates
-	//p.addTemplate(templateNewProposalSubmittedName,
-	//	templateNewProposalSubmittedRaw)
-
-	// Static content.
-	// XXX disable static for now.  This code is broken and it needs to
-	// point to a sane directory.  If a directory is not set it SHALL be
-	// disabled.
-	//p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-	//	http.FileServer(http.Dir("."))))
-
 	// Public routes.
 	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
@@ -1258,10 +1247,10 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteNewComment, p.handleNewComment,
-		permissionLogin) // XXX comments need to become a setting
+		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLikeComment, p.handleLikeComment,
-		permissionLogin) // XXX comments need to become a setting
+		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteEditProposal, p.handleEditProposal,
 		permissionLogin)

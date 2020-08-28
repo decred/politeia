@@ -30,6 +30,8 @@ import (
 // TODO testnet vs mainnet trillian databases
 // TODO fsck
 // TODO allow token prefix lookups
+// TODO we need to be able to run multiple politeiad instances. Its ok if
+//      we have a tree that seeds data between the instances.
 
 const (
 	defaultTrillianKeyFilename   = "trillian.key"

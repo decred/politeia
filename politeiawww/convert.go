@@ -17,6 +17,7 @@ import (
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -1133,4 +1134,17 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 	}
 
 	return *inv
+}
+
+func convertPiFilesFromWWW(files []www.File) []pi.File {
+	f := make([]pi.File, 0, len(files))
+	for _, v := range files {
+		f = append(f, pi.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+	return f
 }

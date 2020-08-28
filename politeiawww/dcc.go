@@ -366,7 +366,8 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	}
 
 	// Note that we need validate the string representation of the merkle
-	mr, err := wwwutil.MerkleRoot([]www.File{nd.File}, nil)
+	files := convertPiFilesFromWWW([]www.File{nd.File})
+	mr, err := wwwutil.MerkleRoot(files, nil)
 	if err != nil {
 		return err
 	}
