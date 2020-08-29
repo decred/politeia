@@ -261,7 +261,7 @@ func _main() error {
 			validTxIds := ""
 			if len(txs) > 1 {
 				paymentReceived := uint64(0)
-				txFetcher := txfetcher.NewDcrdataTxFetcher(dcrdataHost)
+				txFetcher := txfetcher.New(dcrdataHost)
 				for i, txid := range txs {
 					tx, err := txFetcher.FetchTx(payment.Address, txid)
 					if err != nil {

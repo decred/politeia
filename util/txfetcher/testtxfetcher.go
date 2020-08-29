@@ -46,8 +46,8 @@ func (t *TestTxFetcher) FetchTx(address, txid string) (*TxDetails, error) {
 	return nil, fmt.Errorf("FetchTx FetchTxsForAddress not yet implemented")
 }
 
-// NewTestTxFetcher returns a new TestTxFetcher struct.
-func NewTestTxFetcher() *TestTxFetcher {
+// NewTest returns a new TestTxFetcher struct.
+func NewTest() *TestTxFetcher {
 	return &TestTxFetcher{
 		txs: make([]TxDetails, 0),
 	}

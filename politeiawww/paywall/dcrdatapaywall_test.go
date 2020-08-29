@@ -153,7 +153,7 @@ func TestDcrdataPaywall(t *testing.T) {
 
 	paywalls := make([]*AddressPaywall, 0)
 
-	txFetcher := txfetcher.NewTestTxFetcher()
+	txFetcher := txfetcher.NewTest()
 	wsDcrdata := wsdcrdata.NewTest()
 
 	callback := createUpdatePaywallsCallback(&paywalls)

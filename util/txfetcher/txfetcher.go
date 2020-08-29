@@ -387,8 +387,8 @@ func (d *DcrdataTxFetcher) FetchTx(address, TxID string) (*TxDetails, error) {
 	return nil, nil
 }
 
-// NewDcrdataTxFetcher returns a new DcrdataTxFetcher struct.
-func NewDcrdataTxFetcher(url string) *DcrdataTxFetcher {
+// New returns a new DcrdataTxFetcher struct.
+func New(url string) *DcrdataTxFetcher {
 	return &DcrdataTxFetcher{
 		url: url,
 	}

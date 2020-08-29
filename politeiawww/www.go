@@ -336,7 +336,7 @@ func _main() error {
 		params:          activeNetParams.Params,
 	}
 
-	p.txFetcher = txfetcher.NewDcrdataTxFetcher(p.dcrdataHostHTTP())
+	p.txFetcher = txfetcher.New(p.dcrdataHostHTTP())
 
 	// Check if this command is being run to fetch the identity.
 	if p.cfg.FetchIdentity {

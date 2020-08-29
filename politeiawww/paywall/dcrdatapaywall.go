@@ -123,6 +123,7 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 			}
 			if paywallFulfilled {
 				delete(d.entries, address)
+				d.wsDcrdata.AddressUnsubscribe(address)
 			}
 			d.callback(entry, txs, paywallFulfilled)
 			return
@@ -182,11 +183,10 @@ func (d *DcrdataManager) listenForPayments() {
 
 		log.Infof("Successfully reconnected dcrdata websocket")
 	}
-
 }
 
-// NewDcrdataManager creates a new DcrdataManger.
-func NewDcrdataManager(ws wsdcrdata.Client, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
+// New creates a new DcrdataManger.
+func New(ws wsdcrdata.Client, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
 	d := DcrdataManager{
 		entries:   make(map[string]*Entry),
 		callback:  cb,
