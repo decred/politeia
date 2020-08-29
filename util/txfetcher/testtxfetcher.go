@@ -24,7 +24,6 @@ func (t *TestTxFetcher) FetchTxWithBlockExplorers(address string, amount uint64,
 // FetchTxsForAddress satisfies the TxFetcher interface.
 func (t *TestTxFetcher) FetchTxsForAddress(address string) ([]TxDetails, error) {
 	return nil, fmt.Errorf("TestTxFetcher FetchTxsForAddress not yet implemented")
-
 }
 
 // FetchTxsForAddressNotBefore satisfies the TxFetcher interface.
