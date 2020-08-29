@@ -16,57 +16,78 @@ type DcrdataManager struct {
 	wsDcrdata wsdcrdata.Client
 	txFetcher txfetcher.TxFetcher
 	callback  Callback
-	entries   map[string]*Entry
+	paywalls  map[string]*Paywall
 }
 
-func transactionsFulfillPaywall(txs []txfetcher.TxDetails, entry Entry) bool {
+func transactionsFulfillPaywall(txs []txfetcher.TxDetails, paywall Paywall) bool {
 	var totalPaid uint64
 
 	for i := 0; i < len(txs); i++ {
-		totalPaid += txs[i].Amount
+		if txs[i].Address == paywall.Address &&
+			txs[i].Timestamp >= paywall.TxNotBefore {
+			totalPaid += txs[i].Amount
+		}
 	}
 
-	return totalPaid >= entry.Amount
+	return totalPaid >= paywall.Amount
 }
 
-// RegisterPaywall satisfies the Manager interface.
-func (d *DcrdataManager) RegisterPaywall(entry Entry) error {
-	txs, err := d.txFetcher.FetchTxsForAddressNotBefore(entry.Address, entry.TxNotBefore)
+// RegisterPaywall registers a new paywall to the paywall manager.
+//
+// This function must be called WITH the lock held.
+func (d *DcrdataManager) registerPaywall(paywall Paywall) error {
+	_, ok := d.paywalls[paywall.Address]
+	if ok {
+		return ErrDuplicatePaywall
+	}
+
+	err := d.wsDcrdata.AddressSubscribe(paywall.Address)
 	if err != nil {
 		return err
 	}
-	if transactionsFulfillPaywall(txs, entry) {
+
+	d.paywalls[paywall.Address] = &paywall
+	return nil
+}
+
+// RegisterPaywall registers a new paywall to the paywall manager.
+func (d *DcrdataManager) RegisterPaywall(paywall Paywall) error {
+	txs, err := d.txFetcher.FetchTxsForAddressNotBefore(paywall.Address, paywall.TxNotBefore)
+	if err != nil {
+		return err
+	}
+	if transactionsFulfillPaywall(txs, paywall) {
 		return ErrAlreadyPaid
 	}
 
 	d.Lock()
 	defer d.Unlock()
-
-	_, ok := d.entries[entry.Address]
-	if ok {
-		return ErrDuplicateEntry
-	}
-
-	err = d.wsDcrdata.AddressSubscribe(entry.Address)
-	if err != nil {
-		return err
-	}
-
-	d.entries[entry.Address] = &entry
-	return nil
+	return d.registerPaywall(paywall)
 }
 
-// RemovePaywall satisfies the manager interface.
+// removePaywall removes a paywall from the paywall manager.
+//
+// This function must be called WITH the lock held.
+func (d *DcrdataManager) removePaywall(address string) {
+	delete(d.paywalls, address)
+	d.wsDcrdata.AddressUnsubscribe(address)
+}
+
+// RemovePaywall removes a paywall from the paywall manager.
 func (d *DcrdataManager) RemovePaywall(address string) {
 	d.Lock()
 	defer d.Unlock()
 
-	delete(d.entries, address)
+	d.removePaywall(address)
 }
 
+// processPaymentReceived is called whenever a websocket message regarding
+// a transaction that potentially fulfulls a pending paywall is recieved.
+// The Dcrdata HTTP API must be queried for the details of the transaction,
+// and then the callback function is called to alert the client.
 func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 	d.RLock()
-	entry, ok := d.entries[address]
+	entry, ok := d.paywalls[address]
 	d.RUnlock()
 	if !ok {
 		return
@@ -81,56 +102,57 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 		SecondsSleep = 30
 	)
 
-	go func() {
-		var tries int
+	var (
+		txFound bool
+		txs     []txfetcher.TxDetails
+		err     error
+	)
 
-		for {
-			txs, err := d.txFetcher.FetchTxsForAddressNotBefore(address,
-				entry.TxNotBefore)
-			if err != nil {
-				log.Errorf("FetchTxsForAddressNotBefore: %v", err)
-				return
-			}
-
-			txFound := false
-			for i := 0; i < len(txs); i++ {
-				if txs[i].TxID == txID {
-					txFound = true
-					break
-				}
-			}
-
-			if !txFound {
-				if tries >= NumTries {
-					return
-				}
-
-				tries++
-				time.Sleep(SecondsSleep * time.Second)
-				continue
-			}
-
-			paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
-
-			// We check if the entry is still in the map, because we don't want
-			// to call the callback if the entry has been removed by another
-			// goroutine.
-			d.Lock()
-			defer d.Unlock()
-			entry, ok = d.entries[address]
-			if !ok {
-				return
-			}
-			if paywallFulfilled {
-				delete(d.entries, address)
-				d.wsDcrdata.AddressUnsubscribe(address)
-			}
-			d.callback(entry, txs, paywallFulfilled)
+	for tries := 0; tries <= NumTries && !txFound; tries++ {
+		txs, err = d.txFetcher.FetchTxsForAddressNotBefore(address,
+			entry.TxNotBefore)
+		if err != nil {
+			log.Errorf("FetchTxsForAddressNotBefore: %v", err)
 			return
 		}
-	}()
+
+		for i := 0; i < len(txs); i++ {
+			if txs[i].TxID == txID {
+				txFound = true
+			}
+		}
+
+		if !txFound {
+			time.Sleep(SecondsSleep * time.Second)
+		}
+	}
+
+	// Once the transaction is found, the callback is called, and the paywall
+	// is removed from the manager if the transaction completely fulfilled the
+	// paywall.
+	if txFound {
+		paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
+
+		d.Lock()
+		defer d.Unlock()
+		// We check if the entry is still in the map, because we don't want
+		// to call the callback if the entry has been removed by another
+		// goroutine.
+		entry, ok = d.paywalls[address]
+		if !ok {
+			return
+		}
+		if paywallFulfilled {
+			d.removePaywall(address)
+		}
+		d.callback(entry, txs, paywallFulfilled)
+	} else {
+		log.Errorf("processPaymentReceived: txId %v not found after "+
+			"%v tries.", txID, NumTries)
+	}
 }
 
+// listenForPayment listens for wsdcrdata messages, an
 func (d *DcrdataManager) listenForPayments() {
 	defer func() {
 		log.Infof("Dcrdata websocket closed")
@@ -157,7 +179,7 @@ func (d *DcrdataManager) listenForPayments() {
 		case *pstypes.AddressMessage:
 			log.Debugf("WSDcrdata message AddressMessage(addres=%v , tx=%v)\n",
 				m.Address, m.TxHash)
-			d.processPaymentReceived(m.Address, m.TxHash)
+			go d.processPaymentReceived(m.Address, m.TxHash)
 
 		case *pstypes.HangUp:
 			log.Infof("Dcrdata websocket has hung up. Will reconnect.")
@@ -188,7 +210,7 @@ func (d *DcrdataManager) listenForPayments() {
 // New creates a new DcrdataManger.
 func New(ws wsdcrdata.Client, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
 	d := DcrdataManager{
-		entries:   make(map[string]*Entry),
+		paywalls:  make(map[string]*Paywall),
 		callback:  cb,
 		wsDcrdata: ws,
 		txFetcher: txFetcher,

@@ -508,7 +508,6 @@ func _main() error {
 		log.Errorf("wsdcrdata New: %v", err)
 	}
 	p.wsDcrdata = ws
-	wsdcrdata.UseLogger(log)
 
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
