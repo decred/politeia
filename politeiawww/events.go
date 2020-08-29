@@ -535,11 +535,7 @@ func (e *EventManager) _register(eventType EventT, listenerToAdd chan interface{
 		e.Listeners = make(map[EventT][]chan interface{})
 	}
 
-	if _, ok := e.Listeners[eventType]; ok {
-		e.Listeners[eventType] = append(e.Listeners[eventType], listenerToAdd)
-	} else {
-		e.Listeners[eventType] = []chan interface{}{listenerToAdd}
-	}
+	e.Listeners[eventType] = append(e.Listeners[eventType], listenerToAdd)
 }
 
 // _unregister removes the given listener channel for the given event type.

@@ -38,9 +38,9 @@ import (
 const (
 	decredPluginIdentity        = "fullidentity"
 	decredPluginJournals        = "journals"
-	decredPluginInventory       = "inventory"
 	decredPluginVoteDurationMin = "votedurationmin"
 	decredPluginVoteDurationMax = "votedurationmax"
+	decredPluginEnableCache     = "enablecache"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -178,13 +178,10 @@ func getDecredPlugin(dcrdataHost string) backend.Plugin {
 		},
 	)
 
-	// This setting is used to tell politeiad how to retrieve the
-	// decred plugin data that is required to build the external
-	// politeiad cache.
 	decredPlugin.Settings = append(decredPlugin.Settings,
 		backend.PluginSetting{
-			Key:   decredPluginInventory,
-			Value: decredplugin.CmdInventory,
+			Key:   decredPluginEnableCache,
+			Value: "",
 		})
 
 	// Initialize hooks
@@ -252,14 +249,6 @@ func setDecredPluginSetting(key, value string) {
 
 func setDecredPluginHook(name string, f func(string) error) {
 	decredPluginHooks[name] = f
-}
-
-func (g *gitBackEnd) unvettedPropExists(token string) bool {
-	tokenb, err := util.ConvertStringToken(token)
-	if err != nil {
-		return false
-	}
-	return g.UnvettedExists(tokenb)
 }
 
 func (g *gitBackEnd) vettedPropExists(token string) bool {
@@ -576,9 +565,15 @@ func (g *gitBackEnd) pluginBestBlock() (string, error) {
 func (g *gitBackEnd) decredPluginPostEdit(token string) error {
 	log.Tracef("decredPluginPostEdit: %v", token)
 
-	destination, err := g.flushComments(token)
-	if err != nil {
-		return err
+	// The post edit hook gets called on both unvetted and vetted
+	// proposals, but comments can only be made on vetted proposals.
+	var destination string
+	var err error
+	if g.vettedPropExists(token) {
+		destination, err = g.flushComments(token)
+		if err != nil {
+			return err
+		}
 	}
 
 	// When destination is empty there was nothing to do
@@ -643,7 +638,7 @@ func (g *gitBackEnd) flushJournalsUnwind(id string) error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushComments(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -831,7 +826,7 @@ func (g *gitBackEnd) flushCommentJournals() error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushVotes(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -2311,6 +2306,8 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 //
 // Functions must be called WITH the lock held.
 func (g *gitBackEnd) replayBallot(token string) error {
+	log.Debugf("replayBallot %v", token)
+
 	// Verify proposal exists, we can run this lockless
 	if !g.vettedPropExists(token) {
 		return nil
@@ -2805,201 +2802,169 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 	return string(reply), nil
 }
 
-// pluginInventory returns the decred plugin inventory for all proposals.  The
-// inventory consists of comments, like comments, vote authorizations, vote
-// details, and cast votes.
-func (g *gitBackEnd) pluginInventory() (string, error) {
+// pluginInventory returns the decred plugin inventory for the specified
+// records. If no record tokens are specified then the decred plugin inventory
+// for all vetted records will be returned.
+func (g *gitBackEnd) pluginInventory(payload string) (string, error) {
 	log.Tracef("pluginInventory")
 
+	inv, err := decredplugin.DecodeInventory([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	var tokens []string
+	if len(inv.Tokens) == 0 {
+		// No records specified. Return the decred plugin data for all
+		// vetted records.
+		g.Lock()
+		tokens, err = g.getVettedTokens()
+		g.Unlock()
+		if err != nil {
+			return "", err
+		}
+	} else {
+		// Records were specified. Only return the decred plugin data for
+		// the specified records.
+		tokens = inv.Tokens
+	}
+
+	log.Debugf("Fetching decred plugin inventory for %x record", len(tokens))
+
+	// Convert tokens to a map
+	include := make(map[string]struct{}, len(tokens))
+	for _, v := range tokens {
+		include[v] = struct{}{}
+	}
+
+	// Compile decred plugin metadata streams for all versions of the
+	// specified records.
+	var (
+		authVotes       = make([]decredplugin.AuthorizeVote, 0, len(include))
+		authVoteReplies = make([]decredplugin.AuthorizeVoteReply, 0, len(include))
+		voteTuples      = make([]decredplugin.StartVoteTuple, 0, len(include))
+	)
+	for token := range include {
+		tokenb, err := hex.DecodeString(token)
+		if err != nil {
+			return "", err
+		}
+
+		// Find the most recent vesion number for this record
+		r, err := g.GetVetted(tokenb, "")
+		if err != nil {
+			return "", fmt.Errorf("GetVetted %v version 0: %v", token, err)
+		}
+		version, err := strconv.ParseUint(r.Version, 10, 64)
+		if err != nil {
+			return "", err
+		}
+
+		// Compile decred plugin metadata streams from all versions of
+		// the record.
+		for version > 0 {
+			// Lookup record
+			r, err := g.GetVetted(tokenb, strconv.FormatUint(version, 10))
+			if err != nil {
+				return "", fmt.Errorf("GetVetted %v version %v: %v",
+					token, version, err)
+			}
+
+			// Check for decred plugin metadata streams
+			var svt decredplugin.StartVoteTuple
+			for _, v := range r.Metadata {
+				switch v.ID {
+				case decredplugin.MDStreamAuthorizeVote:
+					// Authorize vote
+					av, err := decredplugin.DecodeAuthorizeVote([]byte(v.Payload))
+					if err != nil {
+						return "", err
+					}
+					avr := decredplugin.AuthorizeVoteReply{
+						Action:        av.Action,
+						RecordVersion: r.Version,
+						Receipt:       av.Receipt,
+						Timestamp:     av.Timestamp,
+					}
+					authVotes = append(authVotes, *av)
+					authVoteReplies = append(authVoteReplies, avr)
+				case decredplugin.MDStreamVoteBits:
+					// Start vote
+					sv, err := decredplugin.DecodeStartVote([]byte(v.Payload))
+					if err != nil {
+						return "", err
+					}
+					svt.StartVote = *sv
+				case decredplugin.MDStreamVoteSnapshot:
+					// Start vote reply
+					svr, err := decredplugin.DecodeStartVoteReply([]byte(v.Payload))
+					if err != nil {
+						return "", err
+					}
+					svt.StartVoteReply = *svr
+				}
+				// Check if this record version had vote metadata
+				if svt.StartVote.Version != 0 && svt.StartVoteReply.Version != 0 {
+					voteTuples = append(voteTuples, svt)
+				}
+			}
+
+			// Decrement record version
+			version--
+		}
+	}
+
+	// Compile the journal data. This requires the lock.
 	g.Lock()
 	defer g.Unlock()
 
-	// Ensure journal has been replayed
-	if !journalsReplayed {
-		return "", backend.ErrJournalsNotReplayed
-	}
-
-	// Walk in-memory comments cache and compile all comments
-	var count int
-	for _, v := range decredPluginCommentsCache {
-		count += len(v)
-	}
-	comments := make([]decredplugin.Comment, 0, count)
-	for _, v := range decredPluginCommentsCache {
-		for _, c := range v {
-			comments = append(comments, c)
+	// Compile comments and like comments. These can be pulled from the
+	// memory caches.
+	comments := make([]decredplugin.Comment, 0, 1024)
+	likeComments := make([]decredplugin.LikeComment, 0, 1024)
+	for token := range include {
+		// Comments
+		rcomments, ok := decredPluginCommentsCache[token]
+		if !ok {
+			continue
 		}
-	}
-
-	// Walk in-memory comment likes cache and compile all
-	// comment likes
-	count = 0
-	for _, v := range decredPluginCommentsLikesCache {
-		count += len(v)
-	}
-	likes := make([]decredplugin.LikeComment, 0, count)
-	for _, v := range decredPluginCommentsLikesCache {
-		likes = append(likes, v...)
-	}
-
-	// Walk vetted repo and compile all file paths
-	paths := make([]string, 0, 2048) // PNOOMA
-	err := filepath.Walk(g.vetted,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			paths = append(paths, path)
-			return nil
-		})
-	if err != nil {
-		return "", fmt.Errorf("walk vetted: %v", err)
-	}
-
-	// Filter out the file paths for authorize vote metadata and
-	// start vote metadata
-	avPaths := make([]string, 0, len(paths))
-	svPaths := make([]string, 0, len(paths))
-	avFile := fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
-		defaultMDFilenameSuffix)
-	svFile := fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
-		defaultMDFilenameSuffix)
-	for _, v := range paths {
-		switch filepath.Base(v) {
-		case avFile:
-			avPaths = append(avPaths, v)
-		case svFile:
-			svPaths = append(svPaths, v)
+		for _, v := range rcomments {
+			comments = append(comments, v)
 		}
+
+		// Like comments
+		lc, ok := decredPluginCommentsLikesCache[token]
+		if !ok {
+			continue
+		}
+		likeComments = append(likeComments, lc...)
 	}
 
-	// Compile all vote authorizations. We return the authorize
-	// vote data for all versions of a record, not just the latest
-	// version.
-	av := make([]decredplugin.AuthorizeVote, 0, len(avPaths))
-	avr := make([]decredplugin.AuthorizeVoteReply, 0, len(avPaths))
-	for _, v := range avPaths {
-		// Read in authorize vote file into memory
-		b, err := ioutil.ReadFile(v)
+	// Compile cast votes
+	votes := make([]decredplugin.CastVote, 0, len(include)*41000)
+	for token := range include {
+		cv, err := g.tallyVotes(token)
 		if err != nil {
-			return "", fmt.Errorf("ReadFile: %v", err)
+			return "", fmt.Errorf("tallyVotes %v: %v", token, err)
 		}
-
-		// Decode authorize vote
-		a, err := decredplugin.DecodeAuthorizeVote(b)
-		if err != nil {
-			return "", fmt.Errorf("DecodeAuthorizeVote: %v", err)
-		}
-		av = append(av, *a)
-
-		// Parse record version out of file path
-		versionDir := filepath.Dir(v)
-		version := filepath.Base(versionDir)
-
-		// Create authorize vote reply
-		avr = append(avr, decredplugin.AuthorizeVoteReply{
-			Action:        a.Action,
-			RecordVersion: version,
-			Receipt:       a.Receipt,
-			Timestamp:     a.Timestamp,
-		})
-	}
-
-	// Compile the start vote tuples. The in-memory caches that
-	// contain the vote bits and the vote snapshots are lazy
-	// loaded so we have to read vote metadata directly from disk.
-	svt := make([]decredplugin.StartVoteTuple, 0, len(decredPluginVoteCache))
-	for _, v := range svPaths {
-		// Read vote bits file into memory
-		b, err := ioutil.ReadFile(v)
-		if err != nil {
-			return "", fmt.Errorf("ReadFile %v: %v", v, err)
-		}
-
-		// Decode vote bits
-		sv, err := decredplugin.DecodeStartVote(b)
-		if err != nil {
-			return "", fmt.Errorf("DecodeStartVote: %v", err)
-		}
-
-		// Read vote snapshot file into memory
-		dir := filepath.Dir(v)
-		filename := fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteSnapshot,
-			defaultMDFilenameSuffix)
-		path := filepath.Join(dir, filename)
-		b, err = ioutil.ReadFile(path)
-		if err != nil {
-			return "", fmt.Errorf("ReadFile %v: %v", path, err)
-		}
-
-		// Decode vote snapshot
-		svr, err := decredplugin.DecodeStartVoteReply(b)
-		if err != nil {
-			return "", fmt.Errorf("DecodeStartVoteReply: %v", err)
-		}
-
-		// Create start vote tuple
-		svt = append(svt, decredplugin.StartVoteTuple{
-			StartVote:      *sv,
-			StartVoteReply: *svr,
-		})
-	}
-
-	// Compile cast votes. The in-memory votes cache does not
-	// store the full cast vote struct so we need to replay the
-	// vote journals.
-
-	// Walk journals directory and tally votes for all ballot
-	// journals that are found.
-	cv := make([][]decredplugin.CastVote, 0, len(svt))
-	err = filepath.Walk(g.journals,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if info.Name() == defaultBallotFilename {
-				token := filepath.Base(filepath.Dir(path))
-				votes, err := g.tallyVotes(token)
-				if err != nil {
-					return fmt.Errorf("tallyVotes %v: %v", token, err)
-				}
-
-				cv = append(cv, votes)
-			}
-
-			return nil
-		})
-	if err != nil {
-		return "", fmt.Errorf("walk journals: %v", err)
-	}
-
-	// Combine votes into a single slice
-	count = 0
-	for _, v := range cv {
-		count += len(v)
-	}
-	votes := make([]decredplugin.CastVote, 0, count)
-	for _, v := range cv {
-		votes = append(votes, v...)
+		votes = append(votes, cv...)
 	}
 
 	// Prepare reply
-	ir := decredplugin.InventoryReply{
+	ivr := decredplugin.InventoryReply{
 		Comments:             comments,
-		LikeComments:         likes,
-		AuthorizeVotes:       av,
-		AuthorizeVoteReplies: avr,
-		StartVoteTuples:      svt,
+		LikeComments:         likeComments,
+		AuthorizeVotes:       authVotes,
+		AuthorizeVoteReplies: authVoteReplies,
+		StartVoteTuples:      voteTuples,
 		CastVotes:            votes,
 	}
-
-	payload, err := decredplugin.EncodeInventoryReply(ir)
+	reply, err := decredplugin.EncodeInventoryReply(ivr)
 	if err != nil {
-		return "", fmt.Errorf("EncodeInventoryReply: %v", err)
+		return "", err
 	}
 
-	return string(payload), nil
+	return string(reply), nil
 }
 
 // pluginLoadVoteResults is a pass through function. CmdLoadVoteResults does

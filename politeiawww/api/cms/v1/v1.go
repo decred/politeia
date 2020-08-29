@@ -22,36 +22,38 @@ const (
 	APIVersion = 1
 
 	// Contractor Management Routes
-	RouteInviteNewUser       = "/invite"
-	RouteRegisterUser        = "/register"
-	RouteCMSUsers            = "/cmsusers"
-	RouteNewInvoice          = "/invoices/new"
-	RouteEditInvoice         = "/invoices/edit"
-	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
-	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
-	RouteUserInvoices        = "/user/invoices"
-	RouteUserSubContractors  = "/user/subcontractors"
-	RouteNewDCC              = "/dcc/new"
-	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
-	RouteGetDCCs             = "/dcc"
-	RouteSupportOpposeDCC    = "/dcc/supportoppose"
-	RouteNewCommentDCC       = "/dcc/newcomment"
-	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
-	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
-	RouteCastVoteDCC         = "/dcc/vote"
-	RouteVoteDetailsDCC      = "/dcc/votedetails"
-	RouteActiveVotesDCC      = "/dcc/activevotes"
-	RouteStartVoteDCC        = "/dcc/startvote"
-	RouteAdminInvoices       = "/admin/invoices"
-	RouteManageCMSUser       = "/admin/managecms"
-	RouteAdminUserInvoices   = "/admin/userinvoices"
-	RouteGeneratePayouts     = "/admin/generatepayouts"
-	RouteInvoicePayouts      = "/admin/invoicepayouts"
-	RoutePayInvoices         = "/admin/payinvoices"
-	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
-	RouteInvoiceExchangeRate = "/invoices/exchangerate"
-	RouteProposalOwner       = "/proposals/owner"
-	RouteProposalBilling     = "/proposals/billing"
+	RouteInviteNewUser          = "/invite"
+	RouteRegisterUser           = "/register"
+	RouteCMSUsers               = "/cmsusers"
+	RouteNewInvoice             = "/invoices/new"
+	RouteEditInvoice            = "/invoices/edit"
+	RouteInvoiceDetails         = "/invoices/{token:[A-z0-9]{64}}"
+	RouteSetInvoiceStatus       = "/invoices/{token:[A-z0-9]{64}}/status"
+	RouteUserInvoices           = "/user/invoices"
+	RouteUserSubContractors     = "/user/subcontractors"
+	RouteNewDCC                 = "/dcc/new"
+	RouteDCCDetails             = "/dcc/{token:[A-z0-9]{64}}"
+	RouteGetDCCs                = "/dcc"
+	RouteSupportOpposeDCC       = "/dcc/supportoppose"
+	RouteNewCommentDCC          = "/dcc/newcomment"
+	RouteDCCComments            = "/dcc/{token:[A-z0-9]{64}}/comments"
+	RouteSetDCCStatus           = "/dcc/{token:[A-z0-9]{64}}/status"
+	RouteCastVoteDCC            = "/dcc/vote"
+	RouteVoteDetailsDCC         = "/dcc/votedetails"
+	RouteActiveVotesDCC         = "/dcc/activevotes"
+	RouteStartVoteDCC           = "/dcc/startvote"
+	RouteInvoices               = "/invoices"
+	RouteManageCMSUser          = "/admin/managecms"
+	RouteAdminUserInvoices      = "/admin/userinvoices"
+	RouteGeneratePayouts        = "/admin/generatepayouts"
+	RouteInvoicePayouts         = "/admin/invoicepayouts"
+	RoutePayInvoices            = "/admin/payinvoices"
+	RouteInvoiceComments        = "/invoices/{token:[A-z0-9]{64}}/comments"
+	RouteInvoiceExchangeRate    = "/invoices/exchangerate"
+	RouteProposalOwner          = "/proposals/owner"
+	RouteProposalBilling        = "/proposals/billing"
+	RouteProposalBillingSummary = "/proposals/spendingsummary"
+	RouteProposalBillingDetails = "/proposals/spendingdetails"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -87,6 +89,7 @@ const (
 	ContractorTypeRevoked         ContractorTypeT = 5 // Revoked CMS User
 	ContractorTypeTemp            ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
 	ContractorTypeTempDeactivated ContractorTypeT = 7 // Temporary Contractor that has been deactivated
+	ContractorTypeProposal        ContractorTypeT = 8 // Contractor appproved by proposal, but not DCC
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -173,6 +176,16 @@ const (
 	// PolicyMaxSponsorStatementLength is the maximum length for the sponsor
 	// statement contained within a DCC
 	PolicyMaxSponsorStatementLength = 5000
+
+	// ProposalBillingListPageSize is the maximum number of proposal billing
+	// summaries returned for the routes that return lists of proposal billing
+	// summaries.
+	ProposalBillingListPageSize = 50
+
+	// InvoiceListPageSize is the maximum number of invoices returned by the
+	// Invoices request, the date range should just be updated to return them
+	// all.
+	InvoiceListPageSize = 50
 
 	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
 	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
@@ -450,6 +463,7 @@ type InvoiceRecord struct {
 	Version            string               `json:"version"`                      // Record version
 	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
 	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
+	Total              int64                `json:"total"`                        // Total amount that the invoice is billing
 	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 
@@ -532,15 +546,19 @@ type UserInvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
 }
 
-// AdminInvoices is used to get all invoices from all users
-type AdminInvoices struct {
-	Month  uint16         `json:"month"`  // Month of Invoice
-	Year   uint16         `json:"year"`   // Year of Invoice
-	Status InvoiceStatusT `json:"status"` // Current status of invoice
+// Invoices is used to get all invoices from all users (if no userid is
+// given).
+type Invoices struct {
+	Month     uint16         `json:"month"`  // Month of Invoice
+	Year      uint16         `json:"year"`   // Year of Invoice
+	Status    InvoiceStatusT `json:"status"` // Current status of invoice
+	UserID    string         `json:"userid"` // User ID for invoices to return
+	StartTime int64          `json:"start"`  // Start time for range of invoice submission
+	EndTime   int64          `json:"end"`    // End time for range of invoice submission
 }
 
-// AdminInvoicesReply is used to reply to an admin invoices command.
-type AdminInvoicesReply struct {
+// InvoicesReply is used to reply to an admin invoices command.
+type InvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
 }
 
@@ -991,4 +1009,38 @@ type CastVoteReply struct {
 	Signature       string                 `json:"signature"`             // Signature of the ClientSignature
 	Error           string                 `json:"error"`                 // Error status message
 	ErrorStatus     cmsplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
+}
+
+// ProposalBillingSummary allows for all proposal spending to be returned for
+// an admin to review.
+type ProposalBillingSummary struct {
+	Offset int `json:"offset"` // Amount to offset for pagination
+	Count  int `json:"count"`  // Size of page for pagination
+}
+
+// ProposalBillingSummaryReply returns an array of proposal spending based on
+// the list of approved invoices returned from the respective proposals site.
+type ProposalBillingSummaryReply struct {
+	Proposals []ProposalSpending `json:"proposals"`
+}
+
+// ProposalSpending contains all the information about a given proposal's
+// spending.
+type ProposalSpending struct {
+	Token       string          `json:"token"`
+	Title       string          `json:"title"`
+	TotalBilled int64           `json:"totalbilled"`
+	Invoices    []InvoiceRecord `json:"invoices"`
+}
+
+// ProposalBillingDetails returns all the information about the given proposal's
+// spending.
+type ProposalBillingDetails struct {
+	Token string `json:"token"`
+}
+
+// ProposalBillingDetailsReply returns the spending information about the
+// requested proposal.
+type ProposalBillingDetailsReply struct {
+	Details ProposalSpending `json:"details"`
 }

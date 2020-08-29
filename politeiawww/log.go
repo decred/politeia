@@ -9,6 +9,11 @@ import (
 	"os"
 	"path/filepath"
 
+	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
+	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	"github.com/decred/politeia/politeiawww/user/cockroachdb"
+	"github.com/decred/politeia/politeiawww/user/localdb"
+	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
 )
@@ -43,13 +48,24 @@ var (
 	log            = backendLog.Logger("PWWW")
 	localdbLog     = backendLog.Logger("LODB")
 	cockroachdbLog = backendLog.Logger("CODB")
+	wsdcrdataLog   = backendLog.Logger("WSDD")
 )
+
+// Initialize package-global logger variables.
+func init() {
+	localdb.UseLogger(localdbLog)
+	cockroachdb.UseLogger(cockroachdbLog)
+	cachedb.UseLogger(cockroachdbLog)
+	cmsdb.UseLogger(cockroachdbLog)
+	wsdcrdata.UseLogger(wsdcrdataLog)
+}
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"PWWW": log,
 	"LODB": localdbLog,
 	"CODB": cockroachdbLog,
+	"WSDD": wsdcrdataLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

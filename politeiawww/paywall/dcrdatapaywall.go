@@ -5,15 +5,15 @@ import (
 	"time"
 
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
-	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util/txfetcher"
+	"github.com/decred/politeia/wsdcrdata"
 )
 
 // DcrdataManager implements the Manager interface.
 type DcrdataManager struct {
 	sync.RWMutex
 
-	wsDcrdata wsdcrdata.WSDcrdata
+	wsDcrdata wsdcrdata.Client
 	txFetcher txfetcher.TxFetcher
 	callback  Callback
 	entries   map[string]*Entry
@@ -47,7 +47,7 @@ func (d *DcrdataManager) RegisterPaywall(entry Entry) error {
 		return ErrDuplicateEntry
 	}
 
-	err = d.wsDcrdata.SubToAddr(entry.Address)
+	err = d.wsDcrdata.AddressSubscribe(entry.Address)
 	if err != nil {
 		return err
 	}
@@ -131,69 +131,62 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 }
 
 func (d *DcrdataManager) listenForPayments() {
+	defer func() {
+		log.Infof("Dcrdata websocket closed")
+	}()
+
+	// Setup messages channel
+	receiver := d.wsDcrdata.Receive()
+
 	for {
-		receiver, err := d.wsDcrdata.Receive()
-		if err == wsdcrdata.ErrShutdown {
-			log.Infof("Dcrdata websocket closed")
-			return
-		} else if err != nil {
-			log.Errorf("WSDcrdata receive: %v", err)
-			log.Infof("Dcrdata websocket closed")
-			return
-		}
-
+		// Monitor for a new message
 		msg, ok := <-receiver
-
 		if !ok {
-			// This check is here to avoid a spew of unnecessary error
-			// messages. The channel is expected to be closed if WSDcrdata
-			// is shut down.
-			if d.wsDcrdata.IsShutdown() {
+			// Check if the websocket was shut down intentionally or was
+			// dropped unexpectedly.
+			if d.wsDcrdata.Status() == wsdcrdata.StatusShutdown {
 				return
 			}
-
-			log.Errorf("WSDcrdata receive channel closed. Will reconnect.")
-			err = d.wsDcrdata.Reconnect()
-			if err == wsdcrdata.ErrShutdown {
-				log.Infof("Dcrdata websocket closed")
-				return
-			} else if err != nil {
-				log.Errorf("wsDcrdata Reconnect: %v", err)
-				log.Infof("Dcrdata websocket closed")
-				return
-			}
-
-			continue
+			log.Infof("Dcrdata websocket connection unexpectedly dropped")
+			goto reconnect
 		}
 
+		// Handle new message
 		switch m := msg.Message.(type) {
-		case *pstypes.HangUp:
-			log.Infof("Dcrdata has hung up. Will reconnect.")
-			err = d.wsDcrdata.Reconnect()
-			if err == wsdcrdata.ErrShutdown {
-				log.Infof("Dcrdata websocket closed")
-				return
-			} else if err != nil {
-				log.Errorf("wsDcrdata Reconnect: %v", err)
-				log.Infof("Dcrdata websocket closed")
-				return
-			}
-			log.Infof("Successfully reconnected to dcrdata")
 		case *pstypes.AddressMessage:
 			log.Debugf("WSDcrdata message AddressMessage(addres=%v , tx=%v)\n",
 				m.Address, m.TxHash)
 			d.processPaymentReceived(m.Address, m.TxHash)
+
+		case *pstypes.HangUp:
+			log.Infof("Dcrdata websocket has hung up. Will reconnect.")
+			goto reconnect
+
 		case int:
 			// Ping messages are of type int
+
 		default:
-			log.Errorf("WSDcrdata message of type %v unhandled. %v",
+			log.Errorf("wsDcrdata message of type %v unhandled: %v",
 				msg.EventId, m)
 		}
+
+		// Check for next message
+		continue
+
+	reconnect:
+		// Reconnect
+		d.wsDcrdata.Reconnect()
+
+		// Setup a new messages channel using the new connection.
+		receiver = d.wsDcrdata.Receive()
+
+		log.Infof("Successfully reconnected dcrdata websocket")
 	}
+
 }
 
 // NewDcrdataManager creates a new DcrdataManger.
-func NewDcrdataManager(ws wsdcrdata.WSDcrdata, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
+func NewDcrdataManager(ws wsdcrdata.Client, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
 	d := DcrdataManager{
 		entries:   make(map[string]*Entry),
 		callback:  cb,

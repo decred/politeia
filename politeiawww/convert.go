@@ -835,8 +835,8 @@ func convertRecordFilesToWWW(f []pd.File) []www.File {
 	return files
 }
 
-func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.InvoiceRecord {
-	invRec := &cms.InvoiceRecord{}
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (cms.InvoiceRecord, error) {
+	invRec := cms.InvoiceRecord{}
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
 	invRec.UserID = dbInvoice.UserID
@@ -872,6 +872,13 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
+
+	payout, err := calculatePayout(dbInvoice)
+	if err != nil {
+		return invRec, err
+	}
+	invRec.Total = int64(payout.Total)
+
 	invInput.LineItems = invInputLineItems
 	invRec.Input = invInput
 	invRec.Input.LineItems = invInputLineItems
@@ -884,7 +891,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 		TimeLastUpdated: dbInvoice.Payments.TimeLastUpdated,
 	}
 	invRec.Payment = payment
-	return invRec
+	return invRec, nil
 }
 
 func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdatabase.Invoice {
@@ -1004,126 +1011,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 	}
 	for _, m := range p.Metadata {
 		switch m.ID {
-		case mdstream.IDInvoiceGeneral:
-			var mdGeneral mdstream.InvoiceGeneral
-			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					p.Metadata, p.CensorshipRecord.Token, err)
-			}
-
-			dbInvoice.Timestamp = mdGeneral.Timestamp
-			dbInvoice.PublicKey = mdGeneral.PublicKey
-			dbInvoice.UserSignature = mdGeneral.Signature
-		case mdstream.IDInvoiceStatusChange:
-			sc, err := mdstream.DecodeInvoiceStatusChange([]byte(m.Payload))
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					m, p.CensorshipRecord.Token, err)
-			}
-
-			invChanges := make([]cmsdatabase.InvoiceChange, 0, len(sc))
-			for _, s := range sc {
-				invChange := cmsdatabase.InvoiceChange{
-					AdminPublicKey: s.AdminPublicKey,
-					NewStatus:      s.NewStatus,
-					Reason:         s.Reason,
-					Timestamp:      s.Timestamp,
-				}
-				invChanges = append(invChanges, invChange)
-				// Capture information about payments
-				dbInvoice.Status = s.NewStatus
-				if s.NewStatus == cms.InvoiceStatusApproved {
-					payment.Status = cms.PaymentStatusWatching
-					payment.TimeStarted = s.Timestamp
-				} else if s.NewStatus == cms.InvoiceStatusPaid {
-					payment.Status = cms.PaymentStatusPaid
-				}
-			}
-			dbInvoice.Changes = invChanges
-
-		case mdstream.IDInvoicePayment:
-			ip, err := mdstream.DecodeInvoicePayment([]byte(m.Payload))
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					m, p.CensorshipRecord.Token, err)
-			}
-
-			// We don't need all of the payments.
-			// Just the most recent one.
-			for _, s := range ip {
-				payment.TxIDs = s.TxIDs
-				payment.TimeLastUpdated = s.Timestamp
-				payment.AmountReceived = s.AmountReceived
-			}
-			dbInvoice.Payments = payment
-		default:
-			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
-				"metadata stream ID %v token %v",
-				m.ID, p.CensorshipRecord.Token)
-		}
-	}
-
-	return &dbInvoice, nil
-}
-
-func convertCacheToDatabaseInvoice(p cache.Record) (*cmsdatabase.Invoice, error) {
-	dbInvoice := cmsdatabase.Invoice{
-		Token:           p.CensorshipRecord.Token,
-		ServerSignature: p.CensorshipRecord.Signature,
-		Version:         p.Version,
-	}
-
-	fs := make([]www.File, 0, len(p.Files))
-	for _, v := range p.Files {
-		f := www.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		}
-		fs = append(fs, f)
-	}
-	dbInvoice.Files = fs
-	// Decode invoice file
-	for _, v := range p.Files {
-		if v.Name == invoiceFile {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-
-			var ii cms.InvoiceInput
-			err = json.Unmarshal(b, &ii)
-			if err != nil {
-				return nil, www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInput,
-				}
-			}
-
-			dbInvoice.Month = ii.Month
-			dbInvoice.Year = ii.Year
-			dbInvoice.ExchangeRate = ii.ExchangeRate
-			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
-				ii.LineItems)
-			dbInvoice.ContractorContact = ii.ContractorContact
-			dbInvoice.ContractorLocation = ii.ContractorLocation
-			dbInvoice.ContractorRate = ii.ContractorRate
-			dbInvoice.ContractorName = ii.ContractorName
-			dbInvoice.PaymentAddress = ii.PaymentAddress
-		}
-	}
-	payout, err := calculatePayout(dbInvoice)
-	if err != nil {
-		return nil, err
-	}
-	payment := cmsdatabase.Payments{
-		Address:      dbInvoice.PaymentAddress,
-		AmountNeeded: int64(payout.DCRTotal),
-	}
-	for _, m := range p.Metadata {
-		switch m.ID {
 		case mdstream.IDRecordStatusChange:
 			// Ignore initial stream change since it's just the automatic change from
 			// unvetted to vetted
@@ -1190,132 +1077,6 @@ func convertCacheToDatabaseInvoice(p cache.Record) (*cmsdatabase.Invoice, error)
 	}
 
 	return &dbInvoice, nil
-}
-
-func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
-	// Decode metadata streams
-	var md mdstream.InvoiceGeneral
-	var c mdstream.InvoiceStatusChange
-	var p mdstream.InvoicePayment
-	var payment cms.PaymentInformation
-	for _, v := range r.Metadata {
-		switch v.ID {
-		case mdstream.IDInvoiceGeneral:
-			// General invoice metadata
-			m, err := mdstream.DecodeInvoiceGeneral([]byte(v.Payload))
-			if err != nil {
-				log.Errorf("convertInvoiceFromCache: decode md stream: "+
-					"token:%v error:%v payload:%v",
-					r.CensorshipRecord.Token, err, v)
-				continue
-			}
-			md = *m
-
-		case mdstream.IDInvoiceStatusChange:
-			// Invoice status changes
-			m, err := mdstream.DecodeInvoiceStatusChange([]byte(v.Payload))
-			if err != nil {
-				log.Errorf("convertInvoiceFromCache: decode md stream: "+
-					"token:%v error:%v payload:%v",
-					r.CensorshipRecord.Token, err, v)
-				continue
-			}
-
-			// We don't need all of the status changes.
-			// Just the most recent one.
-			for _, s := range m {
-				c = s
-				if s.NewStatus == cms.InvoiceStatusApproved {
-					payment.Status = cms.PaymentStatusWatching
-					payment.TimeStarted = s.Timestamp
-				} else if s.NewStatus == cms.InvoiceStatusPaid {
-					payment.Status = cms.PaymentStatusPaid
-				}
-			}
-		case mdstream.IDInvoicePayment:
-			ip, err := mdstream.DecodeInvoicePayment([]byte(v.Payload))
-			if err != nil {
-				log.Errorf("convertInvoiceFromCache: decode md stream: "+
-					"token:%v error:%v payload:%v",
-					r.CensorshipRecord.Token, err, v)
-				continue
-			}
-
-			// We don't need all of the payments.
-			// Just the most recent one.
-			for _, s := range ip {
-				p = s
-			}
-		}
-	}
-
-	// Convert files
-	var ii cms.InvoiceInput
-	fs := make([]www.File, 0, len(r.Files))
-	for _, v := range r.Files {
-		f := www.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		}
-		fs = append(fs, f)
-
-		// Parse invoice json
-		if f.Name == invoiceFile {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				log.Errorf("convertInvoiceFromCache: decode invoice: "+
-					"token:%v error:%v payload:%v",
-					r.CensorshipRecord.Token, err, f.Payload)
-				continue
-			}
-
-			err = json.Unmarshal(b, &ii)
-			if err != nil {
-				log.Errorf("convertInvoiceFromCache: unmarshal InvoiceInput: "+
-					"token:%v error:%v payload:%v",
-					r.CensorshipRecord.Token, err, f.Payload)
-				continue
-			}
-		}
-	}
-
-	// UserID and Username are left intentionally blank.
-	// These fields not part of a cache record.
-	invRec := cms.InvoiceRecord{
-		Status:             c.NewStatus,
-		StatusChangeReason: c.Reason,
-		Timestamp:          r.Timestamp,
-		UserID:             "",
-		Username:           "",
-		PublicKey:          md.PublicKey,
-		Signature:          md.Signature,
-		Files:              fs,
-		Version:            r.Version,
-		CensorshipRecord: www.CensorshipRecord{
-			Token:     r.CensorshipRecord.Token,
-			Merkle:    r.CensorshipRecord.Merkle,
-			Signature: r.CensorshipRecord.Signature,
-		},
-		Input: ii,
-	}
-
-	dbInvoice := convertInvoiceRecordToDatabaseInvoice(&invRec)
-	payout, err := calculatePayout(*dbInvoice)
-	if err != nil {
-		log.Errorf("unable to calculate payout for %v", r.CensorshipRecord.Token)
-	}
-	txIDs := strings.Split(p.TxIDs, ",")
-	payment.TxIDs = txIDs
-	payment.TimeLastUpdated = p.Timestamp
-	payment.AmountReceived = dcrutil.Amount(p.AmountReceived)
-	payment.Address = ii.PaymentAddress
-	payment.AmountNeeded = payout.DCRTotal
-
-	invRec.Payment = payment
-
-	return invRec
 }
 
 func convertDCCFromCache(r cache.Record) cms.DCCRecord {
@@ -1654,7 +1415,7 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 	return dbDCC
 }
 
-func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.ProposalLineItems {
+func convertDatabaseInvoiceToProposalLineItems(inv cmsdatabase.Invoice) cms.ProposalLineItems {
 	return cms.ProposalLineItems{
 		Month:    int(inv.Month),
 		Year:     int(inv.Year),
@@ -1800,4 +1561,20 @@ func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
 		Signature: sv.Signature,
 	}
 
+}
+
+func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
+	inv.Files = nil
+	inv.Input.ContractorContact = ""
+	inv.Input.ContractorLocation = ""
+	inv.Input.ContractorName = ""
+	inv.Input.ContractorRate = 0
+
+	for i, li := range inv.Input.LineItems {
+		li.Expenses = 0
+		li.SubRate = 0
+		inv.Input.LineItems[i] = li
+	}
+
+	return *inv
 }

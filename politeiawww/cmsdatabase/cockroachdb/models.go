@@ -25,7 +25,8 @@ func (Version) TableName() string {
 
 // Invoice is the database model for the database.Invoice type
 type Invoice struct {
-	Token              string    `gorm:"primary_key"`
+	Key                string    `gorm:"primary_key"` // Token + version
+	Token              string    `gorm:"not null"`
 	UserID             string    `gorm:"not null"`
 	Username           string    `gorm:"-"` // Only populated when reading from the database
 	Month              uint      `gorm:"not null"`

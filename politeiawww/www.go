@@ -10,6 +10,7 @@ import (
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/mdstream"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -33,10 +35,10 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
-	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/txfetcher"
 	"github.com/decred/politeia/util/version"
+	"github.com/decred/politeia/wsdcrdata"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -354,7 +356,6 @@ func _main() error {
 	// Setup user database
 	switch p.cfg.UserDB {
 	case userDBLevel:
-		// localdb.UseLogger(localdbLog)
 		db, err := localdb.New(p.cfg.DataDir)
 		if err != nil {
 			return err
@@ -370,9 +371,6 @@ func _main() error {
 		} else {
 			encryptionKey = p.cfg.EncryptionKey
 		}
-
-		// Setup logging
-		userdb.UseLogger(cockroachdbLog)
 
 		// Open db connection
 		network := filepath.Base(p.cfg.DataDir)
@@ -401,7 +399,6 @@ func _main() error {
 	}
 
 	// Setup cache connection
-	cachedb.UseLogger(cockroachdbLog)
 	net := filepath.Base(p.cfg.DataDir)
 	p.cache, err = cachedb.New(cachedb.UserPoliteiawww, p.cfg.DBHost,
 		net, p.cfg.DBRootCert, p.cfg.DBCert, p.cfg.DBKey)
@@ -443,13 +440,7 @@ func _main() error {
 		return err
 	}
 
-	// Setup comment scores map
-	err = p.initCommentScores()
-	if err != nil {
-		return fmt.Errorf("initCommentScore: %v", err)
-	}
-
-	// Set up the code that checks for paywall payments.
+	// Setup the code that checks for paywall payments.
 	if p.cfg.Mode == "piwww" {
 		err = p.initPaywallChecker()
 		if err != nil {
@@ -509,24 +500,38 @@ func _main() error {
 	p.router.Use(recoverMiddleware)
 
 	// Setup dcrdata websocket connection
-	ws, err := wsdcrdata.NewWSDcrdata(p.dcrdataHostWS())
+	ws, err := wsdcrdata.New(p.dcrdataHostWS())
 	if err != nil {
-		return fmt.Errorf("new wsDcrdata: %v", err)
+		// Continue even if a websocket connection was not able to be
+		// made. The application specific websocket setup (pi, cms, etc)
+		// can decide whether to attempt reconnection or to exit.
+		log.Errorf("wsdcrdata New: %v", err)
 	}
 	p.wsDcrdata = ws
 	wsdcrdata.UseLogger(log)
 
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
+		// Setup routes
 		p.setPoliteiaWWWRoutes()
-		// XXX setup user routes
 		p.setUserWWWRoutes()
-		err = p.setupPiDcrdataWSSubs()
+
+		// Setup dcrdata websocket subscriptions and monitoring. This is
+		// done in a go routine so politeiawww startup will continue in
+		// the event that a dcrdata websocket connection was not able to
+		// be made during client initialization and reconnection attempts
+		// are required.
+		go func() {
+			p.setupWSDcrdataPi()
+		}()
+
+		// Setup VoteResults cache table
+		log.Infof("Loading vote results cache table")
+		err = p.initVoteResults()
 		if err != nil {
-			// Politeiawww can run without a dcrdata subscription, but this
-			// should be logged.
-			log.Errorf("Unable to setup pi dcrdata subs: %v", err)
+			return err
 		}
+
 	case cmsWWWMode:
 		pluginFound := false
 		for _, plugin := range p.plugins {
@@ -544,7 +549,6 @@ func _main() error {
 		p.setCMSUserWWWRoutes()
 
 		// Setup cmsdb
-		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
 		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
 			p.cfg.DBCert, p.cfg.DBKey)
@@ -563,22 +567,47 @@ func _main() error {
 
 		// Build the cms database
 		if p.cfg.BuildCMSDB {
-			// Fetch all versions of all records from the inventory and
-			// use them to build the cache.
-			vetted, err := p.cache.Inventory()
+			// Request full record inventory from backend
+			challenge, err := util.Random(pd.ChallengeSize)
 			if err != nil {
-				return fmt.Errorf("backend inventory: %v", err)
+				return err
 			}
 
+			pdCommand := pd.Inventory{
+				Challenge:    hex.EncodeToString(challenge),
+				IncludeFiles: true,
+				AllVersions:  true,
+			}
+
+			responseBody, err := p.makeRequest(http.MethodPost,
+				pd.InventoryRoute, pdCommand)
+			if err != nil {
+				return err
+			}
+
+			var pdReply pd.InventoryReply
+			err = json.Unmarshal(responseBody, &pdReply)
+			if err != nil {
+				return fmt.Errorf("Could not unmarshal InventoryReply: %v",
+					err)
+			}
+
+			// Verify the UpdateVettedMetadata challenge.
+			err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+			if err != nil {
+				return err
+			}
+
+			vetted := pdReply.Vetted
 			dbInvs := make([]database.Invoice, 0, len(vetted))
 			dbDCCs := make([]database.DCC, 0, len(vetted))
 			for _, r := range vetted {
 				for _, m := range r.Metadata {
 					switch m.ID {
 					case mdstream.IDInvoiceGeneral:
-						i, err := convertCacheToDatabaseInvoice(r)
+						i, err := convertRecordToDatabaseInvoice(r)
 						if err != nil {
-							log.Errorf("convertCacheToDatabaseInvoice: %v", err)
+							log.Errorf("convertRecordToDatabaseInvoice: %v", err)
 							break
 						}
 						u, err := p.db.UserGetByPubKey(i.PublicKey)
@@ -590,9 +619,9 @@ func _main() error {
 						i.Username = u.Username
 						dbInvs = append(dbInvs, *i)
 					case mdstream.IDDCCGeneral:
-						d, err := convertCacheToDatabaseDCC(r)
+						d, err := convertRecordToDatabaseDCC(r)
 						if err != nil {
-							log.Errorf("convertCacheToDatabaseDCC: %v", err)
+							log.Errorf("convertRecordToDatabaseDCC: %v", err)
 							break
 						}
 						dbDCCs = append(dbDCCs, *d)
@@ -620,11 +649,14 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		p.setupCMSAddressWatcher()
-		err = p.restartCMSAddressesWatching()
-		if err != nil {
-			log.Errorf("error restarting address watcher %v", err)
-		}
+		// Setup dcrdata websocket subscriptions and monitoring. This is
+		// done in a go routine so cmswww startup will continue in
+		// the event that a dcrdata websocket connection was not able to
+		// be made during client initialization and reconnection attempts
+		// are required.
+		go func() {
+			p.setupCMSAddressWatcher()
+		}()
 
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 )
 
 var (
@@ -164,6 +164,12 @@ type Backend interface {
 
 	// Check if a vetted record exists
 	VettedExists([]byte) bool
+
+	// Get all unvetted record tokens
+	UnvettedTokens() ([][]byte, error)
+
+	// Get all vetted record tokens
+	VettedTokens() ([][]byte, error)
 
 	// Get unvetted record
 	GetUnvetted([]byte) (*Record, error)

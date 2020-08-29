@@ -46,15 +46,17 @@ type Database interface {
 	RemoveInvoiceLineItems(string) error // Remove invoices line items
 
 	InvoicesByUserID(string) ([]Invoice, error)
-	InvoiceByToken(string) (*Invoice, error)     // Return invoice given its token
-	InvoicesByAddress(string) ([]Invoice, error) // Return invoice by its address
+	InvoiceByToken(string) (*Invoice, error)                              // Return invoice given its token
+	InvoiceByTokenVersion(token string, version string) (*Invoice, error) // Return invoice by its token and version
+	InvoicesByAddress(string) ([]Invoice, error)                          // Return invoice by its address
 
 	InvoicesByMonthYearStatus(uint16, uint16, int) ([]Invoice, error) // Returns all invoices by month, year and status
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
-	InvoicesByDateRangeStatus(int64, int64, int) ([]*Invoice, error)  // Returns all paid invoice line items from range provided
-	InvoicesByLineItemsProposalToken(string) ([]*Invoice, error)      // Returns all Invoices with paid line item information based on proposal token.
+	InvoicesByDateRangeStatus(int64, int64, int) ([]Invoice, error)   // Returns all paid invoice line items from range provided
+	InvoicesByDateRange(int64, int64) ([]Invoice, error)              // Returns all invoices from range provided
+	InvoicesByLineItemsProposalToken(string) ([]Invoice, error)       // Returns all Invoices with paid line item information based on proposal token.
 
 	// ExchangeRate functions
 	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate

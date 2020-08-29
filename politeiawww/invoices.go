@@ -21,7 +21,6 @@ import (
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -37,6 +36,8 @@ const (
 	// Sanity check for Contractor Rates
 	minRate = 500   // 5 USD (in cents)
 	maxRate = 50000 // 500 USD (in cents)
+
+	domainInvoiceLimit = time.Minute * 60 * 24 * 180 // 180 days in minutes
 )
 
 var (
@@ -58,12 +59,19 @@ var (
 			cms.InvoiceStatusDisputed,
 		},
 	}
-	// The valid contractor
+	// The invalid contractor types for new invoice submission
 	invalidNewInvoiceContractorType = map[cms.ContractorTypeT]bool{
 		cms.ContractorTypeNominee:         true,
 		cms.ContractorTypeInvalid:         true,
 		cms.ContractorTypeSubContractor:   true,
 		cms.ContractorTypeTempDeactivated: true,
+	}
+
+	// The valid contractor types for domain invoice viewing
+	validDomainInvoiceViewingContractorType = map[cms.ContractorTypeT]bool{
+		cms.ContractorTypeDirect:        true,
+		cms.ContractorTypeSupervisor:    true,
+		cms.ContractorTypeSubContractor: true,
 	}
 
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
@@ -668,6 +676,16 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
+					if lineInput.SubRate != 0 {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
+						}
+					}
+					if lineInput.SubUserID != "" {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
+						}
+					}
 				case cms.LineItemTypeExpense:
 					fallthrough
 				case cms.LineItemTypeMisc:
@@ -784,32 +802,36 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	return nil
 }
 
-// processInvoiceDetails fetches a specific proposal version from the records
-// cache and returns it.
+// processInvoiceDetails fetches a specific proposal version from the invoice
+// db and returns it.
 func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
+
+	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
 
 	// Version is an optional query param. Fetch latest version
 	// when query param is not specified.
 	var invRec *cms.InvoiceRecord
-	var err error
 	if invDetails.Version == "" {
 		invRec, err = p.getInvoice(invDetails.Token)
 	} else {
 		invRec, err = p.getInvoiceVersion(invDetails.Token, invDetails.Version)
 	}
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
 		return nil, err
 	}
 
-	// Check to make sure the user is either an admin or the
-	// invoice author.
-	if !u.Admin && (invRec.Username != u.Username) {
+	invoiceUser, err := p.getCMSUserByIDRaw(invRec.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to make sure the user is either an admin or shares the domain
+	// as the invoice creator (which will then be filtered).
+	if !u.Admin && (invoiceUser.Domain != requestingUser.Domain) {
 		err := www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
@@ -818,19 +840,22 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
-	payout, err := calculatePayout(*dbInv)
-	if err != nil {
-		return nil, err
+	var reply cms.InvoiceDetailsReply
+	if u.Admin || dbInv.UserID == u.ID.String() {
+		payout, err := calculatePayout(*dbInv)
+		if err != nil {
+			return nil, err
+		}
+
+		payout.Username = u.Username
+
+		// Setup reply
+		reply.Invoice = *invRec
+		reply.Payout = payout
+
+	} else {
+		reply.Invoice = filterDomainInvoice(invRec)
 	}
-
-	payout.Username = u.Username
-
-	// Setup reply
-	reply := cms.InvoiceDetailsReply{
-		Invoice: *invRec,
-		Payout:  payout,
-	}
-
 	return &reply, nil
 }
 
@@ -840,11 +865,6 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 
 	invRec, err := p.getInvoice(sis.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
 		return nil, err
 	}
 
@@ -865,7 +885,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 
 	dbInvoice, err := p.cmsDB.InvoiceByToken(sis.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == database.ErrInvoiceNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
@@ -976,8 +996,14 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 
 	dbInvoice.Username = invRec.Username
 	// Return the reply.
+
+	dbRec, err := convertDatabaseInvoiceToInvoiceRecord(*dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+
 	sisr := cms.SetInvoiceStatusReply{
-		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
+		Invoice: dbRec,
 	}
 	return &sisr, nil
 }
@@ -1026,11 +1052,6 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 
 	invRec, err := p.getInvoice(ei.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
-			}
-		}
 		return nil, err
 	}
 
@@ -1246,7 +1267,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	// Get updated invoice from the cache
+	// Get updated invoice from the database
 	inv, err := p.getInvoice(dbInvoice.Token)
 	if err != nil {
 		log.Errorf("processEditInvoice: getInvoice %v: %v",
@@ -1286,16 +1307,18 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	return reply, err
 }
 
-// getInvoice gets the most recent verions of the given invoice from the cache
+// getInvoice gets the most recent verions of the given invoice from the db
 // then fills in any missing user fields before returning the invoice record.
 func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
-	// Get invoice from cache
-	r, err := p.cache.Record(token)
+	// Get invoice from db
+	r, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
 		return nil, err
 	}
-	i := convertInvoiceFromCache(*r)
-
+	i, err := convertDatabaseInvoiceToInvoiceRecord(*r)
+	if err != nil {
+		return nil, err
+	}
 	// Fill in userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
 	if err != nil {
@@ -1309,16 +1332,19 @@ func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 	return &i, nil
 }
 
-// getInvoiceVersion gets a specific version of an invoice from the cache.
+// getInvoiceVersion gets a specific version of an invoice from the db.
 func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceRecord, error) {
 	log.Tracef("getInvoiceVersion: %v %v", token, version)
 
-	r, err := p.cache.RecordVersion(token, version)
+	r, err := p.cmsDB.InvoiceByTokenVersion(token, version)
 	if err != nil {
 		return nil, err
 	}
 
-	i := convertInvoiceFromCache(*r)
+	i, err := convertDatabaseInvoiceToInvoiceRecord(*r)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fill in userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
@@ -1385,10 +1411,24 @@ func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.
 	return &reply, nil
 }
 
-// processAdminInvoices fetches all invoices that are currently stored in the
-// cmsdb for an administrator, based on request fields (month/year and/or status).
-func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoicesReply, error) {
-	log.Tracef("processAdminInvoices")
+// processInvoices fetches all invoices that are currently stored in the
+// cmsdb for an administrator, based on request fields (month/year,
+// starttime/endtime, userid and/or status).
+func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserInvoicesReply, error) {
+	log.Tracef("processInvoices")
+
+	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure that the user is authorized to view domain invoices.
+	if _, ok := validDomainInvoiceViewingContractorType[cms.ContractorTypeT(
+		requestingUser.ContractorType)]; !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
 
 	// Make sure month AND year are set, if any.
 	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
@@ -1413,8 +1453,14 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoi
 		}
 	}
 
+	// Make sure if month and year populated that start and end ARE NOT
+	if (ai.Month != 0 && ai.Year != 0) && (ai.StartTime != 0 && ai.EndTime != 0) {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
 	var dbInvs []database.Invoice
-	var err error
 	switch {
 	case (ai.Month != 0 && ai.Year != 0) && ai.Status != 0:
 		dbInvs, err = p.cmsDB.InvoicesByMonthYearStatus(ai.Month, ai.Year, int(ai.Status))
@@ -1426,8 +1472,19 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoi
 		if err != nil {
 			return nil, err
 		}
+	case (ai.StartTime != 0 && ai.EndTime != 0) && ai.Status == 0:
+		dbInvs, err = p.cmsDB.InvoicesByDateRange(ai.StartTime, ai.EndTime)
+		if err != nil {
+			return nil, err
+		}
 	case (ai.Month == 0 && ai.Year == 0) && ai.Status != 0:
 		dbInvs, err = p.cmsDB.InvoicesByStatus(int(ai.Status))
+		if err != nil {
+			return nil, err
+		}
+	case (ai.StartTime != 0 && ai.EndTime != 0) && ai.Status != 0:
+		dbInvs, err = p.cmsDB.InvoicesByDateRangeStatus(ai.StartTime,
+			ai.EndTime, int(ai.Status))
 		if err != nil {
 			return nil, err
 		}
@@ -1438,19 +1495,62 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoi
 		}
 	}
 
+	// Sort returned invoices by time submitted
+	sort.Slice(dbInvs, func(a, b int) bool {
+		return dbInvs[a].Timestamp < dbInvs[b].Timestamp
+	})
+
 	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, v := range dbInvs {
-		inv := convertDatabaseInvoiceToInvoiceRecord(v)
+		// Only return up to max page size if start time and end time are
+		// provided.
+		if (ai.StartTime != 0 && ai.EndTime != 0) &&
+			len(invRecs) > cms.InvoiceListPageSize {
+			break
+		}
 
-		u, err := p.db.UserGetByPubKey(inv.PublicKey)
+		invoiceUser, err := p.getCMSUserByIDRaw(u.ID.String())
+		if err != nil {
+			return nil, err
+		}
+
+		// Skip invoice if requesting user is not an admin && they don't
+		// share the same domain as the invoice user.
+		// Also skip invoice if the provided user id does not match the
+		// invoices' userid.
+		if (!u.Admin && invoiceUser.Domain != requestingUser.Domain) ||
+			(ai.UserID != "" && ai.UserID != v.UserID) {
+			continue
+		}
+
+		inv, err := convertDatabaseInvoiceToInvoiceRecord(v)
+		if err != nil {
+			return nil, err
+		}
+		invUser, err := p.db.UserGetByPubKey(inv.PublicKey)
 		if err != nil {
 			log.Errorf("getInvoice: getUserByPubKey: token:%v "+
 				"pubKey:%v err:%v", v.Token, inv.PublicKey, err)
 		} else {
-			inv.Username = u.Username
+			inv.Username = invUser.Username
 		}
 
-		invRecs = append(invRecs, *inv)
+		// If the user is not an admin AND not the invoice owner
+		// filter out the information for domain viewing an only allow to see
+		// invoices that are less than 6 months old.
+
+		if !u.Admin && inv.UserID != u.ID.String() {
+			date := time.Date(int(inv.Input.Year), time.Month(inv.Input.Month), 0, 0, 0, 0, 0, time.UTC)
+
+			// Skip if month/year of invoice is BEFORE the current time minus
+			// the domain invoice limit duration.
+			if date.Before(time.Now().Add(-1 * domainInvoiceLimit)) {
+				continue
+			}
+
+			inv = filterDomainInvoice(&inv)
+		}
+		invRecs = append(invRecs, inv)
 	}
 
 	// Setup reply
@@ -1468,7 +1568,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 
 	ir, err := p.getInvoice(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == database.ErrInvoiceNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
@@ -1634,8 +1734,12 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 	}
 	invoices := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, inv := range dbInvs {
-		invRec := convertDatabaseInvoiceToInvoiceRecord(*inv)
-		invoices = append(invoices, *invRec)
+		invRec, err := convertDatabaseInvoiceToInvoiceRecord(inv)
+		if err != nil {
+			return nil, err
+		}
+
+		invoices = append(invoices, invRec)
 	}
 	reply.Invoices = invoices
 	return reply, nil
@@ -1785,4 +1889,162 @@ func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
 		}
 	}
 	return &invInput, nil
+}
+
+func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
+	reply := &cms.ProposalBillingSummaryReply{}
+
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var tvr www.TokenInventoryReply
+	err = json.Unmarshal(data, &tvr)
+	if err != nil {
+		return nil, err
+	}
+
+	approvedProposals := tvr.Approved
+
+	approvedProposalDetails := make([]www.ProposalRecord, 0, len(approvedProposals))
+	if len(approvedProposals) > 0 {
+		startOffset := 0
+		endOffset := www.ProposalListPageSize
+		if endOffset > len(approvedProposals) {
+			endOffset = len(approvedProposals)
+		}
+		for i := endOffset; i <= len(approvedProposals); {
+			// Go fetch proposal information to get name/title.
+			bp := &www.BatchProposals{
+				Tokens: approvedProposals[startOffset:i],
+			}
+
+			data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+			if err != nil {
+				return nil, err
+			}
+
+			var bpr www.BatchProposalsReply
+			err = json.Unmarshal(data, &bpr)
+			if err != nil {
+				return nil, err
+			}
+			approvedProposalDetails = append(approvedProposalDetails, bpr.Proposals...)
+
+			startOffset = i
+			i += www.ProposalListPageSize
+			if i > len(approvedProposals) {
+				i = len(approvedProposals)
+			}
+			if i == startOffset {
+				break
+			}
+		}
+	}
+
+	count := pbs.Count
+	if count > cms.ProposalBillingListPageSize {
+		count = cms.ProposalBillingListPageSize
+	}
+
+	proposalInvoices := make(map[string][]database.Invoice, len(approvedProposals))
+	for i, prop := range approvedProposals {
+		if i < pbs.Offset {
+			continue
+		}
+		propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(prop)
+		if err != nil {
+			return nil, err
+		}
+		if len(propInvoices) > 0 {
+			proposalInvoices[prop] = propInvoices
+		} else {
+			proposalInvoices[prop] = make([]database.Invoice, 0)
+		}
+
+		if count != 0 && len(proposalInvoices) >= count {
+			break
+		}
+	}
+
+	spendingSummaries := make([]cms.ProposalSpending, 0, len(proposalInvoices))
+	for prop, invoices := range proposalInvoices {
+		spendingSummary := cms.ProposalSpending{}
+		spendingSummary.Token = prop
+
+		totalSpent := int64(0)
+		for _, dbInv := range invoices {
+			payout, err := calculatePayout(dbInv)
+			if err != nil {
+				return nil, err
+			}
+			totalSpent += int64(payout.Total)
+		}
+		// Look across approved proposals batch reply for proposal name.
+		for _, propDetails := range approvedProposalDetails {
+			if propDetails.CensorshipRecord.Token == prop {
+				spendingSummary.Title = propDetails.Name
+				break
+			}
+		}
+		spendingSummary.TotalBilled = totalSpent
+		spendingSummaries = append(spendingSummaries, spendingSummary)
+	}
+
+	reply.Proposals = spendingSummaries
+
+	return reply, nil
+}
+
+func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
+	reply := &cms.ProposalBillingDetailsReply{}
+
+	propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pbd.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	spendingSummary := cms.ProposalSpending{}
+	spendingSummary.Token = pbd.Token
+
+	invRecs := make([]cms.InvoiceRecord, 0, len(propInvoices))
+	totalSpent := int64(0)
+	for _, dbInv := range propInvoices {
+		u, err := p.db.UserGetByPubKey(dbInv.PublicKey)
+		if err != nil {
+			log.Errorf("getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", dbInv.PublicKey, err)
+		} else {
+			dbInv.Username = u.Username
+		}
+		payout, err := calculatePayout(dbInv)
+		if err != nil {
+			return nil, err
+		}
+		totalSpent += int64(payout.Total)
+		invRec, err := convertDatabaseInvoiceToInvoiceRecord(dbInv)
+		if err != nil {
+			return nil, err
+		}
+		invRecs = append(invRecs, invRec)
+	}
+
+	data, err := p.makeProposalsRequest(http.MethodGet, "/proposals/"+pbd.Token, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdr www.ProposalDetailsReply
+	err = json.Unmarshal(data, &pdr)
+	if err != nil {
+		return nil, err
+	}
+
+	spendingSummary.Title = pdr.Proposal.Name
+	spendingSummary.Invoices = invRecs
+	spendingSummary.TotalBilled = totalSpent
+
+	reply.Details = spendingSummary
+	return reply, nil
 }

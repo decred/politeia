@@ -83,12 +83,12 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 		Options: []v2.VoteOption{
 			{
 				Id:          decredplugin.VoteOptionIDApprove,
-				Description: "Don't approve proposal",
+				Description: "Approve proposal",
 				Bits:        0x01,
 			},
 			{
 				Id:          decredplugin.VoteOptionIDReject,
-				Description: "Approve proposal",
+				Description: "Don't approve proposal",
 				Bits:        0x02,
 			},
 		},

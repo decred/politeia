@@ -187,9 +187,17 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 func (p *politeiawww) linkByPeriodMin() int64 {
 	var (
 		submissionPeriod int64 = 604800 // One week in seconds
-		avgBlockTime     int64 = 300    // 5 minutes in seconds
+		blockTime        int64          // In seconds
 	)
-	return (int64(p.cfg.VoteDurationMin) * avgBlockTime) + submissionPeriod
+	switch {
+	case p.cfg.TestNet:
+		blockTime = int64(testNet3Params.TargetTimePerBlock.Seconds())
+	case p.cfg.SimNet:
+		blockTime = int64(simNetParams.TargetTimePerBlock.Seconds())
+	default:
+		blockTime = int64(mainNetParams.TargetTimePerBlock.Seconds())
+	}
+	return (int64(p.cfg.VoteDurationMin) * blockTime) + submissionPeriod
 }
 
 // linkByPeriodMax returns the maximum amount of time, in seconds, that the
@@ -200,6 +208,33 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 	return 7776000 // 3 months in seconds
 }
 
+func (p *politeiawww) linkByValidate(linkBy int64) error {
+	min := time.Now().Unix() + p.linkByPeriodMin()
+	max := time.Now().Unix() + p.linkByPeriodMax()
+	switch {
+	case linkBy < min:
+		e := fmt.Sprintf("linkby %v is less than min required of %v",
+			linkBy, min)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidLinkBy,
+			ErrorContext: []string{e},
+		}
+	case linkBy > max:
+		e := fmt.Sprintf("linkby %v is more than max allowed of %v",
+			linkBy, max)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidLinkBy,
+			ErrorContext: []string{e},
+		}
+	}
+	return nil
+}
+
+// validateProposalMetdata validates the provided proposal metadata to ensure
+// it adheres to the api policy. Note that this function only checks validation
+// that is applicable to both new proposals and proposal edits. Additional
+// validation is done in processNewProposal and processEditProposal that is
+// specific to that action only.
 func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	// Validate Name
 	if !isValidProposalName(pm.Name) {
@@ -218,8 +253,8 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 			}
 		}
 
-		// Validate the LinkTo proposal. The only type of proposal
-		// that we currently allow linking to is an RFP.
+		// Validate the LinkTo proposal. The only type of proposal that
+		// we currently allow linking to is an RFP.
 		r, err := p.cache.Record(pm.LinkTo)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
@@ -251,11 +286,6 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"rfp proposal vote did not pass"},
 			}
-		case time.Now().Unix() > pr.LinkBy:
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto proposal deadline is expired"},
-			}
 		case pr.State != www.PropStateVetted:
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
@@ -271,23 +301,9 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 	// Validate LinkBy
 	if pm.LinkBy != 0 {
-		min := time.Now().Unix() + p.linkByPeriodMin()
-		max := time.Now().Unix() + p.linkByPeriodMax()
-		switch {
-		case pm.LinkBy < min:
-			e := fmt.Sprintf("linkby period cannot be shorter than %v seconds",
-				p.linkByPeriodMin())
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{e},
-			}
-		case pm.LinkBy > max:
-			e := fmt.Sprintf("linkby period cannot be greater than %v seconds",
-				p.linkByPeriodMax())
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{e},
-			}
+		err := p.linkByValidate(pm.LinkBy)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -296,7 +312,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 // validateProposal ensures that the given new proposal meets the api policy
 // requirements. If a proposal data file exists (currently optional) then it is
-// parsed and a ProposalData is returned.
+// parsed and a ProposalMetadata is returned.
 func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
 	if len(np.Files) == 0 {
 		return nil, www.UserError{
@@ -975,16 +991,10 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 		comments = append(comments, c)
 	}
 
-	// Fill in comment scores
-	p.RLock()
-	defer p.RUnlock()
-
 	for i, v := range comments {
-		votes, ok := p.commentVotes[v.Token+v.CommentID]
-		if !ok {
-			log.Errorf("getPropComments: comment votes lookup "+
-				"failed: token:%v commentID:%v pubKey:%v", v.Token,
-				v.CommentID, v.PublicKey)
+		votes, err := p.getCommentVotes(v.Token, v.CommentID)
+		if err != nil {
+			return nil, err
 		}
 		comments[i].ResultVotes = int64(votes.up - votes.down)
 		comments[i].Upvotes = votes.up
@@ -1139,6 +1149,30 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	pm, err := p.validateProposal(np, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate linkto requirements that are specific to new proposal
+	// submissions. Everything else has already been validated by the
+	// validateProposal function.
+	if pm.LinkTo != "" {
+		r, err := p.cache.Record(pm.LinkTo)
+		if err != nil {
+			return nil, err
+		}
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return nil, err
+		}
+		// Once the linkto deadline has expired no new submissions are
+		// allowed. Edits to existing submissions are allowed which is
+		// why this is checked here and not in the validateProposal
+		// function.
+		if time.Now().Unix() > pr.LinkBy {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal deadline is expired"},
+			}
+		}
 	}
 
 	// politeiad only includes files in its merkle root calc, not the
@@ -2448,7 +2482,7 @@ func validateAuthorizeVote(av www.AuthorizeVote, u user.User, pr www.ProposalRec
 	return nil
 }
 
-// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// validateAuthorizeVoteStandard validates the authorize vote for a proposal that
 // is participating in a standard vote. A UserError is returned if any of the
 // validation fails.
 func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
@@ -2461,8 +2495,10 @@ func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.Pro
 	// standard votes.
 	switch {
 	case isRFPSubmission(pr):
-		// Wrong validation function used. Fail with a 500.
-		return fmt.Errorf("proposal is a runoff vote submission")
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{"proposal is an rfp submission"},
+		}
 	case pr.PublicKey != av.PublicKey:
 		// User is not the author. First make sure the author didn't
 		// submit the proposal using an old identity.
@@ -2731,14 +2767,14 @@ func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs
 	return nil
 }
 
-func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32, linkByMin, linkByMax int64) error {
-	err := validateStartVote(sv, u, pr, vs, durationMin, durationMax)
+func (p *politeiawww) validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	err := validateStartVote(sv, u, pr, vs, p.cfg.VoteDurationMin,
+		p.cfg.VoteDurationMax)
 	if err != nil {
 		return err
 	}
 
 	// The remaining validation is specific to a VoteTypeStandard.
-
 	switch {
 	case sv.Vote.Type != www2.VoteTypeStandard:
 		// Not a standard vote
@@ -2765,46 +2801,12 @@ func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRe
 
 	// Verify the LinkBy deadline for RFP proposals. The LinkBy policy
 	// requirements are enforced at the time of starting the vote
-	// because their purpose is to ensure that there is enough time for
+	// because its purpose is to ensure that there is enough time for
 	// RFP submissions to be submitted.
 	if isRFP(pr) {
-		min := time.Now().Unix() + linkByMin
-		max := time.Now().Unix() + linkByMax
-		switch {
-		case pr.LinkBy < min:
-			e := fmt.Sprintf("linkby period must be at least %v seconds from "+
-				"the start of the proposal vote", linkByMin)
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{e},
-			}
-		case pr.LinkBy > max:
-			e := fmt.Sprintf("linkby period cannot be more than %v seconds from "+
-				"the start of the proposal vote", linkByMax)
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// If the vote durations does not use the defaults, make sure
-		// that RFP submissions will have a minimum of 1 week to be
-		// submitted.
-		if sv.Vote.Duration != defaultVoteDurationMin {
-			var (
-				avgBlockTime        int64 = 300    // 5 minutes in seconds
-				minSubmissionPeriod int64 = 604800 // 1 week in seconds
-				duration                  = avgBlockTime * int64(sv.Vote.Duration)
-				submissionPeriod          = pr.LinkBy - time.Now().Unix() - duration
-			)
-			if submissionPeriod < minSubmissionPeriod {
-				e := fmt.Sprintf("linkby period must be at least %v seconds from "+
-					"the start of the proposal vote", duration+submissionPeriod)
-				return www.UserError{
-					ErrorCode:    www.ErrorStatusInvalidLinkBy,
-					ErrorContext: []string{e},
-				}
-			}
+		err := p.linkByValidate(pr.LinkBy)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -2832,7 +2834,7 @@ func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalReco
 
 	case !isRFPSubmission(pr):
 		// The proposal is not an RFP submission
-		e := fmt.Sprintf("%v in not an rfp submission", token)
+		e := fmt.Sprintf("%v is not an rfp submission", token)
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusWrongProposalType,
 			ErrorContext: []string{e},
@@ -2884,9 +2886,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	}
 
 	// Validate the start vote
-	err = validateStartVoteStandard(sv, *u, *pr, *vs,
-		p.cfg.VoteDurationMin, p.cfg.VoteDurationMax,
-		p.linkByPeriodMin(), p.linkByPeriodMax())
+	err = p.validateStartVoteStandard(sv, *u, *pr, *vs)
 	if err != nil {
 		return nil, err
 	}
@@ -3027,7 +3027,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 	}
 	if len(auths) == 0 {
-		e := fmt.Sprintf("start votes and authorize votes cannot be empty")
+		e := "start votes and authorize votes cannot be empty"
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidRunoffVote,
 			ErrorContext: []string{e},
@@ -3335,4 +3335,19 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	}
 
 	return vdr, nil
+}
+
+// initLoadVoteResults is used to send the LoadVoteResults decred plugin command
+// to the cache on www startup.
+func (p *politeiawww) initVoteResults() error {
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return err
+	}
+	_, err = p.decredLoadVoteResults(bb)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

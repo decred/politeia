@@ -1171,8 +1171,12 @@ func DecodeGetProposalCommentsLikesReply(payload []byte) (*GetProposalCommentsLi
 	return &gpclr, nil
 }
 
-// Inventory is used to retrieve the decred plugin inventory.
-type Inventory struct{}
+// Inventory is used to retrieve the decred plugin inventory for all versions
+// of the provided record tokens. If no tokens are provided, the decred plugin
+// inventory for all versions of all records will be returned.
+type Inventory struct {
+	Tokens []string `json:"tokens,omitempty"`
+}
 
 // EncodeInventory encodes Inventory into a JSON byte slice.
 func EncodeInventory(i Inventory) ([]byte, error) {

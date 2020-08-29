@@ -25,9 +25,12 @@ import (
 )
 
 const (
-	cmsPluginIdentity  = "cmsfullidentity"
-	cmsPluginJournals  = "cmssjournals"
-	cmsPluginInventory = "cmsinventory"
+	cmsPluginIdentity    = "cmsfullidentity"
+	cmsPluginJournals    = "cmssjournals"
+	cmsPluginEnableCache = "enablecache"
+
+	defaultCMSBallotFilename = "cms.ballot.journal"
+	defaultCMSBallotFlushed  = "cms.ballot.flushed"
 )
 
 type CastDCCVoteJournal struct {
@@ -81,13 +84,10 @@ func getCMSPlugin(testnet bool) backend.Plugin {
 		Settings: []backend.PluginSetting{},
 	}
 
-	// This setting is used to tell politeiad how to retrieve the
-	// decred plugin data that is required to build the external
-	// politeiad cache.
 	cmsPlugin.Settings = append(cmsPlugin.Settings,
 		backend.PluginSetting{
-			Key:   cmsPluginInventory,
-			Value: cmsplugin.CmdInventory,
+			Key:   cmsPluginEnableCache,
+			Value: "",
 		})
 
 	// Initialize hooks
@@ -137,13 +137,13 @@ func setCMSPluginHook(name string, f func(string) error) {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushDCCVotes(token string) (string, error) {
-	if !g.unvettedPropExists(token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown dcc: %v", token)
 	}
 
 	// Setup source filenames and verify they actually exist
 	srcDir := pijoin(g.journals, token)
-	srcVotes := pijoin(srcDir, defaultBallotFilename)
+	srcVotes := pijoin(srcDir, defaultCMSBallotFilename)
 	if !util.FileExists(srcVotes) {
 		return "", nil
 	}
@@ -154,7 +154,7 @@ func (g *gitBackEnd) flushDCCVotes(token string) (string, error) {
 		return "", err
 	}
 	dir := pijoin(g.unvetted, token, version, pluginDataDir)
-	votes := pijoin(dir, defaultBallotFilename)
+	votes := pijoin(dir, defaultCMSBallotFilename)
 
 	// Create the destination container dir
 	_ = os.MkdirAll(dir, 0764)
@@ -166,7 +166,7 @@ func (g *gitBackEnd) flushDCCVotes(token string) (string, error) {
 	}
 
 	// Return filename that is relative to git dir.
-	return pijoin(token, version, pluginDataDir, defaultBallotFilename), nil
+	return pijoin(token, version, pluginDataDir, defaultCMSBallotFilename), nil
 }
 
 // _flushDCCVotesJournals walks all votes journal directories and copies
@@ -184,7 +184,7 @@ func (g *gitBackEnd) _flushDCCVotesJournals() ([]string, error) {
 	files := make([]string, 0, len(dirs))
 	for _, v := range dirs {
 		filename := pijoin(g.journals, v.Name(),
-			defaultBallotFlushed)
+			defaultCMSBallotFlushed)
 		log.Tracef("Checking: %v", v.Name())
 		if util.FileExists(filename) {
 			continue
@@ -540,7 +540,7 @@ func (g *gitBackEnd) replayDCCBallot(token string) error {
 
 	// Do some cheap things before expensive calls
 	bfilename := pijoin(g.journals, token,
-		defaultBallotFilename)
+		defaultCMSBallotFilename)
 
 	// Replay journal
 	err := g.journal.Open(bfilename)
@@ -587,7 +587,7 @@ func (g *gitBackEnd) replayDCCBallot(token string) error {
 				}
 				// See if we have a duplicate vote
 				if _, ok := cmsPluginVotesCache[token][userid]; ok {
-					log.Errorf("duplicate cast vote %v %v",
+					log.Errorf("duplicate cms cast vote %v %v",
 						token, userid)
 				}
 				// All good, record vote in cache
@@ -703,7 +703,7 @@ func (g *gitBackEnd) dccVoteEndHeight(token string) (uint32, error) {
 	return svr.EndHeight, nil
 }
 
-// writeVote writes the provided vote to the provided journal file path, if the
+// writeDCCVote writes the provided vote to the provided journal file path, if the
 // vote does not already exist. Once successfully written to the journal, the
 // vote is added to the cast vote memory cache.
 //
@@ -855,7 +855,7 @@ func (g *gitBackEnd) pluginCastVote(payload string) (string, error) {
 
 	// Ensure journal directory exists
 	dir := pijoin(g.journals, vote.Token)
-	bfilename := pijoin(dir, defaultBallotFilename)
+	bfilename := pijoin(dir, defaultCMSBallotFilename)
 	err = os.MkdirAll(dir, 0774)
 	if err != nil {
 		// Should not fail, so return failure to alert people
@@ -892,7 +892,7 @@ func (g *gitBackEnd) pluginCastVote(payload string) (string, error) {
 
 	// Mark comment journal dirty
 	flushFilename := pijoin(g.journals, vote.Token,
-		defaultBallotFlushed)
+		defaultCMSBallotFlushed)
 	_ = os.Remove(flushFilename)
 
 	// Encode reply
@@ -910,7 +910,7 @@ func (g *gitBackEnd) pluginCastVote(payload string) (string, error) {
 // Function must be called WITH the lock held.
 func (g *gitBackEnd) tallyDCCVotes(token string) ([]cmsplugin.CastVote, error) {
 	// Do some cheap things before expensive calls
-	bfilename := pijoin(g.journals, token, defaultBallotFilename)
+	bfilename := pijoin(g.journals, token, defaultCMSBallotFilename)
 
 	// Replay journal
 	err := g.journal.Open(bfilename)

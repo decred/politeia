@@ -2,8 +2,8 @@
 
 # v1
 
-This document describes the REST API provided by a `politeiawww` server while in 
-`cmswww` mode.  The `politeiawww` server is the web server backend and it 
+This document describes the REST API provided by a `politeiawww` server while in
+`cmswww` mode.  The `politeiawww` server is the web server backend and it
 interacts with a JSON REST API.  This document also describes websockets for
 server side notifications.  It does not render HTML.
 
@@ -15,7 +15,7 @@ server side notifications.  It does not render HTML.
     - [`New invoice`](#new-invoice)
     - [`User invoices`](#user-invoices)
     - [`Set invoice status`](#set-invoice-status)
-    - [`Admin invoices`](#admin-invoices)
+    - [`Invoices`](#invoices)
     - [`Edit invoice`](#edit-invoice)
     - [`Generate payouts`](#generate-payouts)
     - [`Support/Oppose DCC`](#supportoppose-dcc)
@@ -37,6 +37,7 @@ server side notifications.  It does not render HTML.
     - [DCC type codes](#dcc-type-codes)
     - [DCC status codes](#dcc-status-codes)
     - [`Abridged CMS User`](#abridged-cms-user)
+    - [`Proposal billing info`](#proposal-billing)
 
 **Invoice status codes**
 
@@ -321,21 +322,36 @@ Reply:
 }
 ```
 
-### `Admin invoices`
+### `Invoices`
 
-Retrieve a page of invoices given the month and year and status.
+This request allows administrators or invoice owners to have full view of any 
+of their past invoices.  Users of the same domain may be able to see limited
+information from the invoices.  This will allow for inter-domain checks and
+auditing of invoices.  All private infomation will be hidden to non-admins or
+invoice owners (rates, expenses, payouts, address, locations etc).  This will be
+merely used to audit hours billed.
 
-Note: This call requires admin privileges.
+There are a few optional parameters that are available to ease searching:
+Month/Year will return all the invoices submitted for that month, Status
+will return all invoices of that status. UserID will only return invoices that
+are owned by that userid and start time/end time will return all invoices that
+were submitted in that date range.  Note: There is a max page size for date
+range requests.
 
-**Route:** `POST /v1/admin/invoices`
+
+**Route:** `POST /v1/invoices`
 
 **Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| month | int16 | An optional filter that can be set (along with year) to return invoices from a given month, from 1 to 12. | |
-| year | int16 | An optional filter that can be set (along with month) to return invoices from a given year. | |
-| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | |
+| month | int16 | An optional filter that can be set (along with year) to return invoices from a given month, from 1 to 12. | No |
+| year | int16 | An optional filter that can be set (along with month) to return invoices from a given year. | No |
+| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | No |
+| starttime | int64 | An optional filter that can be set with endtime for date range of submitted invoices. | No |
+| endtime | int64 | An optional filter that can be set with starttime for date range of submitted invoices. | No |
+| userid | int64 | An optional filter that can be set to return invoices that only match the provided userid. | No |
+
 
 **Results:**
 
@@ -627,7 +643,7 @@ Reply:
 ### `Pay invoices`
 
 Temporary command that allows administrators to set all approved invoices to paid.
-This command will be removed once the address watcher for approved invoices 
+This command will be removed once the address watcher for approved invoices
 is complete and properly functioning.
 
 Note: This call requires admin privileges.
@@ -661,7 +677,7 @@ Reply:
 ### `Invoice Payouts`
 
 This command would provide a list of invoices that were paid out in a given
-date range.  
+date range.
 
 Note: This call requires admin privileges.
 
@@ -711,7 +727,7 @@ Reply:
       "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
     },
     "lineitems": [
-      {  
+      {
       "type": 1,
       "domain": "Design",
       "subdomain": "dcrweb",
@@ -883,7 +899,7 @@ nominates a yet-to-be-approved user to join the contractors.  The sponsor also
 includes a statement to support the nomination of the user.  In the case of
 a revocation, an existing user (sponsor) nominates another existing user to
 have their access to the contractors' group rescinded and also includes a statement
-to support that revocation.  
+to support that revocation.
 
 In either case, issuance or revocation, other existing contractors will
 be asked to offer their support or opposition to a DCC and based upon those
@@ -911,7 +927,7 @@ Request:
 
 ```json
 {
-  "file": 
+  "file":
   {
       "name":"dcc.json",
       "mime": "text/plain; charset=utf-8",
@@ -1049,7 +1065,7 @@ Request:
 Reply:
 
 ```json
-{  
+{
   "dccs": [{
     "dcc": {
       "type": 2,
@@ -1442,7 +1458,7 @@ Reply:
 
 ### `CMS Users`
 
-Returns a list of cms users given optional filters. 
+Returns a list of cms users given optional filters.
 
 **Route:** `GET /v1/cmsusers`
 
@@ -1457,7 +1473,7 @@ Returns a list of cms users given optional filters.
 
 | Parameter | Type | Description |
 |-|-|-|
-| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that match the query. 
+| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that match the query.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -1649,7 +1665,7 @@ between the Vote versions.
 
 **Route:** `POST /dcc/votedetails`
 
-**Params:** 
+**Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
@@ -1763,6 +1779,188 @@ Reply:
   "endblockheight": 284915,
   "userweights":[]
 }
+```
+
+### `Proposal Billing Summary`
+
+Retrieve all billing information for all approved proposals.
+
+This retrieves the tokens for approved proposals and uses those tokens to
+search through the database for invoices that have line-items that have that
+as proposal token added.
+
+There is also a basic pagination feature implemented with an offset and a 
+page count of proposals to return.  Note, there is a max proposal
+spending list page count.  If above 20, then it will be set to that max.
+These are optional and if both unset, all proposal summaries will be returned.  
+
+Note: This call requires admin privileges.
+
+**Route:** `GET /v1/proposals/spendingsummary`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| offset | int | Page offset | No |
+| count | int | Page count | No |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| proposals | Array of ProposalSpending | Aggregated information of spending for all approved proposals. |
+
+**ProposalSpending:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship record token of proposal. |
+| title | string | Title of approved proposal. |
+| totalbilled | int64 | Total billed against the proposal (in US Cents) |
+| invoices | Array of InvoiceRecord | All (partially filled) invoice records that have line items with the proposal token. |
+
+**Example**
+
+Request:
+
+``` json
+{}
+```
+
+Reply:
+
+```json
+{
+  "proposals": [{
+    "token": "8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+    "title": "Super awesome proposal!",
+    "totalbilled": 115000,
+    "invoices": [
+        {
+          "status": 0,
+          "timestamp": 0,
+          "userid": "5c36086c-fa22-4c53-aee1-adafc4446751",
+          "username": "admin",
+          "publickey": "c0876a34451431b77ee9cd2e65662d0829010e0285d9fe1cc1e3ea20005b88bf",
+          "signature": "",
+          "file": null,
+          "version": "",
+          "input": {
+            "version": 0,
+            "month": 5,
+            "year": 2020,
+            "exchangerate": 1411,
+            "contractorname": "",
+            "contractorlocation": "",
+            "contractorcontact": "",
+            "contractorrate": 5000,
+            "paymentaddress": "",
+            "lineitems": [  {
+                "type": 1,
+                "domain": "Development",
+                "subdomain": "dvdddasf",
+                "description": "sadfasdfsdf",
+                "proposaltoken": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87",
+                "subuserid": "",
+                "subrate": 0,
+                "labor": 1380,
+                "expenses": 0
+              }
+            ]
+          }
+        }
+      ]
+    }]
+  }
+}
+```
+
+### `Proposal Billing Details`
+
+Retrieve all billing information for the given proposal token.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/proposals/spendingdetails`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token for approved proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| details | ProposalSpending | Aggregated information for the given proposal token. |
+
+**ProposalSpending:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship record token of proposal. |
+| title | string | Title of approved proposal. |
+| totalbilled | int64 | Total billed against the proposal (in US Cents) |
+| invoices | Array of InvoiceRecord | All (partially filled) invoice records that have line items with the proposal token. |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "token": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87"
+}
+```
+
+Reply:
+
+```json
+{
+  "details": {
+    "token": "8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+    "title": "Super awesome proposal!",
+    "totalbilled": 115000,
+    "invoices": [
+        {
+          "status": 0,
+          "timestamp": 0,
+          "userid": "5c36086c-fa22-4c53-aee1-adafc4446751",
+          "username": "admin",
+          "publickey": "c0876a34451431b77ee9cd2e65662d0829010e0285d9fe1cc1e3ea20005b88bf",
+          "signature": "",
+          "file": null,
+          "version": "",
+          "input": {
+            "version": 0,
+            "month": 5,
+            "year": 2020,
+            "exchangerate": 1411,
+            "contractorname": "",
+            "contractorlocation": "",
+            "contractorcontact": "",
+            "contractorrate": 5000,
+            "paymentaddress": "",
+            "lineitems": [  {
+                "type": 1,
+                "domain": "Development",
+                "subdomain": "dvdddasf",
+                "description": "sadfasdfsdf",
+                "proposaltoken": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87",
+                "subuserid": "",
+                "subrate": 0,
+                "labor": 1380,
+                "expenses": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+    
 ```
 
 ### Error codes
@@ -1897,3 +2095,55 @@ This is a shortened representation of a user, used for lists.
 | username | string | Unique username. |
 | contractortype | string | CMS Domain of the user. |
 | domain | string | CMS contractor type of the user. |
+
+### `Proposal Billing`
+
+**Route:** `POST /v1/proposals/billing`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| lineitems | array | Array of line items billed by a contractor |
+
+* **Example**
+
+Request:
+
+```json
+{
+  "token": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87"
+}
+```
+
+Reply:
+
+```json
+{
+  "lineitems": [
+    {
+      "userid": "8172cb38-32b6-4d0f-9607-6f9f1677746c",
+      "username": "admin",
+      "month": 5,
+      "year": 2020,
+      "lineitem": {
+        "type": 1,
+        "domain": "Development",
+        "subdomain": "uuuuu",
+        "description": "wwwwww",
+        "proposaltoken": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87",
+        "subuserid": "",
+        "subrate": 0,
+        "labor": 540,
+        "expenses": 0
+      }
+    }
+  ]
+}
+```

@@ -26,10 +26,10 @@ import (
 	"github.com/decred/politeia/politeiawww/paywall"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
-	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/txfetcher"
 	"github.com/decred/politeia/util/version"
+	"github.com/decred/politeia/wsdcrdata"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -135,9 +135,8 @@ type politeiawww struct {
 	cmsDB cmsdatabase.Database
 	cron  *cron.Cron
 
-	// WSDcrdata contains the client and list of current subscriptions to
-	// dcrdata's public subscription websocket
-	wsDcrdata wsdcrdata.WSDcrdata
+	// wsDcrdata is a dcrdata websocket client
+	wsDcrdata wsdcrdata.Client
 
 	// The current best block is cached and updated using a websocket
 	// subscription to dcrdata. If the websocket connection is not active,
@@ -370,6 +369,8 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		IndexFilename:              www.PolicyIndexFilename,
 		MinLinkByPeriod:            p.linkByPeriodMin(),
 		MaxLinkByPeriod:            p.linkByPeriodMax(),
+		MinVoteDuration:            p.cfg.VoteDurationMin,
+		MaxVoteDuration:            p.cfg.VoteDurationMax,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -916,90 +917,92 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return bb, nil
 }
 
-// resetPiDcrdataWSSubs is responsible for resetting the WSDcrdata connection
-// and making necessary changes to the required changes to the politeiawww
-// state so that the service continues to function properly during and after
-// the reconnection.
-func (p *politeiawww) resetPiDcrdataWSSubs() error {
-	// The cached best block is set to zero so that in the time between
-	// reconnection and receiving the first new block message, instead of
-	// using the old cached value, politeiad is queried for the best block.
-	p.updateBestBlock(0)
-
-	return p.wsDcrdata.Reconnect()
-}
-
-// setupPiDcrdataWSSubs subscribes and listens to websocket messages from
-// dcrdata that are needed for pi.
-func (p *politeiawww) setupPiDcrdataWSSubs() error {
-	err := p.wsDcrdata.Subscribe(wsdcrdata.NewBlockSub)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for {
-			receiver, err := p.wsDcrdata.Receive()
-			if err == wsdcrdata.ErrShutdown {
-				log.Infof("Dcrdata websocket closed")
-				return
-			} else if err != nil {
-				log.Errorf("WSDcrdata receive: %v", err)
-				log.Infof("Dcrdata websocket closed")
-				return
-			}
-
-			msg, ok := <-receiver
-
-			if !ok {
-				// This check is here to avoid a spew of unnecessary error
-				// messages. The channel is expected to be closed if WSDcrdata
-				// is shut down.
-				if p.wsDcrdata.IsShutdown() {
-					return
-				}
-
-				log.Errorf("WSDcrdata receive channel closed. Will reconnect.")
-				err = p.resetPiDcrdataWSSubs()
-				if err == wsdcrdata.ErrShutdown {
-					log.Infof("Dcrdata websocket closed")
-					return
-				} else if err != nil {
-					log.Errorf("resetPiDcrdataWSSub: %v", err)
-					log.Infof("Dcrdata websocket closed")
-					return
-				}
-
-				continue
-			}
-
-			switch m := msg.Message.(type) {
-			case *exptypes.WebsocketBlock:
-				log.Debugf("WSDcrdata message WebsocketBlock(height=%v)",
-					m.Block.Height)
-				p.updateBestBlock(uint64(m.Block.Height))
-			case *pstypes.HangUp:
-				log.Infof("Dcrdata has hung up. Will reconnect.")
-				err = p.resetPiDcrdataWSSubs()
-				if err == wsdcrdata.ErrShutdown {
-					log.Infof("Dcrdata websocket closed")
-					return
-				} else if err != nil {
-					log.Errorf("resetPiDcrdataWSSub: %v", err)
-					log.Infof("Dcrdata websocket closed")
-					return
-				}
-				log.Infof("Successfully reconnected to dcrdata")
-			case int:
-				// Ping messages are of type int
-			default:
-				log.Errorf("WSDcrdata message of type %v unhandled. %v",
-					msg.EventId, m)
-			}
-		}
+// monitorWSDcrdataPi monitors the websocket connection for pi and handles
+// new websocket messages.
+func (p *politeiawww) monitorWSDcrdataPi() {
+	defer func() {
+		log.Infof("Dcrdata websocket closed")
 	}()
 
-	return nil
+	// Setup messages channel
+	receiver := p.wsDcrdata.Receive()
+
+	for {
+		// Monitor for a new message
+		msg, ok := <-receiver
+		if !ok {
+			// Check if the websocket was shut down intentionally or was
+			// dropped unexpectedly.
+			if p.wsDcrdata.Status() == wsdcrdata.StatusShutdown {
+				return
+			}
+			log.Infof("Dcrdata websocket connection unexpectedly dropped")
+			goto reconnect
+		}
+
+		// Handle new message
+		switch m := msg.Message.(type) {
+		case *exptypes.WebsocketBlock:
+			log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
+				m.Block.Height)
+
+			// Update cached best block
+			bb := uint64(m.Block.Height)
+			p.updateBestBlock(bb)
+
+			// Keep VoteResults table updated with received best block
+			_, err := p.decredLoadVoteResults(bb)
+			if err != nil {
+				log.Errorf("decredLoadVoteResults: %v", err)
+			}
+
+		case *pstypes.HangUp:
+			log.Infof("Dcrdata websocket has hung up. Will reconnect.")
+			goto reconnect
+
+		case int:
+			// Ping messages are of type int
+
+		default:
+			log.Errorf("wsDcrdata message of type %v unhandled: %v",
+				msg.EventId, m)
+		}
+
+		// Check for next message
+		continue
+
+	reconnect:
+		// Update best block to 0 to indicate that the websocket
+		// connection is closed.
+		p.updateBestBlock(0)
+
+		// Reconnect
+		p.wsDcrdata.Reconnect()
+
+		// Setup a new messages channel using the new connection.
+		receiver = p.wsDcrdata.Receive()
+
+		log.Infof("Successfully reconnected dcrdata websocket")
+	}
+}
+
+// setupWSDcrataPi subscribes and listens to websocket messages from dcrdata
+// that are needed for pi.
+func (p *politeiawww) setupWSDcrdataPi() {
+	// Ensure connection is open. If connection is closed, establish a
+	// new connection before continuing.
+	if p.wsDcrdata.Status() != wsdcrdata.StatusOpen {
+		p.wsDcrdata.Reconnect()
+	}
+
+	// Setup subscriptions
+	err := p.wsDcrdata.NewBlockSubscribe()
+	if err != nil {
+		log.Errorf("wsdcrdata NewBlockSubscribe: %v", err)
+	}
+
+	// Monitor websocket connection in a new go routine
+	go p.monitorWSDcrdataPi()
 }
 
 // handleWebsocket upgrades a regular HTTP connection to a websocket.
@@ -1255,6 +1258,68 @@ func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
+// handleSetTOTP handles the setting of TOTP Key
+func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetTOTP")
+
+	var st www.SetTOTP
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&st); err != nil {
+		RespondWithError(w, r, 0, "handleSetTOTP: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetTOTP: getSessionUser %v", err)
+		return
+	}
+
+	str, err := p.processSetTOTP(st, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetTOTP: processSetTOTP %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, str)
+}
+
+// handleVerifyTOTP handles the request to verify a set TOTP Key.
+func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVerifyTOTP")
+
+	var vt www.VerifyTOTP
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vt); err != nil {
+		RespondWithError(w, r, 0, "handleVerifyTOTP: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyTOTP: getSessionUser %v", err)
+		return
+	}
+
+	vtr, err := p.processVerifyTOTP(vt, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyTOTP: processVerifyTOTP %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vtr)
+}
+
 // setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Templates
@@ -1339,6 +1404,12 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteProposalPaywallPayment, p.handleProposalPaywallPayment,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
 		permissionLogin)
 
 	// Unauthenticated websocket

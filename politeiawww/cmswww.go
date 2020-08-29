@@ -5,8 +5,8 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"text/template"
 
@@ -215,22 +215,29 @@ func (p *politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleAdminInvoices handles the request to get all of the  of a new contractor by an
+// handleInvoices handles the request to get all of the  of a new contractor by an
 // administrator for the Contractor Management System.
-func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAdminInvoices")
-	var ai cms.AdminInvoices
+func (p *politeiawww) handleInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInvoices")
+	var ai cms.Invoices
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ai); err != nil {
-		RespondWithError(w, r, 0, "handleAdminInvoices: unmarshal", www.UserError{
+		RespondWithError(w, r, 0, "handleInvoices: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
 	}
 
-	reply, err := p.processAdminInvoices(ai)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleAdminInvoices: processAdminInvoices %v", err)
+		RespondWithError(w, r, 0,
+			"handleInvoices: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processInvoices(ai, user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleInvoices: processInvoices %v", err)
 		return
 	}
 
@@ -297,7 +304,7 @@ func (p *politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Reque
 
 	reply, err := p.processGeneratePayouts(gp, user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleGeneratePayouts: processAdminInvoices %v", err)
+		RespondWithError(w, r, 0, "handleGeneratePayouts: processGeneratePayouts %v", err)
 		return
 	}
 
@@ -931,43 +938,160 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
-	route := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		route = cms.ProposalsTestnet
-	}
-	route = route + "/api/v1" + www.RouteTokenInventory
-
-	resp, err := http.Get(route)
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handlePassThroughTokenInventory: http.Get: %v", err)
+			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
 	}
-	defer resp.Body.Close()
-
-	data, _ := ioutil.ReadAll(resp.Body)
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
 func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughBatchProposals")
 
-	route := cms.ProposalsMainnet
-	if p.cfg.TestNet {
-		route = cms.ProposalsTestnet
-	}
-	route = route + "/api/v1" + www.RouteBatchProposals
-
-	resp, err := http.Post(route, "application/json", r.Body)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handlePassThroughBatchProposals: http.NewRequest: %v", err)
+	var bp www.BatchProposals
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bp); err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
 		return
 	}
-	defer resp.Body.Close()
 
-	data, _ := ioutil.ReadAll(resp.Body)
+	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
+		return
+	}
 	util.RespondRaw(w, http.StatusOK, data)
+}
+
+func (p *politeiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalBillingSummary")
+
+	var pbs cms.ProposalBillingSummary
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &pbs)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleProposalBillingSummary: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	pbsr, err := p.processProposalBillingSummary(pbs)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBillingSummary: processProposalBillingSummary %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pbsr)
+}
+
+func (p *politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalBillingDetails")
+
+	var pbd cms.ProposalBillingDetails
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pbd); err != nil {
+		RespondWithError(w, r, 0, "handleProposalBillingDetails: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	svr, err := p.processProposalBillingDetails(pbd)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBillingDetails: processProposalBillingDetails %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
+// makeProposalsRequest submits pass through requests to the proposals sites
+// (testnet or mainnet).  It takes a http method type, proposals route and a
+// request interface as arguments.  It returns the response body as byte array
+// (which can then be decoded as though a response directly from proposals).
+func (p *politeiawww) makeProposalsRequest(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		requestBody  []byte
+		responseBody []byte
+		cookies      []*http.Cookie
+		csrf         string
+		err          error
+	)
+	if v != nil {
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	client, err := util.NewClient(false, "")
+	if err != nil {
+		return nil, err
+	}
+
+	dest := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnet
+	}
+
+	route = dest + "/api/v1" + route
+
+	// We have to special case post requests since they require to first get
+	// cookies and csrf headers from a Version GET request.
+	if method == http.MethodPost {
+		versionRoute := dest + "/api/v1" + www.RouteVersion
+		req, err := http.NewRequest(http.MethodGet, versionRoute, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		r, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer r.Body.Close()
+
+		cookies = r.Cookies()
+		csrf = r.Header.Get(www.CsrfToken)
+	}
+
+	req, err := http.NewRequest(method, route,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	req.Header.Set(www.CsrfToken, csrf)
+
+	r, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusT(r.StatusCode),
+		}
+	}
+
+	responseBody = util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -1008,6 +1132,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteUserInvoices, p.handleUserInvoices,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteInvoices, p.handleInvoices,
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteInvoiceComments, p.handleInvoiceComments,
@@ -1057,6 +1184,12 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteBatchProposals, p.handlePassThroughBatchProposals,
 		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
+		permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.PoliteiaWWWAPIRoute,
@@ -1073,9 +1206,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, p.handleCensorComment,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteAdminInvoices, p.handleAdminInvoices,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
@@ -1097,5 +1227,11 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteStartVoteDCC, p.handleStartVoteDCC,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteProposalBillingSummary, p.handleProposalBillingSummary,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
 		permissionAdmin)
 }

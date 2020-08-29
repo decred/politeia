@@ -8,7 +8,7 @@ import (
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	client "github.com/decred/dcrdata/pubsub/v4/psclient"
 
-	"github.com/decred/politeia/politeiawww/wsdcrdata"
+	"github.com/decred/politeia/wsdcrdata"
 
 	"github.com/decred/politeia/util/txfetcher"
 )
@@ -154,7 +154,7 @@ func TestDcrdataPaywall(t *testing.T) {
 	paywalls := make([]*AddressPaywall, 0)
 
 	txFetcher := txfetcher.NewTestTxFetcher()
-	wsDcrdata := wsdcrdata.NewTestWSDcrdata()
+	wsDcrdata := wsdcrdata.NewTest()
 
 	callback := createUpdatePaywallsCallback(&paywalls)
 	paywallManager := NewDcrdataManager(wsDcrdata, txFetcher, callback)

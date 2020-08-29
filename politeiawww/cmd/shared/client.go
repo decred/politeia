@@ -896,19 +896,67 @@ func (c *Client) ProposalBilling(pb *cms.ProposalBilling) (*cms.ProposalBillingR
 	return &pbr, nil
 }
 
-// AdminInvoices retrieves invoices base on possible field set in the request
-// month/year and/or status
-func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
+// ProposalBillingDetails retrieves the billing for the requested proposal
+func (c *Client) ProposalBillingDetails(pbd *cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		cms.APIRoute, cms.RouteAdminInvoices, ai)
+		cms.APIRoute, cms.RouteProposalBillingDetails, pbd)
 	if err != nil {
 		return nil, err
 	}
 
-	var air cms.AdminInvoicesReply
+	var pbdr cms.ProposalBillingDetailsReply
+	err = json.Unmarshal(responseBody, &pbdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalBillingDetailsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pbdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pbdr, nil
+}
+
+// ProposalBillingSummary retrieves the billing for all approved proposals.
+func (c *Client) ProposalBillingSummary(pbd *cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RouteProposalBillingSummary, pbd)
+	if err != nil {
+		return nil, err
+	}
+
+	var pbdr cms.ProposalBillingSummaryReply
+	err = json.Unmarshal(responseBody, &pbdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalBillingSummaryReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pbdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pbdr, nil
+}
+
+// Invoices retrieves invoices base on possible field set in the request
+// month/year and/or status
+func (c *Client) Invoices(ai *cms.Invoices) (*cms.InvoicesReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteInvoices, ai)
+	if err != nil {
+		return nil, err
+	}
+
+	var air cms.InvoicesReply
 	err = json.Unmarshal(responseBody, &air)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal AdminInvoicesReply: %v", err)
+		return nil, fmt.Errorf("unmarshal InvoicesReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
@@ -2313,6 +2361,54 @@ func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.Sig
 	}
 
 	return smr, nil
+}
+
+// SetTOTP sets the logged in user's TOTP Key.
+func (c *Client) SetTOTP(st *www.SetTOTP) (*www.SetTOTPReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteSetTOTP, st)
+	if err != nil {
+		return nil, err
+	}
+
+	var str www.SetTOTPReply
+	err = json.Unmarshal(responseBody, &str)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(str)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &str, nil
+}
+
+// VerifyTOTP comfirms the logged in user's TOTP Key.
+func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteVerifyTOTP, vt)
+	if err != nil {
+		return nil, err
+	}
+
+	var vtr www.VerifyTOTPReply
+	err = json.Unmarshal(responseBody, &vtr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VerifyTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vtr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vtr, nil
 }
 
 // LoadWalletClient connects to a dcrwallet instance.
