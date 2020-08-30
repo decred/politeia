@@ -131,10 +131,9 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 	// is removed from the manager if the transaction completely fulfilled the
 	// paywall.
 	if txFound {
-		paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
-
 		d.Lock()
 		defer d.Unlock()
+
 		// We check if the entry is still in the map, because we don't want
 		// to call the callback if the entry has been removed by another
 		// goroutine.
@@ -142,9 +141,12 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 		if !ok {
 			return
 		}
+
+		paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
 		if paywallFulfilled {
 			d.removePaywall(address)
 		}
+
 		d.callback(entry, txs, paywallFulfilled)
 	} else {
 		log.Errorf("processPaymentReceived: txId %v not found after "+
