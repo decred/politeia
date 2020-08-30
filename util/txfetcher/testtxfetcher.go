@@ -4,15 +4,23 @@
 
 package txfetcher
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // TestTxFetcher satisfies the TxFetcher interface.
 type TestTxFetcher struct {
+	sync.RWMutex
+
 	txs []TxDetails
 }
 
 // InsertTx satisfies the TxFetcher interface.
 func (t *TestTxFetcher) InsertTx(tx TxDetails) {
+	t.Lock()
+	defer t.Unlock()
+
 	t.txs = append(t.txs, tx)
 }
 
@@ -28,6 +36,9 @@ func (t *TestTxFetcher) FetchTxsForAddress(address string) ([]TxDetails, error) 
 
 // FetchTxsForAddressNotBefore satisfies the TxFetcher interface.
 func (t *TestTxFetcher) FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, error) {
+	t.RLock()
+	defer t.RUnlock()
+
 	txs := make([]TxDetails, 0)
 
 	for _, tx := range t.txs {
