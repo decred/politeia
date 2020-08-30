@@ -166,6 +166,11 @@ func TestDcrdataPaywall(t *testing.T) {
 		})
 	}
 
+	err := paywallManager.RegisterPaywall(paywalls[0])
+	if err != ErrDuplicatePaywall {
+		t.Fatal("Should not be able to register duplicate paywall")
+	}
+
 	paywallManager.RemovePaywall("5")
 
 	for _, tx := range txs {
@@ -197,5 +202,62 @@ func TestDcrdataPaywall(t *testing.T) {
 		if expectedResults[i].Fulfilled != testEntries[i].Fulfilled {
 			t.Fatal("results and expected results fulfilled does not match")
 		}
+	}
+}
+
+func TestDuplicateEntry(t *testing.T) {
+	testEntries := make([]*TestEntry, 0)
+
+	txFetcher := txfetcher.NewTest()
+	wsDcrdata := wsdcrdata.NewTest()
+
+	callback := createUpdatePaywallsCallback(&testEntries)
+	paywallManager := New(wsDcrdata, txFetcher, callback)
+
+	paywallManager.RegisterPaywall(Paywall{
+		Address:     "1",
+		Amount:      1000,
+		TxNotBefore: 100,
+	},
+	)
+
+	err := paywallManager.RegisterPaywall(Paywall{
+		Address:     "1",
+		Amount:      3000,
+		TxNotBefore: 120,
+	},
+	)
+
+	if err != ErrDuplicatePaywall {
+		t.Fatal("Should not be able to register duplicate paywall")
+	}
+}
+
+func TestAlreadyPaid(t *testing.T) {
+	testEntries := make([]*TestEntry, 0)
+
+	txFetcher := txfetcher.NewTest()
+	wsDcrdata := wsdcrdata.NewTest()
+
+	callback := createUpdatePaywallsCallback(&testEntries)
+	paywallManager := New(wsDcrdata, txFetcher, callback)
+
+	txFetcher.InsertTx(
+		txfetcher.TxDetails{
+			Address:   "1",
+			TxID:      "1",
+			Amount:    1500,
+			Timestamp: 130,
+		})
+
+	err := paywallManager.RegisterPaywall(Paywall{
+		Address:     "1",
+		Amount:      1000,
+		TxNotBefore: 100,
+	})
+
+	if err != ErrAlreadyPaid {
+		t.Fatal("Should not be able to register paywall that is already" +
+			" fulfilled")
 	}
 }
