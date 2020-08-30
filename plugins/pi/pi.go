@@ -13,11 +13,16 @@ const (
 	// Plugin commands
 	CmdLinkedFrom = "linkedfrom" // Get linked from list
 
+	// Metadata stream IDs. All metadata streams in this plugin will
+	// use 1xx numbering.
+	MDStreamIDProposalGeneral = 101
+	MDStreamIDStatusChange    = 102
+
 	// FilenameProposalMetadata is the filename of the ProposalMetadata
 	// file that is saved to politeiad. ProposalMetadata is saved to
 	// politeiad as a file, not as a metadata stream, since it needs to
 	// be included in the merkle root that politeiad signs.
-	FilenameProposalMetadata = "proposalmetadata.json"
+	FilenameProposalMetadata = "proposalmd.json"
 )
 
 // ProposalMetadata contains proposal metadata that is provided by the user on
@@ -44,18 +49,34 @@ type ProposalMetadata struct {
 // Signature is the client signature of the proposal merkle root. The merkle
 // root is the ordered merkle root of all proposal Files and Metadata.
 type ProposalGeneral struct {
-	Timestamp int64  `json:"timestamp"` // Submission UNIX timestamp
 	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
+	Timestamp int64  `json:"timestamp"` // Submission UNIX timestamp
 }
 
-// SetStatus represents a proposal status change.
+func EncodeProposalGeneral(pg ProposalGeneral) ([]byte, error) {
+	return json.Marshal(pg)
+}
+
+func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
+	var pg ProposalGeneral
+	err := json.Unmarshal(payload, &pg)
+	if err != nil {
+		return nil, err
+	}
+	return &pg, nil
+}
+
+// StatusChange represents a proposal status change.
+//
+// Signature is the client signature of the Token+Version+Status+Reason.
 type StatusChange struct {
-	Status    PropStatusT `json:"status"`
-	Message   string      `json:"message,omitempty"`
-	PublicKey string      `json:"publickey"`
-	Signature string      `json:"signature"`
-	Timestamp int64       `json:"timestamp"`
+	// Status    PropStatusT `json:"status"`
+	Version   string `json:"version"`
+	Message   string `json:"message,omitempty"`
+	PublicKey string `json:"publickey"`
+	Signature string `json:"signature"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 // LinkedFrom retrieves the linked from list for each of the provided proposal
@@ -75,12 +96,10 @@ func EncodeLinkedFrom(lf LinkedFrom) ([]byte, error) {
 // DecodeLinkedFrom decodes a JSON byte slice into a LinkedFrom.
 func DecodeLinkedFrom(payload []byte) (*LinkedFrom, error) {
 	var lf LinkedFrom
-
 	err := json.Unmarshal(payload, &lf)
 	if err != nil {
 		return nil, err
 	}
-
 	return &lf, nil
 }
 
@@ -90,18 +109,16 @@ type LinkedFromReply struct {
 }
 
 // EncodeLinkedFromReply encodes a LinkedFromReply into a JSON byte slice.
-func EncodeLinkedFromReply(reply LinkedFromReply) ([]byte, error) {
-	return json.Marshal(reply)
+func EncodeLinkedFromReply(lfr LinkedFromReply) ([]byte, error) {
+	return json.Marshal(lfr)
 }
 
 // DecodeLinkedFromReply decodes a JSON byte slice into a LinkedFrom.
 func DecodeLinkedFromReply(payload []byte) (*LinkedFromReply, error) {
-	var reply LinkedFromReply
-
-	err := json.Unmarshal(payload, &reply)
+	var lfr LinkedFromReply
+	err := json.Unmarshal(payload, &lfr)
 	if err != nil {
 		return nil, err
 	}
-
-	return &reply, nil
+	return &lfr, nil
 }

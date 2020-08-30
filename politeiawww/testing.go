@@ -610,7 +610,8 @@ func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
 	for _, v := range p.Metadata {
 		switch v.Hint {
 		case www.HintProposalMetadata:
-			files = append(files, convertFileFromMetadata(v))
+			// TODO
+			// files = append(files, convertFileFromMetadata(v))
 		}
 	}
 

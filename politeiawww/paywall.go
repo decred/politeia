@@ -280,10 +280,10 @@ func (p *politeiawww) UserHasProposalCredits(u *user.User) bool {
 	return ProposalCreditBalance(u) > 0
 }
 
-// SpendProposalCredit updates an unspent proposal credit with the passed in
+// spendProposalCredit updates an unspent proposal credit with the passed in
 // censorship token, moves the credit into the user's spent proposal credits
 // list, and then updates the user database.
-func (p *politeiawww) SpendProposalCredit(u *user.User, token string) error {
+func (p *politeiawww) spendProposalCredit(u *user.User, token string) error {
 	// Skip when running unit tests or if paywall is disabled.
 	if !p.paywallIsEnabled() {
 		return nil

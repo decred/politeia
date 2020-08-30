@@ -14,27 +14,20 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-// TODO clean this up
-
-// EventT is the type of event.
-type EventT int
-
-// EventManager manages listeners (channels) for different event types.
-type EventManager struct {
-	Listeners map[EventT][]chan interface{}
-}
-
 const (
-	EventTypeInvalid EventT = iota
-	EventTypeComment
+	// XXX these events need to be moved over to eventmanager.go and
+	// the handlers need to be refactored to conform to the style in
+	// eventmanager.go.
+
+	// Event types
+	EventTypeComment eventT = iota + 10
 	EventTypeUserManage
 
 	// Pi events
-	EventTypeProposalSubmitted
 	EventTypeProposalStatusChange
 	EventTypeProposalEdited
-	EventTypeProposalVoteStarted
 	EventTypeProposalVoteAuthorized
+	EventTypeProposalVoteStarted
 
 	// CMS events
 	EventTypeInvoiceComment      // CMS Type
@@ -48,12 +41,6 @@ type eventDataProposalVoteAuthorized struct {
 	name           string // Proposal name
 	authorUsername string
 	authorEmail    string
-}
-
-type EventDataProposalSubmitted struct {
-	CensorshipRecord *www.CensorshipRecord
-	ProposalName     string
-	User             *user.User
 }
 
 type EventDataProposalStatusChange struct {
@@ -124,7 +111,7 @@ func (p *politeiawww) getProposalAndAuthor(token string) (*www.ProposalRecord, *
 // holds the lock.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *politeiawww) fireEvent(eventType EventT, data interface{}) {
+func (p *politeiawww) fireEvent(eventType eventT, data interface{}) {
 	if p.test {
 		return
 	}
@@ -135,21 +122,15 @@ func (p *politeiawww) fireEvent(eventType EventT, data interface{}) {
 	p.eventManager._fireEvent(eventType, data)
 }
 
-func (p *politeiawww) initEventManager() {
+func (p *politeiawww) initEventManagerPi() {
+
 	p.Lock()
 	defer p.Unlock()
-
-	p.eventManager = &EventManager{}
 
 	p._setupProposalStatusChangeLogging()
 	p._setupProposalVoteStartedLogging()
 	p._setupUserManageLogging()
 
-	if p.smtp.disabled {
-		return
-	}
-
-	p._setupProposalSubmittedEmailNotification()
 	p._setupProposalStatusChangeEmailNotification()
 	p._setupProposalEditedEmailNotification()
 	p._setupProposalVoteStartedEmailNotification()
@@ -160,8 +141,6 @@ func (p *politeiawww) initEventManager() {
 func (p *politeiawww) initCMSEventManager() {
 	p.Lock()
 	defer p.Unlock()
-
-	p.eventManager = &EventManager{}
 
 	if p.smtp.disabled {
 		return
@@ -253,28 +232,6 @@ func (p *politeiawww) _setupDCCSupportOpposeEmailNotification() {
 		}
 	}()
 	p.eventManager._register(EventTypeDCCSupportOppose, ch)
-}
-
-func (p *politeiawww) _setupProposalSubmittedEmailNotification() {
-	ch := make(chan interface{})
-	go func() {
-		for data := range ch {
-			ps, ok := data.(EventDataProposalSubmitted)
-			if !ok {
-				log.Errorf("invalid event data")
-				continue
-			}
-
-			err := p.emailAdminsForNewSubmittedProposal(
-				ps.CensorshipRecord.Token, ps.ProposalName,
-				ps.User.Username, ps.User.Email)
-			if err != nil {
-				log.Errorf("email all admins for new submitted proposal %v: %v",
-					ps.CensorshipRecord.Token, err)
-			}
-		}
-	}()
-	p.eventManager._register(EventTypeProposalSubmitted, ch)
 }
 
 func (p *politeiawww) _setupProposalStatusChangeEmailNotification() {
@@ -525,41 +482,23 @@ func (p *politeiawww) _setupUserManageLogging() {
 	p.eventManager._register(EventTypeUserManage, ch)
 }
 
-// _register adds a listener channel for the given event type.
+// register adds a listener channel for the given event type.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) _register(eventType EventT, listenerToAdd chan interface{}) {
-	if e.Listeners == nil {
-		e.Listeners = make(map[EventT][]chan interface{})
+func (e *eventManager) _register(eventType eventT, listenerToAdd chan interface{}) {
+	if e.listeners == nil {
+		e.listeners = make(map[eventT][]chan interface{})
 	}
 
-	e.Listeners[eventType] = append(e.Listeners[eventType], listenerToAdd)
-}
-
-// _unregister removes the given listener channel for the given event type.
-//
-// This function must be called WITH the mutex held.
-func (e *EventManager) _unregister(eventType EventT, listenerToRemove chan interface{}) {
-	listeners, ok := e.Listeners[eventType]
-	if !ok {
-		return
-	}
-
-	for i, listener := range listeners {
-		if listener == listenerToRemove {
-			e.Listeners[eventType] = append(e.Listeners[eventType][:i],
-				e.Listeners[eventType][i+1:]...)
-			break
-		}
-	}
+	e.listeners[eventType] = append(e.listeners[eventType], listenerToAdd)
 }
 
 // _fireEvent iterates all listener channels for the given event type and
 // passes the given data to it.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) _fireEvent(eventType EventT, data interface{}) {
-	listeners, ok := e.Listeners[eventType]
+func (e *eventManager) _fireEvent(eventType eventT, data interface{}) {
+	listeners, ok := e.listeners[eventType]
 	if !ok {
 		return
 	}

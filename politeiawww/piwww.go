@@ -7,11 +7,16 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"time"
 
+	piplugin "github.com/decred/politeia/plugins/pi"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -35,6 +40,45 @@ func convertUserErrFromSignatureErr(err error) www.UserError {
 	return www.UserError{
 		ErrorCode:    s,
 		ErrorContext: e.ErrorContext,
+	}
+}
+
+func convertFileFromMetadata(m pi.Metadata) pd.File {
+	var name string
+	switch m.Hint {
+	case pi.HintProposalMetadata:
+		name = piplugin.FilenameProposalMetadata
+	}
+	return pd.File{
+		Name:    name,
+		MIME:    mimeTypeTextUTF8,
+		Digest:  m.Digest,
+		Payload: m.Payload,
+	}
+}
+
+func convertFileFromPi(f pi.File) pd.File {
+	return pd.File{
+		Name:    f.Name,
+		MIME:    f.MIME,
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}
+}
+
+func convertFilesFromPi(files []pi.File) []pd.File {
+	f := make([]pd.File, 0, len(files))
+	for _, v := range files {
+		f = append(f, convertFileFromPi(v))
+	}
+	return f
+}
+
+func convertCensorshipRecordFromPD(cr pd.CensorshipRecord) pi.CensorshipRecord {
+	return pi.CensorshipRecord{
+		Token:     cr.Token,
+		Merkle:    cr.Merkle,
+		Signature: cr.Signature,
 	}
 }
 
@@ -222,24 +266,25 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.ProposalNewReply, error) {
 	log.Tracef("processProposalNew: %v", usr.Username)
 
-	// Verify user has paid the registration paywall
+	// Verify user paid registration paywall
 	if !p.HasUserPaid(&usr) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
-	// Verify user has a proposal credit to spend
+	// Verify user bought proposal credit
 	if !p.UserHasProposalCredits(&usr) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalCredits,
 		}
 	}
 
-	// Verify the user signed using their active identitiy
+	// Verify user signed with active identity
 	if usr.PublicKey() != pn.PublicKey {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
+			ErrorCode:    www.ErrorStatusInvalidSigningKey,
+			ErrorContext: []string{"not user's active identity"},
 		}
 	}
 
@@ -249,15 +294,82 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 		return nil, err
 	}
 
+	// Setup politeiad files. The Metadata objects are converted to
+	// politeiad files instead of metadata streams since they contain
+	// user defined data that needs to be included in the merkle root
+	// that politeiad signs.
+	files := convertFilesFromPi(pn.Files)
+	for _, v := range pn.Metadata {
+		switch v.Hint {
+		case pi.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
+	}
+
 	// Setup metadata stream
+	pg := piplugin.ProposalGeneral{
+		PublicKey: pn.PublicKey,
+		Signature: pn.Signature,
+		Timestamp: time.Now().Unix(),
+	}
+	b, err := piplugin.EncodeProposalGeneral(pg)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []pd.MetadataStream{
+		{
+			ID:      piplugin.MDStreamIDProposalGeneral,
+			Payload: string(b),
+		},
+	}
 
 	// Send politeiad request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	nr := pd.NewRecord{
+		Challenge: hex.EncodeToString(challenge),
+		Metadata:  metadata,
+		Files:     files,
+	}
+	resBody, err := p.makeRequest(http.MethodPost, pd.NewRecordRoute, nr)
+	if err != nil {
+		return nil, err
+	}
 
 	// Handle response
+	var nrr pd.NewRecordReply
+	err = json.Unmarshal(resBody, &nrr)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, nrr.Response)
+	if err != nil {
+		return nil, err
+	}
+	cr := convertCensorshipRecordFromPD(nrr.CensorshipRecord)
 
 	// Deduct proposal credit from author's account
+	err = p.spendProposalCredit(&usr, cr.Token)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fire off a new proposal event
+	p.eventManager.fire(eventProposalSubmitted,
+		dataProposalSubmitted{
+			token: cr.Token,
+			// name: name,
+			username: usr.Username,
+		})
 
-	return nil, nil
+	log.Infof("Submitted proposal: %v", cr.Token)
+	for k, f := range pn.Files {
+		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
+	}
+
+	return &pi.ProposalNewReply{
+		CensorshipRecord: cr,
+	}, nil
 }

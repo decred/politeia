@@ -46,11 +46,10 @@ type userPasswordChangedTemplateData struct {
 	Email string
 }
 
-type newProposalSubmittedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
-	Email    string
+type proposalSubmittedTemplateData struct {
+	Link     string // GUI proposal details url
+	Name     string // Proposal name
+	Username string // Author username
 }
 
 type proposalEditedTemplateData struct {
@@ -156,8 +155,8 @@ You are receiving this email because someone made too many login attempts for
 {{.Email}} on Politeia. If that was not you, please notify Politeia administrators.
 `
 
-const templateNewProposalSubmittedRaw = `
-A new proposal has been submitted on Politeia by {{.Username}} ({{.Email}}):
+const templateProposalSubmittedRaw = `
+A new proposal has been submitted on Politeia by {{.Username}}:
 
 {{.Name}}
 {{.Link}}

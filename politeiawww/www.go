@@ -315,9 +315,10 @@ func _main() error {
 
 	// Setup application context.
 	p := &politeiawww{
-		cfg:       loadedCfg,
-		ws:        make(map[string]map[string]*wsContext),
-		templates: make(map[string]*template.Template),
+		cfg:          loadedCfg,
+		ws:           make(map[string]map[string]*wsContext),
+		templates:    make(map[string]*template.Template),
+		eventManager: newEventManager(),
 
 		// XXX reevaluate where this goes
 		userEmails:      make(map[string]uuid.UUID),
@@ -392,17 +393,6 @@ func _main() error {
 		return err
 	}
 
-	// Setup the code that checks for paywall payments.
-	if p.cfg.Mode == "piwww" {
-		err = p.initPaywallChecker()
-		if err != nil {
-			return err
-		}
-		p.initEventManager()
-	} else if p.cfg.Mode == "cmswww" {
-		p.initCMSEventManager()
-	}
-
 	// Load or create new CSRF key
 	log.Infof("Load CSRF key")
 	csrfKeyFilename := filepath.Join(p.cfg.DataDir, "csrf.key")
@@ -457,7 +447,18 @@ func _main() error {
 		p.setPoliteiaWWWRoutes()
 		p.setUserWWWRoutes()
 
+		err = p.initPaywallChecker()
+		if err != nil {
+			return err
+		}
+
+		p.initEventManagerPi()
+		p.setupEventListenersPi()
+
 	case cmsWWWMode:
+		// Setup event manager
+		p.initCMSEventManager()
+
 		// Setup dcrdata websocket connection
 		ws, err := wsdcrdata.New(p.dcrdataHostWS())
 		if err != nil {

@@ -34,8 +34,8 @@ import (
 )
 
 var (
-	templateNewProposalSubmitted = template.Must(
-		template.New("new_proposal_submitted_template").Parse(templateNewProposalSubmittedRaw))
+	templateProposalSubmitted = template.Must(
+		template.New("proposal_submitted_template").Parse(templateProposalSubmittedRaw))
 	templateProposalVetted = template.Must(
 		template.New("proposal_vetted_template").Parse(templateProposalVettedRaw))
 	templateProposalEdited = template.Must(
@@ -106,7 +106,7 @@ type politeiawww struct {
 
 	db           user.Database // User database XXX GOT TO GO
 	params       *chaincfg.Params
-	eventManager *EventManager
+	eventManager *eventManager
 
 	// These properties are only used for testing.
 	test bool

@@ -57,24 +57,6 @@ type proposalsFilter struct {
 	StateMap map[www.PropStateT]bool
 }
 
-// convertMetadataFromFile returns a politeiad File that was converted from a
-// politiawww v1 Metadata. User specified metadata is store as a file in
-// politeiad so that it is included in the merkle root that politeiad
-// calculates.
-func convertFileFromMetadata(m www.Metadata) pd.File {
-	var name string
-	switch m.Hint {
-	case www.HintProposalMetadata:
-		name = mdstream.FilenameProposalMetadata
-	}
-	return pd.File{
-		Name:    name,
-		MIME:    mimeTypeTextUTF8,
-		Digest:  m.Digest,
-		Payload: m.Payload,
-	}
-}
-
 // isValidProposalName returns whether the provided string is a valid proposal
 // name.
 func isValidProposalName(str string) bool {
@@ -1164,7 +1146,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	for _, v := range np.Metadata {
 		switch v.Hint {
 		case www.HintProposalMetadata:
-			files = append(files, convertFileFromMetadata(v))
+			// files = append(files, convertFileFromMetadata(v))
 		}
 	}
 
@@ -1224,19 +1206,21 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
 
 	// Deduct proposal credit from user account
-	err = p.SpendProposalCredit(user, cr.Token)
+	err = p.spendProposalCredit(user, cr.Token)
 	if err != nil {
 		return nil, err
 	}
 
 	// Fire off new proposal event
-	p.fireEvent(EventTypeProposalSubmitted,
-		EventDataProposalSubmitted{
-			CensorshipRecord: &cr,
-			ProposalName:     pm.Name,
-			User:             user,
-		},
-	)
+	/*
+		p.fireEvent(eventTypeProposalSubmitted,
+			EventDataProposalSubmitted{
+				CensorshipRecord: &cr,
+				ProposalName:     pm.Name,
+				User:             user,
+			},
+		)
+	*/
 
 	return &www.NewProposalReply{
 		CensorshipRecord: cr,
@@ -1788,7 +1772,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	for _, v := range ep.Metadata {
 		switch v.Hint {
 		case www.HintProposalMetadata:
-			files = append(files, convertFileFromMetadata(v))
+			// files = append(files, convertFileFromMetadata(v))
 		}
 	}
 

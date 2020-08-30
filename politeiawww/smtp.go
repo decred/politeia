@@ -18,6 +18,25 @@ type smtp struct {
 	disabled    bool          // Has email been disabled
 }
 
+// sendEmailTo sends an email with the given subject and body to the provided
+// list of email addresses.
+func (s *smtp) sendEmailTo(subject, body string, recipients []string) error {
+	if s.disabled {
+		return nil
+	}
+
+	// Setup email
+	msg := goemail.NewMessage(s.mailAddress, subject, body)
+	msg.SetName(s.mailName)
+
+	// Add all recipients to BCC
+	for _, v := range recipients {
+		msg.AddBCC(v)
+	}
+
+	return s.client.Send(msg)
+}
+
 // sendEmail sends an email with the given subject and body, and the caller
 // must supply a function which is used to add email addresses to send the
 // email to.

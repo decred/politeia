@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"strings"
 	"text/template"
 	"time"
 
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	// This refers to a route for the GUI registration page.  It is used to fill
-	// in email messages giving the direct URL to the page for users to follow.
-	RegisterNewUserGuiRoute = "/register"
+	// GUI routes. These are used in notification emails to direct the
+	// user to the correct GUI pages.
+	guiRouteProposalDetails = "/proposals/{token}"
+	guiRouteRegisterNewUser = "/register"
 )
 
 func createBody(tpl *template.Template, tplData interface{}) (string, error) {
@@ -348,40 +350,26 @@ func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRec
 	})
 }
 
-func (p *politeiawww) emailAdminsForNewSubmittedProposal(token string, propName string, username string, userEmail string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" + token)
+func (p *politeiawww) emailProposalSubmitted(token, name, username string, emails []string) error {
+	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
 		return err
 	}
 
-	tplData := newProposalSubmittedTemplateData{
+	tplData := proposalSubmittedTemplateData{
 		Link:     l.String(),
-		Name:     propName,
+		Name:     name,
 		Username: username,
-		Email:    userEmail,
 	}
 
 	subject := "New Proposal Submitted"
-	body, err := createBody(templateNewProposalSubmitted, &tplData)
+	body, err := createBody(templateProposalSubmitted, &tplData)
 	if err != nil {
 		return err
 	}
 
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add admin emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			if !u.Admin || u.Deactivated ||
-				(u.EmailNotifications&
-					uint64(www.NotificationEmailAdminProposalNew) == 0) {
-				return
-			}
-			msg.AddBCC(u.Email)
-		})
-	})
+	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
 func (p *politeiawww) emailAdminsForProposalVoteAuthorized(token, title, authorUsername, authorEmail string) error {
@@ -579,7 +567,7 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 		return nil
 	}
 
-	link, err := p.createEmailLink(RegisterNewUserGuiRoute, "", token, "")
+	link, err := p.createEmailLink(guiRouteRegisterNewUser, "", token, "")
 	if err != nil {
 		return err
 	}
