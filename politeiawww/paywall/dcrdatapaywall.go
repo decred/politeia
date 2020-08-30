@@ -16,7 +16,7 @@ type DcrdataManager struct {
 	wsDcrdata wsdcrdata.Client
 	txFetcher txfetcher.TxFetcher
 	callback  Callback
-	paywalls  map[string]*Paywall
+	paywalls  map[string]Paywall
 }
 
 func transactionsFulfillPaywall(txs []txfetcher.TxDetails, paywall Paywall) bool {
@@ -46,7 +46,7 @@ func (d *DcrdataManager) registerPaywall(paywall Paywall) error {
 		return err
 	}
 
-	d.paywalls[paywall.Address] = &paywall
+	d.paywalls[paywall.Address] = paywall
 	return nil
 }
 
@@ -87,7 +87,7 @@ func (d *DcrdataManager) RemovePaywall(address string) {
 // and then the callback function is called to alert the client.
 func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 	d.RLock()
-	entry, ok := d.paywalls[address]
+	paywall, ok := d.paywalls[address]
 	d.RUnlock()
 	if !ok {
 		return
@@ -110,7 +110,7 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 
 	for tries := 0; tries <= NumTries && !txFound; tries++ {
 		txs, err = d.txFetcher.FetchTxsForAddressNotBefore(address,
-			entry.TxNotBefore)
+			paywall.TxNotBefore)
 		if err != nil {
 			log.Errorf("FetchTxsForAddressNotBefore: %v", err)
 			return
@@ -137,17 +137,17 @@ func (d *DcrdataManager) processPaymentReceived(address, txID string) {
 		// We check if the entry is still in the map, because we don't want
 		// to call the callback if the entry has been removed by another
 		// goroutine.
-		entry, ok = d.paywalls[address]
+		paywall, ok = d.paywalls[address]
 		if !ok {
 			return
 		}
 
-		paywallFulfilled := transactionsFulfillPaywall(txs, *entry)
+		paywallFulfilled := transactionsFulfillPaywall(txs, paywall)
 		if paywallFulfilled {
 			d.removePaywall(address)
 		}
 
-		d.callback(entry, txs, paywallFulfilled)
+		d.callback(paywall, txs, paywallFulfilled)
 	} else {
 		log.Errorf("processPaymentReceived: txId %v not found after "+
 			"%v tries.", txID, NumTries)
@@ -212,7 +212,7 @@ func (d *DcrdataManager) listenForPayments() {
 // New creates a new DcrdataManger.
 func New(ws wsdcrdata.Client, txFetcher txfetcher.TxFetcher, cb Callback) *DcrdataManager {
 	d := DcrdataManager{
-		paywalls:  make(map[string]*Paywall),
+		paywalls:  make(map[string]Paywall),
 		callback:  cb,
 		wsDcrdata: ws,
 		txFetcher: txFetcher,

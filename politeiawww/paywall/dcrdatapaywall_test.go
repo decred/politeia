@@ -2,6 +2,7 @@ package paywall
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,9 +20,12 @@ type TestEntry struct {
 	Fulfilled  bool
 }
 
-func createUpdatePaywallsCallback(testEntries *[]*TestEntry) Callback {
+func createUpdatePaywallsCallback(testEntries *[]*TestEntry, mutex *sync.RWMutex) Callback {
 
-	return func(paywall *Paywall, txs []txfetcher.TxDetails, fulfilled bool) error {
+	return func(paywall Paywall, txs []txfetcher.TxDetails, fulfilled bool) error {
+		mutex.Lock()
+		defer mutex.Unlock()
+
 		var foundPaywall bool
 
 		for _, testEntry := range *testEntries {
@@ -155,8 +159,9 @@ func TestDcrdataPaywall(t *testing.T) {
 
 	txFetcher := txfetcher.NewTest()
 	wsDcrdata := wsdcrdata.NewTest()
+	mutex := sync.RWMutex{}
 
-	callback := createUpdatePaywallsCallback(&testEntries)
+	callback := createUpdatePaywallsCallback(&testEntries, &mutex)
 	paywallManager := New(wsDcrdata, txFetcher, callback)
 
 	for _, paywall := range paywalls {
@@ -188,6 +193,9 @@ func TestDcrdataPaywall(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	if len(expectedResults) != len(paywalls) {
 		t.Fatal("results and expected results have different lengths")
 	}
@@ -210,8 +218,9 @@ func TestDuplicateEntry(t *testing.T) {
 
 	txFetcher := txfetcher.NewTest()
 	wsDcrdata := wsdcrdata.NewTest()
+	mutex := sync.RWMutex{}
 
-	callback := createUpdatePaywallsCallback(&testEntries)
+	callback := createUpdatePaywallsCallback(&testEntries, &mutex)
 	paywallManager := New(wsDcrdata, txFetcher, callback)
 
 	paywallManager.RegisterPaywall(Paywall{
@@ -238,8 +247,9 @@ func TestAlreadyPaid(t *testing.T) {
 
 	txFetcher := txfetcher.NewTest()
 	wsDcrdata := wsdcrdata.NewTest()
+	mutex := sync.RWMutex{}
 
-	callback := createUpdatePaywallsCallback(&testEntries)
+	callback := createUpdatePaywallsCallback(&testEntries, &mutex)
 	paywallManager := New(wsDcrdata, txFetcher, callback)
 
 	txFetcher.InsertTx(
