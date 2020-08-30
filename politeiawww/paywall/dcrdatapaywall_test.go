@@ -89,37 +89,37 @@ func TestDcrdataPaywall(t *testing.T) {
 	}
 
 	txs := []txfetcher.TxDetails{
-		txfetcher.TxDetails{
+		{
 			Address:   "1",
 			TxID:      "1",
 			Amount:    1000,
 			Timestamp: 80,
 		},
-		txfetcher.TxDetails{
+		{
 			Address:   "2",
 			TxID:      "2",
 			Amount:    1000,
 			Timestamp: 120,
 		},
-		txfetcher.TxDetails{
+		{
 			Address:   "3",
 			TxID:      "3",
 			Amount:    800,
 			Timestamp: 130,
 		},
-		txfetcher.TxDetails{
+		{
 			Address:   "4",
 			TxID:      "4",
 			Amount:    500,
 			Timestamp: 120,
 		},
-		txfetcher.TxDetails{
+		{
 			Address:   "4",
 			TxID:      "5",
 			Amount:    700,
 			Timestamp: 120,
 		},
-		txfetcher.TxDetails{
+		{
 			Address:   "5",
 			TxID:      "6",
 			Amount:    700,
@@ -128,27 +128,27 @@ func TestDcrdataPaywall(t *testing.T) {
 	}
 
 	expectedResults := []TestEntry{
-		TestEntry{
+		{
 			Address:    "1",
 			AmountPaid: 0,
 			Fulfilled:  false,
 		},
-		TestEntry{
+		{
 			Address:    "2",
 			AmountPaid: 1000,
 			Fulfilled:  true,
 		},
-		TestEntry{
+		{
 			Address:    "3",
 			AmountPaid: 800,
 			Fulfilled:  false,
 		},
-		TestEntry{
+		{
 			Address:    "4",
 			AmountPaid: 1200,
 			Fulfilled:  true,
 		},
-		TestEntry{
+		{
 			Address:    "5",
 			AmountPaid: 0,
 			Fulfilled:  false,

@@ -82,7 +82,7 @@ func (d *DcrdataManager) RemovePaywall(address string) {
 }
 
 // processPaymentReceived is called whenever a websocket message regarding
-// a transaction that potentially fulfulls a pending paywall is recieved.
+// a transaction that potentially fulfulls a pending paywall is received.
 // The Dcrdata HTTP API must be queried for the details of the transaction,
 // and then the callback function is called to alert the client.
 func (d *DcrdataManager) processPaymentReceived(address, txID string) {
@@ -179,7 +179,7 @@ func (d *DcrdataManager) listenForPayments() {
 		// Handle new message
 		switch m := msg.Message.(type) {
 		case *pstypes.AddressMessage:
-			log.Debugf("WSDcrdata message AddressMessage(addres=%v , tx=%v)\n",
+			log.Debugf("WSDcrdata message AddressMessage(address=%v , tx=%v)\n",
 				m.Address, m.TxHash)
 			go d.processPaymentReceived(m.Address, m.TxHash)
 

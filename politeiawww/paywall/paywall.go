@@ -24,7 +24,7 @@ type Paywall struct {
 }
 
 // Callback is the signature of the function the paywall Manager calls when a
-// payment is recieved.
+// payment is received.
 type Callback func(Paywall, []txfetcher.TxDetails, bool) error
 
 // Manager is an interface that manages a set of paywalls.
