@@ -58,7 +58,6 @@ func init() {
 	cachedb.UseLogger(cockroachdbLog)
 	cmsdb.UseLogger(cockroachdbLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
-	paywall.UseLogger(paywallLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
