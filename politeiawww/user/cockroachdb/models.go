@@ -98,7 +98,9 @@ func (CMSUser) TableName() string {
 	return tableCMSUsers
 }
 
-// CMSCodeStats struct
+// CMSCodeStats struct contains information per month/year per repo for
+// a given users' code statistics for merged pull requests and completed
+// reviews over that time period.
 type CMSCodeStats struct {
 	ID              string `gorm:"primary_key"` // UserID + GithubName + Month + Year
 	GitHubName      string `gorm:"not null"`    // GithubName

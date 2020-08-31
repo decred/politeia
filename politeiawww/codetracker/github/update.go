@@ -30,10 +30,10 @@ func New(apiToken, host, rootCert, cert, key string) (*github, error) {
 	g.tc = api.NewClient(apiToken)
 	g.codedb, err = cockroachdb.New(host, rootCert, cert, key)
 	if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
-		log.Errorf("New DB failed no version, wrong version: %v\n", err)
+		log.Errorf("New DB failed no version, wrong version: %v", err)
 		return nil, err
 	} else if err != nil {
-		log.Errorf("New DB failed: %v\n", err)
+		log.Errorf("New DB failed: %v", err)
 		return nil, err
 	}
 	err = g.codedb.Setup()
