@@ -544,7 +544,7 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	}
 
 	// Fire off a new proposal event
-	p.eventManager.fire(eventProposalSubmitted,
+	p.eventManager.emit(eventProposalSubmitted,
 		dataProposalSubmitted{
 			token:    cr.Token,
 			name:     pm.Name,

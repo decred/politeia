@@ -27,7 +27,8 @@ type eventManager struct {
 	listeners map[eventT][]chan interface{}
 }
 
-// register adds adds a listener for the given event type.
+// register registers an event listener (channel) to listen for the provided
+// event type.
 func (e *eventManager) register(event eventT, listener chan interface{}) {
 	e.Lock()
 	defer e.Unlock()
@@ -41,9 +42,9 @@ func (e *eventManager) register(event eventT, listener chan interface{}) {
 	e.listeners[event] = l
 }
 
-// fire fires off an event by passing it to all channels that have been
-// registered to listen for the event.
-func (e *eventManager) fire(event eventT, data interface{}) {
+// emit emits an event by passing it to all channels that have been registered
+// to listen for the event.
+func (e *eventManager) emit(event eventT, data interface{}) {
 	e.Lock()
 	defer e.Unlock()
 
@@ -123,7 +124,7 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 		})
 		if err != nil {
 			log.Errorf("handleEventProposalSubmitted: AllUsers: %v", err)
-			continue
+			return
 		}
 
 		// Send email notification
