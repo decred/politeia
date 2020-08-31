@@ -606,13 +606,13 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
               line_items.labor,
               line_items.expenses,
               line_items.contractor_rate AS sub_rate
-            FROM invoices a
+            FROM invoices
             LEFT OUTER JOIN invoices b
-              ON a.token = b.token
-              AND a.version < b.version
+              ON invoices.token = b.token
+              AND invoices.version < b.version
             INNER JOIN line_items
-              ON a.token = line_items.invoice_token
-              WHERE line_items.proposal_url = ? AND a.status = ?`
+              ON invoices.token = line_items.invoice_token
+              WHERE line_items.proposal_url = ? AND invoices.status = ?`
 	rows, err := c.recordsdb.Raw(query, token, int(v1.InvoiceStatusPaid)).Rows()
 	if err != nil {
 		return nil, err
