@@ -928,6 +928,11 @@ func testDCCVote(admin user) error {
 	if err != nil {
 		return err
 	}
+	expectedVoteOptionResults := 2
+	if len(vs.Results) != expectedVoteOptionResults {
+		return fmt.Errorf("unexpected number of vote option results: got %v,"+
+			" wanted %v", len(vs.Results), expectedVoteOptionResults)
+	}
 	for _, result := range vs.Results {
 		if result.Option.Id == cmsplugin.DCCApprovalString &&
 			result.VotesReceived != expectedApprovalVotes {

@@ -1145,6 +1145,7 @@ func (g *gitBackEnd) pluginDCCVoteSummary(payload string) (string, error) {
 			}
 		}
 	}
+	vsr.Results = vors
 nodata:
 	reply, err := cmsplugin.EncodeVoteSummaryReply(vsr)
 	if err != nil {
