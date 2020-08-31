@@ -977,63 +977,41 @@ func (g *gitBackEnd) pluginDCCVoteDetails(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeVoteResults %v", err)
 	}
 
-	g.Lock()
-	defer g.Unlock()
+	// Verify dcc exists, we can run this lockless
+	if !g.vettedPropExists(vd.Token) {
+		return "", fmt.Errorf("dcc not found: %v", vd.Token)
+	}
 
-	// git checkout master
-	err = g.gitCheckout(g.vetted, "master")
+	token, err := hex.DecodeString(vd.Token)
 	if err != nil {
 		return "", err
 	}
+	// Find the most recent vesion number for this record
+	r, err := g.GetVetted(token, "")
+	if err != nil {
+		return "", fmt.Errorf("GetVetted %v version 0: %v", token, err)
+	}
 
-	var svr cmsplugin.StartVoteReply
-	var sv cmsplugin.StartVote
 	var vdr cmsplugin.VoteDetailsReply
 	// Prepare reply
-	var (
-		dd *json.Decoder
-		ff *os.File
-	)
-	// Fill out vote
-	filename := mdFilename(g.vetted, vd.Token,
-		cmsplugin.MDStreamVoteBits)
-	ff, err = os.Open(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			goto nodata
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case cmsplugin.MDStreamVoteBits:
+			// Start vote
+			sv, err := cmsplugin.DecodeStartVote([]byte(v.Payload))
+			if err != nil {
+				return "", err
+			}
+			vdr.StartVote = sv
+		case cmsplugin.MDStreamVoteSnapshot:
+			svr, err := cmsplugin.DecodeStartVoteReply([]byte(v.Payload))
+			if err != nil {
+				return "", err
+			}
+			vdr.StartVoteReply = svr
 		}
-		return "", err
-	}
-	defer ff.Close()
-	dd = json.NewDecoder(ff)
-
-	err = dd.Decode(&sv)
-	if err != nil {
-		if err == io.EOF {
-			goto nodata
-		}
-		return "", err
 	}
 
-	// Load the vote snapshot from disk
-	ff, err = os.Open(mdFilename(g.vetted, vd.Token,
-		cmsplugin.MDStreamVoteSnapshot))
-	if err != nil {
-		return "", err
-	}
-	defer ff.Close()
-
-	dd = json.NewDecoder(ff)
-	err = dd.Decode(&svr)
-	if err != nil {
-		return "", err
-	}
-	vdr = cmsplugin.VoteDetailsReply{
-		StartVote:      sv,
-		StartVoteReply: svr,
-	}
-
-nodata:
 	reply, err := cmsplugin.EncodeVoteDetailsReply(vdr)
 	if err != nil {
 		return "", fmt.Errorf("Could not encode VoteResultsReply: %v",
@@ -1051,7 +1029,7 @@ func (g *gitBackEnd) pluginDCCVoteSummary(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeVoteResults %v", err)
 	}
 
-	// Verify proposal exists, we can run this lockless
+	// Verify dcc exists, we can run this lockless
 	if !g.vettedPropExists(vs.Token) {
 		return "", fmt.Errorf("dcc not found: %v", vs.Token)
 	}
