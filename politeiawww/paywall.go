@@ -264,20 +264,27 @@ func (p *politeiawww) verifyProposalPayment(u *user.User) (*util.TxDetails, erro
 	return nil, nil
 }
 
-// ProposalCreditsBalance returns the number of proposal credits that the user
-// has available to spend.
-func ProposalCreditBalance(u *user.User) uint64 {
-	return uint64(len(u.UnspentProposalCredits))
-}
-
-// UserHasProposalCredits checks to see if the user has any unspent proposal
-// credits.
-func (p *politeiawww) UserHasProposalCredits(u *user.User) bool {
-	// Return true when running unit tests or if paywall is disabled
+// userHasPaid returns whether the user has paid the user registration paywall.
+func (p *politeiawww) userHasPaid(u user.User) bool {
+	// Return true if paywall is disabled
 	if !p.paywallIsEnabled() {
 		return true
 	}
-	return ProposalCreditBalance(u) > 0
+
+	return u.NewUserPaywallTx != ""
+}
+
+func proposalCreditBalance(u user.User) uint64 {
+	return uint64(len(u.UnspentProposalCredits))
+}
+
+// userHasProposalCredits returns whether the user has at least 1 unspent
+// proposal credit.
+func (p *politeiawww) userHasProposalCredits(u user.User) bool {
+	if !p.paywallIsEnabled() {
+		return true
+	}
+	return proposalCreditBalance(u) > 0
 }
 
 // spendProposalCredit updates an unspent proposal credit with the passed in
@@ -289,7 +296,7 @@ func (p *politeiawww) spendProposalCredit(u *user.User, token string) error {
 		return nil
 	}
 
-	if ProposalCreditBalance(u) == 0 {
+	if !p.userHasProposalCredits(*u) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalCredits,
 		}

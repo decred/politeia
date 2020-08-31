@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"time"
@@ -24,17 +23,6 @@ import (
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
-)
-
-const (
-	// MIME types
-	mimeTypeText     = "text/plain"
-	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
-	mimeTypePNG      = "image/png"
-)
-
-var (
-	validProposalName = regexp.MustCompile(createProposalNameRegex())
 )
 
 // proposalStats is used to provide a summary of the number of proposals
@@ -55,34 +43,6 @@ type proposalsFilter struct {
 	Before   string
 	UserID   string
 	StateMap map[www.PropStateT]bool
-}
-
-// isValidProposalName returns whether the provided string is a valid proposal
-// name.
-func isValidProposalName(str string) bool {
-	return validProposalName.MatchString(str)
-}
-
-// createProposalNameRegex returns a regex string for matching the proposal
-// name.
-func createProposalNameRegex() string {
-	var validProposalNameBuffer bytes.Buffer
-	validProposalNameBuffer.WriteString("^[")
-
-	for _, supportedChar := range www.PolicyProposalNameSupportedChars {
-		if len(supportedChar) > 1 {
-			validProposalNameBuffer.WriteString(supportedChar)
-		} else {
-			validProposalNameBuffer.WriteString(`\` + supportedChar)
-		}
-	}
-	minNameLength := strconv.Itoa(www.PolicyMinProposalNameLength)
-	maxNameLength := strconv.Itoa(www.PolicyMaxProposalNameLength)
-	validProposalNameBuffer.WriteString("]{")
-	validProposalNameBuffer.WriteString(minNameLength + ",")
-	validProposalNameBuffer.WriteString(maxNameLength + "}$")
-
-	return validProposalNameBuffer.String()
 }
 
 // isProposalAuthor returns whether the provided user is the author of the
@@ -111,24 +71,11 @@ func isRFPSubmission(pr www.ProposalRecord) bool {
 	return pr.LinkTo != ""
 }
 
-// isTokenValid returns whether the provided string is a valid politeiad
-// censorship record token.
-func isTokenValid(token string) bool {
-	b, err := hex.DecodeString(token)
-	if err != nil {
-		return false
-	}
-	if len(b) != pd.TokenSize {
-		return false
-	}
-	return true
-}
-
 func getInvalidTokens(tokens []string) []string {
 	invalidTokens := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
-		if !isTokenValid(token) {
+		if !tokenIsValid(token) {
 			invalidTokens = append(invalidTokens, token)
 		}
 	}
@@ -156,34 +103,6 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 	}
 
 	return fmt.Errorf("bit not found 0x%x", bit)
-}
-
-// linkByPeriodMin returns the minimum amount of time, in seconds, that the
-// LinkBy period must be set to. This is determined by adding 1 week onto the
-// minimum voting period so that RFP proposal submissions have at least one
-// week to be submitted after the proposal vote ends.
-func (p *politeiawww) linkByPeriodMin() int64 {
-	var (
-		submissionPeriod int64 = 604800 // One week in seconds
-		blockTime        int64          // In seconds
-	)
-	switch {
-	case p.cfg.TestNet:
-		blockTime = int64(testNet3Params.TargetTimePerBlock.Seconds())
-	case p.cfg.SimNet:
-		blockTime = int64(simNetParams.TargetTimePerBlock.Seconds())
-	default:
-		blockTime = int64(mainNetParams.TargetTimePerBlock.Seconds())
-	}
-	return (int64(p.cfg.VoteDurationMin) * blockTime) + submissionPeriod
-}
-
-// linkByPeriodMax returns the maximum amount of time, in seconds, that the
-// LinkBy period can be set to. 3 months is currently hard coded with no real
-// reason for deciding on 3 months besides that it sounds like a sufficient
-// amount of time.  This can be changed if there is a valid reason to.
-func (p *politeiawww) linkByPeriodMax() int64 {
-	return 7776000 // 3 months in seconds
 }
 
 func (p *politeiawww) linkByValidate(linkBy int64) error {
@@ -215,7 +134,7 @@ func (p *politeiawww) linkByValidate(linkBy int64) error {
 // specific to that action only.
 func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	// Validate Name
-	if !isValidProposalName(pm.Name) {
+	if !proposalNameIsValid(pm.Name) {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
 			ErrorContext: []string{createProposalNameRegex()},
@@ -224,7 +143,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 	// Validate LinkTo
 	if pm.LinkTo != "" {
-		if !isTokenValid(pm.LinkTo) {
+		if !tokenIsValid(pm.LinkTo) {
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"invalid token"},
@@ -1093,13 +1012,13 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	log.Tracef("processNewProposal")
 
 	// Pay up sucker!
-	if !p.HasUserPaid(user) {
+	if !p.userHasPaid(*user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
-	if !p.UserHasProposalCredits(user) {
+	if !p.userHasProposalCredits(*user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalCredits,
 		}
@@ -1443,7 +1362,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	log.Tracef("processSetProposalStatus %v", sps.Token)
 
 	// Make sure token is valid and not a prefix
-	if !isTokenValid(sps.Token) {
+	if !tokenIsValid(sps.Token) {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 			ErrorContext: []string{sps.Token},
@@ -1673,7 +1592,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	log.Tracef("processEditProposal %v", ep.Token)
 
 	// Make sure token is valid and not a prefix
-	if !isTokenValid(ep.Token) {
+	if !tokenIsValid(ep.Token) {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 			ErrorContext: []string{ep.Token},
@@ -1862,8 +1781,8 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	log.Tracef("processAllVetted")
 
 	// Validate query params
-	if (v.Before != "" && !isTokenValid(v.Before)) ||
-		(v.After != "" && !isTokenValid(v.After)) {
+	if (v.Before != "" && !tokenIsValid(v.Before)) ||
+		(v.After != "" && !tokenIsValid(v.After)) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}
@@ -1904,7 +1823,7 @@ func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCo
 	log.Tracef("ProcessCommentGet: %v", token)
 
 	// Make sure token is valid and not a prefix
-	if !isTokenValid(token) {
+	if !tokenIsValid(token) {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 			ErrorContext: []string{token},
@@ -2027,7 +1946,7 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 
 	/*
 		// Make sure token is valid and not a prefix
-		if !isTokenValid(token) {
+		if !tokenIsValid(token) {
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{token},
@@ -2193,7 +2112,7 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 
 	/*
 		// Make sure token is valid and not a prefix
-		if !isTokenValid(token) {
+		if !tokenIsValid(token) {
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{token},
@@ -2279,7 +2198,7 @@ func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, er
 
 	// Verify proposal tokens
 	for _, vote := range ballot.Votes {
-		if !isTokenValid(vote.Token) {
+		if !tokenIsValid(vote.Token) {
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{vote.Token},
@@ -2341,7 +2260,7 @@ func (p *politeiawww) processProposalPaywallDetails(u *user.User) (*www.Proposal
 
 	// Proposal paywalls cannot be generated until the user has paid their
 	// user registration fee.
-	if !p.HasUserPaid(u) {
+	if !p.userHasPaid(*u) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
@@ -2508,7 +2427,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	log.Tracef("processAuthorizeVote %v", av.Token)
 
 	// Make sure token is valid and not a prefix
-	if !isTokenValid(av.Token) {
+	if !tokenIsValid(av.Token) {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 			ErrorContext: []string{av.Token},
@@ -2640,7 +2559,7 @@ func validateVoteOptions(options []www2.VoteOption) error {
 }
 
 func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
-	if !isTokenValid(sv.Vote.Token) {
+	if !tokenIsValid(sv.Vote.Token) {
 		// Sanity check since proposal has already been looked up and
 		// passed in to this function.
 		return fmt.Errorf("invalid token %v", sv.Vote.Token)
@@ -2833,7 +2752,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	}
 
 	// Fetch proposal and vote summary
-	if !isTokenValid(sv.Vote.Token) {
+	if !tokenIsValid(sv.Vote.Token) {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 			ErrorContext: []string{sv.Vote.Token},
@@ -3013,7 +2932,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	for _, v := range sv.StartVotes {
 		// Fetch proposal and vote summary
 		token := v.Vote.Token
-		if !isTokenValid(token) {
+		if !tokenIsValid(token) {
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{token},

@@ -36,7 +36,8 @@ const (
 	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
 
-	ChallengeSize      = 32         // Size of challenge token in bytes
+	ChallengeSize = 32 // Size of challenge token in bytes
+	// TODO TokenSize needs to be updated
 	TokenSize          = 32         // Size of token
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 

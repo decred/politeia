@@ -49,7 +49,7 @@ func (e *eventManager) fire(event eventT, data interface{}) {
 
 	listeners, ok := e.listeners[event]
 	if !ok {
-		log.Errorf("fireEvent: unregistered event %v", event)
+		log.Errorf("fire: unregistered event %v", event)
 		return
 	}
 
@@ -112,8 +112,7 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 		// Compile email notification recipients
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
-			// Proposal submitted notifications should only be sent to
-			// admins.
+			// Only send proposal submitted notifications to admins
 			if !u.Admin {
 				return
 			}
@@ -134,6 +133,6 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 			log.Errorf("emailProposalSubmitted %v: %v", err)
 		}
 
-		log.Debugf("Proposal submitted notification sent")
+		log.Debugf("Sent proposal submitted notification %v", d.token)
 	}
 }

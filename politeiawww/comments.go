@@ -178,7 +178,7 @@ func validateComment(c www.NewComment) error {
 		}
 	}
 	// validate token
-	if !isTokenValid(c.Token) {
+	if !tokenIsValid(c.Token) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}

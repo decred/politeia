@@ -11,7 +11,7 @@ const (
 	ID             = "pi"
 
 	// Plugin commands
-	CmdLinkedFrom = "linkedfrom" // Get linked from list
+	CmdLinkedFrom = "linkedfrom" // Get linked from lists
 
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
@@ -30,7 +30,8 @@ const (
 // as a metadata stream, since it needs to be included in the merkle root that
 // politeiad signs.
 type ProposalMetadata struct {
-	Name string `json:"name"` // Proposal name
+	// Name is the name of the proposal.
+	Name string `json:"name"`
 
 	// LinkTo specifies a public proposal token to link this proposal
 	// to. Ex, an RFP sumbssion must link to the RFP proposal.

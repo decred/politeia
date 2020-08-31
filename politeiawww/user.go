@@ -111,7 +111,7 @@ func convertWWWUserFromDatabaseUser(user *user.User) www.User {
 		Deactivated:                     user.Deactivated,
 		Locked:                          userIsLocked(user.FailedLoginAttempts),
 		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
-		ProposalCredits:                 ProposalCreditBalance(user),
+		ProposalCredits:                 proposalCreditBalance(*user),
 		EmailNotifications:              user.EmailNotifications,
 	}
 }
@@ -727,11 +727,11 @@ func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.
 		Username:        u.Username,
 		PublicKey:       u.PublicKey(),
 		PaywallTxID:     u.NewUserPaywallTx,
-		ProposalCredits: ProposalCreditBalance(u),
+		ProposalCredits: proposalCreditBalance(*u),
 		LastLoginTime:   lastLoginTime,
 	}
 
-	if !p.HasUserPaid(u) {
+	if !p.userHasPaid(*u) {
 		err := p.GenerateNewUserPaywall(u)
 		if err != nil {
 			return nil, err
@@ -2041,7 +2041,7 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 // that in the user database.
 func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
 	var reply www.VerifyUserPaymentReply
-	if p.HasUserPaid(u) {
+	if p.userHasPaid(*u) {
 		reply.HasPaid = true
 		return &reply, nil
 	}
@@ -2145,7 +2145,7 @@ func (p *politeiawww) addUsersToPaywallPool() error {
 		}
 
 		// User paywalls
-		if p.HasUserPaid(u) {
+		if p.userHasPaid(*u) {
 			return
 		}
 		if u.NewUserVerificationToken != nil {
@@ -2226,7 +2226,7 @@ func (p *politeiawww) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember)
 		log.Tracef("Checking the user paywall address for user %v...",
 			u.Email)
 
-		if p.HasUserPaid(u) {
+		if p.userHasPaid(*u) {
 			// The user could have been marked as paid by
 			// RouteVerifyUserPayment, so just remove him from the
 			// in-memory pool.
@@ -2309,16 +2309,6 @@ func (p *politeiawww) GenerateNewUserPaywall(u *user.User) error {
 
 	p.addUserToPaywallPoolLock(u, paywallTypeUser)
 	return nil
-}
-
-// HasUserPaid checks that a user has paid the paywall
-func (p *politeiawww) HasUserPaid(u *user.User) bool {
-	// Return true if paywall is disabled
-	if !p.paywallIsEnabled() {
-		return true
-	}
-
-	return u.NewUserPaywallTx != ""
 }
 
 // initPaywallCheck is intended to be called

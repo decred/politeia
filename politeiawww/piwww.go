@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"regexp"
+	"strconv"
 	"time"
 
 	piplugin "github.com/decred/politeia/plugins/pi"
@@ -25,6 +27,17 @@ import (
 )
 
 // TODO use pi errors instead of www errors
+
+const (
+	// MIME types
+	mimeTypeText     = "text/plain"
+	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
+	mimeTypePNG      = "image/png"
+)
+
+var (
+	validProposalName = regexp.MustCompile(createProposalNameRegex())
+)
 
 func convertUserErrFromSignatureErr(err error) www.UserError {
 	var e util.SignatureError
@@ -82,9 +95,122 @@ func convertCensorshipRecordFromPD(cr pd.CensorshipRecord) pi.CensorshipRecord {
 	}
 }
 
-func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signature string) error {
-	if len(files) == 0 {
+// proposalNameIsValid returns whether the provided string is a valid proposal
+// name.
+func proposalNameIsValid(str string) bool {
+	return validProposalName.MatchString(str)
+}
+
+// createProposalNameRegex returns a regex string for validating the proposal
+// name.
+func createProposalNameRegex() string {
+	var validProposalNameBuffer bytes.Buffer
+	validProposalNameBuffer.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyProposalNameSupportedChars {
+		if len(supportedChar) > 1 {
+			validProposalNameBuffer.WriteString(supportedChar)
+		} else {
+			validProposalNameBuffer.WriteString(`\` + supportedChar)
+		}
+	}
+	minNameLength := strconv.Itoa(www.PolicyMinProposalNameLength)
+	maxNameLength := strconv.Itoa(www.PolicyMaxProposalNameLength)
+	validProposalNameBuffer.WriteString("]{")
+	validProposalNameBuffer.WriteString(minNameLength + ",")
+	validProposalNameBuffer.WriteString(maxNameLength + "}$")
+
+	return validProposalNameBuffer.String()
+}
+
+// linkByPeriodMin returns the minimum amount of time, in seconds, that the
+// LinkBy period must be set to. This is determined by adding 1 week onto the
+// minimum voting period so that RFP proposal submissions have at least one
+// week to be submitted after the proposal vote ends.
+func (p *politeiawww) linkByPeriodMin() int64 {
+	var (
+		submissionPeriod int64 = 604800 // One week in seconds
+		blockTime        int64          // In seconds
+	)
+	switch {
+	case p.cfg.TestNet:
+		blockTime = int64(testNet3Params.TargetTimePerBlock.Seconds())
+	case p.cfg.SimNet:
+		blockTime = int64(simNetParams.TargetTimePerBlock.Seconds())
+	default:
+		blockTime = int64(mainNetParams.TargetTimePerBlock.Seconds())
+	}
+	return (int64(p.cfg.VoteDurationMin) * blockTime) + submissionPeriod
+}
+
+// linkByPeriodMax returns the maximum amount of time, in seconds, that the
+// LinkBy period can be set to. 3 months is currently hard coded with no real
+// reason for deciding on 3 months besides that it sounds like a sufficient
+// amount of time.  This can be changed if there is a valid reason to.
+func (p *politeiawww) linkByPeriodMax() int64 {
+	return 7776000 // 3 months in seconds
+}
+
+// tokenIsValid returns whether the provided string is a valid politeiad
+// censorship record token.
+func tokenIsValid(token string) bool {
+	b, err := hex.DecodeString(token)
+	if err != nil {
+		return false
+	}
+	if len(b) != pd.TokenSize {
+		return false
+	}
+	return true
+}
+
+func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {
+	// Verify name
+	if !proposalNameIsValid(pm.Name) {
 		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
+			ErrorContext: []string{createProposalNameRegex()},
+		}
+	}
+
+	// Verify linkto
+	if pm.LinkTo != "" {
+		if !tokenIsValid(pm.LinkTo) {
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"invalid token"},
+			}
+		}
+	}
+
+	// Verify linkby
+	if pm.LinkBy != 0 {
+		min := time.Now().Unix() + p.linkByPeriodMin()
+		max := time.Now().Unix() + p.linkByPeriodMax()
+		switch {
+		case pm.LinkBy < min:
+			e := fmt.Sprintf("linkby %v is less than min required of %v",
+				pm.LinkBy, min)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		case pm.LinkBy > max:
+			e := fmt.Sprintf("linkby %v is more than max allowed of %v",
+				pm.LinkBy, max)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signature string) (*pi.ProposalMetadata, error) {
+	if len(files) == 0 {
+		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
 			ErrorContext: []string{"no files found"},
 		}
@@ -101,7 +227,7 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 		// Validate file name
 		_, ok := filenames[v.Name]
 		if ok {
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
 				ErrorContext: []string{v.Name},
 			}
@@ -110,16 +236,15 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 
 		// Validate file payload
 		if v.Payload == "" {
-			e := fmt.Sprintf("base64 payload is empty for file '%v'",
-				v.Name)
-			return www.UserError{
+			e := fmt.Sprintf("empty payload for file '%v'", v.Name)
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidBase64,
 				ErrorContext: []string{e},
 			}
 		}
 		payloadb, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidBase64,
 				ErrorContext: []string{v.Name},
 			}
@@ -129,15 +254,15 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 		digest := util.Digest(payloadb)
 		d, ok := util.ConvertDigest(v.Digest)
 		if !ok {
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidFileDigest,
 				ErrorContext: []string{v.Name},
 			}
 		}
 		if !bytes.Equal(digest, d[:]) {
-			e := fmt.Sprintf("computed digest does not match given digest "+
-				"for file '%v'", v.Name)
-			return www.UserError{
+			e := fmt.Sprintf("file '%v' digest got %v, want %x",
+				v.Name, v.Digest, digest)
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidFileDigest,
 				ErrorContext: []string{e},
 			}
@@ -147,21 +272,20 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 		ct := http.DetectContentType(payloadb)
 		mimePayload, _, err := mime.ParseMediaType(ct)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		mimeFile, _, err := mime.ParseMediaType(v.MIME)
 		if err != nil {
-			log.Debugf("validateProposal: ParseMediaType(%v): %v",
-				v.MIME, err)
-			return www.UserError{
+			log.Debugf("ParseMediaType(%v): %v", v.MIME, err)
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidMIMEType,
 				ErrorContext: []string{v.Name},
 			}
 		}
 		if mimeFile != mimePayload {
-			e := fmt.Sprintf("detected mime '%v' does not match '%v' for file '%v'",
-				mimePayload, mimeFile, v.Name)
-			return www.UserError{
+			e := fmt.Sprintf("file '%v' mime type got %v, want %v",
+				v.Name, mimeFile, mimePayload)
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidMIMEType,
 				ErrorContext: []string{e},
 			}
@@ -174,9 +298,9 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 
 			// Verify text file size
 			if len(payloadb) > www.PolicyMaxMDSize {
-				e := fmt.Sprintf("file size %v exceeds max %v for file '%v'",
-					len(payloadb), www.PolicyMaxMDSize, v.Name)
-				return www.UserError{
+				e := fmt.Sprintf("file '%v' size %v exceeds max size %v",
+					v.Name, len(payloadb), www.PolicyMaxMDSize)
+				return nil, www.UserError{
 					ErrorCode:    www.ErrorStatusMaxMDSizeExceededPolicy,
 					ErrorContext: []string{e},
 				}
@@ -185,7 +309,7 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 			// The only text file that is allowed is the index markdown
 			// file.
 			if v.Name != www.PolicyIndexFilename {
-				return www.UserError{
+				return nil, www.UserError{
 					ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
 					ErrorContext: []string{v.Name},
 				}
@@ -193,7 +317,7 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 			if foundIndexFile {
 				e := fmt.Sprintf("more than one %v file found",
 					www.PolicyIndexFilename)
-				return www.UserError{
+				return nil, www.UserError{
 					ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
 					ErrorContext: []string{e},
 				}
@@ -207,16 +331,16 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 
 			// Verify image file size
 			if len(payloadb) > www.PolicyMaxImageSize {
-				e := fmt.Sprintf("file size %v exceeds max %v for file '%v'",
-					len(payloadb), www.PolicyMaxImageSize, v.Name)
-				return www.UserError{
+				e := fmt.Sprintf("file '%v' size %v exceeds max size %v",
+					v.Name, len(payloadb), www.PolicyMaxImageSize)
+				return nil, www.UserError{
 					ErrorCode:    www.ErrorStatusMaxImageSizeExceededPolicy,
 					ErrorContext: []string{e},
 				}
 			}
 
 		default:
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidMIMEType,
 				ErrorContext: []string{v.MIME},
 			}
@@ -226,7 +350,7 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 	// Verify that an index file is present.
 	if !foundIndexFile {
 		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
 			ErrorContext: []string{e},
 		}
@@ -234,9 +358,9 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 
 	// Verify file counts are acceptable
 	if countTextFiles > www.PolicyMaxMDs {
-		e := fmt.Sprintf("got %v text files; max is %v",
+		e := fmt.Sprintf("got %v text files, max is %v",
 			countTextFiles, www.PolicyMaxMDs)
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
 			ErrorContext: []string{e},
 		}
@@ -244,37 +368,99 @@ func verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signatur
 	if countImageFiles > www.PolicyMaxImages {
 		e := fmt.Sprintf("got %v image files, max is %v",
 			countImageFiles, www.PolicyMaxImages)
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusMaxImagesExceededPolicy,
 			ErrorContext: []string{e},
 		}
 	}
 
+	// Verify that the metadata contains a ProposalMetadata and only
+	// a ProposalMetadata.
+	switch {
+	case len(metadata) == 0:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataMissing,
+			ErrorContext: []string{www.HintProposalMetadata},
+		}
+	case len(metadata) > 1:
+		e := fmt.Sprintf("metadata should only contain %v",
+			www.HintProposalMetadata)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataInvalid,
+			ErrorContext: []string{e},
+		}
+	}
+	md := metadata[0]
+	if md.Hint != www.HintProposalMetadata {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataInvalid,
+			ErrorContext: []string{md.Hint},
+		}
+	}
+
+	// Verify metadata fields
+	b, err := base64.StdEncoding.DecodeString(md.Payload)
+	if err != nil {
+		e := fmt.Sprintf("metadata '%v' invalid base64 payload", md.Hint)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataInvalid,
+			ErrorContext: []string{e},
+		}
+	}
+	digest := util.Digest(b)
+	if md.Digest != hex.EncodeToString(digest) {
+		e := fmt.Sprintf("metadata '%v' got digest %v, want %v",
+			md.Hint, md.Digest, hex.EncodeToString(digest))
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Decode ProposalMetadata
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.DisallowUnknownFields()
+	var pm pi.ProposalMetadata
+	err = d.Decode(&pm)
+	if err != nil {
+		log.Debugf("Decode ProposalMetadata: %v", err)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataInvalid,
+			ErrorContext: []string{md.Hint},
+		}
+	}
+
+	// Verify ProposalMetadata
+	err = p.verifyProposalMetadata(pm)
+	if err != nil {
+		return nil, err
+	}
+
 	// Verify signature
 	mr, err := wwwutil.MerkleRoot(files, metadata)
 	if err != nil {
-		return fmt.Errorf("MerkleRoot: %v", err)
+		return nil, err
 	}
 	err = util.VerifySignature(signature, publicKey, mr)
 	if err != nil {
-		return convertUserErrFromSignatureErr(err)
+		return nil, convertUserErrFromSignatureErr(err)
 	}
 
-	return nil
+	return &pm, nil
 }
 
 func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.ProposalNewReply, error) {
 	log.Tracef("processProposalNew: %v", usr.Username)
 
 	// Verify user paid registration paywall
-	if !p.HasUserPaid(&usr) {
+	if !p.userHasPaid(usr) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
-	// Verify user bought proposal credit
-	if !p.UserHasProposalCredits(&usr) {
+	// Verify user has a proposal credit
+	if !p.userHasProposalCredits(usr) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalCredits,
 		}
@@ -289,7 +475,8 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	}
 
 	// Verify proposal
-	err := verifyProposal(pn.Files, pn.Metadata, pn.PublicKey, pn.Signature)
+	pm, err := p.verifyProposal(pn.Files, pn.Metadata,
+		pn.PublicKey, pn.Signature)
 	if err != nil {
 		return nil, err
 	}
@@ -359,12 +546,12 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	// Fire off a new proposal event
 	p.eventManager.fire(eventProposalSubmitted,
 		dataProposalSubmitted{
-			token: cr.Token,
-			// name: name,
+			token:    cr.Token,
+			name:     pm.Name,
 			username: usr.Username,
 		})
 
-	log.Infof("Submitted proposal: %v", cr.Token)
+	log.Infof("Submitted proposal: %v %v", cr.Token, pm.Name)
 	for k, f := range pn.Files {
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
