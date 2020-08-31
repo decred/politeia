@@ -347,7 +347,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		}
 	}
 
-	// Verify that an index file is present.
+	// Verify that an index file is present
 	if !foundIndexFile {
 		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
 		return nil, www.UserError{

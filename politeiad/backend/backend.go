@@ -209,7 +209,7 @@ type Backend interface {
 	GetPlugins() ([]Plugin, error)
 
 	// Plugin pass-through command
-	Plugin(string, string, string) (string, string, error) // command type, payload, error
+	Plugin(string, string, string) (string, error)
 
 	// Close performs cleanup of the backend.
 	Close()

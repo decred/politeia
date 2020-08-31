@@ -490,6 +490,12 @@ func (t *Tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 		// Check for token prefix collisions
 		if !t.prefixExists(token) {
 			// Not a collision. Use this token.
+
+			// Update the prefix cache. This must be done even if the
+			// record creation fails since the tree will still exist in
+			// tlog.
+			t.prefixAdd(token)
+
 			break
 		}
 
@@ -503,14 +509,43 @@ func (t *Tlogbe) New(metadata []backend.MetadataStream, files []backend.File) (*
 		return nil, err
 	}
 
+	// Call pre plugin hook
+	pre := NewRecordPre{
+		RecordMetadata: *rm,
+		Metadata:       metadata,
+		Files:          files,
+	}
+	b, err := EncodeNewRecordPre(pre)
+	if err != nil {
+		return nil, err
+	}
+	err = t.pluginHook(HookNewRecordPre, string(b))
+	if err != nil {
+		return nil, fmt.Errorf("pluginHook %v: %v",
+			Hooks[HookNewRecordPre], err)
+	}
+
 	// Save the record
 	err = t.unvetted.recordSave(treeID, *rm, metadata, files)
 	if err != nil {
 		return nil, fmt.Errorf("recordSave %x: %v", token, err)
 	}
 
-	// Update the prefix cache
-	t.prefixAdd(token)
+	// Call post plugin hook
+	post := NewRecordPost{
+		RecordMetadata: *rm,
+		Metadata:       metadata,
+		Files:          files,
+	}
+	b, err = EncodeNewRecordPost(post)
+	if err != nil {
+		return nil, err
+	}
+	err = t.pluginHook(HookNewRecordPost, string(b))
+	if err != nil {
+		return nil, fmt.Errorf("pluginHook %v: %v",
+			Hooks[HookNewRecordPost], err)
+	}
 
 	// Update the inventory cache
 	t.inventoryAdd(hex.EncodeToString(token), backend.MDStatusUnvetted)
@@ -1182,6 +1217,21 @@ func (t *Tlogbe) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	}, nil
 }
 
+func (t *Tlogbe) pluginHook(h HookT, payload string) error {
+	t.RLock()
+	defer t.RUnlock()
+
+	// Pass hook event and payload to each plugin
+	for _, v := range t.plugins {
+		err := v.ctx.Hook(h, payload)
+		if err != nil {
+			return fmt.Errorf("Hook %v: %v", v.id, err)
+		}
+	}
+
+	return nil
+}
+
 // GetPlugins returns the backend plugins that have been registered and their
 // settings.
 //
@@ -1204,26 +1254,26 @@ func (t *Tlogbe) GetPlugins() ([]backend.Plugin, error) {
 // Plugin is a pass-through function for plugin commands.
 //
 // This function satisfies the Backend interface.
-func (t *Tlogbe) Plugin(pluginID, command, payload string) (string, string, error) {
+func (t *Tlogbe) Plugin(pluginID, command, payload string) (string, error) {
 	log.Tracef("Plugin: %v", command)
 
 	if t.isShutdown() {
-		return "", "", backend.ErrShutdown
+		return "", backend.ErrShutdown
 	}
 
 	// Get plugin
 	plugin, ok := t.plugins[pluginID]
 	if !ok {
-		return "", "", backend.ErrPluginInvalid
+		return "", backend.ErrPluginInvalid
 	}
 
 	// Execute plugin command
 	reply, err := plugin.ctx.Cmd(command, payload)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	return command, reply, nil
+	return reply, nil
 }
 
 // Close shuts the backend down and performs cleanup.

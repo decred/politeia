@@ -602,7 +602,7 @@ func (p *ticketVotePlugin) bestBlock() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, reply, err := p.backend.Plugin(dcrdata.ID,
+	reply, err := p.backend.Plugin(dcrdata.ID,
 		dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
 		return 0, fmt.Errorf("Plugin %v %v: %v",
@@ -637,7 +637,7 @@ func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, reply, err := p.backend.Plugin(dcrdata.ID,
+	reply, err := p.backend.Plugin(dcrdata.ID,
 		dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
 		return 0, fmt.Errorf("Plugin %v %v: %v",
@@ -671,7 +671,7 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmen
 	if err != nil {
 		return nil, err
 	}
-	_, reply, err := p.backend.Plugin(dcrdata.ID,
+	reply, err := p.backend.Plugin(dcrdata.ID,
 		dcrdata.CmdTxsTrimmed, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
@@ -740,7 +740,7 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	_, reply, err := p.backend.Plugin(dcrdata.ID,
+	reply, err := p.backend.Plugin(dcrdata.ID,
 		dcrdata.CmdBlockDetails, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
@@ -763,7 +763,7 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	_, reply, err = p.backend.Plugin(dcrdata.ID,
+	reply, err = p.backend.Plugin(dcrdata.ID,
 		dcrdata.CmdTicketPool, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",

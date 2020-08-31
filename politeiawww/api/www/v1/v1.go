@@ -56,7 +56,7 @@ const (
 	RouteProposalPaywallDetails = "/proposals/paywall"
 	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 
-	// The following routes have been DEPRECATED. Use the v2 routes.
+	// The following routes have been DEPRECATED. Use the pi v1 API.
 	RouteTokenInventory    = "/proposals/tokeninventory"
 	RouteBatchProposals    = "/proposals/batch"
 	RouteBatchVoteSummary  = "/proposals/batchvotesummary"

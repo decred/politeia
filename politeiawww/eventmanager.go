@@ -85,8 +85,7 @@ func notificationIsSet(u user.User, n www.EmailNotificationT) bool {
 		return false
 	}
 
-	bit := uint64(n)
-	if u.EmailNotifications&bit == 0 {
+	if u.EmailNotifications&uint64(n) == 0 {
 		// Notification bit not set
 		return false
 	}

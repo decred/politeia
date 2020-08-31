@@ -2804,59 +2804,43 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 // execute.
 //
 // Plugin satisfies the backend interface.
-func (g *gitBackEnd) Plugin(pluginID, command, payload string) (string, string, error) {
+func (g *gitBackEnd) Plugin(pluginID, command, payload string) (string, error) {
 	log.Tracef("Plugin: %v", command)
 	switch command {
 	case decredplugin.CmdAuthorizeVote:
-		payload, err := g.pluginAuthorizeVote(payload)
-		return decredplugin.CmdAuthorizeVote, payload, err
+		return g.pluginAuthorizeVote(payload)
 	case decredplugin.CmdStartVote:
-		payload, err := g.pluginStartVote(payload)
-		return decredplugin.CmdStartVote, payload, err
+		return g.pluginStartVote(payload)
 	case decredplugin.CmdStartVoteRunoff:
-		payload, err := g.pluginStartVoteRunoff(payload)
-		return decredplugin.CmdStartVote, payload, err
+		return g.pluginStartVoteRunoff(payload)
 	case decredplugin.CmdBallot:
-		payload, err := g.pluginBallot(payload)
-		return decredplugin.CmdBallot, payload, err
+		return g.pluginBallot(payload)
 	case decredplugin.CmdProposalVotes:
-		payload, err := g.pluginProposalVotes(payload)
-		return decredplugin.CmdProposalVotes, payload, err
+		return g.pluginProposalVotes(payload)
 	case decredplugin.CmdBestBlock:
-		payload, err := g.pluginBestBlock()
-		return decredplugin.CmdBestBlock, payload, err
+		return g.pluginBestBlock()
 	case decredplugin.CmdNewComment:
-		payload, err := g.pluginNewComment(payload)
-		return decredplugin.CmdNewComment, payload, err
+		return g.pluginNewComment(payload)
 	case decredplugin.CmdLikeComment:
-		payload, err := g.pluginLikeComment(payload)
-		return decredplugin.CmdLikeComment, payload, err
+		return g.pluginLikeComment(payload)
 	case decredplugin.CmdCensorComment:
-		payload, err := g.pluginCensorComment(payload)
-		return decredplugin.CmdCensorComment, payload, err
+		return g.pluginCensorComment(payload)
 	case decredplugin.CmdGetComments:
-		payload, err := g.pluginGetComments(payload)
-		return decredplugin.CmdGetComments, payload, err
+		return g.pluginGetComments(payload)
 	case decredplugin.CmdProposalCommentsLikes:
-		payload, err := g.pluginGetProposalCommentsLikes(payload)
-		return decredplugin.CmdProposalCommentsLikes, payload, err
+		return g.pluginGetProposalCommentsLikes(payload)
 	case decredplugin.CmdInventory:
-		payload, err := g.pluginInventory(payload)
-		return decredplugin.CmdInventory, payload, err
+		return g.pluginInventory(payload)
 	case decredplugin.CmdLoadVoteResults:
-		payload, err := g.pluginLoadVoteResults()
-		return decredplugin.CmdLoadVoteResults, payload, err
+		return g.pluginLoadVoteResults()
 	case cmsplugin.CmdInventory:
-		payload, err := g.pluginCMSInventory()
-		return cmsplugin.CmdInventory, payload, err
+		return g.pluginCMSInventory()
 	case cmsplugin.CmdStartVote:
-		payload, err := g.pluginStartDCCVote(payload)
-		return cmsplugin.CmdStartVote, payload, err
+		return g.pluginStartDCCVote(payload)
 	case cmsplugin.CmdCastVote:
-		payload, err := g.pluginCastVote(payload)
-		return cmsplugin.CmdCastVote, payload, err
+		return g.pluginCastVote(payload)
 	}
-	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
+	return "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown

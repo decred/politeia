@@ -43,6 +43,21 @@ type ProposalMetadata struct {
 	LinkBy int64 `json:"linkby,omitempty"`
 }
 
+// EncodeProposalMetadata encodes a ProposalMetadata into a JSON byte slice.
+func EncodeProposalMetadata(pm ProposalMetadata) ([]byte, error) {
+	return json.Marshal(pm)
+}
+
+// DecodeProposalMetadata decodes a ProposalMetadata into a JSON byte slice.
+func DecodeProposalMetadata(payload []byte) (*ProposalMetadata, error) {
+	var pm ProposalMetadata
+	err := json.Unmarshal(payload, &pm)
+	if err != nil {
+		return nil, err
+	}
+	return &pm, nil
+}
+
 // ProposalGeneral represents general proposal metadata that is saved on
 // proposal submission. ProposalGeneral is saved to politeiad as a metadata
 // stream.
@@ -55,10 +70,12 @@ type ProposalGeneral struct {
 	Timestamp int64  `json:"timestamp"` // Submission UNIX timestamp
 }
 
+// EncodeProposalGeneral encodes a ProposalGeneral into a JSON byte slice.
 func EncodeProposalGeneral(pg ProposalGeneral) ([]byte, error) {
 	return json.Marshal(pg)
 }
 
+// DecodeProposalGeneral decodes a ProposalGeneral into a JSON byte slice.
 func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 	var pg ProposalGeneral
 	err := json.Unmarshal(payload, &pg)
