@@ -11,10 +11,8 @@ import (
 
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
-	"github.com/decred/politeia/politeiawww/paywall"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
-
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
@@ -51,7 +49,6 @@ var (
 	localdbLog     = backendLog.Logger("LODB")
 	cockroachdbLog = backendLog.Logger("CODB")
 	wsdcrdataLog   = backendLog.Logger("WSDD")
-	paywallLog     = backendLog.Logger("PAYW")
 )
 
 // Initialize package-global logger variables.
