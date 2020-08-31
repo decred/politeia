@@ -20,8 +20,7 @@ const (
 	CmdCastVote          = "castdccvote"
 	CmdInventory         = "cmsinventory"
 	CmdVoteSummary       = "votedccsummary"
-	CmdLoadVoteResults   = "loaddccvoteresults"
-	CmdDCCVotes          = "dccvotes"
+	CmdDCCVoteResults    = "dccvoteresults"
 	MDStreamVoteBits     = 16 // Vote bits and mask
 	MDStreamVoteSnapshot = 17 // Vote tickets and start/end parameters
 

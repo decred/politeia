@@ -2836,12 +2836,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case cmsplugin.CmdCastVote:
 		payload, err := g.pluginCastVote(payload)
 		return cmsplugin.CmdCastVote, payload, err
-	case cmsplugin.CmdLoadVoteResults:
-		payload, err := g.pluginLoadDCCVoteResults()
-		return cmsplugin.CmdLoadVoteResults, payload, err
-	case cmsplugin.CmdDCCVotes:
-		payload, err := g.pluginDCCVotes(payload)
-		return cmsplugin.CmdDCCVotes, payload, err
+	case cmsplugin.CmdDCCVoteResults:
+		payload, err := g.pluginDCCVoteResults(payload)
+		return cmsplugin.CmdDCCVoteResults, payload, err
 	case cmsplugin.CmdVoteDetails:
 		payload, err := g.pluginDCCVoteDetails(payload)
 		return cmsplugin.CmdVoteDetails, payload, err

@@ -1156,11 +1156,11 @@ nodata:
 	return string(reply), nil
 }
 
-// pluginDCCVotes tallies all votes for a dcc. We can run the tally
+// pluginDCCVoteResults tallies all votes for a dcc. We can run the tally
 // unlocked and just replay the journal. If the replay becomes an issue we
 // could cache it. The Vote that is returned does have to be locked.
-func (g *gitBackEnd) pluginDCCVotes(payload string) (string, error) {
-	log.Tracef("pluginDCCVotes: %v", payload)
+func (g *gitBackEnd) pluginDCCVoteResults(payload string) (string, error) {
+	log.Tracef("pluginDCCVoteResults: %v", payload)
 
 	vote, err := cmsplugin.DecodeVoteResults([]byte(payload))
 	if err != nil {
@@ -1361,15 +1361,4 @@ func (g *gitBackEnd) pluginCMSInventory() (string, error) {
 	}
 
 	return string(payload), nil
-}
-
-// pluginLoadDCCVoteResults is a pass through function. CmdLoadDCCVoteResults does
-// not require any work to be performed in gitBackEnd.
-func (g *gitBackEnd) pluginLoadDCCVoteResults() (string, error) {
-	r := cmsplugin.LoadVoteResultsReply{}
-	reply, err := cmsplugin.EncodeLoadVoteResultsReply(r)
-	if err != nil {
-		return "", err
-	}
-	return string(reply), nil
 }
