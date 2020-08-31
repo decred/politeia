@@ -21,7 +21,6 @@ import (
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -408,15 +407,15 @@ func validateSponsorStatement(statement string) bool {
 	return true
 }
 
-// getDCC gets the most recent verions of the given DCC from the cache
+// getDCC gets the most recent verions of the given DCC from the cmsDB
 // then fills in any missing user fields before returning the DCC record.
 func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
-	// Get dcc from cache
-	r, err := p.cache.Record(token)
+	// Get dcc from cmsdb
+	r, err := p.cmsDB.DCCByToken(token)
 	if err != nil {
 		return nil, err
 	}
-	i := convertDCCFromCache(*r)
+	i := convertDCCDatabaseToRecord(r)
 
 	// Check for possible malformed DCC
 	if i.PublicKey == "" {
@@ -494,7 +493,7 @@ func (p *politeiawww) processDCCDetails(gd cms.DCCDetails) (*cms.DCCDetailsReply
 
 	dcc, err := p.getDCC(gd.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrDCCNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -573,7 +572,7 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 
 	dcc, err := p.getDCC(sd.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrDCCNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -720,7 +719,7 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 
 	dcc, err := p.getDCC(nc.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrDCCNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -871,7 +870,7 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 
 	dcc, err := p.getDCC(sds.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrDCCNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -1118,7 +1117,7 @@ func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply
 	// Validate vote status
 	dvdr, err := p.cmsVoteDetails(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrDCCNotFound {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -1140,27 +1139,41 @@ func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply
 	return vdr, nil
 }
 
-// cmsVoteDetails sends the cms plugin votedetails command to the cache
+// cmsVoteDetails sends the cms plugin votedetails command to the gitbe
 // and returns the vote details for the passed in proposal.
 func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply, error) {
 	// Setup plugin command
 	vd := cmsplugin.VoteDetails{
 		Token: token,
 	}
-
 	payload, err := cmsplugin.EncodeVoteDetails(vd)
 	if err != nil {
 		return nil, err
 	}
-
-	pc := cache.PluginCommand{
-		ID:             cmsplugin.ID,
-		Command:        cmsplugin.CmdVoteDetails,
-		CommandPayload: string(payload),
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        cmsplugin.ID,
+		Command:   cmsplugin.CmdVoteDetails,
+		Payload:   string(payload),
+	}
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
 	}
 
-	// Get vote details from cache
-	reply, err := p.cache.PluginExec(pc)
+	// Handle reply
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}
@@ -1176,40 +1189,86 @@ func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply,
 // the provided token.
 func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply, error) {
 	// Setup plugin command
-	vd := cmsplugin.VoteSummary{
+	vs := cmsplugin.VoteSummary{
 		Token: token,
 	}
-
-	payload, err := cmsplugin.EncodeVoteSummary(vd)
+	payload, err := cmsplugin.EncodeVoteSummary(vs)
+	if err != nil {
+		return nil, err
+	}
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        cmsplugin.ID,
+		Command:   cmsplugin.CmdVoteSummary,
+		Payload:   string(payload),
+	}
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
 	}
 
-	pc := cache.PluginCommand{
-		ID:             cmsplugin.ID,
-		Command:        cmsplugin.CmdVoteSummary,
-		CommandPayload: string(payload),
+	// Handle reply
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal "+
+			"PluginCommandReply: %v", err)
 	}
-
-	// Get vote details from cache
-	reply, err := p.cache.PluginExec(pc)
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}
-	vdr, err := cmsplugin.DecodeVoteSummaryReply([]byte(reply.Payload))
+	vsr, err := cmsplugin.DecodeVoteSummaryReply([]byte(reply.Payload))
 	if err != nil {
 		return nil, err
 	}
 
-	return vdr, nil
+	return vsr, nil
 }
 
 func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 	log.Tracef("processActiveVoteDCC")
 
-	vetted, err := p.cache.Inventory()
+	// Request full record inventory from backend
+	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
-		return nil, fmt.Errorf("backend inventory: %v", err)
+		return nil, err
+	}
+
+	pdCommand := pd.Inventory{
+		Challenge:    hex.EncodeToString(challenge),
+		IncludeFiles: true,
+		AllVersions:  true,
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.InventoryRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.InventoryReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal InventoryReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+	vetted := pdReply.Vetted
+
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
 	}
 
 	active := make([]string, 0, len(vetted))
@@ -1217,7 +1276,15 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 		for _, m := range r.Metadata {
 			switch m.ID {
 			case mdstream.IDDCCGeneral:
-				// Get vote summary and thereby status to check here.
+				vs, err := p.cmsVoteSummary(r.CensorshipRecord.Token)
+				if err != nil {
+					log.Errorf("processActiveVotes: error pull cmsVoteSummary "+
+						"%v %v", r.CensorshipRecord.Token, err)
+					continue
+				}
+				if uint64(vs.EndHeight) > bb {
+					active = append(active, r.CensorshipRecord.Token)
+				}
 			}
 		}
 	}
@@ -1230,7 +1297,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 	// Compile dcc vote tuples
 	vt := make([]cms.VoteTuple, 0, len(dccs))
 	for _, v := range dccs {
-		// Get vote details from cache
+		// Get vote details from gitbe
 		vdr, err := p.cmsVoteDetails(v.CensorshipRecord.Token)
 		if err != nil {
 			return nil, fmt.Errorf("decredVoteDetails %v: %v",
@@ -1257,17 +1324,14 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 func (p *politeiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error) {
 	log.Tracef("getDCCs: %v", tokens)
 
-	// Get the dccs from the cache
-	records, err := p.cache.Records(tokens, false)
-	if err != nil {
-		return nil, err
-	}
-
 	// Use pointers for now so the props can be easily updated
-	dccs := make(map[string]*cms.DCCRecord, len(records))
-	for _, v := range records {
-		dr := convertDCCFromCache(v)
-		dccs[v.CensorshipRecord.Token] = &dr
+	dccs := make(map[string]*cms.DCCRecord, len(tokens))
+	for _, token := range tokens {
+		dcc, err := p.getDCC(token)
+		if err != nil {
+			log.Errorf("getDCCs: unable to getDCC for %v %v", token, err)
+		}
+		dccs[token] = dcc
 	}
 
 	// Compile a list of unique proposal author pubkeys. These
@@ -1400,7 +1464,7 @@ func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.
 	// Validate proposal version and status
 	pr, err := p.getDCC(sv.Vote.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if err == cmsdatabase.ErrDCCNotFound {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}

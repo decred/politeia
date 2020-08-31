@@ -966,6 +966,195 @@ func (g *gitBackEnd) tallyDCCVotes(token string) ([]cmsplugin.CastVote, error) {
 	return cv, nil
 }
 
+// pluginDCCVoteDetails returns the VoteDetails of a requested DCC vote.
+// It uses the caches that should be populated with the StartVotes and
+// StartVoteReplies.
+func (g *gitBackEnd) pluginDCCVoteDetails(payload string) (string, error) {
+	log.Tracef("pluginDCCVoteDetails: %v", payload)
+
+	vd, err := cmsplugin.DecodeVoteDetails([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeVoteResults %v", err)
+	}
+
+	g.Lock()
+	defer g.Unlock()
+
+	// git checkout master
+	err = g.gitCheckout(g.vetted, "master")
+	if err != nil {
+		return "", err
+	}
+
+	var svr cmsplugin.StartVoteReply
+	var sv cmsplugin.StartVote
+	var vdr cmsplugin.VoteDetailsReply
+	// Prepare reply
+	var (
+		dd *json.Decoder
+		ff *os.File
+	)
+	// Fill out vote
+	filename := mdFilename(g.vetted, vd.Token,
+		cmsplugin.MDStreamVoteBits)
+	ff, err = os.Open(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			goto nodata
+		}
+		return "", err
+	}
+	defer ff.Close()
+	dd = json.NewDecoder(ff)
+
+	err = dd.Decode(&sv)
+	if err != nil {
+		if err == io.EOF {
+			goto nodata
+		}
+		return "", err
+	}
+
+	// Load the vote snapshot from disk
+	ff, err = os.Open(mdFilename(g.vetted, vd.Token,
+		cmsplugin.MDStreamVoteSnapshot))
+	if err != nil {
+		return "", err
+	}
+	defer ff.Close()
+
+	dd = json.NewDecoder(ff)
+	err = dd.Decode(&svr)
+	if err != nil {
+		return "", err
+	}
+	vdr = cmsplugin.VoteDetailsReply{
+		StartVote:      sv,
+		StartVoteReply: svr,
+	}
+
+nodata:
+	reply, err := cmsplugin.EncodeVoteDetailsReply(vdr)
+	if err != nil {
+		return "", fmt.Errorf("Could not encode VoteResultsReply: %v",
+			err)
+	}
+	return string(reply), nil
+}
+
+// pluginDCCVoteSummary
+func (g *gitBackEnd) pluginDCCVoteSummary(payload string) (string, error) {
+	log.Tracef("pluginDCCVoteSummary: %v", payload)
+
+	vs, err := cmsplugin.DecodeVoteSummary([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeVoteResults %v", err)
+	}
+
+	// Verify proposal exists, we can run this lockless
+	if !g.vettedPropExists(vs.Token) {
+		return "", fmt.Errorf("dcc not found: %v", vs.Token)
+	}
+
+	// This portion is must run locked
+
+	g.Lock()
+	defer g.Unlock()
+
+	// Prepare reply
+	var vrr cmsplugin.VoteResultsReply
+	var vsr cmsplugin.VoteSummaryReply
+	var svr cmsplugin.StartVoteReply
+	vors := make([]cmsplugin.VoteOptionResult, 0,
+		len(vrr.StartVote.Vote.Options))
+
+	// Fill out cast votes
+	vrr.CastVotes, err = g.tallyDCCVotes(vs.Token)
+	if err != nil {
+		return "", fmt.Errorf("Could not tally votes: %v", err)
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.vetted, "master")
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	var (
+		dd *json.Decoder
+		ff *os.File
+	)
+	// Fill out vote
+	filename := mdFilename(g.vetted, vs.Token,
+		cmsplugin.MDStreamVoteBits)
+	ff, err = os.Open(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			goto nodata
+		}
+		return "", err
+	}
+	defer ff.Close()
+	dd = json.NewDecoder(ff)
+
+	err = dd.Decode(&vrr.StartVote)
+	if err != nil {
+		if err == io.EOF {
+			goto nodata
+		}
+		return "", err
+	}
+
+	// Load the vote snapshot from disk
+	ff, err = os.Open(mdFilename(g.vetted, vs.Token,
+		cmsplugin.MDStreamVoteSnapshot))
+	if err != nil {
+		return "", err
+	}
+	defer ff.Close()
+
+	dd = json.NewDecoder(ff)
+	err = dd.Decode(&svr)
+	if err != nil {
+		return "", err
+	}
+
+	vsr.EndHeight = svr.EndHeight
+	vsr.Duration = vrr.StartVote.Vote.Duration
+	vsr.PassPercentage = vrr.StartVote.Vote.PassPercentage
+
+	for _, voteOption := range vrr.StartVote.Vote.Options {
+		vors = append(vors, cmsplugin.VoteOptionResult{
+			ID:          voteOption.Id,
+			Description: voteOption.Description,
+			Bits:        voteOption.Bits,
+		})
+	}
+
+	for _, vote := range vrr.CastVotes {
+		b, err := strconv.ParseUint(vote.VoteBit, 16, 64)
+		if err != nil {
+			log.Errorf("unable to parse vote bits for vote %v %v",
+				vote.Signature, err)
+			continue
+		}
+		for i, option := range vors {
+			if b == option.Bits {
+				vors[i].Votes++
+			}
+		}
+	}
+nodata:
+	reply, err := cmsplugin.EncodeVoteSummaryReply(vsr)
+	if err != nil {
+		return "", fmt.Errorf("Could not encode VoteResultsReply: %v",
+			err)
+	}
+
+	return string(reply), nil
+}
+
 // pluginDCCVotes tallies all votes for a dcc. We can run the tally
 // unlocked and just replay the journal. If the replay becomes an issue we
 // could cache it. The Vote that is returned does have to be locked.
@@ -977,9 +1166,9 @@ func (g *gitBackEnd) pluginDCCVotes(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeVoteResults %v", err)
 	}
 
-	// Verify proposal exists, we can run this lockless
+	// Verify dcc exists, we can run this lockless
 	if !g.vettedPropExists(vote.Token) {
-		return "", fmt.Errorf("proposal not found: %v", vote.Token)
+		return "", fmt.Errorf("dcc not found: %v", vote.Token)
 	}
 
 	// This portion is must run locked
@@ -1171,4 +1360,15 @@ func (g *gitBackEnd) pluginCMSInventory() (string, error) {
 	}
 
 	return string(payload), nil
+}
+
+// pluginLoadDCCVoteResults is a pass through function. CmdLoadDCCVoteResults does
+// not require any work to be performed in gitBackEnd.
+func (g *gitBackEnd) pluginLoadDCCVoteResults() (string, error) {
+	r := cmsplugin.LoadVoteResultsReply{}
+	reply, err := cmsplugin.EncodeLoadVoteResultsReply(r)
+	if err != nil {
+		return "", err
+	}
+	return string(reply), nil
 }
