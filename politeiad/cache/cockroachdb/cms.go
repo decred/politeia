@@ -65,59 +65,6 @@ func (c *cms) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	return replyPayload, nil
 }
 
-// cmdVoteDetails returns the StartDCCVote records for the
-// passed in record token.
-func (c *cms) cmdVoteDetails(payload string) (string, error) {
-	log.Tracef("cms cmdDCCVoteDetails")
-
-	vd, err := cmsplugin.DecodeVoteDetails([]byte(payload))
-	if err != nil {
-		return "", nil
-	}
-
-	// Lookup the most recent version of the record
-	var r Record
-	err = c.recordsdb.
-		Where("records.token = ?", vd.Token).
-		Order("records.version desc").
-		Limit(1).
-		Find(&r).
-		Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			err = cache.ErrRecordNotFound
-		}
-		return "", err
-	}
-
-	// Lookup start vote
-	var sv StartDCCVote
-	err = c.recordsdb.
-		Where("token = ?", vd.Token).
-		Preload("Options").
-		Preload("EligibleUserIDs").
-		Find(&sv).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// A start vote may note exist. This is ok.
-	} else if err != nil {
-		return "", fmt.Errorf("start vote lookup failed: %v", err)
-	}
-
-	// Prepare reply
-	dsv, dsvr := convertStartVoteToCMS(sv)
-	vdr := cmsplugin.VoteDetailsReply{
-		StartVote:      dsv,
-		StartVoteReply: dsvr,
-	}
-	vdrb, err := cmsplugin.EncodeVoteDetailsReply(vdr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(vdrb), nil
-}
-
 // cmdCastVote creates CastVote records using the passed in payloads and
 // inserts them into the database.
 func (c *cms) cmdCastVote(cmdPayload, replyPayload string) (string, error) {
@@ -460,94 +407,6 @@ func (c *cms) getVoteResults(startVotes map[string]StartDCCVote) (map[string][]c
 	return results, nil
 }
 
-func (c *cms) cmdVoteSummary(payload string) (string, error) {
-	log.Tracef("cms cmdVoteSummary")
-
-	vs, err := cmsplugin.DecodeVoteSummary([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Lookup the most recent record version
-	var r Record
-	err = c.recordsdb.
-		Where("records.token = ?", vs.Token).
-		Order("records.version desc").
-		Limit(1).
-		Find(&r).
-		Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			err = cache.ErrRecordNotFound
-		}
-		return "", err
-	}
-
-	// Declare here to prevent goto errors
-	results := make([]cmsplugin.VoteOptionResult, 0, 16)
-	var (
-		sv StartDCCVote
-		vr VoteResults
-	)
-
-	// Lookup start vote
-	err = c.recordsdb.
-		Where("token = ?", vs.Token).
-		Preload("Options").
-		Find(&sv).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// If an start vote doesn't exist then
-		// there is no need to continue.
-		goto sendReply
-	} else if err != nil {
-		return "", fmt.Errorf("lookup start vote: %v", err)
-	}
-
-	// Lookup vote results
-	err = c.recordsdb.
-		Where("token = ?", vs.Token).
-		Preload("Results").
-		Preload("Results.Option").
-		Find(&vr).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// A vote results record was not found. This means that
-		// the vote is either still active or has not been lazy
-		// loaded yet. The vote results will need to be looked
-		// up manually.
-	} else if err != nil {
-		return "", fmt.Errorf("lookup vote results: %v", err)
-	} else {
-		// Vote results record exists. We have all of the data
-		// that we need to send the reply.
-		vor := convertVoteOptionResultsToCMS(vr.Results)
-		results = append(results, vor...)
-		goto sendReply
-	}
-
-	// Lookup vote results manually
-	results, err = c.lookupResultsForVoteDCCOptions(sv.Options)
-	if err != nil {
-		return "", fmt.Errorf("count cast votes: %v", err)
-	}
-
-sendReply:
-
-	vsr := cmsplugin.VoteSummaryReply{
-		Duration:       sv.Duration,
-		EndHeight:      sv.EndHeight,
-		PassPercentage: sv.PassPercentage,
-		Results:        results,
-	}
-	reply, err := cmsplugin.EncodeVoteSummaryReply(vsr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
 // Exec executes a cms plugin command.  Plugin commands that write data to
 // the cache require both the command payload and the reply payload.  Plugin
 // commands that fetch data from the cache require only the command payload.
@@ -556,18 +415,6 @@ func (c *cms) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("cms Exec: %v", cmd)
 
 	switch cmd {
-	case cmsplugin.CmdStartVote:
-		return c.cmdStartVote(cmdPayload, replyPayload)
-	case cmsplugin.CmdVoteDetails:
-		return c.cmdVoteDetails(cmdPayload)
-	case cmsplugin.CmdCastVote:
-		return c.cmdCastVote(cmdPayload, replyPayload)
-	case cmsplugin.CmdInventory:
-		return c.cmdInventory()
-	case cmsplugin.CmdVoteSummary:
-		return c.cmdVoteSummary(cmdPayload)
-	case cmsplugin.CmdLoadVoteResults:
-		return c.cmdLoadVoteResults(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd

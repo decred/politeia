@@ -2836,6 +2836,15 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case cmsplugin.CmdCastVote:
 		payload, err := g.pluginCastVote(payload)
 		return cmsplugin.CmdCastVote, payload, err
+	case cmsplugin.CmdDCCVoteResults:
+		payload, err := g.pluginDCCVoteResults(payload)
+		return cmsplugin.CmdDCCVoteResults, payload, err
+	case cmsplugin.CmdVoteDetails:
+		payload, err := g.pluginDCCVoteDetails(payload)
+		return cmsplugin.CmdVoteDetails, payload, err
+	case cmsplugin.CmdVoteSummary:
+		payload, err := g.pluginDCCVoteSummary(payload)
+		return cmsplugin.CmdVoteSummary, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

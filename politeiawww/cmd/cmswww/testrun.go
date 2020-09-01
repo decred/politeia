@@ -916,11 +916,37 @@ func testDCCVote(admin user) error {
 	if err != nil {
 		return err
 	}
+	expectedApprovalVotes := uint64(1)
 	err = dccVote(*c3, dccToken, cmsplugin.DCCDisapprovalString)
 	if err != nil {
 		return err
 	}
-
+	expectedDisapprovalVotes := uint64(1)
+	// Check to see that the votes are properly cast in gitbe
+	fmt.Printf("  check DCC votes")
+	vs, err := dccVoteSummary(*c2, dccToken)
+	if err != nil {
+		return err
+	}
+	expectedVoteOptionResults := 2
+	if len(vs.Results) != expectedVoteOptionResults {
+		return fmt.Errorf("unexpected number of vote option results: got %v,"+
+			" wanted %v", len(vs.Results), expectedVoteOptionResults)
+	}
+	for _, result := range vs.Results {
+		if result.Option.Id == cmsplugin.DCCApprovalString &&
+			result.VotesReceived != expectedApprovalVotes {
+			return fmt.Errorf("unexpected amount of %v votes, got %v wanted %v",
+				cmsplugin.DCCApprovalString, result.VotesReceived,
+				expectedApprovalVotes)
+		}
+		if result.Option.Id == cmsplugin.DCCDisapprovalString &&
+			result.VotesReceived != expectedDisapprovalVotes {
+			return fmt.Errorf("unexpected amount of %v votes, got %v wanted %v",
+				cmsplugin.DCCDisapprovalString, result.VotesReceived,
+				expectedDisapprovalVotes)
+		}
+	}
 	/*
 		// Have the admin approve the DCC
 		// This can't be done in the test run because the vote needs to
