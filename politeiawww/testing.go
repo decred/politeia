@@ -791,7 +791,6 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		t.Fatalf("create cookie key: %v", err)
 	}
 
-	// Setup logging
 	initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
 	setLogLevels("off")
 
