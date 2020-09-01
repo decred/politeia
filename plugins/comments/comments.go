@@ -2,6 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package comments provides a plugin for adding comment functionality to
+// records.
 package comments
 
 import (
@@ -71,7 +73,7 @@ var (
 	}
 )
 
-// UserError represents an error that is cause by something that the user did.
+// UserError represents an error that is cause by the user.
 type UserError struct {
 	ErrorCode    ErrorStatusT
 	ErrorContext []string
@@ -79,7 +81,7 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("comments error code: %v", e.ErrorCode)
+	return fmt.Sprintf("comments plugin error code: %v", e.ErrorCode)
 }
 
 // Comment represent a record comment.

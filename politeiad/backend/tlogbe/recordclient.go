@@ -289,6 +289,6 @@ func (c *RecordClient) BlobsByKeyPrefix(keyPrefix string) ([][]byte, error) {
 }
 
 // TODO implement RecordClient
-func (t *Tlogbe) RecordClient(token []byte) (*RecordClient, error) {
+func (t *TlogBackend) RecordClient(token []byte) (*RecordClient, error) {
 	return nil, nil
 }

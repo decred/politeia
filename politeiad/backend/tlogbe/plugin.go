@@ -83,6 +83,60 @@ func DecodeNewRecordPost(payload []byte) (*NewRecordPost, error) {
 	return &nrp, nil
 }
 
+// SetRecordStatusPre is the payload for the HookSetRecordStatusPre hook.
+type SetRecordStatusPre struct {
+	Record backend.Record `json:"record"` // Current record
+
+	// Updated fields
+	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
+	MDAppend       []backend.MetadataStream `json:"mdappend"`
+	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
+}
+
+// EncodeSetRecordStatusPre encodes a SetRecordStatusPre into a JSON byte
+// slice.
+func EncodeSetRecordStatusPre(srsp SetRecordStatusPre) ([]byte, error) {
+	return json.Marshal(srsp)
+}
+
+// DecodeSetRecordStatusPre decodes a JSON byte slice into a
+// SetRecordStatusPre.
+func DecodeSetRecordStatusPre(payload []byte) (*SetRecordStatusPre, error) {
+	var srsp SetRecordStatusPre
+	err := json.Unmarshal(payload, &srsp)
+	if err != nil {
+		return nil, err
+	}
+	return &srsp, nil
+}
+
+// SetRecordStatusPost is the payload for the HookSetRecordStatusPost hook.
+type SetRecordStatusPost struct {
+	Record backend.Record `json:"record"` // Current record
+
+	// Updated fields
+	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
+	MDAppend       []backend.MetadataStream `json:"mdappend"`
+	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
+}
+
+// EncodeSetRecordStatusPost encodes a SetRecordStatusPost into a JSON byte
+// slice.
+func EncodeSetRecordStatusPost(srsp SetRecordStatusPost) ([]byte, error) {
+	return json.Marshal(srsp)
+}
+
+// DecodeSetRecordStatusPost decodes a JSON byte slice into a
+// SetRecordStatusPost.
+func DecodeSetRecordStatusPost(payload []byte) (*SetRecordStatusPost, error) {
+	var srsp SetRecordStatusPost
+	err := json.Unmarshal(payload, &srsp)
+	if err != nil {
+		return nil, err
+	}
+	return &srsp, nil
+}
+
 // Plugin provides an API for the tlogbe to use when interacting with plugins.
 // All tlogbe plugins must implement the Plugin interface.
 type Plugin interface {

@@ -2,6 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package dcrdata provides a plugin for retrieving data from the dcrdata block
+// explorer.
 package dcrdata
 
 import (

@@ -50,7 +50,7 @@ var (
 type commentsPlugin struct {
 	sync.Mutex
 	id      *identity.FullIdentity
-	backend *tlogbe.Tlogbe
+	backend *tlogbe.TlogBackend
 
 	// Mutexes contains a mutex for each record. The mutexes are lazy
 	// loaded.
@@ -1502,7 +1502,7 @@ func (p *commentsPlugin) Setup() error {
 }
 
 // NewCommentsPlugin returns a new comments plugin.
-func NewCommentsPlugin(backend *tlogbe.Tlogbe, settings []backend.PluginSetting) *commentsPlugin {
+func NewCommentsPlugin(backend *tlogbe.TlogBackend, settings []backend.PluginSetting) *commentsPlugin {
 	// TODO these should be passed in as plugin settings
 	id := &identity.FullIdentity{}
 

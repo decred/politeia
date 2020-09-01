@@ -2,16 +2,24 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package pi provides a plugin for functionality that is specific to decred's
+// proposal system.
 package pi
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type ErrorStatusT int
 
 const (
 	Version uint32 = 1
 	ID             = "pi"
 
 	// Plugin commands
-	CmdLinkedFrom = "linkedfrom" // Get linked from lists
+	CmdProposalDetails = "proposaldetails"
+	CmdProposals       = "proposals"
 
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
@@ -22,8 +30,31 @@ const (
 	// file that is saved to politeiad. ProposalMetadata is saved to
 	// politeiad as a file, not as a metadata stream, since it needs to
 	// be included in the merkle root that politeiad signs.
-	FilenameProposalMetadata = "proposalmd.json"
+	FilenameProposalMetadata = "proposalmetadata.json"
+
+	// User error status codes
+	ErrorStatusInvalid       ErrorStatusT = 0
+	ErrorStatusLinkToInvalid ErrorStatusT = 1
 )
+
+var (
+	// ErrorStatus contains human readable user error statuses.
+	ErrorStatus = map[ErrorStatusT]string{
+		ErrorStatusInvalid:       "error status invalid",
+		ErrorStatusLinkToInvalid: "linkto invalid",
+	}
+)
+
+// UserError represents an error that is caused by the user.
+type UserError struct {
+	ErrorCode    ErrorStatusT
+	ErrorContext []string
+}
+
+// Error satisfies the error interface.
+func (e UserError) Error() string {
+	return fmt.Sprintf("pi plugin error code: %v", e.ErrorCode)
+}
 
 // ProposalMetadata contains proposal metadata that is provided by the user on
 // proposal submission. ProposalMetadata is saved to politeiad as a file, not
@@ -95,48 +126,4 @@ type StatusChange struct {
 	PublicKey string `json:"publickey"`
 	Signature string `json:"signature"`
 	Timestamp int64  `json:"timestamp"`
-}
-
-// LinkedFrom retrieves the linked from list for each of the provided proposal
-// tokens. A linked from list is a list of all the proposals that have linked
-// to a given proposal using the LinkTo field in the ProposalMetadata mdstream.
-// If a token does not correspond to an actual proposal then it will not be
-// included in the returned map.
-type LinkedFrom struct {
-	Tokens []string `json:"tokens"`
-}
-
-// EncodeLinkedFrom encodes a LinkedFrom into a JSON byte slice.
-func EncodeLinkedFrom(lf LinkedFrom) ([]byte, error) {
-	return json.Marshal(lf)
-}
-
-// DecodeLinkedFrom decodes a JSON byte slice into a LinkedFrom.
-func DecodeLinkedFrom(payload []byte) (*LinkedFrom, error) {
-	var lf LinkedFrom
-	err := json.Unmarshal(payload, &lf)
-	if err != nil {
-		return nil, err
-	}
-	return &lf, nil
-}
-
-// LinkedFromReply is the reply to the LinkedFrom command.
-type LinkedFromReply struct {
-	LinkedFrom map[string][]string `json:"linkedfrom"`
-}
-
-// EncodeLinkedFromReply encodes a LinkedFromReply into a JSON byte slice.
-func EncodeLinkedFromReply(lfr LinkedFromReply) ([]byte, error) {
-	return json.Marshal(lfr)
-}
-
-// DecodeLinkedFromReply decodes a JSON byte slice into a LinkedFrom.
-func DecodeLinkedFromReply(payload []byte) (*LinkedFromReply, error) {
-	var lfr LinkedFromReply
-	err := json.Unmarshal(payload, &lfr)
-	if err != nil {
-		return nil, err
-	}
-	return &lfr, nil
 }

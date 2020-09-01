@@ -62,10 +62,10 @@ var (
 	errRecordNotFound = errors.New("record not found")
 )
 
-// ticketVotePlugin satsifies the Plugin interface.
+// ticketVotePlugin satisfies the Plugin interface.
 type ticketVotePlugin struct {
 	sync.Mutex
-	backend *tlogbe.Tlogbe
+	backend *tlogbe.TlogBackend
 
 	// Plugin settings
 	id              *identity.FullIdentity
@@ -74,9 +74,9 @@ type ticketVotePlugin struct {
 	voteDurationMax uint32 // In blocks
 
 	// dataDir is the ticket vote plugin data directory. The only data
-	// that is stored here is memoized data that can be re-created at
-	// any time by walking the trillian tree. Example, the vote summary
-	// once a record vote has ended.
+	// that is stored here is cached data that can be re-created at any
+	// time by walking the trillian trees. Ex, the vote summary once a
+	// record vote has ended.
 	dataDir string
 
 	// inv contains the record inventory catagorized by vote status.
@@ -187,11 +187,10 @@ func (p *ticketVotePlugin) cachedSummaryPath(token string) string {
 }
 
 func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.Summary, error) {
-	fp := p.cachedSummaryPath(token)
-
 	p.Lock()
 	defer p.Unlock()
 
+	fp := p.cachedSummaryPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -211,7 +210,7 @@ func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.Summary, err
 	return &s, nil
 }
 
-func (p *ticketVotePlugin) cachedSummarySet(token string, s ticketvote.Summary) error {
+func (p *ticketVotePlugin) cachedSummarySave(token string, s ticketvote.Summary) error {
 	b, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -1780,9 +1779,9 @@ func (p *ticketVotePlugin) summary(token string, bestBlock uint32) (*ticketvote.
 	// calculate these results again.
 	if status == ticketvote.VoteStatusFinished {
 		// Save summary
-		err = p.cachedSummarySet(sv.Vote.Token, summary)
+		err = p.cachedSummarySave(sv.Vote.Token, summary)
 		if err != nil {
-			return nil, fmt.Errorf("cachedSummarySet %v: %v %v",
+			return nil, fmt.Errorf("cachedSummarySave %v: %v %v",
 				sv.Vote.Token, err, summary)
 		}
 
@@ -2007,7 +2006,7 @@ func (p *ticketVotePlugin) Setup() error {
 	return nil
 }
 
-func TicketVotePluginNew(backend *tlogbe.Tlogbe, settings []backend.PluginSetting) (*ticketVotePlugin, error) {
+func TicketVotePluginNew(backend *tlogbe.TlogBackend, settings []backend.PluginSetting) (*ticketVotePlugin, error) {
 	var (
 		// TODO these should be passed in as plugin settings
 		dataDir         string

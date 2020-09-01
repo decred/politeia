@@ -2,6 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package ticketvote provides a plugin for creating and managing votes that
+// require decred tickets to participate.
 package ticketvote
 
 import (
@@ -130,7 +132,7 @@ var (
 	}
 )
 
-// UserError represents an error that is cause by something that the user did.
+// UserError represents an error that is caused by the user.
 type UserError struct {
 	ErrorCode    ErrorStatusT
 	ErrorContext []string
@@ -138,7 +140,7 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("ticketvote error code: %v", e.ErrorCode)
+	return fmt.Sprintf("ticketvote plugin error code: %v", e.ErrorCode)
 }
 
 // AuthorizeVote is the structure that is saved to disk when a vote is

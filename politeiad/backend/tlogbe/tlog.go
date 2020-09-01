@@ -44,6 +44,8 @@ const (
 	// such as searching for a record index that has been buried by
 	// thousands of leaves from plugin data.
 	// TODO key prefix app-dataID:
+	// TODO the pluginID and the dataID should be passed into the tlog function
+	// instead of the keyPrefix
 	keyPrefixRecordIndex   = "recordindex:"
 	keyPrefixRecordContent = "record:"
 	keyPrefixFreezeRecord  = "freeze:"

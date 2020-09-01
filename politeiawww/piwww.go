@@ -466,7 +466,7 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 		}
 	}
 
-	// Verify user signed with active identity
+	// Verify user signed using active identity
 	if usr.PublicKey() != pn.PublicKey {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidSigningKey,
