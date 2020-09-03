@@ -7,10 +7,13 @@ package main
 import (
 	"encoding/hex"
 	"testing"
+	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/util"
 )
 
 func TestInviteNewUser(t *testing.T) {
@@ -99,6 +102,37 @@ func TestRegisterUser(t *testing.T) {
 
 	passwordTooShort := "a"
 
+	usernameExpired := "test3"
+	emailExpired := "test3@example.org"
+	tokenb, err := util.Random(www.VerificationTokenSize)
+	if err != nil {
+		t.Fatalf("unable to generate verification token %v", err)
+	}
+	d := time.Duration(www.VerificationExpiryHours) * time.Hour
+	expiry := time.Now().Add(-1 * d).Unix()
+
+	idExpired, err := shared.NewIdentity()
+	if err != nil {
+		t.Fatalf("error another generating identity")
+	}
+
+	// Create a new User record
+	u := user.User{
+		Email:                     emailExpired,
+		Username:                  emailExpired,
+		NewUserVerificationToken:  tokenb,
+		NewUserVerificationExpiry: expiry,
+	}
+	err = p.db.UserNew(u)
+	if err != nil {
+		t.Fatalf("error creating expired token user %v", err)
+	}
+
+	usr, err := p.db.UserGetByUsername(u.Username)
+	if err != nil {
+		t.Fatalf("error getting user by username %v", err)
+	}
+	p.setUserEmailsCache(usr.Email, usr.ID)
 	var tests = []struct {
 		name      string
 		email     string
@@ -118,11 +152,22 @@ func TestRegisterUser(t *testing.T) {
 			hex.EncodeToString(id.Public.Key[:]),
 		},
 		{
+			"error expired verification token",
+			emailExpired,
+			usernameExpired,
+			pwd,
+			hex.EncodeToString(tokenb),
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenExpired,
+			},
+			hex.EncodeToString(idExpired.Public.Key[:]),
+		},
+		{
 			"error invalid verification",
 			emailFresh,
 			usernameFresh,
 			pwd,
-			"12345",
+			"123456",
 			www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			},
