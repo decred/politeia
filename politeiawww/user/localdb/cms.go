@@ -19,7 +19,7 @@ const (
 // and false otherwise. This is helpful when iterating the user records
 // because the DB contains some non-user records.
 func isCMSUserRecord(key string) bool {
-	return !strings.HasPrefix(key, cmsUserPrefix)
+	return strings.HasPrefix(key, cmsUserPrefix)
 }
 
 // cmdNewCMSUser inserts a new CMSUser record into the database.
