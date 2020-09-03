@@ -20,15 +20,48 @@ func TestInviteNewUser(t *testing.T) {
 	p, cleanup := newTestCMSwww(t)
 	defer cleanup()
 
+	email := "test1@example.org"
+	inviteUserReq := cms.InviteNewUser{
+		Email:     email,
+		Temporary: false,
+	}
+	reply, err := p.processInviteNewUser(inviteUserReq)
+	if err != nil {
+		t.Fatalf("error inviting user %v", err)
+	}
+
+	id, err := shared.NewIdentity()
+	if err != nil {
+		t.Fatalf("error another generating identity")
+	}
+	registerReq := cms.RegisterUser{
+		Email:             email,
+		Username:          "test1",
+		Password:          "password",
+		VerificationToken: reply.VerificationToken,
+		PublicKey:         hex.EncodeToString(id.Public.Key[:]),
+	}
+	_, err = p.processRegisterUser(registerReq)
+	if err != nil {
+		t.Fatalf("error registering user %v", err)
+	}
 	var tests = []struct {
-		name      string
-		email     string
-		wantError error
+		name       string
+		email      string
+		wantError  error
+		tokenEmpty bool
 	}{
 		{
 			"success",
 			"test@example.com",
 			nil,
+			false,
+		},
+		{
+			"success already verified",
+			email,
+			nil,
+			true,
 		},
 		{
 			"error malformed",
@@ -36,6 +69,7 @@ func TestInviteNewUser(t *testing.T) {
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedEmail,
 			},
+			false,
 		},
 	}
 
@@ -45,12 +79,17 @@ func TestInviteNewUser(t *testing.T) {
 				Email:     v.email,
 				Temporary: false,
 			}
-			_, err := p.processInviteNewUser(inviteUserReq)
+			replyInvite, err := p.processInviteNewUser(inviteUserReq)
 
 			got := errToStr(err)
 			want := errToStr(v.wantError)
 			if got != want {
 				t.Errorf("got error %v, want %v", got, want)
+				return
+			}
+
+			if v.tokenEmpty && len(replyInvite.VerificationToken) > 0 {
+				t.Errorf("expecting an empty verification token but got %v", replyInvite.VerificationToken)
 			}
 		})
 	}
