@@ -399,7 +399,7 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	var err error
 	switch p.ID {
 	case user.CMSPluginID:
-		err = l.cmsPluginSetup()
+		// This is an acceptable plugin ID
 	default:
 		return user.ErrInvalidPlugin
 	}

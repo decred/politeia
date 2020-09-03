@@ -227,11 +227,3 @@ func (l *localdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return "", user.ErrInvalidPluginCmd
 	}
 }
-
-// cmsPluginSetup creates all cms plugin tables and ensures the database
-// is using the correct cms plugin version.
-func (l *localdb) cmsPluginSetup() error {
-
-	// do some kind of leveldb set up here?
-	return nil
-}
