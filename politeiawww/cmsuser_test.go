@@ -1,3 +1,7 @@
+// Copyright (c) 2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -59,11 +63,6 @@ func TestRegisterUser(t *testing.T) {
 		t.Fatalf("error generating identity")
 	}
 
-	// Create another user identity and save it to disk
-	idFresh, err := shared.NewIdentity()
-	if err != nil {
-		t.Fatalf("error another generating identity")
-	}
 	email := "test1@example.org"
 	username := "test1"
 	pwd := "password1"
@@ -76,45 +75,154 @@ func TestRegisterUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error inviting user %v", err)
 	}
+
+	// Create another user identity and save it to disk
+	idFresh, err := shared.NewIdentity()
+	if err != nil {
+		t.Fatalf("error another generating identity")
+	}
+	emailFresh := "test2@example.org"
+	usernameFresh := "test2"
+
+	inviteUserReqFresh := cms.InviteNewUser{
+		Email:     emailFresh,
+		Temporary: false,
+	}
+	replyFresh, err := p.processInviteNewUser(inviteUserReqFresh)
+	if err != nil {
+		t.Fatalf("error inviting user %v", err)
+	}
+
+	usernameTooShort := "a"
+	usernameTooLong := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	usernameRegExp := "?blahg!"
+
+	passwordTooShort := "a"
+
 	var tests = []struct {
 		name      string
+		email     string
 		username  string
+		pwd       string
 		token     string
 		wantError error
 		pubkey    string
 	}{
 		{
-			"error bad verification",
-			username,
-			"12345",
-			www.UserError{
-				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
-			},
-			hex.EncodeToString(id.Public.Key[:]),
-		},
-		{
 			"success",
+			email,
 			username,
+			pwd,
 			reply.VerificationToken,
 			nil,
 			hex.EncodeToString(id.Public.Key[:]),
 		},
 		{
-			"error duplicate pubkey",
-			username,
+			"error invalid verification",
+			emailFresh,
+			usernameFresh,
+			pwd,
 			"12345",
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error wrong verification",
+			emailFresh,
+			usernameFresh,
+			pwd,
+			"this is an invalid verification token",
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error duplicate pubkey",
+			emailFresh,
+			usernameFresh,
+			pwd,
+			replyFresh.VerificationToken,
 			www.UserError{
 				ErrorCode: www.ErrorStatusDuplicatePublicKey,
 			},
 			hex.EncodeToString(id.Public.Key[:]),
 		},
 		{
+			"error invalid pubkey",
+			emailFresh,
+			usernameFresh,
+			pwd,
+			replyFresh.VerificationToken,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
+			},
+			"this is a bad pubkey",
+		},
+		{
 			"error duplicate username",
+			emailFresh,
 			username,
+			pwd,
 			"12345",
 			www.UserError{
 				ErrorCode: www.ErrorStatusDuplicateUsername,
 			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error malformed username too short",
+			emailFresh,
+			usernameTooShort,
+			pwd,
+			"12345",
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
+			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error malformed username too long",
+			emailFresh,
+			usernameTooLong,
+			pwd,
+			"12345",
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
+			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error malformed username reg exp",
+			emailFresh,
+			usernameRegExp,
+			pwd,
+			"12345",
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
+			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error malformed password too short",
+			emailFresh,
+			usernameFresh,
+			passwordTooShort,
+			"12345",
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
+			},
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"success fresh",
+			emailFresh,
+			usernameFresh,
+			pwd,
+			replyFresh.VerificationToken,
+			nil,
 			hex.EncodeToString(idFresh.Public.Key[:]),
 		},
 	}
@@ -122,9 +230,9 @@ func TestRegisterUser(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			registerReq := cms.RegisterUser{
-				Email:             email,
+				Email:             v.email,
 				Username:          v.username,
-				Password:          pwd,
+				Password:          v.pwd,
 				VerificationToken: v.token,
 				PublicKey:         v.pubkey,
 			}
