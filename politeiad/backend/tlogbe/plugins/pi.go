@@ -91,6 +91,7 @@ func (p *piPlugin) cachedLinkedFromLocked(token string) (*proposalLinkedFrom, er
 	fp := p.cachedLinkedFromPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
+		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
 			// File does't exist
 			return nil, errRecordNotFound
@@ -175,6 +176,8 @@ func (p *piPlugin) cachedLinkedFromDel(parentToken, childToken string) error {
 func (p *piPlugin) Setup() error {
 	log.Tracef("pi Setup")
 
+	// Verify vote plugin dependency
+
 	return nil
 }
 
@@ -185,14 +188,17 @@ func (p *piPlugin) Cmd(cmd, payload string) (string, error) {
 }
 
 func (p *piPlugin) hookNewRecordPre(payload string) error {
-	nrp, err := tlogbe.DecodeNewRecordPre([]byte(payload))
+	nr, err := tlogbe.DecodeNewRecord([]byte(payload))
 	if err != nil {
 		return err
 	}
 
+	// TODO verify ProposalMetadata signature. This is already done in
+	// www but we should do it here anyway since its plugin data.
+
 	// Decode ProposalMetadata
 	var pm *pi.ProposalMetadata
-	for _, v := range nrp.Files {
+	for _, v := range nr.Files {
 		if v.Name == pi.FilenameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
@@ -291,8 +297,95 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	return nil
 }
 
+func convertPropStatusFromMDStatus(s backend.MDStatusT) pi.PropStatusT {
+	var status pi.PropStatusT
+	switch s {
+	case backend.MDStatusUnvetted, backend.MDStatusIterationUnvetted:
+		status = pi.PropStatusUnvetted
+	case backend.MDStatusVetted:
+		status = pi.PropStatusPublic
+	case backend.MDStatusCensored:
+		status = pi.PropStatusCensored
+	case backend.MDStatusArchived:
+		status = pi.PropStatusAbandoned
+	}
+	return status
+}
+
+func (p *piPlugin) hookEditRecordPre(payload string) error {
+	er, err := tlogbe.DecodeEditRecord([]byte(payload))
+	if err != nil {
+		return err
+	}
+
+	// TODO verify files were changed. Before adding this, verify that
+	// politeiad will also error if no files were changed.
+
+	// Verify proposal status
+	status := convertPropStatusFromMDStatus(er.Record.RecordMetadata.Status)
+	if status != pi.PropStatusUnvetted && status != pi.PropStatusPublic {
+		return pi.UserError{
+			ErrorCode: pi.ErrorStatusWrongPropStatus,
+		}
+	}
+
+	// Verify vote status
+	token := er.RecordMetadata.Token
+	s := ticketvote.Summaries{
+		Tokens: []string{token},
+	}
+	b, err := ticketvote.EncodeSummaries(s)
+	if err != nil {
+		return err
+	}
+	reply, err := p.backend.Plugin(ticketvote.ID,
+		ticketvote.CmdSummaries, string(b))
+	if err != nil {
+		return fmt.Errorf("ticketvote Summaries: %v", err)
+	}
+	sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
+	if err != nil {
+		return err
+	}
+	summary, ok := sr.Summaries[token]
+	if !ok {
+		return fmt.Errorf("ticketvote summmary not found")
+	}
+	if summary.Status != ticketvote.VoteStatusUnauthorized {
+		e := fmt.Sprintf("vote status got %v, want %v",
+			ticketvote.VoteStatus[summary.Status],
+			ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
+		return pi.UserError{
+			ErrorCode:    pi.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Verify that the linkto has not changed. This only applies to
+	// public proposal. Unvetted proposals are allowed to change their
+	// linkto.
+	if status == pi.PropStatusPublic {
+		pmCurr, err := proposalMetadataFromFiles(er.Record.Files)
+		if err != nil {
+			return err
+		}
+		pmNew, err := proposalMetadataFromFiles(er.FilesAdd)
+		if err != nil {
+			return err
+		}
+		if pmCurr.LinkTo != pmNew.LinkTo {
+			return pi.UserError{
+				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorContext: []string{"linkto cannot change on public proposal"},
+			}
+		}
+	}
+
+	return nil
+}
+
 func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
-	srsp, err := tlogbe.DecodeSetRecordStatusPost([]byte(payload))
+	srs, err := tlogbe.DecodeSetRecordStatus([]byte(payload))
 	if err != nil {
 		return err
 	}
@@ -300,7 +393,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	// If the LinkTo field has been set then the proposalLinkedFrom
 	// list might need to be updated for the proposal that is being
 	// linked to, depending on the status change that is being made.
-	pm, err := proposalMetadataFromFiles(srsp.Record.Files)
+	pm, err := proposalMetadataFromFiles(srs.Record.Files)
 	if err != nil {
 		return err
 	}
@@ -309,9 +402,9 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 		// the parent proposal's linked from list to be updated.
 		var (
 			parentToken = pm.LinkTo
-			childToken  = srsp.RecordMetadata.Token
+			childToken  = srs.RecordMetadata.Token
 		)
-		switch srsp.RecordMetadata.Status {
+		switch srs.RecordMetadata.Status {
 		case backend.MDStatusVetted:
 			// Proposal has been made public. Add child token to parent
 			// token's linked from list.
@@ -338,6 +431,8 @@ func (p *piPlugin) Hook(h tlogbe.HookT, payload string) error {
 	switch h {
 	case tlogbe.HookNewRecordPre:
 		return p.hookNewRecordPre(payload)
+	case tlogbe.HookEditRecordPre:
+		return p.hookEditRecordPre(payload)
 	case tlogbe.HookSetRecordStatusPost:
 		return p.hookSetRecordStatusPost(payload)
 	}

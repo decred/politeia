@@ -39,53 +39,62 @@ var (
 	}
 )
 
-// NewRecordPre is the payload for the HookNewRecordPre hook.
-type NewRecordPre struct {
+// NewRecord is the payload for the HookNewRecordPre and HookNewRecordPost
+// hooks.
+type NewRecord struct {
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
 	Metadata       []backend.MetadataStream `json:"metadata"`
 	Files          []backend.File           `json:"files"`
 }
 
-// EncodeNewRecordPre encodes a NewRecordPre into a JSON byte slice.
-func EncodeNewRecordPre(nrp NewRecordPre) ([]byte, error) {
-	return json.Marshal(nrp)
+// EncodeNewRecord encodes a NewRecord into a JSON byte slice.
+func EncodeNewRecord(nr NewRecord) ([]byte, error) {
+	return json.Marshal(nr)
 }
 
-// DecodeNewRecordPre decodes a JSON byte slice into a NewRecordPre.
-func DecodeNewRecordPre(payload []byte) (*NewRecordPre, error) {
-	var nrp NewRecordPre
-	err := json.Unmarshal(payload, &nrp)
+// DecodeNewRecord decodes a JSON byte slice into a NewRecord.
+func DecodeNewRecord(payload []byte) (*NewRecord, error) {
+	var nr NewRecord
+	err := json.Unmarshal(payload, &nr)
 	if err != nil {
 		return nil, err
 	}
-	return &nrp, nil
+	return &nr, nil
 }
 
-// NewRecordPost is the payload for the HookNewRecordPost hook.
-type NewRecordPost struct {
+// EditRecord is the payload for the EditRecordPre and EditRecordPost hooks.
+type EditRecord struct {
+	// Current record
+	Record backend.Record `json:"record"`
+
+	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-	Metadata       []backend.MetadataStream `json:"metadata"`
-	Files          []backend.File           `json:"files"`
+	MDAppend       []backend.MetadataStream `json:"mdappend"`
+	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
+	FilesAdd       []backend.File           `json:"filesadd"`
+	FilesDel       []string                 `json:"filesdel"`
 }
 
-// EncodeNewRecordPost encodes a NewRecordPost into a JSON byte slice.
-func EncodeNewRecordPost(nrp NewRecordPost) ([]byte, error) {
-	return json.Marshal(nrp)
+// EncodeEditRecord encodes an EditRecord into a JSON byte slice.
+func EncodeEditRecord(nr EditRecord) ([]byte, error) {
+	return json.Marshal(nr)
 }
 
-// DecodeNewRecordPost decodes a JSON byte slice into a NewRecordPost.
-func DecodeNewRecordPost(payload []byte) (*NewRecordPost, error) {
-	var nrp NewRecordPost
-	err := json.Unmarshal(payload, &nrp)
+// DecodeEditRecord decodes a JSON byte slice into a EditRecord.
+func DecodeEditRecord(payload []byte) (*EditRecord, error) {
+	var nr EditRecord
+	err := json.Unmarshal(payload, &nr)
 	if err != nil {
 		return nil, err
 	}
-	return &nrp, nil
+	return &nr, nil
 }
 
-// SetRecordStatusPre is the payload for the HookSetRecordStatusPre hook.
-type SetRecordStatusPre struct {
-	Record backend.Record `json:"record"` // Current record
+// SetRecordStatus is the payload for the HookSetRecordStatusPre and
+// HookSetRecordStatusPost hooks.
+type SetRecordStatus struct {
+	// Current record
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -93,51 +102,22 @@ type SetRecordStatusPre struct {
 	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
 }
 
-// EncodeSetRecordStatusPre encodes a SetRecordStatusPre into a JSON byte
-// slice.
-func EncodeSetRecordStatusPre(srsp SetRecordStatusPre) ([]byte, error) {
-	return json.Marshal(srsp)
+// EncodeSetRecordStatus encodes a SetRecordStatus into a JSON byte slice.
+func EncodeSetRecordStatus(srs SetRecordStatus) ([]byte, error) {
+	return json.Marshal(srs)
 }
 
-// DecodeSetRecordStatusPre decodes a JSON byte slice into a
-// SetRecordStatusPre.
-func DecodeSetRecordStatusPre(payload []byte) (*SetRecordStatusPre, error) {
-	var srsp SetRecordStatusPre
-	err := json.Unmarshal(payload, &srsp)
+// DecodeSetRecordStatus decodes a JSON byte slice into a SetRecordStatus.
+func DecodeSetRecordStatus(payload []byte) (*SetRecordStatus, error) {
+	var srs SetRecordStatus
+	err := json.Unmarshal(payload, &srs)
 	if err != nil {
 		return nil, err
 	}
-	return &srsp, nil
+	return &srs, nil
 }
 
-// SetRecordStatusPost is the payload for the HookSetRecordStatusPost hook.
-type SetRecordStatusPost struct {
-	Record backend.Record `json:"record"` // Current record
-
-	// Updated fields
-	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-	MDAppend       []backend.MetadataStream `json:"mdappend"`
-	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
-}
-
-// EncodeSetRecordStatusPost encodes a SetRecordStatusPost into a JSON byte
-// slice.
-func EncodeSetRecordStatusPost(srsp SetRecordStatusPost) ([]byte, error) {
-	return json.Marshal(srsp)
-}
-
-// DecodeSetRecordStatusPost decodes a JSON byte slice into a
-// SetRecordStatusPost.
-func DecodeSetRecordStatusPost(payload []byte) (*SetRecordStatusPost, error) {
-	var srsp SetRecordStatusPost
-	err := json.Unmarshal(payload, &srsp)
-	if err != nil {
-		return nil, err
-	}
-	return &srsp, nil
-}
-
-// Plugin provides an API for the tlogbe to use when interacting with plugins.
+/// Plugin provides an API for the tlogbe to use when interacting with plugins.
 // All tlogbe plugins must implement the Plugin interface.
 type Plugin interface {
 	// Perform plugin setup

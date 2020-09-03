@@ -104,6 +104,14 @@ const (
 )
 
 var (
+	VoteStatus = map[VoteStatusT]string{
+		VoteStatusInvalid:      "vote status invalid",
+		VoteStatusUnauthorized: "unauthorized",
+		VoteStatusAuthorized:   "authorized",
+		VoteStatusStarted:      "started",
+		VoteStatusFinished:     "finished",
+	}
+
 	VoteError = map[VoteErrorT]string{
 		VoteErrorInvalid:             "vote error invalid",
 		VoteErrorInternalError:       "internal server error",

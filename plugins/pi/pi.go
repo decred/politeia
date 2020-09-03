@@ -11,6 +11,7 @@ import (
 	"fmt"
 )
 
+type PropStatusT int
 type ErrorStatusT int
 
 const (
@@ -18,8 +19,6 @@ const (
 	ID             = "pi"
 
 	// Plugin commands
-	CmdProposalDetails = "proposaldetails"
-	CmdProposals       = "proposals"
 
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
@@ -32,16 +31,37 @@ const (
 	// be included in the merkle root that politeiad signs.
 	FilenameProposalMetadata = "proposalmetadata.json"
 
+	// Proposal status codes
+	PropStatusInvalid   PropStatusT = 0 // Invalid status
+	PropStatusUnvetted  PropStatusT = 1 // Prop has not been vetted
+	PropStatusPublic    PropStatusT = 2 // Prop has been made public
+	PropStatusCensored  PropStatusT = 3 // Prop has been censored
+	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
+
 	// User error status codes
-	ErrorStatusInvalid       ErrorStatusT = 0
-	ErrorStatusLinkToInvalid ErrorStatusT = 1
+	ErrorStatusInvalid         ErrorStatusT = 0
+	ErrorStatusLinkToInvalid   ErrorStatusT = 1
+	ErrorStatusWrongPropStatus ErrorStatusT = 2
+	ErrorStatusWrongVoteStatus ErrorStatusT = 3
 )
 
 var (
+	// StatusChanges contains the allowed proposal status change
+	// transitions. If StatusChanges[currentStatus][newStatus] exists
+	// then the status change is allowed.
+	StatusChanges = map[PropStatusT]map[PropStatusT]struct{}{
+		PropStatusUnvetted:  map[PropStatusT]struct{}{},
+		PropStatusPublic:    map[PropStatusT]struct{}{},
+		PropStatusCensored:  map[PropStatusT]struct{}{},
+		PropStatusAbandoned: map[PropStatusT]struct{}{},
+	}
+
 	// ErrorStatus contains human readable user error statuses.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:       "error status invalid",
-		ErrorStatusLinkToInvalid: "linkto invalid",
+		ErrorStatusInvalid:         "error status invalid",
+		ErrorStatusLinkToInvalid:   "linkto invalid",
+		ErrorStatusWrongPropStatus: "wrong proposal status",
+		ErrorStatusWrongVoteStatus: "wrong vote status",
 	}
 )
 
@@ -114,16 +134,4 @@ func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 		return nil, err
 	}
 	return &pg, nil
-}
-
-// StatusChange represents a proposal status change.
-//
-// Signature is the client signature of the Token+Version+Status+Reason.
-type StatusChange struct {
-	// Status    PropStatusT `json:"status"`
-	Version   string `json:"version"`
-	Message   string `json:"message,omitempty"`
-	PublicKey string `json:"publickey"`
-	Signature string `json:"signature"`
-	Timestamp int64  `json:"timestamp"`
 }

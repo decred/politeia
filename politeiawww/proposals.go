@@ -1083,103 +1083,25 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	}, nil
 }
 
-// filesToDel returns the names of the files that are included in filesOld but
-// are not included in filesNew. These are the files that need to be deleted
-// from a proposal on update.
-func filesToDel(filesOld []www.File, filesNew []www.File) []string {
-	newf := make(map[string]struct{}, len(filesOld)) // [name]struct
-	for _, v := range filesNew {
-		newf[v.Name] = struct{}{}
-	}
-
-	del := make([]string, 0, len(filesOld))
-	for _, v := range filesOld {
-		_, ok := newf[v.Name]
-		if !ok {
-			del = append(del, v.Name)
-		}
-	}
-
-	return del
-}
-
 // processEditProposal attempts to edit a proposal on politeiad.
 func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
 
-	// Make sure token is valid and not a prefix
-	if !tokenIsValid(ep.Token) {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-			ErrorContext: []string{ep.Token},
-		}
-	}
-
-	// Validate proposal status
-	cachedProp, err := p.getProp(ep.Token)
-	if err != nil {
-		/*
-			// TODO
+	/*
+		// Validate proposal status
+		cachedProp, err := p.getProp(ep.Token)
+		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				err = www.UserError{
 					ErrorCode: www.ErrorStatusProposalNotFound,
 				}
 			}
-		*/
-		return nil, err
-	}
-
-	if cachedProp.Status == www.PropStatusCensored ||
-		cachedProp.Status == www.PropStatusAbandoned {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongStatus,
+			return nil, err
 		}
-	}
 
-	// Ensure user is the proposal author
-	if cachedProp.UserId != u.ID.String() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserNotAuthor,
-		}
-	}
-
-	// Validate proposal vote status
-	bb, err := p.getBestBlock()
-	if err != nil {
-		return nil, err
-	}
-	vs, err := p.voteSummaryGet(ep.Token, bb)
-	if err != nil {
-		return nil, err
-	}
-	if vs.Status != www.PropVoteStatusNotAuthorized {
-		e := fmt.Sprintf("got vote status %v, want %v",
-			vs.Status, www.PropVoteStatusNotAuthorized)
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongVoteStatus,
-			ErrorContext: []string{e},
-		}
-	}
-
-	// Validate proposal. Convert it to www.NewProposal so that
-	// we can reuse the function validateProposal.
-	np := www.NewProposal{
-		Files:     ep.Files,
-		Metadata:  ep.Metadata,
-		PublicKey: ep.PublicKey,
-		Signature: ep.Signature,
-	}
-
-	pm, err := p.validateProposal(np, u)
-	if err != nil {
-		return nil, err
-	}
-	// Check if there were changes in the proposal by comparing
-	// their merkle roots. This captures changes that were made
-	// to either the files or the metadata.
-	_ = pm
-	/*
-		// TODO
+		// Check if there were changes in the proposal by comparing
+		// their merkle roots. This captures changes that were made
+		// to either the files or the metadata.
 		mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
 		if err != nil {
 			return nil, err
@@ -1189,106 +1111,9 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 				ErrorCode: www.ErrorStatusNoProposalChanges,
 			}
 		}
-		if cachedProp.State == www.PropStateVetted &&
-			cachedProp.LinkTo != pm.LinkTo {
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto cannot change once public"},
-			}
-		}
 	*/
 
-	// politeiad only includes files in its merkle root calc, not the
-	// metadata streams. This is why we include the ProposalMetadata
-	// as a politeiad file.
-
-	// Setup files
-	files := convertPropFilesFromWWW(ep.Files)
-	for _, v := range ep.Metadata {
-		switch v.Hint {
-		case www.HintProposalMetadata:
-			// files = append(files, convertFileFromMetadata(v))
-		}
-	}
-
-	// Setup metadata streams
-	pg := mdstream.ProposalGeneralV2{
-		Version:   mdstream.VersionProposalGeneral,
-		Timestamp: time.Now().Unix(),
-		PublicKey: ep.PublicKey,
-		Signature: ep.Signature,
-	}
-	pgb, err := mdstream.EncodeProposalGeneralV2(pg)
-	if err != nil {
-		return nil, err
-	}
-	mds := []pd.MetadataStream{
-		{
-			ID:      mdstream.IDProposalGeneral,
-			Payload: string(pgb),
-		},
-	}
-
-	// Setup politeiad request
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	e := pd.UpdateRecord{
-		Token:       ep.Token,
-		Challenge:   hex.EncodeToString(challenge),
-		MDOverwrite: mds,
-		FilesAdd:    files,
-		FilesDel:    filesToDel(cachedProp.Files, ep.Files),
-	}
-
-	var pdRoute string
-	switch cachedProp.Status {
-	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges:
-		pdRoute = pd.UpdateUnvettedRoute
-	case www.PropStatusPublic:
-		pdRoute = pd.UpdateVettedRoute
-	default:
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongStatus,
-		}
-	}
-
-	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost, pdRoute, e)
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle response
-	var pdReply pd.UpdateRecordReply
-	err = json.Unmarshal(responseBody, &pdReply)
-	if err != nil {
-		return nil, fmt.Errorf("Unmarshal UpdateUnvettedReply: %v", err)
-	}
-
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get proposal from the cache
-	updatedProp, err := p.getProp(ep.Token)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fire off edit proposal event
-	p.fireEvent(EventTypeProposalEdited,
-		EventDataProposalEdited{
-			Proposal: updatedProp,
-		},
-	)
-
-	return &www.EditProposalReply{
-		Proposal: *updatedProp,
-	}, nil
+	return nil, nil
 }
 
 // processAllVetted returns an array of vetted proposals. The maximum number

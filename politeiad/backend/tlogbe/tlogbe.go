@@ -41,9 +41,9 @@ const (
 var (
 	_ backend.Backend = (*TlogBackend)(nil)
 
-	// statusChanges contains the allowed record status changes. If
-	// statusChanges[currentStatus][newStatus] exists then the status
-	// change is allowed.
+	// statusChanges contains the allowed record status change
+	// transitions. If statusChanges[currentStatus][newStatus] exists
+	// then the status change is allowed.
 	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
 		// Unvetted status changes
 		backend.MDStatusUnvetted: map[backend.MDStatusT]struct{}{
@@ -512,19 +512,18 @@ func (t *TlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Call pre plugin hooks
-	pre := NewRecordPre{
+	nr := NewRecord{
 		RecordMetadata: *rm,
 		Metadata:       metadata,
 		Files:          files,
 	}
-	b, err := EncodeNewRecordPre(pre)
+	b, err := EncodeNewRecord(nr)
 	if err != nil {
 		return nil, err
 	}
 	err = t.pluginHook(HookNewRecordPre, string(b))
 	if err != nil {
-		return nil, fmt.Errorf("pluginHook %v: %v",
-			Hooks[HookNewRecordPre], err)
+		return nil, err
 	}
 
 	// Save the record
@@ -534,15 +533,6 @@ func (t *TlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Call post plugin hooks
-	post := NewRecordPost{
-		RecordMetadata: *rm,
-		Metadata:       metadata,
-		Files:          files,
-	}
-	b, err = EncodeNewRecordPost(post)
-	if err != nil {
-		return nil, err
-	}
 	err = t.pluginHook(HookNewRecordPost, string(b))
 	if err != nil {
 		log.Errorf("New: pluginHook %v: %v", Hooks[HookNewRecordPost], err)
@@ -606,6 +596,24 @@ func (t *TlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		return nil, err
 	}
 
+	// Call pre plugin hooks
+	er := EditRecord{
+		Record:         *r,
+		RecordMetadata: *recordMD,
+		MDAppend:       mdAppend,
+		MDOverwrite:    mdOverwrite,
+		FilesAdd:       filesAdd,
+		FilesDel:       filesDel,
+	}
+	b, err := EncodeEditRecord(er)
+	if err != nil {
+		return nil, err
+	}
+	err = t.pluginHook(HookEditRecordPre, string(b))
+	if err != nil {
+		return nil, err
+	}
+
 	// Save record
 	err = t.unvetted.recordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
@@ -613,6 +621,12 @@ func (t *TlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 			return nil, backend.ErrNoChanges
 		}
 		return nil, fmt.Errorf("recordSave: %v", err)
+	}
+
+	// Call post plugin hooks
+	err = t.pluginHook(HookEditRecordPost, string(b))
+	if err != nil {
+		log.Errorf("pluginHook %v: %v", Hooks[HookEditRecordPost], err)
 	}
 
 	// Update inventory cache. The inventory will only need to be
@@ -682,6 +696,24 @@ func (t *TlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		return nil, err
 	}
 
+	// Call pre plugin hooks
+	er := EditRecord{
+		Record:         *r,
+		RecordMetadata: *recordMD,
+		MDAppend:       mdAppend,
+		MDOverwrite:    mdOverwrite,
+		FilesAdd:       filesAdd,
+		FilesDel:       filesDel,
+	}
+	b, err := EncodeEditRecord(er)
+	if err != nil {
+		return nil, err
+	}
+	err = t.pluginHook(HookEditRecordPre, string(b))
+	if err != nil {
+		return nil, err
+	}
+
 	// Save record
 	err = t.vetted.recordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
@@ -689,6 +721,12 @@ func (t *TlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 			return nil, backend.ErrNoChanges
 		}
 		return nil, fmt.Errorf("recordSave: %v", err)
+	}
+
+	// Call post plugin hooks
+	err = t.pluginHook(HookEditRecordPost, string(b))
+	if err != nil {
+		log.Errorf("pluginHook %v: %v", Hooks[HookEditRecordPost], err)
 	}
 
 	// Return updated record
@@ -1058,20 +1096,19 @@ func (t *TlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	pre := SetRecordStatusPre{
+	srs := SetRecordStatus{
 		Record:         *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
 	}
-	b, err := EncodeSetRecordStatusPre(pre)
+	b, err := EncodeSetRecordStatus(srs)
 	if err != nil {
 		return nil, err
 	}
 	err = t.pluginHook(HookSetRecordStatusPre, string(b))
 	if err != nil {
-		return nil, fmt.Errorf("pluginHook %v: %v",
-			Hooks[HookSetRecordStatusPre], err)
+		return nil, err
 	}
 
 	// Update record
@@ -1097,16 +1134,6 @@ func (t *TlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Call post plugin hooks
-	post := SetRecordStatusPost{
-		Record:         *r,
-		RecordMetadata: rm,
-		MDAppend:       mdAppend,
-		MDOverwrite:    mdOverwrite,
-	}
-	b, err = EncodeSetRecordStatusPost(post)
-	if err != nil {
-		return nil, err
-	}
 	err = t.pluginHook(HookSetRecordStatusPost, string(b))
 	if err != nil {
 		log.Errorf("SetUnvettedStatus: pluginHook %v: %v",
@@ -1194,20 +1221,19 @@ func (t *TlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	pre := SetRecordStatusPre{
+	srs := SetRecordStatus{
 		Record:         *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
 	}
-	b, err := EncodeSetRecordStatusPre(pre)
+	b, err := EncodeSetRecordStatus(srs)
 	if err != nil {
 		return nil, err
 	}
 	err = t.pluginHook(HookSetRecordStatusPre, string(b))
 	if err != nil {
-		return nil, fmt.Errorf("pluginHook %v: %v",
-			Hooks[HookSetRecordStatusPre], err)
+		return nil, err
 	}
 
 	// Update record
@@ -1228,16 +1254,6 @@ func (t *TlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Call post plugin hooks
-	post := SetRecordStatusPost{
-		Record:         *r,
-		RecordMetadata: rm,
-		MDAppend:       mdAppend,
-		MDOverwrite:    mdOverwrite,
-	}
-	b, err = EncodeSetRecordStatusPost(post)
-	if err != nil {
-		return nil, err
-	}
 	err = t.pluginHook(HookSetRecordStatusPost, string(b))
 	if err != nil {
 		log.Errorf("SetVettedStatus: pluginHook %v: %v",
@@ -1287,9 +1303,6 @@ func (t *TlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 }
 
 func (t *TlogBackend) pluginHook(h HookT, payload string) error {
-	t.RLock()
-	defer t.RUnlock()
-
 	// Pass hook event and payload to each plugin
 	for _, v := range t.plugins {
 		err := v.ctx.Hook(h, payload)

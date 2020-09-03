@@ -28,16 +28,34 @@ import (
 
 // TODO use pi errors instead of www errors
 
+type propStateT int
+
 const (
 	// MIME types
 	mimeTypeText     = "text/plain"
 	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
 	mimeTypePNG      = "image/png"
+
+	// Proposal states. Proposal states correspond that politeiad
+	// routes.
+	propStateInvalid  propStateT = 0
+	propStateUnvetted propStateT = 1
+	propStateVetted   propStateT = 2
 )
 
 var (
 	validProposalName = regexp.MustCompile(createProposalNameRegex())
 )
+
+func propStateFromStatus(s pi.PropStatusT) propStateT {
+	switch s {
+	case pi.PropStatusUnvetted, pi.PropStatusCensored:
+		return propStateUnvetted
+	case pi.PropStatusPublic, pi.PropStatusAbandoned:
+		return propStateVetted
+	}
+	return propStateInvalid
+}
 
 func convertUserErrFromSignatureErr(err error) www.UserError {
 	var e util.SignatureError
@@ -524,8 +542,6 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	if err != nil {
 		return nil, err
 	}
-
-	// Handle response
 	var nrr pd.NewRecordReply
 	err = json.Unmarshal(resBody, &nrr)
 	if err != nil {
@@ -551,12 +567,152 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 			username: usr.Username,
 		})
 
-	log.Infof("Submitted proposal: %v %v", cr.Token, pm.Name)
+	log.Infof("Proposal submitted: %v %v", cr.Token, pm.Name)
 	for k, f := range pn.Files {
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
 
-	return &pi.ProposalNewReply{
-		CensorshipRecord: cr,
-	}, nil
+	// TODO return full proposal
+	_ = cr
+	return &pi.ProposalNewReply{}, nil
+}
+
+// TODO implement proposalRecord
+func (p *politeiawww) proposalRecord(token string) (*pi.ProposalRecord, error) {
+	return nil, nil
+}
+
+// filesToDel returns the names of the files that are included in current but
+// are not included in updated. These are the files that need to be deleted
+// from a proposal on update.
+func filesToDel(current []pi.File, updated []pi.File) []string {
+	curr := make(map[string]struct{}, len(current)) // [name]struct
+	for _, v := range updated {
+		curr[v.Name] = struct{}{}
+	}
+
+	del := make([]string, 0, len(current))
+	for _, v := range current {
+		_, ok := curr[v.Name]
+		if !ok {
+			del = append(del, v.Name)
+		}
+	}
+
+	return del
+}
+
+func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*pi.ProposalEditReply, error) {
+	log.Tracef("processProposalEdit: %v", pe.Token)
+
+	// Verify user signed using active identity
+	if usr.PublicKey() != pe.PublicKey {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidSigningKey,
+			ErrorContext: []string{"not user's active identity"},
+		}
+	}
+
+	// Verify proposal
+	pm, err := p.verifyProposal(pe.Files, pe.Metadata,
+		pe.PublicKey, pe.Signature)
+	if err != nil {
+		return nil, err
+	}
+	if !tokenIsValid(pe.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{pe.Token},
+		}
+	}
+
+	// Get the current proposal
+	curr, err := p.proposalRecord(pe.Token)
+	if err != nil {
+		// TODO www.ErrorStatusProposalNotFound
+		return nil, err
+	}
+
+	// Verify the user is the author. The public keys are not static
+	// values so the user IDs must be compared directly.
+	if curr.UserID != usr.ID.String() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotAuthor,
+		}
+	}
+
+	// Setup politeiad files. The Metadata objects are converted to
+	// politeiad files instead of metadata streams since they contain
+	// user defined data that needs to be included in the merkle root
+	// that politeiad signs.
+	files := convertFilesFromPi(pe.Files)
+	for _, v := range pe.Metadata {
+		switch v.Hint {
+		case pi.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
+	}
+
+	// Setup metadata stream
+	pg := piplugin.ProposalGeneral{
+		PublicKey: pe.PublicKey,
+		Signature: pe.Signature,
+		Timestamp: time.Now().Unix(),
+	}
+	b, err := piplugin.EncodeProposalGeneral(pg)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []pd.MetadataStream{
+		{
+			ID:      piplugin.MDStreamIDProposalGeneral,
+			Payload: string(b),
+		},
+	}
+
+	// Send politeiad request
+	var route string
+	switch propStateFromStatus(curr.Status) {
+	case propStateUnvetted:
+		route = pd.UpdateUnvettedRoute
+	case propStateVetted:
+		route = pd.UpdateVettedRoute
+	}
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	ur := pd.UpdateRecord{
+		Token:       pe.Token,
+		Challenge:   hex.EncodeToString(challenge),
+		MDOverwrite: metadata,
+		FilesAdd:    files,
+		FilesDel:    filesToDel(curr.Files, pe.Files),
+	}
+	resBody, err := p.makeRequest(http.MethodPost, route, ur)
+	if err != nil {
+		// TODO verify that this will throw an error if no proposal files
+		// were changed.
+		// TODO plugin error pass through
+		return nil, err
+	}
+	var urr pd.UpdateRecordReply
+	err = json.Unmarshal(resBody, &urr)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, urr.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO Emit an edit proposal event
+
+	log.Infof("Proposal edited: %v %v", pe.Token, pm.Name)
+	for k, f := range pe.Files {
+		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
+	}
+
+	// TODO return full proposal
+	return &pi.ProposalEditReply{}, nil
 }
