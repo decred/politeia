@@ -45,23 +45,44 @@ func TestInviteNewUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error registering user %v", err)
 	}
+
+	emailFreshToken := "test1@example.org"
+	inviteUserReq = cms.InviteNewUser{
+		Email:     emailFreshToken,
+		Temporary: false,
+	}
+	replyFresh, err := p.processInviteNewUser(inviteUserReq)
+	if err != nil {
+		t.Fatalf("error inviting user %v", err)
+	}
+
 	var tests = []struct {
 		name       string
 		email      string
 		wantError  error
 		tokenEmpty bool
+		tokenFresh bool
 	}{
 		{
 			"success",
 			"test@example.com",
 			nil,
 			false,
+			false,
+		},
+		{
+			"success new token",
+			email,
+			nil,
+			false,
+			true,
 		},
 		{
 			"success already verified",
 			email,
 			nil,
 			true,
+			false,
 		},
 		{
 			"error malformed",
@@ -69,6 +90,7 @@ func TestInviteNewUser(t *testing.T) {
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedEmail,
 			},
+			false,
 			false,
 		},
 	}
@@ -87,9 +109,20 @@ func TestInviteNewUser(t *testing.T) {
 				t.Errorf("got error %v, want %v", got, want)
 				return
 			}
-
-			if v.tokenEmpty && len(replyInvite.VerificationToken) > 0 {
-				t.Errorf("expecting an empty verification token but got %v", replyInvite.VerificationToken)
+			if v.tokenEmpty && replyInvite != nil &&
+				len(replyInvite.VerificationToken) > 0 {
+				t.Errorf("expecting an empty verification token but got %v",
+					replyInvite.VerificationToken)
+				return
+			} else if !v.tokenEmpty && replyInvite != nil &&
+				replyInvite.VerificationToken == "" {
+				t.Errorf("expecting an non-empty verification token but got empty")
+				return
+			}
+			if v.tokenFresh && replyInvite != nil &&
+				replyInvite.VerificationToken == replyFresh.VerificationToken {
+				t.Errorf("expecting an empty verification token but got %v",
+					replyInvite.VerificationToken)
 			}
 		})
 	}
