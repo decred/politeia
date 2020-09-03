@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"regexp"
 	"testing"
 	"time"
@@ -297,10 +298,26 @@ func TestUserGetByUsername(t *testing.T) {
 		WithArgs("random").
 		WillReturnError(user.ErrUserNotFound)
 
-	// Execute method to match queries
+	// Execute method
 	_, err = cdb.UserGetByUsername("random")
 	if err == nil {
 		t.Errorf("expecting error but there was none")
+	}
+
+	// Negative test Expectation
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(usr.Username).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	// Execute method
+	u, err = cdb.UserGetByUsername(usr.Username)
+	if err == nil {
+		t.Errorf("expecting error user not found, but there was none")
+	}
+
+	// Make sure no user was fetched
+	if u != nil {
+		t.Errorf("expecting nil user to be returned, but got user %s", u.ID)
 	}
 
 	// Make sure expectations were met for both success and failure
@@ -311,7 +328,7 @@ func TestUserGetByUsername(t *testing.T) {
 	}
 }
 
-func TestUserGetByIdSuccess(t *testing.T) {
+func TestUserGetById(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
@@ -356,6 +373,22 @@ func TestUserGetByIdSuccess(t *testing.T) {
 	_, err = cdb.UserGetById(usr.ID)
 	if err == nil {
 		t.Errorf("expecting error but there was none")
+	}
+
+	// Negative test Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(usr.ID).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	// Execute method
+	u, err = cdb.UserGetById(usr.ID)
+	if err == nil {
+		t.Errorf("expecting error user not found, but there was none")
+	}
+
+	// Make sure no user was fetched
+	if u != nil {
+		t.Errorf("expecting nil user to be returned, but got user %s", u.ID)
 	}
 
 	// Make sure expectations were met for both success and failure
@@ -414,6 +447,22 @@ func TestUserGetByPubKey(t *testing.T) {
 	_, err = cdb.UserGetByPubKey(pubkey)
 	if err == nil {
 		t.Errorf("expecting error but there was none")
+	}
+
+	// Negative test Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(pubkey).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	// Execute method
+	ur, err = cdb.UserGetByPubKey(pubkey)
+	if err == nil {
+		t.Errorf("expecting error user not found, but there was none")
+	}
+
+	// Make sure no user was fetched
+	if ur != nil {
+		t.Errorf("expecting nil user to be returned, but got user %s", ur.ID)
 	}
 
 	// Make sure expectations were met for both success and failure
@@ -476,6 +525,26 @@ func TestUsersGetByPubKey(t *testing.T) {
 		t.Errorf("expecting error but there was none")
 	}
 
+	// Negative test Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(pubkey).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	// Execute method
+	ur, err = cdb.UsersGetByPubKey([]string{pubkey})
+	if err != nil {
+		t.Errorf("users get by pubkey: %s", err)
+	}
+
+	// Expected return value from negative test
+	usersResp := make(map[string]user.User, len(pubkey))
+
+	// Make sure no user was fetched
+	if !reflect.DeepEqual(ur, usersResp) {
+		t.Errorf("expecting nil user to be returned, but got user %s",
+			ur[pubkey].ID)
+	}
+
 	// Make sure expectations were met for both success and failure
 	// conditions
 	err = mock.ExpectationsWereMet()
@@ -493,6 +562,27 @@ func TestAllUsers(t *testing.T) {
 	usr, blob := newCdbUser(t, cdb)
 	usr2, blob2 := newCdbUser(t, cdb)
 
+	// Query
+	sql := `SELECT * FROM "users"`
+
+	// Negative test Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	// Execute method
+	var us []user.User
+	err := cdb.AllUsers(func(u *user.User) {
+		us = append(us, *u)
+	})
+	if err != nil {
+		t.Errorf("all users error: %s", err)
+	}
+
+	// Check if no users were returned
+	if len(us) != 0 {
+		t.Errorf("expected no users but returned %v users", len(us))
+	}
+
 	// Mock data
 	rows := sqlmock.NewRows([]string{
 		"id",
@@ -504,16 +594,13 @@ func TestAllUsers(t *testing.T) {
 		AddRow(usr.ID, usr.Username, blob, now, now).
 		AddRow(usr2.ID, usr2.Username, blob2, now, now)
 
-	// Query
-	sql := `SELECT * FROM "users"`
-
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
 		WillReturnRows(rows)
 
 	// Execute method
 	var users []user.User
-	err := cdb.AllUsers(func(u *user.User) {
+	err = cdb.AllUsers(func(u *user.User) {
 		users = append(users, *u)
 	})
 	if err != nil {
@@ -677,6 +764,23 @@ func TestSessionGetByID(t *testing.T) {
 	_, err = cdb.SessionGetByID(sessionKey)
 	if err == nil {
 		t.Errorf("expected error but there was none")
+	}
+
+	// Negative test Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(sessionKey).
+		WillReturnRows(sqlmock.NewRows(nil))
+
+	// Execute method
+	s, err = cdb.SessionGetByID(session.ID)
+	if err == nil {
+		t.Errorf("expecting error session not found, but there was none")
+	}
+
+	// Make sure correct session was returned
+	if s != nil {
+		t.Errorf("expecting nil session to be returned, but got session %s",
+			session.ID)
 	}
 
 	// Make sure expectations were met for both success and failure
