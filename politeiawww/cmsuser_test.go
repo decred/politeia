@@ -301,7 +301,7 @@ func TestRegisterUser(t *testing.T) {
 			emailFresh,
 			usernameTooShort,
 			pwd,
-			"12345",
+			"123456",
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedUsername,
 			},
@@ -312,7 +312,7 @@ func TestRegisterUser(t *testing.T) {
 			emailFresh,
 			usernameTooLong,
 			pwd,
-			"12345",
+			"123456",
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedUsername,
 			},
@@ -323,7 +323,7 @@ func TestRegisterUser(t *testing.T) {
 			emailFresh,
 			usernameRegExp,
 			pwd,
-			"12345",
+			"123456",
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedUsername,
 			},
@@ -334,7 +334,7 @@ func TestRegisterUser(t *testing.T) {
 			emailFresh,
 			usernameFresh,
 			passwordTooShort,
-			"12345",
+			"123456",
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedPassword,
 			},
@@ -347,6 +347,17 @@ func TestRegisterUser(t *testing.T) {
 			pwd,
 			replyFresh.VerificationToken,
 			nil,
+			hex.EncodeToString(idFresh.Public.Key[:]),
+		},
+		{
+			"error user not found",
+			"notfound@example.org",
+			"notfound",
+			pwd,
+			"123456",
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
 			hex.EncodeToString(idFresh.Public.Key[:]),
 		},
 	}
