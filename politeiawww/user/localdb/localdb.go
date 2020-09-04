@@ -49,7 +49,8 @@ type Version struct {
 func isUserRecord(key string) bool {
 	return key != UserVersionKey &&
 		key != LastPaywallAddressIndex &&
-		!strings.HasPrefix(key, sessionPrefix)
+		!strings.HasPrefix(key, sessionPrefix) &&
+		!strings.HasPrefix(key, cmsUserPrefix)
 }
 
 // Store new user.

@@ -20,9 +20,9 @@ func TestInviteNewUser(t *testing.T) {
 	p, cleanup := newTestCMSwww(t)
 	defer cleanup()
 
-	email := "test1@example.org"
+	emailVerified := "test1@example.org"
 	inviteUserReq := cms.InviteNewUser{
-		Email:     email,
+		Email:     emailVerified,
 		Temporary: false,
 	}
 	reply, err := p.processInviteNewUser(inviteUserReq)
@@ -35,7 +35,7 @@ func TestInviteNewUser(t *testing.T) {
 		t.Fatalf("error another generating identity")
 	}
 	registerReq := cms.RegisterUser{
-		Email:             email,
+		Email:             emailVerified,
 		Username:          "test1",
 		Password:          "password",
 		VerificationToken: reply.VerificationToken,
@@ -46,7 +46,7 @@ func TestInviteNewUser(t *testing.T) {
 		t.Fatalf("error registering user %v", err)
 	}
 
-	emailFreshToken := "test1@example.org"
+	emailFreshToken := "test2@example.org"
 	inviteUserReq = cms.InviteNewUser{
 		Email:     emailFreshToken,
 		Temporary: false,
@@ -72,14 +72,14 @@ func TestInviteNewUser(t *testing.T) {
 		},
 		{
 			"success new token",
-			email,
+			emailFreshToken,
 			nil,
 			false,
 			true,
 		},
 		{
 			"success already verified",
-			email,
+			emailVerified,
 			nil,
 			true,
 			false,
@@ -109,21 +109,30 @@ func TestInviteNewUser(t *testing.T) {
 				t.Errorf("got error %v, want %v", got, want)
 				return
 			}
-			if v.tokenEmpty && replyInvite != nil &&
-				len(replyInvite.VerificationToken) > 0 {
+			// exit tests if err was received since error matched as expected
+			if err != nil {
+				return
+			}
+			if replyInvite == nil {
+				t.Errorf("invite reply should not be nil here")
+				return
+			}
+			if v.tokenEmpty && len(replyInvite.VerificationToken) > 0 {
+				// If token is expected to be empty
 				t.Errorf("expecting an empty verification token but got %v",
 					replyInvite.VerificationToken)
-				return
-			} else if !v.tokenEmpty && replyInvite != nil &&
-				replyInvite.VerificationToken == "" {
+			}
+			if !v.tokenEmpty && len(replyInvite.VerificationToken) == 0 {
+				// If token is expected to be non-empty
 				t.Errorf("expecting an non-empty verification token but got empty")
-				return
 			}
-			if v.tokenFresh && replyInvite != nil &&
+			if v.tokenFresh &&
 				replyInvite.VerificationToken == replyFresh.VerificationToken {
-				t.Errorf("expecting an empty verification token but got %v",
-					replyInvite.VerificationToken)
+				// If token is expected to be fresh from one previously received
+				t.Errorf("expecting fresh token but got the same")
 			}
+
+			return
 		})
 	}
 }
