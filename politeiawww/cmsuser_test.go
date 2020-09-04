@@ -133,6 +133,61 @@ func TestInviteNewUser(t *testing.T) {
 			}
 		})
 	}
+
+	emailFirst := "testtemp1@example.org"
+
+	emailSecond := "testtemp2@example.org"
+
+	var testsTempInvite = []struct {
+		name                   string
+		email                  string
+		temp                   bool
+		expectedContractorType cms.ContractorTypeT
+	}{
+		{
+			"success",
+			emailFirst,
+			false,
+			cms.ContractorTypeNominee,
+		},
+		{
+			"success temp",
+			emailSecond,
+			true,
+			cms.ContractorTypeTemp,
+		},
+	}
+
+	for _, v := range testsTempInvite {
+		t.Run(v.name, func(t *testing.T) {
+			inviteUserReq := cms.InviteNewUser{
+				Email:     v.email,
+				Temporary: v.temp,
+			}
+			_, err := p.processInviteNewUser(inviteUserReq)
+			if err != nil {
+				t.Errorf("error inviting user %v %v", v.email, err)
+				return
+			}
+			u, err := p.userByEmail(v.email)
+			if err != nil {
+				t.Errorf("error getting user by email %v %v", v.email, err)
+				return
+			}
+
+			cmsUser, err := p.getCMSUserByID(u.ID.String())
+			if err != nil {
+				t.Errorf("error getting cms user by id %v %v", u.ID.String(),
+					err)
+				return
+			}
+
+			if cmsUser.ContractorType != v.expectedContractorType {
+				t.Errorf("unexpected contractor type got %v, want %v",
+					cmsUser.ContractorType, v.expectedContractorType)
+			}
+		})
+	}
 }
 
 func TestRegisterUser(t *testing.T) {
@@ -376,66 +431,6 @@ func TestRegisterUser(t *testing.T) {
 			want := errToStr(v.wantError)
 			if got != want {
 				t.Errorf("got error %v, want %v", got, want)
-			}
-		})
-	}
-}
-
-func TestTempInviteUser(t *testing.T) {
-	p, cleanup := newTestCMSwww(t)
-	defer cleanup()
-
-	emailFirst := "test1@example.org"
-
-	emailSecond := "test2@example.org"
-
-	var tests = []struct {
-		name                   string
-		email                  string
-		temp                   bool
-		expectedContractorType cms.ContractorTypeT
-	}{
-		{
-			"success",
-			emailFirst,
-			false,
-			cms.ContractorTypeNominee,
-		},
-		{
-			"success temp",
-			emailSecond,
-			true,
-			cms.ContractorTypeTemp,
-		},
-	}
-
-	for _, v := range tests {
-		t.Run(v.name, func(t *testing.T) {
-			inviteUserReq := cms.InviteNewUser{
-				Email:     v.email,
-				Temporary: v.temp,
-			}
-			_, err := p.processInviteNewUser(inviteUserReq)
-			if err != nil {
-				t.Errorf("error inviting user %v %v", v.email, err)
-				return
-			}
-			u, err := p.userByEmail(v.email)
-			if err != nil {
-				t.Errorf("error getting user by email %v %v", v.email, err)
-				return
-			}
-
-			cmsUser, err := p.getCMSUserByID(u.ID.String())
-			if err != nil {
-				t.Errorf("error getting cms user by id %v %v", u.ID.String(),
-					err)
-				return
-			}
-
-			if cmsUser.ContractorType != v.expectedContractorType {
-				t.Errorf("unexpected contractor type got %v, want %v",
-					cmsUser.ContractorType, v.expectedContractorType)
 			}
 		})
 	}
