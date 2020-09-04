@@ -463,7 +463,8 @@ func TestPostRegisterUser(t *testing.T) {
 
 			cmsUser, err := p.getCMSUserByID(u.ID.String())
 			if err != nil {
-				t.Errorf("error getting cms user by id %v %v", u.ID.String(), err)
+				t.Errorf("error getting cms user by id %v %v", u.ID.String(),
+					err)
 				return
 			}
 
