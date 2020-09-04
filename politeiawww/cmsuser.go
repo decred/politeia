@@ -171,7 +171,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 			log.Debugf("RegisterUser failure for %v: user not found",
 				u.Email)
 			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusCannotCensorComment,
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}
 		}
 		return nil, err
