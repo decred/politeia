@@ -370,92 +370,48 @@ func TestRegisterUser(t *testing.T) {
 	}
 }
 
-func TestPostRegisterUser(t *testing.T) {
+func TestTempInviteUser(t *testing.T) {
 	p, cleanup := newTestCMSwww(t)
 	defer cleanup()
 
-	// Create user identity and save it to disk
-	idFirst, err := shared.NewIdentity()
-	if err != nil {
-		t.Fatalf("error generating identity")
-	}
-
 	emailFirst := "test1@example.org"
-	usernameFirst := "test1"
-	pwdFirst := "password1"
-
-	// Create user identity and save it to disk
-	idSecond, err := shared.NewIdentity()
-	if err != nil {
-		t.Fatalf("error generating identity")
-	}
 
 	emailSecond := "test2@example.org"
-	usernameSecond := "test2"
-	pwdSecond := "password1"
 
 	var tests = []struct {
 		name                   string
 		email                  string
-		username               string
-		pwd                    string
-		pubkey                 string
 		temp                   bool
 		expectedContractorType cms.ContractorTypeT
-		wantError              error
 	}{
 		{
 			"success",
 			emailFirst,
-			usernameFirst,
-			pwdFirst,
-			hex.EncodeToString(idFirst.Public.Key[:]),
 			false,
 			cms.ContractorTypeNominee,
-			nil,
 		},
 		{
 			"success temp",
 			emailSecond,
-			usernameSecond,
-			pwdSecond,
-			hex.EncodeToString(idSecond.Public.Key[:]),
 			true,
 			cms.ContractorTypeTemp,
-			nil,
 		},
 	}
 
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-
 			inviteUserReq := cms.InviteNewUser{
 				Email:     v.email,
 				Temporary: v.temp,
 			}
-			reply, err := p.processInviteNewUser(inviteUserReq)
+			_, err := p.processInviteNewUser(inviteUserReq)
 			if err != nil {
-				t.Errorf("error inviting user %v %v", v.username, err)
+				t.Errorf("error inviting user %v %v", v.email, err)
 				return
 			}
-			verificationToken := reply.VerificationToken
-
-			registerReq := cms.RegisterUser{
-				Email:             v.email,
-				Username:          v.username,
-				Password:          v.pwd,
-				VerificationToken: verificationToken,
-				PublicKey:         v.pubkey,
-			}
-			_, err = p.processRegisterUser(registerReq)
+			u, err := p.userByEmail(v.email)
 			if err != nil {
-				t.Errorf("error registering user %v %v", v.username, err)
-				return
-			}
-
-			u, err := p.db.UserGetByPubKey(v.pubkey)
-			if err != nil {
-				t.Errorf("error getting user by pubkey %v %v", v.username, err)
+				t.Errorf("error getting user by email %v %v", v.email, err)
 				return
 			}
 
@@ -469,11 +425,6 @@ func TestPostRegisterUser(t *testing.T) {
 			if cmsUser.ContractorType != v.expectedContractorType {
 				t.Errorf("unexpected contractor type got %v, want %v",
 					cmsUser.ContractorType, v.expectedContractorType)
-			}
-			got := errToStr(err)
-			want := errToStr(v.wantError)
-			if got != want {
-				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
