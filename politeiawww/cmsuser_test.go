@@ -131,8 +131,6 @@ func TestInviteNewUser(t *testing.T) {
 				// If token is expected to be fresh from one previously received
 				t.Errorf("expecting fresh token but got the same")
 			}
-
-			return
 		})
 	}
 }
