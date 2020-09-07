@@ -96,9 +96,9 @@ const (
 	ErrorStatusPublicKeyInvalid     ErrorStatusT = 2
 	ErrorStatusSignatureInvalid     ErrorStatusT = 3
 	ErrorStatusRecordNotFound       ErrorStatusT = 4
-	ErrorStatusRecordStateInvalid   ErrorStatusT = 5
+	ErrorStatusRecordStatusInvalid  ErrorStatusT = 5
 	ErrorStatusAuthorizationInvalid ErrorStatusT = 6
-	ErrorStatusVoteInvalid          ErrorStatusT = 7
+	ErrorStatusVoteDetailsInvalid   ErrorStatusT = 7
 	ErrorStatusVoteStatusInvalid    ErrorStatusT = 8
 	ErrorStatusBallotInvalid        ErrorStatusT = 9
 )
@@ -132,9 +132,9 @@ var (
 		ErrorStatusPublicKeyInvalid:     "public key invalid",
 		ErrorStatusSignatureInvalid:     "signature invalid",
 		ErrorStatusRecordNotFound:       "record not found",
-		ErrorStatusRecordStateInvalid:   "record state invalid",
+		ErrorStatusRecordStatusInvalid:  "record status invalid",
 		ErrorStatusAuthorizationInvalid: "authorization invalid",
-		ErrorStatusVoteInvalid:          "vote invalid",
+		ErrorStatusVoteDetailsInvalid:   "vote details invalid",
 		ErrorStatusVoteStatusInvalid:    "vote status invalid",
 		ErrorStatusBallotInvalid:        "ballot invalid",
 	}

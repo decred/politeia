@@ -6,7 +6,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
@@ -25,8 +24,12 @@ import (
 	"time"
 
 	"github.com/decred/politeia/mdstream"
+	"github.com/decred/politeia/plugins/comments"
+	piplugin "github.com/decred/politeia/plugins/pi"
+	"github.com/decred/politeia/plugins/ticketvote"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
@@ -51,6 +54,206 @@ const (
 
 	csrfKeyLength = 32
 )
+
+func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
+	switch e {
+	case pd.ErrorStatusInvalidFilename:
+		return www.ErrorStatusInvalidFilename
+	case pd.ErrorStatusInvalidFileDigest:
+		return www.ErrorStatusInvalidFileDigest
+	case pd.ErrorStatusInvalidBase64:
+		return www.ErrorStatusInvalidBase64
+	case pd.ErrorStatusInvalidMIMEType:
+		return www.ErrorStatusInvalidMIMEType
+	case pd.ErrorStatusUnsupportedMIMEType:
+		return www.ErrorStatusUnsupportedMIMEType
+	case pd.ErrorStatusInvalidRecordStatusTransition:
+		return www.ErrorStatusInvalidPropStatusTransition
+	case pd.ErrorStatusInvalidRequestPayload:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
+	case pd.ErrorStatusInvalidChallenge:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
+	}
+	return www.ErrorStatusInvalid
+}
+
+func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) www.ErrorStatusT {
+	switch e {
+	case piplugin.ErrorStatusLinkToInvalid:
+		return www.ErrorStatusInvalidLinkTo
+	case piplugin.ErrorStatusWrongPropStatus:
+		return www.ErrorStatusWrongStatus
+	case piplugin.ErrorStatusWrongVoteStatus:
+		return www.ErrorStatusWrongVoteStatus
+	}
+	return www.ErrorStatusInvalid
+}
+
+func convertWWWErrorStatusFromComments(e comments.ErrorStatusT) www.ErrorStatusT {
+	switch e {
+	case comments.ErrorStatusTokenInvalid:
+		return www.ErrorStatusInvalidCensorshipToken
+	case comments.ErrorStatusPublicKeyInvalid:
+		return www.ErrorStatusInvalidPublicKey
+	case comments.ErrorStatusSignatureInvalid:
+		return www.ErrorStatusInvalidSignature
+	case comments.ErrorStatusRecordNotFound:
+		return www.ErrorStatusProposalNotFound
+	case comments.ErrorStatusCommentNotFound:
+		return www.ErrorStatusCommentNotFound
+	case comments.ErrorStatusParentIDInvalid:
+		return www.ErrorStatusCommentNotFound
+	case comments.ErrorStatusNoCommentChanges:
+		// Intentionally omitted. The www API does not allow for comment
+		// changes.
+	case comments.ErrorStatusVoteInvalid:
+		return www.ErrorStatusInvalidLikeCommentAction
+	case comments.ErrorStatusMaxVoteChanges:
+		return www.ErrorStatusInvalidLikeCommentAction
+	}
+	return www.ErrorStatusInvalid
+}
+
+func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) www.ErrorStatusT {
+	switch e {
+	case ticketvote.ErrorStatusTokenInvalid:
+		return www.ErrorStatusInvalidCensorshipToken
+	case ticketvote.ErrorStatusPublicKeyInvalid:
+		return www.ErrorStatusInvalidPublicKey
+	case ticketvote.ErrorStatusSignatureInvalid:
+		return www.ErrorStatusInvalidSignature
+	case ticketvote.ErrorStatusRecordNotFound:
+		return www.ErrorStatusProposalNotFound
+	case ticketvote.ErrorStatusRecordStatusInvalid:
+		return www.ErrorStatusWrongStatus
+	case ticketvote.ErrorStatusVoteDetailsInvalid:
+		return www.ErrorStatusInvalidPropVoteParams
+	case ticketvote.ErrorStatusVoteStatusInvalid:
+		return www.ErrorStatusInvalidPropVoteStatus
+	case ticketvote.ErrorStatusBallotInvalid:
+	}
+	return www.ErrorStatusInvalid
+}
+
+// convertWWWErrorStatus attempts to convert the provided politeiad plugin ID
+// and error code into a www ErrorStatusT. If a plugin ID is provided the error
+// code is assumed to be a user error code from the specified plugin API.  If
+// no plugin ID is provided the error code is assumed to be a user error code
+// from the politeiad API.
+func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
+	switch pluginID {
+	case "":
+		// politeiad API
+		e := pd.ErrorStatusT(errCode)
+		return convertWWWErrorStatusFromPD(e)
+	case piplugin.ID:
+		// Pi plugin
+		e := piplugin.ErrorStatusT(errCode)
+		return convertWWWErrorStatusFromPiPlugin(e)
+	case comments.ID:
+		// Comments plugin
+		e := comments.ErrorStatusT(errCode)
+		return convertWWWErrorStatusFromComments(e)
+	case ticketvote.ID:
+		// Ticket vote plugin
+		e := ticketvote.ErrorStatusT(errCode)
+		return convertWWWErrorStatusFromTicketVote(e)
+	}
+
+	// No corresponding www error status found
+	return www.ErrorStatusInvalid
+}
+
+// TODO add pi error statuses
+func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
+	switch e {
+	case pd.ErrorStatusInvalidFilename:
+	case pd.ErrorStatusInvalidFileDigest:
+	case pd.ErrorStatusInvalidBase64:
+	case pd.ErrorStatusInvalidMIMEType:
+	case pd.ErrorStatusUnsupportedMIMEType:
+	case pd.ErrorStatusInvalidRecordStatusTransition:
+	case pd.ErrorStatusInvalidRequestPayload:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
+	case pd.ErrorStatusInvalidChallenge:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
+	}
+	return pi.ErrorStatusInvalid
+}
+
+// TODO add pi error statuses
+func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
+	switch e {
+	case piplugin.ErrorStatusLinkToInvalid:
+	case piplugin.ErrorStatusWrongPropStatus:
+	case piplugin.ErrorStatusWrongVoteStatus:
+	}
+	return pi.ErrorStatusInvalid
+}
+
+// TODO add pi error statuses
+func convertPiErrorStatusFromComments(e comments.ErrorStatusT) pi.ErrorStatusT {
+	switch e {
+	case comments.ErrorStatusTokenInvalid:
+	case comments.ErrorStatusPublicKeyInvalid:
+	case comments.ErrorStatusSignatureInvalid:
+	case comments.ErrorStatusRecordNotFound:
+	case comments.ErrorStatusCommentNotFound:
+	case comments.ErrorStatusParentIDInvalid:
+	case comments.ErrorStatusNoCommentChanges:
+	case comments.ErrorStatusVoteInvalid:
+	case comments.ErrorStatusMaxVoteChanges:
+	}
+	return pi.ErrorStatusInvalid
+}
+
+// TODO add pi error statuses
+func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatusT {
+	switch e {
+	case ticketvote.ErrorStatusTokenInvalid:
+	case ticketvote.ErrorStatusPublicKeyInvalid:
+	case ticketvote.ErrorStatusSignatureInvalid:
+	case ticketvote.ErrorStatusRecordNotFound:
+	case ticketvote.ErrorStatusRecordStatusInvalid:
+	case ticketvote.ErrorStatusVoteDetailsInvalid:
+	case ticketvote.ErrorStatusVoteStatusInvalid:
+	case ticketvote.ErrorStatusBallotInvalid:
+	}
+	return pi.ErrorStatusInvalid
+}
+
+// convertPiErrorStatus attempts to convert the provided politeiad plugin ID
+// and error code into a pi ErrorStatusT. If a plugin ID is provided the error
+// code is assumed to be a user error code from the specified plugin API.  If
+// no plugin ID is provided the error code is assumed to be a user error code
+// from the politeiad API.
+func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
+	switch pluginID {
+	case "":
+		// politeiad API
+		e := pd.ErrorStatusT(errCode)
+		return convertPiErrorStatusFromPD(e)
+	case piplugin.ID:
+		// Pi plugin
+		e := piplugin.ErrorStatusT(errCode)
+		return convertPiErrorStatusFromPiPlugin(e)
+	case comments.ID:
+		// Comments plugin
+		e := comments.ErrorStatusT(errCode)
+		return convertPiErrorStatusFromComments(e)
+	case ticketvote.ID:
+		// Ticket vote plugin
+		e := ticketvote.ErrorStatusT(errCode)
+		return convertPiErrorStatusFromTicketVote(e)
+	}
+
+	// No corresponding pi error status found
+	return pi.ErrorStatusInvalid
+}
 
 // Fetch remote identity
 func (p *politeiawww) getIdentity() error {
@@ -91,6 +294,99 @@ func (p *politeiawww) getIdentity() error {
 	return nil
 }
 
+// respondWithPiError returns an HTTP error status to the client. If it's a pi
+// user error, it returns a 4xx HTTP status and the specific user error code.
+// If it's an internal server error, it returns 500 and a UNIX timestamp which
+// is also outputted to the logs so that it can be correlated later if the user
+// files a complaint.
+func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, err error) {
+	// Check for pi user error
+	if ue, ok := err.(pi.UserError); ok {
+		// Error is a pi user error. Log it and return a 400.
+		if len(ue.ErrorContext) == 0 {
+			log.Infof("Pi user error: %v %v %v",
+				remoteAddr(r), int64(ue.ErrorCode),
+				pi.ErrorStatus[ue.ErrorCode])
+		} else {
+			log.Errorf("Pi user error: %v %v %v: %v",
+				remoteAddr(r), int64(ue.ErrorCode),
+				pi.ErrorStatus[ue.ErrorCode],
+				strings.Join(ue.ErrorContext, ", "))
+		}
+
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			pi.UserError{
+				ErrorCode:    ue.ErrorCode,
+				ErrorContext: ue.ErrorContext,
+			})
+		return
+	}
+
+	// Check for politeiad error
+	if pdErr, ok := err.(pdError); ok {
+		var (
+			pluginID   = pdErr.ErrorReply.PluginID
+			errCode    = pdErr.ErrorReply.ErrorCode
+			errContext = pdErr.ErrorReply.ErrorContext
+		)
+
+		// Check if the politeiad error corresponds to a pi user error
+		piErrCode := convertPiErrorStatus(pluginID, errCode)
+		if piErrCode == pi.ErrorStatusInvalid {
+			// politeiad error does not correspond to a pi user error. Log
+			// it and return a 500.
+			t := time.Now().Unix()
+			if pluginID == "" {
+				log.Errorf("%v %v %v %v Internal error %v: error "+
+					"code from politeiad: %v", remoteAddr(r), r.Method,
+					r.URL, r.Proto, t, errCode)
+			} else {
+				log.Errorf("%v %v %v %v Internal error %v: error "+
+					"code from politeiad plugin %v: %v", remoteAddr(r),
+					r.Method, r.URL, r.Proto, t, pluginID, errCode)
+			}
+
+			util.RespondWithJSON(w, http.StatusInternalServerError,
+				pi.ErrorReply{
+					ErrorCode: t,
+				})
+			return
+		}
+
+		// politeiad error does correspond to a pi user error. Log it and
+		// return a 400.
+		if len(errContext) == 0 {
+			log.Infof("Pi user error: %v %v %v",
+				remoteAddr(r), int64(piErrCode),
+				pi.ErrorStatus[piErrCode])
+		} else {
+			log.Infof("Pi user error: %v %v %v: %v",
+				remoteAddr(r), int64(piErrCode),
+				pi.ErrorStatus[piErrCode],
+				strings.Join(errContext, ", "))
+		}
+
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			pi.UserError{
+				ErrorCode:    piErrCode,
+				ErrorContext: errContext,
+			})
+		return
+
+	}
+
+	// Error is a politeiawww server error. Log it and return a 500.
+	t := time.Now().Unix()
+	log.Errorf("%v %v %v %v Internal error %v: %v",
+		remoteAddr(r), r.Method, r.URL, r.Proto, t, format)
+	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+
+	util.RespondWithJSON(w, http.StatusInternalServerError,
+		pi.ErrorReply{
+			ErrorCode: t,
+		})
+}
+
 // userErrorStatus retrieves the human readable error message for an error
 // status code. The status code can be from either the pi or cms api.
 func userErrorStatus(e www.ErrorStatusT) string {
@@ -117,64 +413,95 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	// if err == nil -> internal error using format + args
 	// if err != nil -> if defined error -> return defined error + log.Errorf format+args
 	// if err != nil -> if !defined error -> return + log.Errorf format+args
+
+	// Check for www user error
 	if userErr, ok := args[0].(www.UserError); ok {
+		// Error is a www user error. Log it and return a 400.
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
 
 		if len(userErr.ErrorContext) == 0 {
-			log.Errorf("RespondWithError: %v %v %v",
-				remoteAddr(r),
-				int64(userErr.ErrorCode),
+			log.Infof("WWW user error: %v %v %v",
+				remoteAddr(r), int64(userErr.ErrorCode),
 				userErrorStatus(userErr.ErrorCode))
 		} else {
-			log.Errorf("RespondWithError: %v %v %v: %v",
-				remoteAddr(r),
-				int64(userErr.ErrorCode),
+			log.Infof("WWW user error: %v %v %v: %v",
+				remoteAddr(r), int64(userErr.ErrorCode),
 				userErrorStatus(userErr.ErrorCode),
 				strings.Join(userErr.ErrorContext, ", "))
 		}
 
 		util.RespondWithJSON(w, userHttpCode,
-			www.ErrorReply{
-				ErrorCode:    int64(userErr.ErrorCode),
+			www.UserError{
+				ErrorCode:    userErr.ErrorCode,
 				ErrorContext: userErr.ErrorContext,
 			})
 		return
 	}
 
-	if pdError, ok := args[0].(www.PDError); ok {
-		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
-		if pdErrorCode == www.ErrorStatusInvalid {
-			errorCode := time.Now().Unix()
-			log.Errorf("%v %v %v %v Internal error %v: error "+
-				"code from politeiad: %v", remoteAddr(r),
-				r.Method, r.URL, r.Proto, errorCode,
-				pdError.ErrorReply.ErrorCode)
+	// Check for politeiad error
+	if pdError, ok := args[0].(pdError); ok {
+		var (
+			pluginID   = pdError.ErrorReply.PluginID
+			errCode    = pdError.ErrorReply.ErrorCode
+			errContext = pdError.ErrorReply.ErrorContext
+		)
+
+		// Check if the politeiad error corresponds to a www user error
+		wwwErrCode := convertWWWErrorStatus(pluginID, errCode)
+		if wwwErrCode == www.ErrorStatusInvalid {
+			// politeiad error does not correspond to a www user error. Log
+			// it and return a 500.
+			t := time.Now().Unix()
+			if pluginID == "" {
+				log.Errorf("%v %v %v %v Internal error %v: error "+
+					"code from politeiad: %v", remoteAddr(r), r.Method,
+					r.URL, r.Proto, t, errCode)
+			} else {
+				log.Errorf("%v %v %v %v Internal error %v: error "+
+					"code from politeiad plugin %v: %v", remoteAddr(r),
+					r.Method, r.URL, r.Proto, t, pluginID, errCode)
+			}
+
 			util.RespondWithJSON(w, http.StatusInternalServerError,
 				www.ErrorReply{
-					ErrorCode: errorCode,
+					ErrorCode: t,
 				})
 			return
 		}
 
-		util.RespondWithJSON(w, pdError.HTTPCode,
-			www.ErrorReply{
-				ErrorCode:    int64(pdErrorCode),
-				ErrorContext: pdError.ErrorReply.ErrorContext,
+		// politeiad error does correspond to a www user error. Log it
+		// and return a 400.
+		if len(errContext) == 0 {
+			log.Infof("WWW user error: %v %v %v",
+				remoteAddr(r), int64(wwwErrCode),
+				userErrorStatus(wwwErrCode))
+		} else {
+			log.Infof("WWW user error: %v %v %v: %v",
+				remoteAddr(r), int64(wwwErrCode),
+				userErrorStatus(wwwErrCode),
+				strings.Join(errContext, ", "))
+		}
+
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			www.UserError{
+				ErrorCode:    wwwErrCode,
+				ErrorContext: errContext,
 			})
 		return
 	}
 
-	errorCode := time.Now().Unix()
+	// Error is a politeiawww server error. Log it and return a 500.
+	t := time.Now().Unix()
 	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
-		r.Method, r.URL, r.Proto, errorCode)
+		r.Method, r.URL, r.Proto, t)
 	log.Errorf(ec+format, args...)
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		www.ErrorReply{
-			ErrorCode: errorCode,
+			ErrorCode: t,
 		})
 }
 
@@ -203,60 +530,6 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 	} else {
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 	}
-}
-
-// makeRequest makes an http request to the method and route provided,
-// serializing the provided object as the request body.
-//
-// XXX doesn't belong in this file but stuff it here for now.
-func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([]byte, error) {
-	var (
-		requestBody []byte
-		err         error
-	)
-	if v != nil {
-		requestBody, err = json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	fullRoute := p.cfg.RPCHost + route
-
-	if p.client == nil {
-		p.client, err = util.NewClient(false, p.cfg.RPCCert)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	req, err := http.NewRequest(method, fullRoute,
-		bytes.NewReader(requestBody))
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(p.cfg.RPCUser, p.cfg.RPCPass)
-	r, err := p.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-
-	if r.StatusCode != http.StatusOK {
-		var pdErrorReply www.PDErrorReply
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&pdErrorReply); err != nil {
-			return nil, err
-		}
-
-		return nil, www.PDError{
-			HTTPCode:   r.StatusCode,
-			ErrorReply: pdErrorReply,
-		}
-	}
-
-	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-	return responseBody, nil
 }
 
 func _main() error {

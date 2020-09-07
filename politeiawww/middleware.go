@@ -24,16 +24,16 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 
 		id, err := p.getSessionUserID(w, r)
 		if err != nil {
-			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
-				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
+			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
+				ErrorCode: www.ErrorStatusNotLoggedIn,
 			})
 			return
 		}
 
 		// Check if user is authenticated
 		if id == "" {
-			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
-				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
+			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
+				ErrorCode: www.ErrorStatusNotLoggedIn,
 			})
 			return
 		}
@@ -63,13 +63,13 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 		isAdmin, err := p.isAdmin(w, r)
 		if err != nil {
 			log.Errorf("isLoggedInAsAdmin: isAdmin %v", err)
-			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
-				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
+			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
+				ErrorCode: www.ErrorStatusNotLoggedIn,
 			})
 			return
 		}
 		if !isAdmin {
-			util.RespondWithJSON(w, http.StatusForbidden, www.ErrorReply{})
+			util.RespondWithJSON(w, http.StatusForbidden, www.UserError{})
 			return
 		}
 

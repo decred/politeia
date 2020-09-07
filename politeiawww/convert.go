@@ -280,31 +280,6 @@ func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 	}
 }
 
-func convertErrorStatusFromPD(s int) www.ErrorStatusT {
-	switch pd.ErrorStatusT(s) {
-	case pd.ErrorStatusInvalidFileDigest:
-		return www.ErrorStatusInvalidFileDigest
-	case pd.ErrorStatusInvalidBase64:
-		return www.ErrorStatusInvalidBase64
-	case pd.ErrorStatusInvalidMIMEType:
-		return www.ErrorStatusInvalidMIMEType
-	case pd.ErrorStatusUnsupportedMIMEType:
-		return www.ErrorStatusUnsupportedMIMEType
-	case pd.ErrorStatusInvalidRecordStatusTransition:
-		return www.ErrorStatusInvalidPropStatusTransition
-	case pd.ErrorStatusInvalidFilename:
-		return www.ErrorStatusInvalidFilename
-
-		// These cases are intentionally omitted because
-		// they are indicative of some internal server error,
-		// so ErrorStatusInvalid is returned.
-		//
-		//case pd.ErrorStatusInvalidRequestPayload
-		//case pd.ErrorStatusInvalidChallenge
-	}
-	return www.ErrorStatusInvalid
-}
-
 func convertPropStatusToState(status www.PropStatusT) www.PropStateT {
 	switch status {
 	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,

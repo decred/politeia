@@ -702,7 +702,7 @@ func (p *commentsPlugin) new(client *tlogbe.RecordClient, n comments.New, encryp
 	if n.ParentID > 0 && !commentExists(*idx, n.ParentID) {
 		return nil, comments.UserError{
 			ErrorCode:    comments.ErrorStatusParentIDInvalid,
-			ErrorContext: []string{"comment not found"},
+			ErrorContext: []string{"parent ID comment not found"},
 		}
 	}
 

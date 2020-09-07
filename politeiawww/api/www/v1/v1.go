@@ -552,32 +552,18 @@ func (e UserError) Error() string {
 	return fmt.Sprintf("user error code: %v", e.ErrorCode)
 }
 
-// PDError is emitted when an HTTP error response is returned from Politeiad
-// for a request. It contains the HTTP status code and the JSON response body.
-type PDError struct {
-	HTTPCode   int
-	ErrorReply PDErrorReply
-}
-
-// Error satisfies the error interface.
-func (e PDError) Error() string {
-	return fmt.Sprintf("error from politeiad: %v %v", e.HTTPCode,
-		e.ErrorReply.ErrorCode)
-}
-
-// PDErrorReply is an error reply returned from Politeiad whenever an
-// error occurs.
-type PDErrorReply struct {
-	ErrorCode    int
-	ErrorContext []string
-}
-
-// ErrorReply are replies that the server returns a when it encounters an
-// unrecoverable problem while executing a command.  The HTTP Error Code
-// shall be 500 if it's an internal server error or 4xx if it's a user error.
+// ErrorReply are replies that the server returns when it encounters an
+// unrecoverable problem while executing a command. The HTTP status code will
+// be 500 and the ErrorCode field will contain a UNIX timestamp that the user
+// can provide to the server admin to track down the error details in the logs.
 type ErrorReply struct {
 	ErrorCode    int64    `json:"errorcode,omitempty"`
 	ErrorContext []string `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e ErrorReply) Error() string {
+	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
 // Version command is used to determine the lowest API version that this

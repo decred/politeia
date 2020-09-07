@@ -75,12 +75,45 @@ const (
 	// requirements but still be rejected if it does not have the most
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
+
+	// Error status codes
+	ErrorStatusInvalid ErrorStatusT = 0
 )
 
 var (
 	// APIRoute is the prefix to the v2 API routes.
 	APIRoute = fmt.Sprintf("/v%v", APIVersion)
+
+	// ErrorStatus contains human readable error messages.
+	ErrorStatus = map[ErrorStatusT]string{
+		ErrorStatusInvalid: "error status invalid",
+	}
 )
+
+// UserError represents an error that is caused by something that the user
+// did (malformed input, bad timing, etc).
+type UserError struct {
+	ErrorCode    ErrorStatusT
+	ErrorContext []string
+}
+
+// Error satisfies the error interface.
+func (e UserError) Error() string {
+	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+}
+
+// ErrorReply are replies that the server returns when it encounters an
+// unrecoverable problem while executing a command. The HTTP status code will
+// be 500 and the ErrorCode field will contain a UNIX timestamp that the user
+// can provide to the server admin to track down the error details in the logs.
+type ErrorReply struct {
+	ErrorCode int64 `json:"errorcode"`
+}
+
+// Error satisfies the error interface.
+func (e ErrorReply) Error() string {
+	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
 
 // File describes an individual file that is part of the proposal. The
 // directory structure must be flattened.

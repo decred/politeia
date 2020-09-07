@@ -365,6 +365,10 @@ type InventoryReply struct {
 type UserErrorReply struct {
 	ErrorCode    ErrorStatusT `json:"errorcode"`              // Numeric error code
 	ErrorContext []string     `json:"errorcontext,omitempty"` // Additional error information
+
+	// Plugin will be populated with the plugin ID if the error was a
+	// plugin user error.
+	Plugin string `json:"plugin,omitempty"`
 }
 
 // ServerErrorReply returns an error code that can be correlated with

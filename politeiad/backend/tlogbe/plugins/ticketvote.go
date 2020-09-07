@@ -898,7 +898,7 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 	}
 	if client.State != tlogbe.RecordStateVetted {
 		return "", ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusRecordStateInvalid,
+			ErrorCode:    ticketvote.ErrorStatusRecordStatusInvalid,
 			ErrorContext: []string{"record not vetted"},
 		}
 	}
@@ -1035,7 +1035,7 @@ func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDuratio
 	default:
 		e := fmt.Sprintf("invalid type %v", vote.Type)
 		return ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+			ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 			ErrorContext: []string{e},
 		}
 	}
@@ -1046,28 +1046,28 @@ func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDuratio
 		e := fmt.Sprintf("duration %v exceeds max duration %v",
 			vote.Duration, voteDurationMax)
 		return ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+			ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 			ErrorContext: []string{e},
 		}
 	case vote.Duration < voteDurationMin:
 		e := fmt.Sprintf("duration %v under min duration %v",
 			vote.Duration, voteDurationMin)
 		return ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+			ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 			ErrorContext: []string{e},
 		}
 	case vote.QuorumPercentage > 100:
 		e := fmt.Sprintf("quorum percent %v exceeds 100 percent",
 			vote.QuorumPercentage)
 		return ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+			ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 			ErrorContext: []string{e},
 		}
 	case vote.PassPercentage > 100:
 		e := fmt.Sprintf("pass percent %v exceeds 100 percent",
 			vote.PassPercentage)
 		return ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+			ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 			ErrorContext: []string{e},
 		}
 	}
@@ -1076,7 +1076,7 @@ func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDuratio
 	// requirements.
 	if len(vote.Options) == 0 {
 		return ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+			ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 			ErrorContext: []string{"no vote options found"},
 		}
 	}
@@ -1089,7 +1089,7 @@ func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDuratio
 			e := fmt.Sprintf("vote options count got %v, want 2",
 				len(vote.Options))
 			return ticketvote.UserError{
-				ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+				ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 				ErrorContext: []string{e},
 			}
 		}
@@ -1117,7 +1117,7 @@ func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDuratio
 			e := fmt.Sprintf("vote option IDs not found: %v",
 				strings.Join(missing, ","))
 			return ticketvote.UserError{
-				ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+				ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 				ErrorContext: []string{e},
 			}
 		}
@@ -1128,7 +1128,7 @@ func voteDetailsVerify(vote ticketvote.VoteDetails, voteDurationMin, voteDuratio
 		err := voteBitVerify(vote.Options, vote.Mask, v.Bit)
 		if err != nil {
 			return ticketvote.UserError{
-				ErrorCode:    ticketvote.ErrorStatusVoteInvalid,
+				ErrorCode:    ticketvote.ErrorStatusVoteDetailsInvalid,
 				ErrorContext: []string{err.Error()},
 			}
 		}
@@ -1181,7 +1181,7 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 	}
 	if client.State != tlogbe.RecordStateVetted {
 		return "", ticketvote.UserError{
-			ErrorCode:    ticketvote.ErrorStatusRecordStateInvalid,
+			ErrorCode:    ticketvote.ErrorStatusRecordStatusInvalid,
 			ErrorContext: []string{"record not vetted"},
 		}
 	}
