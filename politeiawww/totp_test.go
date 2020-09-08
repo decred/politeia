@@ -36,8 +36,8 @@ func TestProcessSetTOTP(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to update user secret key %v", err)
 	}
-
-	code, err := p.totpGenerateCode(key.Secret(), time.Now().Add(500*time.Millisecond))
+	requestTime := time.Now()
+	code, err := p.totpGenerateCode(key.Secret(), requestTime)
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}
@@ -90,8 +90,9 @@ func TestProcessSetTOTP(t *testing.T) {
 
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			reply, err := p.processSetTOTP(v.params, v.user)
+			reply, err := p.processSetTOTP(v.params, v.user, t)
 			if err != nil {
+				t.Logf("request time %v %v", requestTime, code)
 				got := errToStr(err)
 				want := errToStr(v.wantError)
 				if got != want {

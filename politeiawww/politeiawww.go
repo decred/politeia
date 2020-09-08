@@ -1278,7 +1278,7 @@ func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	str, err := p.processSetTOTP(st, u)
+	str, err := p.processSetTOTP(st, u, nil)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetTOTP: processSetTOTP %v", err)
