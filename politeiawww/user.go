@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -1101,7 +1102,7 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	return u, p.db.UserUpdate(*u)
 }
 
-func (p *politeiawww) login(l www.Login) loginResult {
+func (p *politeiawww) login(l www.Login, t *testing.T) loginResult {
 	// Get user record
 	u, err := p.userByEmail(l.Email)
 	if err != nil {
@@ -1131,7 +1132,8 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				err:   err,
 			}
 		}
-		currentCode, err := p.totpGenerateCode(u.TOTPSecret, time.Now())
+		requestTime := time.Now()
+		currentCode, err := p.totpGenerateCode(u.TOTPSecret, requestTime)
 		if err != nil {
 			return loginResult{
 				reply: nil,
@@ -1145,7 +1147,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			if len(u.TOTPLastFailedCodeTime) == 0 {
 				log.Debugf("login: new totp code failure %v", u.Email)
 				u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
-				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
 			} else {
 				// A code has already been generated, check to see if it
 				// matches the recently generated code.
@@ -1154,7 +1156,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				if err != nil {
 					log.Debugf("login: new totp oldcode failure %v", err)
 					// Update user information with failed attempts and time.
-					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
 					err = p.db.UserUpdate(*u)
 					if err != nil {
 						return loginResult{
@@ -1174,7 +1176,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				// and return error.
 				if currentCode == oldCode {
 					log.Debugf("login: another failed window attempt %v", u.Email)
-					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
 
 					// Check to see if the user has already attempted more than 2
 					// TOTP codes for this window.
@@ -1201,7 +1203,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 					// Code don't match so reset time to now, and failed
 					// attempts back to 1.
 					u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
-					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
 				}
 			}
 
@@ -1213,6 +1215,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 					err:   err,
 				}
 			}
+			t.Logf("failed login attempt %v %v %v %v", requestTime, currentCode, l.Code, len(u.TOTPLastFailedCodeTime))
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			}
@@ -1323,7 +1326,7 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		ch <- p.login(l)
+		ch <- p.login(l, nil)
 	}()
 	go func() {
 		defer wg.Done()

@@ -929,8 +929,8 @@ func TestLogin(t *testing.T) {
 		ProposalCredits:    0,
 		LastLoginTime:      0,
 	}
-
-	code, err := p.totpGenerateCode(key.Secret(), time.Now().Add(50*time.Millisecond))
+	requestTime := time.Now()
+	code, err := p.totpGenerateCode(key.Secret(), requestTime)
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}
@@ -1135,11 +1135,11 @@ func TestLogin(t *testing.T) {
 			if v.name == "success after timeout" {
 				time.Sleep(totpTestPeriod * time.Second)
 			}
-			lr := p.login(v.login)
+			lr := p.login(v.login, t)
 			gotErr := errToStr(lr.err)
 			wantErr := errToStr(v.wantError)
 			if gotErr != wantErr {
-				t.Log(v.login)
+				t.Logf("failed %v %v", requestTime, code)
 				t.Errorf("got error %v, want %v",
 					gotErr, wantErr)
 			}
