@@ -53,30 +53,30 @@ type proposalSubmittedTemplateData struct {
 }
 
 type proposalEditedTemplateData struct {
-	Link     string
-	Name     string
-	Version  string
-	Username string
+	Link     string // GUI proposal details url
+	Name     string // Proposal name
+	Version  string // ProposalVersion
+	Username string // Author username
 }
 
 type proposalVoteStartedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
+	Link     string // GUI proposal details url
+	Name     string // Proposal name
+	Username string // Author username
 }
 
 type proposalStatusChangeTemplateData struct {
-	Link               string
-	Name               string
-	Username           string
-	StatusChangeReason string
+	Link               string // GUI proposal details url
+	Name               string // Proposal name
+	Username           string // Author username
+	StatusChangeReason string // Proposal status change reason
 }
 
 type proposalVoteAuthorizedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
-	Email    string
+	Link     string // GUI proposal details url
+	Name     string // Proposal name
+	Username string // Author username
+	Email    string // Author email
 }
 
 type commentReplyOnProposalTemplateData struct {

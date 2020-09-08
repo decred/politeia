@@ -23,6 +23,7 @@ const (
 	// user to the correct GUI pages.
 	guiRouteProposalDetails = "/proposals/{token}"
 	guiRouteRegisterNewUser = "/register"
+	guiRouteDCCDetails      = "/dcc/{token}"
 )
 
 func createBody(tpl *template.Template, tplData interface{}) (string, error) {
@@ -138,39 +139,6 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token 
 	return p.sendEmailTo(subject, body, email)
 }
 
-// emailAuthorForVettedProposal sends an email notification for a new proposal
-// becoming vetted to the proposal's author.
-func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
-		proposal.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
-
-	if authorUser.EmailNotifications&
-		uint64(www.NotificationEmailMyProposalStatusChange) == 0 {
-		return nil
-	}
-
-	tplData := proposalStatusChangeTemplateData{
-		Link:               l.String(),
-		Name:               proposal.Name,
-		StatusChangeReason: proposal.StatusChangeMessage,
-	}
-
-	subject := "Your Proposal Has Been Published"
-	body, err := createBody(templateProposalVettedForAuthor, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.sendEmailTo(subject, body, authorUser.Email)
-}
-
 // emailAuthorForCensoredProposal sends an email notification for a new
 // proposal becoming censored to the proposal's author.
 func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
@@ -197,6 +165,107 @@ func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecor
 
 	subject := "Your Proposal Has Been Censored"
 	body, err := createBody(templateProposalCensoredForAuthor, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, authorUser.Email)
+}
+
+// emailProposalStatusChange sends emails regarding the proposal status change
+// event. Sends email for the author and the users with this notification
+// bit turned on. This function replaces tree functions from the old event
+// manager: emailAuthorForVettedProposal, emailUsersForVettedProposal,
+// emailAuthorForCensoredProposal
+func (p *politeiawww) emailProposalStatusChange(data dataProposalStatusChange, emails []string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	route := strings.Replace(guiRouteProposalDetails, "{token}", data.token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	var subject string
+	var template *template.Template
+
+	// Prepare and send author's email if author notification bit
+	// is set
+	if notificationIsSet(data.emailNotifications,
+		www.NotificationEmailMyProposalStatusChange) {
+		switch data.status {
+		case www.PropStatusCensored:
+			subject = "Your Proposal Has Been Censored"
+			template = templateProposalCensoredForAuthor
+		case www.PropStatusPublic:
+			subject = "Your Proposal Has Been Published"
+			template = templateProposalVettedForAuthor
+		}
+		authorTplData := proposalStatusChangeTemplateData{
+			Link:               l.String(),
+			Name:               data.name,
+			StatusChangeReason: data.statusChangeMessage,
+		}
+		body, err := createBody(template, &authorTplData)
+		if err != nil {
+			return err
+		}
+		err = p.sendEmailTo(subject, body, data.email)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Prepare and send user's email, if there is any
+	if len(emails) > 0 {
+		subject = "New Proposal Published"
+		template = templateProposalVetted
+		usersTplData := proposalStatusChangeTemplateData{
+			Link:     l.String(),
+			Name:     data.name,
+			Username: data.username,
+		}
+		body, err := createBody(template, &usersTplData)
+		if err != nil {
+			return err
+		}
+		err = p.smtp.sendEmailTo(subject, body, emails)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// emailAuthorForVettedProposal sends an email notification for a new proposal
+// becoming vetted to the proposal's author.
+func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
+		proposal.CensorshipRecord.Token)
+	if err != nil {
+		return err
+	}
+
+	if authorUser.EmailNotifications&
+		uint64(www.NotificationEmailMyProposalStatusChange) == 0 {
+		return nil
+	}
+
+	tplData := proposalStatusChangeTemplateData{
+		Link:               l.String(),
+		Name:               proposal.Name,
+		StatusChangeReason: proposal.StatusChangeMessage,
+	}
+
+	subject := "Your Proposal Has Been Published"
+	body, err := createBody(templateProposalVettedForAuthor, &tplData)
 	if err != nil {
 		return err
 	}
@@ -247,6 +316,35 @@ func (p *politeiawww) emailUsersForVettedProposal(proposal *www.ProposalRecord, 
 	})
 }
 
+// emailProposalEdited sends email regarding the proposal edits event.
+// Sends to all users with this notification bit turned on.
+func (p *politeiawww) emailProposalEdited(name, username, token, version string, emails []string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	tplData := proposalEditedTemplateData{
+		Link:     l.String(),
+		Name:     name,
+		Version:  version,
+		Username: username,
+	}
+
+	subject := "Proposal Edited"
+	body, err := createBody(templateProposalEdited, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmailTo(subject, body, emails)
+}
+
 // emailUsersForEditedProposal sends an email notification for a proposal being
 // edited.
 func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, authorUser *user.User) error {
@@ -289,6 +387,49 @@ func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, 
 			msg.AddBCC(u.Email)
 		})
 	})
+}
+
+// emailProposalVoteStarted sends email for the proposal vote started event.
+// Sends email to author and users with this notification bit set on.
+func (p *politeiawww) emailProposalVoteStarted(token, name, username, email string, emailNotifications uint64, emails []string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	tplData := proposalVoteStartedTemplateData{
+		Link:     l.String(),
+		Name:     name,
+		Username: username,
+	}
+
+	if emailNotifications&
+		uint64(www.NotificationEmailMyProposalVoteStarted) != 0 {
+
+		subject := "Your Proposal Has Started Voting"
+		body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
+		if err != nil {
+			return err
+		}
+
+		err = p.sendEmailTo(subject, body, email)
+		if err != nil {
+			return err
+		}
+	}
+
+	subject := "Voting Started for Proposal"
+	body, err := createBody(templateProposalVoteStarted, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
 // emailUsersForProposalVoteStarted sends an email notification for a proposal
@@ -350,6 +491,8 @@ func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRec
 	})
 }
 
+// emailProposalSubmitted sends email notification for a new proposal becoming
+// vetted. Sends to the author and for users with this notification setting.
 func (p *politeiawww) emailProposalSubmitted(token, name, username string, emails []string) error {
 	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
@@ -365,6 +508,35 @@ func (p *politeiawww) emailProposalSubmitted(token, name, username string, email
 
 	subject := "New Proposal Submitted"
 	body, err := createBody(templateProposalSubmitted, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmailTo(subject, body, emails)
+}
+
+// emailProposalVoteAuthorized sends email notification for the proposal vote
+// authorized event. Sends to all admins with this notification bit set on.
+func (p *politeiawww) emailProposalVoteAuthorized(token, name, username, email string, emails []string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	tplData := proposalVoteAuthorizedTemplateData{
+		Link:     l.String(),
+		Name:     name,
+		Username: username,
+		Email:    email,
+	}
+
+	subject := "Proposal Authorized To Start Voting"
+	body, err := createBody(templateProposalVoteAuthorized, &tplData)
 	if err != nil {
 		return err
 	}
@@ -629,6 +801,24 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 	return p.sendEmailTo(subject, body, email)
 }
 
+// emailInvoiceComment sends email for the invoice comment event. Sends
+// email to the user regarding that invoice.
+func (p *politeiawww) emailInvoiceComment(userEmail string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	var tplData interface{}
+	subject := "New Invoice Comment"
+
+	body, err := createBody(templateNewInvoiceComment, tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, userEmail)
+}
+
 func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
 	if p.smtp.disabled {
 		return nil
@@ -638,6 +828,26 @@ func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
 
 	subject := "New Invoice Comment"
 	body, err := createBody(templateNewInvoiceComment, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, userEmail)
+}
+
+// emailInvoiceStatusUpdate sends email for the invoice status update event.
+// Sends email for the user regarding that invoice.
+func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	tplData := newInvoiceStatusUpdateTemplate{
+		Token: invoiceToken,
+	}
+
+	subject := "Invoice status has been updated"
+	body, err := createBody(templateNewInvoiceStatusUpdate, &tplData)
 	if err != nil {
 		return err
 	}
@@ -663,12 +873,38 @@ func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail, invoiceToken strin
 	return p.sendEmailTo(subject, body, userEmail)
 }
 
+// emailDCCNew sends email regarding the DCC New event. Sends email
+// to all admins.
+func (p *politeiawww) emailDCCNew(token string, emails []string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	tplData := newDCCSubmittedTemplateData{
+		Link: l.String(),
+	}
+
+	subject := "New DCC Submitted"
+	body, err := createBody(templateNewDCCSubmitted, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmailTo(subject, body, emails)
+}
+
 func (p *politeiawww) emailAdminsForNewDCC(token string) error {
 	if p.smtp.disabled {
 		return nil
 	}
 
-	l, err := url.Parse(p.cfg.WebServerAddress + "/dcc/" + token)
+	l, err := url.Parse(p.cfg.WebServerAddress + "{token}" + token)
 	if err != nil {
 		return err
 	}
@@ -692,6 +928,32 @@ func (p *politeiawww) emailAdminsForNewDCC(token string) error {
 			msg.AddBCC(u.Email)
 		})
 	})
+}
+
+// emailDCCSupportOppose sends emails regarding dcc support/oppose event.
+// Sends emails to all admin users.
+func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	tplData := newDCCSupportOpposeTemplateData{
+		Link: l.String(),
+	}
+
+	subject := "New DCC Support/Opposition Submitted"
+	body, err := createBody(templateNewDCCSupportOppose, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
 func (p *politeiawww) emailAdminsForNewDCCSupportOppose(token string) error {
