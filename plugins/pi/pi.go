@@ -19,6 +19,7 @@ const (
 	ID             = "pi"
 
 	// Plugin commands
+	CmdProposals = "proposals" // Get plugin data of proposals
 
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
@@ -27,8 +28,9 @@ const (
 
 	// FilenameProposalMetadata is the filename of the ProposalMetadata
 	// file that is saved to politeiad. ProposalMetadata is saved to
-	// politeiad as a file, not as a metadata stream, since it needs to
-	// be included in the merkle root that politeiad signs.
+	// politeiad as a file, not as a metadata stream, since it contains
+	// user provided metadata and needs to be included in the merkle
+	// root that politeiad signs.
 	FilenameProposalMetadata = "proposalmetadata.json"
 
 	// Proposal status codes
@@ -134,4 +136,50 @@ func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 		return nil, err
 	}
 	return &pg, nil
+}
+
+// Proposals requests the pi plugin data for the provided proposals.
+type Proposals struct {
+	Tokens []string `json:"tokens"`
+}
+
+// EncodeProposals encodes a Proposals into a JSON byte slice.
+func EncodeProposals(p Proposals) ([]byte, error) {
+	return json.Marshal(p)
+}
+
+// DecodeProposals decodes a Proposals into a JSON byte slice.
+func DecodeProposals(payload []byte) (*Proposals, error) {
+	var p Proposals
+	err := json.Unmarshal(payload, &p)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// ProposalData represents the pi plugin data of a proposal.
+type ProposalData struct {
+	LinkedFrom []string `json:"linkedfrom"`
+}
+
+// ProposalsReply is the reply to the Proposals command. The proposals map will
+// not contain an entry for tokens that do not correspond to actual proposals.
+type ProposalsReply struct {
+	Proposals map[string]ProposalData `json:"proposals"`
+}
+
+// EncodeProposalsReply encodes a ProposalsReply into a JSON byte slice.
+func EncodeProposalsReply(pr ProposalsReply) ([]byte, error) {
+	return json.Marshal(pr)
+}
+
+// DecodeProposalsReply decodes a ProposalsReply into a JSON byte slice.
+func DecodeProposalsReply(payload []byte) (*ProposalsReply, error) {
+	var pr ProposalsReply
+	err := json.Unmarshal(payload, &pr)
+	if err != nil {
+		return nil, err
+	}
+	return &pr, nil
 }

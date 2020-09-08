@@ -47,7 +47,7 @@ var (
 	validProposalName = regexp.MustCompile(createProposalNameRegex())
 )
 
-func propStateFromStatus(s pi.PropStatusT) propStateT {
+func convertPropStateFromStatus(s pi.PropStatusT) propStateT {
 	switch s {
 	case pi.PropStatusUnvetted, pi.PropStatusCensored:
 		return propStateUnvetted
@@ -578,7 +578,11 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 }
 
 // TODO implement proposalRecord
+// proposalRecord returns the proposal record for the provided token.
 func (p *politeiawww) proposalRecord(token string) (*pi.ProposalRecord, error) {
+	// Get politeiad record
+	// Get proposal plugin data
+	// Get user data
 	return nil, nil
 }
 
@@ -672,7 +676,7 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 
 	// Send politeiad request
 	var route string
-	switch propStateFromStatus(curr.Status) {
+	switch convertPropStateFromStatus(curr.Status) {
 	case propStateUnvetted:
 		route = pd.UpdateUnvettedRoute
 	case propStateVetted:
@@ -693,7 +697,6 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	if err != nil {
 		// TODO verify that this will throw an error if no proposal files
 		// were changed.
-		// TODO plugin error pass through
 		return nil, err
 	}
 	var urr pd.UpdateRecordReply

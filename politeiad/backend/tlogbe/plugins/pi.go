@@ -66,18 +66,18 @@ func proposalMetadataFromFiles(files []backend.File) (*pi.ProposalMetadata, erro
 	return pm, nil
 }
 
-// TODO saving the proposalLinkedFrom to the filesystem is not scalable between
+// TODO saving the linkedFrom to the filesystem is not scalable between
 // multiple politeiad instances. The plugin needs to have a tree that can be
 // used to share state between the different politeiad instances.
 
-// proposalLinkedFrom is the the structure that is updated and cached for
-// proposal A when proposal B links to proposal A. The list contains all
-// proposals that have linked to proposal A. The linked from list will only
-// contain public proposals.
+// linkedFrom is the the structure that is updated and cached for proposal A
+// when proposal B links to proposal A. The list contains all proposals that
+// have linked to proposal A. The linked from list will only contain public
+// proposals.
 //
 // Example: an RFP proposal's linked from list will contain all public RFP
 // submissions since they have all linked to the RFP proposal.
-type proposalLinkedFrom struct {
+type linkedFrom struct {
 	Tokens map[string]struct{} `json:"tokens"`
 }
 
@@ -87,7 +87,7 @@ func (p *piPlugin) cachedLinkedFromPath(token string) string {
 }
 
 // This function must be called WITH the lock held.
-func (p *piPlugin) cachedLinkedFromLocked(token string) (*proposalLinkedFrom, error) {
+func (p *piPlugin) cachedLinkedFromLocked(token string) (*linkedFrom, error) {
 	fp := p.cachedLinkedFromPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
@@ -98,16 +98,16 @@ func (p *piPlugin) cachedLinkedFromLocked(token string) (*proposalLinkedFrom, er
 		}
 	}
 
-	var plf proposalLinkedFrom
-	err = json.Unmarshal(b, &plf)
+	var lf linkedFrom
+	err = json.Unmarshal(b, &lf)
 	if err != nil {
 		return nil, err
 	}
 
-	return &plf, nil
+	return &lf, nil
 }
 
-func (p *piPlugin) cachedLinkedFrom(token string) (*proposalLinkedFrom, error) {
+func (p *piPlugin) cachedLinkedFrom(token string) (*linkedFrom, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -119,10 +119,10 @@ func (p *piPlugin) cachedLinkedFromAdd(parentToken, childToken string) error {
 	defer p.Unlock()
 
 	// Get existing linked from list
-	plf, err := p.cachedLinkedFromLocked(parentToken)
+	lf, err := p.cachedLinkedFromLocked(parentToken)
 	if err == errRecordNotFound {
 		// List doesn't exist. Create a new one.
-		plf = &proposalLinkedFrom{
+		lf = &linkedFrom{
 			Tokens: make(map[string]struct{}, 0),
 		}
 	} else if err != nil {
@@ -130,10 +130,10 @@ func (p *piPlugin) cachedLinkedFromAdd(parentToken, childToken string) error {
 	}
 
 	// Update list
-	plf.Tokens[childToken] = struct{}{}
+	lf.Tokens[childToken] = struct{}{}
 
 	// Save list
-	b, err := json.Marshal(plf)
+	b, err := json.Marshal(lf)
 	if err != nil {
 		return err
 	}
@@ -151,16 +151,16 @@ func (p *piPlugin) cachedLinkedFromDel(parentToken, childToken string) error {
 	defer p.Unlock()
 
 	// Get existing linked from list
-	plf, err := p.cachedLinkedFromLocked(parentToken)
+	lf, err := p.cachedLinkedFromLocked(parentToken)
 	if err != nil {
 		return fmt.Errorf("cachedLinkedFromLocked %v: %v", parentToken, err)
 	}
 
 	// Update list
-	delete(plf.Tokens, childToken)
+	delete(lf.Tokens, childToken)
 
 	// Save list
-	b, err := json.Marshal(plf)
+	b, err := json.Marshal(lf)
 	if err != nil {
 		return err
 	}
@@ -171,20 +171,6 @@ func (p *piPlugin) cachedLinkedFromDel(parentToken, childToken string) error {
 	}
 
 	return nil
-}
-
-func (p *piPlugin) Setup() error {
-	log.Tracef("pi Setup")
-
-	// Verify vote plugin dependency
-
-	return nil
-}
-
-func (p *piPlugin) Cmd(cmd, payload string) (string, error) {
-	log.Tracef("pi Cmd: %v %v", cmd, payload)
-
-	return "", nil
 }
 
 func (p *piPlugin) hookNewRecordPre(payload string) error {
@@ -390,7 +376,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 		return err
 	}
 
-	// If the LinkTo field has been set then the proposalLinkedFrom
+	// If the LinkTo field has been set then the linkedFrom
 	// list might need to be updated for the proposal that is being
 	// linked to, depending on the status change that is being made.
 	pm, err := proposalMetadataFromFiles(srs.Record.Files)
@@ -425,6 +411,51 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	return nil
 }
 
+func (p *piPlugin) Setup() error {
+	log.Tracef("pi Setup")
+
+	// Verify vote plugin dependency
+
+	return nil
+}
+
+func (p *piPlugin) cmdProposals(payload string) (string, error) {
+	ps, err := pi.DecodeProposals([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	_ = ps
+
+	/*
+		// TODO just because a cached linked from doesn't exist doesn't
+		// mean the token isn't valid. We need to check if the token
+		// corresponds to a real proposal.
+		proposals := make(map[string]pi.ProposalData, len(ps.Tokens))
+		for _, v := range ps.Tokens {
+			lf, err := p.cachedLinkedFrom(v)
+			if err != nil {
+				if err == errRecordNotFound {
+					continue
+				}
+				return "", fmt.Errorf("cachedLinkedFrom %v: %v", v, err)
+			}
+		}
+	*/
+
+	return "", nil
+}
+
+func (p *piPlugin) Cmd(cmd, payload string) (string, error) {
+	log.Tracef("pi Cmd: %v %v", cmd, payload)
+
+	switch cmd {
+	case pi.CmdProposals:
+		return p.cmdProposals(payload)
+	}
+
+	return "", nil
+}
+
 func (p *piPlugin) Hook(h tlogbe.HookT, payload string) error {
 	log.Tracef("pi Hook: %v", tlogbe.Hooks[h])
 
@@ -443,7 +474,7 @@ func (p *piPlugin) Hook(h tlogbe.HookT, payload string) error {
 func (p *piPlugin) Fsck() error {
 	log.Tracef("pi Fsck")
 
-	// proposalLinkedFrom cache
+	// linkedFrom cache
 
 	return nil
 }
