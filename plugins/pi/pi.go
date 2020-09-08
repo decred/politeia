@@ -41,10 +41,10 @@ const (
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
 
 	// User error status codes
-	ErrorStatusInvalid         ErrorStatusT = 0
-	ErrorStatusLinkToInvalid   ErrorStatusT = 1
-	ErrorStatusWrongPropStatus ErrorStatusT = 2
-	ErrorStatusWrongVoteStatus ErrorStatusT = 3
+	ErrorStatusInvalid           ErrorStatusT = 0
+	ErrorStatusPropLinkToInvalid ErrorStatusT = 1
+	ErrorStatusPropStatusInvalid ErrorStatusT = 2
+	ErrorStatusVoteStatusInvalid ErrorStatusT = 3
 )
 
 var (
@@ -60,10 +60,10 @@ var (
 
 	// ErrorStatus contains human readable user error statuses.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:         "error status invalid",
-		ErrorStatusLinkToInvalid:   "linkto invalid",
-		ErrorStatusWrongPropStatus: "wrong proposal status",
-		ErrorStatusWrongVoteStatus: "wrong vote status",
+		ErrorStatusInvalid:           "error status invalid",
+		ErrorStatusPropLinkToInvalid: "proposal link to invalid",
+		ErrorStatusPropStatusInvalid: "proposal status invalid",
+		ErrorStatusVoteStatusInvalid: "vote status invalid",
 	}
 )
 

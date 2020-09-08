@@ -207,14 +207,14 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	if pm.LinkTo != "" {
 		if isRFP(*pm) {
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"an rfp cannot have linkto set"},
 			}
 		}
 		tokenb, err := hex.DecodeString(pm.LinkTo)
 		if err != nil {
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"invalid hex"},
 			}
 		}
@@ -222,7 +222,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
 				return pi.UserError{
-					ErrorCode:    pi.ErrorStatusLinkToInvalid,
+					ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 					ErrorContext: []string{"proposal not found"},
 				}
 			}
@@ -234,20 +234,20 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		}
 		if linkToPM == nil {
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"proposal not an rfp"},
 			}
 		}
 		if !isRFP(*linkToPM) {
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"proposal not an rfp"},
 			}
 		}
 		if time.Now().Unix() > linkToPM.LinkBy {
 			// Link by deadline has expired. New links are not allowed.
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"rfp link by deadline expired"},
 			}
 		}
@@ -274,7 +274,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		}
 		if !summary.Approved {
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"rfp vote not approved"},
 			}
 		}
@@ -311,7 +311,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	status := convertPropStatusFromMDStatus(er.Record.RecordMetadata.Status)
 	if status != pi.PropStatusUnvetted && status != pi.PropStatusPublic {
 		return pi.UserError{
-			ErrorCode: pi.ErrorStatusWrongPropStatus,
+			ErrorCode: pi.ErrorStatusPropStatusInvalid,
 		}
 	}
 
@@ -342,7 +342,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			ticketvote.VoteStatus[summary.Status],
 			ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
 		return pi.UserError{
-			ErrorCode:    pi.ErrorStatusWrongVoteStatus,
+			ErrorCode:    pi.ErrorStatusVoteStatusInvalid,
 			ErrorContext: []string{e},
 		}
 	}
@@ -361,7 +361,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 		}
 		if pmCurr.LinkTo != pmNew.LinkTo {
 			return pi.UserError{
-				ErrorCode:    pi.ErrorStatusLinkToInvalid,
+				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"linkto cannot change on public proposal"},
 			}
 		}

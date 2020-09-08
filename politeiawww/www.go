@@ -81,11 +81,11 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 
 func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) www.ErrorStatusT {
 	switch e {
-	case piplugin.ErrorStatusLinkToInvalid:
+	case piplugin.ErrorStatusPropLinkToInvalid:
 		return www.ErrorStatusInvalidLinkTo
-	case piplugin.ErrorStatusWrongPropStatus:
+	case piplugin.ErrorStatusPropStatusInvalid:
 		return www.ErrorStatusWrongStatus
-	case piplugin.ErrorStatusWrongVoteStatus:
+	case piplugin.ErrorStatusVoteStatusInvalid:
 		return www.ErrorStatusWrongVoteStatus
 	}
 	return www.ErrorStatusInvalid
@@ -166,15 +166,20 @@ func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
 	return www.ErrorStatusInvalid
 }
 
-// TODO add pi error statuses
 func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
 	case pd.ErrorStatusInvalidFilename:
+		return pi.ErrorStatusFileNameInvalid
 	case pd.ErrorStatusInvalidFileDigest:
+		return pi.ErrorStatusFileDigestInvalid
 	case pd.ErrorStatusInvalidBase64:
+		return pi.ErrorStatusFilePayloadInvalid
 	case pd.ErrorStatusInvalidMIMEType:
+		return pi.ErrorStatusFileMIMEInvalid
 	case pd.ErrorStatusUnsupportedMIMEType:
+		return pi.ErrorStatusFileMIMEInvalid
 	case pd.ErrorStatusInvalidRecordStatusTransition:
+		return pi.ErrorStatusPropStatusChangeInvalid
 	case pd.ErrorStatusInvalidRequestPayload:
 		// Intentionally omitted because this indicates a politeiawww
 		// server error so a ErrorStatusInvalid should be returned.
@@ -185,43 +190,60 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 	return pi.ErrorStatusInvalid
 }
 
-// TODO add pi error statuses
 func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
-	case piplugin.ErrorStatusLinkToInvalid:
-	case piplugin.ErrorStatusWrongPropStatus:
-	case piplugin.ErrorStatusWrongVoteStatus:
+	case piplugin.ErrorStatusPropLinkToInvalid:
+		return pi.ErrorStatusPropLinkToInvalid
+	case piplugin.ErrorStatusPropStatusInvalid:
+		return pi.ErrorStatusPropStatusInvalid
+	case piplugin.ErrorStatusVoteStatusInvalid:
+		return pi.ErrorStatusVoteStatusInvalid
 	}
 	return pi.ErrorStatusInvalid
 }
 
-// TODO add pi error statuses
 func convertPiErrorStatusFromComments(e comments.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
 	case comments.ErrorStatusTokenInvalid:
+		return pi.ErrorStatusPropTokenInvalid
 	case comments.ErrorStatusPublicKeyInvalid:
+		return pi.ErrorStatusPublicKeyInvalid
 	case comments.ErrorStatusSignatureInvalid:
+		return pi.ErrorStatusSignatureInvalid
 	case comments.ErrorStatusRecordNotFound:
+		return pi.ErrorStatusPropNotFound
 	case comments.ErrorStatusCommentNotFound:
+		return pi.ErrorStatusCommentNotFound
 	case comments.ErrorStatusParentIDInvalid:
+		return pi.ErrorStatusCommentParentIDInvalid
 	case comments.ErrorStatusNoCommentChanges:
+		return pi.ErrorStatusCommentTextInvalid
 	case comments.ErrorStatusVoteInvalid:
+		return pi.ErrorStatusCommentVoteInvalid
 	case comments.ErrorStatusMaxVoteChanges:
+		return pi.ErrorStatusCommentMaxVoteChanges
 	}
 	return pi.ErrorStatusInvalid
 }
 
-// TODO add pi error statuses
 func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
 	case ticketvote.ErrorStatusTokenInvalid:
+		return pi.ErrorStatusPropTokenInvalid
 	case ticketvote.ErrorStatusPublicKeyInvalid:
+		return pi.ErrorStatusPublicKeyInvalid
 	case ticketvote.ErrorStatusSignatureInvalid:
+		return pi.ErrorStatusSignatureInvalid
 	case ticketvote.ErrorStatusRecordNotFound:
+		return pi.ErrorStatusPropNotFound
 	case ticketvote.ErrorStatusRecordStatusInvalid:
+		return pi.ErrorStatusPropStatusInvalid
 	case ticketvote.ErrorStatusVoteDetailsInvalid:
+		return pi.ErrorStatusVoteDetailsInvalid
 	case ticketvote.ErrorStatusVoteStatusInvalid:
+		return pi.ErrorStatusVoteStatusInvalid
 	case ticketvote.ErrorStatusBallotInvalid:
+		return pi.ErrorStatusBallotInvalid
 	}
 	return pi.ErrorStatusInvalid
 }

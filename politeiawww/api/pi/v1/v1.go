@@ -83,13 +83,62 @@ const (
 
 	// Error status codes
 	ErrorStatusInvalid ErrorStatusT = 0
+
+	// User errors
+	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 1
+	ErrorStatusUserBalanceInsufficient ErrorStatusT = 2
+	ErrorStatusUserIsNotAuthor         ErrorStatusT = 3
+
+	// Signature errors
+	ErrorStatusPublicKeyInvalid ErrorStatusT = 100
+	ErrorStatusSignatureInvalid ErrorStatusT = 101
+
+	// Proposal errors
+	ErrorStatusFileCountInvalid       ErrorStatusT = 202
+	ErrorStatusFileNameInvalid        ErrorStatusT = 203
+	ErrorStatusFileMIMEInvalid        ErrorStatusT = 204
+	ErrorStatusFileDigestInvalid      ErrorStatusT = 205
+	ErrorStatusFilePayloadInvalid     ErrorStatusT = 206
+	ErrorStatusIndexFileNameInvalid   ErrorStatusT = 207
+	ErrorStatusIndexFileCountInvalid  ErrorStatusT = 207
+	ErrorStatusIndexFileSizeInvalid   ErrorStatusT = 208
+	ErrorStatusTextFileCountInvalid   ErrorStatusT = 209
+	ErrorStatusImageFileCountInvalid  ErrorStatusT = 210
+	ErrorStatusImageFileSizeInvalid   ErrorStatusT = 211
+	ErrorStatusMetadataCountInvalid   ErrorStatusT = 212
+	ErrorStatusMetadataHintInvalid    ErrorStatusT = 213
+	ErrorStatusMetadataDigestInvalid  ErrorStatusT = 214
+	ErrorStatusMetadataPayloadInvalid ErrorStatusT = 215
+	ErrorStatusPropNameInvalid        ErrorStatusT = 216
+	ErrorStatusPropLinkToInvalid      ErrorStatusT = 217
+	ErrorStatusPropLinkByInvalid      ErrorStatusT = 218
+
+	// TODO make normal
+	ErrorStatusPropTokenInvalid ErrorStatusT = iota
+	ErrorStatusPropNotFound
+	ErrorStatusPropStateInvalid
+	ErrorStatusPropStatusInvalid
+	ErrorStatusPropStatusChangeInvalid
+
+	// Comment errors
+	ErrorStatusCommentTextInvalid
+	ErrorStatusCommentParentIDInvalid
+	ErrorStatusCommentVoteInvalid
+	ErrorStatusCommentNotFound
+	ErrorStatusCommentMaxVoteChanges
+
+	// Vote errors
+	ErrorStatusVoteStatusInvalid
+	ErrorStatusVoteDetailsInvalid
+	ErrorStatusBallotInvalid
 )
 
 var (
-	// APIRoute is the prefix to the v2 API routes.
+	// APIRoute is the prefix to all API routes.
 	APIRoute = fmt.Sprintf("/v%v", APIVersion)
 
 	// ErrorStatus contains human readable error messages.
+	// TODO fill in error status messages
 	ErrorStatus = map[ErrorStatusT]string{
 		ErrorStatusInvalid: "error status invalid",
 	}
