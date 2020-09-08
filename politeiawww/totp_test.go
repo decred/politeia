@@ -49,24 +49,6 @@ func TestProcessSetTOTP(t *testing.T) {
 		user      *user.User
 	}{
 		{
-			"error wrong type",
-			www.SetTOTP{
-				Type: www.TOTPTypeInvalid,
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusTOTPInvalidType,
-			},
-			basicUser,
-		},
-		{
-			"success",
-			www.SetTOTP{
-				Type: www.TOTPTypeBasic,
-			},
-			nil,
-			basicUser,
-		},
-		{
 			"error already set wrong code",
 			www.SetTOTP{
 				Type: www.TOTPTypeBasic,
@@ -85,6 +67,24 @@ func TestProcessSetTOTP(t *testing.T) {
 			},
 			nil,
 			alreadySetUser,
+		},
+		{
+			"error wrong type",
+			www.SetTOTP{
+				Type: www.TOTPTypeInvalid,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPInvalidType,
+			},
+			basicUser,
+		},
+		{
+			"success",
+			www.SetTOTP{
+				Type: www.TOTPTypeBasic,
+			},
+			nil,
+			basicUser,
 		},
 	}
 
