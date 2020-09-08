@@ -315,6 +315,7 @@ type UpdateRecord struct {
 // UpdateRecordReply returns a CensorshipRecord which may or may not have
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
+	// TODO add censorship record
 	Response string `json:"response"` // Challenge response
 }
 

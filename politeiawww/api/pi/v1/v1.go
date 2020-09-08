@@ -9,6 +9,7 @@ import (
 )
 
 type ErrorStatusT int
+type PropStateT int
 type PropStatusT int
 type VoteStatusT int
 type VoteT int
@@ -20,7 +21,6 @@ const (
 	RouteProposalNew       = "/proposal/new"
 	RouteProposalEdit      = "/proposal/edit"
 	RouteProposalSetStatus = "/proposal/setstatus"
-	RouteProposalDetails   = "/proposal/details"
 	RouteProposals         = "/proposals"
 	RouteProposalInventory = "/proposals/inventory"
 
@@ -36,19 +36,24 @@ const (
 	RouteVoteStart       = "/vote/start"
 	RouteVoteStartRunoff = "/vote/startrunoff"
 	RouteVoteBallot      = "/vote/ballot"
-	RouteVoteDetails     = "/vote/details"
-	RouteVoteResults     = "/vote/results"
+	RouteVotes           = "/votes"
+	RouteVoteResults     = "/votes/results"
 	RouteVoteSummaries   = "/votes/summaries"
 	RouteVoteInventory   = "/votes/inventory"
 
-	// Proposal status codes
+	// Proposal states
+	PropStateInvalid  PropStateT = 0
+	PropStateUnvetted PropStateT = 1
+	PropStateVetted   PropStateT = 2
+
+	// Proposal statuses
 	PropStatusInvalid   PropStatusT = 0 // Invalid status
 	PropStatusUnvetted  PropStatusT = 1 // Prop has not been vetted
 	PropStatusPublic    PropStatusT = 2 // Prop has been made public
 	PropStatusCensored  PropStatusT = 3 // Prop has been censored
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
 
-	// Vote status codes
+	// Vote statuses
 	VoteStatusInvalid      VoteStatusT = 0 // Invalid status
 	VoteStatusUnauthorized VoteStatusT = 1 // Vote cannot be started
 	VoteStatusAuthorized   VoteStatusT = 2 // Vote can be started
@@ -185,6 +190,7 @@ type StatusChange struct {
 type ProposalRecord struct {
 	Version   string         `json:"version"`   // Proposal version
 	Timestamp int64          `json:"timestamp"` // Submission UNIX timestamp
+	State     PropStateT     `json:"state"`     // Proposal state
 	Status    PropStatusT    `json:"status"`    // Proposal status
 	UserID    string         `json:"userid"`    // Author ID
 	Username  string         `json:"username"`  // Author username
@@ -221,7 +227,8 @@ type ProposalNew struct {
 
 // ProposalNewReply is the reply to the ProposalNew command.
 type ProposalNewReply struct {
-	Proposal ProposalRecord `json:"proposal"`
+	Timestamp        int64            `json:"timestamp"`
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
 // ProposalEdit edits an existing proposal.
@@ -232,6 +239,7 @@ type ProposalNewReply struct {
 // root is the ordered merkle root of all proposal Files and Metadata.
 type ProposalEdit struct {
 	Token     string     `json:"token"`     // Censorship token
+	State     PropStateT `json:"state"`     // Proposal state
 	Files     []File     `json:"files"`     // Proposal files
 	Metadata  []Metadata `json:"metadata"`  // User defined metadata
 	PublicKey string     `json:"publickey"` // Key used for signature
@@ -240,7 +248,9 @@ type ProposalEdit struct {
 
 // ProposalEditReply is the reply to the ProposalEdit command.
 type ProposalEditReply struct {
-	Proposal ProposalRecord `json:"proposal"`
+	Version          string           `json:"version"`
+	Timestamp        int64            `json:"timestamp"`
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
 // ProposalSetStatus sets the status of a proposal. Some status changes require
@@ -249,6 +259,7 @@ type ProposalEditReply struct {
 // Signature is the client signature of the Token+Version+Status+Reason.
 type ProposalSetStatus struct {
 	Token     string      `json:"token"`            // Censorship token
+	State     PropStateT  `json:"state"`            // Proposal state
 	Version   string      `json:"version"`          // Proposal version
 	Status    PropStatusT `json:"status"`           // New status
 	Reason    string      `json:"reason,omitempty"` // Reason for status change
@@ -261,16 +272,25 @@ type ProposalSetStatusReply struct {
 	Timestamp int64 `json:"timestamp"`
 }
 
-// ProposalDetails retrieves a proposal record. If a version is not specified,
-// the latest version will be returned.
-type ProposalDetails struct {
-	Token   string `json:"token"`
-	Version string `json:"version,omitempty"`
+// ProposalRequest is used to request the ProposalRecord of the provided
+// proposal token and version. If the version is omitted, the most recent
+// version will be returned.
+type ProposalRequest struct {
+	Token        string     `json:"token"`
+	State        PropStateT `json:"state"`
+	Version      string     `json:"version,omitempty"`
+	IncludeFiles bool       `json:"includefiles,omitempty"`
 }
 
-// ProposalDetailsReply is the reply to the ProposalDetails command.
-type ProposalDetailsReply struct {
-	Proposal ProposalRecord `json:"proposal"`
+// Proposals retrieves the ProposalRecord for each of the provided proposal
+// requests.
+type Proposals struct {
+	Requests []ProposalRequest `json:"requests"`
+}
+
+// ProposalsReply is the reply to the Proposals command.
+type ProposalsReply struct {
+	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // ProposalInventry retrieves the tokens of all proposals in the inventory,

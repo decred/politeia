@@ -28,25 +28,18 @@ import (
 
 // TODO use pi errors instead of www errors
 
-type propStateT int
-
 const (
 	// MIME types
 	mimeTypeText     = "text/plain"
 	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
 	mimeTypePNG      = "image/png"
-
-	// Proposal states. These correspond to the politeiad routes.
-	propStateInvalid  propStateT = 0
-	propStateUnvetted propStateT = 1
-	propStateVetted   propStateT = 2
 )
 
 var (
 	validProposalName = regexp.MustCompile(createProposalNameRegex())
 )
 
-func convertPropStateFromStatus(s pi.PropStatusT) propStateT {
+func convertPropStateFromStatus(s pi.PropStatusT) pi.PropStateT {
 	switch s {
 	case pi.PropStatusUnvetted, pi.PropStatusCensored:
 		return propStateUnvetted
@@ -745,13 +738,17 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		},
 	}
 
-	// Send politeiad request
+	// Setup politeiad request
 	var route string
-	switch convertPropStateFromStatus(curr.Status) {
-	case propStateUnvetted:
+	switch pe.State {
+	case pi.PropStateUnvetted:
 		route = pd.UpdateUnvettedRoute
-	case propStateVetted:
+	case pi.PropStateVetted:
 		route = pd.UpdateVettedRoute
+	default:
+		return nil, pi.UserError{
+			// TODO ErrorCode: pi.ErrorStatusPropStateInvalid,
+		}
 	}
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -764,6 +761,8 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		FilesAdd:    files,
 		FilesDel:    filesToDel(curr.Files, pe.Files),
 	}
+
+	// Send politeiad request
 	resBody, err := p.makeRequest(http.MethodPost, route, ur)
 	if err != nil {
 		// TODO verify that this will throw an error if no proposal files
