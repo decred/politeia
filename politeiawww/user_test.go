@@ -983,61 +983,6 @@ func TestLogin(t *testing.T) {
 		wantError error
 	}{
 		{
-			"wrong email",
-			www.Login{
-				Email:    "",
-				Password: usrPassword,
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidLogin,
-			},
-		},
-		{
-			"wrong password",
-			www.Login{
-				Email:    usr.Email,
-				Password: "",
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidLogin,
-			},
-		},
-		{
-			"user not verified",
-			www.Login{
-				Email:    usrUnverified.Email,
-				Password: usrUnverifiedPassword,
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusEmailNotVerified,
-			},
-		},
-		{
-			"user deactivated",
-			www.Login{
-				Email:    usrDeactivated.Email,
-				Password: usrDeactivatedPassword,
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusUserDeactivated,
-			},
-		},
-		{
-			"user account locked",
-			www.Login{
-				Email:    usrLocked.Email,
-				Password: usrLockedPassword,
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusUserLocked,
-			},
-		},
-		{
 			"totp verified no code",
 			www.Login{
 				Email:    usrTOTPVerified.Email,
@@ -1116,6 +1061,61 @@ func TestLogin(t *testing.T) {
 			},
 			&successTOTPTimeoutReply,
 			nil,
+		},
+		{
+			"wrong email",
+			www.Login{
+				Email:    "",
+				Password: usrPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		},
+		{
+			"wrong password",
+			www.Login{
+				Email:    usr.Email,
+				Password: "",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		},
+		{
+			"user not verified",
+			www.Login{
+				Email:    usrUnverified.Email,
+				Password: usrUnverifiedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
+			},
+		},
+		{
+			"user deactivated",
+			www.Login{
+				Email:    usrDeactivated.Email,
+				Password: usrDeactivatedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
+			},
+		},
+		{
+			"user account locked",
+			www.Login{
+				Email:    usrLocked.Email,
+				Password: usrLockedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserLocked,
+			},
 		},
 		{
 			"success",
