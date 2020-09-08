@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -1102,7 +1101,7 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	return u, p.db.UserUpdate(*u)
 }
 
-func (p *politeiawww) login(l www.Login, t *testing.T) loginResult {
+func (p *politeiawww) login(l www.Login) loginResult {
 	// Get user record
 	u, err := p.userByEmail(l.Email)
 	if err != nil {
@@ -1215,7 +1214,6 @@ func (p *politeiawww) login(l www.Login, t *testing.T) loginResult {
 					err:   err,
 				}
 			}
-			t.Logf("failed login attempt %v %v %v %v", requestTime, currentCode, l.Code, len(u.TOTPLastFailedCodeTime))
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			}
@@ -1326,7 +1324,7 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		ch <- p.login(l, nil)
+		ch <- p.login(l)
 	}()
 	go func() {
 		defer wg.Done()

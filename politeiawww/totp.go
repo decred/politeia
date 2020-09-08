@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"image/png"
-	"testing"
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -28,26 +27,19 @@ var (
 )
 
 // processSetTOTP attempts to set a new TOTP key based on the given TOTP type.
-func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User, t *testing.T) (*www.SetTOTPReply, error) {
+func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
 	log.Tracef("processSetTOTP: %v", u.ID.String())
 	// if the user already has a TOTP secret set, check the code that was given
 	// as well to see if it matches to update.
-	requestTime := time.Now()
-	code, err := p.totpGenerateCode(u.TOTPSecret, requestTime)
-	if err != nil {
-		return nil, err
-	}
 	if u.TOTPSecret != "" && u.TOTPVerified {
-		valid, err := p.totpValidate(st.Code, u.TOTPSecret, requestTime)
+		valid, err := p.totpValidate(st.Code, u.TOTPSecret, time.Now())
 		if err != nil {
-			t.Logf("error validating code %v %v %v", requestTime, st.Code, code)
 			log.Debugf("error valdiating totp code %v", err)
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			}
 		}
 		if !valid {
-			t.Logf("not valid code %v %v %v", requestTime, st.Code, code)
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			}

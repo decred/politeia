@@ -895,86 +895,6 @@ func TestLogin(t *testing.T) {
 		LastLoginTime:      0,
 	}
 
-	// Create TOTP Verified user
-	usrTOTPVerified, idTOTP := newUser(t, p, true, false)
-
-	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerified.Username)
-	key, err := totp.Generate(opts)
-	if err != nil {
-		t.Errorf("unable to generate secret key %v", err)
-	}
-
-	usrTOTPVerified.TOTPType = int(www.TOTPTypeBasic)
-	usrTOTPVerified.TOTPSecret = key.Secret()
-	usrTOTPVerified.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
-	usrTOTPVerified.TOTPVerified = true
-	err = p.db.UserUpdate(*usrTOTPVerified)
-	if err != nil {
-		t.Errorf("unable to update totp verified user %v", err)
-	}
-
-	usrTOTPVerifiedPassword := usrTOTPVerified.Username
-
-	// Successful TOTP user reply
-	successTOTPReply := www.LoginReply{
-		IsAdmin:            false,
-		UserID:             usrTOTPVerified.ID.String(),
-		Email:              usrTOTPVerified.Email,
-		Username:           usrTOTPVerified.Username,
-		PublicKey:          idTOTP.Public.String(),
-		PaywallAddress:     usrTOTPVerified.NewUserPaywallAddress,
-		PaywallAmount:      usrTOTPVerified.NewUserPaywallAmount,
-		PaywallTxNotBefore: usrTOTPVerified.NewUserPaywallTxNotBefore,
-		PaywallTxID:        "",
-		ProposalCredits:    0,
-		LastLoginTime:      0,
-	}
-	requestTime := time.Now()
-	code, err := p.totpGenerateCode(key.Secret(), requestTime)
-	if err != nil {
-		t.Errorf("unable to generate code %v", err)
-	}
-
-	// Create TOTP Verified Timed out user
-	usrTOTPVerifiedTimeout, idTOTPTimeout := newUser(t, p, true, false)
-
-	opts = p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerifiedTimeout.Username)
-	key, err = totp.Generate(opts)
-	if err != nil {
-		t.Errorf("unable to generate secret key %v", err)
-	}
-
-	futureCode, err := p.totpGenerateCode(key.Secret(), time.Now().Add(1*time.Second+50*time.Millisecond))
-	if err != nil {
-		t.Errorf("unable to generate future code %v", err)
-	}
-
-	usrTOTPVerifiedTimeout.TOTPType = int(www.TOTPTypeBasic)
-	usrTOTPVerifiedTimeout.TOTPSecret = key.Secret()
-	usrTOTPVerifiedTimeout.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
-	usrTOTPVerifiedTimeout.TOTPVerified = true
-	err = p.db.UserUpdate(*usrTOTPVerifiedTimeout)
-	if err != nil {
-		t.Errorf("unable to update totp verified user %v", err)
-	}
-
-	usrTOTPVerifiedTimeoutPassword := usrTOTPVerifiedTimeout.Username
-
-	// Successful TOTP user reply
-	successTOTPTimeoutReply := www.LoginReply{
-		IsAdmin:            false,
-		UserID:             usrTOTPVerifiedTimeout.ID.String(),
-		Email:              usrTOTPVerifiedTimeout.Email,
-		Username:           usrTOTPVerifiedTimeout.Username,
-		PublicKey:          idTOTPTimeout.Public.String(),
-		PaywallAddress:     usrTOTPVerifiedTimeout.NewUserPaywallAddress,
-		PaywallAmount:      usrTOTPVerifiedTimeout.NewUserPaywallAmount,
-		PaywallTxNotBefore: usrTOTPVerifiedTimeout.NewUserPaywallTxNotBefore,
-		PaywallTxID:        "",
-		ProposalCredits:    0,
-		LastLoginTime:      0,
-	}
-
 	// Setup tests
 	var tests = []struct {
 		name      string
@@ -982,86 +902,6 @@ func TestLogin(t *testing.T) {
 		wantReply *www.LoginReply
 		wantError error
 	}{
-		{
-			"totp verified no code",
-			www.Login{
-				Email:    usrTOTPVerified.Email,
-				Password: usrTOTPVerifiedPassword,
-				Code:     "",
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusRequiresTOTPCode,
-			},
-		},
-		{
-			"totp verified wrong code",
-			www.Login{
-				Email:    usrTOTPVerified.Email,
-				Password: usrTOTPVerifiedPassword,
-				Code:     "12345",
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusTOTPFailedValidation,
-			},
-		},
-		{
-			"success totp verified",
-			www.Login{
-				Email:    usrTOTPVerified.Email,
-				Password: usrTOTPVerifiedPassword,
-				Code:     code,
-			},
-			&successTOTPReply,
-			nil,
-		},
-		{
-			"totp verified timeout first incorrect",
-			www.Login{
-				Email:    usrTOTPVerifiedTimeout.Email,
-				Password: usrTOTPVerifiedTimeoutPassword,
-				Code:     "12345",
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusTOTPFailedValidation,
-			},
-		},
-		{
-			"totp verified timeout second incorrect",
-			www.Login{
-				Email:    usrTOTPVerifiedTimeout.Email,
-				Password: usrTOTPVerifiedTimeoutPassword,
-				Code:     "12345",
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusTOTPFailedValidation,
-			},
-		},
-		{
-			"totp verified timeout third incorrect timeout",
-			www.Login{
-				Email:    usrTOTPVerifiedTimeout.Email,
-				Password: usrTOTPVerifiedTimeoutPassword,
-				Code:     "12345",
-			},
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
-			},
-		},
-		{
-			"success after timeout",
-			www.Login{
-				Email:    usrTOTPVerifiedTimeout.Email,
-				Password: usrTOTPVerifiedTimeoutPassword,
-				Code:     futureCode,
-			},
-			&successTOTPTimeoutReply,
-			nil,
-		},
 		{
 			"wrong email",
 			www.Login{
@@ -1131,11 +971,239 @@ func TestLogin(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			// Pause for the timeout totp test
-			if v.name == "success after timeout" {
-				time.Sleep(totpTestPeriod * time.Second)
+			lr := p.login(v.login)
+			gotErr := errToStr(lr.err)
+			wantErr := errToStr(v.wantError)
+			if gotErr != wantErr {
+				t.Errorf("got error %v, want %v",
+					gotErr, wantErr)
 			}
-			lr := p.login(v.login, t)
+
+			// If there were errors then we're done
+			if err != nil {
+				return
+			}
+
+			// Verify reply
+			diff := deep.Equal(lr.reply, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
+			}
+		})
+	}
+
+	// Create TOTP Verified user
+	usrTOTPVerified, idTOTP := newUser(t, p, true, false)
+
+	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerified.Username)
+	key, err := totp.Generate(opts)
+	if err != nil {
+		t.Errorf("unable to generate secret key %v", err)
+	}
+
+	usrTOTPVerified.TOTPType = int(www.TOTPTypeBasic)
+	usrTOTPVerified.TOTPSecret = key.Secret()
+	usrTOTPVerified.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerified.TOTPVerified = true
+	err = p.db.UserUpdate(*usrTOTPVerified)
+	if err != nil {
+		t.Errorf("unable to update totp verified user %v", err)
+	}
+
+	usrTOTPVerifiedPassword := usrTOTPVerified.Username
+
+	// Successful TOTP user reply
+	successTOTPReply := www.LoginReply{
+		IsAdmin:            false,
+		UserID:             usrTOTPVerified.ID.String(),
+		Email:              usrTOTPVerified.Email,
+		Username:           usrTOTPVerified.Username,
+		PublicKey:          idTOTP.Public.String(),
+		PaywallAddress:     usrTOTPVerified.NewUserPaywallAddress,
+		PaywallAmount:      usrTOTPVerified.NewUserPaywallAmount,
+		PaywallTxNotBefore: usrTOTPVerified.NewUserPaywallTxNotBefore,
+		PaywallTxID:        "",
+		ProposalCredits:    0,
+		LastLoginTime:      0,
+	}
+	requestTime := time.Now()
+	code, err := p.totpGenerateCode(key.Secret(), requestTime)
+	if err != nil {
+		t.Errorf("unable to generate code %v", err)
+	}
+
+	// Setup tests
+	var testsTOTPVerified = []struct {
+		name      string
+		login     www.Login
+		wantReply *www.LoginReply
+		wantError error
+	}{
+		{
+			"totp verified no code",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     "",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusRequiresTOTPCode,
+			},
+		},
+		{
+			"totp verified wrong code",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			},
+		},
+		{
+			"success totp verified",
+			www.Login{
+				Email:    usrTOTPVerified.Email,
+				Password: usrTOTPVerifiedPassword,
+				Code:     code,
+			},
+			&successTOTPReply,
+			nil,
+		},
+	}
+
+	// Run verified TOTP tests separate since they are time dependant.
+	for _, v := range testsTOTPVerified {
+		t.Run(v.name, func(t *testing.T) {
+			lr := p.login(v.login)
+			gotErr := errToStr(lr.err)
+			wantErr := errToStr(v.wantError)
+			if gotErr != wantErr {
+				t.Logf("failed %v %v", requestTime, code)
+				t.Errorf("got error %v, want %v",
+					gotErr, wantErr)
+			}
+
+			// If there were errors then we're done
+			if err != nil {
+				return
+			}
+
+			// Verify reply
+			diff := deep.Equal(lr.reply, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
+			}
+		})
+	}
+
+	// Create TOTP Verified Timed out user
+	usrTOTPVerifiedTimeout, idTOTPTimeout := newUser(t, p, true, false)
+
+	opts = p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerifiedTimeout.Username)
+	key, err = totp.Generate(opts)
+	if err != nil {
+		t.Errorf("unable to generate secret key %v", err)
+	}
+
+	futureCodeDelay := time.Second
+	futureCode, err := p.totpGenerateCode(key.Secret(), time.Now().Add(futureCodeDelay))
+	if err != nil {
+		t.Errorf("unable to generate future code %v", err)
+	}
+
+	usrTOTPVerifiedTimeout.TOTPType = int(www.TOTPTypeBasic)
+	usrTOTPVerifiedTimeout.TOTPSecret = key.Secret()
+	usrTOTPVerifiedTimeout.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerifiedTimeout.TOTPVerified = true
+	err = p.db.UserUpdate(*usrTOTPVerifiedTimeout)
+	if err != nil {
+		t.Errorf("unable to update totp verified user %v", err)
+	}
+
+	usrTOTPVerifiedTimeoutPassword := usrTOTPVerifiedTimeout.Username
+
+	// Successful TOTP user reply
+	successTOTPTimeoutReply := www.LoginReply{
+		IsAdmin:            false,
+		UserID:             usrTOTPVerifiedTimeout.ID.String(),
+		Email:              usrTOTPVerifiedTimeout.Email,
+		Username:           usrTOTPVerifiedTimeout.Username,
+		PublicKey:          idTOTPTimeout.Public.String(),
+		PaywallAddress:     usrTOTPVerifiedTimeout.NewUserPaywallAddress,
+		PaywallAmount:      usrTOTPVerifiedTimeout.NewUserPaywallAmount,
+		PaywallTxNotBefore: usrTOTPVerifiedTimeout.NewUserPaywallTxNotBefore,
+		PaywallTxID:        "",
+		ProposalCredits:    0,
+		LastLoginTime:      0,
+	}
+
+	// Setup tests
+	var testsTOTPVerifiedTimeout = []struct {
+		name      string
+		login     www.Login
+		wantReply *www.LoginReply
+		wantError error
+	}{
+		{
+			"totp verified timeout first incorrect",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			},
+		},
+		{
+			"totp verified timeout second incorrect",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			},
+		},
+		{
+			"totp verified timeout third incorrect timeout",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
+			},
+		},
+		{
+			"success after timeout",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     futureCode,
+			},
+			&successTOTPTimeoutReply,
+			nil,
+		},
+	}
+	// Run verified TOTP timeout tests separate since they are time dependant.
+	for _, v := range testsTOTPVerifiedTimeout {
+		t.Run(v.name, func(t *testing.T) {
+			if v.name == "success after timeout" {
+				time.Sleep(futureCodeDelay)
+			}
+			lr := p.login(v.login)
 			gotErr := errToStr(lr.err)
 			wantErr := errToStr(v.wantError)
 			if gotErr != wantErr {

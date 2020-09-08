@@ -19,6 +19,58 @@ func TestProcessSetTOTP(t *testing.T) {
 
 	basicUser, _ := newUser(t, p, true, false)
 
+	var tests = []struct {
+		name      string
+		params    www.SetTOTP
+		wantError error
+		user      *user.User
+	}{
+		{
+			"error wrong type",
+			www.SetTOTP{
+				Type: www.TOTPTypeInvalid,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPInvalidType,
+			},
+			basicUser,
+		},
+		{
+			"success",
+			www.SetTOTP{
+				Type: www.TOTPTypeBasic,
+			},
+			nil,
+			basicUser,
+		},
+	}
+
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			reply, err := p.processSetTOTP(v.params, v.user)
+
+			got := errToStr(err)
+			want := errToStr(v.wantError)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+				return
+			}
+
+			if err != nil {
+				return
+			}
+			userInfo, err := p.userByIDStr(v.user.ID.String())
+			if err != nil {
+				t.Errorf("unable to get update user %v", err)
+				return
+			}
+			if userInfo.TOTPSecret != reply.Key {
+				t.Error("secret returned does not match saved key")
+			}
+		})
+	}
+
+	// Set up separate tests for testing already set totp key
 	alreadySetUser, _ := newUser(t, p, true, false)
 
 	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, alreadySetUser.Username)
@@ -42,7 +94,9 @@ func TestProcessSetTOTP(t *testing.T) {
 		t.Errorf("unable to generate code %v", err)
 	}
 
-	var tests = []struct {
+	// We run separate tests because these are time dependant because of codes
+	// generated.
+	var alreadySetTests = []struct {
 		name      string
 		params    www.SetTOTP
 		wantError error
@@ -68,47 +122,33 @@ func TestProcessSetTOTP(t *testing.T) {
 			nil,
 			alreadySetUser,
 		},
-		{
-			"error wrong type",
-			www.SetTOTP{
-				Type: www.TOTPTypeInvalid,
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusTOTPInvalidType,
-			},
-			basicUser,
-		},
-		{
-			"success",
-			www.SetTOTP{
-				Type: www.TOTPTypeBasic,
-			},
-			nil,
-			basicUser,
-		},
 	}
-
-	for _, v := range tests {
+	for _, v := range alreadySetTests {
 		t.Run(v.name, func(t *testing.T) {
-			reply, err := p.processSetTOTP(v.params, v.user, t)
+			reply, err := p.processSetTOTP(v.params, v.user)
+
+			// Check to see that expected errors match
+			got := errToStr(err)
+			want := errToStr(v.wantError)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+				return
+			}
+
 			if err != nil {
-				t.Logf("request time %v %v", requestTime, code)
-				got := errToStr(err)
-				want := errToStr(v.wantError)
-				if got != want {
-					t.Errorf("got %v, want %v", got, want)
-				}
 				return
 			}
 			userInfo, err := p.userByIDStr(v.user.ID.String())
 			if err != nil {
 				t.Errorf("unable to get update user %v", err)
+				return
 			}
 			if userInfo.TOTPSecret != reply.Key {
 				t.Error("secret returned does not match saved key")
 			}
 		})
 	}
+
 }
 
 func TestProcessVerifyTOTP(t *testing.T) {
