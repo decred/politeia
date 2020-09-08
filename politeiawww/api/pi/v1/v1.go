@@ -190,6 +190,7 @@ type ProposalRecord struct {
 	Username  string         `json:"username"`  // Author username
 	PublicKey string         `json:"publickey"` // Key used in signature
 	Signature string         `json:"signature"` // Signature of merkle root
+	Comments  uint64         `json:"comments"`  // Number of comments
 	Statuses  []StatusChange `json:"statuses"`  // Status change history
 	Files     []File         `json:"files"`     // Proposal files
 	Metadata  []Metadata     `json:"metadata"`  // User defined metadata

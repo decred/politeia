@@ -19,7 +19,7 @@ const (
 	ID             = "pi"
 
 	// Plugin commands
-	CmdProposals = "proposals" // Get plugin data of proposals
+	CmdProposals = "proposals" // Get proposals plugin data
 
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
@@ -138,7 +138,9 @@ func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 	return &pg, nil
 }
 
-// Proposals requests the pi plugin data for the provided proposals.
+// Proposals requests the plugin data for the provided proposals. This includes
+// pi plugin data as well as other plugin data such as comments plugin data.
+// This command aggregates all proposal plugin data into a single call.
 type Proposals struct {
 	Tokens []string `json:"tokens"`
 }
@@ -158,15 +160,16 @@ func DecodeProposals(payload []byte) (*Proposals, error) {
 	return &p, nil
 }
 
-// ProposalData represents the pi plugin data of a proposal.
-type ProposalData struct {
-	LinkedFrom []string `json:"linkedfrom"`
+// ProposalPluginData represents the plugin data of a proposal.
+type ProposalPluginData struct {
+	Comments   uint64   `json:"comments"`   // Number of comments
+	LinkedFrom []string `json:"linkedfrom"` // Linked from list
 }
 
 // ProposalsReply is the reply to the Proposals command. The proposals map will
 // not contain an entry for tokens that do not correspond to actual proposals.
 type ProposalsReply struct {
-	Proposals map[string]ProposalData `json:"proposals"`
+	Proposals map[string]ProposalPluginData `json:"proposals"`
 }
 
 // EncodeProposalsReply encodes a ProposalsReply into a JSON byte slice.

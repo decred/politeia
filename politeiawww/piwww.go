@@ -36,8 +36,7 @@ const (
 	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
 	mimeTypePNG      = "image/png"
 
-	// Proposal states. Proposal states correspond that politeiad
-	// routes.
+	// Proposal states. These correspond to the politeiad routes.
 	propStateInvalid  propStateT = 0
 	propStateUnvetted propStateT = 1
 	propStateVetted   propStateT = 2
@@ -113,6 +112,19 @@ func convertCensorshipRecordFromPD(cr pd.CensorshipRecord) pi.CensorshipRecord {
 	}
 }
 
+// tokenIsValid returns whether the provided string is a valid politeiad
+// censorship record token.
+func tokenIsValid(token string) bool {
+	b, err := hex.DecodeString(token)
+	if err != nil {
+		return false
+	}
+	if len(b) != pd.TokenSize {
+		return false
+	}
+	return true
+}
+
 // proposalNameIsValid returns whether the provided string is a valid proposal
 // name.
 func proposalNameIsValid(str string) bool {
@@ -169,17 +181,85 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 	return 7776000 // 3 months in seconds
 }
 
-// tokenIsValid returns whether the provided string is a valid politeiad
-// censorship record token.
-func tokenIsValid(token string) bool {
-	b, err := hex.DecodeString(token)
+// proposalsPluginData fetches the plugin data for the provided proposals using
+// the pi proposals plugin command.
+func (p *politeiawww) proposalsPluginData(tokens []string) (map[string]piplugin.ProposalPluginData, error) {
+	// Setup plugin command
+	ps := piplugin.Proposals{
+		Tokens: tokens,
+	}
+	payload, err := piplugin.EncodeProposals(ps)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	if len(b) != pd.TokenSize {
-		return false
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
 	}
-	return true
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        piplugin.ID,
+		Command:   piplugin.CmdProposals,
+		Payload:   string(payload),
+	}
+
+	// Send plugin command
+	resBody, err := p.makeRequest(http.MethodPost, pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+	var pcr pd.PluginCommandReply
+	err = json.Unmarshal(resBody, &pcr)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pcr.Response)
+	if err != nil {
+		return nil, err
+	}
+	pr, err := piplugin.DecodeProposalsReply([]byte(pcr.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return pr.Proposals, nil
+}
+
+// proposalRecord returns the proposal record for the provided token.
+func (p *politeiawww) proposalRecord(token string) (*pi.ProposalRecord, error) {
+	// TODO Get politeiad record
+	var pr *pi.ProposalRecord
+
+	// Get proposal plugin data
+	ppd, err := p.proposalsPluginData([]string{token})
+	if err != nil {
+		return nil, err
+	}
+	pd, ok := ppd[token]
+	if !ok {
+		return nil, fmt.Errorf("proposal plugin data not found %v", token)
+	}
+	pr.Comments = pd.Comments
+	pr.LinkedFrom = pd.LinkedFrom
+
+	// Get user data
+	u, err := p.db.UserGetByPubKey(pr.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	pr.UserID = u.ID.String()
+	pr.Username = u.Username
+
+	return nil, nil
+}
+
+func (p *politeiawww) proposalRecords(tokens []string) (map[string]pi.ProposalRecord, error) {
+	// Get politeiad records
+	// Get proposals plugin data
+
+	// Get user data
+
+	return nil, nil
 }
 
 func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {
@@ -575,15 +655,6 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	// TODO return full proposal
 	_ = cr
 	return &pi.ProposalNewReply{}, nil
-}
-
-// TODO implement proposalRecord
-// proposalRecord returns the proposal record for the provided token.
-func (p *politeiawww) proposalRecord(token string) (*pi.ProposalRecord, error) {
-	// Get politeiad record
-	// Get proposal plugin data
-	// Get user data
-	return nil, nil
 }
 
 // filesToDel returns the names of the files that are included in current but
