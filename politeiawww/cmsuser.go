@@ -1,3 +1,7 @@
+// Copyright (c) 2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -255,10 +259,12 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Create a new database user with the provided information.
 	newUser := user.User{
-		ID:             existingUser.ID,
-		Email:          strings.ToLower(u.Email),
-		Username:       username,
-		HashedPassword: hashedPassword,
+		ID:                        existingUser.ID,
+		Email:                     strings.ToLower(u.Email),
+		Username:                  username,
+		HashedPassword:            hashedPassword,
+		NewUserVerificationToken:  nil,
+		NewUserVerificationExpiry: 0,
 	}
 
 	// Setup newUser's identity with the provided public key. An

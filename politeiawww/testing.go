@@ -738,3 +738,102 @@ func newTestPoliteiad(t *testing.T, p *politeiawww) *testpoliteiad.TestPoliteiad
 	p.cfg.Identity = td.PublicIdentity
 	return td
 }
+
+// newTestCMSwww returns a new cmswww context that is setup for
+// testing and a closure that cleans up the test environment when invoked.
+func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
+	t.Helper()
+
+	// Make a temp directory for test data. Temp directory
+	// is removed in the returned closure.
+	dataDir, err := ioutil.TempDir("", "cmswww.test")
+	if err != nil {
+		t.Fatalf("open tmp dir: %v", err)
+	}
+
+	// Setup config
+	cfg := &config{
+		DataDir:         dataDir,
+		PaywallAmount:   1e7,
+		PaywallXpub:     "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
+		TestNet:         true,
+		VoteDurationMin: 2016,
+		VoteDurationMax: 4032,
+		Mode:            cmsWWWMode,
+	}
+
+	// Setup database
+	db, err := localdb.New(filepath.Join(cfg.DataDir, "localdb"))
+	if err != nil {
+		t.Fatalf("setup database: %v", err)
+	}
+
+	// Register cms userdb plugin
+	plugin := user.Plugin{
+		ID:      user.CMSPluginID,
+		Version: user.CMSPluginVersion,
+	}
+	err = db.RegisterPlugin(plugin)
+	if err != nil {
+		t.Fatalf("register userdb plugin: %v", err)
+	}
+
+	// Setup smtp
+	smtp, err := newSMTP("", "", "", "", nil, false)
+	if err != nil {
+		t.Fatalf("setup SMTP: %v", err)
+	}
+
+	// Setup sessions
+	cookieKey, err := util.Random(32)
+	if err != nil {
+		t.Fatalf("create cookie key: %v", err)
+	}
+
+	// Setup logging
+	initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
+	setLogLevels("off")
+
+	// Create politeiawww context
+	p := politeiawww{
+		cfg:             cfg,
+		db:              db,
+		cache:           testcache.New(),
+		params:          &chaincfg.TestNet3Params,
+		router:          mux.NewRouter(),
+		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
+		smtp:            smtp,
+		test:            true,
+		userEmails:      make(map[string]uuid.UUID),
+		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
+		commentVotes:    make(map[string]counters),
+		voteSummaries:   make(map[string]www.VoteSummary),
+	}
+
+	// Setup routes
+	p.setCMSWWWRoutes()
+	p.setCMSUserWWWRoutes()
+
+	// The cleanup is handled using a closure so that the temp dir
+	// can be deleted using the local variable and not cfg.DataDir.
+	// Using cfg.DataDir could be misused and lead to the deletion
+	// of an unintended directory.
+	return &p, func() {
+		t.Helper()
+
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+
+		err = logRotator.Close()
+		if err != nil {
+			t.Fatalf("close log rotator: %v", err)
+		}
+
+		err = os.RemoveAll(dataDir)
+		if err != nil {
+			t.Fatalf("remove tmp dir: %v", err)
+		}
+	}
+}
