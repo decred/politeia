@@ -2353,24 +2353,22 @@ func (p *politeiawww) initPaywallChecker(ctx context.Context) error {
 }
 
 func (p *politeiawww) totpCheck(code string, u *user.User) error {
-	var replyError error
 	// Return error to alert that a code is required.
 	if code == "" {
 		log.Debugf("login: totp code required %v", u.Email)
-		replyError = www.UserError{
+		return www.UserError{
 			ErrorCode: www.ErrorStatusRequiresTOTPCode,
 		}
-		return replyError
 	}
 	requestTime := time.Now()
 	currentCode, err := p.totpGenerateCode(u.TOTPSecret, requestTime)
 	if err != nil {
 		log.Errorf("login: totp code generation failed %v", u.Email)
-		replyError = www.UserError{
+		return www.UserError{
 			ErrorCode: www.ErrorStatusTOTPFailedValidation,
 		}
-		return replyError
 	}
+	var replyError error
 	// Check to see if provided code matches.
 	if currentCode != code {
 		totpFails := len(u.TOTPLastFailedCodeTime)
