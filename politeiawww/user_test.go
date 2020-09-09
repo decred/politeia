@@ -1194,6 +1194,18 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
+			"error after timeout",
+			www.Login{
+				Email:    usrTOTPVerifiedTimeout.Email,
+				Password: usrTOTPVerifiedTimeoutPassword,
+				Code:     "12345",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			},
+		},
+		{
 			"success after timeout",
 			www.Login{
 				Email:    usrTOTPVerifiedTimeout.Email,
@@ -1207,14 +1219,13 @@ func TestLogin(t *testing.T) {
 	// Run verified TOTP timeout tests separate since they are time dependant.
 	for _, v := range testsTOTPVerifiedTimeout {
 		t.Run(v.name, func(t *testing.T) {
-			if v.name == "success after timeout" {
+			if v.name == "error after timeout" {
 				time.Sleep(futureCodeDelay)
 			}
 			lr := p.login(v.login)
 			gotErr := errToStr(lr.err)
 			wantErr := errToStr(v.wantError)
 			if gotErr != wantErr {
-				t.Logf("failed %v %v", requestTime, code)
 				t.Errorf("got error %v, want %v",
 					gotErr, wantErr)
 			}
