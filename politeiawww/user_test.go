@@ -1004,7 +1004,8 @@ func TestLogin(t *testing.T) {
 
 	usrTOTPVerified.TOTPType = int(www.TOTPTypeBasic)
 	usrTOTPVerified.TOTPSecret = key.Secret()
-	usrTOTPVerified.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerified.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated,
+		time.Now().Unix())
 	usrTOTPVerified.TOTPVerified = true
 	err = p.db.UserUpdate(*usrTOTPVerified)
 	if err != nil {
@@ -1105,21 +1106,27 @@ func TestLogin(t *testing.T) {
 	// Create TOTP Verified Timed out user
 	usrTOTPVerifiedTimeout, idTOTPTimeout := newUser(t, p, true, false)
 
-	opts = p.totpGenerateOpts(defaultPoliteiaIssuer, usrTOTPVerifiedTimeout.Username)
+	opts = p.totpGenerateOpts(defaultPoliteiaIssuer,
+		usrTOTPVerifiedTimeout.Username)
 	key, err = totp.Generate(opts)
 	if err != nil {
 		t.Errorf("unable to generate secret key %v", err)
 	}
 
-	futureCodeDelay := time.Second
-	futureCode, err := p.totpGenerateCode(key.Secret(), time.Now().Add(futureCodeDelay))
+	// Add a delay based on the set totp test period.  This will allow for
+	// testing weather or not only 2 failed totp attempts in a short period
+	// of time (as opposed to the default 60s).
+	futureCodeDelay := totpTestPeriod * time.Second
+	futureCode, err := p.totpGenerateCode(key.Secret(),
+		time.Now().Add(futureCodeDelay))
 	if err != nil {
 		t.Errorf("unable to generate future code %v", err)
 	}
 
 	usrTOTPVerifiedTimeout.TOTPType = int(www.TOTPTypeBasic)
 	usrTOTPVerifiedTimeout.TOTPSecret = key.Secret()
-	usrTOTPVerifiedTimeout.TOTPLastUpdated = append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
+	usrTOTPVerifiedTimeout.TOTPLastUpdated =
+		append(usrTOTPVerified.TOTPLastUpdated, time.Now().Unix())
 	usrTOTPVerifiedTimeout.TOTPVerified = true
 	err = p.db.UserUpdate(*usrTOTPVerifiedTimeout)
 	if err != nil {

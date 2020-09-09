@@ -18,6 +18,9 @@ import (
 const (
 	defaultPoliteiaIssuer = "politeia"
 	defaultCMSIssuer      = "cms"
+
+	// Period of totp for testing used for generating codes during tests.
+	totpTestPeriod = 1
 )
 
 var (

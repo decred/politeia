@@ -32,9 +32,6 @@ const (
 	// Number of attempts until totp locks until the next window
 	totpFailedAttempts = 2
 
-	// Period of totp for testing
-	totpTestPeriod = 1
-
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
 

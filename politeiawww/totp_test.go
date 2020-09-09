@@ -82,7 +82,8 @@ func TestProcessSetTOTP(t *testing.T) {
 	alreadySetUser.TOTPType = int(www.TOTPTypeBasic)
 	alreadySetUser.TOTPSecret = key.Secret()
 	alreadySetUser.TOTPVerified = true
-	alreadySetUser.TOTPLastUpdated = append(alreadySetUser.TOTPLastUpdated, time.Now().Unix())
+	alreadySetUser.TOTPLastUpdated = append(alreadySetUser.TOTPLastUpdated,
+		time.Now().Unix())
 
 	err = p.db.UserUpdate(*alreadySetUser)
 	if err != nil {
