@@ -31,9 +31,10 @@ var (
 type localdb struct {
 	sync.RWMutex
 
-	shutdown bool        // Backend is shutdown
-	root     string      // Database root
-	userdb   *leveldb.DB // Database context
+	shutdown       bool                            // Backend is shutdown
+	root           string                          // Database root
+	userdb         *leveldb.DB                     // Database context
+	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
 }
 
 // Version contains the database version.
@@ -48,7 +49,8 @@ type Version struct {
 func isUserRecord(key string) bool {
 	return key != UserVersionKey &&
 		key != LastPaywallAddressIndex &&
-		!strings.HasPrefix(key, sessionPrefix)
+		!strings.HasPrefix(key, sessionPrefix) &&
+		!strings.HasPrefix(key, cmsUserPrefix)
 }
 
 // Store new user.
@@ -370,12 +372,49 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 
 // PluginExec executes the provided plugin command.
 func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
-	return nil, user.ErrInvalidPlugin
+	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
+
+	var payload string
+	var err error
+	switch pc.ID {
+	case user.CMSPluginID:
+		payload, err = l.cmsPluginExec(pc.Command, pc.Payload)
+	default:
+		return nil, user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user.PluginCommandReply{
+		ID:      pc.ID,
+		Command: pc.Command,
+		Payload: payload,
+	}, nil
 }
 
 // RegisterPlugin registers a plugin with the user database.
-func (l *localdb) RegisterPlugin(user.Plugin) error {
-	return user.ErrInvalidPlugin
+func (l *localdb) RegisterPlugin(p user.Plugin) error {
+	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
+
+	var err error
+	switch p.ID {
+	case user.CMSPluginID:
+		// This is an acceptable plugin ID
+	default:
+		return user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return err
+	}
+
+	// Save plugin settings
+	l.Lock()
+	defer l.Unlock()
+
+	l.pluginSettings[p.ID] = p.Settings
+
+	return nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with
@@ -510,7 +549,8 @@ func New(root string) (*localdb, error) {
 	log.Tracef("localdb New: %v", root)
 
 	l := &localdb{
-		root: root,
+		root:           root,
+		pluginSettings: make(map[string][]user.PluginSetting),
 	}
 	err := l.openUserDB(filepath.Join(l.root, UserdbPath))
 	if err != nil {
