@@ -1143,16 +1143,19 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			if len(u.TOTPLastFailedCodeTime) == 0 {
 				log.Debugf("login: new totp code failure %v", u.Email)
 				u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
-				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
+				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
+					requestTime.Unix())
 			} else {
 				// A code has already been generated, check to see if it
 				// matches the recently generated code.
 				oldCode, err := p.totpGenerateCode(u.TOTPSecret,
-					time.Unix(u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1], 0))
+					time.Unix(
+						u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1], 0))
 				if err != nil {
 					log.Debugf("login: new totp oldcode failure %v", err)
 					// Update user information with failed attempts and time.
-					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
+						requestTime.Unix())
 					err = p.db.UserUpdate(*u)
 					if err != nil {
 						return loginResult{
@@ -1171,13 +1174,16 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				// The codes match, so just increment the TOTPFailedAttempts
 				// and return error.
 				if currentCode == oldCode {
-					log.Debugf("login: another failed window attempt %v", u.Email)
-					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
+					log.Debugf("login: another failed window attempt %v",
+						u.Email)
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
+						requestTime.Unix())
 
-					// Check to see if the user has already attempted more than 2
-					// TOTP codes for this window.
+					// Check to see if the user has already attempted more than
+					// 2 TOTP codes for this window.
 					if len(u.TOTPLastFailedCodeTime) > totpFailedAttempts {
-						// Update user information with failed attempts and time.
+						// Update user information with failed attempts and
+						// time.
 						err = p.db.UserUpdate(*u)
 						if err != nil {
 							return loginResult{
@@ -1185,7 +1191,8 @@ func (p *politeiawww) login(l www.Login) loginResult {
 								err:   err,
 							}
 						}
-						log.Debugf("login: too many totp attempts in same window %v", u.Email)
+						log.Debugf("login: too many totp attempts in same "+
+							"window %v", u.Email)
 						err = www.UserError{
 							ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
 						}
@@ -1199,7 +1206,8 @@ func (p *politeiawww) login(l www.Login) loginResult {
 					// Code don't match so reset time to now, and failed
 					// attempts back to 1.
 					u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
-					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, requestTime.Unix())
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
+						requestTime.Unix())
 				}
 			}
 

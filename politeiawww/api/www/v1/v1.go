@@ -792,7 +792,7 @@ type AbridgedUser struct {
 type Login struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	Code     string `json:"code"`
+	Code     string `json:"code,omitempty"`
 }
 
 // LoginReply is used to reply to the Login command.

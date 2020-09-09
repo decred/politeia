@@ -37,7 +37,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 	if u.TOTPSecret != "" && u.TOTPVerified {
 		valid, err := p.totpValidate(st.Code, u.TOTPSecret, time.Now())
 		if err != nil {
-			log.Debugf("error valdiating totp code %v", err)
+			log.Debugf("Error valdiating totp code %v", err)
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusTOTPFailedValidation,
 			}
@@ -94,7 +94,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 func (p *politeiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
 	valid, err := p.totpValidate(vt.Code, u.TOTPSecret, time.Now())
 	if err != nil {
-		log.Debugf("error valdiating totp code %v", err)
+		log.Debugf("Error valdiating totp code %v", err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusTOTPFailedValidation,
 		}
