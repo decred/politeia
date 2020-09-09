@@ -796,7 +796,6 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 	p := politeiawww{
 		cfg:             cfg,
 		db:              db,
-		cache:           testcache.New(),
 		params:          &chaincfg.TestNet3Params,
 		router:          mux.NewRouter(),
 		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
@@ -805,7 +804,6 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
-		voteSummaries:   make(map[string]www.VoteSummary),
 	}
 
 	// Setup routes
