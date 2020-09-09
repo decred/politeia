@@ -14,6 +14,7 @@ import (
 
 	"github.com/dajohi/goemail"
 
+	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
@@ -57,25 +58,9 @@ func (p *politeiawww) createEmailLink(path, email, token, username string) (stri
 	return l.String(), nil
 }
 
-// sendEmailTo sends an email with the given subject and body to a single
-// address.
-func (p *politeiawww) sendEmailTo(subject, body, toAddress string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		msg.AddTo(toAddress)
-		return nil
-	})
-}
-
 // emailNewUserVerificationLink emails the link with the new user verification
 // token if the email server is set up.
 func (p *politeiawww) emailNewUserVerificationLink(email, token, username string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	link, err := p.createEmailLink(www.RouteVerifyNewUser, email,
 		token, username)
 	if err != nil {
@@ -93,8 +78,9 @@ func (p *politeiawww) emailNewUserVerificationLink(email, token, username string
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 func (p *politeiawww) newVerificationURL(route, token string) (*url.URL, error) {
@@ -113,10 +99,6 @@ func (p *politeiawww) newVerificationURL(route, token string) (*url.URL, error) 
 // emailResetPasswordVerificationLink emails the link with the reset password
 // verification token if the email server is set up.
 func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	u, err := p.newVerificationURL(www.RouteResetPassword, token)
 	if err != nil {
 		return err
@@ -135,17 +117,14 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token 
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailAuthorForCensoredProposal sends an email notification for a new
 // proposal becoming censored to the proposal's author.
 func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
@@ -168,85 +147,95 @@ func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecor
 	if err != nil {
 		return err
 	}
+	recipients := []string{authorUser.Email}
 
-	return p.sendEmailTo(subject, body, authorUser.Email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailProposalStatusChange sends emails regarding the proposal status change
 // event. Sends email for the author and the users with this notification
-// bit turned on. This function replaces tree functions from the old event
-// manager: emailAuthorForVettedProposal, emailUsersForVettedProposal,
-// emailAuthorForCensoredProposal
+// bit set on
 func (p *politeiawww) emailProposalStatusChange(data dataProposalStatusChange, emails []string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	route := strings.Replace(guiRouteProposalDetails, "{token}", data.token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
 		return err
 	}
 
-	var subject string
-	var template *template.Template
-
-	// Prepare and send author's email if author notification bit
-	// is set
-	if notificationIsSet(data.emailNotifications,
-		www.NotificationEmailMyProposalStatusChange) {
-		switch data.status {
-		case www.PropStatusCensored:
-			subject = "Your Proposal Has Been Censored"
-			template = templateProposalCensoredForAuthor
-		case www.PropStatusPublic:
-			subject = "Your Proposal Has Been Published"
-			template = templateProposalVettedForAuthor
-		}
-		authorTplData := proposalStatusChangeTemplateData{
-			Link:               l.String(),
-			Name:               data.name,
-			StatusChangeReason: data.statusChangeMessage,
-		}
-		body, err := createBody(template, &authorTplData)
-		if err != nil {
-			return err
-		}
-		err = p.sendEmailTo(subject, body, data.email)
-		if err != nil {
-			return err
-		}
+	// Prepare and send author's email
+	err = p.emailAuthorProposalStatusChange(data.name, data.email, l.String(),
+		data.statusChangeMessage, data.emailNotifications, data.status, emails)
+	if err != nil {
+		return err
 	}
 
-	// Prepare and send user's email, if there is any
-	if len(emails) > 0 {
-		subject = "New Proposal Published"
-		template = templateProposalVetted
-		usersTplData := proposalStatusChangeTemplateData{
-			Link:     l.String(),
-			Name:     data.name,
-			Username: data.username,
-		}
-		body, err := createBody(template, &usersTplData)
-		if err != nil {
-			return err
-		}
-		err = p.smtp.sendEmailTo(subject, body, emails)
-		if err != nil {
-			return err
-		}
+	// Prepare and send user's email
+	err = p.emailUsersProposalStatusChange(data.name, data.username, l.String(),
+		emails)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// emailAuthorForVettedProposal sends an email notification for a new proposal
-// becoming vetted to the proposal's author.
-func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	if p.smtp.disabled {
+// emailAuthorProposalStatusChange sends email for the author of the proposal
+// in which the status has changed, if his notification bit is set on.
+func (p *politeiawww) emailAuthorProposalStatusChange(name, email, link, statusChangeMsg string, emailNotifications uint64, status v1.PropStatusT, emails []string) error {
+	if !notificationIsSet(emailNotifications,
+		www.NotificationEmailMyProposalStatusChange) {
 		return nil
 	}
 
+	var subject string
+	var template *template.Template
+
+	switch status {
+	case v1.PropStatusCensored:
+		subject = "Your Proposal Has Been Censored"
+		template = templateProposalCensoredForAuthor
+	case v1.PropStatusPublic:
+		subject = "Your Proposal Has Been Published"
+		template = templateProposalVettedForAuthor
+	}
+
+	authorTplData := proposalStatusChangeTemplateData{
+		Link:               link,
+		Name:               name,
+		StatusChangeReason: statusChangeMsg,
+	}
+	body, err := createBody(template, &authorTplData)
+	if err != nil {
+		return err
+	}
+	recipients := []string{email}
+
+	return p.smtp.sendEmailTo(subject, body, recipients)
+}
+
+// emailUsersProposalStatusChange sends email for all users with this
+// notification bit set on.
+func (p *politeiawww) emailUsersProposalStatusChange(name, username, link string, emails []string) error {
+	if len(emails) > 0 {
+		return nil
+	}
+	subject := "New Proposal Published"
+	template := templateProposalVetted
+	usersTplData := proposalStatusChangeTemplateData{
+		Link:     link,
+		Name:     name,
+		Username: username,
+	}
+	body, err := createBody(template, &usersTplData)
+	if err != nil {
+		return err
+	}
+	return p.smtp.sendEmailTo(subject, body, emails)
+}
+
+// emailAuthorForVettedProposal sends an email notification for a new proposal
+// becoming vetted to the proposal's author.
+func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
 	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
@@ -269,17 +258,14 @@ func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord,
 	if err != nil {
 		return err
 	}
+	recipients := []string{authorUser.Email}
 
-	return p.sendEmailTo(subject, body, authorUser.Email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailUsersForVettedProposal sends an email notification for a new proposal
 // becoming vetted.
 func (p *politeiawww) emailUsersForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	// Create the template data.
 	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
 		proposal.CensorshipRecord.Token)
@@ -319,10 +305,6 @@ func (p *politeiawww) emailUsersForVettedProposal(proposal *www.ProposalRecord, 
 // emailProposalEdited sends email regarding the proposal edits event.
 // Sends to all users with this notification bit turned on.
 func (p *politeiawww) emailProposalEdited(name, username, token, version string, emails []string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -348,10 +330,6 @@ func (p *politeiawww) emailProposalEdited(name, username, token, version string,
 // emailUsersForEditedProposal sends an email notification for a proposal being
 // edited.
 func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, authorUser *user.User) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	// Create the template data.
 	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
 		proposal.CensorshipRecord.Token)
@@ -392,10 +370,6 @@ func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, 
 // emailProposalVoteStarted sends email for the proposal vote started event.
 // Sends email to author and users with this notification bit set on.
 func (p *politeiawww) emailProposalVoteStarted(token, name, username, email string, emailNotifications uint64, emails []string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -416,8 +390,9 @@ func (p *politeiawww) emailProposalVoteStarted(token, name, username, email stri
 		if err != nil {
 			return err
 		}
+		recipients := []string{email}
 
-		err = p.sendEmailTo(subject, body, email)
+		err = p.smtp.sendEmailTo(subject, body, recipients)
 		if err != nil {
 			return err
 		}
@@ -435,10 +410,6 @@ func (p *politeiawww) emailProposalVoteStarted(token, name, username, email stri
 // emailUsersForProposalVoteStarted sends an email notification for a proposal
 // entering the voting state.
 func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	// Create the template data.
 	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
 		proposal.CensorshipRecord.Token)
@@ -461,8 +432,9 @@ func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRec
 		if err != nil {
 			return err
 		}
+		recipients := []string{authorUser.Email}
 
-		err = p.sendEmailTo(subject, body, authorUser.Email)
+		err = p.smtp.sendEmailTo(subject, body, recipients)
 		if err != nil {
 			return err
 		}
@@ -518,10 +490,6 @@ func (p *politeiawww) emailProposalSubmitted(token, name, username string, email
 // emailProposalVoteAuthorized sends email notification for the proposal vote
 // authorized event. Sends to all admins with this notification bit set on.
 func (p *politeiawww) emailProposalVoteAuthorized(token, name, username, email string, emails []string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -545,10 +513,6 @@ func (p *politeiawww) emailProposalVoteAuthorized(token, name, username, email s
 }
 
 func (p *politeiawww) emailAdminsForProposalVoteAuthorized(token, title, authorUsername, authorEmail string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v",
 		p.cfg.WebServerAddress, token))
 	if err != nil {
@@ -584,10 +548,6 @@ func (p *politeiawww) emailAdminsForProposalVoteAuthorized(token, title, authorU
 // emailAuthorForCommentOnProposal sends an email notification to a proposal
 // author for a new comment.
 func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *www.ProposalRecord, authorUser *user.User, commentID, username string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
 		p.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
 	if err != nil {
@@ -615,17 +575,14 @@ func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *www.ProposalReco
 	if err != nil {
 		return err
 	}
+	recipients := []string{authorUser.Email}
 
-	return p.sendEmailTo(subject, body, authorUser.Email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailAuthorForCommentOnComment sends an email notification to a comment
 // author for a new comment reply.
 func (p *politeiawww) emailAuthorForCommentOnComment(proposal *www.ProposalRecord, authorUser *user.User, commentID, username string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
 		p.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
 	if err != nil {
@@ -653,17 +610,14 @@ func (p *politeiawww) emailAuthorForCommentOnComment(proposal *www.ProposalRecor
 	if err != nil {
 		return err
 	}
+	recipients := []string{authorUser.Email}
 
-	return p.sendEmailTo(subject, body, authorUser.Email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailUpdateUserKeyVerificationLink emails the link with the verification
 // token used for setting a new key pair if the email server is set up.
 func (p *politeiawww) emailUpdateUserKeyVerificationLink(email, publicKey, token string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token, "")
 	if err != nil {
 		return err
@@ -680,17 +634,14 @@ func (p *politeiawww) emailUpdateUserKeyVerificationLink(email, publicKey, token
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailUserPasswordChanged notifies the user that his password was changed,
 // and verifies if he was the author of this action, for security purposes.
 func (p *politeiawww) emailUserPasswordChanged(email string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	tplData := userPasswordChangedTemplateData{
 		Email: email,
 	}
@@ -700,18 +651,15 @@ func (p *politeiawww) emailUserPasswordChanged(email string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailUserLocked notifies the user its account has been locked and emails the
 // link with the reset password verification token if the email server is set
 // up.
 func (p *politeiawww) emailUserLocked(email string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	link, err := p.createEmailLink(ResetPasswordGuiRoute,
 		email, "", "")
 	if err != nil {
@@ -728,17 +676,14 @@ func (p *politeiawww) emailUserLocked(email string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailInviteNewUserVerificationLink emails the link to invite a user to
 // join the Contractor Management System, if the email server is set up.
 func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	link, err := p.createEmailLink(guiRouteRegisterNewUser, "", token, "")
 	if err != nil {
 		return err
@@ -754,17 +699,14 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailApproveDCCVerificationLink emails the link to invite a user that
 // has been approved by the other contractors from a DCC proposal.
 func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	tplData := approveDCCUserEmailTemplateData{
 		Email: email,
 	}
@@ -774,16 +716,14 @@ func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailInvoiceNotifications emails users that have not yet submitted an invoice
 // for the given month/year
 func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
-	if p.smtp.disabled {
-		return nil
-	}
 	// Set the date to the first day of the previous month.
 	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
 	tplData := invoiceNotificationEmailData{
@@ -797,17 +737,14 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.sendEmailTo(subject, body, email)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailInvoiceComment sends email for the invoice comment event. Sends
 // email to the user regarding that invoice.
 func (p *politeiawww) emailInvoiceComment(userEmail string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	var tplData interface{}
 	subject := "New Invoice Comment"
 
@@ -815,15 +752,12 @@ func (p *politeiawww) emailInvoiceComment(userEmail string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{userEmail}
 
-	return p.sendEmailTo(subject, body, userEmail)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	tplData := newInvoiceCommentTemplateData{}
 
 	subject := "New Invoice Comment"
@@ -831,17 +765,14 @@ func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{userEmail}
 
-	return p.sendEmailTo(subject, body, userEmail)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailInvoiceStatusUpdate sends email for the invoice status update event.
 // Sends email for the user regarding that invoice.
 func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	tplData := newInvoiceStatusUpdateTemplate{
 		Token: invoiceToken,
 	}
@@ -851,15 +782,12 @@ func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) e
 	if err != nil {
 		return err
 	}
+	recipients := []string{userEmail}
 
-	return p.sendEmailTo(subject, body, userEmail)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail, invoiceToken string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	tplData := newInvoiceStatusUpdateTemplate{
 		Token: invoiceToken,
 	}
@@ -869,17 +797,14 @@ func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail, invoiceToken strin
 	if err != nil {
 		return err
 	}
+	recipients := []string{userEmail}
 
-	return p.sendEmailTo(subject, body, userEmail)
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
 // emailDCCNew sends email regarding the DCC New event. Sends email
 // to all admins.
 func (p *politeiawww) emailDCCNew(token string, emails []string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -900,10 +825,6 @@ func (p *politeiawww) emailDCCNew(token string, emails []string) error {
 }
 
 func (p *politeiawww) emailAdminsForNewDCC(token string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	l, err := url.Parse(p.cfg.WebServerAddress + "{token}" + token)
 	if err != nil {
 		return err
@@ -933,10 +854,6 @@ func (p *politeiawww) emailAdminsForNewDCC(token string) error {
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
 // Sends emails to all admin users.
 func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -957,10 +874,6 @@ func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error
 }
 
 func (p *politeiawww) emailAdminsForNewDCCSupportOppose(token string) error {
-	if p.smtp.disabled {
-		return nil
-	}
-
 	l, err := url.Parse(p.cfg.WebServerAddress + "/dcc/" + token)
 	if err != nil {
 		return err

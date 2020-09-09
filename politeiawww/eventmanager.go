@@ -7,6 +7,7 @@ package main
 import (
 	"sync"
 
+	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -18,7 +19,7 @@ const (
 	// Event types
 	eventTypeInvalid eventT = iota
 
-	// Politeia events
+	// Pi events
 	eventProposalSubmitted
 	eventProposalStatusChange
 	eventProposalEdited
@@ -108,8 +109,11 @@ func (p *politeiawww) setupEventListenersPi() {
 	p.eventManager.register(eventProposalVoteStarted, ch)
 	go p.handleEventProposalVoteStarted(ch)
 
+}
+
+func (p *politeiawww) setupEventListenersCms() {
 	// Setup invoice comment event
-	ch = make(chan interface{})
+	ch := make(chan interface{})
 	p.eventManager.register(eventInvoiceComment, ch)
 	go p.handleEventInvoiceComment(ch)
 
@@ -136,8 +140,21 @@ func notificationIsSet(emailNotifications uint64, n www.EmailNotificationT) bool
 		// Notification bit not set
 		return false
 	}
-
 	// Notification bit is set
+	return true
+}
+
+// userNotificationEnabled wraps all user checks to see if he is in correct
+// state to receive notifications
+func userNotificationEnabled(u user.User, n www.EmailNotificationT) bool {
+	// Never send notification to deactivated users
+	if u.Deactivated {
+		return false
+	}
+	// Check if notification bit is set
+	if !notificationIsSet(u.EmailNotifications, n) {
+		return false
+	}
 	return true
 }
 
@@ -158,20 +175,15 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 		// Compile email notification recipients
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
+			// Check if user is able to receive notification
+			if userNotificationEnabled(*u,
+				www.NotificationEmailAdminProposalNew) {
+				emails = append(emails, u.Email)
+			}
+
 			// Only send proposal submitted notifications to admins
 			if !u.Admin {
 				return
-			}
-
-			// Notifications should not be sent to deactivated users
-			if u.Deactivated {
-				return
-			}
-
-			// Check if notification bit is set
-			if notificationIsSet(u.EmailNotifications,
-				www.NotificationEmailAdminProposalNew) {
-				emails = append(emails, u.Email)
 			}
 		})
 		if err != nil {
@@ -190,15 +202,15 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 }
 
 type dataProposalStatusChange struct {
-	name                string          // Proposal name
-	token               string          // Proposal censorship token
-	adminID             uuid.UUID       // Admin uuid
-	id                  uuid.UUID       // Author uuid
-	email               string          // Author user email
-	emailNotifications  uint64          // Author notification settings
-	username            string          // Author username
-	status              www.PropStatusT // Proposal status
-	statusChangeMessage string          // Status change message
+	name                string         // Proposal name
+	token               string         // Proposal censorship token
+	adminID             uuid.UUID      // Admin uuid
+	id                  uuid.UUID      // Author uuid
+	email               string         // Author user email
+	emailNotifications  uint64         // Author notification settings
+	username            string         // Author username
+	status              v1.PropStatusT // Proposal status
+	statusChangeMessage string         // Status change message
 }
 
 func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
@@ -209,16 +221,17 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 			continue
 		}
 
-		if d.status != www.PropStatusPublic &&
-			d.status != www.PropStatusCensored {
+		// Check if proposal is in correct status for notification
+		if d.status != v1.PropStatusPublic &&
+			d.status != v1.PropStatusCensored {
 			continue
 		}
 
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circunstances where we don't notify
-			if u.Deactivated || u.ID == d.adminID || u.ID == d.id ||
-				!notificationIsSet(u.EmailNotifications,
+			if u.ID == d.adminID || u.ID == d.id ||
+				!userNotificationEnabled(*u,
 					www.NotificationEmailRegularProposalVetted) {
 				return
 			}
@@ -254,8 +267,8 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circunstances where we don't notify
-			if u.NewUserPaywallTx == "" || u.Deactivated || u.ID == d.id ||
-				!notificationIsSet(u.EmailNotifications,
+			if u.NewUserPaywallTx == "" || u.ID == d.id ||
+				!userNotificationEnabled(*u,
 					www.NotificationEmailRegularProposalEdited) {
 				return
 			}
@@ -291,9 +304,8 @@ func (p *politeiawww) handleEventProposalVoteAuthorized(ch chan interface{}) {
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circunstances where we don't notify
-			if !u.Admin || u.Deactivated ||
-				!notificationIsSet(u.EmailNotifications,
-					www.NotificationEmailAdminProposalVoteAuthorized) {
+			if !u.Admin || !userNotificationEnabled(*u,
+				www.NotificationEmailAdminProposalVoteAuthorized) {
 				return
 			}
 
@@ -331,9 +343,8 @@ func (p *politeiawww) handleEventProposalVoteStarted(ch chan interface{}) {
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circunstances where we don't notify
-			if u.NewUserPaywallTx == "" || u.Deactivated ||
-				u.ID == d.adminID || u.ID == d.id ||
-				!notificationIsSet(u.EmailNotifications,
+			if u.NewUserPaywallTx == "" || u.ID == d.adminID || u.ID == d.id ||
+				!userNotificationEnabled(*u,
 					www.NotificationEmailRegularProposalVoteStarted) {
 				return
 			}
