@@ -323,7 +323,7 @@ func (p *politeiawww) getIdentity() error {
 // files a complaint.
 func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	// Check for pi user error
-	if ue, ok := err.(pi.UserError); ok {
+	if ue, ok := err.(pi.UserErrorReply); ok {
 		// Error is a pi user error. Log it and return a 400.
 		if len(ue.ErrorContext) == 0 {
 			log.Infof("Pi user error: %v %v %v",
@@ -337,7 +337,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 		}
 
 		util.RespondWithJSON(w, http.StatusBadRequest,
-			pi.UserError{
+			pi.UserErrorReply{
 				ErrorCode:    ue.ErrorCode,
 				ErrorContext: ue.ErrorContext,
 			})
@@ -369,7 +369,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 			}
 
 			util.RespondWithJSON(w, http.StatusInternalServerError,
-				pi.ErrorReply{
+				pi.ServerErrorReply{
 					ErrorCode: t,
 				})
 			return
@@ -389,7 +389,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 		}
 
 		util.RespondWithJSON(w, http.StatusBadRequest,
-			pi.UserError{
+			pi.UserErrorReply{
 				ErrorCode:    piErrCode,
 				ErrorContext: errContext,
 			})
@@ -404,7 +404,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
-		pi.ErrorReply{
+		pi.ServerErrorReply{
 			ErrorCode: t,
 		})
 }

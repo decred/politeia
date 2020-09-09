@@ -36,12 +36,39 @@ const (
 )
 
 var (
-	validProposalName = regexp.MustCompile(createProposalNameRegex())
+	// validProposalName contains the regex that matches a valid
+	// proposal name.
+	validProposalName = regexp.MustCompile(proposalNameRegex())
+
+	// statusReasonRequired contains the list of proposal statuses that
+	// require an accompanying reason to be given for the status change.
+	statusReasonRequired = map[pi.PropStatusT]struct{}{
+		pi.PropStatusCensored:  struct{}{},
+		pi.PropStatusAbandoned: struct{}{},
+	}
 )
 
 // tokenIsValid returns whether the provided string is a valid politeiad
-// censorship record token.
+// censorship record token. This CAN BE EITHER the short token or the full
+// length token.
+//
+// Short tokens should only be used when retrieving data. Data that is written
+// to disk should always reference the full length token.
 func tokenIsValid(token string) bool {
+	b, err := hex.DecodeString(token)
+	if err != nil {
+		return false
+	}
+	if len(b) != pd.TokenSize {
+		return false
+	}
+	return true
+}
+
+// tokenIsFullLength returns whether the provided string a is valid, full
+// length politeiad censorship record token. Short tokens are considered
+// invalid by this function.
+func tokenIsFullLength(token string) bool {
 	b, err := hex.DecodeString(token)
 	if err != nil {
 		return false
@@ -58,9 +85,8 @@ func proposalNameIsValid(name string) bool {
 	return validProposalName.MatchString(name)
 }
 
-// createProposalNameRegex returns a regex string for validating the proposal
-// name.
-func createProposalNameRegex() string {
+// proposalNameRegex returns a regex string for validating the proposal name.
+func proposalNameRegex() string {
 	var validProposalNameBuffer bytes.Buffer
 	validProposalNameBuffer.WriteString("^[")
 
@@ -80,7 +106,7 @@ func createProposalNameRegex() string {
 	return validProposalNameBuffer.String()
 }
 
-func convertUserErrFromSignatureErr(err error) pi.UserError {
+func convertUserErrFromSignatureErr(err error) pi.UserErrorReply {
 	var e util.SignatureError
 	var s pi.ErrorStatusT
 	if errors.As(err, &e) {
@@ -91,17 +117,51 @@ func convertUserErrFromSignatureErr(err error) pi.UserError {
 			s = pi.ErrorStatusSignatureInvalid
 		}
 	}
-	return pi.UserError{
+	return pi.UserErrorReply{
 		ErrorCode:    s,
 		ErrorContext: e.ErrorContext,
 	}
+}
+
+func convertPropStateFromPropStatus(s pi.PropStatusT) pi.PropStateT {
+	switch s {
+	case pi.PropStatusUnvetted, pi.PropStatusCensored:
+		return pi.PropStateUnvetted
+	case pi.PropStatusPublic, pi.PropStatusAbandoned:
+		return pi.PropStateVetted
+	}
+	return pi.PropStateInvalid
+}
+
+func convertPropStateFromPi(s pi.PropStateT) piplugin.PropStateT {
+	switch s {
+	case pi.PropStateUnvetted:
+		return piplugin.PropStateUnvetted
+	case pi.PropStateVetted:
+		return piplugin.PropStateVetted
+	}
+	return piplugin.PropStateInvalid
+}
+
+func convertRecordStatusFromPropStatus(s pi.PropStatusT) pd.RecordStatusT {
+	switch s {
+	case pi.PropStatusUnvetted:
+		return pd.RecordStatusNotReviewed
+	case pi.PropStatusPublic:
+		return pd.RecordStatusPublic
+	case pi.PropStatusCensored:
+		return pd.RecordStatusCensored
+	case pi.PropStatusAbandoned:
+		return pd.RecordStatusArchived
+	}
+	return pd.RecordStatusInvalid
 }
 
 func convertFileFromMetadata(m pi.Metadata) pd.File {
 	var name string
 	switch m.Hint {
 	case pi.HintProposalMetadata:
-		name = piplugin.FilenameProposalMetadata
+		name = piplugin.FileNameProposalMetadata
 	}
 	return pd.File{
 		Name:    name,
@@ -128,12 +188,98 @@ func convertFilesFromPi(files []pi.File) []pd.File {
 	return f
 }
 
+func convertPropStatusFromPD(s pd.RecordStatusT) pi.PropStatusT {
+	switch s {
+	case pd.RecordStatusNotFound:
+		// Intentionally omitted. No corresponding PropStatusT.
+	case pd.RecordStatusNotReviewed:
+		return pi.PropStatusUnvetted
+	case pd.RecordStatusCensored:
+		return pi.PropStatusCensored
+	case pd.RecordStatusPublic:
+		return pi.PropStatusPublic
+	case pd.RecordStatusUnreviewedChanges:
+		return pi.PropStatusUnvetted
+	case pd.RecordStatusArchived:
+		return pi.PropStatusAbandoned
+	}
+	return pi.PropStatusInvalid
+}
+
 func convertCensorshipRecordFromPD(cr pd.CensorshipRecord) pi.CensorshipRecord {
 	return pi.CensorshipRecord{
 		Token:     cr.Token,
 		Merkle:    cr.Merkle,
 		Signature: cr.Signature,
 	}
+}
+
+func convertFilesFromPD(f []pd.File) ([]pi.File, []pi.Metadata) {
+	files := make([]pi.File, 0, len(f))
+	metadata := make([]pi.Metadata, 0, len(f))
+	for _, v := range f {
+		switch v.Name {
+		case piplugin.FileNameProposalMetadata:
+			metadata = append(metadata, pi.Metadata{
+				Hint:    pi.HintProposalMetadata,
+				Digest:  v.Digest,
+				Payload: v.Payload,
+			})
+		default:
+			files = append(files, pi.File{
+				Name:    v.Name,
+				MIME:    v.MIME,
+				Digest:  v.Digest,
+				Payload: v.Payload,
+			})
+		}
+	}
+	return files, metadata
+}
+
+func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
+	// Decode metadata streams
+	var (
+		pg       *piplugin.ProposalGeneral
+		statuses = make([]pi.StatusChange, 0, 16)
+		err      error
+	)
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case piplugin.MDStreamIDProposalGeneral:
+			pg, err = piplugin.DecodeProposalGeneral([]byte(v.Payload))
+			if err != nil {
+				return nil, err
+			}
+		case piplugin.MDStreamIDStatusChanges:
+			// TODO decode status changes
+		}
+	}
+
+	// Convert files and status
+	files, metadata := convertFilesFromPD(r.Files)
+	status := convertPropStatusFromPD(r.Status)
+	state := convertPropStateFromPropStatus(status)
+
+	// Some fields are intentionally omitted because they are either
+	// user data that needs to be pulled from the user database or they
+	// are plugin data that needs to be retrieved using a plugin cmd.
+	return &pi.ProposalRecord{
+		Version:          r.Version,
+		Timestamp:        pg.Timestamp,
+		State:            state,
+		Status:           status,
+		UserID:           "", // Intentionally omitted
+		Username:         "", // Intentionally omitted
+		PublicKey:        pg.PublicKey,
+		Signature:        pg.Signature,
+		Comments:         0, // Intentionally omitted
+		Statuses:         statuses,
+		Files:            files,
+		Metadata:         metadata,
+		LinkedFrom:       []string{}, // Intentionally omitted
+		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
+	}, nil
 }
 
 // linkByPeriodMin returns the minimum amount of time, in seconds, that the
@@ -164,13 +310,10 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 	return 7776000 // 3 months in seconds
 }
 
-// proposalsPluginData fetches the plugin data for the provided proposals using
-// the pi proposals plugin command.
-func (p *politeiawww) proposalsPluginData(tokens []string) (map[string]piplugin.ProposalPluginData, error) {
+// proposalPluginData fetches the plugin data for the provided proposals using
+// the pi plugin proposals command.
+func (p *politeiawww) proposalPluginData(ps piplugin.Proposals) (*piplugin.ProposalsReply, error) {
 	// Setup plugin command
-	ps := piplugin.Proposals{
-		Tokens: tokens,
-	}
 	payload, err := piplugin.EncodeProposals(ps)
 	if err != nil {
 		return nil, err
@@ -205,25 +348,50 @@ func (p *politeiawww) proposalsPluginData(tokens []string) (map[string]piplugin.
 		return nil, err
 	}
 
-	return pr.Proposals, nil
+	return pr, nil
 }
 
-// proposalRecord returns the proposal record for the provided token.
-func (p *politeiawww) proposalRecord(token string) (*pi.ProposalRecord, error) {
-	// TODO Get politeiad record
-	var pr *pi.ProposalRecord
+// proposalRecord returns the proposal record for the provided token and
+// version.
+func (p *politeiawww) proposalRecord(state pi.PropStateT, token, version string) (*pi.ProposalRecord, error) {
+	// Get politeiad record
+	var r *pd.Record
+	var err error
+	switch state {
+	case pi.PropStateUnvetted:
+		r, err = p.getUnvetted(token, version)
+		if err != nil {
+			return nil, err
+		}
+	case pi.PropStateVetted:
+		r, err = p.getVetted(token, version)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown state %v", state)
+	}
 
-	// Get proposal plugin data
-	ppd, err := p.proposalsPluginData([]string{token})
+	pr, err := convertProposalRecordFromPD(*r)
 	if err != nil {
 		return nil, err
 	}
-	pd, ok := ppd[token]
+
+	// Get proposal plugin data
+	ps := piplugin.Proposals{
+		State:  convertPropStateFromPi(state),
+		Tokens: []string{token},
+	}
+	psr, err := p.proposalPluginData(ps)
+	if err != nil {
+		return nil, err
+	}
+	d, ok := psr.Proposals[token]
 	if !ok {
 		return nil, fmt.Errorf("proposal plugin data not found %v", token)
 	}
-	pr.Comments = pd.Comments
-	pr.LinkedFrom = pd.LinkedFrom
+	pr.Comments = d.Comments
+	pr.LinkedFrom = d.LinkedFrom
 
 	// Get user data
 	u, err := p.db.UserGetByPubKey(pr.PublicKey)
@@ -233,31 +401,124 @@ func (p *politeiawww) proposalRecord(token string) (*pi.ProposalRecord, error) {
 	pr.UserID = u.ID.String()
 	pr.Username = u.Username
 
-	return nil, nil
+	return pr, nil
 }
 
-func (p *politeiawww) proposalRecords(tokens []string) (map[string]pi.ProposalRecord, error) {
+// proposalRecordLatest returns the latest version of the proposal record for
+// the provided token.
+func (p *politeiawww) proposalRecordLatest(state pi.PropStateT, token string) (*pi.ProposalRecord, error) {
+	return p.proposalRecord(state, token, "")
+}
+
+// proposalRecords returns the ProposalRecord for each of the provided proposal
+// requests. If a token does not correspond to an actual proposal then it will
+// not be included in the returned map.
+//
+// XXX politeiad needs batched calls for retrieving unvetted and vetted
+// records. This call should have an includeFiles option.
+func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalRequest, includeFiles bool) (map[string]pi.ProposalRecord, error) {
 	// Get politeiad records
-	// Get proposals plugin data
+	props := make([]pi.ProposalRecord, 0, len(reqs))
+	for _, v := range reqs {
+		var r *pd.Record
+		var err error
+		switch state {
+		case pi.PropStateUnvetted:
+			// Unvetted politeiad record
+			r, err = p.getUnvetted(v.Token, v.Version)
+			if err != nil {
+				return nil, fmt.Errorf("getUnvetted %v: %v", v.Token, err)
+			}
+		case pi.PropStateVetted:
+			// Vetted politeiad record
+			r, err = p.getVetted(v.Token, v.Version)
+			if err != nil {
+				return nil, fmt.Errorf("getVetted %v: %v", v.Token, err)
+			}
+		default:
+			return nil, fmt.Errorf("unknown state %v", state)
+		}
+
+		pr, err := convertProposalRecordFromPD(*r)
+		if err != nil {
+			return nil, fmt.Errorf("convertProposalRecordFromPD %v: %v",
+				v.Token, err)
+		}
+
+		// Remove files if specified
+		if !includeFiles {
+			pr.Files = []pi.File{}
+			pr.Metadata = []pi.Metadata{}
+		}
+
+		props = append(props, *pr)
+	}
+
+	// Get proposal plugin data
+	tokens := make([]string, 0, len(reqs))
+	for _, v := range reqs {
+		tokens = append(tokens, v.Token)
+	}
+	ps := piplugin.Proposals{
+		State:  convertPropStateFromPi(state),
+		Tokens: tokens,
+	}
+	psr, err := p.proposalPluginData(ps)
+	if err != nil {
+		return nil, fmt.Errorf("proposalPluginData: %v", err)
+	}
+	for k, v := range props {
+		token := v.CensorshipRecord.Token
+		d, ok := psr.Proposals[token]
+		if !ok {
+			return nil, fmt.Errorf("proposal plugin data not found %v", token)
+		}
+		props[k].Comments = d.Comments
+		props[k].LinkedFrom = d.LinkedFrom
+	}
 
 	// Get user data
+	pubkeys := make([]string, 0, len(props))
+	for _, v := range props {
+		pubkeys = append(pubkeys, v.PublicKey)
+	}
+	ur, err := p.db.UsersGetByPubKey(pubkeys)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range props {
+		token := v.CensorshipRecord.Token
+		u, ok := ur[v.PublicKey]
+		if !ok {
+			return nil, fmt.Errorf("user not found for pubkey %v from proposal %v",
+				v.PublicKey, token)
+		}
+		props[k].UserID = u.ID.String()
+		props[k].Username = u.Username
+	}
 
-	return nil, nil
+	// Convert proposals to a map
+	proposals := make(map[string]pi.ProposalRecord, len(props))
+	for _, v := range props {
+		proposals[v.CensorshipRecord.Token] = v
+	}
+
+	return proposals, nil
 }
 
 func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {
 	// Verify name
 	if !proposalNameIsValid(pm.Name) {
-		return pi.UserError{
+		return pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusPropNameInvalid,
-			ErrorContext: []string{createProposalNameRegex()},
+			ErrorContext: []string{proposalNameRegex()},
 		}
 	}
 
 	// Verify linkto
 	if pm.LinkTo != "" {
-		if !tokenIsValid(pm.LinkTo) {
-			return pi.UserError{
+		if !tokenIsFullLength(pm.LinkTo) {
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"invalid token"},
 			}
@@ -272,14 +533,14 @@ func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {
 		case pm.LinkBy < min:
 			e := fmt.Sprintf("linkby %v is less than min required of %v",
 				pm.LinkBy, min)
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkByInvalid,
 				ErrorContext: []string{e},
 			}
 		case pm.LinkBy > max:
 			e := fmt.Sprintf("linkby %v is more than max allowed of %v",
 				pm.LinkBy, max)
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkByInvalid,
 				ErrorContext: []string{e},
 			}
@@ -291,7 +552,7 @@ func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {
 
 func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, publicKey, signature string) (*pi.ProposalMetadata, error) {
 	if len(files) == 0 {
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusFileCountInvalid,
 			ErrorContext: []string{"no files found"},
 		}
@@ -309,7 +570,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		_, ok := filenames[v.Name]
 		if ok {
 			e := fmt.Sprintf("duplicate name %v", v.Name)
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFileNameInvalid,
 				ErrorContext: []string{e},
 			}
@@ -319,7 +580,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		// Validate file payload
 		if v.Payload == "" {
 			e := fmt.Sprintf("file %v empty payload", v.Name)
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFilePayloadInvalid,
 				ErrorContext: []string{e},
 			}
@@ -327,7 +588,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		payloadb, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
 			e := fmt.Sprintf("file %v invalid base64", v.Name)
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFilePayloadInvalid,
 				ErrorContext: []string{e},
 			}
@@ -337,7 +598,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		digest := util.Digest(payloadb)
 		d, ok := util.ConvertDigest(v.Digest)
 		if !ok {
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFileDigestInvalid,
 				ErrorContext: []string{v.Name},
 			}
@@ -345,7 +606,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		if !bytes.Equal(digest, d[:]) {
 			e := fmt.Sprintf("file %v digest got %v, want %x",
 				v.Name, v.Digest, digest)
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFileDigestInvalid,
 				ErrorContext: []string{e},
 			}
@@ -360,7 +621,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		mimeFile, _, err := mime.ParseMediaType(v.MIME)
 		if err != nil {
 			e := fmt.Sprintf("file %v mime '%v' not parsable", v.Name, v.MIME)
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFileMIMEInvalid,
 				ErrorContext: []string{e},
 			}
@@ -368,7 +629,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 		if mimeFile != mimePayload {
 			e := fmt.Sprintf("file %v mime got %v, want %v",
 				v.Name, mimeFile, mimePayload)
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFileMIMEInvalid,
 				ErrorContext: []string{e},
 			}
@@ -383,7 +644,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 			if len(payloadb) > www.PolicyMaxMDSize {
 				e := fmt.Sprintf("file %v size %v exceeds max size %v",
 					v.Name, len(payloadb), www.PolicyMaxMDSize)
-				return nil, pi.UserError{
+				return nil, pi.UserErrorReply{
 					ErrorCode:    pi.ErrorStatusIndexFileSizeInvalid,
 					ErrorContext: []string{e},
 				}
@@ -393,7 +654,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 			// file.
 			if v.Name != www.PolicyIndexFilename {
 				e := fmt.Sprint("want %v, got %v", www.PolicyIndexFilename, v.Name)
-				return nil, pi.UserError{
+				return nil, pi.UserErrorReply{
 					ErrorCode:    pi.ErrorStatusIndexFileNameInvalid,
 					ErrorContext: []string{e},
 				}
@@ -401,7 +662,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 			if foundIndexFile {
 				e := fmt.Sprintf("more than one %v file found",
 					www.PolicyIndexFilename)
-				return nil, pi.UserError{
+				return nil, pi.UserErrorReply{
 					ErrorCode:    pi.ErrorStatusIndexFileCountInvalid,
 					ErrorContext: []string{e},
 				}
@@ -417,14 +678,14 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 			if len(payloadb) > www.PolicyMaxImageSize {
 				e := fmt.Sprintf("image %v size %v exceeds max size %v",
 					v.Name, len(payloadb), www.PolicyMaxImageSize)
-				return nil, pi.UserError{
+				return nil, pi.UserErrorReply{
 					ErrorCode:    pi.ErrorStatusImageFileSizeInvalid,
 					ErrorContext: []string{e},
 				}
 			}
 
 		default:
-			return nil, pi.UserError{
+			return nil, pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusFileMIMEInvalid,
 				ErrorContext: []string{v.MIME},
 			}
@@ -434,7 +695,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	// Verify that an index file is present
 	if !foundIndexFile {
 		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusIndexFileCountInvalid,
 			ErrorContext: []string{e},
 		}
@@ -444,7 +705,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	if countTextFiles > www.PolicyMaxMDs {
 		e := fmt.Sprintf("got %v text files, max is %v",
 			countTextFiles, www.PolicyMaxMDs)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusTextFileCountInvalid,
 			ErrorContext: []string{e},
 		}
@@ -452,7 +713,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	if countImageFiles > www.PolicyMaxImages {
 		e := fmt.Sprintf("got %v image files, max is %v",
 			countImageFiles, www.PolicyMaxImages)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusImageFileCountInvalid,
 			ErrorContext: []string{e},
 		}
@@ -464,14 +725,14 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	case len(metadata) == 0:
 		e := fmt.Sprintf("metadata with hint %v not found",
 			www.HintProposalMetadata)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusMetadataCountInvalid,
 			ErrorContext: []string{e},
 		}
 	case len(metadata) > 1:
 		e := fmt.Sprintf("metadata should only contain %v",
 			www.HintProposalMetadata)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusMetadataCountInvalid,
 			ErrorContext: []string{e},
 		}
@@ -479,7 +740,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	md := metadata[0]
 	if md.Hint != www.HintProposalMetadata {
 		e := fmt.Sprintf("unknown metadata hint %v", md.Hint)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusMetadataHintInvalid,
 			ErrorContext: []string{e},
 		}
@@ -489,7 +750,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	b, err := base64.StdEncoding.DecodeString(md.Payload)
 	if err != nil {
 		e := fmt.Sprintf("metadata with hint %v invalid base64 payload", md.Hint)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusMetadataPayloadInvalid,
 			ErrorContext: []string{e},
 		}
@@ -498,7 +759,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	if md.Digest != hex.EncodeToString(digest) {
 		e := fmt.Sprintf("metadata with hint %v got digest %v, want %v",
 			md.Hint, md.Digest, hex.EncodeToString(digest))
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusMetadataDigestInvalid,
 			ErrorContext: []string{e},
 		}
@@ -511,7 +772,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	err = d.Decode(&pm)
 	if err != nil {
 		e := fmt.Sprintf("unable to decode %v payload", md.Hint)
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusMetadataPayloadInvalid,
 			ErrorContext: []string{e},
 		}
@@ -541,21 +802,21 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 
 	// Verify user has paid registration paywall
 	if !p.userHasPaid(usr) {
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode: pi.ErrorStatusUserRegistrationNotPaid,
 		}
 	}
 
 	// Verify user has a proposal credit
 	if !p.userHasProposalCredits(usr) {
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode: pi.ErrorStatusUserBalanceInsufficient,
 		}
 	}
 
 	// Verify user signed using active identity
 	if usr.PublicKey() != pn.PublicKey {
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
 			ErrorContext: []string{"not user's active identity"},
 		}
@@ -599,29 +860,11 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	}
 
 	// Send politeiad request
-	challenge, err := util.Random(pd.ChallengeSize)
+	dcr, err := p.newRecord(metadata, files)
 	if err != nil {
 		return nil, err
 	}
-	nr := pd.NewRecord{
-		Challenge: hex.EncodeToString(challenge),
-		Metadata:  metadata,
-		Files:     files,
-	}
-	resBody, err := p.makeRequest(http.MethodPost, pd.NewRecordRoute, nr)
-	if err != nil {
-		return nil, err
-	}
-	var nrr pd.NewRecordReply
-	err = json.Unmarshal(resBody, &nrr)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, nrr.Response)
-	if err != nil {
-		return nil, err
-	}
-	cr := convertCensorshipRecordFromPD(nrr.CensorshipRecord)
+	cr := convertCensorshipRecordFromPD(*dcr)
 
 	// Deduct proposal credit from author's account
 	err = p.spendProposalCredit(&usr, cr.Token)
@@ -671,11 +914,20 @@ func filesToDel(current []pi.File, updated []pi.File) []string {
 func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*pi.ProposalEditReply, error) {
 	log.Tracef("processProposalEdit: %v", pe.Token)
 
-	// Verify user signed using active identity
-	if usr.PublicKey() != pe.PublicKey {
-		return nil, pi.UserError{
-			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not user's active identity"},
+	// Verify token
+	if !tokenIsFullLength(pe.Token) {
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusPropTokenInvalid,
+		}
+	}
+
+	// Verify state
+	switch pe.State {
+	case pi.PropStateUnvetted, pi.PropStateVetted:
+		// Allowed; continue
+	default:
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusPropStateInvalid,
 		}
 	}
 
@@ -686,40 +938,49 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		return nil, err
 	}
 
-	// Get the current proposal
-	if !tokenIsValid(pe.Token) {
-		return nil, pi.UserError{
-			ErrorCode:    pi.ErrorStatusPropTokenInvalid,
-			ErrorContext: []string{pe.Token},
+	// Verify user signed using active identity
+	if usr.PublicKey() != pe.PublicKey {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
+			ErrorContext: []string{"not user's active identity"},
 		}
 	}
-	curr, err := p.proposalRecord(pe.Token)
+
+	// Get the current proposal
+	curr, err := p.proposalRecordLatest(pe.State, pe.Token)
 	if err != nil {
-		// TODO pi.ErrorStatusProposalNotFound
+		// TODO pi.ErrorStatusPropNotFound
 		return nil, err
 	}
 
 	// Verify the user is the author. The public keys are not static
 	// values so the user IDs must be compared directly.
 	if curr.UserID != usr.ID.String() {
-		return nil, pi.UserError{
+		return nil, pi.UserErrorReply{
 			ErrorCode: pi.ErrorStatusUserIsNotAuthor,
 		}
 	}
+
+	// Verification that requires retrieving the existing proposal is
+	// done in the politeiad pi plugin hook. This includes:
+	// -Verify proposal status
+	// -Verify vote status
+	// -Verify linkto
 
 	// Setup politeiad files. The Metadata objects are converted to
 	// politeiad files instead of metadata streams since they contain
 	// user defined data that needs to be included in the merkle root
 	// that politeiad signs.
-	files := convertFilesFromPi(pe.Files)
+	filesAdd := convertFilesFromPi(pe.Files)
 	for _, v := range pe.Metadata {
 		switch v.Hint {
 		case pi.HintProposalMetadata:
-			files = append(files, convertFileFromMetadata(v))
+			filesAdd = append(filesAdd, convertFileFromMetadata(v))
 		}
 	}
+	filesDel := filesToDel(curr.Files, pe.Files)
 
-	// Setup metadata stream
+	// Setup politeiad metadata
 	timestamp := time.Now().Unix()
 	pg := piplugin.ProposalGeneral{
 		PublicKey: pe.PublicKey,
@@ -730,52 +991,32 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	if err != nil {
 		return nil, err
 	}
-	metadata := []pd.MetadataStream{
+	mdOverwrite := []pd.MetadataStream{
 		{
 			ID:      piplugin.MDStreamIDProposalGeneral,
 			Payload: string(b),
 		},
 	}
-
-	// Setup politeiad request
-	var route string
-	switch pe.State {
-	case pi.PropStateUnvetted:
-		route = pd.UpdateUnvettedRoute
-	case pi.PropStateVetted:
-		route = pd.UpdateVettedRoute
-	default:
-		return nil, pi.UserError{
-			ErrorCode: pi.ErrorStatusPropStateInvalid,
-		}
-	}
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	ur := pd.UpdateRecord{
-		Token:       pe.Token,
-		Challenge:   hex.EncodeToString(challenge),
-		MDOverwrite: metadata,
-		FilesAdd:    files,
-		FilesDel:    filesToDel(curr.Files, pe.Files),
-	}
+	mdAppend := []pd.MetadataStream{}
 
 	// Send politeiad request
-	resBody, err := p.makeRequest(http.MethodPost, route, ur)
-	if err != nil {
-		// TODO verify that this will throw an error if no proposal files
-		// were changed.
-		return nil, err
-	}
-	var urr pd.UpdateRecordReply
-	err = json.Unmarshal(resBody, &urr)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, urr.Response)
-	if err != nil {
-		return nil, err
+	// TODO verify that this will throw an error if no proposal files
+	// were changed.
+	switch pe.State {
+	case pi.PropStateUnvetted:
+		err = p.updateUnvetted(pe.Token, mdAppend, mdOverwrite,
+			filesAdd, filesDel)
+		if err != nil {
+			return nil, err
+		}
+	case pi.PropStateVetted:
+		err = p.updateVetted(pe.Token, mdAppend, mdOverwrite,
+			filesAdd, filesDel)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown state %v", pe.State)
 	}
 
 	// TODO Emit an edit proposal event
@@ -789,4 +1030,158 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		// TODO CensorshipRecord: cr,
 		Timestamp: timestamp,
 	}, nil
+}
+
+func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr user.User) (*pi.ProposalSetStatusReply, error) {
+	log.Tracef("processProposalSetStatus: %v %v", pss.Token, pss.Status)
+
+	// Verify token
+	if !tokenIsFullLength(pss.Token) {
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusPropTokenInvalid,
+		}
+	}
+
+	// Verify state
+	switch pss.State {
+	case pi.PropStateUnvetted, pi.PropStateVetted:
+		// Allowed; continue
+	default:
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusPropStateInvalid,
+		}
+	}
+
+	// Verify reason
+	_, required := statusReasonRequired[pss.Status]
+	if required && pss.Reason == "" {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPropStatusChangeReasonInvalid,
+			ErrorContext: []string{"reason not given"},
+		}
+	}
+
+	// Verify user is an admin
+	if !usr.Admin {
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusUserIsNotAdmin,
+		}
+	}
+
+	// Verify user signed with their active identity
+	if usr.PublicKey() != pss.PublicKey {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
+			ErrorContext: []string{"not user's active identity"},
+		}
+	}
+
+	// Verify signature
+	msg := pss.Token + pss.Version + strconv.Itoa(int(pss.Status)) + pss.Reason
+	err := util.VerifySignature(pss.Signature, pss.PublicKey, msg)
+	if err != nil {
+		return nil, convertUserErrFromSignatureErr(err)
+	}
+
+	// TODO
+	// Verification that requires retrieving the existing proposal is
+	// done in the politeiad pi plugin hook. This includes:
+	// -Verify token corresponds to a proposal
+	// -Verify proposal state is correct
+	// -Verify version is the latest version
+	// -Verify status change is allowed
+
+	// Setup metadata
+	timestamp := time.Now().Unix()
+	sc := piplugin.StatusChange{
+		Token:     pss.Token,
+		Version:   pss.Version,
+		Status:    piplugin.PropStatusT(pss.Status),
+		Reason:    pss.Reason,
+		PublicKey: pss.PublicKey,
+		Signature: pss.Signature,
+		Timestamp: timestamp,
+	}
+	b, err := piplugin.EncodeStatusChange(sc)
+	if err != nil {
+		return nil, err
+	}
+	mdAppend := []pd.MetadataStream{
+		{
+			ID:      piplugin.MDStreamIDStatusChanges,
+			Payload: string(b),
+		},
+	}
+	mdOverwrite := []pd.MetadataStream{}
+
+	// Send politeiad request
+	status := convertRecordStatusFromPropStatus(pss.Status)
+	switch pss.State {
+	case pi.PropStateUnvetted:
+		err = p.setUnvettedStatus(pss.Token, status, mdAppend, mdOverwrite)
+		if err != nil {
+			return nil, err
+		}
+	case pi.PropStateVetted:
+		err = p.setVettedStatus(pss.Token, status, mdAppend, mdOverwrite)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO Emit status change event
+
+	return &pi.ProposalSetStatusReply{
+		Timestamp: timestamp,
+	}, nil
+}
+
+// processProposalsPublic retrieves and returns the proposal records for each
+// of the provided proposal requests. This is a public route that removes all
+// unvetted proposal files from unvetted proposals before returning them.
+func (p *politeiawww) processProposalsPublic(ps pi.Proposals) (*pi.ProposalsReply, error) {
+	log.Tracef("processProposals: %v", ps.Requests)
+
+	props, err := p.proposalRecords(ps.State, ps.Requests, ps.IncludeFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	// Strip unvetted proposals of their files before returning them.
+	for k, v := range props {
+		if v.State == pi.PropStateVetted {
+			continue
+		}
+		v.Files = []pi.File{}
+		v.Metadata = []pi.Metadata{}
+		props[k] = v
+	}
+
+	return &pi.ProposalsReply{
+		Proposals: props,
+	}, nil
+}
+
+// processProposalsAdmin retrieves and returns the proposal records for each of
+// the provided proposal requests. This is an admin route that returns unvetted
+// proposals in their entirety.
+func (p *politeiawww) processProposalsAdmin(ps pi.Proposals) (*pi.ProposalsReply, error) {
+	log.Tracef("processProposals: %v", ps.Requests)
+
+	props, err := p.proposalRecords(ps.State, ps.Requests, ps.IncludeFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.ProposalsReply{
+		Proposals: props,
+	}, nil
+}
+
+func (p *politeiawww) processProposalInventory() (*pi.ProposalInventoryReply, error) {
+	log.Tracef("processProposalInventory")
+
+	// TODO politeiad needs a InventoryByStatus route
+
+	return &pi.ProposalInventoryReply{}, nil
 }

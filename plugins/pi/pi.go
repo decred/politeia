@@ -11,6 +11,7 @@ import (
 	"fmt"
 )
 
+type PropStateT int
 type PropStatusT int
 type ErrorStatusT int
 
@@ -24,14 +25,19 @@ const (
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
 	MDStreamIDProposalGeneral = 101
-	MDStreamIDStatusChange    = 102
+	MDStreamIDStatusChanges   = 102
 
-	// FilenameProposalMetadata is the filename of the ProposalMetadata
+	// FileNameProposalMetadata is the filename of the ProposalMetadata
 	// file that is saved to politeiad. ProposalMetadata is saved to
 	// politeiad as a file, not as a metadata stream, since it contains
 	// user provided metadata and needs to be included in the merkle
 	// root that politeiad signs.
-	FilenameProposalMetadata = "proposalmetadata.json"
+	FileNameProposalMetadata = "proposalmetadata.json"
+
+	// Proposal states
+	PropStateInvalid  PropStateT = 0
+	PropStateUnvetted PropStateT = 1
+	PropStateVetted   PropStateT = 2
 
 	// Proposal status codes
 	PropStatusInvalid   PropStatusT = 0 // Invalid status
@@ -52,8 +58,14 @@ var (
 	// transitions. If StatusChanges[currentStatus][newStatus] exists
 	// then the status change is allowed.
 	StatusChanges = map[PropStatusT]map[PropStatusT]struct{}{
-		PropStatusUnvetted:  map[PropStatusT]struct{}{},
-		PropStatusPublic:    map[PropStatusT]struct{}{},
+		PropStatusUnvetted: map[PropStatusT]struct{}{
+			PropStatusPublic:   struct{}{},
+			PropStatusCensored: struct{}{},
+		},
+		PropStatusPublic: map[PropStatusT]struct{}{
+			PropStatusAbandoned: struct{}{},
+			PropStatusCensored:  struct{}{},
+		},
 		PropStatusCensored:  map[PropStatusT]struct{}{},
 		PropStatusAbandoned: map[PropStatusT]struct{}{},
 	}
@@ -67,6 +79,7 @@ var (
 	}
 )
 
+// TODO change this to UserErrorReply as well as in all the other plugins.
 // UserError represents an error that is caused by the user.
 type UserError struct {
 	ErrorCode    ErrorStatusT
@@ -138,11 +151,32 @@ func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 	return &pg, nil
 }
 
+// StatusChange represents a proposal status change.
+//
+// Signature is the client signature of the Token+Version+Status+Reason.
+type StatusChange struct {
+	Token     string      `json:"token"`
+	Version   string      `json:"version"`
+	Status    PropStatusT `json:"status"`
+	Reason    string      `json:"message,omitempty"`
+	PublicKey string      `json:"publickey"`
+	Signature string      `json:"signature"`
+	Timestamp int64       `json:"timestamp"`
+}
+
+// EncodeStatusChange encodes a StatusChange into a JSON byte slice.
+func EncodeStatusChange(sc StatusChange) ([]byte, error) {
+	return json.Marshal(sc)
+}
+
+// TODO DecodeStatusChanges
+
 // Proposals requests the plugin data for the provided proposals. This includes
-// pi plugin data as well as other plugin data such as comments plugin data.
+// pi plugin data as well as other plugin data such as comment plugin data.
 // This command aggregates all proposal plugin data into a single call.
 type Proposals struct {
-	Tokens []string `json:"tokens"`
+	State  PropStateT `json:"state"`
+	Tokens []string   `json:"tokens"`
 }
 
 // EncodeProposals encodes a Proposals into a JSON byte slice.
@@ -160,7 +194,7 @@ func DecodeProposals(payload []byte) (*Proposals, error) {
 	return &p, nil
 }
 
-// ProposalPluginData represents the plugin data of a proposal.
+// ProposalPluginData contains all the plugin data for a proposal.
 type ProposalPluginData struct {
 	Comments   uint64   `json:"comments"`   // Number of comments
 	LinkedFrom []string `json:"linkedfrom"` // Linked from list
