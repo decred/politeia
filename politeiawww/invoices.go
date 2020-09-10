@@ -990,10 +990,12 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		if c.NewStatus == cms.InvoiceStatusApproved {
 			p.addWatchAddress(dbInvoice.PaymentAddress)
 		}
-		p.fireEvent(EventTypeInvoiceStatusUpdate,
-			EventDataInvoiceStatusUpdate{
-				Token: sis.Token,
-				User:  invoiceUser,
+
+		// Emit event notification for invoice status update
+		p.eventManager.emit(eventInvoiceStatusUpdate,
+			dataInvoiceStatusUpdate{
+				token: dbInvoice.Token,
+				email: invoiceUser.Email,
 			})
 	}
 

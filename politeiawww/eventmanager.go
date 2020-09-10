@@ -391,7 +391,7 @@ type dataInvoiceStatusUpdate struct {
 
 func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 	for msg := range ch {
-		d, ok := msg.(dataInvoiceComment)
+		d, ok := msg.(dataInvoiceStatusUpdate)
 		if !ok {
 			log.Errorf("handleEventInvoiceStatusUpdate invalid msg: %v", msg)
 			continue
@@ -408,7 +408,6 @@ func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 
 type dataDCCNew struct {
 	token string // DCC token
-	email string // User email
 }
 
 func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
@@ -440,7 +439,6 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 
 type dataDCCSupportOppose struct {
 	token string // DCC token
-	email string // User email
 }
 
 func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
