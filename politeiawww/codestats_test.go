@@ -21,7 +21,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 	requestedUser := newCMSUser(t, p, false, true, cms.DomainTypeDeveloper,
 		cms.ContractorTypeDirect)
 
+	// mockedCodeStats currently creates mocked info for March, April, May 2020
 	mockedCodeStats, _ := createMockedStats(requestedUser.GitHubName)
+	validRequestStartDate := time.Date(2020, time.Month(3), 0, 0, 0, 0, 0, time.UTC)
+	validRequestEndDate := time.Date(2020, time.Month(6), 0, 0, 0, 0, 0, time.UTC)
+
 	// Create mocked code stats for testing expected response
 	ncs := user.UpdateCMSCodeStats{
 		UserCodeStats: mockedCodeStats,
@@ -32,7 +36,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 	}
 	pc := user.PluginCommand{
 		ID:      user.CMSPluginID,
-		Command: user.CmdUpdateCMSUserCodeStats,
+		Command: user.CmdNewCMSUserCodeStats,
 		Payload: string(payload),
 	}
 	_, err = p.db.PluginExec(pc)
@@ -135,6 +139,17 @@ func TestProcessUserCodeStats(t *testing.T) {
 			&admin.User,
 			nil,
 		},
+		{
+			"sucess",
+			cms.UserCodeStats{
+				UserID:    requestedUser.ID.String(),
+				StartTime: validRequestStartDate.Unix(),
+				EndTime:   validRequestEndDate.Unix(),
+			},
+			nil,
+			&admin.User,
+			nil,
+		},
 	}
 
 	for _, v := range tests {
@@ -152,6 +167,8 @@ func TestProcessUserCodeStats(t *testing.T) {
 
 			diff := deep.Equal(reply, v.wantReply)
 			if diff != nil {
+				t.Log(reply)
+				spew.Dump(reply)
 				t.Errorf("got/want diff:\n%v",
 					spew.Sdump(diff))
 			}
@@ -183,23 +200,23 @@ func createMockedStats(username string) ([]user.CodeStats, []expectedCodeStats) 
 	year := 2020
 	expectedResults := make([]expectedCodeStats, 0, numberOfMonths)
 
-	for month := startingMonth; month <= numberOfMonths; month++ {
+	for month := startingMonth; month <= numberOfMonths+startingMonth; month++ {
 		expected := expectedCodeStats{}
 		expected.Month = month
 		expected.Year = year
 		prs := make([]codetracker.PullRequestInformation, 0, numberOfMonthPrs)
 		for i := 1; i <= numberOfMonthPrs; i++ {
 			prNumber := i + month*10
-			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", numberOfMonthPrs, prNumber)
+			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", i, prNumber)
 			additions := 100
 			deletions := 100
 			prs = append(prs, codetracker.PullRequestInformation{
-				Repository: fmt.Sprintf("%v", numberOfMonthPrs),
+				Repository: fmt.Sprintf("%v", i),
 				URL:        url,
 				Number:     prNumber,
 				Additions:  int64(additions),
 				Deletions:  int64(deletions),
-				Date:       time.Date(year, time.Month(month), numberOfMonthPrs, 0, 0, 0, 0, time.UTC).String(),
+				Date:       time.Date(year, time.Month(month), i, 0, 0, 0, 0, time.UTC).String(),
 				State:      "MERGED",
 			})
 			if len(expected.PRs) == 0 {
@@ -214,23 +231,23 @@ func createMockedStats(username string) ([]user.CodeStats, []expectedCodeStats) 
 		reviews := make([]codetracker.ReviewInformation, 0, numberOfMonthReviews)
 		for i := 1; i <= numberOfMonthReviews; i++ {
 			prNumber := i + month*10
-			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", numberOfMonthReviews, prNumber)
+			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", i, prNumber)
 			additions := 10
 			deletions := 10
 			reviews = append(reviews, codetracker.ReviewInformation{
-				Repository: fmt.Sprintf("%v", numberOfMonthPrs),
+				Repository: fmt.Sprintf("%v", i),
 				URL:        url,
 				Number:     prNumber,
 				Additions:  additions,
 				Deletions:  deletions,
-				Date:       time.Date(year, time.Month(month), numberOfMonthPrs, 0, 0, 0, 0, time.UTC).String(),
+				Date:       time.Date(year, time.Month(month), i, 0, 0, 0, 0, time.UTC).String(),
 				State:      "MERGED",
 			})
 			if len(expected.PRs) == 0 {
-				expected.PRs = make([]string, 0, numberOfMonthPrs)
-				expected.PRs = append(expected.PRs, url)
+				expected.Reviews = make([]string, 0, numberOfMonthReviews)
+				expected.Reviews = append(expected.Reviews, url)
 			} else {
-				expected.PRs = append(expected.PRs, url)
+				expected.Reviews = append(expected.Reviews, url)
 			}
 			expected.ReviewAdditions += additions
 			expected.ReviewDeletions += deletions

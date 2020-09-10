@@ -410,6 +410,23 @@ type CodeStats struct {
 	ReviewDeletions int64    // Total reviewed code deletions
 }
 
+// EncodeCodeStats encodes a CodeStats into a JSON byte slice.
+func EncodeCodeStats(cs CodeStats) ([]byte, error) {
+	return json.Marshal(cs)
+}
+
+// DecodeCodeStats decodes JSON byte slice into a CodeStats.
+func DecodeCodeStats(b []byte) (*CodeStats, error) {
+	var cs CodeStats
+
+	err := json.Unmarshal(b, &cs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cs, nil
+}
+
 // NewCMSCodeStats creates a new CMS code stats record in the user database.
 type NewCMSCodeStats struct {
 	UserCodeStats []CodeStats `json:"usercodestats"`
