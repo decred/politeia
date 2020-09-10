@@ -31,15 +31,27 @@ var (
 func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
 	log.Tracef("processUserCodeStats")
 
-	// Check to make sure time range requested is not greater than 6 months
-	if time.Unix(ucs.EndTime, 0).Sub(time.Unix(ucs.StartTime, 0)) >
-		userCodeStatsRangeLimit {
+	startDate := time.Unix(ucs.StartTime, 0)
+	var endDate time.Time
+
+	if ucs.EndTime == 0 {
+		// If endtime is unset just use current time
+		endDate = time.Now()
+	} else {
+		// We add a minute here to avoid start/end of the month confusion
+		endDate = time.Unix(ucs.EndTime, 0).Add(time.Minute)
+	}
+
+	// Check to make sure time range requested is not greater than 6 months OR
+	// End time is AFTER Start time
+	if endDate.Before(startDate) ||
+		endDate.Sub(startDate) > userCodeStatsRangeLimit {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
 		}
 	}
 
-	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	requestingUser, err := p.getCMSUserByID(u.ID.String())
 	if err == user.ErrUserNotFound {
 		log.Debugf("processUserCodeStats failure for %v: cmsuser not found",
 			u.ID.String())
@@ -70,7 +82,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}
 
 	// If domains don't match then just return empty reply rather than erroring.
-	if !cmsUser.Admin && cmsUser.Domain != requestedUser.Domain {
+	if !requestingUser.Admin && requestingUser.Domain != requestedUser.Domain {
 		return &cms.UserCodeStatsReply{}, nil
 	}
 
@@ -78,23 +90,6 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusMissingCodeStatsUsername,
 		}
-	}
-	startDate := time.Unix(ucs.StartTime, 0)
-	if ucs.StartTime == 0 {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
-		}
-	}
-	if ucs.StartTime > ucs.EndTime {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
-		}
-	}
-	var endDate time.Time
-	if ucs.EndTime == 0 {
-		endDate = startDate
-	} else {
-		endDate = time.Unix(ucs.EndTime, 0).Add(time.Minute)
 	}
 
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
