@@ -18,7 +18,7 @@ import (
 const (
 	numberOfMonths = 3
 	startingMonth  = 11
-	startingYear   = 2020
+	startingYear   = 2019
 
 	numberOfMonthPrs     = 5
 	numberOfMonthReviews = 3
@@ -39,21 +39,18 @@ func TestProcessUserCodeStats(t *testing.T) {
 
 	oneMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		oneMonthStartDate, oneMonthEndDate)
-	spew.Dump(oneMonthExpectedReply, oneMonthStartDate, oneMonthEndDate)
 
 	twoMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
 	twoMonthEndDate := time.Date(startingYear, time.Month(startingMonth+2), 1, 0, 0, 0, 0, time.UTC)
 
 	twoMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		twoMonthStartDate, twoMonthEndDate)
-	spew.Dump(twoMonthExpectedReply, twoMonthStartDate, twoMonthEndDate)
 
 	threeMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
 	threeMonthEndDate := time.Date(startingYear, time.Month(startingMonth+numberOfMonths), 1, 0, 0, 0, 0, time.UTC)
 
 	threeMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		threeMonthStartDate, threeMonthEndDate)
-	spew.Dump(threeMonthExpectedReply, threeMonthStartDate, threeMonthEndDate)
 
 	// Create mocked code stats for testing expected response
 	ncs := user.UpdateCMSCodeStats{
@@ -283,7 +280,6 @@ func createMockedStats(username string) []user.CodeStats {
 		codeStats = append(codeStats, convertPRsToUserCodeStats(username, year,
 			month, prs, reviews)...)
 	}
-	spew.Dump(codeStats)
 	return codeStats
 }
 

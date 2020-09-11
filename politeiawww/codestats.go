@@ -22,15 +22,13 @@ var (
 func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
 	log.Tracef("processUserCodeStats")
 
-	startDate := time.Unix(ucs.StartTime, 0)
+	startDate := time.Unix(ucs.StartTime, 0).UTC()
 	var endDate time.Time
-
 	if ucs.EndTime == 0 {
 		// If endtime is unset just use current time
 		endDate = time.Now()
 	} else {
-		// We add a minute here to avoid start/end of the month confusion
-		endDate = time.Unix(ucs.EndTime, 0).Add(time.Minute)
+		endDate = time.Unix(ucs.EndTime, 0).UTC()
 	}
 
 	// Check to make sure time range requested is not greater than 6 months OR
@@ -119,7 +117,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		allRepoStats = append(allRepoStats,
 			convertCodeStatsFromDatabase(reply.UserCodeStats)...)
 
-		startDate = time.Date(startDate.Year(), startDate.Month()+1, startDate.Day(), startDate.Hour(), 0, 0, 0, time.UTC)
+		startDate = time.Date(startDate.Year(), startDate.Month()+1, startDate.Day(), startDate.Hour(), startDate.Minute(), 0, 0, time.UTC)
 	}
 	return &cms.UserCodeStatsReply{
 		RepoStats: allRepoStats,
