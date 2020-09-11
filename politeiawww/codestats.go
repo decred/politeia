@@ -15,15 +15,6 @@ import (
 
 var (
 	userCodeStatsRangeLimit = time.Minute * 60 * 24 * 7 * 26 // 6 months in minutes == 60mins * 24hrs * 7days * 26weeks
-	month31Days             = map[int]bool{
-		0:  true,
-		2:  true,
-		4:  true,
-		6:  true,
-		7:  true,
-		9:  true,
-		11: true,
-	}
 )
 
 // processUserCodeStats tries to compile code statistics based on user
@@ -93,10 +84,11 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}
 
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
+	// Run until start date is after end date, it's incremented by a month
+	// a the end of the loop.
 	for startDate.Before(endDate) {
 		month := startDate.Month()
 		year := startDate.Year()
-
 		cu := user.CMSCodeStatsByUserMonthYear{
 			GithubName: requestedUser.GitHubName,
 			Month:      int(month),
@@ -127,12 +119,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		allRepoStats = append(allRepoStats,
 			convertCodeStatsFromDatabase(reply.UserCodeStats)...)
 
-		// Figure out if month is 31 days or 30
-		if ok := month31Days[int(month)]; ok {
-			startDate = startDate.Add(time.Minute * 60 * 24 * 31) // 31 Days
-		} else {
-			startDate = startDate.Add(time.Minute * 60 * 24 * 30) // 30 Days
-		}
+		startDate = time.Date(startDate.Year(), startDate.Month()+1, startDate.Day(), startDate.Hour(), 0, 0, 0, time.UTC)
 	}
 	return &cms.UserCodeStatsReply{
 		RepoStats: allRepoStats,

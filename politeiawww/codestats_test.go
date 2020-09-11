@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -14,6 +15,15 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	numberOfMonths = 3
+	startingMonth  = 11
+	startingYear   = 2020
+
+	numberOfMonthPrs     = 5
+	numberOfMonthReviews = 3
+)
+
 func TestProcessUserCodeStats(t *testing.T) {
 	p, cleanup := newTestCMSwww(t)
 	defer cleanup()
@@ -21,10 +31,29 @@ func TestProcessUserCodeStats(t *testing.T) {
 	requestedUser := newCMSUser(t, p, false, true, cms.DomainTypeDeveloper,
 		cms.ContractorTypeDirect)
 
-	// mockedCodeStats currently creates mocked info for March, April, May 2020
-	mockedCodeStats, _ := createMockedStats(requestedUser.GitHubName)
-	validRequestStartDate := time.Date(2020, time.Month(3), 0, 0, 0, 0, 0, time.UTC)
-	validRequestEndDate := time.Date(2020, time.Month(6), 0, 0, 0, 0, 0, time.UTC)
+	// mockedCodeStats currently creates mocked code stats in user db
+	mockedCodeStats := createMockedStats(requestedUser.GitHubName)
+
+	oneMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
+	oneMonthEndDate := time.Date(startingYear, time.Month(startingMonth+1), 1, 0, 0, 0, 0, time.UTC)
+
+	oneMonthExpectedReply := convertExpectedResults(mockedCodeStats,
+		oneMonthStartDate, oneMonthEndDate)
+	spew.Dump(oneMonthExpectedReply, oneMonthStartDate, oneMonthEndDate)
+
+	twoMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
+	twoMonthEndDate := time.Date(startingYear, time.Month(startingMonth+2), 1, 0, 0, 0, 0, time.UTC)
+
+	twoMonthExpectedReply := convertExpectedResults(mockedCodeStats,
+		twoMonthStartDate, twoMonthEndDate)
+	spew.Dump(twoMonthExpectedReply, twoMonthStartDate, twoMonthEndDate)
+
+	threeMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
+	threeMonthEndDate := time.Date(startingYear, time.Month(startingMonth+numberOfMonths), 1, 0, 0, 0, 0, time.UTC)
+
+	threeMonthExpectedReply := convertExpectedResults(mockedCodeStats,
+		threeMonthStartDate, threeMonthEndDate)
+	spew.Dump(threeMonthExpectedReply, threeMonthStartDate, threeMonthEndDate)
 
 	// Create mocked code stats for testing expected response
 	ncs := user.UpdateCMSCodeStats{
@@ -140,15 +169,37 @@ func TestProcessUserCodeStats(t *testing.T) {
 			nil,
 		},
 		{
-			"sucess",
+			"sucess one month range",
 			cms.UserCodeStats{
 				UserID:    requestedUser.ID.String(),
-				StartTime: validRequestStartDate.Unix(),
-				EndTime:   validRequestEndDate.Unix(),
+				StartTime: oneMonthStartDate.Unix(),
+				EndTime:   oneMonthEndDate.Unix(),
 			},
 			nil,
 			&admin.User,
+			oneMonthExpectedReply,
+		},
+		{
+			"sucess two month range",
+			cms.UserCodeStats{
+				UserID:    requestedUser.ID.String(),
+				StartTime: twoMonthStartDate.Unix(),
+				EndTime:   twoMonthEndDate.Unix(),
+			},
 			nil,
+			&admin.User,
+			twoMonthExpectedReply,
+		},
+		{
+			"sucess three month range",
+			cms.UserCodeStats{
+				UserID:    requestedUser.ID.String(),
+				StartTime: threeMonthStartDate.Unix(),
+				EndTime:   threeMonthEndDate.Unix(),
+			},
+			nil,
+			&admin.User,
+			threeMonthExpectedReply,
 		},
 	}
 
@@ -167,8 +218,6 @@ func TestProcessUserCodeStats(t *testing.T) {
 
 			diff := deep.Equal(reply, v.wantReply)
 			if diff != nil {
-				t.Log(reply)
-				spew.Dump(reply)
 				t.Errorf("got/want diff:\n%v",
 					spew.Sdump(diff))
 			}
@@ -177,6 +226,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 }
 
 type expectedCodeStats struct {
+	Repository      string
 	Month           int
 	Year            int
 	MergeAdditions  int
@@ -190,73 +240,65 @@ type expectedCodeStats struct {
 // Creates a mocked set of code stats that will be updated to a test
 // user's db information and an expected code stats results set is returned
 // as well to confirm information.
-func createMockedStats(username string) ([]user.CodeStats, []expectedCodeStats) {
+func createMockedStats(username string) []user.CodeStats {
 
-	numberOfMonths := 3
-	startingMonth := 3
-	numberOfMonthPrs := 5
-	numberOfMonthReviews := 3
 	codeStats := make([]user.CodeStats, 0, numberOfMonths)
-	year := 2020
-	expectedResults := make([]expectedCodeStats, 0, numberOfMonths)
+	year := startingYear
 
-	for month := startingMonth; month <= numberOfMonths+startingMonth; month++ {
-		expected := expectedCodeStats{}
-		expected.Month = month
-		expected.Year = year
+	for month := startingMonth; month < numberOfMonths+startingMonth; month++ {
 		prs := make([]codetracker.PullRequestInformation, 0, numberOfMonthPrs)
 		for i := 1; i <= numberOfMonthPrs; i++ {
+			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0, time.UTC)
 			prNumber := i + month*10
-			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", i, prNumber)
-			additions := 100
-			deletions := 100
+			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", month, prNumber)
+			additions := rand.Intn(100)
+			deletions := rand.Intn(100)
 			prs = append(prs, codetracker.PullRequestInformation{
-				Repository: fmt.Sprintf("%v", i),
+				Repository: fmt.Sprintf("%v", month),
 				URL:        url,
 				Number:     prNumber,
 				Additions:  int64(additions),
 				Deletions:  int64(deletions),
-				Date:       time.Date(year, time.Month(month), i, 0, 0, 0, 0, time.UTC).String(),
+				Date:       date.String(),
 				State:      "MERGED",
 			})
-			if len(expected.PRs) == 0 {
-				expected.PRs = make([]string, 0, numberOfMonthPrs)
-				expected.PRs = append(expected.PRs, url)
-			} else {
-				expected.PRs = append(expected.PRs, url)
-			}
-			expected.MergeAdditions += additions
-			expected.MergeDeletions += additions
 		}
 		reviews := make([]codetracker.ReviewInformation, 0, numberOfMonthReviews)
 		for i := 1; i <= numberOfMonthReviews; i++ {
+			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0, time.UTC)
 			prNumber := i + month*10
-			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", i, prNumber)
-			additions := 10
-			deletions := 10
+			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", month, prNumber)
+			additions := rand.Intn(100)
+			deletions := rand.Intn(100)
 			reviews = append(reviews, codetracker.ReviewInformation{
-				Repository: fmt.Sprintf("%v", i),
+				Repository: fmt.Sprintf("%v", month),
 				URL:        url,
 				Number:     prNumber,
 				Additions:  additions,
 				Deletions:  deletions,
-				Date:       time.Date(year, time.Month(month), i, 0, 0, 0, 0, time.UTC).String(),
-				State:      "MERGED",
+				Date:       date.String(),
+				State:      "APPROVED",
 			})
-			if len(expected.PRs) == 0 {
-				expected.Reviews = make([]string, 0, numberOfMonthReviews)
-				expected.Reviews = append(expected.Reviews, url)
-			} else {
-				expected.Reviews = append(expected.Reviews, url)
-			}
-			expected.ReviewAdditions += additions
-			expected.ReviewDeletions += deletions
 		}
-
 		codeStats = append(codeStats, convertPRsToUserCodeStats(username, year,
 			month, prs, reviews)...)
-
-		expectedResults = append(expectedResults, expected)
 	}
-	return codeStats, expectedResults
+	spew.Dump(codeStats)
+	return codeStats
+}
+
+func convertExpectedResults(codeStats []user.CodeStats, start, end time.Time) *cms.UserCodeStatsReply {
+	reply := &cms.UserCodeStatsReply{}
+	rangeCodeStats := make([]user.CodeStats, 0, 6)
+	for start.Before(end) {
+		for _, codeStat := range codeStats {
+			if codeStat.Month == int(start.Month()) && codeStat.Year == start.Year() {
+				rangeCodeStats = append(rangeCodeStats, codeStat)
+			}
+		}
+		start = time.Date(start.Year(), start.Month()+1, start.Day(), start.Hour(), 0, 0, 0, time.UTC)
+	}
+	reply.RepoStats = convertCodeStatsFromDatabase(rangeCodeStats)
+
+	return reply
 }
