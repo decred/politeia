@@ -1559,14 +1559,14 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}
 
 	if !p.test && avr.Action == decredplugin.AuthVoteActionAuthorize {
-		p.fireEvent(EventTypeProposalVoteAuthorized,
-			eventDataProposalVoteAuthorized{
-				token:          av.Token,
-				name:           pr.Name,
-				authorUsername: u.Email,
-				authorEmail:    u.Username,
-			},
-		)
+		// Emit event notification for proposal vote authorized
+		p.eventManager.emit(eventProposalVoteAuthorized,
+			dataProposalVoteAuthorized{
+				token:    av.Token,
+				name:     pr.Name,
+				username: u.Username,
+				email:    u.Email,
+			})
 	}
 
 	return &www.AuthorizeVoteReply{
@@ -1881,13 +1881,23 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		return nil, err
 	}
 
-	// Fire off start vote event
-	p.fireEvent(EventTypeProposalVoteStarted,
-		EventDataProposalVoteStarted{
-			AdminUser: u,
-			StartVote: sv,
-		},
-	)
+	// Get author data
+	author, err := p.db.UserGetByPubKey(pr.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Emit event notification for proposal start vote
+	p.eventManager.emit(eventProposalVoteStarted,
+		dataProposalVoteStarted{
+			token:              pr.CensorshipRecord.Token,
+			name:               pr.Name,
+			adminID:            u.ID,
+			id:                 author.ID,
+			username:           author.Username,
+			email:              author.Email,
+			emailNotifications: author.EmailNotifications,
+		})
 
 	return svr, nil
 }
@@ -1981,6 +1991,10 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 	}
 
+	// Slice used to send event notification for each proposal
+	// starting a vote, at the end of this function.
+	var proposalNotifications []*www.ProposalRecord
+
 	// Validate authorize votes and start votes
 	for _, v := range sv.StartVotes {
 		// Fetch proposal and vote summary
@@ -2004,6 +2018,9 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 			*/
 			return nil, err
 		}
+
+		proposalNotifications = append(proposalNotifications, pr)
+
 		vs, err := p.voteSummaryGet(token, bb)
 		if err != nil {
 			return nil, err
@@ -2168,14 +2185,22 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		return nil, err
 	}
 
-	// Fire off a start vote events for each rfp submission
-	for _, v := range sv.StartVotes {
-		p.fireEvent(EventTypeProposalVoteStarted,
-			EventDataProposalVoteStarted{
-				AdminUser: u,
-				StartVote: v,
-			},
-		)
+	// Emit event notification for each proposal starting vote
+	for _, pn := range proposalNotifications {
+		author, err := p.db.UserGetByPubKey(pn.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		p.eventManager.emit(eventProposalVoteStarted,
+			dataProposalVoteStarted{
+				token:              pn.CensorshipRecord.Token,
+				name:               pn.Name,
+				adminID:            u.ID,
+				id:                 author.ID,
+				username:           author.Username,
+				email:              author.Email,
+				emailNotifications: author.EmailNotifications,
+			})
 	}
 
 	return &www2.StartVoteRunoffReply{

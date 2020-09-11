@@ -1759,14 +1759,6 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 		return nil, err
 	}
 
-	if !p.test {
-		p.fireEvent(EventTypeUserManage, EventDataUserManage{
-			AdminUser:  adminUser,
-			User:       user,
-			ManageUser: mu,
-		})
-	}
-
 	return &www.ManageUserReply{}, nil
 }
 

@@ -239,10 +239,10 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		return nil, err
 	}
 
-	// Fire new event notification upon new DCC being submitted.
-	p.fireEvent(EventTypeDCCNew,
-		EventDataDCCNew{
-			Token: pdReply.CensorshipRecord.Token,
+	// Emit event notification for new DCC being submitted
+	p.eventManager.emit(eventDCCNew,
+		dataDCCNew{
+			token: pdReply.CensorshipRecord.Token,
 		})
 
 	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
@@ -663,10 +663,11 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	if err != nil {
 		return nil, err
 	}
-	// Fire new event notification upon new DCC being supported or opposed.
-	p.fireEvent(EventTypeDCCSupportOppose,
-		EventDataDCCSupportOppose{
-			Token: sd.Token,
+
+	// Emit event notification for a DCC being supported/opposed
+	p.eventManager.emit(eventDCCSupportOppose,
+		dataDCCSupportOppose{
+			token: sd.Token,
 		})
 
 	return &cms.SupportOpposeDCCReply{}, nil

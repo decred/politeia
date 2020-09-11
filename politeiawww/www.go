@@ -746,13 +746,12 @@ func _main() error {
 		if err != nil {
 			return err
 		}
-
-		p.initEventManagerPi()
+		// Setup event manager
 		p.setupEventListenersPi()
 
 	case cmsWWWMode:
 		// Setup event manager
-		p.initCMSEventManager()
+		p.setupEventListenersCMS()
 
 		// Setup dcrdata websocket connection
 		ws, err := wsdcrdata.New(p.dcrdataHostWS())
