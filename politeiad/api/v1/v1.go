@@ -242,9 +242,11 @@ type NewRecordReply struct {
 }
 
 // GetUnvetted requests an unvetted record from the server.
+// TODO Implement Version. Unvetted didn't previously have a version.
 type GetUnvetted struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Token     string `json:"token"`     // Censorship token
+	Version   string `json:"version"`   // Record version
 }
 
 // GetUnvettedReply returns an unvetted record.  It retrieves the censorship

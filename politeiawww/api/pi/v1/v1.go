@@ -88,6 +88,7 @@ const (
 	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 1
 	ErrorStatusUserBalanceInsufficient ErrorStatusT = 2
 	ErrorStatusUserIsNotAuthor         ErrorStatusT = 3
+	ErrorStatusUserIsNotAdmin          ErrorStatusT = 4
 
 	// Signature errors
 	ErrorStatusPublicKeyInvalid ErrorStatusT = 100
@@ -119,6 +120,7 @@ const (
 	ErrorStatusPropStateInvalid
 	ErrorStatusPropStatusInvalid
 	ErrorStatusPropStatusChangeInvalid
+	ErrorStatusPropStatusChangeReasonInvalid
 
 	// Comment errors
 	ErrorStatusCommentTextInvalid
@@ -144,28 +146,29 @@ var (
 	}
 )
 
-// UserError represents an error that is caused by something that the user
-// did (malformed input, bad timing, etc).
-type UserError struct {
+// UserErrorReply is the reply that the server returns when it encounters an
+// error that is caused by something that the user did (malformed input, bad
+// timing, etc). The HTTP status code will be 400.
+type UserErrorReply struct {
 	ErrorCode    ErrorStatusT
 	ErrorContext []string
 }
 
 // Error satisfies the error interface.
-func (e UserError) Error() string {
+func (e UserErrorReply) Error() string {
 	return fmt.Sprintf("user error code: %v", e.ErrorCode)
 }
 
-// ErrorReply are replies that the server returns when it encounters an
-// unrecoverable problem while executing a command. The HTTP status code will
-// be 500 and the ErrorCode field will contain a UNIX timestamp that the user
-// can provide to the server admin to track down the error details in the logs.
-type ErrorReply struct {
+// ServerErrorReply is the reply that the server returns when it encounters an
+// unrecoverable error while executing a command. The HTTP status code will be
+// 500 and the ErrorCode field will contain a UNIX timestamp that the user can
+// provide to the server admin to track down the error details in the logs.
+type ServerErrorReply struct {
 	ErrorCode int64 `json:"errorcode"`
 }
 
 // Error satisfies the error interface.
-func (e ErrorReply) Error() string {
+func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
@@ -220,7 +223,7 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"`
 }
 
-// SetStatus represents a proposal status change.
+// StatusChange represents a proposal status change.
 //
 // Signature is the client signature of the Token+Version+Status+Reason.
 type StatusChange struct {
@@ -325,21 +328,22 @@ type ProposalSetStatusReply struct {
 // proposal token and version. If the version is omitted, the most recent
 // version will be returned.
 type ProposalRequest struct {
-	Token        string     `json:"token"`
-	State        PropStateT `json:"state"`
-	Version      string     `json:"version,omitempty"`
-	IncludeFiles bool       `json:"includefiles,omitempty"`
+	Token   string `json:"token"`
+	Version string `json:"version,omitempty"`
 }
 
 // Proposals retrieves the ProposalRecord for each of the provided proposal
-// requests.
+// requests. Unvetted proposal files are only returned to admins.
 type Proposals struct {
-	Requests []ProposalRequest `json:"requests"`
+	State        PropStateT        `json:"state"`
+	Requests     []ProposalRequest `json:"requests"`
+	IncludeFiles bool              `json:"includefiles,omitempty"`
 }
 
-// ProposalsReply is the reply to the Proposals command.
+// ProposalsReply is the reply to the Proposals command. Any tokens that did
+// not correspond to a ProposalRecord will not be included in the reply.
 type ProposalsReply struct {
-	Proposals []ProposalRecord `json:"proposals"`
+	Proposals map[string]ProposalRecord `json:"proposals"` // [token]Proposal
 }
 
 // ProposalInventry retrieves the tokens of all proposals in the inventory,

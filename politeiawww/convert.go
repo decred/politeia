@@ -23,6 +23,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 )
 
+// TODO cleanup all unused convert functions
+
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
 	return www.CastVoteReply{
 		ClientSignature: cvr.ClientSignature,
@@ -244,24 +246,6 @@ func convertPropFilesFromWWW(f []www.File) []pd.File {
 		files = append(files, convertPropFileFromWWW(v))
 	}
 	return files
-}
-
-func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
-	switch s {
-	case pd.RecordStatusNotFound:
-		return www.PropStatusNotFound
-	case pd.RecordStatusNotReviewed:
-		return www.PropStatusNotReviewed
-	case pd.RecordStatusCensored:
-		return www.PropStatusCensored
-	case pd.RecordStatusPublic:
-		return www.PropStatusPublic
-	case pd.RecordStatusUnreviewedChanges:
-		return www.PropStatusUnreviewedChanges
-	case pd.RecordStatusArchived:
-		return www.PropStatusAbandoned
-	}
-	return www.PropStatusInvalid
 }
 
 func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {

@@ -1589,17 +1589,26 @@ func (p *politeiawww) processVerifyResetPassword(vrp www.VerifyResetPassword) (*
 	return &www.VerifyResetPasswordReply{}, nil
 }
 
+func convertProposalCreditFromUserDB(credit user.ProposalCredit) www.ProposalCredit {
+	return www.ProposalCredit{
+		PaywallID:     credit.PaywallID,
+		Price:         credit.Price,
+		DatePurchased: credit.DatePurchased,
+		TxID:          credit.TxID,
+	}
+}
+
 // processUserProposalCredits returns a list of the user's unspent proposal
 // credits and a list of the user's spent proposal credits.
 func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
 	// Convert from database proposal credits to www proposal credits.
 	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
 	for i, credit := range u.UnspentProposalCredits {
-		upc[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+		upc[i] = convertProposalCreditFromUserDB(credit)
 	}
 	spc := make([]www.ProposalCredit, len(u.SpentProposalCredits))
 	for i, credit := range u.SpentProposalCredits {
-		spc[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+		spc[i] = convertProposalCreditFromUserDB(credit)
 	}
 
 	return &www.UserProposalCreditsReply{
@@ -2020,7 +2029,7 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 	// Convert database credits to www credits
 	newCreditsWWW := make([]www.ProposalCredit, len(newCredits))
 	for i, credit := range newCredits {
-		newCreditsWWW[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+		newCreditsWWW[i] = convertProposalCreditFromUserDB(credit)
 	}
 
 	return &www.UserPaymentsRescanReply{

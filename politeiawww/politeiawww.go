@@ -565,37 +565,6 @@ func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleNewProposal handles the incoming new proposal command.
-func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
-	// Get the new proposal command.
-	log.Tracef("handleNewProposal")
-	var np www.NewProposal
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&np); err != nil {
-		RespondWithError(w, r, 0, "handleNewProposal: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewProposal: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processNewProposal(np, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewProposal: processNewProposal %v", err)
-		return
-	}
-
-	// Reply with the challenge response and censorship token.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // handleNewComment handles incomming comments.
 func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewComment")
@@ -656,37 +625,6 @@ func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) 
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, cr)
-}
-
-// handleEditProposal attempts to edit a proposal
-func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request) {
-	var ep www.EditProposal
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ep); err != nil {
-		RespondWithError(w, r, 0, "handleEditProposal: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleEditProposal: getSessionUser %v", err)
-		return
-	}
-
-	log.Debugf("handleEditProposal: %v", ep.Token)
-
-	epr, err := p.processEditProposal(ep, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleEditProposal: processEditProposal %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, epr)
 }
 
 // handleAuthorizeVote handles authorizing a proposal vote.
@@ -981,41 +919,6 @@ func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *htt
 	p.handleWebsocket(w, r, id)
 }
 
-// handleSetProposalStatus handles the incoming set proposal status command.
-// It's used for either publishing or censoring a proposal.
-func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
-	// Get the proposal status command.
-	log.Tracef("handleSetProposalStatus")
-	var sps www.SetProposalStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sps); err != nil {
-		RespondWithError(w, r, 0, "handleSetProposalStatus: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetProposalStatus: getSessionUser %v", err)
-		return
-	}
-
-	// Set status
-	reply, err := p.processSetProposalStatus(sps, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetProposalStatus: processSetProposalStatus %v",
-			err)
-		return
-	}
-
-	// Reply with the new proposal status.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // handleStartVote handles the v2 StartVote route.
 func (p *politeiawww) handleStartVoteV2(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleStartVoteV2")
@@ -1243,16 +1146,10 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		www.RouteProposalPaywallDetails, p.handleProposalPaywallDetails,
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteNewProposal, p.handleNewProposal,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteNewComment, p.handleNewComment,
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLikeComment, p.handleLikeComment,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteEditProposal, p.handleEditProposal,
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteAuthorizeVote, p.handleAuthorizeVote,
@@ -1277,9 +1174,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSetProposalStatus, p.handleSetProposalStatus,
-		permissionAdmin)
 	p.addRoute(http.MethodPost, www2.APIRoute,
 		www2.RouteStartVote, p.handleStartVoteV2,
 		permissionAdmin)
