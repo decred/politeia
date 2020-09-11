@@ -22,11 +22,18 @@ var (
 func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
 	log.Tracef("processUserCodeStats")
 
+	// Require start time to be entered
+	if ucs.StartTime == 0 {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+		}
+	}
 	startDate := time.Unix(ucs.StartTime, 0).UTC()
 	var endDate time.Time
 	if ucs.EndTime == 0 {
-		// If endtime is unset just use current time
-		endDate = time.Now()
+		// If endtime is unset just use start time plus a minute, this will
+		// cause it to reply with just the month of the start time.
+		endDate = startDate.Add(time.Minute)
 	} else {
 		endDate = time.Unix(ucs.EndTime, 0).UTC()
 	}

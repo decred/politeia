@@ -70,6 +70,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 		t.Fatalf("unable to execute update code stats payload %v", err)
 	}
 
+	randomUUID := uuid.New().String()
 	noGithubNameSet := newCMSUser(t, p, false, false, cms.DomainTypeDeveloper,
 		cms.ContractorTypeDirect)
 	//sameDomainRequesting := newCMSUser(t, p, cms.DomainTypeDeveloper,
@@ -89,6 +90,29 @@ func TestProcessUserCodeStats(t *testing.T) {
 		requesting *user.User
 		wantReply  *cms.UserCodeStatsReply
 	}{
+		{
+			"error no dates",
+			cms.UserCodeStats{
+				UserID: requestedUser.ID.String(),
+			},
+			www.UserError{
+				ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+			},
+			&admin.User,
+			nil,
+		},
+		{
+			"error no start date",
+			cms.UserCodeStats{
+				UserID:  requestedUser.ID.String(),
+				EndTime: 872841440,
+			},
+			www.UserError{
+				ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+			},
+			&admin.User,
+			nil,
+		},
 		{
 			"error invalid dates end before start",
 			cms.UserCodeStats{
@@ -118,7 +142,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"error can't find requested user id",
 			cms.UserCodeStats{
-				UserID:    uuid.New().String(),
+				UserID:    randomUUID,
 				StartTime: 1599738547,
 				EndTime:   1599748547,
 			},
@@ -171,6 +195,16 @@ func TestProcessUserCodeStats(t *testing.T) {
 				UserID:    requestedUser.ID.String(),
 				StartTime: oneMonthStartDate.Unix(),
 				EndTime:   oneMonthEndDate.Unix(),
+			},
+			nil,
+			&admin.User,
+			oneMonthExpectedReply,
+		},
+		{
+			"sucess one month range no end",
+			cms.UserCodeStats{
+				UserID:    requestedUser.ID.String(),
+				StartTime: oneMonthStartDate.Unix(),
 			},
 			nil,
 			&admin.User,
