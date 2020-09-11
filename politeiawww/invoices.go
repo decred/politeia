@@ -1424,7 +1424,7 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 
 	// Ensure that the user is authorized to view domain invoices.
 	if _, ok := validDomainInvoiceViewingContractorType[cms.ContractorTypeT(
-		requestingUser.ContractorType)]; !ok {
+		requestingUser.ContractorType)]; !ok && !u.Admin {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
