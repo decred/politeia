@@ -751,7 +751,7 @@ func _main() error {
 
 	case cmsWWWMode:
 		// Setup event manager
-		p.setupEventListenersCms()
+		p.setupEventListenersCMS()
 
 		// Setup dcrdata websocket connection
 		ws, err := wsdcrdata.New(p.dcrdataHostWS())

@@ -116,7 +116,7 @@ func (p *politeiawww) setupEventListenersPi() {
 	go p.handleEventProposalVoteStarted(ch)
 }
 
-func (p *politeiawww) setupEventListenersCms() {
+func (p *politeiawww) setupEventListenersCMS() {
 	// Setup invoice comment event
 	ch := make(chan interface{})
 	p.eventManager.register(eventInvoiceComment, ch)
