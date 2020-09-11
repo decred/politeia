@@ -6,25 +6,22 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"net/url"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/dajohi/goemail"
-
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
 )
 
 const (
 	// GUI routes. These are used in notification emails to direct the
 	// user to the correct GUI pages.
-	guiRouteProposalDetails = "/proposals/{token}"
-	guiRouteRegisterNewUser = "/register"
-	guiRouteDCCDetails      = "/dcc/{token}"
+	guiRouteProposalDetails  = "/proposals/{token}"
+	guirouteProposalComments = "/proposals/{token}/comments/{id}"
+	guiRouteRegisterNewUser  = "/register"
+	guiRouteDCCDetails       = "/dcc/{token}"
 )
 
 func createBody(tpl *template.Template, tplData interface{}) (string, error) {
@@ -122,36 +119,6 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token 
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailAuthorForCensoredProposal sends an email notification for a new
-// proposal becoming censored to the proposal's author.
-func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
-		proposal.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
-
-	if authorUser.EmailNotifications&
-		uint64(www.NotificationEmailMyProposalStatusChange) == 0 {
-		return nil
-	}
-
-	tplData := proposalStatusChangeTemplateData{
-		Link:               l.String(),
-		Name:               proposal.Name,
-		StatusChangeReason: proposal.StatusChangeMessage,
-	}
-
-	subject := "Your Proposal Has Been Censored"
-	body, err := createBody(templateProposalCensoredForAuthor, &tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{authorUser.Email}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
 // emailProposalStatusChange sends emails regarding the proposal status change
 // event. Sends email for the author and the users with this notification
 // bit set on
@@ -233,75 +200,6 @@ func (p *politeiawww) emailUsersProposalStatusChange(name, username, link string
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
-// emailAuthorForVettedProposal sends an email notification for a new proposal
-// becoming vetted to the proposal's author.
-func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
-		proposal.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
-
-	if authorUser.EmailNotifications&
-		uint64(www.NotificationEmailMyProposalStatusChange) == 0 {
-		return nil
-	}
-
-	tplData := proposalStatusChangeTemplateData{
-		Link:               l.String(),
-		Name:               proposal.Name,
-		StatusChangeReason: proposal.StatusChangeMessage,
-	}
-
-	subject := "Your Proposal Has Been Published"
-	body, err := createBody(templateProposalVettedForAuthor, &tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{authorUser.Email}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
-// emailUsersForVettedProposal sends an email notification for a new proposal
-// becoming vetted.
-func (p *politeiawww) emailUsersForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	// Create the template data.
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
-		proposal.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
-
-	tplData := proposalStatusChangeTemplateData{
-		Link:     l.String(),
-		Name:     proposal.Name,
-		Username: authorUser.Username,
-	}
-
-	// Send email to users.
-	subject := "New Proposal Published"
-	body, err := createBody(templateProposalVetted, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add user emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			// Don't notify the user under certain conditions.
-			if u.NewUserPaywallTx == "" || u.Deactivated ||
-				u.ID == adminUser.ID || u.ID == authorUser.ID ||
-				(u.EmailNotifications&
-					uint64(www.NotificationEmailRegularProposalVetted)) == 0 {
-				return
-			}
-
-			msg.AddBCC(u.Email)
-		})
-	})
-}
-
 // emailProposalEdited sends email regarding the proposal edits event.
 // Sends to all users with this notification bit turned on.
 func (p *politeiawww) emailProposalEdited(name, username, token, version string, emails []string) error {
@@ -325,46 +223,6 @@ func (p *politeiawww) emailProposalEdited(name, username, token, version string,
 	}
 
 	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailUsersForEditedProposal sends an email notification for a proposal being
-// edited.
-func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, authorUser *user.User) error {
-	// Create the template data.
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
-		proposal.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
-
-	tplData := proposalEditedTemplateData{
-		Link:     l.String(),
-		Name:     proposal.Name,
-		Version:  proposal.Version,
-		Username: authorUser.Username,
-	}
-
-	// Send email to users.
-	subject := "Proposal Edited"
-	body, err := createBody(templateProposalEdited, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add user emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			// Don't notify the user under certain conditions.
-			if u.NewUserPaywallTx == "" || u.Deactivated ||
-				u.ID == authorUser.ID ||
-				(u.EmailNotifications&
-					uint64(www.NotificationEmailRegularProposalEdited)) == 0 {
-				return
-			}
-
-			msg.AddBCC(u.Email)
-		})
-	})
 }
 
 // emailProposalVoteStarted sends email for the proposal vote started event.
@@ -405,62 +263,6 @@ func (p *politeiawww) emailProposalVoteStarted(token, name, username, email stri
 	}
 
 	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailUsersForProposalVoteStarted sends an email notification for a proposal
-// entering the voting state.
-func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
-	// Create the template data.
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
-		proposal.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
-
-	tplData := proposalVoteStartedTemplateData{
-		Link:     l.String(),
-		Name:     proposal.Name,
-		Username: authorUser.Username,
-	}
-
-	// Send email to author.
-	if authorUser.EmailNotifications&
-		uint64(www.NotificationEmailMyProposalVoteStarted) != 0 {
-
-		subject := "Your Proposal Has Started Voting"
-		body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
-		if err != nil {
-			return err
-		}
-		recipients := []string{authorUser.Email}
-
-		err = p.smtp.sendEmailTo(subject, body, recipients)
-		if err != nil {
-			return err
-		}
-	}
-
-	subject := "Voting Started for Proposal"
-	body, err := createBody(templateProposalVoteStarted, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add user emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			// Don't notify the user under certain conditions.
-			if u.NewUserPaywallTx == "" || u.Deactivated ||
-				u.ID == adminUser.ID ||
-				u.ID == authorUser.ID ||
-				(u.EmailNotifications&
-					uint64(www.NotificationEmailRegularProposalVoteStarted)) == 0 {
-				return
-			}
-
-			msg.AddBCC(u.Email)
-		})
-	})
 }
 
 // emailProposalSubmitted sends email notification for a new proposal becoming
@@ -512,61 +314,17 @@ func (p *politeiawww) emailProposalVoteAuthorized(token, name, username, email s
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
-func (p *politeiawww) emailAdminsForProposalVoteAuthorized(token, title, authorUsername, authorEmail string) error {
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v",
-		p.cfg.WebServerAddress, token))
+func (p *politeiawww) emailProposalComment(token, commentID, commentUsername, name, email string) error {
+	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
+	route = strings.Replace(route, "{id}", commentID, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
 		return err
-	}
-
-	tplData := proposalVoteAuthorizedTemplateData{
-		Link:     l.String(),
-		Name:     title,
-		Username: authorUsername,
-		Email:    authorEmail,
-	}
-
-	subject := "Proposal Authorized To Start Voting"
-	body, err := createBody(templateProposalVoteAuthorized, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add admin emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			if !u.Admin || u.Deactivated ||
-				(u.EmailNotifications&
-					uint64(www.NotificationEmailAdminProposalVoteAuthorized) == 0) {
-				return
-			}
-			msg.AddBCC(u.Email)
-		})
-	})
-}
-
-// emailAuthorForCommentOnProposal sends an email notification to a proposal
-// author for a new comment.
-func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *www.ProposalRecord, authorUser *user.User, commentID, username string) error {
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
-		p.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
-	if err != nil {
-		return err
-	}
-
-	if authorUser.EmailNotifications&
-		uint64(www.NotificationEmailCommentOnMyProposal) == 0 {
-		return nil
-	}
-
-	// Don't send email when author comments on own proposal
-	if username == authorUser.Username {
-		return nil
 	}
 
 	tplData := commentReplyOnProposalTemplateData{
-		Commenter:    username,
-		ProposalName: proposal.Name,
+		Commenter:    commentUsername,
+		ProposalName: name,
 		CommentLink:  l.String(),
 	}
 
@@ -575,42 +333,7 @@ func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *www.ProposalReco
 	if err != nil {
 		return err
 	}
-	recipients := []string{authorUser.Email}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
-// emailAuthorForCommentOnComment sends an email notification to a comment
-// author for a new comment reply.
-func (p *politeiawww) emailAuthorForCommentOnComment(proposal *www.ProposalRecord, authorUser *user.User, commentID, username string) error {
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
-		p.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
-	if err != nil {
-		return err
-	}
-
-	if authorUser.EmailNotifications&
-		uint64(www.NotificationEmailCommentOnMyComment) == 0 {
-		return nil
-	}
-
-	// Don't send email when author replies to his own comment
-	if username == authorUser.Username {
-		return nil
-	}
-
-	tplData := commentReplyOnCommentTemplateData{
-		Commenter:    username,
-		ProposalName: proposal.Name,
-		CommentLink:  l.String(),
-	}
-
-	subject := "New Comment On Your Comment"
-	body, err := createBody(templateCommentReplyOnComment, &tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{authorUser.Email}
+	recipients := []string{email}
 
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
@@ -757,37 +480,9 @@ func (p *politeiawww) emailInvoiceComment(userEmail string) error {
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
-	tplData := newInvoiceCommentTemplateData{}
-
-	subject := "New Invoice Comment"
-	body, err := createBody(templateNewInvoiceComment, &tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{userEmail}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
 // emailInvoiceStatusUpdate sends email for the invoice status update event.
 // Sends email for the user regarding that invoice.
 func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
-	tplData := newInvoiceStatusUpdateTemplate{
-		Token: invoiceToken,
-	}
-
-	subject := "Invoice status has been updated"
-	body, err := createBody(templateNewInvoiceStatusUpdate, &tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{userEmail}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
-func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail, invoiceToken string) error {
 	tplData := newInvoiceStatusUpdateTemplate{
 		Token: invoiceToken,
 	}
@@ -824,33 +519,6 @@ func (p *politeiawww) emailDCCNew(token string, emails []string) error {
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
-func (p *politeiawww) emailAdminsForNewDCC(token string) error {
-	l, err := url.Parse(p.cfg.WebServerAddress + "{token}" + token)
-	if err != nil {
-		return err
-	}
-
-	tplData := newDCCSubmittedTemplateData{
-		Link: l.String(),
-	}
-
-	subject := "New DCC Submitted"
-	body, err := createBody(templateNewDCCSubmitted, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add admin emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			if !u.Admin || u.Deactivated {
-				return
-			}
-			msg.AddBCC(u.Email)
-		})
-	})
-}
-
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
 // Sends emails to all admin users.
 func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error {
@@ -871,31 +539,4 @@ func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error
 	}
 
 	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-func (p *politeiawww) emailAdminsForNewDCCSupportOppose(token string) error {
-	l, err := url.Parse(p.cfg.WebServerAddress + "/dcc/" + token)
-	if err != nil {
-		return err
-	}
-
-	tplData := newDCCSupportOpposeTemplateData{
-		Link: l.String(),
-	}
-
-	subject := "New DCC Support or Opposition Submitted"
-	body, err := createBody(templateNewDCCSupportOppose, &tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add admin emails to the goemail.Message
-		return p.db.AllUsers(func(u *user.User) {
-			if !u.Admin || u.Deactivated {
-				return
-			}
-			msg.AddBCC(u.Email)
-		})
-	})
 }

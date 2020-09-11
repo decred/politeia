@@ -332,10 +332,16 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 			return nil, fmt.Errorf("getComment: %v", err)
 		}
 
-		// Fire off new comment event
-		p.fireEvent(EventTypeComment, EventDataComment{
-			Comment: c,
-		})
+		// Emit event notification for a proposal comment
+		p.eventManager.emit(eventProposalComment,
+			dataProposalComment{
+				token: pr.CensorshipRecord.Token,
+				name: pr.Name,
+				username: pr.Username,
+				parentID: c.ParentID,
+				commentID: c.CommentID,
+				commentUsername: c.Username,
+			})
 
 		return &www.NewCommentReply{
 			Comment: *c,

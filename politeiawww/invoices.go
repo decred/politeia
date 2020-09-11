@@ -1677,13 +1677,12 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 			return nil, fmt.Errorf("failed to get user by username %v %v",
 				ir.Username, err)
 		}
-		// Fire off new invoice comment event
-		p.fireEvent(EventTypeInvoiceComment,
-			EventDataInvoiceComment{
-				Token: nc.Token,
-				User:  invoiceUser,
-			},
-		)
+		// Emit event notification for a invoice comment
+		p.eventManager.emit(eventInvoiceComment,
+			dataInvoiceComment{
+				token: nc.Token,
+				email: invoiceUser.Email,
+			})
 	}
 	return &www.NewCommentReply{
 		Comment: *c,

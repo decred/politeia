@@ -20,6 +20,7 @@ const (
 	eventTypeInvalid eventT = iota
 
 	// Pi events
+	eventProposalComment
 	eventProposalSubmitted
 	eventProposalStatusChange
 	eventProposalEdited
@@ -84,8 +85,13 @@ func (p *politeiawww) setupEventListenersPi() {
 	// 2. Register the channel with the event manager
 	// 3. Launch an event handler to listen for new events
 
-	// Setup proposal submitted event
+	// Setup proposal comment event
 	ch := make(chan interface{})
+	p.eventManager.register(eventProposalComment, ch)
+	go p.handleEventProposalComment(ch)
+
+	// Setup proposal submitted event
+	ch = make(chan interface{})
 	p.eventManager.register(eventProposalSubmitted, ch)
 	go p.handleEventProposalSubmitted(ch)
 
@@ -108,7 +114,6 @@ func (p *politeiawww) setupEventListenersPi() {
 	ch = make(chan interface{})
 	p.eventManager.register(eventProposalVoteStarted, ch)
 	go p.handleEventProposalVoteStarted(ch)
-
 }
 
 func (p *politeiawww) setupEventListenersCms() {
@@ -158,6 +163,75 @@ func userNotificationEnabled(u user.User, n www.EmailNotificationT) bool {
 	return true
 }
 
+type dataProposalComment struct {
+	token           string // Proposal token
+	name            string // Proposal name
+	username        string // Author username
+	parentID        string // Parent comment id
+	commentID       string // Comment id
+	commentUsername string // Comment user username
+}
+
+func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
+	for msg := range ch {
+		d, ok := msg.(dataProposalComment)
+		if !ok {
+			log.Errorf("handleEventProposalComment invalid msg: %v", msg)
+			continue
+		}
+
+		// Fetch proposal author
+		author, err := p.db.UserGetByUsername(d.username)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		// Check if user notification is enabled
+		if !userNotificationEnabled(*author,
+			www.NotificationEmailCommentOnMyProposal) {
+			continue
+		}
+
+		// Don't notify when author comments on own proposal
+		if d.commentUsername == author.Username {
+			continue
+		}
+
+		// Top-level comment
+		if d.parentID == "0" {
+			err := p.emailProposalComment(d.token, d.commentID,
+				d.commentUsername, d.name, author.Email)
+			if err != nil {
+				log.Errorf("emailProposalComment: %v", err)
+			}
+			continue
+		}
+
+		// Nested comment reply. Fetch parent comment in order to fetch
+		// parent comment author
+		parent, err := p.decredCommentGetByID(d.token, d.parentID)
+		if err != nil {
+			log.Errorf("decredCommentGetByID: %v", err)
+			continue
+		}
+
+		author, err = p.db.UserGetByPubKey(parent.PublicKey)
+		if err != nil {
+			log.Errorf("UserGetByPubKey: %v", err)
+			continue
+		}
+
+		err = p.emailProposalComment(d.token, d.commentID,
+			d.commentUsername, d.name, author.Email)
+		if err != nil {
+			log.Errorf("emailProposalComment: %v", err)
+		}
+
+		log.Debugf("Sent proposal commment notification %v", d.token)
+	}
+}
+
 type dataProposalSubmitted struct {
 	token    string // Proposal token
 	name     string // Proposal name
@@ -204,13 +278,13 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 type dataProposalStatusChange struct {
 	name                string         // Proposal name
 	token               string         // Proposal censorship token
+	status              v1.PropStatusT // Proposal status
+	statusChangeMessage string         // Status change message
 	adminID             uuid.UUID      // Admin uuid
 	id                  uuid.UUID      // Author uuid
 	email               string         // Author user email
 	emailNotifications  uint64         // Author notification settings
 	username            string         // Author username
-	status              v1.PropStatusT // Proposal status
-	statusChangeMessage string         // Status change message
 }
 
 func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
@@ -355,10 +429,10 @@ func (p *politeiawww) handleEventProposalVoteStarted(ch chan interface{}) {
 		err = p.emailProposalVoteStarted(d.token, d.name, d.username,
 			d.email, d.emailNotifications, emails)
 		if err != nil {
-			log.Errorf("emailProposalVoteAuthorized: %v", err)
+			log.Errorf("emailProposalVoteStarted: %v", err)
 		}
 
-		log.Debugf("Sent proposal authorized vote notifications %v", d.token)
+		log.Debugf("Sent proposal vote started notifications %v", d.token)
 	}
 }
 
@@ -399,10 +473,10 @@ func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 
 		err := p.emailInvoiceStatusUpdate(d.token, d.email)
 		if err != nil {
-			log.Errorf("emailInvoiceComment %v: %v", err)
+			log.Errorf("emailInvoiceStatusUpdate %v: %v", err)
 		}
 
-		log.Debugf("Sent invoice comment notification %v", d.token)
+		log.Debugf("Sent invoice status update notification %v", d.token)
 	}
 }
 
