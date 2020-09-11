@@ -190,7 +190,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 			nil,
 		},
 		{
-			"sucess one month range",
+			"success one month range",
 			cms.UserCodeStats{
 				UserID:    requestedUser.ID.String(),
 				StartTime: oneMonthStartDate.Unix(),
@@ -201,7 +201,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 			oneMonthExpectedReply,
 		},
 		{
-			"sucess one month range no end",
+			"success one month range no end",
 			cms.UserCodeStats{
 				UserID:    requestedUser.ID.String(),
 				StartTime: oneMonthStartDate.Unix(),
@@ -211,7 +211,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 			oneMonthExpectedReply,
 		},
 		{
-			"sucess two month range",
+			"success two month range",
 			cms.UserCodeStats{
 				UserID:    requestedUser.ID.String(),
 				StartTime: twoMonthStartDate.Unix(),
@@ -222,7 +222,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 			twoMonthExpectedReply,
 		},
 		{
-			"sucess three month range",
+			"success three month range",
 			cms.UserCodeStats{
 				UserID:    requestedUser.ID.String(),
 				StartTime: threeMonthStartDate.Unix(),
