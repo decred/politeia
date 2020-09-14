@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/cms/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -151,7 +151,7 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 	}
 
 	// Compute merkle root and sign it
-	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
+	sig, err := signedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}

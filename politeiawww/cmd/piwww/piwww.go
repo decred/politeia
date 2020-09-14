@@ -1,14 +1,13 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -17,10 +16,10 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 )
 
 const (
@@ -37,21 +36,6 @@ var (
 
 	// Config settings
 	defaultHomeDir = dcrutil.AppDataDir(defaultHomeDirname, false)
-
-	// errProposalMDNotFound is emitted when a proposal markdown file
-	// is required but has not been provided.
-	errProposalMDNotFound = errors.New("proposal markdown file not " +
-		"found; you must either provide a markdown file or use the " +
-		"flag --random")
-	// errEditProposalRandomAndNameFound is emitted when both --name
-	// and --random flags found in editproposal command
-	errEditProposalRandomAndNameFound = errors.New("--random and --name " +
-		"can't be used together, as --random generates a random name")
-	// errEditProposalRfpAndLinkbyFound is emitted when both --rfp
-	// and --linkby flags found in editproposal command
-	errEditProposalRfpAndLinkbyFound = errors.New("--rfp and --linkby can't " +
-		"be used together, as --rfp sets the linkby one month " +
-		"from now")
 )
 
 type piwww struct {
@@ -59,6 +43,11 @@ type piwww struct {
 	// is included so that the config cli flags print as part of the
 	// piwww help message. This is handled by go-flags.
 	Config shared.Config
+
+	// Proposal commands
+	ProposalNew       ProposalNewCmd       `command:"proposalnew"`
+	ProposalEdit      ProposalEditCmd      `command:"proposaledit"`
+	ProposalSetStatus ProposalSetStatusCmd `command:"proposalsetstatus"`
 
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
@@ -68,7 +57,6 @@ type piwww struct {
 	CensorComment      shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername     shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
-	EditProposal       EditProposalCmd          `command:"editproposal" description:"(user)   edit a proposal"`
 	EditUser           EditUserCmd              `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
 	Help               HelpCmd                  `command:"help" description:"         print a detailed help message for a specific command"`
 	Inventory          InventoryCmd             `command:"inventory" description:"(public) get the proposals that are being voted on"`
@@ -78,7 +66,6 @@ type piwww struct {
 	ManageUser         shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewComment         shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
-	NewProposal        NewProposalCmd           `command:"newproposal" description:"(user)   create a new proposal"`
 	NewUser            NewUserCmd               `command:"newuser" description:"(public) create a new user"`
 	Policy             PolicyCmd                `command:"policy" description:"(public) get the server policy"`
 	ProposalComments   ProposalCommentsCmd      `command:"proposalcomments" description:"(public) get the comments for a proposal"`
@@ -89,7 +76,6 @@ type piwww struct {
 	ResetPassword      shared.ResetPasswordCmd  `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	Secret             shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
-	SetProposalStatus  SetProposalStatusCmd     `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
 	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
 	StartVote          StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a proposal"`
 	StartVoteRunoff    StartVoteRunoffCmd       `command:"startvoterunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
@@ -115,26 +101,19 @@ type piwww struct {
 	VoteStatuses       VoteStatusesCmd          `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
 }
 
-// createMDFile returns a File object that was created using a markdown file
-// filled with random text.
-func createMDFile() (*v1.File, error) {
-	var b bytes.Buffer
-	b.WriteString("This is the proposal title\n")
-
-	for i := 0; i < 10; i++ {
-		r, err := util.Random(32)
-		if err != nil {
-			return nil, err
-		}
-		b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
+// signedMerkleRoot calculates the merkle root of the passed in list of files
+// and metadata, signs the merkle root with the passed in identity and returns
+// the signature.
+func signedMerkleRoot(files []pi.File, md []pi.Metadata, id *identity.FullIdentity) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no proposal files found")
 	}
-
-	return &v1.File{
-		Name:    "index.md",
-		MIME:    mime.DetectMimeType(b.Bytes()),
-		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
-		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
-	}, nil
+	mr, err := wwwutil.MerkleRoot(files, md)
+	if err != nil {
+		return "", err
+	}
+	sig := id.SignMessage([]byte(mr))
+	return hex.EncodeToString(sig[:]), nil
 }
 
 // convertTicketHashes converts a slice of hexadecimal ticket hashes into
@@ -151,27 +130,76 @@ func convertTicketHashes(h []string) ([][]byte, error) {
 	return hashes, nil
 }
 
+// proposalRecord returns the ProposalRecord for the provided token and
+// version.
+func proposalRecord(state pi.PropStateT, token, version string) (*pi.ProposalRecord, error) {
+	ps := pi.Proposals{
+		State: state,
+		Requests: []pi.ProposalRequest{
+			{
+				Token: token,
+			},
+		},
+		IncludeFiles: false,
+	}
+	psr, err := client.Proposals(ps)
+	if err != nil {
+		return nil, err
+	}
+	pr, ok := psr.Proposals[token]
+	if !ok {
+		return nil, fmt.Errorf("proposal not found")
+	}
+
+	return &pr, nil
+}
+
+// proposalRecord returns the latest ProposalRecrord version for the provided
+// token.
+func proposalRecordLatest(state pi.PropStateT, token string) (*pi.ProposalRecord, error) {
+	return proposalRecord(state, token, "")
+}
+
+// decodeProposalMetadata decodes and returns a ProposalMetadata given the
+// metadata array from a ProposalRecord.
+func decodeProposalMetadata(metadata []pi.Metadata) (*pi.ProposalMetadata, error) {
+	var pm *pi.ProposalMetadata
+	for _, v := range metadata {
+		if v.Hint == pi.HintProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(b, pm)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if pm == nil {
+		return nil, fmt.Errorf("proposal metadata not found")
+	}
+	return pm, nil
+}
+
 func _main() error {
-	// Load config
-	_cfg, err := shared.LoadConfig(defaultHomeDir,
+	// Load config. The config variable is a CLI global variable.
+	var err error
+	cfg, err = shared.LoadConfig(defaultHomeDir,
 		defaultDataDirname, defaultConfigFilename)
 	if err != nil {
 		return fmt.Errorf("load config: %v", err)
 	}
 
-	// Load client
-	_client, err := shared.NewClient(_cfg)
+	// Load client. The client variable is a CLI global variable.
+	client, err = shared.NewClient(cfg)
 	if err != nil {
 		return fmt.Errorf("load client: %v", err)
 	}
 
-	// Setup global variables for piwww commands
-	cfg = _cfg
-	client = _client
-
 	// Setup global variables for shared commands
-	shared.SetConfig(_cfg)
-	shared.SetClient(_client)
+	shared.SetConfig(cfg)
+	shared.SetClient(client)
 
 	// Get politeiawww CSRF token
 	if cfg.CSRF == "" {

@@ -25,58 +25,35 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	}
 
 	switch cmd.Args.Topic {
+	// Server commands
+	case "version":
+		fmt.Printf("%s\n", shared.VersionHelpMsg)
+	case "policy":
+		fmt.Printf("%s\n", policyHelpMsg)
+
+	// User commands
 	case "login":
 		fmt.Printf("%s\n", shared.LoginHelpMsg)
 	case "logout":
 		fmt.Printf("%s\n", shared.LogoutHelpMsg)
-	case "authorizevote":
-		fmt.Printf("%s\n", authorizeVoteHelpMsg)
 	case "newuser":
 		fmt.Printf("%s\n", newUserHelpMsg)
-	case "newproposal":
-		fmt.Printf("%s\n", newProposalHelpMsg)
 	case "changepassword":
 		fmt.Printf("%s\n", shared.ChangePasswordHelpMsg)
 	case "changeusername":
 		fmt.Printf("%s\n", shared.ChangeUsernameHelpMsg)
-	case "sendfaucettx":
-		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
 	case "userdetails":
 		fmt.Printf("%s\n", userDetailsHelpMsg)
-	case "proposaldetails":
-		fmt.Printf("%s\n", proposalDetailsHelpMsg)
-	case "userproposals":
-		fmt.Printf("%s\n", userProposalsHelpMsg)
-	case "vettedproposals":
-		fmt.Printf("%s\n", vettedProposalsHelpMsg)
-	case "setproposalstatus":
-		fmt.Printf("%s\n", setProposalStatusHelpMsg)
-	case "newcomment":
-		fmt.Printf("%s\n", shared.NewCommentHelpMsg)
-	case "proposalcomments":
-		fmt.Printf("%s\n", proposalCommentsHelpMsg)
-	case "censorcomment":
-		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
-	case "likecomment":
-		fmt.Printf("%s\n", likeCommentHelpMsg)
-	case "editproposal":
-		fmt.Printf("%s\n", editProposalHelpMsg)
 	case "manageuser":
 		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
 	case "users":
 		fmt.Printf("%s\n", shared.UsersHelpMsg)
 	case "verifyuseremail":
 		fmt.Printf("%s\n", verifyUserEmailHelpMsg)
-	case "version":
-		fmt.Printf("%s\n", shared.VersionHelpMsg)
 	case "edituser":
 		fmt.Printf("%s\n", editUserHelpMsg)
-	case "subscribe":
-		fmt.Printf("%s\n", subscribeHelpMsg)
 	case "me":
 		fmt.Printf("%s\n", shared.MeHelpMsg)
-	case "policy":
-		fmt.Printf("%s\n", policyHelpMsg)
 	case "resetpassword":
 		fmt.Printf("%s\n", shared.ResetPasswordHelpMsg)
 	case "updateuserkey":
@@ -89,36 +66,75 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", rescanUserPaymentsHelpMsg)
 	case "verifyuserpayment":
 		fmt.Printf("%s\n", verifyUserPaymentHelpMsg)
+	case "resendverification":
+		fmt.Printf("%s\n", resendVerificationHelpMsg)
+
+	// Proposal commands
+	case "proposalnew":
+		fmt.Printf("%s\n", proposalNewHelpMsg)
+	case "proposaledit":
+		fmt.Printf("%s\n", proposalEditHelpMsg)
+	case "proposalsetstatus":
+		fmt.Printf("%s\n", proposalSetStatusHelpMsg)
+
+	case "proposaldetails":
+		fmt.Printf("%s\n", proposalDetailsHelpMsg)
+	case "userproposals":
+		fmt.Printf("%s\n", userProposalsHelpMsg)
+	case "vettedproposals":
+		fmt.Printf("%s\n", vettedProposalsHelpMsg)
+	case "batchproposals":
+		fmt.Printf("%s\n", shared.BatchProposalsHelpMsg)
+
+	// Comment commands
+	case "newcomment":
+		fmt.Printf("%s\n", shared.NewCommentHelpMsg)
+	case "proposalcomments":
+		fmt.Printf("%s\n", proposalCommentsHelpMsg)
+	case "censorcomment":
+		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
+	case "likecomment":
+		fmt.Printf("%s\n", likeCommentHelpMsg)
+	case "userlikecomments":
+		fmt.Printf("%s\n", userLikeCommentsHelpMsg)
+
+	// Vote commands
+	case "authorizevote":
+		fmt.Printf("%s\n", authorizeVoteHelpMsg)
 	case "startvote":
 		fmt.Printf("%s\n", startVoteHelpMsg)
 	case "startvoterunoff":
 		fmt.Printf("%s\n", startVoteRunoffHelpMsg)
 	case "voteresults":
 		fmt.Printf("%s\n", voteResultsHelpMsg)
-	case "inventory":
-		fmt.Printf("%s\n", inventoryHelpMsg)
-	case "tally":
-		fmt.Printf("%s\n", tallyHelpMsg)
-	case "userlikecomments":
-		fmt.Printf("%s\n", userLikeCommentsHelpMsg)
 	case "activevotes":
 		fmt.Printf("%s\n", activeVotesHelpMsg)
 	case "votestatus":
 		fmt.Printf("%s\n", voteStatusHelpMsg)
 	case "votestatuses":
 		fmt.Printf("%s\n", voteStatusesHelpMsg)
-	case "vote":
-		fmt.Printf("%s\n", voteHelpMsg)
-	case "testrun":
-		fmt.Printf("%s\n", testRunHelpMsg)
-	case "resendverification":
-		fmt.Printf("%s\n", resendVerificationHelpMsg)
-	case "batchproposals":
-		fmt.Printf("%s\n", shared.BatchProposalsHelpMsg)
 	case "batchvotesummary":
 		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
 	case "votedetails":
 		fmt.Printf("%s\n", voteDetailsHelpMsg)
+
+	// Websocket commands
+	case "subscribe":
+		fmt.Printf("%s\n", subscribeHelpMsg)
+
+	// Other commands
+	case "testrun":
+		fmt.Printf("%s\n", testRunHelpMsg)
+	case "sendfaucettx":
+		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
+
+	// politeiavoter mock commands
+	case "inventory":
+		fmt.Printf("%s\n", inventoryHelpMsg)
+	case "tally":
+		fmt.Printf("%s\n", tallyHelpMsg)
+	case "vote":
+		fmt.Printf("%s\n", voteHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use 'piwww -h' " +

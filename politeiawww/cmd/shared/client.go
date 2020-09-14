@@ -19,6 +19,7 @@ import (
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/util"
@@ -699,53 +700,100 @@ func (c *Client) ProposalPaywallDetails() (*www.ProposalPaywallDetailsReply, err
 	return &ppdr, nil
 }
 
-// NewProposal submits the specified proposal to politeiawww for the logged in
-// user.
-func (c *Client) NewProposal(np *www.NewProposal) (*www.NewProposalReply, error) {
+// ProposalNew submits a new proposal.
+func (c *Client) ProposalNew(pn pi.ProposalNew) (*pi.ProposalNewReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		www.PoliteiaWWWAPIRoute, www.RouteNewProposal, np)
+		pi.APIRoute, pi.RouteProposalNew, pn)
 	if err != nil {
 		return nil, err
 	}
 
-	var npr www.NewProposalReply
-	err = json.Unmarshal(responseBody, &npr)
+	var pnr pi.ProposalNewReply
+	err = json.Unmarshal(responseBody, &pnr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal NewProposalReply: %v", err)
+		return nil, fmt.Errorf("unmarshal ProposalNewReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(npr)
+		err := prettyPrintJSON(pnr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &npr, nil
+	return &pnr, nil
 }
 
-// EditProposal edits the specified proposal with the logged in user.
-func (c *Client) EditProposal(ep *www.EditProposal) (*www.EditProposalReply, error) {
+// ProposalEdit edits a proposal.
+func (c *Client) ProposalEdit(pe pi.ProposalEdit) (*pi.ProposalEditReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		www.PoliteiaWWWAPIRoute, www.RouteEditProposal, ep)
+		pi.APIRoute, pi.RouteProposalEdit, pe)
 	if err != nil {
 		return nil, err
 	}
 
-	var epr www.EditProposalReply
-	err = json.Unmarshal(responseBody, &epr)
+	var per pi.ProposalEditReply
+	err = json.Unmarshal(responseBody, &per)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal EditProposalReply: %v", err)
+		return nil, fmt.Errorf("unmarshal ProposalEditReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(epr)
+		err := prettyPrintJSON(per)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &epr, nil
+	return &per, nil
+}
+
+// ProposalSetStatus sets the status of a proposal
+func (c *Client) ProposalSetStatus(pss pi.ProposalSetStatus) (*pi.ProposalSetStatusReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteProposalSetStatus, pss)
+	if err != nil {
+		return nil, err
+	}
+
+	var pssr pi.ProposalSetStatusReply
+	err = json.Unmarshal(responseBody, &pssr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalSetStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pssr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pssr, nil
+}
+
+// Proposals retrieves a proposal for each of the provided proposal requests.
+func (c *Client) Proposals(p pi.Proposals) (*pi.ProposalsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteProposals, p)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr pi.ProposalsReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pr, nil
 }
 
 // NewInvoice submits the specified invoice to politeiawww for the logged in
@@ -1011,31 +1059,6 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 	}
 
 	return &pir, nil
-}
-
-// SetProposalStatus changes the status of the specified proposal.
-func (c *Client) SetProposalStatus(sps *www.SetProposalStatus) (*www.SetProposalStatusReply, error) {
-	route := "/proposals/" + sps.Token + "/status"
-	responseBody, err := c.makeRequest(http.MethodPost,
-		www.PoliteiaWWWAPIRoute, route, sps)
-	if err != nil {
-		return nil, err
-	}
-
-	var spsr www.SetProposalStatusReply
-	err = json.Unmarshal(responseBody, &spsr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal SetProposalStatusReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(spsr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &spsr, nil
 }
 
 // BatchProposals retrieves a list of proposals

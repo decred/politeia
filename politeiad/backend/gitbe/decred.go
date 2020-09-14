@@ -27,7 +27,6 @@ import (
 	"github.com/decred/dcrd/wire"
 	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -1694,49 +1693,6 @@ func prepareStartVoteReply(voteDuration, ticketMaturity uint32) (*decredplugin.S
 	}, nil
 }
 
-var (
-	errProposalMetadataNotFound = errors.New("proposal metadata not found")
-)
-
-// vettedProposalMetadata returns the www.ProposalMetadata for the provided
-// token. All new proposal records are required to contain a ProposalMetadata,
-// but older records may not. A errProposalMetadata not found error is returned
-// if a ProposalMetadata was not found.
-//
-// This function must be called WITH the lock held.
-func (g *gitBackEnd) vettedProposalMetadata(token string) (*mdstream.ProposalMetadata, error) {
-	tokenb, err := hex.DecodeString(token)
-	if err != nil {
-		return nil, err
-	}
-	r, err := g.getRecord(tokenb, "", g.vetted, true)
-	if err != nil {
-		return nil, err
-	}
-
-	// ProposalMetadata is stored as a politeiad File, not an mdstream.
-	var pm *mdstream.ProposalMetadata
-	for _, v := range r.Files {
-		if v.Name != mdstream.FilenameProposalMetadata {
-			continue
-		}
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			return nil, err
-		}
-		pm, err = mdstream.DecodeProposalMetadata(b)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if pm == nil {
-		return nil, errProposalMetadataNotFound
-	}
-
-	return pm, nil
-}
-
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	sv, err := decredplugin.DecodeStartVoteV2([]byte(payload))
 	if err != nil {
@@ -1775,29 +1731,32 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	// Ensure proposal is not an RFP submissions. The plugin command
 	// startvoterunoff must be used to start a runoff vote between RFP
 	// submissions.
-	pm, err := g.vettedProposalMetadata(token)
-	switch {
-	case err == errProposalMetadataNotFound:
-		// Proposal is not an RFP submission. This is ok.
-	case err != nil:
-		// All other errors
-		return "", err
-	case pm.LinkTo != "":
-		// ProposalMetadata exists and a linkto was set. Check if this
-		// proposal is an RFP submission.
-		linkToPM, err := g.vettedProposalMetadata(pm.LinkTo)
-		if err != nil {
+	/*
+		// TODO
+		pm, err := g.vettedProposalMetadata(token)
+		switch {
+		case err == errProposalMetadataNotFound:
+			// Proposal is not an RFP submission. This is ok.
+		case err != nil:
+			// All other errors
 			return "", err
+		case pm.LinkTo != "":
+			// ProposalMetadata exists and a linkto was set. Check if this
+			// proposal is an RFP submission.
+			linkToPM, err := g.vettedProposalMetadata(pm.LinkTo)
+			if err != nil {
+				return "", err
+			}
+			if linkToPM.LinkBy != 0 {
+				// LinkBy will only be set on RFP proposals
+				return "", fmt.Errorf("proposal is an rfp submission: %v",
+					token)
+			}
+		default:
+			// ProposalMetadata exists, but this proposal is not linked to
+			// another proposal. This is ok.
 		}
-		if linkToPM.LinkBy != 0 {
-			// LinkBy will only be set on RFP proposals
-			return "", fmt.Errorf("proposal is an rfp submission: %v",
-				token)
-		}
-	default:
-		// ProposalMetadata exists, but this proposal is not linked to
-		// another proposal. This is ok.
-	}
+	*/
 
 	// Verify proposal state
 	tokenb, err := util.ConvertStringToken(token)
@@ -2000,53 +1959,56 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
-	// Verify this proposal is indeed an RFP
-	pm, err := g.vettedProposalMetadata(sv.Token)
-	switch {
-	case err == errProposalMetadataNotFound:
-		// No ProposalMetadata. This is not an RFP.
-		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
-	case err != nil:
-		// All other errors
-		return "", err
-	case pm.LinkBy == 0:
-		// ProposalMetadata found but this is not an RFP
-		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
-	case pm.LinkBy > 0:
-		// This proposal is an RFP. This is what we want.
-	default:
-		return "", fmt.Errorf("unknown proposal state")
-	}
-
-	// Validate proposal state of all rfp submissions. The authorize
-	// vote metadata is intentionally not checked. RFP submissions
-	// are not required to have the vote authorized by the proposal
-	// author.
-	for _, v := range sv.StartVotes {
-		tokenb, err := util.ConvertStringToken(v.Vote.Token)
-		if err != nil {
-			return "", err
-		}
-
-		authVoteExists := g.vettedMetadataStreamExists(tokenb,
-			decredplugin.MDStreamAuthorizeVote)
-		voteBitsExist := g.vettedMetadataStreamExists(tokenb,
-			decredplugin.MDStreamVoteBits)
-		voteSnapshotExists := g.vettedMetadataStreamExists(tokenb,
-			decredplugin.MDStreamVoteSnapshot)
+	/*
+		// TODO
+		// Verify this proposal is indeed an RFP
+		pm, err := g.vettedProposalMetadata(sv.Token)
 		switch {
-		case !authVoteExists && !voteBitsExist && !voteSnapshotExists:
-			// Vote has not started, continue
-		case authVoteExists && voteBitsExist && voteSnapshotExists:
-			// Vote has started
-			return "", fmt.Errorf("vote already started: %x",
-				tokenb)
+		case err == errProposalMetadataNotFound:
+			// No ProposalMetadata. This is not an RFP.
+			return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
+		case err != nil:
+			// All other errors
+			return "", err
+		case pm.LinkBy == 0:
+			// ProposalMetadata found but this is not an RFP
+			return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
+		case pm.LinkBy > 0:
+			// This proposal is an RFP. This is what we want.
 		default:
-			// This is bad, both files should exist or not exist
-			return "", fmt.Errorf("proposal in unknown vote state: %x",
-				tokenb)
+			return "", fmt.Errorf("unknown proposal state")
 		}
-	}
+
+		// Validate proposal state of all rfp submissions. The authorize
+		// vote metadata is intentionally not checked. RFP submissions
+		// are not required to have the vote authorized by the proposal
+		// author.
+		for _, v := range sv.StartVotes {
+			tokenb, err := util.ConvertStringToken(v.Vote.Token)
+			if err != nil {
+				return "", err
+			}
+
+			authVoteExists := g.vettedMetadataStreamExists(tokenb,
+				decredplugin.MDStreamAuthorizeVote)
+			voteBitsExist := g.vettedMetadataStreamExists(tokenb,
+				decredplugin.MDStreamVoteBits)
+			voteSnapshotExists := g.vettedMetadataStreamExists(tokenb,
+				decredplugin.MDStreamVoteSnapshot)
+			switch {
+			case !authVoteExists && !voteBitsExist && !voteSnapshotExists:
+				// Vote has not started, continue
+			case authVoteExists && voteBitsExist && voteSnapshotExists:
+				// Vote has started
+				return "", fmt.Errorf("vote already started: %x",
+					tokenb)
+			default:
+				// This is bad, both files should exist or not exist
+				return "", fmt.Errorf("proposal in unknown vote state: %x",
+					tokenb)
+			}
+		}
+	*/
 
 	// Get identity
 	fiJSON, ok := decredPluginSettings[decredPluginIdentity]

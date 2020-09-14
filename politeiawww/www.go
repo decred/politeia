@@ -742,6 +742,8 @@ func _main() error {
 		p.setPoliteiaWWWRoutes()
 		p.setUserWWWRoutes()
 
+		p.setPiRoutes()
+
 		err = p.initPaywallChecker()
 		if err != nil {
 			return err

@@ -41,7 +41,9 @@ const (
 	RouteVoteSummaries   = "/votes/summaries"
 	RouteVoteInventory   = "/votes/inventory"
 
-	// Proposal states
+	// Proposal states. A proposal state can be either unvetted or
+	// vetted. The PropStatusT type further breaks down these two
+	// states into more granular statuses.
 	PropStateInvalid  PropStateT = 0
 	PropStateUnvetted PropStateT = 1
 	PropStateVetted   PropStateT = 2
@@ -82,13 +84,14 @@ const (
 	VoteTypeRunoff VoteT = 2
 
 	// Error status codes
-	ErrorStatusInvalid ErrorStatusT = 0
+	ErrorStatusInvalid      ErrorStatusT = 0
+	ErrorStatusInvalidInput ErrorStatusT = 1
 
 	// User errors
-	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 1
-	ErrorStatusUserBalanceInsufficient ErrorStatusT = 2
-	ErrorStatusUserIsNotAuthor         ErrorStatusT = 3
-	ErrorStatusUserIsNotAdmin          ErrorStatusT = 4
+	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 2
+	ErrorStatusUserBalanceInsufficient ErrorStatusT = 3
+	ErrorStatusUserIsNotAuthor         ErrorStatusT = 4
+	ErrorStatusUserIsNotAdmin          ErrorStatusT = 5
 
 	// Signature errors
 	ErrorStatusPublicKeyInvalid ErrorStatusT = 100
@@ -121,7 +124,7 @@ const (
 	ErrorStatusPropStatusChangeReasonInvalid ErrorStatusT = 224
 
 	// Comment errors
-	// TODO make normal
+	// TODO number error codes
 	ErrorStatusCommentTextInvalid ErrorStatusT = iota
 	ErrorStatusCommentParentIDInvalid
 	ErrorStatusCommentVoteInvalid

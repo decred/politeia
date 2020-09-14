@@ -453,7 +453,7 @@ func (p *politeiawww) proposalRecordLatest(state pi.PropStateT, token string) (*
 // requests. If a token does not correspond to an actual proposal then it will
 // not be included in the returned map.
 //
-// XXX politeiad needs batched calls for retrieving unvetted and vetted
+// TODO politeiad needs batched calls for retrieving unvetted and vetted
 // records. This call should have an includeFiles option.
 func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalRequest, includeFiles bool) (map[string]pi.ProposalRecord, error) {
 	// Get politeiad records
@@ -1230,10 +1230,9 @@ reply:
 }
 
 // processProposals retrieves and returns the proposal records for each of the
-// provided proposal requests. If unvetted proposals are requested by a
-// non-admin then the unvetted proposal files are removed before the proposal
-// is returned.
-func (p *politeiawww) processProposalsPublic(ps pi.Proposals, isAdmin bool) (*pi.ProposalsReply, error) {
+// provided proposal requests. Unvetted proposal files are only returned to
+// admins.
+func (p *politeiawww) processProposals(ps pi.Proposals, isAdmin bool) (*pi.ProposalsReply, error) {
 	log.Tracef("processProposals: %v", ps.Requests)
 
 	props, err := p.proposalRecords(ps.State, ps.Requests, ps.IncludeFiles)
@@ -1266,4 +1265,114 @@ func (p *politeiawww) processProposalInventory() (*pi.ProposalInventoryReply, er
 	// TODO politeiad needs a InventoryByStatus route
 
 	return &pi.ProposalInventoryReply{}, nil
+}
+
+func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalNew")
+
+	var pn pi.ProposalNew
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pn); err != nil {
+		respondWithPiError(w, r, "handleProposalNew: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalNew: getSessionUser: %v", err)
+		return
+	}
+
+	pnr, err := p.processProposalNew(pn, *user)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalNew: processProposalNew: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pnr)
+}
+
+func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalEdit")
+
+	var pe pi.ProposalEdit
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pe); err != nil {
+		respondWithPiError(w, r, "handleProposalEdit: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalEdit: getSessionUser: %v", err)
+		return
+	}
+
+	per, err := p.processProposalEdit(pe, *user)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalEdit: processProposalEdit: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, per)
+}
+
+func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalSetStatus")
+
+	var pss pi.ProposalSetStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pss); err != nil {
+		respondWithPiError(w, r, "handleProposalSetStatus: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalSetStatus: getSessionUser: %v", err)
+		return
+	}
+
+	pssr, err := p.processProposalSetStatus(pss, *user)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalSetStatus: processProposalSetStatus: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pssr)
+}
+
+func (p *politeiawww) setPiRoutes() {
+	// Public routes
+
+	// Logged in routes
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteProposalNew, p.handleProposalNew,
+		permissionLogin)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteProposalEdit, p.handleProposalEdit,
+		permissionLogin)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteProposalSetStatus, p.handleProposalSetStatus,
+		permissionLogin)
+
+	// Admin routes
+
 }

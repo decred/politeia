@@ -105,21 +105,6 @@ func ValidateDigests(files []v1.File, md []v1.Metadata) error {
 	return nil
 }
 
-// SignedMerkleRoot calculates the merkle root of the passed in list of files
-// and metadata, signs the merkle root with the passed in identity and returns
-// the signature.
-func SignedMerkleRoot(files []v1.File, md []v1.Metadata, id *identity.FullIdentity) (string, error) {
-	if len(files) == 0 {
-		return "", fmt.Errorf("no proposal files found")
-	}
-	mr, err := wwwutil.MerkleRoot(files, md)
-	if err != nil {
-		return "", err
-	}
-	sig := id.SignMessage([]byte(mr))
-	return hex.EncodeToString(sig[:]), nil
-}
-
 // DigestSHA3 returns the hex encoded SHA3-256 of a string.
 func DigestSHA3(s string) string {
 	h := sha3.New256()
@@ -167,7 +152,7 @@ func VerifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 			return err
 		}
 		// Verify merkle root
-		mr, err := wwwutil.MerkleRoot(p.Files, p.Metadata)
+		mr, err := wwwutil.MerkleRootWWW(p.Files, p.Metadata)
 		if err != nil {
 			return err
 		}

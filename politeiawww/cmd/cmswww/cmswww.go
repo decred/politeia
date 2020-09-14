@@ -7,6 +7,7 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
@@ -110,6 +112,21 @@ type cmswww struct {
 	VoteDetails            VoteDetailsCmd            `command:"votedetails" description:"(user) get the details for a dcc vote"`
 }
 
+// signedMerkleRoot calculates the merkle root of the passed in list of files
+// and metadata, signs the merkle root with the passed in identity and returns
+// the signature.
+func signedMerkleRoot(files []pi.File, md []pi.Metadata, id *identity.FullIdentity) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no proposal files found")
+	}
+	mr, err := wwwutil.MerkleRootWWW(files, md)
+	if err != nil {
+		return "", err
+	}
+	sig := id.SignMessage([]byte(mr))
+	return hex.EncodeToString(sig[:]), nil
+}
+
 // verifyInvoice verifies a invoice's merkle root, author signature, and
 // censorship record.
 func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
@@ -120,7 +137,7 @@ func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 			return err
 		}
 		// Verify merkle root
-		mr, err := wwwutil.MerkleRoot(p.Files, nil)
+		mr, err := wwwutil.MerkleRootWWW(p.Files, nil)
 		if err != nil {
 			return err
 		}
@@ -284,7 +301,7 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 		return err
 	}
 	// Verify merkel root
-	mr, err := wwwutil.MerkleRoot(files, nil)
+	mr, err := wwwutil.MerkleRootWWW(files, nil)
 	if err != nil {
 		return err
 	}
