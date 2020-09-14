@@ -99,7 +99,7 @@ func (p *commentsPlugin) mutex(token string) *sync.Mutex {
 	return m
 }
 
-func convertCommentsErrFromSignatureErr(err error) comments.UserError {
+func convertCommentsErrFromSignatureErr(err error) comments.UserErrorReply {
 	var e util.SignatureError
 	var s comments.ErrorStatusT
 	if errors.As(err, &e) {
@@ -110,7 +110,7 @@ func convertCommentsErrFromSignatureErr(err error) comments.UserError {
 			s = comments.ErrorStatusSignatureInvalid
 		}
 	}
-	return comments.UserError{
+	return comments.UserErrorReply{
 		ErrorCode:    s,
 		ErrorContext: e.ErrorContext,
 	}
@@ -700,7 +700,7 @@ func (p *commentsPlugin) new(client *tlogbe.RecordClient, n comments.New, encryp
 	// Verify parent comment exists if set. A parent ID of 0 means that
 	// this is a base level comment, not a reply to another comment.
 	if n.ParentID > 0 && !commentExists(*idx, n.ParentID) {
-		return nil, comments.UserError{
+		return nil, comments.UserErrorReply{
 			ErrorCode:    comments.ErrorStatusParentIDInvalid,
 			ErrorContext: []string{"parent ID comment not found"},
 		}
@@ -770,14 +770,14 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(n.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -831,7 +831,7 @@ func (p *commentsPlugin) edit(client *tlogbe.RecordClient, e comments.Edit, encr
 	}
 	existing, ok := cs[e.CommentID]
 	if !ok {
-		return nil, comments.UserError{
+		return nil, comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusCommentNotFound,
 		}
 	}
@@ -841,13 +841,13 @@ func (p *commentsPlugin) edit(client *tlogbe.RecordClient, e comments.Edit, encr
 	if e.ParentID != existing.ParentID {
 		e := fmt.Sprintf("parent id cannot change; got %v, want %v",
 			e.ParentID, existing.ParentID)
-		return nil, comments.UserError{
+		return nil, comments.UserErrorReply{
 			ErrorCode:    comments.ErrorStatusParentIDInvalid,
 			ErrorContext: []string{e},
 		}
 	}
 	if e.Comment == existing.Comment {
-		return nil, comments.UserError{
+		return nil, comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusNoCommentChanges,
 		}
 	}
@@ -910,14 +910,14 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(e.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -971,7 +971,7 @@ func (p *commentsPlugin) del(client *tlogbe.RecordClient, d comments.Del) (*comm
 	}
 	comment, ok := cs[d.CommentID]
 	if !ok {
-		return nil, comments.UserError{
+		return nil, comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusCommentNotFound,
 		}
 	}
@@ -1043,14 +1043,14 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(d.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -1090,14 +1090,14 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(g.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -1140,14 +1140,14 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(ga.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -1207,14 +1207,14 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(gv.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -1230,12 +1230,12 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	// Verify comment exists
 	cidx, ok := idx.Comments[gv.CommentID]
 	if !ok {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusCommentNotFound,
 		}
 	}
 	if cidx.Del != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode:    comments.ErrorStatusCommentNotFound,
 			ErrorContext: []string{"comment has been deleted"},
 		}
@@ -1244,7 +1244,7 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	if !ok {
 		e := fmt.Sprintf("comment %v does not have version %v",
 			gv.CommentID, gv.Version)
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode:    comments.ErrorStatusCommentNotFound,
 			ErrorContext: []string{e},
 		}
@@ -1288,14 +1288,14 @@ func (p *commentsPlugin) cmdCount(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(c.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -1336,7 +1336,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	case comments.VoteUpvote:
 		// This is allowed
 	default:
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusVoteInvalid,
 		}
 	}
@@ -1352,14 +1352,14 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Get record client
 	token, err := hex.DecodeString(v.Token)
 	if err != nil {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
 	client, err := p.backend.RecordClient(token)
 	if err != nil {
 		if err == backend.ErrRecordNotFound {
-			return "", comments.UserError{
+			return "", comments.UserErrorReply{
 				ErrorCode: comments.ErrorStatusRecordNotFound,
 			}
 		}
@@ -1381,7 +1381,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Verify comment exists
 	cidx, ok := idx.Comments[v.CommentID]
 	if !ok {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusCommentNotFound,
 		}
 	}
@@ -1392,7 +1392,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		uvotes = make([]voteIndex, 0)
 	}
 	if len(uvotes) > comments.PolicyMaxVoteChanges {
-		return "", comments.UserError{
+		return "", comments.UserErrorReply{
 			ErrorCode: comments.ErrorStatusMaxVoteChanges,
 		}
 	}

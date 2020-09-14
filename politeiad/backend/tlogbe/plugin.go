@@ -65,7 +65,7 @@ func DecodeNewRecord(payload []byte) (*NewRecord, error) {
 // EditRecord is the payload for the EditRecordPre and EditRecordPost hooks.
 type EditRecord struct {
 	// Current record
-	Record backend.Record `json:"record"`
+	Current backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -94,7 +94,7 @@ func DecodeEditRecord(payload []byte) (*EditRecord, error) {
 // HookSetRecordStatusPost hooks.
 type SetRecordStatus struct {
 	// Current record
-	Record backend.Record `json:"record"`
+	Current backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`

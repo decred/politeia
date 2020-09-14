@@ -598,7 +598,7 @@ func (t *TlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 
 	// Call pre plugin hooks
 	er := EditRecord{
-		Record:         *r,
+		Current:        *r,
 		RecordMetadata: *recordMD,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
@@ -698,7 +698,7 @@ func (t *TlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 
 	// Call pre plugin hooks
 	er := EditRecord{
-		Record:         *r,
+		Current:        *r,
 		RecordMetadata: *recordMD,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
@@ -1097,7 +1097,7 @@ func (t *TlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 
 	// Call pre plugin hooks
 	srs := SetRecordStatus{
-		Record:         *r,
+		Current:        *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
@@ -1222,7 +1222,7 @@ func (t *TlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 
 	// Call pre plugin hooks
 	srs := SetRecordStatus{
-		Record:         *r,
+		Current:        *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,

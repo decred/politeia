@@ -9,6 +9,8 @@ package pi
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 )
 
 type PropStateT int
@@ -47,10 +49,13 @@ const (
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
 
 	// User error status codes
-	ErrorStatusInvalid           ErrorStatusT = 0
-	ErrorStatusPropLinkToInvalid ErrorStatusT = 1
-	ErrorStatusPropStatusInvalid ErrorStatusT = 2
-	ErrorStatusVoteStatusInvalid ErrorStatusT = 3
+	// TODO number error codes
+	ErrorStatusInvalid ErrorStatusT = iota
+	ErrorStatusPropVersionInvalid
+	ErrorStatusPropStatusInvalid
+	ErrorStatusPropStatusChangeInvalid
+	ErrorStatusPropLinkToInvalid
+	ErrorStatusVoteStatusInvalid
 )
 
 var (
@@ -79,15 +84,14 @@ var (
 	}
 )
 
-// TODO change this to UserErrorReply as well as in all the other plugins.
-// UserError represents an error that is caused by the user.
-type UserError struct {
+// UserErrorReply represents an error that is caused by the user.
+type UserErrorReply struct {
 	ErrorCode    ErrorStatusT
 	ErrorContext []string
 }
 
 // Error satisfies the error interface.
-func (e UserError) Error() string {
+func (e UserErrorReply) Error() string {
 	return fmt.Sprintf("pi plugin error code: %v", e.ErrorCode)
 }
 
@@ -114,7 +118,7 @@ func EncodeProposalMetadata(pm ProposalMetadata) ([]byte, error) {
 	return json.Marshal(pm)
 }
 
-// DecodeProposalMetadata decodes a ProposalMetadata into a JSON byte slice.
+// DecodeProposalMetadata decodes a JSON byte slice into a ProposalMetadata.
 func DecodeProposalMetadata(payload []byte) (*ProposalMetadata, error) {
 	var pm ProposalMetadata
 	err := json.Unmarshal(payload, &pm)
@@ -141,7 +145,7 @@ func EncodeProposalGeneral(pg ProposalGeneral) ([]byte, error) {
 	return json.Marshal(pg)
 }
 
-// DecodeProposalGeneral decodes a ProposalGeneral into a JSON byte slice.
+// DecodeProposalGeneral decodes a JSON byte slice into a ProposalGeneral.
 func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 	var pg ProposalGeneral
 	err := json.Unmarshal(payload, &pg)
@@ -169,7 +173,33 @@ func EncodeStatusChange(sc StatusChange) ([]byte, error) {
 	return json.Marshal(sc)
 }
 
-// TODO DecodeStatusChanges
+// DecodeStatusChange decodes a JSON byte slice into a StatusChange.
+func DecodeStatusChange(payload []byte) (*StatusChange, error) {
+	var sc StatusChange
+	err := json.Unmarshal(payload, &sc)
+	if err != nil {
+		return nil, err
+	}
+	return &sc, nil
+}
+
+// DecodeStatusChanges decodes a JSON byte slice into a []StatusChange.
+func DecodeStatusChanges(payload []byte) ([]StatusChange, error) {
+	var statuses []StatusChange
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var sc StatusChange
+		err := d.Decode(&sc)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, sc)
+	}
+
+	return statuses, nil
+}
 
 // Proposals requests the plugin data for the provided proposals. This includes
 // pi plugin data as well as other plugin data such as comment plugin data.
@@ -184,7 +214,7 @@ func EncodeProposals(p Proposals) ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// DecodeProposals decodes a Proposals into a JSON byte slice.
+// DecodeProposals decodes a JSON byte slice into a Proposals.
 func DecodeProposals(payload []byte) (*Proposals, error) {
 	var p Proposals
 	err := json.Unmarshal(payload, &p)
@@ -211,7 +241,7 @@ func EncodeProposalsReply(pr ProposalsReply) ([]byte, error) {
 	return json.Marshal(pr)
 }
 
-// DecodeProposalsReply decodes a ProposalsReply into a JSON byte slice.
+// DecodeProposalsReply decodes a JSON byte slice into a ProposalsReply.
 func DecodeProposalsReply(payload []byte) (*ProposalsReply, error) {
 	var pr ProposalsReply
 	err := json.Unmarshal(payload, &pr)

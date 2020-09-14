@@ -24,7 +24,6 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -599,46 +598,6 @@ func makeProposalRFPSubmissions(t *testing.T, prs []*www.ProposalRecord, linkto 
 		md, _ := newProposalMetadata(t, pr.Name, linkto, 0)
 		pr.LinkTo = linkto
 		pr.Metadata = md
-	}
-}
-
-func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
-	t.Helper()
-
-	// Attach ProposalMetadata as a politeiad file
-	files := convertPropFilesFromWWW(p.Files)
-	for _, v := range p.Metadata {
-		switch v.Hint {
-		case www.HintProposalMetadata:
-			// TODO
-			// files = append(files, convertFileFromMetadata(v))
-		}
-	}
-
-	// Create a ProposalGeneralV2 mdstream
-	md, err := mdstream.EncodeProposalGeneralV2(
-		mdstream.ProposalGeneralV2{
-			Version:   mdstream.VersionProposalGeneral,
-			Timestamp: time.Now().Unix(),
-			PublicKey: p.PublicKey,
-			Signature: p.Signature,
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mdStreams := []pd.MetadataStream{{
-		ID:      mdstream.IDProposalGeneral,
-		Payload: string(md),
-	}}
-
-	return pd.Record{
-		Status:           convertPropStatusFromWWW(p.Status),
-		Timestamp:        p.Timestamp,
-		Version:          p.Version,
-		Metadata:         mdStreams,
-		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
-		Files:            files,
 	}
 }
 

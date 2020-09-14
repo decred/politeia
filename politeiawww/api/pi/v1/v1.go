@@ -95,35 +95,34 @@ const (
 	ErrorStatusSignatureInvalid ErrorStatusT = 101
 
 	// Proposal errors
-	ErrorStatusFileCountInvalid       ErrorStatusT = 202
-	ErrorStatusFileNameInvalid        ErrorStatusT = 203
-	ErrorStatusFileMIMEInvalid        ErrorStatusT = 204
-	ErrorStatusFileDigestInvalid      ErrorStatusT = 205
-	ErrorStatusFilePayloadInvalid     ErrorStatusT = 206
-	ErrorStatusIndexFileNameInvalid   ErrorStatusT = 207
-	ErrorStatusIndexFileCountInvalid  ErrorStatusT = 207
-	ErrorStatusIndexFileSizeInvalid   ErrorStatusT = 208
-	ErrorStatusTextFileCountInvalid   ErrorStatusT = 209
-	ErrorStatusImageFileCountInvalid  ErrorStatusT = 210
-	ErrorStatusImageFileSizeInvalid   ErrorStatusT = 211
-	ErrorStatusMetadataCountInvalid   ErrorStatusT = 212
-	ErrorStatusMetadataHintInvalid    ErrorStatusT = 213
-	ErrorStatusMetadataDigestInvalid  ErrorStatusT = 214
-	ErrorStatusMetadataPayloadInvalid ErrorStatusT = 215
-	ErrorStatusPropNameInvalid        ErrorStatusT = 216
-	ErrorStatusPropLinkToInvalid      ErrorStatusT = 217
-	ErrorStatusPropLinkByInvalid      ErrorStatusT = 218
-
-	// TODO make normal
-	ErrorStatusPropTokenInvalid ErrorStatusT = iota
-	ErrorStatusPropNotFound
-	ErrorStatusPropStateInvalid
-	ErrorStatusPropStatusInvalid
-	ErrorStatusPropStatusChangeInvalid
-	ErrorStatusPropStatusChangeReasonInvalid
+	ErrorStatusFileCountInvalid              ErrorStatusT = 202
+	ErrorStatusFileNameInvalid               ErrorStatusT = 203
+	ErrorStatusFileMIMEInvalid               ErrorStatusT = 204
+	ErrorStatusFileDigestInvalid             ErrorStatusT = 205
+	ErrorStatusFilePayloadInvalid            ErrorStatusT = 206
+	ErrorStatusIndexFileNameInvalid          ErrorStatusT = 207
+	ErrorStatusIndexFileCountInvalid         ErrorStatusT = 207
+	ErrorStatusIndexFileSizeInvalid          ErrorStatusT = 208
+	ErrorStatusTextFileCountInvalid          ErrorStatusT = 209
+	ErrorStatusImageFileCountInvalid         ErrorStatusT = 210
+	ErrorStatusImageFileSizeInvalid          ErrorStatusT = 211
+	ErrorStatusMetadataCountInvalid          ErrorStatusT = 212
+	ErrorStatusMetadataHintInvalid           ErrorStatusT = 213
+	ErrorStatusMetadataDigestInvalid         ErrorStatusT = 214
+	ErrorStatusMetadataPayloadInvalid        ErrorStatusT = 215
+	ErrorStatusPropNameInvalid               ErrorStatusT = 216
+	ErrorStatusPropLinkToInvalid             ErrorStatusT = 217
+	ErrorStatusPropLinkByInvalid             ErrorStatusT = 218
+	ErrorStatusPropTokenInvalid              ErrorStatusT = 219
+	ErrorStatusPropNotFound                  ErrorStatusT = 220
+	ErrorStatusPropStateInvalid              ErrorStatusT = 221
+	ErrorStatusPropStatusInvalid             ErrorStatusT = 222
+	ErrorStatusPropStatusChangeInvalid       ErrorStatusT = 223
+	ErrorStatusPropStatusChangeReasonInvalid ErrorStatusT = 224
 
 	// Comment errors
-	ErrorStatusCommentTextInvalid
+	// TODO make normal
+	ErrorStatusCommentTextInvalid ErrorStatusT = iota
 	ErrorStatusCommentParentIDInvalid
 	ErrorStatusCommentVoteInvalid
 	ErrorStatusCommentNotFound
@@ -227,9 +226,10 @@ type CensorshipRecord struct {
 //
 // Signature is the client signature of the Token+Version+Status+Reason.
 type StatusChange struct {
-	Status    PropStatusT `json:"status"`
+	Token     string      `json:"token"`
 	Version   string      `json:"version"`
-	Message   string      `json:"message,omitempty"`
+	Status    PropStatusT `json:"status"`
+	Reason    string      `json:"message,omitempty"`
 	PublicKey string      `json:"publickey"`
 	Signature string      `json:"signature"`
 	Timestamp int64       `json:"timestamp"`

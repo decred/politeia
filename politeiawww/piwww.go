@@ -26,7 +26,8 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// TODO use pi policies
+// TODO use pi policies. Should the policies be defined in the pi plugin
+// or the pi api spec?
 
 const (
 	// MIME types
@@ -104,6 +105,27 @@ func proposalNameRegex() string {
 	validProposalNameBuffer.WriteString(maxNameLength + "}$")
 
 	return validProposalNameBuffer.String()
+}
+
+// proposalName parses the proposal name from the ProposalMetadata and returns
+// it. An empty string will be returned if any errors occur or if a name is not
+// found.
+func proposalName(pr pi.ProposalRecord) string {
+	var name string
+	for _, v := range pr.Metadata {
+		if v.Hint == pi.HintProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return ""
+			}
+			pm, err := piplugin.DecodeProposalMetadata(b)
+			if err != nil {
+				return ""
+			}
+			name = pm.Name
+		}
+	}
+	return name
 }
 
 func convertUserErrFromSignatureErr(err error) pi.UserErrorReply {
@@ -240,9 +262,9 @@ func convertFilesFromPD(f []pd.File) ([]pi.File, []pi.Metadata) {
 func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
 	// Decode metadata streams
 	var (
-		pg       *piplugin.ProposalGeneral
-		statuses = make([]pi.StatusChange, 0, 16)
-		err      error
+		pg  *piplugin.ProposalGeneral
+		sc  = make([]piplugin.StatusChange, 0, 16)
+		err error
 	)
 	for _, v := range r.Metadata {
 		switch v.ID {
@@ -252,18 +274,35 @@ func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
 				return nil, err
 			}
 		case piplugin.MDStreamIDStatusChanges:
-			// TODO decode status changes
+			sc, err = piplugin.DecodeStatusChanges([]byte(v.Payload))
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	// Convert files and status
+	// Convert to pi types
 	files, metadata := convertFilesFromPD(r.Files)
 	status := convertPropStatusFromPD(r.Status)
 	state := convertPropStateFromPropStatus(status)
 
+	statuses := make([]pi.StatusChange, 0, len(sc))
+	for _, v := range sc {
+		statuses = append(statuses, pi.StatusChange{
+			Token:     v.Token,
+			Version:   v.Version,
+			Status:    pi.PropStatusT(v.Status),
+			Reason:    v.Reason,
+			PublicKey: v.PublicKey,
+			Signature: v.Signature,
+			Timestamp: v.Timestamp,
+		})
+	}
+
 	// Some fields are intentionally omitted because they are either
 	// user data that needs to be pulled from the user database or they
-	// are plugin data that needs to be retrieved using a plugin cmd.
+	// are politeiad plugin data that needs to be retrieved using a
+	// plugin command.
 	return &pi.ProposalRecord{
 		Version:          r.Version,
 		Timestamp:        pg.Timestamp,
@@ -280,27 +319,6 @@ func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
 		LinkedFrom:       []string{}, // Intentionally omitted
 		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
 	}, nil
-}
-
-// parseProposalName parsed the proposal name from the ProposalMetadata and
-// returns it. An empty string will be returned if any errors occur or if a
-// name is not found.
-func parseProposalName(pr pi.ProposalRecord) string {
-	var name string
-	for _, v := range pr.Metadata {
-		if v.Hint == pi.HintProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return ""
-			}
-			pm, err := piplugin.DecodeProposalMetadata(b)
-			if err != nil {
-				return ""
-			}
-			name = pm.Name
-		}
-	}
-	return name
 }
 
 // linkByPeriodMin returns the minimum amount of time, in seconds, that the
@@ -1111,13 +1129,12 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 		return nil, convertUserErrFromSignatureErr(err)
 	}
 
-	// TODO
 	// Verification that requires retrieving the existing proposal is
-	// done in the politeiad pi plugin hook. This includes:
-	// -Verify token corresponds to a proposal
-	// -Verify proposal state is correct
-	// -Verify version is the latest version
-	// -Verify status change is allowed
+	// done in politeiad. This includes:
+	// -Verify proposal exists (politeiad)
+	// -Verify proposal state is correct (politeiad)
+	// -Verify version is the latest version (politeiad pi plugin)
+	// -Verify status change is allowed (politeiad pi plugin)
 
 	// Setup metadata
 	timestamp := time.Now().Unix()
@@ -1143,6 +1160,8 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	mdOverwrite := []pd.MetadataStream{}
 
 	// Send politeiad request
+	// TODO verify proposal not found error is returned when wrong
+	// token or state is used
 	status := convertRecordStatusFromPropStatus(pss.Status)
 	switch pss.State {
 	case pi.PropStateUnvetted:
@@ -1189,7 +1208,7 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	}
 	p.eventManager.emit(eventProposalStatusChange,
 		dataProposalStatusChange{
-			name:    parseProposalName(*pr),
+			name:    proposalName(*pr),
 			token:   pss.Token,
 			status:  pss.Status,
 			reason:  pss.Reason,
@@ -1210,10 +1229,11 @@ reply:
 	}, nil
 }
 
-// processProposalsPublic retrieves and returns the proposal records for each
-// of the provided proposal requests. This is a public route that removes all
-// unvetted proposal files from unvetted proposals before returning them.
-func (p *politeiawww) processProposalsPublic(ps pi.Proposals) (*pi.ProposalsReply, error) {
+// processProposals retrieves and returns the proposal records for each of the
+// provided proposal requests. If unvetted proposals are requested by a
+// non-admin then the unvetted proposal files are removed before the proposal
+// is returned.
+func (p *politeiawww) processProposalsPublic(ps pi.Proposals, isAdmin bool) (*pi.ProposalsReply, error) {
 	log.Tracef("processProposals: %v", ps.Requests)
 
 	props, err := p.proposalRecords(ps.State, ps.Requests, ps.IncludeFiles)
@@ -1221,30 +1241,18 @@ func (p *politeiawww) processProposalsPublic(ps pi.Proposals) (*pi.ProposalsRepl
 		return nil, err
 	}
 
-	// Strip unvetted proposals of their files before returning them.
-	for k, v := range props {
-		if v.State == pi.PropStateVetted {
-			continue
+	// Only admins are allowed to retrieve unvetted proposal files.
+	// Remove all unvetted proposal files and user defined metadata if
+	// the user is not an admin.
+	if !isAdmin {
+		for k, v := range props {
+			if v.State == pi.PropStateVetted {
+				continue
+			}
+			v.Files = []pi.File{}
+			v.Metadata = []pi.Metadata{}
+			props[k] = v
 		}
-		v.Files = []pi.File{}
-		v.Metadata = []pi.Metadata{}
-		props[k] = v
-	}
-
-	return &pi.ProposalsReply{
-		Proposals: props,
-	}, nil
-}
-
-// processProposalsAdmin retrieves and returns the proposal records for each of
-// the provided proposal requests. This is an admin route that returns unvetted
-// proposals in their entirety.
-func (p *politeiawww) processProposalsAdmin(ps pi.Proposals) (*pi.ProposalsReply, error) {
-	log.Tracef("processProposals: %v", ps.Requests)
-
-	props, err := p.proposalRecords(ps.State, ps.Requests, ps.IncludeFiles)
-	if err != nil {
-		return nil, err
 	}
 
 	return &pi.ProposalsReply{

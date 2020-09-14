@@ -20,7 +20,6 @@ import (
 
 const (
 	// mdstream IDs
-	IDProposalGeneral      = 0
 	IDRecordStatusChange   = 2
 	IDInvoiceGeneral       = 3
 	IDInvoiceStatusChange  = 4
@@ -29,12 +28,7 @@ const (
 	IDDCCStatusChange      = 7
 	IDDCCSupportOpposition = 8
 
-	// Note that 13 is in use by the decred plugin
-	// Note that 14 is in use by the decred plugin
-	// Note that 15 is in use by the decred plugin
-
 	// mdstream current supported versions
-	VersionProposalGeneral      = 2
 	VersionRecordStatusChange   = 2
 	VersionInvoiceGeneral       = 1
 	VersionInvoiceStatusChange  = 1
@@ -42,11 +36,6 @@ const (
 	VersionDCCGeneral           = 1
 	VersionDCCStatusChange      = 1
 	VersionDCCSupposeOpposition = 1
-
-	// Filenames of user defined metadata that is stored as politeiad
-	// files instead of politeiad metadata streams. This is done so
-	// that the metadata is included in the politeiad merkle root calc.
-	FilenameProposalMetadata = "proposalmetadata.json"
 )
 
 // DecodeVersion returns the version of the provided mstream payload. This
@@ -63,108 +52,6 @@ func DecodeVersion(payload []byte) (uint, error) {
 		return 0, fmt.Errorf("version not found")
 	}
 	return version, nil
-}
-
-// ProposalGeneralV1 represents general metadata for a proposal.
-//
-// Signature is the signature of the merkle root where the merkle root contains
-// the proposal file payloads.
-type ProposalGeneralV1 struct {
-	Version   uint64 `json:"version"`   // Struct version
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	Name      string `json:"name"`      // Provided proposal name
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Proposal signature
-}
-
-// EncodeProposalGeneralV1 encodes a ProposalGeneralV1 into a JSON byte slice.
-func EncodeProposalGeneralV1(md ProposalGeneralV1) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-// DecodeProposalGeneralV1 decodes a JSON byte slice into a ProposalGeneralV1.
-func DecodeProposalGeneralV1(payload []byte) (*ProposalGeneralV1, error) {
-	var md ProposalGeneralV1
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-	return &md, nil
-}
-
-// ProposalGeneralV2 represents general metadata for a proposal.
-//
-// Signature is the signature of the proposal merkle root. The merkle root
-// contains the ordered files and metadata digests. The file digests are first
-// in the ordering.
-//
-// Differences between v1 and v2:
-// * Name has been removed and is now part of proposal metadata.
-// * Signature has been updated to include propoposal metadata.
-type ProposalGeneralV2 struct {
-	Version   uint64 `json:"version"`   // Struct version
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Proposal signature
-}
-
-// EncodeProposalGeneralV2 encodes a ProposalGeneralV2 into a JSON byte slice.
-func EncodeProposalGeneralV2(md ProposalGeneralV2) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-// DecodeProposalGeneralV2 decodes a JSON byte slice into a ProposalGeneralV2.
-func DecodeProposalGeneralV2(payload []byte) (*ProposalGeneralV2, error) {
-	var md ProposalGeneralV2
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-	return &md, nil
-}
-
-// ProposalMetadata contains metadata that is specified by the user on proposal
-// submission. It is attached to a proposal submission as a politeiawww
-// Metadata object and is saved to politeiad as a File, not as a
-// MetadataStream. The filename is defined by FilenameProposalMetadata.
-//
-// The reason it is saved to politeiad as a File is because politeiad only
-// includes Files in the merkle root calculation. This is user defined metadata
-// so it must be included in the proposal signature on submission. If it were
-// saved to politeiad as a MetadataStream then it would not be included in the
-// merkle root, thus causing an error where the client calculated merkle root
-// if different than the politeiad calculated merkle root.
-type ProposalMetadata struct {
-	Name   string `json:"name"`             // Proposal name
-	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
-	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
-}
-
-// EncodeProposalMetadata encodes a ProposalMetadata into a JSON byte slice.
-func EncodeProposalMetadata(md ProposalMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-// DecodeProposalMetadata decodes a JSON byte slice into a ProposalMetadata.
-func DecodeProposalMetadata(payload []byte) (*ProposalMetadata, error) {
-	var md ProposalMetadata
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-	return &md, nil
 }
 
 // RecordStatusChangeV1 represents a politeiad record status change and is used
@@ -514,7 +401,6 @@ func EncodeDCCSupportOpposition(md DCCSupportOpposition) ([]byte, error) {
 // DCCSupportOpposition.
 func DecodeDCCSupportOpposition(payload []byte) ([]DCCSupportOpposition, error) {
 	var md []DCCSupportOpposition
-
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
 		var m DCCSupportOpposition

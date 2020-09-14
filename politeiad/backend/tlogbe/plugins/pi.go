@@ -52,7 +52,7 @@ func isRFP(pm pi.ProposalMetadata) bool {
 func proposalMetadataFromFiles(files []backend.File) (*pi.ProposalMetadata, error) {
 	var pm *pi.ProposalMetadata
 	for _, v := range files {
-		if v.Name == pi.FilenameProposalMetadata {
+		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return nil, err
@@ -185,7 +185,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	// Decode ProposalMetadata
 	var pm *pi.ProposalMetadata
 	for _, v := range nr.Files {
-		if v.Name == pi.FilenameProposalMetadata {
+		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return err
@@ -206,14 +206,14 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	// have been approved by a ticket vote.
 	if pm.LinkTo != "" {
 		if isRFP(*pm) {
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"an rfp cannot have linkto set"},
 			}
 		}
 		tokenb, err := hex.DecodeString(pm.LinkTo)
 		if err != nil {
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"invalid hex"},
 			}
@@ -221,7 +221,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		r, err := p.backend.GetVetted(tokenb, "")
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
-				return pi.UserError{
+				return pi.UserErrorReply{
 					ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 					ErrorContext: []string{"proposal not found"},
 				}
@@ -233,20 +233,20 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 			return err
 		}
 		if linkToPM == nil {
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"proposal not an rfp"},
 			}
 		}
 		if !isRFP(*linkToPM) {
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"proposal not an rfp"},
 			}
 		}
 		if time.Now().Unix() > linkToPM.LinkBy {
 			// Link by deadline has expired. New links are not allowed.
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"rfp link by deadline expired"},
 			}
@@ -273,7 +273,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 			return fmt.Errorf("summary not found %v", pm.LinkTo)
 		}
 		if !summary.Approved {
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"rfp vote not approved"},
 			}
@@ -308,9 +308,9 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	// politeiad will also error if no files were changed.
 
 	// Verify proposal status
-	status := convertPropStatusFromMDStatus(er.Record.RecordMetadata.Status)
+	status := convertPropStatusFromMDStatus(er.Current.RecordMetadata.Status)
 	if status != pi.PropStatusUnvetted && status != pi.PropStatusPublic {
-		return pi.UserError{
+		return pi.UserErrorReply{
 			ErrorCode: pi.ErrorStatusPropStatusInvalid,
 		}
 	}
@@ -341,7 +341,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 		e := fmt.Sprintf("vote status got %v, want %v",
 			ticketvote.VoteStatus[summary.Status],
 			ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
-		return pi.UserError{
+		return pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusVoteStatusInvalid,
 			ErrorContext: []string{e},
 		}
@@ -351,7 +351,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	// public proposal. Unvetted proposals are allowed to change their
 	// linkto.
 	if status == pi.PropStatusPublic {
-		pmCurr, err := proposalMetadataFromFiles(er.Record.Files)
+		pmCurr, err := proposalMetadataFromFiles(er.Current.Files)
 		if err != nil {
 			return err
 		}
@@ -360,7 +360,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			return err
 		}
 		if pmCurr.LinkTo != pmNew.LinkTo {
-			return pi.UserError{
+			return pi.UserErrorReply{
 				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
 				ErrorContext: []string{"linkto cannot change on public proposal"},
 			}
@@ -376,10 +376,69 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 		return err
 	}
 
+	// Parse the status change metadata
+	var sc *pi.StatusChange
+	for _, v := range srs.MDAppend {
+		if v.ID != pi.MDStreamIDStatusChanges {
+			continue
+		}
+
+		sc, err = pi.DecodeStatusChange([]byte(v.Payload))
+		if err != nil {
+			return err
+		}
+		break
+	}
+	if sc == nil {
+		return fmt.Errorf("status change append metadata not found")
+	}
+
+	// Parse the existing status changes metadata stream
+	var statuses []pi.StatusChange
+	for _, v := range srs.Current.Metadata {
+		if v.ID != pi.MDStreamIDStatusChanges {
+			continue
+		}
+
+		statuses, err = pi.DecodeStatusChanges([]byte(v.Payload))
+		if err != nil {
+			return err
+		}
+		break
+	}
+
+	// Verify version is the latest version
+	if sc.Version != srs.Current.Version {
+		e := fmt.Sprintf("version not current: got %v, want %v",
+			sc.Version, srs.Current.Version)
+		return pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPropVersionInvalid,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Verify status change is allowed
+	var from pi.PropStatusT
+	if len(statuses) == 0 {
+		// No previous status changes exist. Proposal is unvetted.
+		from = pi.PropStatusUnvetted
+	} else {
+		from = statuses[len(statuses)-1].Status
+	}
+	_, isAllowed := pi.StatusChanges[from][sc.Status]
+	if !isAllowed {
+		e := fmt.Sprintf("from %v to %v status change not allowed",
+			from, sc.Status)
+		return pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPropStatusChangeInvalid,
+			ErrorContext: []string{e},
+		}
+	}
+
 	// If the LinkTo field has been set then the linkedFrom
 	// list might need to be updated for the proposal that is being
 	// linked to, depending on the status change that is being made.
-	pm, err := proposalMetadataFromFiles(srs.Record.Files)
+	pm, err := proposalMetadataFromFiles(srs.Current.Files)
 	if err != nil {
 		return err
 	}

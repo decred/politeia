@@ -73,14 +73,14 @@ var (
 	}
 )
 
-// UserError represents an error that is cause by the user.
-type UserError struct {
+// UserErrorReply represents an error that is cause by the user.
+type UserErrorReply struct {
 	ErrorCode    ErrorStatusT
 	ErrorContext []string
 }
 
 // Error satisfies the error interface.
-func (e UserError) Error() string {
+func (e UserErrorReply) Error() string {
 	return fmt.Sprintf("comments plugin error code: %v", e.ErrorCode)
 }
 
