@@ -987,13 +987,10 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	// Emit event notification for proposal start vote
 	p.eventManager.emit(eventProposalVoteStarted,
 		dataProposalVoteStarted{
-			token:              pr.CensorshipRecord.Token,
-			name:               pr.Name,
-			adminID:            u.ID,
-			id:                 author.ID,
-			username:           author.Username,
-			email:              author.Email,
-			emailNotifications: author.EmailNotifications,
+			token:   pr.CensorshipRecord.Token,
+			name:    pr.Name,
+			adminID: u.ID.String(),
+			author:  *author,
 		})
 
 	return svr, nil
@@ -1290,13 +1287,10 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 		p.eventManager.emit(eventProposalVoteStarted,
 			dataProposalVoteStarted{
-				token:              pn.CensorshipRecord.Token,
-				name:               pn.Name,
-				adminID:            u.ID,
-				id:                 author.ID,
-				username:           author.Username,
-				email:              author.Email,
-				emailNotifications: author.EmailNotifications,
+				token:   pn.CensorshipRecord.Token,
+				name:    pn.Name,
+				adminID: u.ID.String(),
+				author:  *author,
 			})
 	}
 
