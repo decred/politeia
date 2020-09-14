@@ -33,29 +33,6 @@ import (
 	"github.com/robfig/cron"
 )
 
-var (
-	templateProposalSubmitted = template.Must(
-		template.New("proposal_submitted_template").Parse(templateProposalSubmittedRaw))
-	templateProposalVetted = template.Must(
-		template.New("proposal_vetted_template").Parse(templateProposalVettedRaw))
-	templateProposalEdited = template.Must(
-		template.New("proposal_edited_template").Parse(templateProposalEditedRaw))
-	templateProposalVoteStarted = template.Must(
-		template.New("proposal_vote_started_template").Parse(templateProposalVoteStartedRaw))
-	templateProposalVoteAuthorized = template.Must(
-		template.New("proposal_vote_authorized_template").Parse(templateProposalVoteAuthorizedRaw))
-	templateProposalVettedForAuthor = template.Must(
-		template.New("proposal_vetted_for_author_template").Parse(templateProposalVettedForAuthorRaw))
-	templateProposalCensoredForAuthor = template.Must(
-		template.New("proposal_censored_for_author_template").Parse(templateProposalCensoredForAuthorRaw))
-	templateProposalVoteStartedForAuthor = template.Must(
-		template.New("proposal_vote_started_for_author_template").Parse(templateProposalVoteStartedForAuthorRaw))
-	templateCommentReplyOnProposal = template.Must(
-		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
-	templateCommentReplyOnComment = template.Must(
-		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
-)
-
 // wsContext is the websocket context. If uuid == "" then it is an
 // unauthenticated websocket.
 type wsContext struct {

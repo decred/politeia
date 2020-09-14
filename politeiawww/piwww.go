@@ -282,6 +282,27 @@ func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
 	}, nil
 }
 
+// parseProposalName parsed the proposal name from the ProposalMetadata and
+// returns it. An empty string will be returned if any errors occur or if a
+// name is not found.
+func parseProposalName(pr pi.ProposalRecord) string {
+	var name string
+	for _, v := range pr.Metadata {
+		if v.Hint == pi.HintProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return ""
+			}
+			pm, err := piplugin.DecodeProposalMetadata(b)
+			if err != nil {
+				return ""
+			}
+			name = pm.Name
+		}
+	}
+	return name
+}
+
 // linkByPeriodMin returns the minimum amount of time, in seconds, that the
 // LinkBy period must be set to. This is determined by adding 1 week onto the
 // minimum voting period so that RFP proposal submissions have at least one
@@ -872,7 +893,7 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 		return nil, err
 	}
 
-	// Fire off a new proposal event
+	// Emit a new proposal event
 	p.eventManager.emit(eventProposalSubmitted,
 		dataProposalSubmitted{
 			token:    cr.Token,
@@ -1019,7 +1040,14 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		return nil, fmt.Errorf("unknown state %v", pe.State)
 	}
 
-	// TODO Emit an edit proposal event
+	// Emit an edit proposal event
+	p.eventManager.emit(eventProposalEdited, dataProposalEdited{
+		userID:   usr.ID.String(),
+		username: usr.Username,
+		token:    pe.Token,
+		name:     pm.Name,
+		// TODO version:  version,
+	})
 
 	log.Infof("Proposal edited: %v %v", pe.Token, pm.Name)
 	for k, f := range pe.Files {
@@ -1129,7 +1157,53 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 		}
 	}
 
-	// TODO Emit status change event
+	// Emit status change event
+	var (
+		r      *pd.Record
+		pr     *pi.ProposalRecord
+		author *user.User
+	)
+	switch pss.State {
+	case pi.PropStateUnvetted:
+		r, err = p.getUnvettedLatest(pss.Token)
+		if err != nil {
+			err = fmt.Errorf("getUnvettedLatest: %v", err)
+			goto reply
+		}
+	case pi.PropStateVetted:
+		r, err = p.getVettedLatest(pss.Token)
+		if err != nil {
+			err = fmt.Errorf("getVettedLatest: %v", err)
+			goto reply
+		}
+	}
+	pr, err = convertProposalRecordFromPD(*r)
+	if err != nil {
+		err = fmt.Errorf("convertProposalRecordFromPD: %v", err)
+		goto reply
+	}
+	author, err = p.db.UserGetByPubKey(pr.PublicKey)
+	if err != nil {
+		err = fmt.Errorf("UserGetByPubKey: %v", err)
+		goto reply
+	}
+	p.eventManager.emit(eventProposalStatusChange,
+		dataProposalStatusChange{
+			name:    parseProposalName(*pr),
+			token:   pss.Token,
+			status:  pss.Status,
+			reason:  pss.Reason,
+			adminID: usr.ID.String(),
+			author:  *author,
+		})
+
+reply:
+	// If an error exists at this point it means the error was from
+	// an action that occured after the status had been updated in
+	// politeiad. Log it and return a normal reply.
+	if err != nil {
+		log.Errorf("processProposalSetStatus: %v", err)
+	}
 
 	return &pi.ProposalSetStatusReply{
 		Timestamp: timestamp,

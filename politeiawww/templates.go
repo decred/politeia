@@ -1,8 +1,121 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
+
+import "text/template"
+
+var (
+	templateProposalVoteStarted = template.Must(
+		template.New("proposal_vote_started_template").Parse(templateProposalVoteStartedRaw))
+	templateProposalVoteAuthorized = template.Must(
+		template.New("proposal_vote_authorized_template").Parse(templateProposalVoteAuthorizedRaw))
+	templateProposalVoteStartedForAuthor = template.Must(
+		template.New("proposal_vote_started_for_author_template").Parse(templateProposalVoteStartedForAuthorRaw))
+	templateCommentReplyOnProposal = template.Must(
+		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
+	templateCommentReplyOnComment = template.Must(
+		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
+)
+
+// Proposal submitted
+type tmplDataProposalSubmitted struct {
+	Username string // Author username
+	Name     string // Proposal name
+	Link     string // GUI proposal details url
+}
+
+const tmplTextProposalSubmitted = `
+A new proposal has been submitted on Politeia by {{.Username}}:
+
+{{.Name}}
+{{.Link}}
+`
+
+var tmplProposalSubmitted = template.Must(
+	template.New("proposal_submitted").
+		Parse(tmplTextProposalSubmitted))
+
+// Proposal edited
+type tmplDataProposalEdited struct {
+	Name     string // Proposal name
+	Version  string // ProposalVersion
+	Username string // Author username
+	Link     string // GUI proposal details url
+}
+
+const tmplTextProposalEdited = `
+A proposal by {{.Username}} has just been edited:
+
+{{.Name}} (Version: {{.Version}})
+{{.Link}}
+`
+
+var tmplProposalEdited = template.Must(
+	template.New("proposal_edited").
+		Parse(tmplTextProposalEdited))
+
+// Proposal status change - Vetted - Send to author
+type tmplDataProposalVettedForAuthor struct {
+	Name string // Proposal name
+	Link string // GUI proposal details url
+}
+
+const tmplTextProposalVettedForAuthor = `
+Your proposal has just been approved on Politeia!
+
+You will need to authorize a proposal vote before an administrator will be
+allowed to start the voting period on your proposal.  You can authorize a
+proposal vote by opening the proposal page and clicking on the "Authorize
+Voting to Start" button.
+
+You should allow sufficient time for the community to discuss your proposal
+before authorizing the vote.
+
+{{.Name}}
+{{.Link}}
+`
+
+var tmplProposalVettedForAuthor = template.Must(
+	template.New("proposal_vetted_for_author").
+		Parse(tmplTextProposalVettedForAuthor))
+
+// Proposal status change - Censored - Send to author
+type tmplDataProposalCensoredForAuthor struct {
+	Name   string // Proposal name
+	Reason string // Reason for censoring
+	Link   string // GUI proposal details url
+}
+
+const tmplTextProposalCensoredForAuthor = `
+Your proposal on Politeia has been censored:
+
+{{.Name}}
+Reason: {{.Reason}}
+{{.Link}}
+`
+
+var tmplProposalCensoredForAuthor = template.Must(
+	template.New("proposal_censored_for_author").
+		Parse(tmplTextProposalCensoredForAuthor))
+
+// Proposal status change - Vetted - Send to users
+type tmplDataProposalVetted struct {
+	Name string
+	Link string
+}
+
+const tmplTextProposalVetted = `
+A new proposal has just been published on Politeia.
+
+{{.Name}}
+{{.Link}}
+`
+
+var tmplProposalVetted = template.Must(
+	template.New("proposal_vetted").
+		Parse(tmplTextProposalVetted))
 
 type invoiceNotificationEmailData struct {
 	Username string
@@ -46,30 +159,10 @@ type userPasswordChangedTemplateData struct {
 	Email string
 }
 
-type proposalSubmittedTemplateData struct {
-	Link     string // GUI proposal details url
-	Name     string // Proposal name
-	Username string // Author username
-}
-
-type proposalEditedTemplateData struct {
-	Link     string // GUI proposal details url
-	Name     string // Proposal name
-	Version  string // ProposalVersion
-	Username string // Author username
-}
-
 type proposalVoteStartedTemplateData struct {
 	Link     string // GUI proposal details url
 	Name     string // Proposal name
 	Username string // Author username
-}
-
-type proposalStatusChangeTemplateData struct {
-	Link               string // GUI proposal details url
-	Name               string // Proposal name
-	Username           string // Author username
-	StatusChangeReason string // Proposal status change reason
 }
 
 type proposalVoteAuthorizedTemplateData struct {
@@ -155,27 +248,6 @@ You are receiving this email because someone made too many login attempts for
 {{.Email}} on Politeia. If that was not you, please notify Politeia administrators.
 `
 
-const templateProposalSubmittedRaw = `
-A new proposal has been submitted on Politeia by {{.Username}}:
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalVettedRaw = `
-A new proposal has just been approved on Politeia, authored by {{.Username}}:
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalEditedRaw = `
-A proposal by {{.Username}} has just been edited:
-
-{{.Name}} (Version: {{.Version}})
-{{.Link}}
-`
-
 const templateProposalVoteStartedRaw = `
 Voting has started for the following proposal on Politeia, authored by {{.Username}}:
 
@@ -188,29 +260,6 @@ Voting has been authorized for the following proposal on Politeia by {{.Username
 
 {{.Name}}
 {{.Link}}
-`
-
-const templateProposalVettedForAuthorRaw = `
-Your proposal has just been approved on Politeia!
-
-You will need to authorize a proposal vote before an administrator will be
-allowed to start the voting period on your proposal.  You can authorize a
-proposal vote by opening the proposal page and clicking on the "Authorize
-Voting to Start" button.
-
-You must authorize a proposal vote within 14 days.  If you fail to do so, your
-proposal will be considered abandoned.
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalCensoredForAuthorRaw = `
-Your proposal on Politeia has been censored:
-
-{{.Name}}
-{{.Link}}
-Reason: {{.StatusChangeReason}}
 `
 
 const templateProposalVoteStartedForAuthorRaw = `

@@ -221,6 +221,12 @@ func (p *politeiawww) getUnvetted(token, version string) (*pd.Record, error) {
 	return &gur.Record, nil
 }
 
+// getUnvettedLatest returns the latest version of the unvetted record for the
+// provided token.
+func (p *politeiawww) getUnvettedLatest(token string) (*pd.Record, error) {
+	return p.getUnvetted(token, "")
+}
+
 // getVetted retrieves a vetted record from politeiad.
 func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 	// Setup request
@@ -250,4 +256,10 @@ func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 	}
 
 	return &gvr.Record, nil
+}
+
+// getVettedLatest returns the latest version of the vvetted record for the
+// provided token.
+func (p *politeiawww) getVettedLatest(token string) (*pd.Record, error) {
+	return p.getVetted(token, "")
 }

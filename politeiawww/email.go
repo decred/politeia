@@ -6,12 +6,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"strings"
 	"text/template"
 	"time"
 
-	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
@@ -119,84 +120,79 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token 
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailProposalStatusChange sends emails regarding the proposal status change
-// event. Sends email for the author and the users with this notification
-// bit set on
-func (p *politeiawww) emailProposalStatusChange(data dataProposalStatusChange, emails []string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", data.token, 1)
+// emailAuthorProposalStatusChange sends an email to the author of the proposal
+// notifying them of the proposal status change.
+func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChange) error {
+	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
 		return err
 	}
 
-	// Prepare and send author's email
-	err = p.emailAuthorProposalStatusChange(data.name, data.email, l.String(),
-		data.statusChangeMessage, data.emailNotifications, data.status, emails)
-	if err != nil {
-		return err
-	}
-
-	// Prepare and send user's email
-	err = p.emailUsersProposalStatusChange(data.name, data.username, l.String(),
-		emails)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// emailAuthorProposalStatusChange sends email for the author of the proposal
-// in which the status has changed, if his notification bit is set on.
-func (p *politeiawww) emailAuthorProposalStatusChange(name, email, link, statusChangeMsg string, emailNotifications uint64, status v1.PropStatusT, emails []string) error {
-	if !notificationIsSet(emailNotifications,
-		www.NotificationEmailMyProposalStatusChange) {
-		return nil
-	}
-
-	var subject string
-	var template *template.Template
-
-	switch status {
-	case v1.PropStatusCensored:
-		subject = "Your Proposal Has Been Censored"
-		template = templateProposalCensoredForAuthor
-	case v1.PropStatusPublic:
+	var (
+		subject string
+		body    string
+	)
+	switch d.status {
+	case pi.PropStatusPublic:
 		subject = "Your Proposal Has Been Published"
-		template = templateProposalVettedForAuthor
+		tmplData := tmplDataProposalVettedForAuthor{
+			Name: d.name,
+			Link: l.String(),
+		}
+		body, err = createBody(tmplProposalVettedForAuthor, &tmplData)
+		if err != nil {
+			return err
+		}
+
+	case pi.PropStatusCensored:
+		subject = "Your Proposal Has Been Censored"
+		tmplData := tmplDataProposalCensoredForAuthor{
+			Name:   d.name,
+			Reason: d.reason,
+			Link:   l.String(),
+		}
+		body, err = createBody(tmplProposalCensoredForAuthor, &tmplData)
+		if err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("no author notification for prop status %v", d.status)
 	}
 
-	authorTplData := proposalStatusChangeTemplateData{
-		Link:               link,
-		Name:               name,
-		StatusChangeReason: statusChangeMsg,
-	}
-	body, err := createBody(template, &authorTplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{email}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.smtp.sendEmailTo(subject, body, []string{d.author.Email})
 }
 
-// emailUsersProposalStatusChange sends email for all users with this
-// notification bit set on.
-func (p *politeiawww) emailUsersProposalStatusChange(name, username, link string, emails []string) error {
-	if len(emails) > 0 {
-		return nil
-	}
-	subject := "New Proposal Published"
-	template := templateProposalVetted
-	usersTplData := proposalStatusChangeTemplateData{
-		Link:     link,
-		Name:     name,
-		Username: username,
-	}
-	body, err := createBody(template, &usersTplData)
+// emailProposalStatusChangeToUsers sends an email to the provided users
+// notifying them of the proposal status change.
+func (p *politeiawww) emailProposalStatusChangeToUsers(d dataProposalStatusChange, emails []string) error {
+	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
 		return err
 	}
+
+	var (
+		subject string
+		body    string
+	)
+	switch d.status {
+	case pi.PropStatusPublic:
+		subject = "New Proposal Published"
+		tmplData := tmplDataProposalVetted{
+			Name: d.name,
+			Link: l.String(),
+		}
+		body, err = createBody(tmplProposalVetted, &tmplData)
+		if err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("no user notification for prop status %v", d.status)
+	}
+
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
@@ -209,7 +205,7 @@ func (p *politeiawww) emailProposalEdited(name, username, token, version string,
 		return err
 	}
 
-	tplData := proposalEditedTemplateData{
+	tmplData := tmplDataProposalEdited{
 		Link:     l.String(),
 		Name:     name,
 		Version:  version,
@@ -217,7 +213,7 @@ func (p *politeiawww) emailProposalEdited(name, username, token, version string,
 	}
 
 	subject := "Proposal Edited"
-	body, err := createBody(templateProposalEdited, &tplData)
+	body, err := createBody(tmplProposalEdited, &tmplData)
 	if err != nil {
 		return err
 	}
@@ -274,14 +270,14 @@ func (p *politeiawww) emailProposalSubmitted(token, name, username string, email
 		return err
 	}
 
-	tplData := proposalSubmittedTemplateData{
-		Link:     l.String(),
-		Name:     name,
+	tmplData := tmplDataProposalSubmitted{
 		Username: username,
+		Name:     name,
+		Link:     l.String(),
 	}
 
 	subject := "New Proposal Submitted"
-	body, err := createBody(templateProposalSubmitted, &tplData)
+	body, err := createBody(tmplProposalSubmitted, &tmplData)
 	if err != nil {
 		return err
 	}

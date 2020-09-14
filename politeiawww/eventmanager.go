@@ -7,7 +7,7 @@ package main
 import (
 	"sync"
 
-	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -20,10 +20,10 @@ const (
 	eventTypeInvalid eventT = iota
 
 	// Pi events
-	eventProposalComment
 	eventProposalSubmitted
-	eventProposalStatusChange
 	eventProposalEdited
+	eventProposalStatusChange
+	eventProposalComment
 	eventProposalVoteAuthorized
 	eventProposalVoteStarted
 
@@ -149,8 +149,8 @@ func notificationIsSet(emailNotifications uint64, n www.EmailNotificationT) bool
 	return true
 }
 
-// userNotificationEnabled wraps all user checks to see if he is in correct
-// state to receive notifications
+// userNotificationEnabled returns whether the user should receive the provided
+// notification.
 func userNotificationEnabled(u user.User, n www.EmailNotificationT) bool {
 	// Never send notification to deactivated users
 	if u.Deactivated {
@@ -161,6 +161,157 @@ func userNotificationEnabled(u user.User, n www.EmailNotificationT) bool {
 		return false
 	}
 	return true
+}
+
+type dataProposalSubmitted struct {
+	token    string // Proposal token
+	name     string // Proposal name
+	username string // Author username
+}
+
+func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
+	for msg := range ch {
+		d, ok := msg.(dataProposalSubmitted)
+		if !ok {
+			log.Errorf("handleEventProposalSubmitted invalid msg: %v", msg)
+			continue
+		}
+
+		// Compile email notification recipients
+		emails := make([]string, 0, 256)
+		err := p.db.AllUsers(func(u *user.User) {
+			// Check if user is able to receive notification
+			if userNotificationEnabled(*u, www.NotificationEmailAdminProposalNew) {
+				emails = append(emails, u.Email)
+			}
+		})
+		if err != nil {
+			log.Errorf("handleEventProposalSubmitted: AllUsers: %v", err)
+			return
+		}
+
+		// Send email notification
+		err = p.emailProposalSubmitted(d.token, d.name, d.username, emails)
+		if err != nil {
+			log.Errorf("emailProposalSubmitted: %v", err)
+		}
+
+		log.Debugf("Sent proposal submitted notification %v", d.token)
+	}
+}
+
+type dataProposalEdited struct {
+	userID   string // Author id
+	username string // Author username
+	token    string // Proposal censorship token
+	name     string // Proposal name
+	version  string // Proposal version
+}
+
+func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
+	for msg := range ch {
+		d, ok := msg.(dataProposalEdited)
+		if !ok {
+			log.Errorf("handleEventProposalEdited invalid msg: %v", msg)
+			continue
+		}
+
+		// Compile list of emails to send notification to
+		emails := make([]string, 0, 256)
+		err := p.db.AllUsers(func(u *user.User) {
+			// Check circumstances where we don't notify
+			switch {
+			case u.ID.String() == d.userID:
+				// User is the author
+				return
+			case !userNotificationEnabled(*u,
+				www.NotificationEmailRegularProposalEdited):
+				// User doesn't have notification bit set
+				return
+			}
+
+			// Add user to notification list
+			emails = append(emails, u.Email)
+		})
+
+		err = p.emailProposalEdited(d.name, d.username, d.token, d.version,
+			emails)
+		if err != nil {
+			log.Errorf("emailProposalEdited: %v", err)
+		}
+
+		log.Debugf("Sent proposal edited notifications %v", d.token)
+	}
+}
+
+type dataProposalStatusChange struct {
+	name    string         // Proposal name
+	token   string         // Proposal censorship token
+	status  pi.PropStatusT // Proposal status
+	reason  string         // Status change reason
+	adminID string         // Admin uuid
+	author  user.User      // Proposal author
+}
+
+func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
+	for msg := range ch {
+		d, ok := msg.(dataProposalStatusChange)
+		if !ok {
+			log.Errorf("handleProposalStatusChange invalid msg: %v", msg)
+			continue
+		}
+
+		// Check if proposal is in correct status for notification
+		switch d.status {
+		case pi.PropStatusPublic, pi.PropStatusCensored:
+			// The status requires a notification be sent
+		default:
+			// The status does not require a notification be sent. Listen
+			// for next event.
+			continue
+		}
+
+		// Compile list of emails to sent notification to
+		emails := make([]string, 0, 256)
+		notification := www.NotificationEmailRegularProposalVetted
+		err := p.db.AllUsers(func(u *user.User) {
+			// Check circumstances where we don't notify
+			switch {
+			case u.ID.String() == d.adminID:
+				// User is the admin that made the status change
+				return
+			case u.ID.String() == d.author.ID.String():
+				// User is the author. The author is sent a notification but
+				// the notification is not the same as the normal user
+				// notification so don't include the author's emails in the
+				// list of user emails.
+				return
+			case !userNotificationEnabled(*u, notification):
+				// User does not have notification bit set
+				return
+			}
+
+			emails = append(emails, u.Email)
+		})
+
+		// Email author
+		if userNotificationEnabled(d.author, notification) {
+			err = p.emailProposalStatusChangeToAuthor(d)
+			if err != nil {
+				log.Errorf("emailProposalStatusChangeToAuthor: %v", err)
+			}
+		}
+
+		// Email users
+		if len(emails) > 0 {
+			err = p.emailProposalStatusChangeToUsers(d, emails)
+			if err != nil {
+				log.Errorf("emailProposalStatusChangeToUsers: %v", err)
+			}
+		}
+
+		log.Debugf("Sent proposal status change notifications %v", d.token)
+	}
 }
 
 type dataProposalComment struct {
@@ -229,134 +380,6 @@ func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
 		}
 
 		log.Debugf("Sent proposal commment notification %v", d.token)
-	}
-}
-
-type dataProposalSubmitted struct {
-	token    string // Proposal token
-	name     string // Proposal name
-	username string // Author username
-}
-
-func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
-	for msg := range ch {
-		d, ok := msg.(dataProposalSubmitted)
-		if !ok {
-			log.Errorf("handleEventProposalSubmitted invalid msg: %v", msg)
-			continue
-		}
-
-		// Compile email notification recipients
-		emails := make([]string, 0, 256)
-		err := p.db.AllUsers(func(u *user.User) {
-			// Check if user is able to receive notification
-			if userNotificationEnabled(*u,
-				www.NotificationEmailAdminProposalNew) {
-				emails = append(emails, u.Email)
-			}
-
-			// Only send proposal submitted notifications to admins
-			if !u.Admin {
-				return
-			}
-		})
-		if err != nil {
-			log.Errorf("handleEventProposalSubmitted: AllUsers: %v", err)
-			return
-		}
-
-		// Send email notification
-		err = p.emailProposalSubmitted(d.token, d.name, d.username, emails)
-		if err != nil {
-			log.Errorf("emailProposalSubmitted: %v", err)
-		}
-
-		log.Debugf("Sent proposal submitted notification %v", d.token)
-	}
-}
-
-type dataProposalStatusChange struct {
-	name                string         // Proposal name
-	token               string         // Proposal censorship token
-	status              v1.PropStatusT // Proposal status
-	statusChangeMessage string         // Status change message
-	adminID             uuid.UUID      // Admin uuid
-	id                  uuid.UUID      // Author uuid
-	email               string         // Author user email
-	emailNotifications  uint64         // Author notification settings
-	username            string         // Author username
-}
-
-func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
-	for msg := range ch {
-		d, ok := msg.(dataProposalStatusChange)
-		if !ok {
-			log.Errorf("handleProposalStatusChange invalid msg: %v", msg)
-			continue
-		}
-
-		// Check if proposal is in correct status for notification
-		if d.status != v1.PropStatusPublic &&
-			d.status != v1.PropStatusCensored {
-			continue
-		}
-
-		emails := make([]string, 0, 256)
-		err := p.db.AllUsers(func(u *user.User) {
-			// Check circunstances where we don't notify
-			if u.ID == d.adminID || u.ID == d.id ||
-				!userNotificationEnabled(*u,
-					www.NotificationEmailRegularProposalVetted) {
-				return
-			}
-
-			emails = append(emails, u.Email)
-		})
-
-		err = p.emailProposalStatusChange(d, emails)
-		if err != nil {
-			log.Errorf("emailProposalStatusChange: %v", err)
-		}
-
-		log.Debugf("Sent proposal status change notifications %v", d.token)
-	}
-}
-
-type dataProposalEdited struct {
-	id       uuid.UUID // Author id
-	username string    // Author username
-	token    string    // Proposal censorship token
-	name     string    // Proposal name
-	version  string    // Proposal version
-}
-
-func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
-	for msg := range ch {
-		d, ok := msg.(dataProposalEdited)
-		if !ok {
-			log.Errorf("handleEventProposalEdited invalid msg: %v", msg)
-			continue
-		}
-
-		emails := make([]string, 0, 256)
-		err := p.db.AllUsers(func(u *user.User) {
-			// Check circunstances where we don't notify
-			if u.NewUserPaywallTx == "" || u.ID == d.id ||
-				!userNotificationEnabled(*u,
-					www.NotificationEmailRegularProposalEdited) {
-				return
-			}
-
-			emails = append(emails, u.Email)
-		})
-
-		err = p.emailProposalEdited(d.name, d.username, d.token, d.version,
-			emails)
-		if err != nil {
-			log.Errorf("emailProposalEdited: %v", err)
-		}
-
-		log.Debugf("Sent proposal edited notifications %v", d.token)
 	}
 }
 
