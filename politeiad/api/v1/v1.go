@@ -21,13 +21,15 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute             = "/v1/identity/"       // Retrieve identity
-	NewRecordRoute            = "/v1/newrecord/"      // New record
-	UpdateUnvettedRoute       = "/v1/updateunvetted/" // Update unvetted record
-	UpdateVettedRoute         = "/v1/updatevetted/"   // Update vetted record
-	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
-	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
-	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
+	IdentityRoute               = "/v1/identity/"          // Retrieve identity
+	NewRecordRoute              = "/v1/newrecord/"         // New record
+	UpdateUnvettedRoute         = "/v1/updateunvetted/"    // Update unvetted record
+	UpdateVettedRoute           = "/v1/updatevetted/"      // Update vetted record
+	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"    // Update vetted metadata
+	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
+	GetUnvettedRoute            = "/v1/getunvetted/"       // Retrieve unvetted record
+	GetVettedRoute              = "/v1/getvetted/"         // Retrieve vetted record
+	InventoryByStatusRoute      = "/v1/inventorybystatus/" // Inventory record tokens by status
 
 	// Auth required
 	InventoryRoute         = "/v1/inventory/"                  // Inventory records
@@ -317,8 +319,8 @@ type UpdateRecord struct {
 // UpdateRecordReply returns a CensorshipRecord which may or may not have
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
-	// TODO add censorship record
 	Response string `json:"response"` // Challenge response
+	Token    string `json:"token"`    // Censorship token
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for
@@ -333,6 +335,19 @@ type UpdateVettedMetadata struct {
 // UpdateVettedMetadataReply returns a response challenge to an
 // UpdateVettedMetadata command.
 type UpdateVettedMetadataReply struct {
+	Response string `json:"response"` // Challenge response
+}
+
+// UpdateUnvettedMetadata update a unvetted metadata.
+type UpdateUnvettedMetadata struct {
+	Challenge   string           `json:"challenge"`   // Random challenge
+	Token       string           `json:"token"`       // Censorship token
+	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
+	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
+}
+
+// UpdateUnvettedMetadataReply returns a response challenge.
+type UpdateUnvettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
@@ -361,6 +376,22 @@ type InventoryReply struct {
 	Response string   `json:"response"` // Challenge response
 	Vetted   []Record `json:"vetted"`   // Last N vetted records
 	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
+}
+
+// InventoryByStatus requests for the censhorship tokens from all records
+// filtered by their status.
+type InventoryByStatus struct {
+	Challenge string `json:"challenge"` // Random challenge
+}
+
+// InventoryByStatusReply returns all censorship record tokens by status.
+type InventoryByStatusReply struct {
+	Response          string   `json:"response"`          // Challenge response
+	Unvetted          []string `json:"unvetted"`          // Unvetted censorship tokens
+	IterationUnvetted []string `json:"iterationunvetted"` // Iteration unvetted censorship tokens
+	Vetted            []string `json:"vetted"`            // Vetted censorship tokens
+	Censored          []string `json:"censored"`          // Censored censorship tokens
+	Archived          []string `json:"archived"`          // Archived censorship tokens
 }
 
 // UserErrorReply returns details about an error that occurred while trying to

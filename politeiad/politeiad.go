@@ -369,6 +369,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	response := p.identity.SignMessage(challenge)
 	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
+		Token:    t.Token,
 	}
 
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
@@ -557,6 +558,45 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 		unvetted = append(unvetted, p.convertBackendRecord(v))
 	}
 	reply.Branches = unvetted
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) inventoryByStatus(w http.ResponseWriter, r *http.Request) {
+	var ibs v1.InventoryByStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ibs); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(ibs.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	ps, err := p.backend.InventoryByStatus()
+	if err != nil {
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v InventoryByStatus error code %v: %v", remoteAddr(r),
+			errorCode, err)
+
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	// Prepare reply
+	response := p.identity.SignMessage(challenge)
+	reply := v1.InventoryByStatusReply{
+		Response:          hex.EncodeToString(response[:]),
+		Unvetted:          ps.Unvetted,
+		IterationUnvetted: ps.IterationUnvetted,
+		Vetted:            ps.Vetted,
+		Censored:          ps.Censored,
+		Archived:          ps.Archived,
+	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -768,6 +808,68 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 	}
 
 	log.Infof("Update vetted metadata %v: token %x", remoteAddr(r), token)
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request) {
+	var t v1.UpdateUnvettedMetadata
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	log.Infof("Update unvetted metadata submitted %v: %x", remoteAddr(r),
+		token)
+
+	err = p.backend.UpdateUnvettedMetadata(token,
+		convertFrontendMetadataStream(t.MDAppend),
+		convertFrontendMetadataStream(t.MDOverwrite))
+	if err != nil {
+		// Reply with error if there were no changes
+		if err == backend.ErrNoChanges {
+			log.Errorf("%v update unvetted metadata no changes: %x",
+				remoteAddr(r), token)
+			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
+			return
+		}
+		// Check for content error.
+		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+			log.Errorf("%v update unvetted metadata content error: %v",
+				remoteAddr(r), contentErr)
+			p.respondWithUserError(w, contentErr.ErrorCode,
+				contentErr.ErrorContext)
+			return
+		}
+
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Update unvetted metadata error code %v: %v",
+			remoteAddr(r), errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	// Reply with challenge response
+	response := p.identity.SignMessage(challenge)
+	reply := v1.UpdateUnvettedMetadataReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	log.Infof("Update unvetted metadata %v: token %x", remoteAddr(r), token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -997,6 +1099,8 @@ func _main() error {
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
 		permissionPublic)
+	p.addRoute(http.MethodPost, v1.InventoryByStatusRoute,
+		p.inventoryByStatus, permissionPublic)
 
 	// Routes that require auth
 	p.addRoute(http.MethodPost, v1.InventoryRoute, p.inventory,
@@ -1007,6 +1111,8 @@ func _main() error {
 		p.setVettedStatus, permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
 		p.updateVettedMetadata, permissionAuth)
+	p.addRoute(http.MethodPost, v1.UpdateUnvettedMetadataRoute,
+		p.updateUnvettedMetadata, permissionAuth)
 
 	// Setup plugins
 	/*
