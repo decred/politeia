@@ -221,9 +221,9 @@ func (p *politeiawww) emailProposalEdited(name, username, token, version string,
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
-// emailProposalVoteStarted sends email for the proposal vote started event.
-// Sends email to author and users with this notification bit set on.
-func (p *politeiawww) emailProposalVoteStarted(token, name, username, email string, emailNotifications uint64, emails []string) error {
+// emailProposalVoteStarted sends email to the proposal author for the
+// proposal vote started event.
+func (p *politeiawww) emailProposalVoteStartedToAuthor(token, name, username, email string) error {
 	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -236,20 +236,29 @@ func (p *politeiawww) emailProposalVoteStarted(token, name, username, email stri
 		Username: username,
 	}
 
-	if emailNotifications&
-		uint64(www.NotificationEmailMyProposalVoteStarted) != 0 {
+	subject := "Your Proposal Has Started Voting"
+	body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
+	if err != nil {
+		return err
+	}
+	recipients := []string{email}
 
-		subject := "Your Proposal Has Started Voting"
-		body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
-		if err != nil {
-			return err
-		}
-		recipients := []string{email}
+	return p.smtp.sendEmailTo(subject, body, recipients)
+}
 
-		err = p.smtp.sendEmailTo(subject, body, recipients)
-		if err != nil {
-			return err
-		}
+// emailProposalVoteStartedToUsers sends email to users with this notification
+// bit set on for the proposal vote started event.
+func (p *politeiawww) emailProposalVoteStartedToUsers(token, name, username string, emails []string) error {
+	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	tplData := proposalVoteStartedTemplateData{
+		Link:     l.String(),
+		Name:     name,
+		Username: username,
 	}
 
 	subject := "Voting Started for Proposal"
