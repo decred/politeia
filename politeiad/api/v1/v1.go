@@ -239,8 +239,8 @@ type NewRecord struct {
 // NewRecordReply returns the CensorshipRecord that is associated with a valid
 // record.  A valid record is not always going to be published.
 type NewRecordReply struct {
-	Response         string           `json:"response"` // Challenge response
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Response         string           `json:"response"`         // Challenge response
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"` // Censorship record
 }
 
 // GetUnvetted requests an unvetted record from the server.
@@ -319,8 +319,8 @@ type UpdateRecord struct {
 // UpdateRecordReply returns a CensorshipRecord which may or may not have
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
-	Response string `json:"response"` // Challenge response
-	Token    string `json:"token"`    // Censorship token
+	Response         string           `json:"response"`         // Challenge response
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"` // Censorship record
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for
@@ -387,11 +387,11 @@ type InventoryByStatus struct {
 // InventoryByStatusReply returns all censorship record tokens by status.
 type InventoryByStatusReply struct {
 	Response          string   `json:"response"`          // Challenge response
-	Unvetted          []string `json:"unvetted"`          // Unvetted censorship tokens
-	IterationUnvetted []string `json:"iterationunvetted"` // Iteration unvetted censorship tokens
-	Vetted            []string `json:"vetted"`            // Vetted censorship tokens
-	Censored          []string `json:"censored"`          // Censored censorship tokens
-	Archived          []string `json:"archived"`          // Archived censorship tokens
+	Unvetted          []string `json:"unvetted"`          // Unvetted tokens
+	IterationUnvetted []string `json:"iterationunvetted"` // Iteration unvetted tokens
+	Vetted            []string `json:"vetted"`            // Vetted tokens
+	Censored          []string `json:"censored"`          // Censored tokens
+	Archived          []string `json:"archived"`          // Archived tokens
 }
 
 // UserErrorReply returns details about an error that occurred while trying to

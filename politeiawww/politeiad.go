@@ -408,11 +408,11 @@ func (p *politeiawww) getVettedLatest(token string) (*pd.Record, error) {
 
 // pluginInventory requests the plugin inventory from politeiad and returns
 // inventoryByStatus retrieves the censorship record tokens filtered by status.
-func (p *politeiawww) inventoryByStatus() (pd.InventoryByStatusReply, error) {
+func (p *politeiawww) inventoryByStatus() (*pd.InventoryByStatusReply, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
-		return pd.InventoryByStatusReply{}, err
+		return nil, err
 	}
 	ibs := pd.InventoryByStatus{
 		Challenge: hex.EncodeToString(challenge),
@@ -421,28 +421,28 @@ func (p *politeiawww) inventoryByStatus() (pd.InventoryByStatusReply, error) {
 	// Send request
 	resBody, err := p.makeRequest(http.MethodPost, pd.InventoryByStatusRoute, ibs)
 	if err != nil {
-		return pd.InventoryByStatusReply{}, err
+		return nil, err
 	}
 
 	// Receive reply
 	var ibsr pd.InventoryByStatusReply
 	err = json.Unmarshal(resBody, &ibsr)
 	if err != nil {
-		return pd.InventoryByStatusReply{}, err
+		return nil, err
 	}
 
 	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, ibsr.Response)
 	if err != nil {
-		return pd.InventoryByStatusReply{}, err
+		return nil, err
 	}
 
-	return ibsr, nil
+	return &ibsr, nil
 }
 
 // pluginInventory requests the plugin inventory from politeiad and returns
 // the available plugins slice.
-func (p *politeiawww) pluginInventory() ([]Plugin, error) {
+func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -471,13 +471,7 @@ func (p *politeiawww) pluginInventory() ([]Plugin, error) {
 		return nil, err
 	}
 
-	// Convert politeiad plugin types
-	plugins := make([]Plugin, 0, len(pir.Plugins))
-	for _, v := range pir.Plugins {
-		plugins = append(plugins, convertPluginFromPD(v))
-	}
-
-	return plugins, nil
+	return pir.Plugins, nil
 }
 
 // pluginCommand fires a plugin command on politeiad and returns the reply

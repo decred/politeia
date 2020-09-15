@@ -366,10 +366,17 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	}
 
 	// Prepare reply.
+	merkle := record.RecordMetadata.Merkle
+	signature := p.identity.SignMessage([]byte(merkle + t.Token))
 	response := p.identity.SignMessage(challenge)
+
 	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
-		Token:    t.Token,
+		CensorshipRecord: v1.CensorshipRecord{
+			Merkle:    merkle,
+			Token:     t.Token,
+			Signature: hex.EncodeToString(signature[:]),
+		},
 	}
 
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
@@ -413,7 +420,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend about the censorship token.
-	bpr, err := p.backend.GetUnvetted(token, "")
+	bpr, err := p.backend.GetUnvetted(token, t.Version)
 	if err == backend.ErrRecordNotFound {
 		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get unvetted record %v: token %v not found",
