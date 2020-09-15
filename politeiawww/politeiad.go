@@ -440,7 +440,7 @@ func (p *politeiawww) inventoryByStatus() (pd.InventoryByStatusReply, error) {
 	return ibsr, nil
 }
 
-// pluginInventory2 requests the plugin inventory from politeiad and returns
+// pluginInventory requests the plugin inventory from politeiad and returns
 // the available plugins slice.
 func (p *politeiawww) pluginInventory() ([]Plugin, error) {
 	// Setup request
