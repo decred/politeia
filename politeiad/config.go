@@ -89,12 +89,13 @@ type config struct {
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
 	// TODO validate these config params
-	Backend              string `long:"backend"`
-	TrillianHostUnvetted string `long:"trillianhostunvetted"`
-	TrillianHostVetted   string `long:"trillianhostvetted"`
-	TrillianKeyUnvetted  string `long:"trilliankeyunvetted"`
-	TrillianKeyVetted    string `long:"trilliankeyvetted"`
-	EncryptionKey        string `long:"encryptionkey"`
+	Backend              string   `long:"backend"`
+	TrillianHostUnvetted string   `long:"trillianhostunvetted"`
+	TrillianHostVetted   string   `long:"trillianhostvetted"`
+	TrillianKeyUnvetted  string   `long:"trilliankeyunvetted"`
+	TrillianKeyVetted    string   `long:"trilliankeyvetted"`
+	EncryptionKey        string   `long:"encryptionkey"`
+	Plugins              []string `long:"plugins"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service

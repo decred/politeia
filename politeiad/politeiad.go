@@ -19,6 +19,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/decred/politeia/cmsplugin"
+	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/plugins/comments"
+	"github.com/decred/politeia/plugins/dcrdata"
+	"github.com/decred/politeia/plugins/pi"
+	"github.com/decred/politeia/plugins/ticketvote"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
@@ -808,7 +814,7 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := p.backend.Plugin("", pc.Command, pc.Payload)
+	payload, err := p.backend.Plugin(pc.ID, pc.Command, pc.Payload)
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
@@ -823,7 +829,7 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	reply := v1.PluginCommandReply{
 		Response:  hex.EncodeToString(response[:]),
 		ID:        pc.ID,
-		Command:   pc.CommandID,
+		Command:   pc.Command,
 		CommandID: pc.CommandID,
 		Payload:   payload,
 	}
@@ -1003,28 +1009,76 @@ func _main() error {
 		p.updateVettedMetadata, permissionAuth)
 
 	// Setup plugins
-	plugins, err := p.backend.GetPlugins()
-	if err != nil {
-		return err
-	}
-	if len(plugins) > 0 {
+	/*
+		plugins, err := p.backend.GetPlugins()
+		if err != nil {
+			return err
+		}
+		if len(plugins) > 0 {
+			// Set plugin routes. Requires auth.
+			p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
+				permissionAuth)
+			p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
+				permissionAuth)
+
+			for _, v := range plugins {
+				// make sure we only have lowercase names
+				if backend.PluginRE.FindString(v.ID) != v.ID {
+					return fmt.Errorf("invalid plugin id: %v", v.ID)
+				}
+				if _, found := p.plugins[v.ID]; found {
+					return fmt.Errorf("duplicate plugin: %v", v.ID)
+				}
+				p.plugins[v.ID] = convertBackendPlugin(v)
+
+				log.Infof("Registered plugin: %v", v.ID)
+			}
+		}
+	*/
+
+	// Setup plugins
+	if len(loadedCfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
 			permissionAuth)
 		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
 			permissionAuth)
 
-		for _, v := range plugins {
-			// make sure we only have lowercase names
-			if backend.PluginRE.FindString(v.ID) != v.ID {
-				return fmt.Errorf("invalid plugin id: %v", v.ID)
+		// Register plugins
+		for _, v := range loadedCfg.Plugins {
+			var plugin backend.Plugin
+			switch v {
+			case comments.ID:
+			case dcrdata.ID:
+			case pi.ID:
+			case ticketvote.ID:
+			case decredplugin.ID:
+				// TODO plugin setup for cms
+			case cmsplugin.ID:
+				// TODO plugin setup for cms
+			default:
+				return fmt.Errorf("unknown plugin '%v'", v)
 			}
-			if _, found := p.plugins[v.ID]; found {
-				return fmt.Errorf("duplicate plugin: %v", v.ID)
-			}
-			p.plugins[v.ID] = convertBackendPlugin(v)
 
-			log.Infof("Registered plugin: %v", v.ID)
+			// Register with backend
+			err := p.backend.RegisterPlugin(plugin)
+			if err != nil {
+				return fmt.Errorf("RegisterPlugin %v: %v", v, err)
+			}
+
+			// Add to politeiad context
+			p.plugins[plugin.ID] = convertBackendPlugin(plugin)
+
+			log.Infof("Registered plugin: %v", v)
+		}
+
+		// Setup plugins
+		for _, v := range loadedCfg.Plugins {
+			log.Infof("Performing plugin setup for %v plugin", v)
+			err := p.backend.SetupPlugin(v)
+			if err != nil {
+				return fmt.Errorf("SetupPlugin %v: %v", v, err)
+			}
 		}
 	}
 

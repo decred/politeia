@@ -2791,6 +2791,20 @@ func (g *gitBackEnd) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
+// RegisterPlugin registers a plugin.
+func (g *gitBackEnd) RegisterPlugin(p backend.Plugin) error {
+	log.Tracef("RegisterPlugin: %v", p.ID)
+
+	return nil
+}
+
+// SetupPlugin performs any required plugin setup.
+func (g *gitBackEnd) SetupPlugin(pluginID string) error {
+	log.Tracef("SetupPlugin: %v", pluginID)
+
+	return nil
+}
+
 // GetPlugins returns a list of currently supported plugins and their settings.
 //
 // GetPlugins satisfies the backend interface.

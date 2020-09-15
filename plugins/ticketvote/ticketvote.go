@@ -18,8 +18,7 @@ type VoteErrorT int
 type ErrorStatusT int
 
 const (
-	Version uint32 = 1
-	ID             = "ticketvote"
+	ID = "ticketvote"
 
 	// Plugin commands
 	CmdAuthorize   = "authorize"   // Authorize a vote

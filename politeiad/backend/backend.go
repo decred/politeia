@@ -148,8 +148,8 @@ type Plugin struct {
 }
 
 // InventoryByStatus contains the record tokens of all records in the inventory
-// catagorized by MDStatusT. Each array is sorted by the timestamp of the
-// status change from newest to oldest.
+// catagorized by MDStatusT. Each list is sorted by the timestamp of the status
+// change from newest to oldest.
 type InventoryByStatus struct {
 	Unvetted          []string
 	IterationUnvetted []string
@@ -205,11 +205,17 @@ type Backend interface {
 	// inventory catagorized by MDStatusT.
 	InventoryByStatus() (*InventoryByStatus, error)
 
+	// Register a plugin with the backend
+	RegisterPlugin(Plugin) error
+
+	// Perform any plugin setup that is required
+	SetupPlugin(pluginID string) error
+
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)
 
 	// Plugin pass-through command
-	Plugin(string, string, string) (string, error)
+	Plugin(pluginID, cmd, payload string) (string, error)
 
 	// Close performs cleanup of the backend.
 	Close()

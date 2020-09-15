@@ -1302,16 +1302,18 @@ func (t *TlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	}, nil
 }
 
-func (t *TlogBackend) pluginHook(h HookT, payload string) error {
-	// Pass hook event and payload to each plugin
-	for _, v := range t.plugins {
-		err := v.ctx.Hook(h, payload)
-		if err != nil {
-			return fmt.Errorf("Hook %v: %v", v.id, err)
-		}
-	}
+// TODO
+func (t *TlogBackend) RegisterPlugin(p backend.Plugin) error {
+	log.Tracef("RegisterPlugin: %v", p.ID)
 
-	return nil
+	return fmt.Errorf("not implemented")
+}
+
+// TODO
+func (t *TlogBackend) SetupPlugin(pluginID string) error {
+	log.Tracef("SetupPlugin: %v", pluginID)
+
+	return fmt.Errorf("not implemented")
 }
 
 // GetPlugins returns the backend plugins that have been registered and their
@@ -1336,8 +1338,8 @@ func (t *TlogBackend) GetPlugins() ([]backend.Plugin, error) {
 // Plugin is a pass-through function for plugin commands.
 //
 // This function satisfies the Backend interface.
-func (t *TlogBackend) Plugin(pluginID, command, payload string) (string, error) {
-	log.Tracef("Plugin: %v", command)
+func (t *TlogBackend) Plugin(pluginID, cmd, payload string) (string, error) {
+	log.Tracef("Plugin: %v %v", pluginID, cmd)
 
 	if t.isShutdown() {
 		return "", backend.ErrShutdown
@@ -1350,12 +1352,24 @@ func (t *TlogBackend) Plugin(pluginID, command, payload string) (string, error) 
 	}
 
 	// Execute plugin command
-	reply, err := plugin.ctx.Cmd(command, payload)
+	reply, err := plugin.ctx.Cmd(cmd, payload)
 	if err != nil {
 		return "", err
 	}
 
 	return reply, nil
+}
+
+func (t *TlogBackend) pluginHook(h HookT, payload string) error {
+	// Pass hook event and payload to each plugin
+	for _, v := range t.plugins {
+		err := v.ctx.Hook(h, payload)
+		if err != nil {
+			return fmt.Errorf("Hook %v: %v", v.id, err)
+		}
+	}
+
+	return nil
 }
 
 // Close shuts the backend down and performs cleanup.

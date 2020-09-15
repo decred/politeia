@@ -18,8 +18,7 @@ type PropStatusT int
 type ErrorStatusT int
 
 const (
-	Version uint32 = 1
-	ID             = "pi"
+	ID = "pi"
 
 	// Plugin commands
 	CmdProposals = "proposals" // Get proposals plugin data
