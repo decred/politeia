@@ -531,7 +531,7 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 		abandonedAt = time.Now().Unix()
 	}
 
-	tokenb, err := util.Random(pd.TokenSize)
+	tokenb, err := util.Random(pd.TokenSizeMax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -699,7 +699,6 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		test:            true,
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
-		commentVotes:    make(map[string]counters),
 	}
 
 	// Setup routes
@@ -805,7 +804,6 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		test:            true,
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
-		commentVotes:    make(map[string]counters),
 	}
 
 	// Setup routes

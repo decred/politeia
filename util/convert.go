@@ -33,12 +33,10 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 // ConvertStringToken verifies and converts a string token to a proper sized
 // []byte.
 func ConvertStringToken(token string) ([]byte, error) {
-	// TODO add new token size
-	/*
-		if len(token) != pd.TokenSize*2 {
-			return nil, fmt.Errorf("invalid censorship token size")
-		}
-	*/
+	if len(token) > pd.TokenSizeMax*2 ||
+		len(token) < pd.TokenSizeMin*2 {
+		return nil, fmt.Errorf("invalid censorship token size")
+	}
 	blob, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, err

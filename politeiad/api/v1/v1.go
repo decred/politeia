@@ -37,8 +37,12 @@ const (
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
 
 	ChallengeSize = 32 // Size of challenge token in bytes
-	// TODO TokenSize needs to be updated
-	TokenSize          = 32         // Size of token
+
+	// Token sizes. The size of the token depends on the politeiad
+	// backend configuration, but will always be within this range.
+	TokenSizeMin = 10
+	TokenSizeMax = 32
+
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
 	// Error status codes

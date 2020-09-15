@@ -33,9 +33,8 @@ A new proposal has been submitted on Politeia by {{.Username}}:
 {{.Link}}
 `
 
-var tmplProposalSubmitted = template.Must(
-	template.New("proposal_submitted").
-		Parse(tmplTextProposalSubmitted))
+var tmplProposalSubmitted = template.Must(template.New("proposalSubmitted").
+	Parse(tmplTextProposalSubmitted))
 
 // Proposal edited
 type tmplDataProposalEdited struct {
@@ -52,9 +51,8 @@ A proposal by {{.Username}} has just been edited:
 {{.Link}}
 `
 
-var tmplProposalEdited = template.Must(
-	template.New("proposal_edited").
-		Parse(tmplTextProposalEdited))
+var tmplProposalEdited = template.Must(template.New("proposalEdited").
+	Parse(tmplTextProposalEdited))
 
 // Proposal status change - Vetted - Send to author
 type tmplDataProposalVettedForAuthor struct {
@@ -78,7 +76,7 @@ before authorizing the vote.
 `
 
 var tmplProposalVettedForAuthor = template.Must(
-	template.New("proposal_vetted_for_author").
+	template.New("proposalVettedForAuthor").
 		Parse(tmplTextProposalVettedForAuthor))
 
 // Proposal status change - Censored - Send to author
@@ -97,7 +95,7 @@ Reason: {{.Reason}}
 `
 
 var tmplProposalCensoredForAuthor = template.Must(
-	template.New("proposal_censored_for_author").
+	template.New("proposalCensoredForAuthor").
 		Parse(tmplTextProposalCensoredForAuthor))
 
 // Proposal status change - Vetted - Send to users
@@ -113,9 +111,8 @@ A new proposal has just been published on Politeia.
 {{.Link}}
 `
 
-var tmplProposalVetted = template.Must(
-	template.New("proposal_vetted").
-		Parse(tmplTextProposalVetted))
+var tmplProposalVetted = template.Must(template.New("proposalVetted").
+	Parse(tmplTextProposalVetted))
 
 type invoiceNotificationEmailData struct {
 	Username string

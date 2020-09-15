@@ -618,7 +618,6 @@ func _main() error {
 		// XXX reevaluate where this goes
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
-		commentVotes:    make(map[string]counters),
 		params:          activeNetParams.Params,
 	}
 

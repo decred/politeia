@@ -18,10 +18,15 @@ import (
 	"time"
 
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/plugins/comments"
+	"github.com/decred/politeia/plugins/dcrdata"
+	"github.com/decred/politeia/plugins/pi"
+	"github.com/decred/politeia/plugins/ticketvote"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
@@ -1302,18 +1307,39 @@ func (t *TlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	}, nil
 }
 
-// TODO
 func (t *TlogBackend) RegisterPlugin(p backend.Plugin) error {
 	log.Tracef("RegisterPlugin: %v", p.ID)
 
-	return fmt.Errorf("not implemented")
+	var ctx Plugin
+	switch p.ID {
+	case comments.ID:
+		ctx = plugins.NewCommentsPlugin()
+	case dcrdata.ID:
+	case pi.ID:
+	case ticketvote.ID:
+	default:
+		return backend.ErrPluginInvalid
+	}
+
+	t.plugins[p.ID] = plugin{
+		id:       p.ID,
+		version:  p.Version,
+		settings: p.Settings,
+		ctx:      ctx,
+	}
+
+	return nil
 }
 
-// TODO
 func (t *TlogBackend) SetupPlugin(pluginID string) error {
 	log.Tracef("SetupPlugin: %v", pluginID)
 
-	return fmt.Errorf("not implemented")
+	plugin, ok := t.plugins[pluginID]
+	if !ok {
+		return backend.ErrPluginInvalid
+	}
+
+	return plugin.ctx.Setup()
 }
 
 // GetPlugins returns the backend plugins that have been registered and their

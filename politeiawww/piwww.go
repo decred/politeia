@@ -56,11 +56,18 @@ var (
 // Short tokens should only be used when retrieving data. Data that is written
 // to disk should always reference the full length token.
 func tokenIsValid(token string) bool {
-	b, err := hex.DecodeString(token)
-	if err != nil {
+	switch {
+	case len(token) == pd.TokenPrefixLength:
+		// Token is a short proposal token
+	case len(token) == pd.TokenSizeMin*2:
+		// Token is a full length token
+	default:
+		// Unknown token size
 		return false
 	}
-	if len(b) != pd.TokenSize {
+	_, err := hex.DecodeString(token)
+	if err != nil {
+		// Token is not valid hex
 		return false
 	}
 	return true
@@ -74,7 +81,7 @@ func tokenIsFullLength(token string) bool {
 	if err != nil {
 		return false
 	}
-	if len(b) != pd.TokenSize {
+	if len(b) != pd.TokenSizeMin {
 		return false
 	}
 	return true
@@ -128,7 +135,7 @@ func proposalName(pr pi.ProposalRecord) string {
 	return name
 }
 
-func convertUserErrFromSignatureErr(err error) pi.UserErrorReply {
+func convertUserErrorFromSignatureError(err error) pi.UserErrorReply {
 	var e util.SignatureError
 	var s pi.ErrorStatusT
 	if errors.As(err, &e) {
@@ -830,7 +837,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	}
 	err = util.VerifySignature(signature, publicKey, mr)
 	if err != nil {
-		return nil, convertUserErrFromSignatureErr(err)
+		return nil, convertUserErrorFromSignatureError(err)
 	}
 
 	return &pm, nil
@@ -1126,7 +1133,7 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	msg := pss.Token + pss.Version + strconv.Itoa(int(pss.Status)) + pss.Reason
 	err := util.VerifySignature(pss.Signature, pss.PublicKey, msg)
 	if err != nil {
-		return nil, convertUserErrFromSignatureErr(err)
+		return nil, convertUserErrorFromSignatureError(err)
 	}
 
 	// Verification that requires retrieving the existing proposal is

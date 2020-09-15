@@ -90,7 +90,6 @@ type politeiawww struct {
 
 	// Following entries require locks
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
-	commentVotes    map[string]counters             // [token+commentID]counters
 
 	// XXX userEmails is a temporary measure until the user by email
 	// lookups are completely removed from politeiawww.
