@@ -15,21 +15,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// TODO politeiad API changes that are needed
-// -The politeiad UpdateRecordReply is suppose to return the censorship record
-//  but it doesn't.
-// -Add an updateUnvettedMetadata route. This has been added to the politeiad
-//  Backend interface, but a corresponding route has not been added yet.
-// -Add a InventoryByStatus route. This has been added to the politeiad
-//  Backend interface, but a corresponding route has not been added yet.
-//
-// TODO add functions to this file for:
-// -setUnvettedStatus
-// -setVettedStatus
-// -updateUnvettedMetadata
-// -updatedVettedMetadata
-// -plugin
-
 // pdErrorReply represents the request body that is returned from politeaid
 // when an error occurs. PluginID will be populated if this is a plugin error.
 type pdErrorReply struct {
@@ -103,6 +88,8 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 	return responseBody, nil
 }
 
+// newRecord creates a record in politeiad. This route returns the censorship
+// record from the new created record.
 func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (*pd.CensorshipRecord, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
@@ -121,11 +108,14 @@ func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (
 		return nil, err
 	}
 
+	// Receive reply
 	var nrr pd.NewRecordReply
 	err = json.Unmarshal(resBody, &nrr)
 	if err != nil {
 		return nil, err
 	}
+
+	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, nrr.Response)
 	if err != nil {
 		return nil, err
@@ -155,11 +145,15 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 	if err != nil {
 		return nil
 	}
+
+	// Receive reply
 	var urr pd.UpdateRecordReply
 	err = json.Unmarshal(resBody, &urr)
 	if err != nil {
 		return err
 	}
+
+	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, urr.Response)
 	if err != nil {
 		return err
@@ -180,12 +174,152 @@ func (p *politeiawww) updateVetted(token string, mdAppend, mdOverwrite []pd.Meta
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
 
-func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) error {
+// updateUnvettedMetadata updates the metadata of a unvetted record in politeiad.
+func (p *politeiawww) updateUnvettedMetadata(token string, mdAppend, mdOverwrite []pd.MetadataStream) error {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	uum := pd.UpdateUnvettedMetadata{
+		Challenge:   hex.EncodeToString(challenge),
+		Token:       token,
+		MDAppend:    mdAppend,
+		MDOverwrite: mdOverwrite,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateUnvettedMetadataRoute, uum)
+	if err != nil {
+		return nil
+	}
+
+	// Receive reply
+	var uumr pd.UpdateUnvettedMetadataReply
+	err = json.Unmarshal(resBody, &uumr)
+	if err != nil {
+		return err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, uumr.Response)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
+// updateVettedMetadata updates the metadata of a vetted record in politeiad.
+func (p *politeiawww) updateVettedMetadata(token string, mdAppend, mdOverwrite []pd.MetadataStream) error {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	uvm := pd.UpdateVettedMetadata{
+		Challenge:   hex.EncodeToString(challenge),
+		Token:       token,
+		MDAppend:    mdAppend,
+		MDOverwrite: mdOverwrite,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, uvm)
+	if err != nil {
+		return nil
+	}
+
+	// Receive reply
+	var uvmr pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(resBody, &uvmr)
+	if err != nil {
+		return err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, uvmr.Response)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// setUnvettedStatus sets the status of a unvetted record in politeiad.
+func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) error {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	sus := pd.SetUnvettedStatus{
+		Challenge:   hex.EncodeToString(challenge),
+		Token:       token,
+		Status:      status,
+		MDAppend:    mdAppend,
+		MDOverwrite: mdOverwrite,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost, pd.SetUnvettedStatusRoute,
+		sus)
+	if err != nil {
+		return err
+	}
+
+	// Receive reply
+	var susr pd.SetUnvettedStatusReply
+	err = json.Unmarshal(resBody, &susr)
+	if err != nil {
+		return err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, susr.Response)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// setVettedStatus sets the status of a vetted record in politeiad.
 func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) error {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	svs := pd.SetVettedStatus{
+		Challenge:   hex.EncodeToString(challenge),
+		Token:       token,
+		Status:      status,
+		MDAppend:    mdAppend,
+		MDOverwrite: mdOverwrite,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost, pd.SetVettedStatusRoute,
+		svs)
+	if err != nil {
+		return err
+	}
+
+	// Receive reply
+	var svsr pd.SetVettedStatusReply
+	err = json.Unmarshal(resBody, &svsr)
+	if err != nil {
+		return err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, svsr.Response)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -208,11 +342,15 @@ func (p *politeiawww) getUnvetted(token, version string) (*pd.Record, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Receive reply
 	var gur pd.GetUnvettedReply
 	err = json.Unmarshal(resBody, &gur)
 	if err != nil {
 		return nil, err
 	}
+
+	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, gur.Response)
 	if err != nil {
 		return nil, err
@@ -245,11 +383,15 @@ func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Receive reply
 	var gvr pd.GetVettedReply
 	err = json.Unmarshal(resBody, &gvr)
 	if err != nil {
 		return nil, err
 	}
+
+	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, gvr.Response)
 	if err != nil {
 		return nil, err
@@ -258,8 +400,114 @@ func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 	return &gvr.Record, nil
 }
 
-// getVettedLatest returns the latest version of the vvetted record for the
+// getVettedLatest returns the latest version of the vetted record for the
 // provided token.
 func (p *politeiawww) getVettedLatest(token string) (*pd.Record, error) {
 	return p.getVetted(token, "")
+}
+
+// pluginInventory requests the plugin inventory from politeiad and returns
+// inventoryByStatus retrieves the censorship record tokens filtered by status.
+func (p *politeiawww) inventoryByStatus() (*pd.InventoryByStatusReply, error) {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	ibs := pd.InventoryByStatus{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost, pd.InventoryByStatusRoute, ibs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Receive reply
+	var ibsr pd.InventoryByStatusReply
+	err = json.Unmarshal(resBody, &ibsr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, ibsr.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ibsr, nil
+}
+
+// pluginInventory requests the plugin inventory from politeiad and returns
+// the available plugins slice.
+func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	pi := pd.PluginInventory{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost, pd.PluginInventoryRoute, pi)
+	if err != nil {
+		return nil, err
+	}
+
+	// Receive reply
+	var pir pd.PluginInventoryReply
+	err = json.Unmarshal(resBody, &pir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pir.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return pir.Plugins, nil
+}
+
+// pluginCommand fires a plugin command on politeiad and returns the reply
+// payload.
+func (p *politeiawww) pluginCommand(pluginID, cmd, cmdID, payload string) (string, error) {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return "", err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        pluginID,
+		Command:   cmd,
+		CommandID: cmdID,
+		Payload:   payload,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost, pd.PluginCommandRoute, pc)
+	if err != nil {
+		return "", err
+	}
+
+	// Receive reply
+	var pcr pd.PluginCommandReply
+	err = json.Unmarshal(resBody, &pcr)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pcr.Response)
+	if err != nil {
+		return "", err
+	}
+
+	return pcr.Payload, nil
 }

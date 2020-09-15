@@ -21,13 +21,15 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute             = "/v1/identity/"       // Retrieve identity
-	NewRecordRoute            = "/v1/newrecord/"      // New record
-	UpdateUnvettedRoute       = "/v1/updateunvetted/" // Update unvetted record
-	UpdateVettedRoute         = "/v1/updatevetted/"   // Update vetted record
-	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
-	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
-	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
+	IdentityRoute               = "/v1/identity/"          // Retrieve identity
+	NewRecordRoute              = "/v1/newrecord/"         // New record
+	UpdateUnvettedRoute         = "/v1/updateunvetted/"    // Update unvetted record
+	UpdateVettedRoute           = "/v1/updatevetted/"      // Update vetted record
+	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"    // Update vetted metadata
+	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
+	GetUnvettedRoute            = "/v1/getunvetted/"       // Retrieve unvetted record
+	GetVettedRoute              = "/v1/getvetted/"         // Retrieve vetted record
+	InventoryByStatusRoute      = "/v1/inventorybystatus/" // Inventory record tokens by status
 
 	// Auth required
 	InventoryRoute         = "/v1/inventory/"                  // Inventory records
@@ -241,12 +243,11 @@ type NewRecord struct {
 // NewRecordReply returns the CensorshipRecord that is associated with a valid
 // record.  A valid record is not always going to be published.
 type NewRecordReply struct {
-	Response         string           `json:"response"` // Challenge response
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Response         string           `json:"response"`         // Challenge response
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"` // Censorship record
 }
 
 // GetUnvetted requests an unvetted record from the server.
-// TODO Implement Version. Unvetted didn't previously have a version.
 type GetUnvetted struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Token     string `json:"token"`     // Censorship token
@@ -321,8 +322,8 @@ type UpdateRecord struct {
 // UpdateRecordReply returns a CensorshipRecord which may or may not have
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
-	// TODO add censorship record
-	Response string `json:"response"` // Challenge response
+	Response         string           `json:"response"`         // Challenge response
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"` // Censorship record
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for
@@ -337,6 +338,19 @@ type UpdateVettedMetadata struct {
 // UpdateVettedMetadataReply returns a response challenge to an
 // UpdateVettedMetadata command.
 type UpdateVettedMetadataReply struct {
+	Response string `json:"response"` // Challenge response
+}
+
+// UpdateUnvettedMetadata update a unvetted metadata.
+type UpdateUnvettedMetadata struct {
+	Challenge   string           `json:"challenge"`   // Random challenge
+	Token       string           `json:"token"`       // Censorship token
+	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
+	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
+}
+
+// UpdateUnvettedMetadataReply returns a response challenge.
+type UpdateUnvettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
@@ -365,6 +379,22 @@ type InventoryReply struct {
 	Response string   `json:"response"` // Challenge response
 	Vetted   []Record `json:"vetted"`   // Last N vetted records
 	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
+}
+
+// InventoryByStatus requests for the censhorship tokens from all records
+// filtered by their status.
+type InventoryByStatus struct {
+	Challenge string `json:"challenge"` // Random challenge
+}
+
+// InventoryByStatusReply returns all censorship record tokens by status.
+type InventoryByStatusReply struct {
+	Response          string   `json:"response"`          // Challenge response
+	Unvetted          []string `json:"unvetted"`          // Unvetted tokens
+	IterationUnvetted []string `json:"iterationunvetted"` // Iteration unvetted tokens
+	Vetted            []string `json:"vetted"`            // Vetted tokens
+	Censored          []string `json:"censored"`          // Censored tokens
+	Archived          []string `json:"archived"`          // Archived tokens
 }
 
 // UserErrorReply returns details about an error that occurred while trying to

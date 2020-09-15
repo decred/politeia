@@ -73,44 +73,6 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return bestBlock, nil
 }
 
-func (p *politeiawww) pluginInventory() ([]Plugin, error) {
-	// Setup politeiad request
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	pi := pd.PluginInventory{
-		Challenge: hex.EncodeToString(challenge),
-	}
-
-	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
-		pd.PluginInventoryRoute, pi)
-	if err != nil {
-		return nil, fmt.Errorf("makeRequest: %v", err)
-	}
-
-	// Handle response
-	var reply pd.PluginInventoryReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, err
-	}
-
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	plugins := make([]Plugin, 0, len(reply.Plugins))
-	for _, v := range reply.Plugins {
-		plugins = append(plugins, convertPluginFromPD(v))
-	}
-
-	return plugins, nil
-}
-
 // getPluginInventory obtains the politeiad plugin inventory. If a politeiad
 // connection cannot be made, the call will be retried every 5 seconds for up
 // to 1000 tries.
