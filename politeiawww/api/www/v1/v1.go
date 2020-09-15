@@ -872,7 +872,7 @@ type ProposalDetailsReply struct {
 
 // BatchProposals is used to request the proposal details for each of the
 // provided censorship tokens. The returned proposals do not include the
-// proposal files.
+// proposal files. Returns only vetted proposals.
 type BatchProposals struct {
 	Tokens []string `json:"tokens"` // Censorship tokens
 }

@@ -1588,7 +1588,7 @@ Reply:
 Retrieve the proposal details for a list of proposals.  This route wil not
 return the proposal files.  The number of proposals that may be requested is
 limited by the `ProposalListPageSize` property, which is provided via
-[`Policy`](#policy).
+[`Policy`](#policy).  This route will return only vetted proposals.
 
 **Routes:** `POST /v1/proposals/batch`
 
