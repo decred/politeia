@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,7 +15,9 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
+	piplugin "github.com/decred/politeia/plugins/pi"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
@@ -216,8 +219,131 @@ func filterProps(filter proposalsFilter, all []www.ProposalRecord) []www.Proposa
 	return proposals
 }
 
+func convertStateToWWW(state pi.PropStateT) www.PropStateT {
+	switch state {
+	case pi.PropStateInvalid:
+		return www.PropStateInvalid
+	case pi.PropStateUnvetted:
+		return www.PropStateUnvetted
+	case pi.PropStateVetted:
+		return www.PropStateVetted
+	default:
+		return www.PropStateInvalid
+	}
+}
+
+func convertStatusToWWW(status pi.PropStatusT) www.PropStatusT {
+	switch status {
+	case pi.PropStatusInvalid:
+		return www.PropStatusInvalid
+	case pi.PropStatusPublic:
+		return www.PropStatusPublic
+	case pi.PropStatusCensored:
+		return www.PropStatusCensored
+	case pi.PropStatusAbandoned:
+		return www.PropStatusAbandoned
+	default:
+		return www.PropStatusInvalid
+	}
+}
+
+func (p *politeiawww) convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
+	// Decode metadata
+	var pm *piplugin.ProposalMetadata
+	for _, v := range pr.Metadata {
+		if v.Hint == pi.HintProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			pm, err = piplugin.DecodeProposalMetadata(b)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	// Fill info
+	pw := www.ProposalRecord{
+		Name:        pm.Name,
+		LinkBy:      pm.LinkBy,
+		LinkTo:      pm.LinkTo,
+		Status:      convertStatusToWWW(pr.Status),
+		State:       convertStateToWWW(pr.State),
+		Timestamp:   pr.Timestamp,
+		UserId:      pr.UserID,
+		Username:    pr.Username,
+		PublicKey:   pr.PublicKey,
+		Signature:   pr.Signature,
+		NumComments: uint(pr.Comments),
+		Version:     pr.Version,
+		LinkedFrom:  pr.LinkedFrom,
+		CensorshipRecord: www.CensorshipRecord{
+			Token:     pr.CensorshipRecord.Token,
+			Merkle:    pr.CensorshipRecord.Merkle,
+			Signature: pr.CensorshipRecord.Signature,
+		},
+	}
+
+	files := make([]www.File, len(pr.Files))
+	for _, f := range pr.Files {
+		files = append(files, www.File{
+			Name:    f.Name,
+			MIME:    f.MIME,
+			Digest:  f.Digest,
+			Payload: f.Payload,
+		})
+	}
+	pw.Files = files
+
+	metadata := make([]www.Metadata, len(pr.Metadata))
+	for _, md := range pr.Metadata {
+		metadata = append(metadata, www.Metadata{
+			Digest:  md.Digest,
+			Hint:    md.Hint,
+			Payload: md.Payload,
+		})
+	}
+	pw.Metadata = metadata
+
+	var (
+		changeMsg          string
+		changeMsgTimestamp int64
+	)
+	for _, v := range pr.Statuses {
+		if v.Timestamp > changeMsgTimestamp {
+			changeMsgTimestamp = v.Timestamp
+			changeMsg = v.Reason
+		}
+		switch v.Status {
+		case pi.PropStatusPublic:
+			pw.PublishedAt = v.Timestamp
+		case pi.PropStatusCensored:
+			pw.CensoredAt = v.Timestamp
+		case pi.PropStatusAbandoned:
+			pw.AbandonedAt = v.Timestamp
+		}
+	}
+	pw.StatusChangeMessage = changeMsg
+
+	return &pw, nil
+}
+
 func (p *politeiawww) processProposalDetails(pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
-	return nil, nil
+	log.Tracef("processProposalDetails: %v", pd.Token)
+
+	pr, err := p.proposalRecordLatest(pi.PropStateVetted, pd.Token)
+	if err != nil {
+		return nil, err
+	}
+	pw, err := p.convertProposalToWWW(pr)
+	if err != nil {
+		return nil, err
+	}
+	pdr := www.ProposalDetailsReply{
+		Proposal: *pw,
+	}
+
+	return &pdr, nil
 }
 
 func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
