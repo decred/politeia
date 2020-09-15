@@ -64,7 +64,7 @@ type politeiawww struct {
 	cfg      *config
 	router   *mux.Router
 	sessions sessions.Store
-	plugins  []Plugin
+	plugins  []plugin
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex

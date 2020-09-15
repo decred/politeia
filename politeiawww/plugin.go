@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,17 +17,36 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// PluginSetting is a structure that holds key/value pairs of a plugin setting.
-type PluginSetting struct {
+// pluginSetting is a structure that holds key/value pairs of a plugin setting.
+type pluginSetting struct {
 	Key   string // Name of setting
 	Value string // Value of setting
 }
 
-// Plugin describes a plugin and its settings.
-type Plugin struct {
+// plugin describes a plugin and its settings.
+type plugin struct {
 	ID       string          // Identifier
 	Version  string          // Version
-	Settings []PluginSetting // Settings
+	Settings []pluginSetting // Settings
+}
+
+func convertPluginSettingFromPD(ps pd.PluginSetting) pluginSetting {
+	return pluginSetting{
+		Key:   ps.Key,
+		Value: ps.Value,
+	}
+}
+
+func convertPluginFromPD(p pd.Plugin) plugin {
+	ps := make([]pluginSetting, 0, len(p.Settings))
+	for _, v := range p.Settings {
+		ps = append(ps, convertPluginSettingFromPD(v))
+	}
+	return plugin{
+		ID:       p.ID,
+		Version:  p.Version,
+		Settings: ps,
+	}
 }
 
 // getBestBlock fetches and returns the best block from politeiad using the
@@ -73,33 +92,33 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return bestBlock, nil
 }
 
-// getPluginInventory obtains the politeiad plugin inventory. If a politeiad
+// getPluginInventory returns the politeiad plugin inventory. If a politeiad
 // connection cannot be made, the call will be retried every 5 seconds for up
 // to 1000 tries.
-func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
-	log.Tracef("getPluginInventory")
-
+func (p *politeiawww) getPluginInventory() ([]plugin, error) {
 	// Attempt to fetch the plugin inventory from politeiad until
 	// either it is successful or the maxRetries has been exceeded.
 	var (
+		done          bool
 		maxRetries    = 1000
 		sleepInterval = 5 * time.Second
-		done          bool
-		plugins       []Plugin
+		plugins       = make([]plugin, 0, 16)
 	)
 	for retries := 0; !done; retries++ {
 		if retries == maxRetries {
 			return nil, fmt.Errorf("max retries exceeded")
 		}
 
-		p, err := p.pluginInventory()
+		pi, err := p.pluginInventory()
 		if err != nil {
 			log.Infof("cannot get politeiad plugin inventory: %v", err)
 			time.Sleep(sleepInterval)
 			continue
 		}
+		for _, v := range pi {
+			plugins = append(plugins, convertPluginFromPD(v))
+		}
 
-		plugins = p
 		done = true
 	}
 

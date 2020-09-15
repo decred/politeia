@@ -302,25 +302,6 @@ func convertCastVoteFromDecred(cv decredplugin.CastVote) www.CastVote {
 	}
 }
 
-func convertPluginSettingFromPD(ps pd.PluginSetting) PluginSetting {
-	return PluginSetting{
-		Key:   ps.Key,
-		Value: ps.Value,
-	}
-}
-
-func convertPluginFromPD(p pd.Plugin) Plugin {
-	ps := make([]PluginSetting, 0, len(p.Settings))
-	for _, v := range p.Settings {
-		ps = append(ps, convertPluginSettingFromPD(v))
-	}
-	return Plugin{
-		ID:       p.ID,
-		Version:  p.Version,
-		Settings: ps,
-	}
-}
-
 func convertInvoiceCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 	return pd.CensorshipRecord{
 		Token:     f.Token,
