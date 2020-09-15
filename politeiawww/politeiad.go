@@ -407,8 +407,42 @@ func (p *politeiawww) getVettedLatest(token string) (*pd.Record, error) {
 }
 
 // pluginInventory requests the plugin inventory from politeiad and returns
+// inventoryByStatus retrieves the censorship record tokens filtered by status.
+func (p *politeiawww) inventoryByStatus() (pd.InventoryByStatusReply, error) {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return pd.InventoryByStatusReply{}, err
+	}
+	ibs := pd.InventoryByStatus{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(http.MethodPost, pd.InventoryByStatusRoute, ibs)
+	if err != nil {
+		return pd.InventoryByStatusReply{}, err
+	}
+
+	// Receive reply
+	var ibsr pd.InventoryByStatusReply
+	err = json.Unmarshal(resBody, &ibsr)
+	if err != nil {
+		return pd.InventoryByStatusReply{}, err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, ibsr.Response)
+	if err != nil {
+		return pd.InventoryByStatusReply{}, err
+	}
+
+	return ibsr, nil
+}
+
+// pluginInventory2 requests the plugin inventory from politeiad and returns
 // the available plugins slice.
-func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
+func (p *politeiawww) pluginInventory2() ([]pd.Plugin, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -419,7 +453,7 @@ func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.PluginInventoryRoute, pc)
+	resBody, err := p.makeRequest(http.MethodPost, pd.PluginInventoryRoute, pi)
 	if err != nil {
 		return nil, err
 	}
@@ -440,13 +474,13 @@ func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 	return pir.Plugins, nil
 }
 
-// pluginCommand fires a plugin command on politeiad and returns the reply 
+// pluginCommand fires a plugin command on politeiad and returns the reply
 // payload.
-func (p *politeiawww) pluginCommand(pluginID, cmd, cmdID, payload string) (payload string, error) {
+func (p *politeiawww) pluginCommand(pluginID, cmd, cmdID, payload string) (string, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
@@ -459,20 +493,20 @@ func (p *politeiawww) pluginCommand(pluginID, cmd, cmdID, payload string) (paylo
 	// Send request
 	resBody, err := p.makeRequest(http.MethodPost, pd.PluginCommandRoute, pc)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Receive reply
 	var pcr pd.PluginCommandReply
 	err = json.Unmarshal(resBody, &pcr)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, pcr.Response)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	return pcr.Payload, nil

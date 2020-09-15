@@ -854,16 +854,15 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 				contentErr.ErrorContext)
 			return
 		}
-
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v Update unvetted metadata error code %v: %v",
+		log.Errorf("%v update unvetted metadata error code %v: %v",
 			remoteAddr(r), errorCode, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
 
-	// Reply with challenge response
+	// Prepare reply
 	response := p.identity.SignMessage(challenge)
 	reply := v1.UpdateUnvettedMetadataReply{
 		Response: hex.EncodeToString(response[:]),
