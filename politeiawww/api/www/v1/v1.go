@@ -858,7 +858,8 @@ type NewProposalReply struct {
 
 // ProposalsDetails is used to retrieve a proposal by it's token
 // and by the proposal version (optional). If the version isn't specified
-// the latest proposal version will be returned by default.
+// the latest proposal version will be returned by default. Returns only
+// vetted proposals
 type ProposalsDetails struct {
 	Token   string `json:"token"`             // Censorship token
 	Version string `json:"version,omitempty"` // Proposal version

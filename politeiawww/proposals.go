@@ -331,7 +331,7 @@ func (p *politeiawww) convertProposalToWWW(pr *pi.ProposalRecord) (*www.Proposal
 func (p *politeiawww) processProposalDetails(pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
-	pr, err := p.proposalRecordLatest(pi.PropStateVetted, pd.Token)
+	pr, err := p.proposalRecord(pi.PropStateVetted, pd.Token, pd.Version)
 	if err != nil {
 		return nil, err
 	}
