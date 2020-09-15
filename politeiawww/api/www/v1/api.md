@@ -1527,7 +1527,8 @@ Reply:
 ### `Proposal details`
 
 Retrieve proposal and its details. This request can be made with the full
-censorship token or its 7 character prefix.
+censorship token or its 7 character prefix. This route will return only
+vetted proposals.
 
 **Routes:** `GET /v1/proposals/{token}`
 

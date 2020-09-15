@@ -190,8 +190,9 @@ type Metadata struct {
 	Payload string `json:"payload"` // JSON metadata content, base64 encoded
 }
 
+// Metadata hints
 const (
-	// Metadata hints
+	// HintProposalMetadata is the proposal metadata hint
 	HintProposalMetadata = "proposalmetadata"
 )
 
