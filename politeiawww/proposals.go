@@ -351,7 +351,34 @@ func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.Ba
 }
 
 func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
-	return nil, nil
+	log.Tracef("processBatchProposals: %v", bp.Tokens)
+
+	// Prep proposals requests
+	prs := make([]pi.ProposalRequest, len(bp.Tokens))
+	for _, t := range bp.Tokens {
+		prs = append(prs, pi.ProposalRequest{
+			Token: t,
+		})
+	}
+
+	props, err := p.proposalRecords(pi.PropStateVetted, prs, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert proposals records
+	propsw := make([]www.ProposalRecord, len(bp.Tokens))
+	for _, pr := range props {
+		propw, err := p.convertProposalToWWW(&pr)
+		if err != nil {
+			return nil, err
+		}
+		propsw = append(propsw, *propw)
+	}
+
+	return &www.BatchProposalsReply{
+		Proposals: propsw,
+	}, nil
 }
 
 // getUserProps gets the latest version of all proposals from the cache and
