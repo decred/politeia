@@ -67,18 +67,6 @@ func isRFPSubmission(pr www.ProposalRecord) bool {
 	return pr.LinkTo != ""
 }
 
-func getInvalidTokens(tokens []string) []string {
-	invalidTokens := make([]string, 0, len(tokens))
-
-	for _, token := range tokens {
-		if !tokenIsValid(token) {
-			invalidTokens = append(invalidTokens, token)
-		}
-	}
-
-	return invalidTokens
-}
-
 // validateVoteBit ensures that bit is a valid vote bit.
 func validateVoteBit(vote www2.Vote, bit uint64) error {
 	if len(vote.Options) == 0 {
@@ -121,21 +109,6 @@ func (p *politeiawww) linkByValidate(linkBy int64) error {
 		}
 	}
 	return nil
-}
-
-func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, endHeight, bestBlock uint64) www.PropVoteStatusT {
-	switch {
-	case !r.Authorized:
-		return www.PropVoteStatusNotAuthorized
-	case r.Authorized && endHeight == 0:
-		return www.PropVoteStatusAuthorized
-	case bestBlock < endHeight:
-		return www.PropVoteStatusStarted
-	case bestBlock >= endHeight:
-		return www.PropVoteStatusFinished
-	}
-
-	return www.PropVoteStatusInvalid
 }
 
 func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {

@@ -100,17 +100,6 @@ func encodeCastVoteJournal(cvj CastVoteJournal) ([]byte, error) {
 	return b, nil
 }
 
-func decodeCastVoteJournal(payload []byte) (*CastVoteJournal, error) {
-	var cvj CastVoteJournal
-
-	err := json.Unmarshal(payload, &cvj)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cvj, nil
-}
-
 var (
 	decredPluginSettings map[string]string             // [key]setting
 	decredPluginHooks    map[string]func(string) error // [key]func(token) error

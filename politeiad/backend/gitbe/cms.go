@@ -47,17 +47,6 @@ func encodeCastDCCVoteJournal(cvj CastDCCVoteJournal) ([]byte, error) {
 	return b, nil
 }
 
-func decodeCastDCCVoteJournal(payload []byte) (*CastDCCVoteJournal, error) {
-	var cvj CastDCCVoteJournal
-
-	err := json.Unmarshal(payload, &cvj)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cvj, nil
-}
-
 var (
 	cmsPluginSettings map[string]string             // [key]setting
 	cmsPluginHooks    map[string]func(string) error // [key]func(token) error

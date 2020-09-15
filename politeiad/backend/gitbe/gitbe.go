@@ -88,9 +88,6 @@ const (
 	// where an anchor confirmation has been committed.  This value is
 	// parsed and therefore must be a const.
 	markerAnchorConfirmation = "Anchor confirmation"
-
-	piMode  = "piwww"
-	cmsMode = "cmswww"
 )
 
 var (

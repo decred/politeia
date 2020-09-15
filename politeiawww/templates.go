@@ -178,15 +178,6 @@ type commentReplyOnProposalTemplateData struct {
 	CommentLink  string
 }
 
-type commentReplyOnCommentTemplateData struct {
-	Commenter    string
-	ProposalName string
-	CommentLink  string
-}
-
-type newInvoiceCommentTemplateData struct {
-}
-
 type newInvoiceStatusUpdateTemplate struct {
 	Token string
 }

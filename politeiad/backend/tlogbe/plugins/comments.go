@@ -478,7 +478,7 @@ func commentVoteSave(client *tlogbe.RecordClient, c comments.CommentVote) ([]byt
 	}
 
 	// Save blob
-	merkles, err := client.Save(keyPrefixCommentAdd,
+	merkles, err := client.Save(keyPrefixCommentVote,
 		[][]byte{b}, [][]byte{h}, false)
 	if err != nil {
 		return nil, fmt.Errorf("Save: %v", err)

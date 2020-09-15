@@ -98,14 +98,6 @@ func convertVoteOptionFromWWW(vo www.VoteOption) decredplugin.VoteOption {
 	}
 }
 
-func convertVoteOptionsFromWWW(vo []www.VoteOption) []decredplugin.VoteOption {
-	vor := make([]decredplugin.VoteOption, 0, len(vo))
-	for _, v := range vo {
-		vor = append(vor, convertVoteOptionFromWWW(v))
-	}
-	return vor
-}
-
 func convertVoteOptionV2ToDecred(vo www2.VoteOption) decredplugin.VoteOption {
 	return decredplugin.VoteOption{
 		Id:          vo.Id,
@@ -161,76 +153,6 @@ func convertStartVotesV2ToDecred(sv []www2.StartVote) []decredplugin.StartVoteV2
 	return dsv
 }
 
-func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
-	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("parse start height '%v': %v",
-			svr.StartBlockHeight, err)
-	}
-	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("parse end height '%v': %v",
-			svr.EndHeight, err)
-	}
-	voteb, err := decredplugin.EncodeVoteV1(sv.Vote)
-	if err != nil {
-		return nil, err
-	}
-	return &www2.VoteDetailsReply{
-		Version:          uint32(sv.Version),
-		Vote:             string(voteb),
-		PublicKey:        sv.PublicKey,
-		Signature:        sv.Signature,
-		StartBlockHeight: uint32(startHeight),
-		StartBlockHash:   svr.StartBlockHash,
-		EndBlockHeight:   uint32(endHeight),
-		EligibleTickets:  svr.EligibleTickets,
-	}, nil
-}
-
-func convertDecredStartVoteV2ToVoteDetailsReplyV2(sv decredplugin.StartVoteV2, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
-	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("parse start height '%v': %v",
-			svr.StartBlockHeight, err)
-	}
-	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("parse end height '%v': %v",
-			svr.EndHeight, err)
-	}
-	voteb, err := decredplugin.EncodeVoteV2(sv.Vote)
-	if err != nil {
-		return nil, err
-	}
-	return &www2.VoteDetailsReply{
-		Version:          uint32(sv.Version),
-		Vote:             string(voteb),
-		PublicKey:        sv.PublicKey,
-		Signature:        sv.Signature,
-		StartBlockHeight: uint32(startHeight),
-		StartBlockHash:   svr.StartBlockHash,
-		EndBlockHeight:   uint32(endHeight),
-		EligibleTickets:  svr.EligibleTickets,
-	}, nil
-}
-
-func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
-	switch s {
-	case www.PropStatusNotFound:
-		return pd.RecordStatusNotFound
-	case www.PropStatusNotReviewed:
-		return pd.RecordStatusNotReviewed
-	case www.PropStatusCensored:
-		return pd.RecordStatusCensored
-	case www.PropStatusPublic:
-		return pd.RecordStatusPublic
-	case www.PropStatusAbandoned:
-		return pd.RecordStatusArchived
-	}
-	return pd.RecordStatusInvalid
-}
-
 func convertPropFileFromWWW(f www.File) pd.File {
 	return pd.File{
 		Name:    f.Name,
@@ -256,14 +178,6 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
-func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
-	return pd.CensorshipRecord{
-		Token:     f.Token,
-		Merkle:    f.Merkle,
-		Signature: f.Signature,
-	}
-}
-
 func convertPropStatusToState(status www.PropStatusT) www.PropStateT {
 	switch status {
 	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
@@ -282,36 +196,6 @@ func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment 
 		Comment:   nc.Comment,
 		Signature: nc.Signature,
 		PublicKey: nc.PublicKey,
-	}
-}
-
-func convertLikeCommentToDecred(lc www.LikeComment) decredplugin.LikeComment {
-	return decredplugin.LikeComment{
-		Token:     lc.Token,
-		CommentID: lc.CommentID,
-		Action:    lc.Action,
-		Signature: lc.Signature,
-		PublicKey: lc.PublicKey,
-	}
-}
-
-func convertLikeCommentFromDecred(lc decredplugin.LikeComment) www.LikeComment {
-	return www.LikeComment{
-		Token:     lc.Token,
-		CommentID: lc.CommentID,
-		Action:    lc.Action,
-		Signature: lc.Signature,
-		PublicKey: lc.PublicKey,
-	}
-}
-
-func convertCensorCommentToDecred(cc www.CensorComment) decredplugin.CensorComment {
-	return decredplugin.CensorComment{
-		Token:     cc.Token,
-		CommentID: cc.CommentID,
-		Reason:    cc.Reason,
-		Signature: cc.Signature,
-		PublicKey: cc.PublicKey,
 	}
 }
 
@@ -368,21 +252,6 @@ func convertVoteOptionsV2FromDecred(options []decredplugin.VoteOption) []www2.Vo
 	return opts
 }
 
-func convertStartVoteV1FromDecred(sv decredplugin.StartVoteV1) www.StartVote {
-	return www.StartVote{
-		PublicKey: sv.PublicKey,
-		Vote: www.Vote{
-			Token:            sv.Vote.Token,
-			Mask:             sv.Vote.Mask,
-			Duration:         sv.Vote.Duration,
-			QuorumPercentage: sv.Vote.QuorumPercentage,
-			PassPercentage:   sv.Vote.PassPercentage,
-			Options:          convertVoteOptionsFromDecred(sv.Vote.Options),
-		},
-		Signature: sv.Signature,
-	}
-}
-
 func convertVoteTypeFromDecred(v decredplugin.VoteT) www2.VoteT {
 	switch v {
 	case decredplugin.VoteTypeStandard:
@@ -391,22 +260,6 @@ func convertVoteTypeFromDecred(v decredplugin.VoteT) www2.VoteT {
 		return www2.VoteTypeRunoff
 	}
 	return www2.VoteTypeInvalid
-}
-
-func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2) www2.StartVote {
-	return www2.StartVote{
-		PublicKey: sv.PublicKey,
-		Vote: www2.Vote{
-			Token:            sv.Vote.Token,
-			Type:             convertVoteTypeFromDecred(sv.Vote.Type),
-			Mask:             sv.Vote.Mask,
-			Duration:         sv.Vote.Duration,
-			QuorumPercentage: sv.Vote.QuorumPercentage,
-			PassPercentage:   sv.Vote.PassPercentage,
-			Options:          convertVoteOptionsV2FromDecred(sv.Vote.Options),
-		},
-		Signature: sv.Signature,
-	}
 }
 
 func convertVoteOptionsV2ToV1(optsV2 []www2.VoteOption) []www.VoteOption {
@@ -419,30 +272,6 @@ func convertVoteOptionsV2ToV1(optsV2 []www2.VoteOption) []www.VoteOption {
 		})
 	}
 	return optsV1
-}
-
-func convertStartVoteV2ToV1(sv www2.StartVote) www.StartVote {
-	return www.StartVote{
-		PublicKey: sv.PublicKey,
-		Vote: www.Vote{
-			Token:            sv.Vote.Token,
-			Mask:             sv.Vote.Mask,
-			Duration:         sv.Vote.Duration,
-			QuorumPercentage: sv.Vote.QuorumPercentage,
-			PassPercentage:   sv.Vote.PassPercentage,
-			Options:          convertVoteOptionsV2ToV1(sv.Vote.Options),
-		},
-		Signature: sv.Signature,
-	}
-}
-
-func convertStartVoteReplyFromDecred(svr decredplugin.StartVoteReply) www.StartVoteReply {
-	return www.StartVoteReply{
-		StartBlockHeight: svr.StartBlockHeight,
-		StartBlockHash:   svr.StartBlockHash,
-		EndHeight:        svr.EndHeight,
-		EligibleTickets:  svr.EligibleTickets,
-	}
 }
 
 func convertStartVoteReplyV2FromDecred(svr decredplugin.StartVoteReply) (*www2.StartVoteReply, error) {
@@ -473,14 +302,6 @@ func convertCastVoteFromDecred(cv decredplugin.CastVote) www.CastVote {
 	}
 }
 
-func convertCastVotesFromDecred(cv []decredplugin.CastVote) []www.CastVote {
-	cvr := make([]www.CastVote, 0, len(cv))
-	for _, v := range cv {
-		cvr = append(cvr, convertCastVoteFromDecred(v))
-	}
-	return cvr
-}
-
 func convertPluginSettingFromPD(ps pd.PluginSetting) PluginSetting {
 	return PluginSetting{
 		Key:   ps.Key,
@@ -497,32 +318,6 @@ func convertPluginFromPD(p pd.Plugin) Plugin {
 		ID:       p.ID,
 		Version:  p.Version,
 		Settings: ps,
-	}
-}
-func convertVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []www.VoteOptionResult {
-	r := make([]www.VoteOptionResult, 0, len(vor))
-	for _, v := range vor {
-		r = append(r, www.VoteOptionResult{
-			Option: www.VoteOption{
-				Id:          v.ID,
-				Description: v.Description,
-				Bits:        v.Bits,
-			},
-			VotesReceived: v.Votes,
-		})
-	}
-	return r
-}
-
-func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) www.TokenInventoryReply {
-	return www.TokenInventoryReply{
-		Pre:        r.Pre,
-		Active:     r.Active,
-		Approved:   r.Approved,
-		Rejected:   r.Rejected,
-		Abandoned:  r.Abandoned,
-		Unreviewed: r.Unreviewed,
-		Censored:   r.Censored,
 	}
 }
 
@@ -663,22 +458,6 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 		})
 	}
 	return dl
-}
-
-func convertDatabaseToLineItems(dl []cmsdatabase.LineItem) []cms.LineItemsInput {
-	l := make([]cms.LineItemsInput, 0, len(dl))
-	for _, v := range dl {
-		l = append(l, cms.LineItemsInput{
-			Type:          v.Type,
-			Domain:        v.Domain,
-			Subdomain:     v.Subdomain,
-			Description:   v.Description,
-			ProposalToken: v.ProposalURL,
-			Labor:         v.Labor,
-			Expenses:      v.Expenses,
-		})
-	}
-	return l
 }
 
 func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
@@ -889,46 +668,6 @@ func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	dccRecord.OppositionUserIDs = oppositionUserIDs
 
 	return dccRecord
-}
-
-func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
-	dbDCC := cmsdatabase.DCC{}
-
-	dbDCC.Type = dccRecord.DCC.Type
-	dbDCC.NomineeUserID = dccRecord.DCC.NomineeUserID
-	dbDCC.SponsorStatement = dccRecord.DCC.SponsorStatement
-	dbDCC.Domain = dccRecord.DCC.Domain
-	dbDCC.ContractorType = dccRecord.DCC.ContractorType
-	dbDCC.Status = dccRecord.Status
-	dbDCC.StatusChangeReason = dccRecord.StatusChangeReason
-	dbDCC.Timestamp = dccRecord.Timestamp
-	dbDCC.Token = dccRecord.CensorshipRecord.Token
-	dbDCC.PublicKey = dccRecord.PublicKey
-	dbDCC.ServerSignature = dccRecord.Signature
-	dbDCC.SponsorUserID = dccRecord.SponsorUserID
-	dbDCC.Token = dccRecord.CensorshipRecord.Token
-
-	supportUserIDs := ""
-	for i, s := range dccRecord.SupportUserIDs {
-		if i == 0 {
-			supportUserIDs += s
-		} else {
-			supportUserIDs += "," + s
-		}
-	}
-	dbDCC.SupportUserIDs = supportUserIDs
-
-	oppositionUserIDs := ""
-	for i, s := range dccRecord.OppositionUserIDs {
-		if i == 0 {
-			oppositionUserIDs += s
-		} else {
-			oppositionUserIDs += "," + s
-		}
-	}
-	dbDCC.OppositionUserIDs = oppositionUserIDs
-
-	return dbDCC
 }
 
 func convertDatabaseInvoiceToProposalLineItems(inv cmsdatabase.Invoice) cms.ProposalLineItems {
