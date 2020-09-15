@@ -53,6 +53,49 @@ func errToStr(e error) string {
 	return e.Error()
 }
 
+func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
+	t.Helper()
+
+	// TODO
+	/*
+		// Attach ProposalMetadata as a politeiad file
+		files := convertPropFilesFromWWW(p.Files)
+		for _, v := range p.Metadata {
+			switch v.Hint {
+			case www.HintProposalMetadata:
+				files = append(files, convertFileFromMetadata(v))
+			}
+		}
+
+		// Create a ProposalGeneralV2 mdstream
+		md, err := mdstream.EncodeProposalGeneralV2(
+			mdstream.ProposalGeneralV2{
+				Version:   mdstream.VersionProposalGeneral,
+				Timestamp: time.Now().Unix(),
+				PublicKey: p.PublicKey,
+				Signature: p.Signature,
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		mdStreams := []pd.MetadataStream{{
+			ID:      mdstream.IDProposalGeneral,
+			Payload: string(md),
+		}}
+
+		return pd.Record{
+			Status:           convertPropStatusFromWWW(p.Status),
+			Timestamp:        p.Timestamp,
+			Version:          p.Version,
+			Metadata:         mdStreams,
+			CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
+			Files:            files,
+		}
+	*/
+	return pd.Record{}
+}
+
 func payRegistrationFee(t *testing.T, p *politeiawww, u *user.User) {
 	t.Helper()
 

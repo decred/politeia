@@ -692,7 +692,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 			// The only text file that is allowed is the index markdown
 			// file.
 			if v.Name != www.PolicyIndexFilename {
-				e := fmt.Sprint("want %v, got %v", www.PolicyIndexFilename, v.Name)
+				e := fmt.Sprintf("want %v, got %v", www.PolicyIndexFilename, v.Name)
 				return nil, pi.UserErrorReply{
 					ErrorCode:    pi.ErrorStatusIndexFileNameInvalid,
 					ErrorContext: []string{e},

@@ -86,7 +86,7 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Initialize stuff we need
 	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose(), "", "piwww")
+		testing.Verbose(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestAnchorWithCommits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pru, err := g.GetUnvetted(token)
+		pru, err := g.GetUnvetted(token, "")
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
@@ -475,7 +475,7 @@ func TestUpdateReadme(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose(), "", "piwww")
+		testing.Verbose(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -583,7 +583,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose(), "", "piwww")
+		testing.Verbose(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -679,7 +679,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	// the prefix cache is populated correctly.
 	oldPrefixCache := g.prefixCache
 	g, err = New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose(), "", "piwww")
+		testing.Verbose(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
