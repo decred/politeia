@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -347,10 +347,6 @@ func (p *politeiawww) processProposalDetails(pd www.ProposalsDetails, u *user.Us
 	return &pdr, nil
 }
 
-func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
-	return nil, nil
-}
-
 func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
@@ -517,6 +513,9 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 
 	r, err = p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, "",
 		string(payload))
+	if err != nil {
+		return nil, err
+	}
 	cv, err := ticketvote.DecodeCastVotesReply([]byte(r))
 	if err != nil {
 		return nil, err
@@ -532,6 +531,96 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 		})
 	}
 	res.CastVotes = votes
+
+	return &res, nil
+}
+
+func convertVoteStatusToWWW(status ticketvote.VoteStatusT) www.PropVoteStatusT {
+	switch status {
+	case ticketvote.VoteStatusInvalid:
+		return www.PropVoteStatusInvalid
+	case ticketvote.VoteStatusUnauthorized:
+		return www.PropVoteStatusNotAuthorized
+	case ticketvote.VoteStatusAuthorized:
+		return www.PropVoteStatusAuthorized
+	case ticketvote.VoteStatusStarted:
+		return www.PropVoteStatusStarted
+	case ticketvote.VoteStatusFinished:
+		return www.PropVoteStatusFinished
+	default:
+		return www.PropVoteStatusInvalid
+	}
+}
+
+func convertVoteTypeToWWW(t ticketvote.VoteT) www.VoteT {
+	switch t {
+	case ticketvote.VoteTypeInvalid:
+		return www.VoteTypeInvalid
+	case ticketvote.VoteTypeStandard:
+		return www.VoteTypeStandard
+	case ticketvote.VoteTypeRunoff:
+		return www.VoteTypeRunoff
+	default:
+		return www.VoteTypeInvalid
+	}
+}
+
+func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
+
+	// Prep plugin command
+	smp := ticketvote.Summaries{
+		Tokens: bvs.Tokens,
+	}
+	payload, err := ticketvote.EncodeSummaries(smp)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdSummaries, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	sm, err := ticketvote.DecodeSummariesReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	// Covert reply to www
+	res := www.BatchVoteSummaryReply{
+		BestBlock: uint64(sm.BestBlock),
+	}
+	// Translate summaries
+	summaries := make(map[string]www.VoteSummary, len(sm.Summaries))
+	for t, sum := range sm.Summaries {
+		vs := www.VoteSummary{
+			Status:           convertVoteStatusToWWW(sum.Status),
+			Type:             convertVoteTypeToWWW(sum.Type),
+			Approved:         sum.Approved,
+			EligibleTickets:  sum.EligibleTickets,
+			Duration:         sum.Duration,
+			EndHeight:        uint64(sum.EndBlockHeight),
+			QuorumPercentage: sum.QuorumPercentage,
+			PassPercentage:   sum.PassPercentage,
+		}
+
+		// Translate vote options
+		results := make([]www.VoteOptionResult, len(sum.Results))
+		for _, r := range sum.Results {
+			results = append(results, www.VoteOptionResult{
+				VotesReceived: r.Votes,
+				Option: www.VoteOption{
+					Id:          r.ID,
+					Description: r.Description,
+					Bits:        r.VoteBit,
+				},
+			})
+		}
+		vs.Results = results
+		summaries[t] = vs
+
+	}
+	res.Summaries = summaries
 
 	return &res, nil
 }
