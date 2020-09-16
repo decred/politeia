@@ -1046,11 +1046,6 @@ type CastVote struct {
 	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
 }
 
-// Ballot is a batch of votes that are sent to the server.
-type Ballot struct {
-	Votes []CastVote `json:"votes"`
-}
-
 // CastVoteReply is the answer to the CastVote command. The Error and
 // ErrorStatus fields will only be populated if something went wrong while
 // attempting to cast the vote.
@@ -1061,7 +1056,12 @@ type CastVoteReply struct {
 	ErrorStatus     decredplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
 }
 
-// CastVotesReply is a reply to a batched list of votes.
+// Ballot is a batch of votes that are sent to the server.
+type Ballot struct {
+	Votes []CastVote `json:"votes"`
+}
+
+// BallotReply is a reply to a batched list of votes.
 type BallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
@@ -1133,8 +1133,10 @@ type GetCommentsReply struct {
 }
 
 const (
-	VoteActionDown = "-1" // User votes down a comment
-	VoteActionUp   = "1"  // User votes up a comment
+	// VoteActionDown used when user votes down a comment
+	VoteActionDown = "-1"
+	// VoteActionUp used when user votes up a comment
+	VoteActionUp = "1"
 )
 
 // LikeComment allows a user to up or down vote a comment.

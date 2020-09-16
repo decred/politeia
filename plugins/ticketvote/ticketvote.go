@@ -409,7 +409,7 @@ type BallotReply struct {
 	Receipts []VoteReply `json:"receipts"`
 }
 
-// EncodeBallot encodes a Ballot into a JSON byte slice.
+// EncodeBallotReply encodes a Ballot into a JSON byte slice.
 func EncodeBallotReply(b BallotReply) ([]byte, error) {
 	return json.Marshal(b)
 }

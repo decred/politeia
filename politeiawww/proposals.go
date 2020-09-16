@@ -16,6 +16,7 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	piplugin "github.com/decred/politeia/plugins/pi"
+	ticketvote "github.com/decred/politeia/plugins/ticketvote"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -457,7 +458,82 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 }
 
 func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
-	return nil, nil
+	log.Tracef("processVoteResults: %v", token)
+
+	// Prep vote details payload
+	vdp := ticketvote.Details{
+		Token: token,
+	}
+	payload, err := ticketvote.EncodeDetails(vdp)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdDetails, "",
+		string(payload))
+	vd, err := ticketvote.DecodeDetailsReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to www
+	res := www.VoteResultsReply{
+		StartVote: www.StartVote{
+			PublicKey: vd.Vote.PublicKey,
+			Signature: vd.Vote.Signature,
+			Vote: www.Vote{
+				Token:            vd.Vote.Vote.Token,
+				Mask:             vd.Vote.Vote.Mask,
+				Duration:         vd.Vote.Vote.Duration,
+				QuorumPercentage: vd.Vote.Vote.QuorumPercentage,
+				PassPercentage:   vd.Vote.Vote.PassPercentage,
+			},
+		},
+		StartVoteReply: www.StartVoteReply{
+			StartBlockHeight: strconv.FormatUint(uint64(vd.Vote.StartBlockHeight),
+				10),
+			StartBlockHash:  vd.Vote.StartBlockHash,
+			EndHeight:       strconv.FormatUint(uint64(vd.Vote.EndBlockHeight), 10),
+			EligibleTickets: vd.Vote.EligibleTickets,
+		},
+	}
+
+	// Transalte vote options
+	vo := make([]www.VoteOption, len(vd.Vote.Vote.Options))
+	for _, o := range vd.Vote.Vote.Options {
+		vo = append(vo, www.VoteOption{
+			Id:          o.ID,
+			Description: o.Description,
+			Bits:        o.Bit,
+		})
+	}
+	res.StartVote.Vote.Options = vo
+
+	// Prep cast votes payload
+	csp := ticketvote.CastVotes{
+		Token: token,
+	}
+	payload, err = ticketvote.EncodeCastVotes(csp)
+
+	r, err = p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, "",
+		string(payload))
+	cv, err := ticketvote.DecodeCastVotesReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	votes := make([]www.CastVote, len(cv.Votes))
+	for _, v := range cv.Votes {
+		votes = append(votes, www.CastVote{
+			Token:     v.Token,
+			Ticket:    v.Ticket,
+			VoteBit:   v.VoteBit,
+			Signature: v.Signature,
+		})
+	}
+	res.CastVotes = votes
+
+	return &res, nil
 }
 
 func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, error) {
