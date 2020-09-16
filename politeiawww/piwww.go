@@ -328,6 +328,18 @@ func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
 	}, nil
 }
 
+func convertInventoryReplyFromPD(i pd.InventoryByStatusReply) pi.ProposalInventoryReply {
+	// Concatenate both unvetted status from d
+	unvetted := append(i.Unvetted, i.IterationUnvetted...)
+
+	return pi.ProposalInventoryReply{
+		Unvetted:  unvetted,
+		Public:    i.Vetted,
+		Censored:  i.Censored,
+		Abandoned: i.Archived,
+	}
+}
+
 // linkByPeriodMin returns the minimum amount of time, in seconds, that the
 // LinkBy period must be set to. This is determined by adding 1 week onto the
 // minimum voting period so that RFP proposal submissions have at least one
@@ -1266,12 +1278,24 @@ func (p *politeiawww) processProposals(ps pi.Proposals, isAdmin bool) (*pi.Propo
 	}, nil
 }
 
-func (p *politeiawww) processProposalInventory() (*pi.ProposalInventoryReply, error) {
+// processProposalInventory retrieves the censorship tokens from all records,
+// separated by their status.
+func (p *politeiawww) processProposalInventory(isAdmin bool) (*pi.ProposalInventoryReply, error) {
 	log.Tracef("processProposalInventory")
 
-	// TODO politeiad needs a InventoryByStatus route
+	i, err := p.inventoryByStatus()
+	if err != nil {
+		return nil, err
+	}
 
-	return &pi.ProposalInventoryReply{}, nil
+	reply := convertInventoryReplyFromPD(*i)
+
+	// Remove unvetted data from non-admin users
+	if !isAdmin {
+		reply.Unvetted = []string{}
+	}
+
+	return &reply, nil
 }
 
 func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) {
@@ -1364,8 +1388,35 @@ func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, pssr)
 }
 
+func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalInventory")
+
+	// Get data from session user. This is a public route, so we can
+	// ignore the session not found error. This is done to strip
+	// non-admin users from unvetted record tokens.
+	user, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		respondWithPiError(w, r,
+			"handleProposalInventory: getSessionUser: %v", err)
+		return
+	}
+	isAdmin := user != nil && user.Admin
+
+	ppi, err := p.processProposalInventory(isAdmin)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposalInventory: processProposalInventory: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ppi)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
+	p.addRoute(http.MethodGet, pi.APIRoute,
+		pi.RouteProposalInventory, p.handleProposalInventory,
+		permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,
