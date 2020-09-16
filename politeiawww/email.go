@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -72,7 +72,7 @@ func (p *politeiawww) emailNewUserVerificationLink(email, token, username string
 	}
 
 	subject := "Verify Your Email"
-	body, err := createBody(templateNewUserEmail, &tplData)
+	body, err := createBody(templateNewUserEmail, tplData)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token 
 	}
 
 	subject := "Reset Your Password"
-	body, err := createBody(templateResetPasswordEmail, &tplData)
+	body, err := createBody(templateResetPasswordEmail, tplData)
 	if err != nil {
 		return err
 	}
@@ -136,23 +136,23 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 	switch d.status {
 	case pi.PropStatusPublic:
 		subject = "Your Proposal Has Been Published"
-		tmplData := tmplDataProposalVettedForAuthor{
+		tmplData := proposalVettedToAuthor{
 			Name: d.name,
 			Link: l.String(),
 		}
-		body, err = createBody(tmplProposalVettedForAuthor, &tmplData)
+		body, err = createBody(proposalVettedToAuthorTmpl, tmplData)
 		if err != nil {
 			return err
 		}
 
 	case pi.PropStatusCensored:
 		subject = "Your Proposal Has Been Censored"
-		tmplData := tmplDataProposalCensoredForAuthor{
+		tmplData := proposalCensoredToAuthor{
 			Name:   d.name,
 			Reason: d.reason,
 			Link:   l.String(),
 		}
-		body, err = createBody(tmplProposalCensoredForAuthor, &tmplData)
+		body, err = createBody(tmplProposalCensoredForAuthor, tmplData)
 		if err != nil {
 			return err
 		}
@@ -180,11 +180,11 @@ func (p *politeiawww) emailProposalStatusChangeToUsers(d dataProposalStatusChang
 	switch d.status {
 	case pi.PropStatusPublic:
 		subject = "New Proposal Published"
-		tmplData := tmplDataProposalVetted{
+		tmplData := proposalVetted{
 			Name: d.name,
 			Link: l.String(),
 		}
-		body, err = createBody(tmplProposalVetted, &tmplData)
+		body, err = createBody(tmplProposalVetted, tmplData)
 		if err != nil {
 			return err
 		}
@@ -205,15 +205,15 @@ func (p *politeiawww) emailProposalEdited(name, username, token, version string,
 		return err
 	}
 
-	tmplData := tmplDataProposalEdited{
-		Link:     l.String(),
+	tmplData := proposalEdited{
 		Name:     name,
 		Version:  version,
 		Username: username,
+		Link:     l.String(),
 	}
 
 	subject := "Proposal Edited"
-	body, err := createBody(tmplProposalEdited, &tmplData)
+	body, err := createBody(proposalEditedTmpl, tmplData)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (p *politeiawww) emailProposalVoteStartedToAuthor(token, name, username, em
 	}
 
 	subject := "Your Proposal Has Started Voting"
-	body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
+	body, err := createBody(templateProposalVoteStartedForAuthor, tplData)
 	if err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func (p *politeiawww) emailProposalVoteStartedToUsers(token, name, username stri
 	}
 
 	subject := "Voting Started for Proposal"
-	body, err := createBody(templateProposalVoteStarted, &tplData)
+	body, err := createBody(templateProposalVoteStarted, tplData)
 	if err != nil {
 		return err
 	}
@@ -279,14 +279,14 @@ func (p *politeiawww) emailProposalSubmitted(token, name, username string, email
 		return err
 	}
 
-	tmplData := tmplDataProposalSubmitted{
+	tmplData := proposalSubmitted{
 		Username: username,
 		Name:     name,
 		Link:     l.String(),
 	}
 
 	subject := "New Proposal Submitted"
-	body, err := createBody(tmplProposalSubmitted, &tmplData)
+	body, err := createBody(proposalSubmittedTmpl, tmplData)
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func (p *politeiawww) emailProposalVoteAuthorized(token, name, username, email s
 	}
 
 	subject := "Proposal Authorized To Start Voting"
-	body, err := createBody(templateProposalVoteAuthorized, &tplData)
+	body, err := createBody(templateProposalVoteAuthorized, tplData)
 	if err != nil {
 		return err
 	}
@@ -334,7 +334,7 @@ func (p *politeiawww) emailProposalComment(token, commentID, commentUsername, na
 	}
 
 	subject := "New Comment On Your Proposal"
-	body, err := createBody(templateCommentReplyOnProposal, &tplData)
+	body, err := createBody(templateCommentReplyOnProposal, tplData)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func (p *politeiawww) emailUpdateUserKeyVerificationLink(email, publicKey, token
 	}
 
 	subject := "Verify Your New Identity"
-	body, err := createBody(templateUpdateUserKeyEmail, &tplData)
+	body, err := createBody(templateUpdateUserKeyEmail, tplData)
 	if err != nil {
 		return err
 	}
@@ -375,7 +375,7 @@ func (p *politeiawww) emailUserPasswordChanged(email string) error {
 	}
 
 	subject := "Password Changed - Security Verification"
-	body, err := createBody(templateUserPasswordChanged, &tplData)
+	body, err := createBody(templateUserPasswordChanged, tplData)
 	if err != nil {
 		return err
 	}
@@ -400,7 +400,7 @@ func (p *politeiawww) emailUserLocked(email string) error {
 	}
 
 	subject := "Locked Account - Reset Your Password"
-	body, err := createBody(templateUserLockedResetPassword, &tplData)
+	body, err := createBody(templateUserLockedResetPassword, tplData)
 	if err != nil {
 		return err
 	}
@@ -423,7 +423,7 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 	}
 
 	subject := "Welcome to the Contractor Management System"
-	body, err := createBody(templateInviteNewUserEmail, &tplData)
+	body, err := createBody(templateInviteNewUserEmail, tplData)
 	if err != nil {
 		return err
 	}
@@ -440,7 +440,7 @@ func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
 	}
 
 	subject := "Congratulations, You've been approved!"
-	body, err := createBody(templateApproveDCCUserEmail, &tplData)
+	body, err := createBody(templateApproveDCCUserEmail, tplData)
 	if err != nil {
 		return err
 	}
@@ -461,7 +461,7 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 	}
 
 	subject := "Awaiting Monthly Invoice"
-	body, err := createBody(templateInvoiceNotification, &tplData)
+	body, err := createBody(templateInvoiceNotification, tplData)
 	if err != nil {
 		return err
 	}
@@ -493,7 +493,7 @@ func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) e
 	}
 
 	subject := "Invoice status has been updated"
-	body, err := createBody(templateNewInvoiceStatusUpdate, &tplData)
+	body, err := createBody(templateNewInvoiceStatusUpdate, tplData)
 	if err != nil {
 		return err
 	}
@@ -516,7 +516,7 @@ func (p *politeiawww) emailDCCNew(token string, emails []string) error {
 	}
 
 	subject := "New DCC Submitted"
-	body, err := createBody(templateNewDCCSubmitted, &tplData)
+	body, err := createBody(templateNewDCCSubmitted, tplData)
 	if err != nil {
 		return err
 	}
@@ -538,7 +538,7 @@ func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error
 	}
 
 	subject := "New DCC Support/Opposition Submitted"
-	body, err := createBody(templateNewDCCSupportOppose, &tplData)
+	body, err := createBody(templateNewDCCSupportOppose, tplData)
 	if err != nil {
 		return err
 	}

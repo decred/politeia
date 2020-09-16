@@ -16,51 +16,68 @@ var (
 	templateCommentReplyOnProposal = template.Must(
 		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
 	templateCommentReplyOnComment = template.Must(
-		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
+		template.New("comment_reply_on_comment").
+			Parse(templateCommentReplyOnCommentRaw))
 )
 
 // Proposal submitted
-type tmplDataProposalSubmitted struct {
+type proposalSubmitted struct {
 	Username string // Author username
 	Name     string // Proposal name
-	Link     string // GUI proposal details url
+	Link     string // GUI proposal details URL
 }
 
-const tmplTextProposalSubmitted = `
+const proposalSubmittedText = `
 A new proposal has been submitted on Politeia by {{.Username}}:
 
 {{.Name}}
 {{.Link}}
 `
 
-var tmplProposalSubmitted = template.Must(template.New("proposalSubmitted").
-	Parse(tmplTextProposalSubmitted))
+var proposalSubmittedTmpl = template.Must(
+	template.New("proposalSubmitted").Parse(proposalSubmittedText))
 
 // Proposal edited
-type tmplDataProposalEdited struct {
+type proposalEdited struct {
 	Name     string // Proposal name
 	Version  string // ProposalVersion
 	Username string // Author username
-	Link     string // GUI proposal details url
+	Link     string // GUI proposal details URL
 }
 
-const tmplTextProposalEdited = `
+const proposalEditedText = `
 A proposal by {{.Username}} has just been edited:
 
 {{.Name}} (Version: {{.Version}})
 {{.Link}}
 `
 
-var tmplProposalEdited = template.Must(template.New("proposalEdited").
-	Parse(tmplTextProposalEdited))
+var proposalEditedTmpl = template.Must(
+	template.New("proposalEdited").Parse(proposalEditedText))
 
-// Proposal status change - Vetted - Send to author
-type tmplDataProposalVettedForAuthor struct {
+// Proposal status change - Vetted - Send to users
+type proposalVetted struct {
 	Name string // Proposal name
-	Link string // GUI proposal details url
+	Link string // GUI proposal details URL
 }
 
-const tmplTextProposalVettedForAuthor = `
+const proposalVettedText = `
+A new proposal has just been published on Politeia.
+
+{{.Name}}
+{{.Link}}
+`
+
+var tmplProposalVetted = template.Must(
+	template.New("proposalVetted").Parse(proposalVettedText))
+
+// Proposal status change - Vetted - Send to author
+type proposalVettedToAuthor struct {
+	Name string // Proposal name
+	Link string // GUI proposal details URL
+}
+
+const proposalVettedToAuthorText = `
 Your proposal has just been approved on Politeia!
 
 You will need to authorize a proposal vote before an administrator will be
@@ -75,19 +92,18 @@ before authorizing the vote.
 {{.Link}}
 `
 
-var tmplProposalVettedForAuthor = template.Must(
-	template.New("proposalVettedForAuthor").
-		Parse(tmplTextProposalVettedForAuthor))
+var proposalVettedToAuthorTmpl = template.Must(
+	template.New("proposalVettedToAuthor").Parse(proposalVettedToAuthorText))
 
 // Proposal status change - Censored - Send to author
-type tmplDataProposalCensoredForAuthor struct {
+type proposalCensoredToAuthor struct {
 	Name   string // Proposal name
 	Reason string // Reason for censoring
-	Link   string // GUI proposal details url
+	Link   string // GUI proposal details URL
 }
 
-const tmplTextProposalCensoredForAuthor = `
-Your proposal on Politeia has been censored:
+const proposalCensoredToAuthorText = `
+Your proposal on Politeia has been censored.
 
 {{.Name}}
 Reason: {{.Reason}}
@@ -95,24 +111,7 @@ Reason: {{.Reason}}
 `
 
 var tmplProposalCensoredForAuthor = template.Must(
-	template.New("proposalCensoredForAuthor").
-		Parse(tmplTextProposalCensoredForAuthor))
-
-// Proposal status change - Vetted - Send to users
-type tmplDataProposalVetted struct {
-	Name string
-	Link string
-}
-
-const tmplTextProposalVetted = `
-A new proposal has just been published on Politeia.
-
-{{.Name}}
-{{.Link}}
-`
-
-var tmplProposalVetted = template.Must(template.New("proposalVetted").
-	Parse(tmplTextProposalVetted))
+	template.New("proposalCensoredToAuthor").Parse(proposalCensoredToAuthorText))
 
 type invoiceNotificationEmailData struct {
 	Username string

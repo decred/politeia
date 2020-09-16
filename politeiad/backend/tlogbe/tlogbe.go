@@ -26,7 +26,6 @@ import (
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
@@ -1313,7 +1312,6 @@ func (t *TlogBackend) RegisterPlugin(p backend.Plugin) error {
 	var ctx Plugin
 	switch p.ID {
 	case comments.ID:
-		ctx = plugins.NewCommentsPlugin()
 	case dcrdata.ID:
 	case pi.ID:
 	case ticketvote.ID:
