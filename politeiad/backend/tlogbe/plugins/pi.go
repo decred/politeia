@@ -259,7 +259,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 			return err
 		}
 		reply, err := p.backend.Plugin(ticketvote.ID,
-			ticketvote.CmdSummaries, string(b))
+			ticketvote.CmdSummaries, "", string(b))
 		if err != nil {
 			return fmt.Errorf("Plugin %v %v: %v",
 				ticketvote.ID, ticketvote.CmdSummaries, err)
@@ -325,7 +325,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 		return err
 	}
 	reply, err := p.backend.Plugin(ticketvote.ID,
-		ticketvote.CmdSummaries, string(b))
+		ticketvote.CmdSummaries, "", string(b))
 	if err != nil {
 		return fmt.Errorf("ticketvote Summaries: %v", err)
 	}

@@ -2,8 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package ticketvote provides a plugin for creating and managing votes that
-// require decred tickets to participate.
+// Package ticketvote provides a plugin for running votes that require decred
+// tickets to participate.
 package ticketvote
 
 import (
@@ -322,7 +322,7 @@ func DecodeStartReplyVote(payload []byte) (*StartReply, error) {
 type StartRunoff struct {
 	Token          string      `json:"token"` // RFP token
 	Authorizations []Authorize `json:"authorizations"`
-	Votes          []Start     `json:"votes"`
+	Starts         []Start     `json:"starts"`
 }
 
 // EncodeStartRunoff encodes a StartRunoff into a JSON byte slice.

@@ -215,7 +215,7 @@ type Backend interface {
 	GetPlugins() ([]Plugin, error)
 
 	// Plugin pass-through command
-	Plugin(pluginID, cmd, payload string) (string, error)
+	Plugin(pluginID, cmd, cmdID, payload string) (string, error)
 
 	// Close performs cleanup of the backend.
 	Close()

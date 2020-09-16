@@ -2815,7 +2815,7 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 // execute.
 //
 // Plugin satisfies the backend interface.
-func (g *gitBackEnd) Plugin(pluginID, command, payload string) (string, error) {
+func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (string, error) {
 	log.Tracef("Plugin: %v", command)
 	switch command {
 	case decredplugin.CmdAuthorizeVote:

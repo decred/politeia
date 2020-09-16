@@ -922,7 +922,8 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := p.backend.Plugin(pc.ID, pc.Command, pc.Payload)
+	payload, err := p.backend.Plugin(pc.ID, pc.Command,
+		pc.CommandID, pc.Payload)
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()

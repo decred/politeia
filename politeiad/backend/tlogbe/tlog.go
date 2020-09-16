@@ -1261,7 +1261,7 @@ func (t *tlog) recordDel(treeID int64) error {
 	return nil
 }
 
-func (t *tlog) recordVersion(treeID int64, version uint32) (*backend.Record, error) {
+func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	// Ensure tree exists
 	if !t.treeExists(treeID) {
 		return nil, errRecordNotFound
@@ -1434,11 +1434,277 @@ func (t *tlog) recordVersion(treeID int64, version uint32) (*backend.Record, err
 }
 
 func (t *tlog) recordLatest(treeID int64) (*backend.Record, error) {
-	return t.recordVersion(treeID, 0)
+	return t.record(treeID, 0)
 }
 
 // TODO implement recordProof
 func (t *tlog) recordProof(treeID int64, version uint32) {}
+
+// blobsSave saves the provided blobs to the key-value store then appends them
+// onto the trillian tree. Note, hashes contains the hashes of the data encoded
+// in the blobs. The hashes must share the same ordering as the blobs.
+func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return nil, errRecordNotFound
+	}
+
+	// Verify tree is not frozen
+	_, err := t.freezeRecord(treeID)
+	switch err {
+	case nil:
+		// Freeze record was found. Tree is frozen.
+		return nil, errTreeIsFrozen
+	case errFreezeRecordNotFound:
+		// Tree is not frozen; continue
+	default:
+		// All other errors
+		return nil, err
+	}
+
+	// Encrypt blobs if specified
+	if encrypt {
+		for k, v := range blobs {
+			e, err := t.encryptionKey.encrypt(0, v)
+			if err != nil {
+				return nil, err
+			}
+			blobs[k] = e
+		}
+	}
+
+	// Save blobs to store
+	keys, err := t.store.Put(blobs)
+	if err != nil {
+		return nil, fmt.Errorf("store Put: %v", err)
+	}
+	if len(keys) != len(blobs) {
+		return nil, fmt.Errorf("wrong number of keys: got %v, want %v",
+			len(keys), len(blobs))
+	}
+
+	// Prepare log leaves. hashes and keys share the same ordering.
+	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
+	for k := range blobs {
+		pk := []byte(keyPrefix + keys[k])
+		leaves = append(leaves, logLeafNew(hashes[k], pk))
+	}
+
+	// Append leaves to trillian tree
+	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAppend: %v", err)
+	}
+	if len(queued) != len(leaves) {
+		return nil, fmt.Errorf("wrong number of queued leaves: got %v, want %v",
+			len(queued), len(leaves))
+	}
+	failed := make([]string, 0, len(queued))
+	for _, v := range queued {
+		c := codes.Code(v.QueuedLeaf.GetStatus().GetCode())
+		if c != codes.OK {
+			failed = append(failed, fmt.Sprintf("%v", c))
+		}
+	}
+	if len(failed) > 0 {
+		return nil, fmt.Errorf("append leaves failed: %v", failed)
+	}
+
+	// Parse and return the merkle leaf hashes
+	merkles := make([][]byte, 0, len(blobs))
+	for _, v := range queued {
+		merkles = append(merkles, v.QueuedLeaf.Leaf.MerkleLeafHash)
+	}
+
+	return merkles, nil
+}
+
+// del deletes the blobs that correspond to the provided merkle leaf hashes.
+func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
+	// Ensure tree exists. We allow blobs to be deleted from both
+	// frozen and non frozen trees.
+	if !t.treeExists(treeID) {
+		return errRecordNotFound
+	}
+
+	// Get all tree leaves
+	leaves, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return err
+	}
+
+	// Put merkle leaf hashes into a map so that we can tell if a leaf
+	// corresponds to one of the target merkle leaf hashes in O(n)
+	// time.
+	merkleHashes := make(map[string]struct{}, len(leaves))
+	for _, v := range merkles {
+		merkleHashes[hex.EncodeToString(v)] = struct{}{}
+	}
+
+	// Aggregate the key-value store keys for the provided merkle leaf
+	// hashes.
+	keys := make([]string, 0, len(merkles))
+	for _, v := range leaves {
+		_, ok := merkleHashes[hex.EncodeToString(v.MerkleLeafHash)]
+		if ok {
+			key, err := extractKeyFromLeaf(v)
+			if err != nil {
+				return err
+			}
+			keys = append(keys, key)
+		}
+	}
+
+	// Delete file blobs from the store
+	err = t.store.Del(keys)
+	if err != nil {
+		return fmt.Errorf("store Del: %v", err)
+	}
+
+	return nil
+}
+
+// blobsByMerkle returns the blobs with the provided merkle leaf hashes.
+//
+// If a blob does not exist it will not be included in the returned map. It is
+// the responsibility of the caller to check that a blob is returned for each
+// of the provided merkle hashes.
+func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
+	// Get leaves
+	leavesAll, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+
+	// Aggregate the leaves that correspond to the provided merkle
+	// hashes.
+	// map[merkleHash]*trillian.LogLeaf
+	leaves := make(map[string]*trillian.LogLeaf, len(merkles))
+	for _, v := range merkles {
+		leaves[hex.EncodeToString(v)] = nil
+	}
+	for _, v := range leavesAll {
+		m := hex.EncodeToString(v.MerkleLeafHash)
+		if _, ok := leaves[m]; ok {
+			leaves[m] = v
+		}
+	}
+
+	// Ensure a leaf was found for all provided merkle hashes
+	for k, v := range leaves {
+		if v == nil {
+			return nil, fmt.Errorf("leaf not found for merkle hash: %v", k)
+		}
+	}
+
+	// Extract the key-value store keys. These keys MUST be put in the
+	// same order that the merkle hashes were provided in.
+	keys := make([]string, 0, len(leaves))
+	for _, v := range merkles {
+		l, ok := leaves[hex.EncodeToString(v)]
+		if !ok {
+			return nil, fmt.Errorf("leaf not found for merkle hash: %x", v)
+		}
+		k, err := extractKeyFromLeaf(l)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+
+	// Pull the blobs from the store. If is ok if one or more blobs is
+	// not found. It is the responsibility of the caller to decide how
+	// this should be handled.
+	blobs, err := t.store.Get(keys)
+	if err != nil {
+		return nil, fmt.Errorf("store Get: %v", err)
+	}
+
+	// Decrypt any encrypted blobs
+	for k, v := range blobs {
+		if blobIsEncrypted(v) {
+			b, _, err := t.encryptionKey.decrypt(v)
+			if err != nil {
+				return nil, err
+			}
+			blobs[k] = b
+		}
+	}
+
+	// Put blobs in a map so the caller can determine if any of the
+	// provided merkle hashes did not correspond to a blob in the
+	// store.
+	b := make(map[string][]byte, len(blobs)) // [merkleHash]blob
+	for k, v := range keys {
+		// The merkle hashes slice and keys slice share the same order
+		merkleHash := hex.EncodeToString(merkles[k])
+		blob, ok := blobs[v]
+		if !ok {
+			return nil, fmt.Errorf("blob not found for key %v", v)
+		}
+		b[merkleHash] = blob
+	}
+
+	return b, nil
+}
+
+// blobsByKeyPrefix returns all blobs that match the provided key prefix.
+func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
+	// Get leaves
+	leaves, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+
+	// Walk leaves and aggregate the key-value store keys for all
+	// leaves with a matching key prefix.
+	keys := make([]string, 0, len(leaves))
+	for _, v := range leaves {
+		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
+			k, err := extractKeyFromLeaf(v)
+			if err != nil {
+				return nil, err
+			}
+			keys = append(keys, k)
+		}
+	}
+
+	// Pull the blobs from the store
+	blobs, err := t.store.Get(keys)
+	if err != nil {
+		return nil, fmt.Errorf("store Get: %v", err)
+	}
+	if len(blobs) != len(keys) {
+		// One or more blobs were not found
+		missing := make([]string, 0, len(keys))
+		for _, v := range keys {
+			_, ok := blobs[v]
+			if !ok {
+				missing = append(missing, v)
+			}
+		}
+		return nil, fmt.Errorf("blobs not found: %v", missing)
+	}
+
+	// Decrypt any encrypted blobs
+	for k, v := range blobs {
+		if blobIsEncrypted(v) {
+			b, _, err := t.encryptionKey.decrypt(v)
+			if err != nil {
+				return nil, err
+			}
+			blobs[k] = b
+		}
+	}
+
+	// Covert blobs from map to slice
+	b := make([][]byte, 0, len(blobs))
+	for _, v := range blobs {
+		b = append(b, v)
+	}
+
+	return b, nil
+}
 
 // TODO run fsck episodically
 func (t *tlog) fsck() {
