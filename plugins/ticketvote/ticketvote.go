@@ -610,9 +610,6 @@ func DecodeInventory(payload []byte) (*Inventory, error) {
 //
 // Sorted by voting period end block height in descending order:
 // Started, Finished
-//
-// TODO the pi plugin will need to catagorize finished into approved and
-// rejected.
 type InventoryReply struct {
 	Unauthorized []string `json:"unauthorized"`
 	Authorized   []string `json:"authorized"`

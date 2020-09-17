@@ -31,6 +31,7 @@ import (
 	"github.com/subosito/gozaru"
 )
 
+// TODO we need an unvetted censored status
 // TODO testnet vs mainnet trillian databases
 // TODO fsck
 // TODO allow token prefix lookups

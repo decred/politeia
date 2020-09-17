@@ -21,7 +21,8 @@ const (
 	ID = "pi"
 
 	// Plugin commands
-	CmdProposals = "proposals" // Get proposals plugin data
+	CmdProposals     = "proposals"     // Get plugin data for proposals
+	CmdVoteInventory = "voteinventory" // Get inventory by vote status
 
 	// Metadata stream IDs. All metadata streams in this plugin will
 	// use 1xx numbering.
@@ -248,4 +249,53 @@ func DecodeProposalsReply(payload []byte) (*ProposalsReply, error) {
 		return nil, err
 	}
 	return &pr, nil
+}
+
+// VoteInventory requests the tokens of all proposals in the inventory
+// catagorized by their vote status. The difference between this call and the
+// ticketvote Inventory call is that this call breaks the Finished vote status
+// out into Approved and Rejected catagories, which is specific to pi.
+type VoteInventory struct{}
+
+// EncodeVoteInventory encodes a VoteInventory into a JSON byte slice.
+func EncodeVoteInventory(vi VoteInventory) ([]byte, error) {
+	return json.Marshal(vi)
+}
+
+// DecodeVoteInventory decodes a JSON byte slice into a VoteInventory.
+func DecodeVoteInventory(payload []byte) (*VoteInventory, error) {
+	var vi VoteInventory
+	err := json.Unmarshal(payload, &vi)
+	if err != nil {
+		return nil, err
+	}
+	return &vi, nil
+}
+
+// VoteInventoryReply is the reply to the VoteInventory command.
+type VoteInventoryReply struct {
+	Unauthorized []string `json:"unauthorized"`
+	Authorized   []string `json:"authorized"`
+	Started      []string `json:"started"`
+	Approved     []string `json:"approved"`
+	Rejected     []string `json:"rejected"`
+
+	// BestBlock is the best block value that was used to prepare the
+	// inventory.
+	BestBlock uint32 `json:"bestblock"`
+}
+
+// EncodeVoteInventoryReply encodes a VoteInventoryReply into a JSON byte slice.
+func EncodeVoteInventoryReply(vir VoteInventoryReply) ([]byte, error) {
+	return json.Marshal(vir)
+}
+
+// DecodeVoteInventoryReply decodes a JSON byte slice into a VoteInventoryReply.
+func DecodeVoteInventoryReply(payload []byte) (*VoteInventoryReply, error) {
+	var vir VoteInventoryReply
+	err := json.Unmarshal(payload, &vir)
+	if err != nil {
+		return nil, err
+	}
+	return &vir, nil
 }

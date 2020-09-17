@@ -510,9 +510,10 @@ func (p *piPlugin) Cmd(cmd, payload string) (string, error) {
 	switch cmd {
 	case pi.CmdProposals:
 		return p.cmdProposals(payload)
+		// TODO case pi.CmdVoteInventory
 	}
 
-	return "", nil
+	return "", backend.ErrPluginCmdInvalid
 }
 
 func (p *piPlugin) Hook(h tlogbe.HookT, payload string) error {
