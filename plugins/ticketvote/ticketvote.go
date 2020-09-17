@@ -11,9 +11,9 @@ import (
 	"fmt"
 )
 
-type ActionT string
-type VoteT int
 type VoteStatusT int
+type AuthActionT string
+type VoteT int
 type VoteErrorT int
 type ErrorStatusT int
 
@@ -31,16 +31,16 @@ const (
 	CmdInventory   = "inventory"   // Get inventory grouped by vote status
 	CmdProofs      = "proofs"      // Get inclusion proofs
 
-	// Authorize vote actions
-	ActionAuthorize ActionT = "authorize"
-	ActionRevoke    ActionT = "revoke"
-
 	// Vote statuses
 	VoteStatusInvalid      VoteStatusT = 0 // Invalid status
 	VoteStatusUnauthorized VoteStatusT = 1 // Vote cannot be started
 	VoteStatusAuthorized   VoteStatusT = 2 // Vote can be started
 	VoteStatusStarted      VoteStatusT = 3 // Vote has been started
 	VoteStatusFinished     VoteStatusT = 4 // Vote has finished
+
+	// Authorize vote actions
+	ActionAuthorize AuthActionT = "authorize"
+	ActionRevoke    AuthActionT = "revoke"
 
 	// Vote types
 	VoteTypeInvalid VoteT = 0
@@ -199,12 +199,14 @@ type CastVote struct {
 }
 
 // Authorize authorizes a ticket vote or revokes a previous authorization.
+//
+// Signature contains the client signature of the Token+Version+Action.
 type Authorize struct {
-	Token     string  `json:"token"`     // Record token
-	Version   uint32  `json:"version"`   // Record version
-	Action    ActionT `json:"action"`    // Authorize or revoke
-	PublicKey string  `json:"publickey"` // Public key used for signature
-	Signature string  `json:"signature"` // Signature of token+version+action
+	Token     string      `json:"token"`     // Record token
+	Version   uint32      `json:"version"`   // Record version
+	Action    AuthActionT `json:"action"`    // Authorize or revoke
+	PublicKey string      `json:"publickey"` // Public key used for signature
+	Signature string      `json:"signature"` // Client signature
 }
 
 // EncodeAuthorize encodes an Authorize into a JSON byte slice.

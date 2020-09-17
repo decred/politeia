@@ -28,6 +28,7 @@ import (
 // the key to the file system. This will allow the data to be backed up.
 
 // TODO comment signature messages need to have state added to them.
+// TODO uuid has been added to New, Edit, and CommentAdd.
 
 const (
 	// Blob entry data descriptors

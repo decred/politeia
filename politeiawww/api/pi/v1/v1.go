@@ -11,7 +11,9 @@ import (
 type ErrorStatusT int
 type PropStateT int
 type PropStatusT int
+type CommentVoteT int
 type VoteStatusT int
+type VoteAuthActionT string
 type VoteT int
 
 const (
@@ -55,12 +57,21 @@ const (
 	PropStatusCensored  PropStatusT = 3 // Prop has been censored
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
 
+	// Comment vote types
+	CommentVoteInvalid  CommentVoteT = 0
+	CommentVoteDownvote CommentVoteT = -1
+	CommentVoteUpvote   CommentVoteT = 1
+
 	// Vote statuses
 	VoteStatusInvalid      VoteStatusT = 0 // Invalid status
 	VoteStatusUnauthorized VoteStatusT = 1 // Vote cannot be started
 	VoteStatusAuthorized   VoteStatusT = 2 // Vote can be started
 	VoteStatusStarted      VoteStatusT = 3 // Vote has been started
 	VoteStatusFinished     VoteStatusT = 4 // Vote has finished
+
+	// Vote authorization actions
+	VoteAuthActionAuthorize VoteAuthActionT = "authorize"
+	VoteAuthActionRevoke    VoteAuthActionT = "revoke"
 
 	// Vote types
 	VoteTypeInvalid VoteT = 0
@@ -362,3 +373,181 @@ type ProposalInventoryReply struct {
 	Censored  []string `json:"censored"`
 	Abandoned []string `json:"abandoned"`
 }
+
+// Comment represent a proposal comment.
+//
+// The parent ID is used to reply to an existing comment. A parent ID of 0
+// indicates that the comment is a base level comment and not a reply commment.
+//
+// Signature is the client signature of State+Token+ParentID+Comment.
+type Comment struct {
+	UserID    string     `json:"userid"`    // User ID
+	Username  string     `json:"username"`  // Username
+	State     PropStateT `json:"state"`     // Proposal state
+	Token     string     `json:"token"`     // Proposal token
+	ParentID  uint32     `json:"parentid"`  // Parent comment ID
+	Comment   string     `json:"comment"`   // Comment text
+	PublicKey string     `json:"publickey"` // Public key used for Signature
+	Signature string     `json:"signature"` // Client signature
+	CommentID uint32     `json:"commentid"` // Comment ID
+	Version   uint32     `json:"version"`   // Comment version
+	Timestamp int64      `json:"timestamp"` // UNIX timestamp of last edit
+	Receipt   string     `json:"receipt"`   // Server sig of client sig
+	Score     int64      `json:"score"`     // Vote score
+	Deleted   bool       `json:"deleted"`   // Comment has been deleted
+	Reason    string     `json:"reason"`    // Reason for deletion
+}
+
+// CommentNew creates a new comment.
+//
+// The parent ID is used to reply to an existing comment. A parent ID of 0
+// indicates that the comment is a base level comment and not a reply commment.
+//
+// Signature is the client signature of State+Token+ParentID+Comment.
+type CommentNew struct {
+	State     PropStateT `json:"state"`
+	Token     string     `json:"token"`
+	ParentID  uint32     `json:"parentid"`
+	Comment   string     `json:"comment"`
+	PublicKey string     `json:"publickey"`
+	Signature string     `json:"signature"`
+}
+
+// CommentNewReply is the reply to the CommentNew command.
+//
+// Receipt is the server signature of the client signature. This is proof that
+// the server received and processed the CommentNew command.
+type CommentNewReply struct {
+	CommentID uint32 `json:"commentid"`
+	Timestamp int64  `json:"timestamp"`
+	Receipt   string `json:"receipt"`
+}
+
+// CommentCensor permanently censors a comment. The comment will be deleted
+// and cannot be retrieved once censored. Only admins can censor a comment.
+//
+// Reason contains the reason why the comment is being censored and must always
+// be included.
+type CommentCensor struct {
+	State     PropStateT `json:"state"`
+	Token     string     `json:"token"`
+	CommentID uint32     `json:"commentid"`
+	Reason    string     `json:"reason"`
+	PublicKey string     `json:"publickey"`
+	Signature string     `json:"signature"`
+}
+
+// CommentCensorReply is the reply to the CommentCensor command.
+//
+// Receipt is the server signature of the client signature. This is proof that
+// the server received and processed the CommentCensor command.
+type CommentCensorReply struct {
+	Timestamp int64  `json:"timestamp"`
+	Receipt   string `json:"receipt"`
+}
+
+// CommentVote casts a comment vote (upvote or downvote).
+//
+// The effect of a new vote on a comment score depends on the previous vote
+// from that uuid. Example, a user upvotes a comment that they have already
+// upvoted, the resulting vote score is 0 due to the second upvote removing the
+// original upvote.
+//
+// Signature is the client signature of the State+Token+CommentID+Vote.
+type CommentVote struct {
+	State     PropStateT   `json:"state"`
+	Token     string       `json:"token"`
+	CommentID uint32       `json:"commentid"`
+	Vote      CommentVoteT `json:"vote"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
+}
+
+// CommentVoteReply is the reply to the CommentVote command.
+//
+// Receipt is the server signature of the client signature. This is proof that
+// the server received and processed the CommentVote command.
+type CommentVoteReply struct {
+	Score     int64  `json:"score"` // Overall comment vote score
+	Timestamp int64  `json:"timestamp"`
+	Receipt   string `json:"receipt"`
+}
+
+// Comments returns all comments for a proposal.
+type Comments struct {
+	State PropStateT `json:"state"`
+	Token string     `json:"token"`
+}
+
+// CommentsReply is the reply to the comments command.
+type CommentsReply struct {
+	Comments []Comment `json:"comments"`
+}
+
+// UserCommentVote represents a comment vote made by a user. This struct
+// contains all the information in a CommentVote and a CommentVoteReply.
+type UserCommentVote struct {
+	State     PropStateT   `json:"state"`
+	Token     string       `json:"token"`
+	CommentID uint32       `json:"commentid"`
+	Vote      CommentVoteT `json:"vote"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
+	Timestamp int64        `json:"timestamp"`
+	Receipt   string       `json:"receipt"`
+}
+
+// CommentVotes returns all comment votes made a specific user on a proposal.
+type CommentVotes struct {
+	State  PropStateT `json:"state"`
+	Token  string     `json:"token"`
+	UserID string     `json:"userid"`
+}
+
+// CommentVotesReply is the reply to the CommentVotes command.
+type CommentVotesReply struct {
+	Votes []UserCommentVote `json:"votes"`
+}
+
+// VoteAuthorize authorizes a proposal vote or revokes a previous vote
+// authorization.  All proposal votes must be authorized by the proposal author
+// before an admin is able to start the voting process.
+//
+// Signature contains the client signature of the Token+Version+Action.
+type VoteAuthorize struct {
+	Token     string          `json:"token"`
+	Version   uint32          `json:"version"`
+	Action    VoteAuthActionT `json:"action"`
+	PublicKey string          `json:"publickey"`
+	Signature string          `json:"signature"`
+}
+
+// VoteAuthorizeReply is the reply to the VoteAuthorize command.
+//
+// Receipt is the server signature of the client signature. This is proof that
+// the server received and processed the VoteAuthorize command.
+type VoteAuthorizeReply struct {
+	Timestamp int64  `json:"timestamp"`
+	Receipt   string `json:"receipt"`
+}
+
+type VoteStart struct{}
+type VoteStartReply struct{}
+
+type VoteStartRunoff struct{}
+type VoteStartRunoffReply struct{}
+
+type VoteBallot struct{}
+type VoteBallotReply struct{}
+
+type Votes struct{}
+type VotesReply struct{}
+
+type VoteResults struct{}
+type VoteResultsReply struct{}
+
+type VoteSummaries struct{}
+type VoteSummariesReply struct{}
+
+type VoteInventory struct{}
+type VoteInventoryReply struct{}

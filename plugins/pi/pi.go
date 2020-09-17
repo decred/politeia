@@ -16,12 +16,19 @@ import (
 type PropStateT int
 type PropStatusT int
 type ErrorStatusT int
+type VoteT int
 
 const (
 	ID = "pi"
 
-	// Plugin commands
+	// Plugin commands. Many of these plugin commands rely on the
+	// commands from other plugins, but perform additional validation
+	// that is specific to pi or add additional functionality on top of
+	// the existing plugin commands that is specific to pi.
 	CmdProposals     = "proposals"     // Get plugin data for proposals
+	CmdCommentNew    = "commentnew"    // Create a new comment
+	CmdCommentCensor = "commentcensor" // Censor a comment
+	CmdCommentVote   = "commentvote"   // Upvote/downvote a comment
 	CmdVoteInventory = "voteinventory" // Get inventory by vote status
 
 	// Metadata stream IDs. All metadata streams in this plugin will
@@ -47,6 +54,11 @@ const (
 	PropStatusPublic    PropStatusT = 2 // Prop has been made public
 	PropStatusCensored  PropStatusT = 3 // Prop has been censored
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
+
+	// Comment vote types
+	VoteInvalid  VoteT = 0
+	VoteDownvote VoteT = -1
+	VoteUpvote   VoteT = 1
 
 	// User error status codes
 	// TODO number error codes
@@ -251,10 +263,174 @@ func DecodeProposalsReply(payload []byte) (*ProposalsReply, error) {
 	return &pr, nil
 }
 
+// CommentNew creates a new comment. This command relies on the comments plugin
+// New command, but also performs additional vote status validation that is
+// specific to pi.
+//
+// The parent ID is used to reply to an existing comment. A parent ID of 0
+// indicates that the comment is a base level comment and not a reply commment.
+//
+// Signature is the client signature of State+Token+ParentID+Comment.
+type CommentNew struct {
+	UUID      string     `json:"uuid"`      // Unique user ID
+	State     PropStateT `json:"state"`     // Record state
+	Token     string     `json:"token"`     // Record token
+	ParentID  uint32     `json:"parentid"`  // Parent comment ID
+	Comment   string     `json:"comment"`   // Comment text
+	PublicKey string     `json:"publickey"` // Pubkey used for Signature
+	Signature string     `json:"signature"` // Client signature
+}
+
+// EncodeCommentNew encodes a CommentNew into a JSON byte slice.
+func EncodeCommentNew(cn CommentNew) ([]byte, error) {
+	return json.Marshal(cn)
+}
+
+// DecodeCommentNew decodes a JSON byte slice into a CommentNew.
+func DecodeCommentNew(payload []byte) (*CommentNew, error) {
+	var cn CommentNew
+	err := json.Unmarshal(payload, &cn)
+	if err != nil {
+		return nil, err
+	}
+	return &cn, nil
+}
+
+// CommentNewReply is the reply to the CommentNew command.
+type CommentNewReply struct {
+	CommentID uint32 `json:"commentid"` // Comment ID
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server sig of client sig
+}
+
+// EncodeCommentNew encodes a CommentNewReply into a JSON byte slice.
+func EncodeCommentNewReply(cnr CommentNewReply) ([]byte, error) {
+	return json.Marshal(cnr)
+}
+
+// DecodeCommentNew decodes a JSON byte slice into a CommentNewReply.
+func DecodeCommentNewReply(payload []byte) (*CommentNewReply, error) {
+	var cnr CommentNewReply
+	err := json.Unmarshal(payload, &cnr)
+	if err != nil {
+		return nil, err
+	}
+	return &cnr, nil
+}
+
+// CommentCensor permanently deletes the provided comment. This command relies
+// on the comments plugin Del command, but also performs additional vote status
+// validation that is specific to pi.
+//
+// Signature is the client signature of the State+Token+CommentID+Reason
+type CommentCensor struct {
+	State     PropStateT `json:"state"`     // Record state
+	Token     string     `json:"token"`     // Record token
+	CommentID uint32     `json:"commentid"` // Comment ID
+	Reason    string     `json:"reason"`    // Reason for deletion
+	PublicKey string     `json:"publickey"` // Public key used for signature
+	Signature string     `json:"signature"` // Client signature
+}
+
+// EncodeCommentCensor encodes a CommentCensor into a JSON byte slice.
+func EncodeCommentCensor(cc CommentCensor) ([]byte, error) {
+	return json.Marshal(cc)
+}
+
+// DecodeCommentCensor decodes a JSON byte slice into a CommentCensor.
+func DecodeCommentCensor(payload []byte) (*CommentCensor, error) {
+	var cc CommentCensor
+	err := json.Unmarshal(payload, &cc)
+	if err != nil {
+		return nil, err
+	}
+	return &cc, nil
+}
+
+// CommentCensorReply is the reply to the CommentCensor command.
+type CommentCensorReply struct {
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// EncodeCommentCensorReply encodes a CommentCensorReply into a JSON byte
+// slice.
+func EncodeCommentCensorReply(ccr CommentCensorReply) ([]byte, error) {
+	return json.Marshal(ccr)
+}
+
+// DecodeCommentCensorReply decodes a JSON byte slice into CommentCensorReply.
+func DecodeCommentCensorReply(payload []byte) (*CommentCensorReply, error) {
+	var d CommentCensorReply
+	err := json.Unmarshal(payload, &d)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// CommentVote casts a comment vote (upvote or downvote). This command relies
+// on the comments plugin Del command, but also performs additional vote status
+// validation that is specific to pi.
+//
+// The effect of a new vote on a comment score depends on the previous vote
+// from that uuid. Example, a user upvotes a comment that they have already
+// upvoted, the resulting vote score is 0 due to the second upvote removing the
+// original upvote. The public key cannot be relied on to remain the same for
+// each user so a uuid must be included.
+//
+// Signature is the client signature of the State+Token+CommentID+Vote.
+type CommentVote struct {
+	State     PropStateT `json:"state"`     // Record state
+	UUID      string     `json:"uuid"`      // Unique user ID
+	Token     string     `json:"token"`     // Record token
+	CommentID uint32     `json:"commentid"` // Comment ID
+	Vote      VoteT      `json:"vote"`      // Upvote or downvote
+	PublicKey string     `json:"publickey"` // Public key used for signature
+	Signature string     `json:"signature"` // Client signature
+}
+
+// EncodeCommentVote encodes a CommentVote into a JSON byte slice.
+func EncodeCommentVote(cv CommentVote) ([]byte, error) {
+	return json.Marshal(cv)
+}
+
+// DecodeCommentVote decodes a JSON byte slice into a CommentVote.
+func DecodeCommentVote(payload []byte) (*CommentVote, error) {
+	var cv CommentVote
+	err := json.Unmarshal(payload, &cv)
+	if err != nil {
+		return nil, err
+	}
+	return &cv, nil
+}
+
+// CommentVoteReply is the reply to the CommentVote command.
+type CommentVoteReply struct {
+	Score     int64  `json:"score"`     // Overall comment vote score
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// EncodeCommentVoteReply encodes a CommentVoteReply into a JSON byte slice.
+func EncodeCommentVoteReply(cvr CommentVoteReply) ([]byte, error) {
+	return json.Marshal(cvr)
+}
+
+// DecodeCommentVoteReply decodes a JSON byte slice into a CommentVoteReply.
+func DecodeCommentVoteReply(payload []byte) (*CommentVoteReply, error) {
+	var cvr CommentVoteReply
+	err := json.Unmarshal(payload, &cvr)
+	if err != nil {
+		return nil, err
+	}
+	return &cvr, nil
+}
+
 // VoteInventory requests the tokens of all proposals in the inventory
-// catagorized by their vote status. The difference between this call and the
-// ticketvote Inventory call is that this call breaks the Finished vote status
-// out into Approved and Rejected catagories, which is specific to pi.
+// catagorized by their vote status. This call relies on the ticketvote
+// Inventory call, but breaks the Finished vote status out into Approved and
+// Rejected catagories. This functionality is specific to pi.
 type VoteInventory struct{}
 
 // EncodeVoteInventory encodes a VoteInventory into a JSON byte slice.

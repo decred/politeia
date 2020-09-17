@@ -56,7 +56,7 @@ const (
 	RouteProposalPaywallDetails = "/proposals/paywall"
 	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 
-	// The following routes are to be DEPRECATED in the near future and
+	// The following routes WILL BE DEPRECATED in the near future and
 	// should not be used. The pi v1 API should be used instead.
 	RouteTokenInventory   = "/proposals/tokeninventory"
 	RouteBatchProposals   = "/proposals/batch"
@@ -65,7 +65,7 @@ const (
 	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
 	RouteCastVotes        = "/proposals/castvotes"
 
-	// The following routes have been DEPRECATED. The pi v1 API should
+	// The following route HAVE BEEN DEPRECATED. The pi v1 API should
 	// be used instead.
 	RouteActiveVote        = "/proposals/activevote"
 	RouteAllVetted         = "/proposals/vetted"
