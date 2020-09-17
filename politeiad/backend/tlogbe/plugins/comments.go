@@ -27,6 +27,8 @@ import (
 // TODO don't save data to the file system. Save it to the kv store and save
 // the key to the file system. This will allow the data to be backed up.
 
+// TODO comment signature messages need to have state added to them.
+
 const (
 	// Blob entry data descriptors
 	dataDescriptorCommentAdd    = "commentadd"
