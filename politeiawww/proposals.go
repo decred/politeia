@@ -285,7 +285,7 @@ func (p *politeiawww) convertProposalToWWW(pr *pi.ProposalRecord) (*www.Proposal
 		},
 	}
 
-	files := make([]www.File, len(pr.Files))
+	files := make([]www.File, 0, len(pr.Files))
 	for _, f := range pr.Files {
 		files = append(files, www.File{
 			Name:    f.Name,
@@ -296,7 +296,7 @@ func (p *politeiawww) convertProposalToWWW(pr *pi.ProposalRecord) (*www.Proposal
 	}
 	pw.Files = files
 
-	metadata := make([]www.Metadata, len(pr.Metadata))
+	metadata := make([]www.Metadata, 0, len(pr.Metadata))
 	for _, md := range pr.Metadata {
 		metadata = append(metadata, www.Metadata{
 			Digest:  md.Digest,
@@ -351,7 +351,7 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User)
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
 	// Prep proposals requests
-	prs := make([]pi.ProposalRequest, len(bp.Tokens))
+	prs := make([]pi.ProposalRequest, 0, len(bp.Tokens))
 	for _, t := range bp.Tokens {
 		prs = append(prs, pi.ProposalRequest{
 			Token: t,
@@ -364,7 +364,7 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User)
 	}
 
 	// Convert proposals records
-	propsw := make([]www.ProposalRecord, len(bp.Tokens))
+	propsw := make([]www.ProposalRecord, 0, len(bp.Tokens))
 	for _, pr := range props {
 		propw, err := p.convertProposalToWWW(&pr)
 		if err != nil {
@@ -495,7 +495,7 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	}
 
 	// Transalte vote options
-	vo := make([]www.VoteOption, len(vd.Vote.Vote.Options))
+	vo := make([]www.VoteOption, 0, len(vd.Vote.Vote.Options))
 	for _, o := range vd.Vote.Vote.Options {
 		vo = append(vo, www.VoteOption{
 			Id:          o.ID,
@@ -521,7 +521,7 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 		return nil, err
 	}
 
-	votes := make([]www.CastVote, len(cv.Votes))
+	votes := make([]www.CastVote, 0, len(cv.Votes))
 	for _, v := range cv.Votes {
 		votes = append(votes, www.CastVote{
 			Token:     v.Token,
@@ -576,6 +576,7 @@ func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.Ba
 	if err != nil {
 		return nil, err
 	}
+
 	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdSummaries, "",
 		string(payload))
 	if err != nil {
@@ -603,9 +604,8 @@ func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.Ba
 			QuorumPercentage: sum.QuorumPercentage,
 			PassPercentage:   sum.PassPercentage,
 		}
-
 		// Translate vote options
-		results := make([]www.VoteOptionResult, len(sum.Results))
+		results := make([]www.VoteOptionResult, 0, len(sum.Results))
 		for _, r := range sum.Results {
 			results = append(results, www.VoteOptionResult{
 				VotesReceived: r.Votes,
@@ -625,62 +625,71 @@ func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.Ba
 	return &res, nil
 }
 
+func convertVoteErrorCodeToWWW(errcode ticketvote.VoteErrorT) decredplugin.ErrorStatusT {
+	switch errcode {
+	case ticketvote.VoteErrorInvalid:
+		return decredplugin.ErrorStatusInvalid
+	case ticketvote.VoteErrorInternalError:
+		return decredplugin.ErrorStatusInternalError
+	case ticketvote.VoteErrorRecordNotFound:
+		return decredplugin.ErrorStatusProposalNotFound
+	case ticketvote.VoteErrorVoteBitInvalid:
+		return decredplugin.ErrorStatusInvalidVoteBit
+	case ticketvote.VoteErrorVoteStatusInvalid:
+		return decredplugin.ErrorStatusVoteHasEnded
+	case ticketvote.VoteErrorTicketAlreadyVoted:
+		return decredplugin.ErrorStatusDuplicateVote
+	case ticketvote.VoteErrorTicketNotEligible:
+		return decredplugin.ErrorStatusIneligibleTicket
+	default:
+		return decredplugin.ErrorStatusInternalError
+	}
+}
+
 func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify proposal tokens
+	// Prep plugin command
+	var bp ticketvote.Ballot
+	// Transale votes
+	votes := make([]ticketvote.Vote, 0, len(ballot.Votes))
 	for _, vote := range ballot.Votes {
-		if !tokenIsValid(vote.Token) {
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-				ErrorContext: []string{vote.Token},
-			}
-		}
+		votes = append(votes, ticketvote.Vote{
+			Token:     vote.Ticket,
+			Ticket:    vote.Ticket,
+			VoteBit:   vote.VoteBit,
+			Signature: vote.Signature,
+		})
 	}
-
-	payload, err := decredplugin.EncodeBallot(convertBallotFromWWW(*ballot))
-	if err != nil {
-		return nil, err
-	}
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdBallot,
-		CommandID: decredplugin.CmdBallot,
-		Payload:   string(payload),
-	}
-
-	responseBody, err := p.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
+	bp.Votes = votes
+	payload, err := ticketvote.EncodeBallot(bp)
 	if err != nil {
 		return nil, err
 	}
 
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot, "",
+		string(payload))
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
+		return nil, err
 	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	b, err := ticketvote.DecodeBallotReply([]byte(r))
 	if err != nil {
 		return nil, err
 	}
 
-	// Decode plugin reply
-	br, err := decredplugin.DecodeBallotReply([]byte(reply.Payload))
-	if err != nil {
-		return nil, err
+	// Translate reply to www
+	res := www.BallotReply{}
+	rps := make([]www.CastVoteReply, 0, len(b.Receipts))
+	for i, rp := range b.Receipts {
+		rps = append(rps, www.CastVoteReply{
+			ClientSignature: ballot.Votes[i].Signature,
+			Signature:       rp.Receipt,
+			Error:           rp.ErrorContext,
+			ErrorStatus:     convertVoteErrorCodeToWWW(rp.ErrorCode),
+		})
 	}
-	brr := convertBallotReplyFromDecredPlugin(*br)
-	return &brr, nil
+
+	return &res, nil
 }
 
 // processProposalPaywallDetails returns a proposal paywall that enables the
