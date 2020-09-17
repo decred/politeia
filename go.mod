@@ -3,6 +3,7 @@ module github.com/decred/politeia
 go 1.13
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.15+incompatible // indirect
