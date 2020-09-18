@@ -1602,57 +1602,52 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	}, nil
 }
 
-// tokenInventory fetches the token inventory from the cache and returns a
-// TokenInventoryReply. This call relies on the lazy loaded VoteResults cache
-// table. If the VoteResults table is not up-to-date then this function will
-// load it before retrying the token inventory call. Since politeiawww only has
-// read access to the cache, loading the VoteResults table requires using a
-// politeiad decredplugin command.
-func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.TokenInventoryReply, error) {
-	/*
-		var done bool
-		var r www.TokenInventoryReply
-		for retries := 0; !done && retries <= 1; retries++ {
-			// Both vetted and unvetted tokens should be returned
-			// for admins. Only vetted tokens should be returned
-			// for non-admins.
-			ti, err := p.decredTokenInventory(bestBlock, isAdmin)
-			if err != nil {
-				if err == cache.ErrRecordNotFound {
-					// There are missing entries in the vote
-					// results cache table. Load them.
-					_, err := p.decredLoadVoteResults(bestBlock)
-					if err != nil {
-						return nil, err
-					}
-
-					// Retry token inventory call
-					continue
-				}
-				return nil, err
-			}
-
-			r = convertTokenInventoryReplyFromDecred(*ti)
-			done = true
-		}
-
-		return &r, nil
-	*/
-
-	return nil, nil
-}
-
 // processTokenInventory returns the tokens of all proposals in the inventory,
 // categorized by stage of the voting process.
 func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
-	bb, err := p.getBestBlock()
+	// Prep plugin command to get tokens by vote statuses
+	var vip piplugin.VoteInventory
+	payload, err := piplugin.EncodeVoteInventory(vip)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.tokenInventory(bb, isAdmin)
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdVoteInventory, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	vi, err := piplugin.DecodeVoteInventoryReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	// Translate reply to www
+	res := www.TokenInventoryReply{
+		Pre:      append(vi.Unauthorized, vi.Authorized...),
+		Active:   vi.Started,
+		Approved: vi.Approved,
+		Rejected: vi.Rejected,
+	}
+
+	// Call politeiad to get tokens by record statuses
+	isReply, err := p.inventoryByStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	// Fill info
+	res.Abandoned = isReply.Archived
+
+	// Add admins only data
+	if isAdmin {
+		res.Censored = isReply.Censored
+		res.Unreviewed = isReply.Unvetted
+	}
+
+	return &res, nil
 }
 
 // processVoteDetailsV2 returns the vote details for the given proposal token.
