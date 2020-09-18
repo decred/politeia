@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	// hooks contains human readable plugin hook descriptions.
+	// hooks contains human readable descriptions of the plugin hooks.
 	hooks = map[hookT]string{
 		hookNewRecordPre:        "new record pre",
 		hookNewRecordPost:       "new record post",
@@ -39,32 +39,28 @@ var (
 	}
 )
 
-// newRecord is the payload for the hookNewRecordPre and hookNewRecordPost
-// hooks.
-type newRecord struct {
+// hookNewRecord is the payload for the new record hooks.
+type hookNewRecord struct {
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
 	Metadata       []backend.MetadataStream `json:"metadata"`
 	Files          []backend.File           `json:"files"`
 }
 
-// encodeNewRecord encodes a newRecord into a JSON byte slice.
-func encodeNewRecord(nr newRecord) ([]byte, error) {
-	return json.Marshal(nr)
+func encodeHookNewRecord(hnr hookNewRecord) ([]byte, error) {
+	return json.Marshal(hnr)
 }
 
-// decodeNewRecord decodes a JSON byte slice into a newRecord.
-func decodeNewRecord(payload []byte) (*newRecord, error) {
-	var nr newRecord
-	err := json.Unmarshal(payload, &nr)
+func decodeHookNewRecord(payload []byte) (*hookNewRecord, error) {
+	var hnr hookNewRecord
+	err := json.Unmarshal(payload, &hnr)
 	if err != nil {
 		return nil, err
 	}
-	return &nr, nil
+	return &hnr, nil
 }
 
-// editRecord is the payload for the hookEditRecordPre and hookEditRecordPost
-// hooks.
-type editRecord struct {
+// hookEditRecord is the payload for the edit record hooks.
+type hookEditRecord struct {
 	// Current record
 	Current backend.Record `json:"record"`
 
@@ -76,24 +72,21 @@ type editRecord struct {
 	FilesDel       []string                 `json:"filesdel"`
 }
 
-// encodeEditRecord encodes an editRecord into a JSON byte slice.
-func encodeEditRecord(er editRecord) ([]byte, error) {
-	return json.Marshal(er)
+func encodeHookEditRecord(her hookEditRecord) ([]byte, error) {
+	return json.Marshal(her)
 }
 
-// decodeEditRecord decodes a JSON byte slice into a editRecord.
-func decodeEditRecord(payload []byte) (*editRecord, error) {
-	var er editRecord
-	err := json.Unmarshal(payload, &er)
+func decodeHookEditRecord(payload []byte) (*hookEditRecord, error) {
+	var her hookEditRecord
+	err := json.Unmarshal(payload, &her)
 	if err != nil {
 		return nil, err
 	}
-	return &er, nil
+	return &her, nil
 }
 
-// setRecordStatus is the payload for the hookSetRecordStatusPre and
-// hookSetRecordStatusPost hooks.
-type setRecordStatus struct {
+// hookSetRecordStatus is the payload for the set record status hooks.
+type hookSetRecordStatus struct {
 	// Current record
 	Current backend.Record `json:"record"`
 
@@ -103,19 +96,17 @@ type setRecordStatus struct {
 	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
 }
 
-// encodeSetRecordStatus encodes a setRecordStatus into a JSON byte slice.
-func encodeSetRecordStatus(srs setRecordStatus) ([]byte, error) {
-	return json.Marshal(srs)
+func encodeHookSetRecordStatus(hsrs hookSetRecordStatus) ([]byte, error) {
+	return json.Marshal(hsrs)
 }
 
-// decodeSetRecordStatus decodes a JSON byte slice into a setRecordStatus.
-func decodeSetRecordStatus(payload []byte) (*setRecordStatus, error) {
-	var srs setRecordStatus
-	err := json.Unmarshal(payload, &srs)
+func decodeHookSetRecordStatus(payload []byte) (*hookSetRecordStatus, error) {
+	var hsrs hookSetRecordStatus
+	err := json.Unmarshal(payload, &hsrs)
 	if err != nil {
 		return nil, err
 	}
-	return &srs, nil
+	return &hsrs, nil
 }
 
 // pluginClient provides an API for the tlog backend to use when interacting

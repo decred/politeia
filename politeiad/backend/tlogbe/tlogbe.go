@@ -574,12 +574,12 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Call pre plugin hooks
-	nr := newRecord{
+	hnr := hookNewRecord{
 		RecordMetadata: *rm,
 		Metadata:       metadata,
 		Files:          files,
 	}
-	b, err := encodeNewRecord(nr)
+	b, err := encodeHookNewRecord(hnr)
 	if err != nil {
 		return nil, err
 	}
@@ -659,7 +659,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call pre plugin hooks
-	er := editRecord{
+	her := hookEditRecord{
 		Current:        *r,
 		RecordMetadata: *recordMD,
 		MDAppend:       mdAppend,
@@ -667,7 +667,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		FilesAdd:       filesAdd,
 		FilesDel:       filesDel,
 	}
-	b, err := encodeEditRecord(er)
+	b, err := encodeHookEditRecord(her)
 	if err != nil {
 		return nil, err
 	}
@@ -764,7 +764,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	}
 
 	// Call pre plugin hooks
-	er := editRecord{
+	her := hookEditRecord{
 		Current:        *r,
 		RecordMetadata: *recordMD,
 		MDAppend:       mdAppend,
@@ -772,7 +772,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		FilesAdd:       filesAdd,
 		FilesDel:       filesDel,
 	}
-	b, err := encodeEditRecord(er)
+	b, err := encodeHookEditRecord(her)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,13 +1127,13 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	srs := setRecordStatus{
+	hsrs := hookSetRecordStatus{
 		Current:        *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
 	}
-	b, err := encodeSetRecordStatus(srs)
+	b, err := encodeHookSetRecordStatus(hsrs)
 	if err != nil {
 		return nil, err
 	}
@@ -1257,13 +1257,13 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	srs := setRecordStatus{
+	srs := hookSetRecordStatus{
 		Current:        *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
 	}
-	b, err := encodeSetRecordStatus(srs)
+	b, err := encodeHookSetRecordStatus(srs)
 	if err != nil {
 		return nil, err
 	}

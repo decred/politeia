@@ -150,7 +150,6 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 		tmplData := proposalCensoredToAuthor{
 			Name:   d.name,
 			Reason: d.reason,
-			Link:   l.String(),
 		}
 		body, err = createBody(tmplProposalCensoredForAuthor, tmplData)
 		if err != nil {

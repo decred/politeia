@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package plugins
+package tlogbe
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/decred/politeia/plugins/comments"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 	"github.com/decred/politeia/util"
 )
@@ -46,14 +44,15 @@ const (
 )
 
 var (
-	_ tlogbe.Plugin = (*commentsPlugin)(nil)
+	_ pluginClient = (*commentsPlugin)(nil)
 )
 
-// commentsPlugin satisfies the Plugin interface.
+// commentsPlugin satisfies the pluginClient interface.
 type commentsPlugin struct {
 	sync.Mutex
 	id      *identity.FullIdentity
-	backend *tlogbe.TlogBackend
+	backend backend.Backend
+	tlog    tlogClient
 
 	// Mutexes contains a mutex for each record. The mutexes are lazy
 	// loaded.
@@ -79,11 +78,8 @@ type commentIndex struct {
 	Votes map[string][]voteIndex `json:"votes"` // [uuid]votes
 }
 
-// TODO this is not very efficient and probably needs to be improved.
-// It duplicates a lot of data and requires fetching all the tree
-// leaves to get. This may be problematic when there are 20,000 vote
-// leaves and you just want to get the comments count for a record.
-type index struct {
+// TODO the comments index should be cached in the data dir
+type commentsIndex struct {
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
@@ -102,7 +98,17 @@ func (p *commentsPlugin) mutex(token string) *sync.Mutex {
 	return m
 }
 
-func convertCommentsErrFromSignatureErr(err error) comments.UserErrorReply {
+func tlogIDForCommentState(s comments.StateT) string {
+	switch s {
+	case comments.StateUnvetted:
+		return tlogIDUnvetted
+	case comments.StateVetted:
+		return tlogIDVetted
+	}
+	return ""
+}
+
+func convertCommentsErrorFromSignatureError(err error) comments.UserErrorReply {
 	var e util.SignatureError
 	var s comments.ErrorStatusT
 	if errors.As(err, &e) {
@@ -170,8 +176,8 @@ func convertBlobEntryFromCommentVote(c comments.CommentVote) (*store.BlobEntry, 
 	return &be, nil
 }
 
-func convertBlobEntryFromIndex(idx index) (*store.BlobEntry, error) {
-	data, err := json.Marshal(idx)
+func convertBlobEntryFromCommentsIndex(ci commentsIndex) (*store.BlobEntry, error) {
+	data, err := json.Marshal(ci)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +269,7 @@ func convertCommentDelFromBlobEntry(be store.BlobEntry) (*comments.CommentDel, e
 	return &c, nil
 }
 
-func convertIndexFromBlobEntry(be store.BlobEntry) (*index, error) {
+func convertCommentsIndexFromBlobEntry(be store.BlobEntry) (*commentsIndex, error) {
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
@@ -292,13 +298,13 @@ func convertIndexFromBlobEntry(be store.BlobEntry) (*index, error) {
 		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
 			util.Digest(b), hash)
 	}
-	var idx index
-	err = json.Unmarshal(b, &idx)
+	var ci commentsIndex
+	err = json.Unmarshal(b, &ci)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal index: %v", err)
+		return nil, fmt.Errorf("unmarshal commentsIndex: %v", err)
 	}
 
-	return &idx, nil
+	return &ci, nil
 }
 
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
@@ -337,9 +343,37 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 	}
 }
 
-func commentAddSave(client *tlogbe.RecordClient, c comments.CommentAdd, encrypt bool) ([]byte, error) {
+// commentVersionLatest returns the latest comment version.
+func commentVersionLatest(cidx commentIndex) uint32 {
+	var maxVersion uint32
+	for version := range cidx.Adds {
+		if version > maxVersion {
+			maxVersion = version
+		}
+	}
+	return maxVersion
+}
+
+// commentExists returns whether the provided comment ID exists.
+func commentExists(idx commentsIndex, commentID uint32) bool {
+	_, ok := idx.Comments[commentID]
+	return ok
+}
+
+// commentIDLatest returns the latest comment ID.
+func commentIDLatest(idx commentsIndex) uint32 {
+	var maxID uint32
+	for id := range idx.Comments {
+		if id > maxID {
+			maxID = id
+		}
+	}
+	return maxID
+}
+
+func (p *commentsPlugin) commentAddSave(ca comments.CommentAdd) ([]byte, error) {
 	// Prepare blob
-	be, err := convertBlobEntryFromCommentAdd(c)
+	be, err := convertBlobEntryFromCommentAdd(ca)
 	if err != nil {
 		return nil, err
 	}
@@ -352,8 +386,24 @@ func commentAddSave(client *tlogbe.RecordClient, c comments.CommentAdd, encrypt 
 		return nil, err
 	}
 
+	// Prepare tlog args
+	tlogID := tlogIDForCommentState(ca.State)
+	token, err := hex.DecodeString(ca.Token)
+	if err != nil {
+		return nil, err
+	}
+	var encrypt bool
+	switch ca.State {
+	case comments.StateUnvetted:
+		encrypt = true
+	case comments.StateVetted:
+		encrypt = false
+	default:
+		return nil, fmt.Errorf("unknown state %v", ca.State)
+	}
+
 	// Save blob
-	merkles, err := client.Save(keyPrefixCommentAdd,
+	merkles, err := p.tlog.save(tlogID, token, keyPrefixCommentAdd,
 		[][]byte{b}, [][]byte{h}, encrypt)
 	if err != nil {
 		return nil, fmt.Errorf("Save: %v", err)
@@ -366,6 +416,7 @@ func commentAddSave(client *tlogbe.RecordClient, c comments.CommentAdd, encrypt 
 	return merkles[0], nil
 }
 
+/*
 func commentAdds(client *tlogbe.RecordClient, merkleHashes [][]byte) ([]comments.CommentAdd, error) {
 	// Retrieve blobs
 	blobs, err := client.BlobsByMerkleHash(merkleHashes)
@@ -494,35 +545,6 @@ func commentVoteSave(client *tlogbe.RecordClient, c comments.CommentVote) ([]byt
 	return merkles[0], nil
 }
 
-func indexSave(client *tlogbe.RecordClient, idx index) error {
-	// Prepare blob
-	be, err := convertBlobEntryFromIndex(idx)
-	if err != nil {
-		return err
-	}
-	h, err := hex.DecodeString(be.Hash)
-	if err != nil {
-		return err
-	}
-	b, err := store.Blobify(*be)
-	if err != nil {
-		return err
-	}
-
-	// Save blob
-	merkles, err := client.Save(keyPrefixCommentsIndex,
-		[][]byte{b}, [][]byte{h}, false)
-	if err != nil {
-		return fmt.Errorf("Save: %v", err)
-	}
-	if len(merkles) != 1 {
-		return fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
-			len(merkles))
-	}
-
-	return nil
-}
-
 // indexAddCommentVote adds the provided comment vote to the index and
 // calculates the new vote score. The updated index is returned. The effect of
 // a new vote on a comment depends on the previous vote from that uuid.
@@ -575,53 +597,7 @@ func indexAddCommentVote(idx index, cv comments.CommentVote, merkleHash []byte) 
 	return idx
 }
 
-func indexLatest(client *tlogbe.RecordClient) (*index, error) {
-	// Get all comment indexes
-	blobs, err := client.BlobsByKeyPrefix(keyPrefixCommentsIndex)
-	if err != nil {
-		return nil, err
-	}
-	if len(blobs) == 0 {
-		// A comments index does not exist. This can happen when no
-		// comments have been made on the record yet. Return a new one.
-		return &index{
-			Comments: make(map[uint32]commentIndex),
-		}, nil
-	}
 
-	// Decode the most recent index
-	b := blobs[len(blobs)-1]
-	be, err := store.Deblob(b)
-	if err != nil {
-		return nil, err
-	}
-	return convertIndexFromBlobEntry(*be)
-}
-
-func commentIDLatest(idx index) uint32 {
-	var maxID uint32
-	for id := range idx.Comments {
-		if id > maxID {
-			maxID = id
-		}
-	}
-	return maxID
-}
-
-func commentVersionLatest(cidx commentIndex) uint32 {
-	var maxVersion uint32
-	for version := range cidx.Adds {
-		if version > maxVersion {
-			maxVersion = version
-		}
-	}
-	return maxVersion
-}
-
-func commentExists(idx index, commentID uint32) bool {
-	_, ok := idx.Comments[commentID]
-	return ok
-}
 
 // commentsLatest returns the most recent version of the specified comments.
 // Deleted comments are returned with limited data. Comment IDs that do not
@@ -691,67 +667,63 @@ func commentsLatest(client *tlogbe.RecordClient, idx index, commentIDs []uint32)
 
 	return cs, nil
 }
+*/
 
-// This function must be called WITH the record lock held.
-func (p *commentsPlugin) new(client *tlogbe.RecordClient, n comments.New, encrypt bool) (*comments.NewReply, error) {
-	// Pull comments index
-	idx, err := indexLatest(client)
+func (p *commentsPlugin) commentsIndex(state comments.StateT, token []byte) (*commentsIndex, error) {
+	// Get all comment indexes
+	tlogID := tlogIDForCommentState(state)
+	blobs, err := p.tlog.blobsByKeyPrefix(tlogID, token, keyPrefixCommentsIndex)
 	if err != nil {
 		return nil, err
 	}
+	if len(blobs) == 0 {
+		// A comments index does not exist. This can happen when no
+		// comments have been made on the record yet. Return a new one.
+		return &commentsIndex{
+			Comments: make(map[uint32]commentIndex),
+		}, nil
+	}
 
-	// Verify parent comment exists if set. A parent ID of 0 means that
-	// this is a base level comment, not a reply to another comment.
-	if n.ParentID > 0 && !commentExists(*idx, n.ParentID) {
-		return nil, comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusParentIDInvalid,
-			ErrorContext: []string{"parent ID comment not found"},
+	// Decode the most recent index
+	b := blobs[len(blobs)-1]
+	be, err := store.Deblob(b)
+	if err != nil {
+		return nil, err
+	}
+	return convertCommentsIndexFromBlobEntry(*be)
+}
+
+func (p *commentsPlugin) commentsIndexSave(token []byte, idx commentsIndex) error {
+	/*
+		// Prepare blob
+		be, err := convertBlobEntryFromCommentsIndex(idx)
+		if err != nil {
+			return err
 		}
-	}
+		h, err := hex.DecodeString(be.Hash)
+		if err != nil {
+			return err
+		}
+		b, err := store.Blobify(*be)
+		if err != nil {
+			return err
+		}
 
-	// Setup comment
-	receipt := p.id.SignMessage([]byte(n.Signature))
-	c := comments.CommentAdd{
-		Token:     n.Token,
-		ParentID:  n.ParentID,
-		Comment:   n.Comment,
-		PublicKey: n.PublicKey,
-		Signature: n.Signature,
-		CommentID: commentIDLatest(*idx) + 1,
-		Version:   1,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
-	}
+		// Prepare
 
-	// Save comment
-	merkleHash, err := commentAddSave(client, c, encrypt)
-	if err != nil {
-		return nil, fmt.Errorf("commentSave: %v", err)
-	}
+		// Save blob
+		merkles, err := client.Save(keyPrefixCommentsIndex,
+			[][]byte{b}, [][]byte{h}, false)
+		if err != nil {
+			return fmt.Errorf("Save: %v", err)
+		}
+		if len(merkles) != 1 {
+			return fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
+				len(merkles))
+		}
+	*/
 
-	// Update index
-	idx.Comments[c.CommentID] = commentIndex{
-		Adds: map[uint32][]byte{
-			1: merkleHash,
-		},
-		Del:   nil,
-		Votes: make(map[string][]voteIndex),
-	}
-
-	// Save index
-	err = indexSave(client, *idx)
-	if err != nil {
-		return nil, fmt.Errorf("indexSave: %v", err)
-	}
-
-	log.Debugf("Comment saved to record %v comment ID %v",
-		c.Token, c.CommentID)
-
-	return &comments.NewReply{
-		CommentID: c.CommentID,
-		Timestamp: c.Timestamp,
-		Receipt:   c.Receipt,
-	}, nil
+	return nil
 }
 
 func (p *commentsPlugin) cmdNew(payload string) (string, error) {
@@ -764,10 +736,11 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	}
 
 	// Verify signature
-	msg := n.Token + strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
+	msg := strconv.Itoa(int(n.State)) + n.Token +
+		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
 	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
 	if err != nil {
-		return "", convertCommentsErrFromSignatureErr(err)
+		return "", convertCommentsErrorFromSignatureError(err)
 	}
 
 	// Get record client
@@ -777,15 +750,18 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 			ErrorCode: comments.ErrorStatusTokenInvalid,
 		}
 	}
-	client, err := p.backend.RecordClient(token)
-	if err != nil {
-		if err == backend.ErrRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+
+	/*
+		client, err := p.backend.RecordClient(token)
+		if err != nil {
+			if err == backend.ErrRecordNotFound {
+				return "", comments.UserErrorReply{
+					ErrorCode: comments.ErrorStatusRecordNotFound,
+				}
 			}
+			return "", err
 		}
-		return "", err
-	}
+	*/
 
 	// The comments index must be pulled and updated. The record lock
 	// must be held for the remainder of this function.
@@ -793,25 +769,67 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	m.Lock()
 	defer m.Unlock()
 
-	// Save new comment
-	var nr *comments.NewReply
-	switch client.State {
-	case tlogbe.RecordStateUnvetted:
-		nr, err = p.new(client, *n, true)
-		if err != nil {
-			return "", err
-		}
-	case tlogbe.RecordStateVetted:
-		nr, err = p.new(client, *n, false)
-		if err != nil {
-			return "", err
-		}
-	default:
-		return "", fmt.Errorf("invalid record state %v", client.State)
+	// Pull comments index
+	idx, err := p.commentsIndex(n.State, token)
+	if err != nil {
+		return "", err
 	}
 
+	// Verify parent comment exists if set. A parent ID of 0 means that
+	// this is a base level comment, not a reply to another comment.
+	if n.ParentID > 0 && !commentExists(*idx, n.ParentID) {
+		return "", comments.UserErrorReply{
+			ErrorCode:    comments.ErrorStatusParentIDInvalid,
+			ErrorContext: []string{"parent ID comment not found"},
+		}
+	}
+
+	// Setup comment
+	receipt := p.id.SignMessage([]byte(n.Signature))
+	ca := comments.CommentAdd{
+		UUID:      n.UUID,
+		Token:     n.Token,
+		ParentID:  n.ParentID,
+		Comment:   n.Comment,
+		PublicKey: n.PublicKey,
+		Signature: n.Signature,
+		CommentID: commentIDLatest(*idx) + 1,
+		Version:   1,
+		Timestamp: time.Now().Unix(),
+		Receipt:   hex.EncodeToString(receipt[:]),
+	}
+
+	// Save comment
+	merkleHash, err := p.commentAddSave(ca)
+	if err != nil {
+		return "", fmt.Errorf("commentSave: %v", err)
+	}
+
+	// Update index
+	idx.Comments[ca.CommentID] = commentIndex{
+		Adds: map[uint32][]byte{
+			1: merkleHash,
+		},
+		Del:   nil,
+		Votes: make(map[string][]voteIndex),
+	}
+
+	// Save index
+	err = p.commentsIndexSave(token, *idx)
+	if err != nil {
+		return "", fmt.Errorf("indexSave: %v", err)
+	}
+
+	log.Debugf("Comment saved to record %v comment ID %v",
+		ca.Token, ca.CommentID)
+
 	// Prepare reply
-	reply, err := comments.EncodeNewReply(*nr)
+	nr := comments.NewReply{
+		CommentID: ca.CommentID,
+		Timestamp: ca.Timestamp,
+		Receipt:   ca.Receipt,
+	}
+	reply, err := comments.EncodeNewReply(nr)
 	if err != nil {
 		return "", err
 	}
@@ -819,6 +837,7 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	return string(reply), nil
 }
 
+/*
 // This function must be called WITH the record lock held.
 func (p *commentsPlugin) edit(client *tlogbe.RecordClient, e comments.Edit, encrypt bool) (*comments.EditReply, error) {
 	// Get comments index
@@ -1441,55 +1460,52 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 
 	return string(reply), nil
 }
+*/
 
-func (p *commentsPlugin) cmdProofs(payload string) (string, error) {
-	log.Tracef("comments cmdProof: %v", payload)
-	return "", nil
-}
-
-// Cmd executes a plugin command.
+// cmd executes a plugin command.
 //
-// This function satisfies the Plugin interface.
-func (p *commentsPlugin) Cmd(cmd, payload string) (string, error) {
-	log.Tracef("comments Cmd: %v", cmd)
+// This function satisfies the pluginClient interface.
+func (p *commentsPlugin) cmd(cmd, payload string) (string, error) {
+	log.Tracef("comments cmd: %v", cmd)
 
 	switch cmd {
 	case comments.CmdNew:
 		return p.cmdNew(payload)
-	case comments.CmdEdit:
-		return p.cmdEdit(payload)
-	case comments.CmdDel:
-		return p.cmdDel(payload)
-	case comments.CmdGet:
-		return p.cmdGet(payload)
-	case comments.CmdGetAll:
-		return p.cmdGetAll(payload)
-	case comments.CmdGetVersion:
-		return p.cmdGetVersion(payload)
-	case comments.CmdCount:
-		return p.cmdCount(payload)
-	case comments.CmdVote:
-		return p.cmdVote(payload)
-	case comments.CmdProofs:
-		return p.cmdProofs(payload)
+		/*
+			case comments.CmdEdit:
+				return p.cmdEdit(payload)
+			case comments.CmdDel:
+				return p.cmdDel(payload)
+			case comments.CmdGet:
+				return p.cmdGet(payload)
+			case comments.CmdGetAll:
+				return p.cmdGetAll(payload)
+			case comments.CmdGetVersion:
+				return p.cmdGetVersion(payload)
+			case comments.CmdCount:
+				return p.cmdCount(payload)
+			case comments.CmdVote:
+				return p.cmdVote(payload)
+		*/
 	}
 
 	return "", backend.ErrPluginCmdInvalid
 }
 
-// Hook executes a plugin hook.
+// hook executes a plugin hook.
 //
-// This function satisfies the Plugin interface.
-func (p *commentsPlugin) Hook(h tlogbe.HookT, payload string) error {
-	log.Tracef("comments Hook: %v", tlogbe.Hooks[h])
+// This function satisfies the pluginClient interface.
+func (p *commentsPlugin) hook(h hookT, payload string) error {
+	log.Tracef("comments hook: %v", hooks[h])
+
 	return nil
 }
 
-// Fsck performs a plugin filesystem check.
+// fsck performs a plugin filesystem check.
 //
-// This function satisfies the Plugin interface.
-func (p *commentsPlugin) Fsck() error {
-	log.Tracef("comments Fsck")
+// This function satisfies the pluginClient interface.
+func (p *commentsPlugin) fsck() error {
+	log.Tracef("comments fsck")
 
 	// Make sure CommentDel blobs were actually deleted
 
@@ -1498,20 +1514,22 @@ func (p *commentsPlugin) Fsck() error {
 
 // Setup performs any plugin setup work that needs to be done.
 //
-// This function satisfies the Plugin interface.
-func (p *commentsPlugin) Setup() error {
-	log.Tracef("comments Setup")
+// This function satisfies the pluginClient interface.
+func (p *commentsPlugin) setup() error {
+	log.Tracef("comments setup")
+
 	return nil
 }
 
-// NewCommentsPlugin returns a new comments plugin.
-func NewCommentsPlugin(backend *tlogbe.TlogBackend, settings []backend.PluginSetting) *commentsPlugin {
+// newCommentsPlugin returns a new comments plugin.
+func newCommentsPlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) *commentsPlugin {
 	// TODO these should be passed in as plugin settings
 	id := &identity.FullIdentity{}
 
 	return &commentsPlugin{
 		id:      id,
 		backend: backend,
+		tlog:    tlog,
 		mutexes: make(map[string]*sync.Mutex),
 	}
 }

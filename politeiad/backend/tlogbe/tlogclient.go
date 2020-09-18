@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-// tlogClient provides an interface for plugins to interact with the tlog
+// tlogClient provides an API for the plugins to use to interact with the tlog
 // backend. Plugins are allowed to save, delete, and get plugin data to/from
 // the tlog backend. Editing plugin data is not allowed.
 type tlogClient interface {
@@ -76,11 +76,13 @@ func (c *backendClient) treeIDFromToken(tlogID string, token []byte) (int64, err
 func (c *backendClient) save(tlogID string, token []byte, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
 	log.Tracef("save: %x %v %v %x", token, keyPrefix, encrypt, hashes)
 
-	// Get tlog instance and treeID
+	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Get tree ID
 	treeID, err := c.treeIDFromToken(tlogID, token)
 	if err != nil {
 		return nil, err
@@ -94,17 +96,20 @@ func (c *backendClient) save(tlogID string, token []byte, keyPrefix string, blob
 func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error {
 	log.Tracef("del: %x %x", token, merkles)
 
-	// Get tlog instance and treeID
+	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
 	if err != nil {
 		return err
+
 	}
+
+	// Get tree ID
 	treeID, err := c.treeIDFromToken(tlogID, token)
 	if err != nil {
 		return err
 	}
 
-	// Save blobs
+	// Delete blobs
 	return tlog.blobsDel(treeID, merkles)
 }
 
@@ -116,16 +121,19 @@ func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error
 func (c *backendClient) blobsByMerkle(tlogID string, token []byte, merkles [][]byte) (map[string][]byte, error) {
 	log.Tracef("blobsByMerkle: %x %x", token, merkles)
 
-	// Get tlog instance and treeID
+	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Get tree ID
 	treeID, err := c.treeIDFromToken(tlogID, token)
 	if err != nil {
 		return nil, err
 	}
 
+	// Get blobs
 	return tlog.blobsByMerkle(treeID, merkles)
 }
 
@@ -133,15 +141,18 @@ func (c *backendClient) blobsByMerkle(tlogID string, token []byte, merkles [][]b
 func (c *backendClient) blobsByKeyPrefix(tlogID string, token []byte, keyPrefix string) ([][]byte, error) {
 	log.Tracef("blobsByKeyPrefix: %x %x", token, keyPrefix)
 
-	// Get tlog instance and treeID
+	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Get tree ID
 	treeID, err := c.treeIDFromToken(tlogID, token)
 	if err != nil {
 		return nil, err
 	}
 
+	// Get blobs
 	return tlog.blobsByKeyPrefix(treeID, keyPrefix)
 }
