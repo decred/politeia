@@ -248,7 +248,7 @@ func convertStatusToWWW(status pi.PropStatusT) www.PropStatusT {
 	}
 }
 
-func (p *politeiawww) convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
+func convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
 	// Decode metadata
 	var pm *piplugin.ProposalMetadata
 	for _, v := range pr.Metadata {
@@ -336,7 +336,7 @@ func (p *politeiawww) processProposalDetails(pd www.ProposalsDetails, u *user.Us
 	if err != nil {
 		return nil, err
 	}
-	pw, err := p.convertProposalToWWW(pr)
+	pw, err := convertProposalToWWW(pr)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +366,7 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User)
 	// Convert proposals records
 	propsw := make([]www.ProposalRecord, 0, len(bp.Tokens))
 	for _, pr := range props {
-		propw, err := p.convertProposalToWWW(&pr)
+		propw, err := convertProposalToWWW(&pr)
 		if err != nil {
 			return nil, err
 		}
@@ -456,18 +456,8 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
-	// Prep vote details payload
-	vdp := ticketvote.Details{
-		Token: token,
-	}
-	payload, err := ticketvote.EncodeDetails(vdp)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdDetails, "",
-		string(payload))
-	vd, err := ticketvote.DecodeDetailsReply([]byte(r))
+	// Call ticketvote plugin
+	vd, err := p.voteDetails(token)
 	if err != nil {
 		return nil, err
 	}
@@ -505,22 +495,10 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	}
 	res.StartVote.Vote.Options = vo
 
-	// Prep cast votes payload
-	csp := ticketvote.CastVotes{
-		Token: token,
-	}
-	payload, err = ticketvote.EncodeCastVotes(csp)
+	// Get cast votes information
+	cv, err := p.castVotes(token)
 
-	r, err = p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	cv, err := ticketvote.DecodeCastVotesReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-
+	// Transalte to www
 	votes := make([]www.CastVote, 0, len(cv.Votes))
 	for _, v := range cv.Votes {
 		votes = append(votes, www.CastVote{
@@ -568,21 +546,8 @@ func convertVoteTypeToWWW(t ticketvote.VoteT) www.VoteT {
 func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
-	// Prep plugin command
-	smp := ticketvote.Summaries{
-		Tokens: bvs.Tokens,
-	}
-	payload, err := ticketvote.EncodeSummaries(smp)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdSummaries, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	sm, err := ticketvote.DecodeSummariesReply([]byte(r))
+	// Call ticketvote plugin to get vote summaries
+	sm, err := p.voteSummaries(bvs.Tokens)
 	if err != nil {
 		return nil, err
 	}
@@ -649,30 +614,8 @@ func convertVoteErrorCodeToWWW(errcode ticketvote.VoteErrorT) decredplugin.Error
 func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
-	// Prep plugin command
-	var bp ticketvote.Ballot
-	// Transale votes
-	votes := make([]ticketvote.Vote, 0, len(ballot.Votes))
-	for _, vote := range ballot.Votes {
-		votes = append(votes, ticketvote.Vote{
-			Token:     vote.Ticket,
-			Ticket:    vote.Ticket,
-			VoteBit:   vote.VoteBit,
-			Signature: vote.Signature,
-		})
-	}
-	bp.Votes = votes
-	payload, err := ticketvote.EncodeBallot(bp)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	b, err := ticketvote.DecodeBallotReply([]byte(r))
+	// Call ticketvote plugin to cast votes
+	b, err := p.ballot(ballot)
 	if err != nil {
 		return nil, err
 	}
