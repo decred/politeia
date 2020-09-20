@@ -24,6 +24,9 @@ func (s *smtp) sendEmailTo(subject, body string, recipients []string) error {
 	if s.disabled {
 		return nil
 	}
+	if len(recipients) == 0 {
+		return nil
+	}
 
 	// Setup email
 	msg := goemail.NewMessage(s.mailAddress, subject, body)

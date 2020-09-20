@@ -179,14 +179,21 @@ func (p *politeiawww) handleEventProposalSubmitted(ch chan interface{}) {
 			continue
 		}
 
-		// Compile email notification recipients
+		// Compile a list of users to send the notification to
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
-			// Check if user is able to receive notification
-			if userNotificationEnabled(*u,
-				www.NotificationEmailAdminProposalNew) {
-				emails = append(emails, u.Email)
+			switch {
+			case !u.Admin:
+				// Only admins get this notification
+				return
+			case !userNotificationEnabled(*u,
+				www.NotificationEmailAdminProposalNew):
+				// Admin doesn't have notification bit set
+				return
 			}
+
+			// Add user to notification list
+			emails = append(emails, u.Email)
 		})
 		if err != nil {
 			log.Errorf("handleEventProposalSubmitted: AllUsers: %v", err)
@@ -219,7 +226,7 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 			continue
 		}
 
-		// Compile list of emails to send notification to
+		// Compile a list of users to send the notification to
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circumstances where we don't notify
@@ -237,10 +244,11 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 			emails = append(emails, u.Email)
 		})
 
-		err = p.emailProposalEdited(d.name, d.username, d.token, d.version,
-			emails)
+		err = p.emailProposalEdited(d.name, d.username,
+			d.token, d.version, emails)
 		if err != nil {
 			log.Errorf("emailProposalEdited: %v", err)
+			continue
 		}
 
 		log.Debugf("Sent proposal edited notifications %v", d.token)
@@ -287,44 +295,42 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 			continue
 		}
 
-		// Compile list of emails to send notification to
-		emails := make([]string, 0, 256)
+		// Email author
+		proposalName := proposalName(*pr)
 		notification := www.NotificationEmailRegularProposalVetted
+		if userNotificationEnabled(*author, notification) {
+			err = p.emailProposalStatusChangeToAuthor(d, proposalName, author.Email)
+			if err != nil {
+				log.Errorf("emailProposalStatusChangeToAuthor: %v", err)
+				continue
+			}
+		}
+
+		// Compile list of users to send the notification to
+		emails := make([]string, 0, 256)
 		err = p.db.AllUsers(func(u *user.User) {
-			// Check circumstances where we don't notify
 			switch {
 			case u.ID.String() == d.adminID:
 				// User is the admin that made the status change
 				return
 			case u.ID.String() == author.ID.String():
-				// User is the author. The author is sent a notification but
-				// the notification is not the same as the normal user
-				// notification so don't include the author's emails in the
-				// list of user emails.
+				// User is the author. The author is sent a different
+				// notification. Don't include them in the users list.
 				return
 			case !userNotificationEnabled(*u, notification):
 				// User does not have notification bit set
 				return
 			}
 
+			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
 
-		// Email author
-		proposalName := proposalName(*pr)
-		if userNotificationEnabled(*author, notification) {
-			err = p.emailProposalStatusChangeToAuthor(d, proposalName, author.Email)
-			if err != nil {
-				log.Errorf("emailProposalStatusChangeToAuthor: %v", err)
-			}
-		}
-
 		// Email users
-		if len(emails) > 0 {
-			err = p.emailProposalStatusChangeToUsers(d, proposalName, emails)
-			if err != nil {
-				log.Errorf("emailProposalStatusChangeToUsers: %v", err)
-			}
+		err = p.emailProposalStatusChange(d, proposalName, emails)
+		if err != nil {
+			log.Errorf("emailProposalStatusChange: %v", err)
+			continue
 		}
 
 		log.Debugf("Sent proposal status change notifications %v", d.token)
@@ -443,6 +449,7 @@ func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
 		// If we made it here then there was an error. Log the error
 		// before listening for the next event.
 		log.Errorf("handleEventProposalComment: %v", err)
+		continue
 	}
 }
 
@@ -461,26 +468,28 @@ func (p *politeiawww) handleEventProposalVoteAuthorized(ch chan interface{}) {
 			continue
 		}
 
+		// Compile a list of emails to send the notification to.
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
-			// Check circunstances where we don't notify
 			switch {
 			case !u.Admin:
 				// Only notify admin users
 				return
 			case !userNotificationEnabled(*u,
 				www.NotificationEmailAdminProposalVoteAuthorized):
-				// User does not have this notification bit set on
+				// User does not have notification bit set
 				return
 			}
 
+			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
 
-		err = p.emailProposalVoteAuthorized(d.token, d.name, d.username,
-			d.email, emails)
+		// Send notification email
+		err = p.emailProposalVoteAuthorized(d.token, d.name, d.username, emails)
 		if err != nil {
 			log.Errorf("emailProposalVoteAuthorized: %v", err)
+			continue
 		}
 
 		log.Debugf("Sent proposal vote authorized notifications %v", d.token)
@@ -502,44 +511,41 @@ func (p *politeiawww) handleEventProposalVoteStarted(ch chan interface{}) {
 			continue
 		}
 
-		emails := make([]string, 0, 256)
+		// Email author
 		notification := www.NotificationEmailRegularProposalVoteStarted
+		if userNotificationEnabled(d.author, notification) {
+			err := p.emailProposalVoteStartedToAuthor(d.token, d.name,
+				d.author.Username, d.author.Email)
+			if err != nil {
+				log.Errorf("emailProposalVoteStartedToAuthor: %v", err)
+				continue
+			}
+		}
+
+		// Compile a list of users to send the notification to.
+		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
-			// Check circunstances where we don't notify
 			switch {
-			case u.NewUserPaywallTx == "":
-				// User did not pay paywall
-				return
 			case u.ID.String() == d.adminID:
 				// Don't notify admin who started the vote
 				return
 			case u.ID.String() == d.author.ID.String():
-				// Notify author separately from this users batch
+				// Don't send this notification to the author
 				return
 			case !userNotificationEnabled(*u, notification):
-				// User does not have notification bit set on
+				// User does not have notification bit set
 				return
 			}
 
+			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
 
-		// Email author
-		if userNotificationEnabled(d.author, notification) {
-			err = p.emailProposalVoteStartedToAuthor(d.token, d.name,
-				d.author.Username, d.author.Email)
-			if err != nil {
-				log.Errorf("emailProposalVoteStartedToAuthor: %v", err)
-			}
-		}
-
 		// Email users
-		if len(emails) > 0 {
-			err = p.emailProposalVoteStartedToUsers(d.token, d.name,
-				d.author.Username, emails)
-			if err != nil {
-				log.Errorf("emailProposalVoteStartedToUsers: %v", err)
-			}
+		err = p.emailProposalVoteStarted(d.token, d.name, emails)
+		if err != nil {
+			log.Errorf("emailProposalVoteStartedToUsers: %v", err)
+			continue
 		}
 
 		log.Debugf("Sent proposal vote started notifications %v", d.token)

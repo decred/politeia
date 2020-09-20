@@ -6,8 +6,6 @@ package main
 
 import "text/template"
 
-var ()
-
 // Proposal submitted
 type proposalSubmitted struct {
 	Username string // Author username
@@ -139,52 +137,55 @@ Comment: {{.Link}}
 var proposalCommentReplyTmpl = template.Must(
 	template.New("proposalCommentReply").Parse(proposalCommentReplyText))
 
-// Pi events
-type proposalVoteAuthorizedTemplateData struct {
-	Link     string // GUI proposal details url
-	Name     string // Proposal name
+// Proposal vote authorized - Send to admins
+type proposalVoteAuthorized struct {
 	Username string // Author username
-	Email    string // Author email
+	Name     string // Proposal name
+	Link     string // GUI proposal details url
 }
 
-const templateProposalVoteAuthorizedRaw = `
-Voting has been authorized for the following proposal on Politeia by {{.Username}} ({{.Email}}):
+const proposalVoteAuthorizedText = `
+{{.Username}} has authorized a vote on their proposal.
 
 {{.Name}}
 {{.Link}}
 `
 
-var templateProposalVoteAuthorized = template.Must(
-	template.New("proposal_vote_authorized_template").
-		Parse(templateProposalVoteAuthorizedRaw))
+var proposalVoteAuthorizedTmpl = template.Must(
+	template.New("proposalVoteAuthorized").Parse(proposalVoteAuthorizedText))
 
-type proposalVoteStartedTemplateData struct {
-	Link     string // GUI proposal details url
-	Name     string // Proposal name
-	Username string // Author username
+// Proposal vote started - Send to users
+type proposalVoteStarted struct {
+	Name string // Proposal name
+	Link string // GUI proposal details url
 }
 
-const templateProposalVoteStartedRaw = `
-Voting has started for the following proposal on Politeia, authored by {{.Username}}:
+const proposalVoteStartedText = `
+Voting has started for the following proposal on Politeia.
 
 {{.Name}}
 {{.Link}}
 `
 
-var templateProposalVoteStarted = template.Must(
-	template.New("proposal_vote_started_template").
-		Parse(templateProposalVoteStartedRaw))
+var proposalVoteStartedTmpl = template.Must(
+	template.New("proposalVoteStarted").Parse(proposalVoteStartedText))
 
-const templateProposalVoteStartedForAuthorRaw = `
-Voting has just started for your proposal on Politeia!
+// Proposal vote started - Send to author
+type proposalVoteStartedToAuthor struct {
+	Name string // Proposal name
+	Link string // GUI proposal details url
+}
+
+const proposalVoteStartedToAuthorText = `
+Voting has just started on your Politeia proposal!
 
 {{.Name}}
 {{.Link}}
 `
 
-var templateProposalVoteStartedForAuthor = template.Must(
-	template.New("proposal_vote_started_for_author_template").
-		Parse(templateProposalVoteStartedForAuthorRaw))
+var proposalVoteStartedToAuthorTmpl = template.Must(
+	template.New("proposalVoteStartedToAuthor").
+		Parse(proposalVoteStartedToAuthorText))
 
 // User events
 type newUserEmailTemplateData struct {
