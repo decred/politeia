@@ -5,16 +5,10 @@
 package main
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/util"
 )
 
 // pluginSetting is a structure that holds key/value pairs of a plugin setting.
@@ -52,44 +46,12 @@ func convertPluginFromPD(p pd.Plugin) plugin {
 // getBestBlock fetches and returns the best block from politeiad using the
 // decred plugin bestblock command.
 func (p *politeiawww) getBestBlock() (uint64, error) {
-	challenge, err := util.Random(pd.ChallengeSize)
+	bb, err := p.decredBestBlock()
 	if err != nil {
 		return 0, err
 	}
 
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdBestBlock,
-		CommandID: decredplugin.CmdBestBlock,
-		Payload:   "",
-	}
-
-	responseBody, err := p.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return 0, err
-	}
-
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return 0, fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
-	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return 0, err
-	}
-
-	bestBlock, err := strconv.ParseUint(reply.Payload, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return bestBlock, nil
+	return uint64(bb.Height), nil
 }
 
 // getPluginInventory returns the politeiad plugin inventory. If a politeiad

@@ -1389,3 +1389,41 @@ func DecodeLinkedFromReply(payload []byte) (*LinkedFromReply, error) {
 
 	return &reply, nil
 }
+
+// BestBlock is a command to request the best block data.
+type BestBlock struct{}
+
+// EncodeBestBlock encodes an BestBlock into a JSON byte slice.
+func EncodeBestBlock(bb BestBlock) ([]byte, error) {
+	return json.Marshal(bb)
+}
+
+// DecodeBestBlock decodes a JSON byte slice into a BestBlock.
+func DecodeBestBlock(payload []byte) (*BestBlock, error) {
+	var bb BestBlock
+	err := json.Unmarshal(payload, &bb)
+	if err != nil {
+		return nil, err
+	}
+	return &bb, nil
+}
+
+// BestBlockReply is the reply to the BestBlock command.
+type BestBlockReply struct {
+	Height uint32 `json:"height"`
+}
+
+// EncodeBestBlockReply encodes an BestBlockReply into a JSON byte slice.
+func EncodeBestBlockReply(bbr BestBlockReply) ([]byte, error) {
+	return json.Marshal(bbr)
+}
+
+// DecodeBestBlockReply decodes a JSON byte slice into a BestBlockReply.
+func DecodeBestBlockReply(payload []byte) (*BestBlockReply, error) {
+	var bbr BestBlockReply
+	err := json.Unmarshal(payload, &bbr)
+	if err != nil {
+		return nil, err
+	}
+	return &bbr, nil
+}

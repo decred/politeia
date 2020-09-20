@@ -368,7 +368,7 @@ type ProposalInventory struct{}
 
 // ProposalInventoryReply is the reply to the ProposalInventory command.
 type ProposalInventoryReply struct {
-	Unvetted  []string `json:"unvetted"`
+	Unvetted  []string `json:"unvetted,omitempty"`
 	Public    []string `json:"public"`
 	Censored  []string `json:"censored"`
 	Abandoned []string `json:"abandoned"`

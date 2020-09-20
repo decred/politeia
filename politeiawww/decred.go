@@ -63,3 +63,23 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 
 	return gcr.Comments, nil
 }
+
+func (p *politeiawww) decredBestBlock() (*decredplugin.BestBlockReply, error) {
+	// Setup plugin command
+	payload, err := decredplugin.EncodeBestBlock(decredplugin.BestBlock{})
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute plugin command
+	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdBestBlock,
+		decredplugin.CmdBestBlock, string(payload))
+
+	// Receive plugin command reply
+	bbr, err := decredplugin.DecodeBestBlockReply([]byte(reply))
+	if err != nil {
+		return nil, err
+	}
+
+	return bbr, nil
+}
