@@ -26,7 +26,7 @@ var (
 	cfg    *Config
 	client *Client
 
-	// errUserIdentityNotFound is emitted when a user identity is
+	// ErrUserIdentityNotFound is emitted when a user identity is
 	// required but the config object does not contain one.
 	ErrUserIdentityNotFound = errors.New("user identity not found; " +
 		"you must either create a new user or use the updateuserkey " +

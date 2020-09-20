@@ -49,6 +49,9 @@ type piwww struct {
 	ProposalEdit      ProposalEditCmd      `command:"proposaledit"`
 	ProposalSetStatus ProposalSetStatusCmd `command:"proposalsetstatus"`
 
+	// Comments commands
+	CommentNew CommentNewCmd `command:"commentnew" description:"(user)   create a new comment"`
+
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
 	AuthorizeVote      AuthorizeVoteCmd         `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
@@ -65,7 +68,6 @@ type piwww struct {
 	Logout             shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
 	ManageUser         shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
-	NewComment         shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
 	NewUser            NewUserCmd               `command:"newuser" description:"(public) create a new user"`
 	Policy             PolicyCmd                `command:"policy" description:"(public) get the server policy"`
 	ProposalComments   ProposalCommentsCmd      `command:"proposalcomments" description:"(public) get the comments for a proposal"`

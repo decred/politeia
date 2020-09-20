@@ -59,6 +59,7 @@ type cmswww struct {
 	// Commands
 	ActiveVotes            ActiveVotesCmd            `command:"activevotes" description:"(user) get the dccs that are being voted on"`
 	BatchProposals         shared.BatchProposalsCmd  `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
+	NewComment             NewCommentCmd             `command:"newcomment" description:"(user)   create a new comment"`
 	CensorComment          shared.CensorCommentCmd   `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername         shared.ChangeUsernameCmd  `command:"changeusername" description:"(user)   change the username for the logged in user"`
@@ -81,7 +82,6 @@ type cmswww struct {
 	CMSManageUser          CMSManageUserCmd          `command:"cmsmanageuser" description:"(admin)  edit certain properties of the specified user"`
 	ManageUser             shared.ManageUserCmd      `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                     shared.MeCmd              `command:"me" description:"(user)   get user details for the logged in user"`
-	NewComment             shared.NewCommentCmd      `command:"newcomment" description:"(user)   create a new comment"`
 	NewDCC                 NewDCCCmd                 `command:"newdcc" description:"(user)   creates a new dcc proposal"`
 	NewDCCComment          NewDCCCommentCmd          `command:"newdcccomment" description:"(user)   creates a new comment on a dcc proposal"`
 	NewInvoice             NewInvoiceCmd             `command:"newinvoice" description:"(user)   create a new invoice"`

@@ -1,12 +1,14 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package shared
+package main
 
 import (
 	"encoding/hex"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // NewCommentCmd submits a new proposal comment.
@@ -26,7 +28,7 @@ func (cmd *NewCommentCmd) Execute(args []string) error {
 
 	// Check for user identity
 	if cfg.Identity == nil {
-		return ErrUserIdentityNotFound
+		return shared.ErrUserIdentityNotFound
 	}
 
 	// Setup new comment request
@@ -40,32 +42,29 @@ func (cmd *NewCommentCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err := PrintJSON(nc)
+	err := shared.PrintJSON(nc)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	ncr, err := client.NewComment(nc)
+	ncr, err := client.WWWNewComment(nc)
 	if err != nil {
 		return err
 	}
 
 	// Print response details
-	return PrintJSON(ncr)
+	return shared.PrintJSON(ncr)
 }
 
-// NewCommentHelpMsg is the output of the help command when 'newcomment' is
+// newCommentHelpMsg is the output of the help command when 'newcomment' is
 // specified.
-const NewCommentHelpMsg = `newcomment "token" "comment"
-
+const newCommentHelpMsg = `newcomment "token" "comment"
 Comment on proposal as logged in user. 
-
 Arguments:
 1. token       (string, required)   Proposal censorship token
 2. comment     (string, required)   Comment
 3. parentID    (string, required if replying to comment)  Id of commment
-
 Request:
 {
   "token":       (string)  Censorship token
@@ -74,7 +73,6 @@ Request:
   "signature":   (string)  Signature of comment (token+parentID+comment)
   "publickey":   (string)  Public key of user commenting
 }
-
 Response:
 {
   "comment": {

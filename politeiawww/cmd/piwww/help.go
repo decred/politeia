@@ -87,8 +87,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", shared.BatchProposalsHelpMsg)
 
 	// Comment commands
-	case "newcomment":
-		fmt.Printf("%s\n", shared.NewCommentHelpMsg)
+	case "commentnew":
+		fmt.Printf("%s\n", commentNewHelpMsg)
 	case "proposalcomments":
 		fmt.Printf("%s\n", proposalCommentsHelpMsg)
 	case "censorcomment":

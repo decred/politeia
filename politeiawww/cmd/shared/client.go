@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1134,8 +1134,8 @@ func (c *Client) GetAllVetted(gav *www.GetAllVetted) (*www.GetAllVettedReply, er
 	return &gavr, nil
 }
 
-// NewComment submits a new proposal comment for the logged in user.
-func (c *Client) NewComment(nc *www.NewComment) (*www.NewCommentReply, error) {
+// WWWNewComment submits a new proposal comment for the logged in user.
+func (c *Client) WWWNewComment(nc *www.NewComment) (*www.NewCommentReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
 		www.PoliteiaWWWAPIRoute, www.RouteNewComment, nc)
 	if err != nil {
@@ -1156,6 +1156,30 @@ func (c *Client) NewComment(nc *www.NewComment) (*www.NewCommentReply, error) {
 	}
 
 	return &ncr, nil
+}
+
+// CommentNew submits a new proposal comment for the logged in user.
+func (c *Client) CommentNew(cn pi.CommentNew) (*pi.CommentNewReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteCommentNew, cn)
+	if err != nil {
+		return nil, err
+	}
+
+	var cnr pi.CommentNewReply
+	err = json.Unmarshal(responseBody, &cnr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CommentNewReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(cnr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cnr, nil
 }
 
 // GetComments retrieves the comments for the specified proposal.

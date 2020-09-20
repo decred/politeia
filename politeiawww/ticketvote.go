@@ -37,6 +37,9 @@ func (p *politeiawww) castVotes(token string) (*ticketvote.CastVotesReply, error
 		Token: token,
 	}
 	payload, err := ticketvote.EncodeCastVotes(csp)
+	if err != nil {
+		return nil, err
+	}
 
 	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, "",
 		string(payload))
