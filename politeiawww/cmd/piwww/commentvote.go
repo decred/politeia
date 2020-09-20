@@ -21,6 +21,10 @@ type CommentVoteCmd struct {
 		CommentID string `positional-arg-name:"commentID"` // Comment ID
 		Action    string `positional-arg-name:"action"`    // Upvote/downvote action
 	} `positional-args:"true" required:"true"`
+
+	// CLI flags
+	Vetted   bool `long:"vetted" optional:"true"`
+	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the like comment command.
@@ -31,6 +35,19 @@ func (cmd *CommentVoteCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	commentID := cmd.Args.CommentID
 	action := cmd.Args.Action
+
+	// Verify state
+	var state pi.PropStateT
+	switch {
+	case cmd.Vetted && cmd.Unvetted:
+		return fmt.Errorf("cannot use --vetted and --unvetted simultaneously")
+	case cmd.Unvetted:
+		state = pi.PropStateUnvetted
+	case cmd.Vetted:
+		state = pi.PropStateVetted
+	default:
+		return fmt.Errorf("must specify either --vetted or unvetted")
+	}
 
 	// Validate action
 	if action != actionUpvote && action != actionDownvote {
@@ -52,7 +69,8 @@ func (cmd *CommentVoteCmd) Execute(args []string) error {
 		vote = pi.CommentVoteDownvote
 	}
 
-	sig := cfg.Identity.SignMessage([]byte(token + commentID + string(vote)))
+	sig := cfg.Identity.SignMessage([]byte(string(state) + token + commentID +
+		string(vote)))
 	// Parse provided parent id
 	ciUint, err := strconv.ParseUint(commentID, 10, 32)
 	if err != nil {
@@ -60,6 +78,7 @@ func (cmd *CommentVoteCmd) Execute(args []string) error {
 	}
 	cv := &pi.CommentVote{
 		Token:     token,
+		State:     state,
 		CommentID: uint32(ciUint),
 		Vote:      vote,
 		Signature: hex.EncodeToString(sig[:]),
@@ -91,4 +110,9 @@ Vote on a comment.
 Arguments:
 1. token       (string, required)   Proposal censorship token
 2. commentID   (string, required)   Id of the comment
-3. action      (string, required)   Vote (upvote or downvote)`
+3. action      (string, required)   Vote (upvote or downvote)
+
+Flags:
+  --vetted     (bool, optional)     Comment's record is vetted.
+  --unvetted   (bool, optional)     Comment's record is unvetted.
+`

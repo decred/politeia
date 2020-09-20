@@ -5,9 +5,32 @@
 package main
 
 import (
+	"github.com/decred/politeia/plugins/comments"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
+
+// comments call the comments plugin to get record's comments.
+func (p *politeiawww) comments(cp comments.GetAll) (*comments.GetAllReply, error) {
+	// Prep plugin payload
+	payload, err := comments.EncodeGetAll(cp)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(comments.ID, comments.CmdGetAll, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	cr, err := comments.DecodeGetAllReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	return cr, nil
+
+}
 
 func validateComment(c www.NewComment) error {
 	// max length

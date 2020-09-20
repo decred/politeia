@@ -9,9 +9,9 @@ import (
 )
 
 // piCommentVote calls the pi plugin to vote on a comment.
-func (p *politeiawww) piCommentVote(cvp *piplugin.CommentVote) (*piplugin.CommentVoteReply, error) {
+func (p *politeiawww) piCommentVote(cvp piplugin.CommentVote) (*piplugin.CommentVoteReply, error) {
 	// Prep comment vote payload
-	payload, err := piplugin.EncodeCommentVote(*cvp)
+	payload, err := piplugin.EncodeCommentVote(cvp)
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +30,9 @@ func (p *politeiawww) piCommentVote(cvp *piplugin.CommentVote) (*piplugin.Commen
 }
 
 // piCommentNew calls the pi plugin to add new comment.
-func (p *politeiawww) piCommentNew(cnp *piplugin.CommentNew) (*piplugin.CommentNewReply, error) {
+func (p *politeiawww) piCommentNew(cnp piplugin.CommentNew) (*piplugin.CommentNewReply, error) {
 	// Prep new comment payload
-	payload, err := piplugin.EncodeCommentNew(*cnp)
+	payload, err := piplugin.EncodeCommentNew(cnp)
 	if err != nil {
 		return nil, err
 	}

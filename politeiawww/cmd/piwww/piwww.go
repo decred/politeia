@@ -52,6 +52,7 @@ type piwww struct {
 	// Comments commands
 	CommentNew  CommentNewCmd  `command:"commentnew" description:"(user)   create a new comment"`
 	CommentVote CommentVoteCmd `command:"commentvote" description:"(user)   upvote/downvote a comment"`
+	Comments    CommentsCmd    `command:"comments" description:"(public) get the comments for a proposal"`
 
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
@@ -70,7 +71,6 @@ type piwww struct {
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewUser            NewUserCmd               `command:"newuser" description:"(public) create a new user"`
 	Policy             PolicyCmd                `command:"policy" description:"(public) get the server policy"`
-	ProposalComments   ProposalCommentsCmd      `command:"proposalcomments" description:"(public) get the comments for a proposal"`
 	ProposalDetails    ProposalDetailsCmd       `command:"proposaldetails" description:"(public) get the details of a proposal"`
 	ProposalPaywall    ProposalPaywallCmd       `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
 	RescanUserPayments RescanUserPaymentsCmd    `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`

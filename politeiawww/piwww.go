@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/decred/politeia/plugins/comments"
 	piplugin "github.com/decred/politeia/plugins/pi"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
@@ -24,6 +25,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 // TODO use pi policies. Should the policies be defined in the pi plugin
@@ -240,6 +242,46 @@ func convertCensorshipRecordFromPD(cr pd.CensorshipRecord) pi.CensorshipRecord {
 		Token:     cr.Token,
 		Merkle:    cr.Merkle,
 		Signature: cr.Signature,
+	}
+}
+
+func convertCommentsPluginPropStateFromPi(s pi.PropStateT) comments.StateT {
+	switch s {
+	case pi.PropStateUnvetted:
+		return comments.StateUnvetted
+	case pi.PropStateVetted:
+		return comments.StateVetted
+	}
+	return comments.StateInvalid
+}
+
+func convertPropStateFromComments(s comments.StateT) pi.PropStateT {
+	switch s {
+	case comments.StateUnvetted:
+		return pi.PropStateUnvetted
+	case comments.StateVetted:
+		return pi.PropStateVetted
+	}
+	return pi.PropStateInvalid
+}
+
+func convertCommentFromPlugin(cm comments.Comment) pi.Comment {
+	return pi.Comment{
+		UserID:    cm.UUID,
+		Username:  "", // Intentionally omitted, needs to be pulled from userdb
+		State:     convertPropStateFromComments(cm.State),
+		Token:     cm.Token,
+		ParentID:  cm.ParentID,
+		Comment:   cm.Comment,
+		PublicKey: cm.PublicKey,
+		Signature: cm.Signature,
+		CommentID: cm.CommentID,
+		Version:   cm.Version,
+		Timestamp: cm.Timestamp,
+		Receipt:   cm.Receipt,
+		Score:     cm.Score,
+		Deleted:   cm.Deleted,
+		Reason:    cm.Reason,
 	}
 }
 
@@ -1393,7 +1435,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	}
 
 	// Call pi plugin to add new comment
-	reply, err := p.piCommentNew(&piplugin.CommentNew{
+	reply, err := p.piCommentNew(piplugin.CommentNew{
 		UUID:      usr.ID.String(),
 		Token:     cn.Token,
 		ParentID:  cn.ParentID,
@@ -1405,6 +1447,16 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	if err != nil {
 		return nil, err
 	}
+
+	// Emit event notification for a proposal comment
+	p.eventManager.emit(eventProposalComment,
+		dataProposalComment{
+			state:     cn.State,
+			token:     cn.Token,
+			username:  usr.Username,
+			parentID:  cn.ParentID,
+			commentID: reply.CommentID,
+		})
 
 	return &pi.CommentNewReply{
 		CommentID: reply.CommentID,
@@ -1475,7 +1527,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 	}
 
 	// Call pi plugin to add new comment
-	reply, err := p.piCommentVote(&piplugin.CommentVote{
+	reply, err := p.piCommentVote(piplugin.CommentVote{
 		UUID:      usr.ID.String(),
 		Token:     cv.Token,
 		CommentID: cv.CommentID,
@@ -1523,11 +1575,71 @@ func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vcr)
 }
 
+func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) {
+	log.Tracef("processComments: %v", c.Token)
+
+	// Call comments plugin to get comments
+	reply, err := p.comments(comments.GetAll{
+		Token: c.Token,
+		State: convertCommentsPluginPropStateFromPi(c.State),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var cr pi.CommentsReply
+	// Transalte comments
+	cs := make([]pi.Comment, 0, len(reply.Comments))
+	for _, cm := range reply.Comments {
+		// Convert comment to pi
+		pic := convertCommentFromPlugin(cm)
+		// Get comment's author username
+		// Parse string uuid
+		uuid, err := uuid.Parse(cm.UUID)
+		if err != nil {
+			return nil, err
+		}
+		// Get user
+		u, err := p.db.UserGetById(uuid)
+		if err != nil {
+			return nil, err
+		}
+		pic.Username = u.Username
+		cs = append(cs, pic)
+	}
+	cr.Comments = cs
+
+	return &cr, nil
+}
+
+func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleComments")
+
+	var c pi.Comments
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&c); err != nil {
+		respondWithPiError(w, r, "handleComments: unmarshal",
+			pi.UserErrorReply{})
+		return
+	}
+
+	cr, err := p.processComments(c)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: processComments: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
 		pi.RouteProposalInventory, p.handleProposalInventory,
 		permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteComments, p.handleComments, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

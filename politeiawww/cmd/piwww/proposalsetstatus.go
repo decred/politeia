@@ -117,7 +117,11 @@ Valid statuses:
   abandoned
 
 Arguments:
-1. token   (string, required)  Proposal censorship token
-2. status  (string, required)  New status
-3. message (string, optional)  Status change message
+1. token   (string, required)    Proposal censorship token
+2. status  (string, required)    New status
+3. message (string, optional)    Status change message
+
+Flags:
+  --vetted   (bool, optional)    Set status of a vetted record.
+  --unvetted (bool, optional)    Set status of an unvetted reocrd.
 `

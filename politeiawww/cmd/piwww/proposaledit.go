@@ -246,18 +246,19 @@ Arguments:
 3. attachments   (string, optional) Attachment files
 
 Flags:
-  --random (bool, optional)    Generate a random proposal name & files to
-                               submit. If this flag is used then the markdown
-                               file argument is no longer required and any 
-                               provided files will be ignored.
-  --usemd  (bool, optional)    Use the existing proposal metadata.
-  --name   (string, optional)  The name of the proposal.
-  --linkto (string, optional)  Censorship token of an existing public proposal
-                               to link to.
-  --linkby (int64, optional)   UNIX timestamp of RFP deadline.
-  --rfp    (bool, optional)    Make the proposal an RFP by inserting a LinkBy
-                               timestamp into the proposal metadata. The LinkBy
-                               timestamp is set to be one month from the
-                               current time. This is intended to be used in
-                               place of --linkby.
-`
+  --vetted   (bool, optional)    Comment on vetted record.
+  --unvetted (bool, optional)    Comment on unvetted reocrd.
+  --random   (bool, optional)    Generate a random proposal name & files to
+                                 submit. If this flag is used then the markdown
+                                 file argument is no longer required and any 
+                                 provided files will be ignored.
+  --usemd    (bool, optional)    Use the existing proposal metadata.
+  --name     (string, optional)  The name of the proposal.
+  --linkto   (string, optional)  Censorship token of an existing public proposal
+                                 to link to.
+  --linkby   (int64, optional)   UNIX timestamp of RFP deadline.
+  --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy
+                                 timestamp into the proposal metadata. The LinkBy
+                                 timestamp is set to be one month from the
+                                 current time. This is intended to be used in
+                                 place of --linkby.`
