@@ -1412,11 +1412,11 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, ppi)
 }
 
-func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr *user.User) (*pi.CommentNewReply, error) {
+func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.CommentNewReply, error) {
 	log.Tracef("processCommentNew: %v", usr.Username)
 
 	// Verify user has paid registration paywall
-	if !p.userHasPaid(*usr) {
+	if !p.userHasPaid(usr) {
 		return nil, pi.UserErrorReply{
 			ErrorCode: pi.ErrorStatusUserRegistrationNotPaid,
 		}
@@ -1471,7 +1471,7 @@ func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cnr, err := p.processCommentNew(cn, user)
+	cnr, err := p.processCommentNew(cn, *user)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentNew: processCommentNew: %v", err)
@@ -1479,6 +1479,86 @@ func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, cnr)
+}
+
+func convertVoteFromPi(v pi.CommentVoteT) piplugin.VoteT {
+	switch v {
+	case pi.CommentVoteInvalid:
+		return piplugin.VoteInvalid
+	case pi.CommentVoteDownvote:
+		return piplugin.VoteDownvote
+	case pi.CommentVoteUpvote:
+		return piplugin.VoteUpvote
+	default:
+		return piplugin.VoteInvalid
+	}
+}
+
+func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.CommentVoteReply, error) {
+	log.Tracef("processCommentVote: %v %v %v", cv.Token, cv.CommentID, cv.Vote)
+
+	// Verify user has paid registration paywall
+	if !p.userHasPaid(usr) {
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusUserRegistrationNotPaid,
+		}
+	}
+
+	// Verify user signed using active identity
+	if usr.PublicKey() != cv.PublicKey {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
+			ErrorContext: []string{"not user's active identity"},
+		}
+	}
+
+	// Call pi plugin to add new comment
+	reply, err := p.piCommentVote(&piplugin.CommentVote{
+		UUID:      usr.ID.String(),
+		Token:     cv.Token,
+		CommentID: cv.CommentID,
+		Vote:      convertVoteFromPi(cv.Vote),
+		PublicKey: cv.PublicKey,
+		Signature: cv.Signature,
+		State:     convertPropStateFromPi(cv.State),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.CommentVoteReply{
+		Score:     reply.Score,
+		Timestamp: reply.Timestamp,
+		Receipt:   reply.Receipt,
+	}, nil
+}
+
+func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentVote")
+
+	var cv pi.CommentVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cv); err != nil {
+		respondWithPiError(w, r, "handleCommentVote: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: getSessionUser: %v", err)
+	}
+
+	vcr, err := p.processCommentVote(cv, *user)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: processCommentVote: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vcr)
 }
 
 func (p *politeiawww) setPiRoutes() {
@@ -1502,6 +1582,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteCommentNew, p.handleCommentNew, permissionLogin)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentVote, p.handleCommentVote, permissionLogin)
 
 	// Admin routes
 

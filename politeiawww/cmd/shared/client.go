@@ -1258,29 +1258,29 @@ func (c *Client) UserCommentsLikes(token string) (*www.UserCommentsLikesReply, e
 	return &uclr, nil
 }
 
-// LikeComment casts a like comment action (upvote/downvote) for the logged in
+// CommentVote casts a like comment action (upvote/downvote) for the logged in
 // user.
-func (c *Client) LikeComment(lc *www.LikeComment) (*www.LikeCommentReply, error) {
+func (c *Client) CommentVote(cv *pi.CommentVote) (*pi.CommentVoteReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		www.PoliteiaWWWAPIRoute, www.RouteLikeComment, lc)
+		pi.APIRoute, pi.RouteCommentVote, cv)
 	if err != nil {
 		return nil, err
 	}
 
-	var lcr www.LikeCommentReply
-	err = json.Unmarshal(responseBody, &lcr)
+	var cvr pi.CommentVoteReply
+	err = json.Unmarshal(responseBody, &cvr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal LikeCommentReply: %v", err)
+		return nil, fmt.Errorf("unmarshal CommentVoteReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(lcr)
+		err := prettyPrintJSON(cvr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &lcr, nil
+	return &cvr, nil
 }
 
 // CensorComment censors the specified proposal comment.
