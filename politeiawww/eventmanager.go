@@ -5,11 +5,14 @@
 package main
 
 import (
+	"fmt"
+	"strconv"
 	"sync"
 
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 type eventT int
@@ -245,12 +248,10 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 }
 
 type dataProposalStatusChange struct {
-	name    string         // Proposal name
 	token   string         // Proposal censorship token
 	status  pi.PropStatusT // Proposal status
 	reason  string         // Status change reason
 	adminID string         // Admin uuid
-	author  user.User      // Proposal author
 }
 
 func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
@@ -271,16 +272,31 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 			continue
 		}
 
+		// Get the proposal author
+		state := convertPropStateFromPropStatus(d.status)
+		pr, err := p.proposalRecordLatest(state, d.token)
+		if err != nil {
+			log.Errorf("handleEventProposalStatusChange: proposalRecordLatest "+
+				"%v %v: %v", state, d.token, err)
+			continue
+		}
+		author, err := p.db.UserGetByPubKey(pr.PublicKey)
+		if err != nil {
+			log.Errorf("handleEventProposalStatusChange: UserGetByPubKey %v: %v",
+				pr.PublicKey, err)
+			continue
+		}
+
 		// Compile list of emails to send notification to
 		emails := make([]string, 0, 256)
 		notification := www.NotificationEmailRegularProposalVetted
-		err := p.db.AllUsers(func(u *user.User) {
+		err = p.db.AllUsers(func(u *user.User) {
 			// Check circumstances where we don't notify
 			switch {
 			case u.ID.String() == d.adminID:
 				// User is the admin that made the status change
 				return
-			case u.ID.String() == d.author.ID.String():
+			case u.ID.String() == author.ID.String():
 				// User is the author. The author is sent a notification but
 				// the notification is not the same as the normal user
 				// notification so don't include the author's emails in the
@@ -295,8 +311,9 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 		})
 
 		// Email author
-		if userNotificationEnabled(d.author, notification) {
-			err = p.emailProposalStatusChangeToAuthor(d)
+		proposalName := proposalName(*pr)
+		if userNotificationEnabled(*author, notification) {
+			err = p.emailProposalStatusChangeToAuthor(d, proposalName, author.Email)
 			if err != nil {
 				log.Errorf("emailProposalStatusChangeToAuthor: %v", err)
 			}
@@ -304,7 +321,7 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 
 		// Email users
 		if len(emails) > 0 {
-			err = p.emailProposalStatusChangeToUsers(d, emails)
+			err = p.emailProposalStatusChangeToUsers(d, proposalName, emails)
 			if err != nil {
 				log.Errorf("emailProposalStatusChangeToUsers: %v", err)
 			}
@@ -315,12 +332,85 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 }
 
 type dataProposalComment struct {
-	token           string // Proposal token
-	name            string // Proposal name
-	username        string // Author username
-	parentID        string // Parent comment id
-	commentID       string // Comment id
-	commentUsername string // Comment user username
+	state     pi.PropStateT
+	token     string
+	commentID uint32
+	parentID  uint32
+	username  string // Comment author username
+}
+
+func (p *politeiawww) notifyProposalAuthorOnComment(d dataProposalComment) error {
+	// Lookup proposal author to see if they should be sent a
+	// notification.
+	pr, err := p.proposalRecordLatest(d.state, d.token)
+	if err != nil {
+		return fmt.Errorf("proposalRecordLatest %v %v: %v",
+			d.state, d.token, err)
+	}
+	userID, err := uuid.Parse(pr.UserID)
+	if err != nil {
+		return err
+	}
+	author, err := p.db.UserGetById(userID)
+	if err != nil {
+		return fmt.Errorf("UserGetByID %v: %v", userID.String(), err)
+	}
+
+	// Check if notification should be sent to author
+	switch {
+	case d.username == author.Username:
+		// Author commented on their own proposal
+		return nil
+	case !userNotificationEnabled(*author,
+		www.NotificationEmailCommentOnMyProposal):
+		// Author does not have notification bit set on
+		return nil
+	}
+
+	// Send notification eamil
+	commentID := strconv.FormatUint(uint64(d.commentID), 10)
+	return p.emailProposalCommentSubmitted(d.token, commentID, d.username,
+		proposalName(*pr), author.Email)
+}
+
+func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment) error {
+	// Verify this is a reply comment
+	if d.parentID == 0 {
+		return nil
+	}
+
+	// Lookup the parent comment author to check if they should receive
+	// a reply notification.
+
+	// Get the parent comment
+	// TODO
+
+	// Lookup the parent comment author
+	var author *user.User
+
+	// Check if notification should be sent to author
+	switch {
+	case d.username == author.Username:
+		// Author commented on their own proposal
+		return nil
+	case !userNotificationEnabled(*author,
+		www.NotificationEmailCommentOnMyProposal):
+		// Author does not have notification bit set on
+		return nil
+	}
+
+	// Get proposal. We need this proposal name for the notification.
+	pr, err := p.proposalRecordLatest(d.state, d.token)
+	if err != nil {
+		return fmt.Errorf("proposalRecordLatest %v %v: %v",
+			d.state, d.token, err)
+	}
+
+	// Send notification eamil
+	commentID := strconv.FormatUint(uint64(d.commentID), 10)
+
+	return p.emailProposalCommentReply(d.token, commentID, d.username,
+		proposalName(*pr), author.Email)
 }
 
 func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
@@ -331,48 +421,28 @@ func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
 			continue
 		}
 
-		// Fetch proposal author
-		author, err := p.db.UserGetByUsername(d.username)
+		// Notify the proposal author
+		err := p.notifyProposalAuthorOnComment(d)
 		if err != nil {
-			log.Error(err)
-			continue
+			err = fmt.Errorf("notifyProposalAuthorOnComment: %v", err)
+			goto next
 		}
 
-		// Check circumstances where we don't notify
-		switch {
-		case d.commentUsername == author.Username:
-			// Don't notify when author comments on own proposal
-			continue
-		case !userNotificationEnabled(*author,
-			www.NotificationEmailCommentOnMyProposal):
-			// User does not have notification bit set on
-			continue
-		}
-
-		// Check if is top-level comment
-		if d.parentID != "0" {
-			// Nested comment reply. Fetch parent comment in order to fetch
-			// comment author
-			parent, err := p.decredCommentGetByID(d.token, d.parentID)
-			if err != nil {
-				log.Errorf("decredCommentGetByID: %v", err)
-				continue
-			}
-
-			author, err = p.db.UserGetByPubKey(parent.PublicKey)
-			if err != nil {
-				log.Errorf("UserGetByPubKey: %v", err)
-				continue
-			}
-		}
-
-		err = p.emailProposalComment(d.token, d.commentID,
-			d.commentUsername, d.name, author.Email)
+		// Notify the parent comment author
+		err = p.notifyParentAuthorOnComment(d)
 		if err != nil {
-			log.Errorf("emailProposalComment: %v", err)
+			err = fmt.Errorf("notifyParentAuthorOnComment: %v", err)
+			goto next
 		}
 
+		// Notifications successfully sent
 		log.Debugf("Sent proposal commment notification %v", d.token)
+		continue
+
+	next:
+		// If we made it here then there was an error. Log the error
+		// before listening for the next event.
+		log.Errorf("handleEventProposalComment: %v", err)
 	}
 }
 

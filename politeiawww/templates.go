@@ -6,19 +6,7 @@ package main
 
 import "text/template"
 
-var (
-	templateProposalVoteStarted = template.Must(
-		template.New("proposal_vote_started_template").Parse(templateProposalVoteStartedRaw))
-	templateProposalVoteAuthorized = template.Must(
-		template.New("proposal_vote_authorized_template").Parse(templateProposalVoteAuthorizedRaw))
-	templateProposalVoteStartedForAuthor = template.Must(
-		template.New("proposal_vote_started_for_author_template").Parse(templateProposalVoteStartedForAuthorRaw))
-	templateCommentReplyOnProposal = template.Must(
-		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
-	templateCommentReplyOnComment = template.Must(
-		template.New("comment_reply_on_comment").
-			Parse(templateCommentReplyOnCommentRaw))
-)
+var ()
 
 // Proposal submitted
 type proposalSubmitted struct {
@@ -117,54 +105,41 @@ Reason: {{.Reason}}
 var tmplProposalCensoredForAuthor = template.Must(
 	template.New("proposalCensoredToAuthor").Parse(proposalCensoredToAuthorText))
 
-type invoiceNotificationEmailData struct {
-	Username string
-	Month    string
-	Year     int
-}
-
-type newUserEmailTemplateData struct {
-	Username string
-	Link     string
-	Email    string
-}
-
-type newInviteUserEmailTemplateData struct {
-	Email string
-	Link  string
-}
-
-type approveDCCUserEmailTemplateData struct {
-	Email string
-	Link  string
-}
-
-type updateUserKeyEmailTemplateData struct {
-	Link      string
-	PublicKey string
-	Email     string
-}
-
-type resetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
-}
-
-type userLockedResetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
-}
-
-type userPasswordChangedTemplateData struct {
-	Email string
-}
-
-type proposalVoteStartedTemplateData struct {
-	Link     string // GUI proposal details url
+// Proposal comment submitted - Send to proposal author
+type proposalCommentSubmitted struct {
+	Username string // Comment author username
 	Name     string // Proposal name
-	Username string // Author username
+	Link     string // Comment link
 }
 
+const proposalCommentSubmittedText = `
+{{.Username}} has commented on your proposal!
+
+Proposal: {{.Name}}
+Comment: {{.Link}}
+`
+
+var proposalCommentSubmittedTmpl = template.Must(
+	template.New("proposalCommentSubmitted").Parse(proposalCommentSubmittedText))
+
+// Proposal comment reply - Send to parent comment author
+type proposalCommentReply struct {
+	Username string // Comment author username
+	Name     string // Proposal name
+	Link     string // Comment link
+}
+
+const proposalCommentReplyText = `
+{{.Username}} has replied to your comment!
+
+Proposal: {{.Name}}
+Comment: {{.Link}}
+`
+
+var proposalCommentReplyTmpl = template.Must(
+	template.New("proposalCommentReply").Parse(proposalCommentReplyText))
+
+// Pi events
 type proposalVoteAuthorizedTemplateData struct {
 	Link     string // GUI proposal details url
 	Name     string // Proposal name
@@ -172,22 +147,50 @@ type proposalVoteAuthorizedTemplateData struct {
 	Email    string // Author email
 }
 
-type commentReplyOnProposalTemplateData struct {
-	Commenter    string
-	ProposalName string
-	CommentLink  string
+const templateProposalVoteAuthorizedRaw = `
+Voting has been authorized for the following proposal on Politeia by {{.Username}} ({{.Email}}):
+
+{{.Name}}
+{{.Link}}
+`
+
+var templateProposalVoteAuthorized = template.Must(
+	template.New("proposal_vote_authorized_template").
+		Parse(templateProposalVoteAuthorizedRaw))
+
+type proposalVoteStartedTemplateData struct {
+	Link     string // GUI proposal details url
+	Name     string // Proposal name
+	Username string // Author username
 }
 
-type newInvoiceStatusUpdateTemplate struct {
-	Token string
-}
+const templateProposalVoteStartedRaw = `
+Voting has started for the following proposal on Politeia, authored by {{.Username}}:
 
-type newDCCSubmittedTemplateData struct {
-	Link string
-}
+{{.Name}}
+{{.Link}}
+`
 
-type newDCCSupportOpposeTemplateData struct {
-	Link string
+var templateProposalVoteStarted = template.Must(
+	template.New("proposal_vote_started_template").
+		Parse(templateProposalVoteStartedRaw))
+
+const templateProposalVoteStartedForAuthorRaw = `
+Voting has just started for your proposal on Politeia!
+
+{{.Name}}
+{{.Link}}
+`
+
+var templateProposalVoteStartedForAuthor = template.Must(
+	template.New("proposal_vote_started_for_author_template").
+		Parse(templateProposalVoteStartedForAuthorRaw))
+
+// User events
+type newUserEmailTemplateData struct {
+	Username string
+	Link     string
+	Email    string
 }
 
 const templateNewUserEmailRaw = `
@@ -201,23 +204,11 @@ You are receiving this email because {{.Email}} was used to register for Politei
 If you did not perform this action, please ignore this email.
 `
 
-const templateResetPasswordEmailRaw = `
-Click the link below to continue resetting your password:
-
-{{.Link}}
-
-You are receiving this email because a password reset was initiated for {{.Email}}
-on Politeia. If you did not perform this action, it is possible that your account has been
-compromised. Please contact Politeia administrators through Matrix on the
-#politeia:decred.org channel.
-`
-
-const templateUserPasswordChangedRaw = `
-You are receiving this email to notify you that your password has changed for 
-{{.Email}} on Politeia. If you did not perform this action, it is possible that 
-your account has been compromised. Please contact Politeia administrators 
-through Matrix on the #politeia:decred.org channel for further instructions.
-`
+type updateUserKeyEmailTemplateData struct {
+	Link      string
+	PublicKey string
+	Email     string
+}
 
 const templateUpdateUserKeyEmailRaw = `
 Click the link below to verify your new identity:
@@ -229,6 +220,27 @@ was generated for {{.Email}} on Politeia. If you did not perform this action,
 please contact Politeia administrators.
 `
 
+type resetPasswordEmailTemplateData struct {
+	Link  string
+	Email string
+}
+
+const templateResetPasswordEmailRaw = `
+Click the link below to continue resetting your password:
+
+{{.Link}}
+
+You are receiving this email because a password reset was initiated for {{.Email}}
+on Politeia. If you did not perform this action, it is possible that your account has been
+compromised. Please contact Politeia administrators through Matrix on the
+#politeia:decred.org channel.
+`
+
+type userLockedResetPasswordEmailTemplateData struct {
+	Link  string
+	Email string
+}
+
 const templateUserLockedResetPasswordRaw = `
 Your account was locked due to too many login attempts. You need to reset your
 password in order to unlock your account:
@@ -239,40 +251,22 @@ You are receiving this email because someone made too many login attempts for
 {{.Email}} on Politeia. If that was not you, please notify Politeia administrators.
 `
 
-const templateProposalVoteStartedRaw = `
-Voting has started for the following proposal on Politeia, authored by {{.Username}}:
+type userPasswordChangedTemplateData struct {
+	Email string
+}
 
-{{.Name}}
-{{.Link}}
+const templateUserPasswordChangedRaw = `
+You are receiving this email to notify you that your password has changed for 
+{{.Email}} on Politeia. If you did not perform this action, it is possible that 
+your account has been compromised. Please contact Politeia administrators 
+through Matrix on the #politeia:decred.org channel for further instructions.
 `
 
-const templateProposalVoteAuthorizedRaw = `
-Voting has been authorized for the following proposal on Politeia by {{.Username}} ({{.Email}}):
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalVoteStartedForAuthorRaw = `
-Voting has just started for your proposal on Politeia!
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateCommentReplyOnProposalRaw = `
-{{.Commenter}} has commented on your proposal!
-
-Proposal: {{.ProposalName}}
-Comment: {{.CommentLink}}
-`
-
-const templateCommentReplyOnCommentRaw = `
-{{.Commenter}} has replied to your comment!
-
-Proposal: {{.ProposalName}}
-Comment: {{.CommentLink}}
-`
+// CMS events
+type newInviteUserEmailTemplateData struct {
+	Email string
+	Link  string
+}
 
 const templateInviteNewUserEmailRaw = `
 You are invited to join Decred as a contractor! To complete your registration, you will need to use the following link and register on the CMS site:
@@ -283,6 +277,11 @@ You are receiving this email because {{.Email}} was used to be invited to Decred
 If you do not recognize this, please ignore this email.
 `
 
+type approveDCCUserEmailTemplateData struct {
+	Email string
+	Link  string
+}
+
 const templateApproveDCCUserEmailRaw = `
 Congratulations! Your Decred Contractor Clearance Proposal has been approved! 
 
@@ -292,6 +291,51 @@ If you have any questions please feel free to ask them there.
 You are receiving this email because {{.Email}} was used to be invited to Decred's Contractor Management System.
 If you do not recognize this, please ignore this email.
 `
+
+type newInvoiceStatusUpdateTemplate struct {
+	Token string
+}
+
+const templateNewInvoiceStatusUpdateRaw = `
+An invoice's status has been updated, please login to cms.decred.org to review the changes.
+
+Updated Invoice Token: {{.Token}}
+
+Regards,
+Contractor Management System
+`
+
+type newDCCSubmittedTemplateData struct {
+	Link string
+}
+
+const templateNewDCCSubmittedRaw = `
+A new DCC has been submitted.
+
+{{.Link}}
+
+Regards,
+Contractor Management System
+`
+
+type newDCCSupportOpposeTemplateData struct {
+	Link string
+}
+
+const templateNewDCCSupportOpposeRaw = `
+A DCC has received new support or opposition.
+
+{{.Link}}
+
+Regards,
+Contractor Management System
+`
+
+type invoiceNotificationEmailData struct {
+	Username string
+	Month    string
+	Year     int
+}
 
 const templateInvoiceNotificationRaw = `
 {{.Username}},
@@ -304,31 +348,4 @@ Contractor Management System
 
 const templateNewInvoiceCommentRaw = `
 An administrator has submitted a new comment to your invoice, please login to cms.decred.org to view the message.
-`
-
-const templateNewInvoiceStatusUpdateRaw = `
-An invoice's status has been updated, please login to cms.decred.org to review the changes.
-
-Updated Invoice Token: {{.Token}}
-
-Regards,
-Contractor Management System
-`
-
-const templateNewDCCSubmittedRaw = `
-A new DCC has been submitted.
-
-{{.Link}}
-
-Regards,
-Contractor Management System
-`
-
-const templateNewDCCSupportOpposeRaw = `
-A DCC has received new support or opposition.
-
-{{.Link}}
-
-Regards,
-Contractor Management System
 `

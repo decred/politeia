@@ -122,7 +122,7 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token 
 
 // emailAuthorProposalStatusChange sends an email to the author of the proposal
 // notifying them of the proposal status change.
-func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChange) error {
+func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChange, proposalName, authorEmail string) error {
 	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -137,7 +137,7 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 	case pi.PropStatusPublic:
 		subject = "Your Proposal Has Been Published"
 		tmplData := proposalVettedToAuthor{
-			Name: d.name,
+			Name: proposalName,
 			Link: l.String(),
 		}
 		body, err = createBody(proposalVettedToAuthorTmpl, tmplData)
@@ -148,7 +148,7 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 	case pi.PropStatusCensored:
 		subject = "Your Proposal Has Been Censored"
 		tmplData := proposalCensoredToAuthor{
-			Name:   d.name,
+			Name:   proposalName,
 			Reason: d.reason,
 		}
 		body, err = createBody(tmplProposalCensoredForAuthor, tmplData)
@@ -160,12 +160,12 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 		return fmt.Errorf("no author notification for prop status %v", d.status)
 	}
 
-	return p.smtp.sendEmailTo(subject, body, []string{d.author.Email})
+	return p.smtp.sendEmailTo(subject, body, []string{authorEmail})
 }
 
 // emailProposalStatusChangeToUsers sends an email to the provided users
 // notifying them of the proposal status change.
-func (p *politeiawww) emailProposalStatusChangeToUsers(d dataProposalStatusChange, emails []string) error {
+func (p *politeiawww) emailProposalStatusChangeToUsers(d dataProposalStatusChange, proposalName string, emails []string) error {
 	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -180,7 +180,7 @@ func (p *politeiawww) emailProposalStatusChangeToUsers(d dataProposalStatusChang
 	case pi.PropStatusPublic:
 		subject = "New Proposal Published"
 		tmplData := proposalVetted{
-			Name: d.name,
+			Name: proposalName,
 			Link: l.String(),
 		}
 		body, err = createBody(tmplProposalVetted, tmplData)
@@ -318,7 +318,8 @@ func (p *politeiawww) emailProposalVoteAuthorized(token, name, username, email s
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
-func (p *politeiawww) emailProposalComment(token, commentID, commentUsername, name, email string) error {
+func (p *politeiawww) emailProposalCommentSubmitted(token, commentID, commentUsername, proposalName, proposalAuthorEmail string) error {
+	// Setup comment URL
 	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
 	route = strings.Replace(route, "{id}", commentID, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
@@ -326,20 +327,45 @@ func (p *politeiawww) emailProposalComment(token, commentID, commentUsername, na
 		return err
 	}
 
-	tplData := commentReplyOnProposalTemplateData{
-		Commenter:    commentUsername,
-		ProposalName: name,
-		CommentLink:  l.String(),
-	}
-
+	// Setup email
 	subject := "New Comment On Your Proposal"
-	body, err := createBody(templateCommentReplyOnProposal, tplData)
+	tmplData := proposalCommentSubmitted{
+		Username: commentUsername,
+		Name:     proposalName,
+		Link:     l.String(),
+	}
+	body, err := createBody(proposalCommentSubmittedTmpl, tmplData)
 	if err != nil {
 		return err
 	}
-	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	// Send email
+	return p.smtp.sendEmailTo(subject, body, []string{proposalAuthorEmail})
+}
+
+func (p *politeiawww) emailProposalCommentReply(token, commentID, commentUsername, proposalName, parentCommentEmail string) error {
+	// Setup comment URL
+	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
+	route = strings.Replace(route, "{id}", commentID, 1)
+	l, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	// Setup email
+	subject := "New Reply To Your Comment"
+	tmplData := proposalCommentReply{
+		Username: commentUsername,
+		Name:     proposalName,
+		Link:     l.String(),
+	}
+	body, err := createBody(proposalCommentReplyTmpl, tmplData)
+	if err != nil {
+		return err
+	}
+
+	// Send email
+	return p.smtp.sendEmailTo(subject, body, []string{parentCommentEmail})
 }
 
 // emailUpdateUserKeyVerificationLink emails the link with the verification

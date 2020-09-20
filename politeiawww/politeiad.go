@@ -126,11 +126,11 @@ func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (
 
 // updateRecord updates a record in politeiad. This can be used to update
 // unvetted or vetted records depending on the route that is provided.
-func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) error {
+func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.CensorshipRecord, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ur := pd.UpdateRecord{
 		Token:       token,
@@ -143,33 +143,33 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 	// Send request
 	resBody, err := p.makeRequest(http.MethodPost, route, ur)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	// Receive reply
 	var urr pd.UpdateRecordReply
 	err = json.Unmarshal(resBody, &urr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, urr.Response)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &urr.CensorshipRecord, nil
 }
 
 // updateUnvetted updates an unvetted record in politeiad.
-func (p *politeiawww) updateUnvetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) error {
+func (p *politeiawww) updateUnvetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.CensorshipRecord, error) {
 	return p.updateRecord(pd.UpdateUnvettedRoute, token,
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
 
 // updateVetted updates a vetted record in politeiad.
-func (p *politeiawww) updateVetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) error {
+func (p *politeiawww) updateVetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.CensorshipRecord, error) {
 	return p.updateRecord(pd.UpdateVettedRoute, token,
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
