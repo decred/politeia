@@ -331,14 +331,6 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 	}
 }
 
-type dataProposalComment struct {
-	state     pi.PropStateT
-	token     string
-	commentID uint32
-	parentID  uint32
-	username  string // Comment author username
-}
-
 func (p *politeiawww) notifyProposalAuthorOnComment(d dataProposalComment) error {
 	// Lookup proposal author to see if they should be sent a
 	// notification.
@@ -411,6 +403,14 @@ func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment) error {
 
 	return p.emailProposalCommentReply(d.token, commentID, d.username,
 		proposalName(*pr), author.Email)
+}
+
+type dataProposalComment struct {
+	state     pi.PropStateT
+	token     string
+	commentID uint32
+	parentID  uint32
+	username  string // Comment author username
 }
 
 func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
