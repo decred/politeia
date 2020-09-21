@@ -1632,6 +1632,68 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
+func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (*pi.CommentCensorReply, error) {
+	log.Tracef("processCommentCensor: %v %v", cc.Token, cc.CommentID)
+
+	// Sanity check
+	if !usr.Admin {
+		return nil, fmt.Errorf("user not admin")
+	}
+
+	// Verify user signed with their active identity
+	if usr.PublicKey() != cc.PublicKey {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
+			ErrorContext: []string{"not user's active identity"},
+		}
+	}
+
+	// Call comments plugin to censor comment
+	reply, err := p.commentCensor(comments.Del{
+		State:     convertCommentsPluginPropStateFromPi(cc.State),
+		Token:     cc.Token,
+		CommentID: cc.CommentID,
+		Reason:    cc.Reason,
+		PublicKey: cc.PublicKey,
+		Signature: cc.Signature,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.CommentCensorReply{
+		Timestamp: reply.Timestamp,
+		Receipt:   reply.Receipt,
+	}, nil
+}
+
+func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentCensor")
+
+	var cc pi.CommentCensor
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cc); err != nil {
+		respondWithPiError(w, r, "handleCommentCensor: unmarshal",
+			pi.UserErrorReply{})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentCensor: getSessionUser: %v", err)
+		return
+	}
+
+	ccr, err := p.processCommentCensor(cc, *user)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentCensor: processCommentCensor: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ccr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -1661,5 +1723,6 @@ func (p *politeiawww) setPiRoutes() {
 		pi.RouteCommentVote, p.handleCommentVote, permissionLogin)
 
 	// Admin routes
-
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentCensor, p.handleCommentCensor, permissionAdmin)
 }

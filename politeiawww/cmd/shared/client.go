@@ -1282,8 +1282,32 @@ func (c *Client) CommentVote(cv *pi.CommentVote) (*pi.CommentVoteReply, error) {
 	return &cvr, nil
 }
 
-// CensorComment censors the specified proposal comment.
-func (c *Client) CensorComment(cc *www.CensorComment) (*www.CensorCommentReply, error) {
+// CommentCensor censors the specified proposal comment.
+func (c *Client) CommentCensor(cc *pi.CommentCensor) (*pi.CommentCensorReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentCensor, cc)
+	if err != nil {
+		return nil, err
+	}
+
+	var ccr pi.CommentCensorReply
+	err = json.Unmarshal(responseBody, &ccr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CensorCommentReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ccr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ccr, nil
+}
+
+// WWWCensorComment censors the specified proposal comment.
+func (c *Client) WWWCensorComment(cc *www.CensorComment) (*www.CensorCommentReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, cc)
 	if err != nil {

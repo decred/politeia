@@ -1,14 +1,15 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package shared
+package main
 
 import (
 	"encoding/hex"
 	"fmt"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
 
@@ -29,7 +30,7 @@ func (cmd *CensorCommentCmd) Execute(args []string) error {
 
 	// Check for user identity
 	if cfg.Identity == nil {
-		return ErrUserIdentityNotFound
+		return shared.ErrUserIdentityNotFound
 	}
 
 	// Get server public key
@@ -50,13 +51,13 @@ func (cmd *CensorCommentCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = PrintJSON(cc)
+	err = shared.PrintJSON(cc)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	ccr, err := client.CensorComment(cc)
+	ccr, err := client.WWWCensorComment(cc)
 	if err != nil {
 		return err
 	}
@@ -75,12 +76,12 @@ func (cmd *CensorCommentCmd) Execute(args []string) error {
 	}
 
 	// Print response details
-	return PrintJSON(ccr)
+	return shared.PrintJSON(ccr)
 }
 
-// CensorCommentHelpMsg is the output of the help command when 'censorcomment'
+// censorCommentHelpMsg is the output of the help command when 'censorcomment'
 // is specified.
-const CensorCommentHelpMsg = `censorcomment "token" "commentID" "reason"
+const censorCommentHelpMsg = `censorcomment "token" "commentID" "reason"
 
 Censor a user comment. Requires admin privileges.
 
@@ -88,17 +89,4 @@ Arguments:
 1. token       (string, required)   Proposal censorship token
 2. commentID   (string, required)   Id of the comment
 3. reason      (string, required)   Reason for censoring the comment
-
-Request:
-{
-  "token":      (string)  Censorship token
-  "commentid":  (string)  Id of comment
-  "reason":     (string)  Reason for censoring the comment
-  "signature":  (string)  Signature of censor comment (Token+CommentID+Reason)
-  "publickey":  (string)  Public key used for signature
-}
-
-Response:
-{
-  "receipt":  (string)  Server signature of comment sensor signature
-}`
+`

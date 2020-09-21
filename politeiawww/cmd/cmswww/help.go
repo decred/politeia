@@ -38,7 +38,7 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "newcomment":
 		fmt.Printf("%s\n", newCommentHelpMsg)
 	case "censorcomment":
-		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
+		fmt.Printf("%s\n", censorCommentHelpMsg)
 	case "manageuser":
 		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
 	case "cmsmanageuser":

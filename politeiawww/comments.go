@@ -10,7 +10,28 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-// comments call the comments plugin to get record's comments.
+// commentCensor calls the comments plugin to censor a given comment.
+func (p *politeiawww) commentCensor(cc comments.Del) (*comments.DelReply, error) {
+	// Prep plugin payload
+	payload, err := comments.EncodeDel(cc)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(comments.ID, comments.CmdDel, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	ccr, err := comments.DecodeDelReply(([]byte(r)))
+	if err != nil {
+		return nil, err
+	}
+
+	return ccr, nil
+}
+
+// comments calls the comments plugin to get record's comments.
 func (p *politeiawww) comments(cp comments.GetAll) (*comments.GetAllReply, error) {
 	// Prep plugin payload
 	payload, err := comments.EncodeGetAll(cp)
@@ -29,7 +50,6 @@ func (p *politeiawww) comments(cp comments.GetAll) (*comments.GetAllReply, error
 	}
 
 	return cr, nil
-
 }
 
 func validateComment(c www.NewComment) error {

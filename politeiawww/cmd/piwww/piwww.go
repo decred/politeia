@@ -50,16 +50,16 @@ type piwww struct {
 	ProposalSetStatus ProposalSetStatusCmd `command:"proposalsetstatus"`
 
 	// Comments commands
-	CommentNew  CommentNewCmd  `command:"commentnew" description:"(user)   create a new comment"`
-	CommentVote CommentVoteCmd `command:"commentvote" description:"(user)   upvote/downvote a comment"`
-	Comments    CommentsCmd    `command:"comments" description:"(public) get the comments for a proposal"`
+	CommentNew    CommentNewCmd    `command:"commentnew" description:"(user)   create a new comment"`
+	CommentVote   CommentVoteCmd   `command:"commentvote" description:"(user)   upvote/downvote a comment"`
+	CommentCensor CommentCensorCmd `command:"commentcensor" description:"(admin)  censor a comment"`
+	Comments      CommentsCmd      `command:"comments" description:"(public) get the comments for a proposal"`
 
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
 	AuthorizeVote      AuthorizeVoteCmd         `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
 	BatchProposals     shared.BatchProposalsCmd `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	BatchVoteSummary   BatchVoteSummaryCmd      `command:"batchvotesummary" description:"(user)   retrieve the vote summary for a set of proposals"`
-	CensorComment      shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername     shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	EditUser           EditUserCmd              `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`

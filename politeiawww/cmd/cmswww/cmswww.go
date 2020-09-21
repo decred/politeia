@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -60,7 +60,7 @@ type cmswww struct {
 	ActiveVotes            ActiveVotesCmd            `command:"activevotes" description:"(user) get the dccs that are being voted on"`
 	BatchProposals         shared.BatchProposalsCmd  `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	NewComment             NewCommentCmd             `command:"newcomment" description:"(user)   create a new comment"`
-	CensorComment          shared.CensorCommentCmd   `command:"censorcomment" description:"(admin)  censor a comment"`
+	CensorComment          CensorCommentCmd          `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername         shared.ChangeUsernameCmd  `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	CMSUsers               CMSUsersCmd               `command:"cmsusers" description:"(user)   get a list of cms users"`

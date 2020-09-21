@@ -91,8 +91,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", commentNewHelpMsg)
 	case "proposalcomments":
 		fmt.Printf("%s\n", proposalCommentsHelpMsg)
-	case "censorcomment":
-		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
+	case "commentcensor":
+		fmt.Printf("%s\n", commentCensorHelpMsg)
 	case "commentvote":
 		fmt.Printf("%s\n", commentVoteHelpMsg)
 	case "userlikecomments":
