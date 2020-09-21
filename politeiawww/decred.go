@@ -17,10 +17,11 @@ func (p *politeiawww) decredGetComment(gc decredplugin.GetComment) (*decredplugi
 		return nil, err
 	}
 
-	// TODO this needs to use the politeiad plugin command
-	_ = payload
-	var reply string
+	// Execute plugin command
+	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdGetComment,
+		decredplugin.CmdGetComment, string(payload))
 
+	// Receive plugin command reply
 	gcr, err := decredplugin.DecodeGetCommentReply([]byte(reply))
 	if err != nil {
 		return nil, err
@@ -39,7 +40,6 @@ func (p *politeiawww) decredCommentGetByID(token, commentID string) (*decredplug
 	return p.decredGetComment(gc)
 }
 
-// decredCommentGetBySignature retrieves the specified decred plugin comment
 // decredGetComments sends the decred plugin getcomments command to the cache
 // and returns all of the comments for the passed in proposal token.
 func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, error) {
@@ -52,10 +52,11 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 		return nil, err
 	}
 
-	// TODO this needs to use the politeiad plugin command
-	_ = payload
-	var reply string
+	// Execute plugin command
+	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdGetComments,
+		decredplugin.CmdGetComments, string(payload))
 
+	// Receive plugin command reply
 	gcr, err := decredplugin.DecodeGetCommentsReply([]byte(reply))
 	if err != nil {
 		return nil, err
