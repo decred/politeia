@@ -6,7 +6,7 @@ package main
 
 import "text/template"
 
-// Proposal submitted
+// Proposal submitted - Send to admins
 type proposalSubmitted struct {
 	Username string // Author username
 	Name     string // Proposal name
@@ -23,7 +23,7 @@ A new proposal has been submitted on Politeia by {{.Username}}:
 var proposalSubmittedTmpl = template.Must(
 	template.New("proposalSubmitted").Parse(proposalSubmittedText))
 
-// Proposal edited
+// Proposal edited - Send to users
 type proposalEdited struct {
 	Name     string // Proposal name
 	Version  string // ProposalVersion
@@ -161,7 +161,7 @@ type proposalVoteStarted struct {
 }
 
 const proposalVoteStartedText = `
-Voting has started for the following proposal on Politeia.
+Voting has started on a Politeia proposal!
 
 {{.Name}}
 {{.Link}}

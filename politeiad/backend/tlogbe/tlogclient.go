@@ -74,7 +74,7 @@ func (c *backendClient) treeIDFromToken(tlogID string, token []byte) (int64, err
 // hashes of the data encoded in the blobs. The hashes must share the same
 // ordering as the blobs.
 func (c *backendClient) save(tlogID string, token []byte, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
-	log.Tracef("save: %x %v %v %x", token, keyPrefix, encrypt, hashes)
+	log.Tracef("tlogClient save: %x %v %v %x", token, keyPrefix, encrypt, hashes)
 
 	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
@@ -94,7 +94,7 @@ func (c *backendClient) save(tlogID string, token []byte, keyPrefix string, blob
 
 // del deletes the blobs that correspond to the provided merkle leaf hashes.
 func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error {
-	log.Tracef("del: %x %x", token, merkles)
+	log.Tracef("tlogClient del: %x %x", token, merkles)
 
 	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
@@ -119,7 +119,7 @@ func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error
 // the responsibility of the caller to check that a blob is returned for each
 // of the provided merkle hashes.
 func (c *backendClient) blobsByMerkle(tlogID string, token []byte, merkles [][]byte) (map[string][]byte, error) {
-	log.Tracef("blobsByMerkle: %x %x", token, merkles)
+	log.Tracef("tlogClient blobsByMerkle: %x %x", token, merkles)
 
 	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)
@@ -139,7 +139,7 @@ func (c *backendClient) blobsByMerkle(tlogID string, token []byte, merkles [][]b
 
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
 func (c *backendClient) blobsByKeyPrefix(tlogID string, token []byte, keyPrefix string) ([][]byte, error) {
-	log.Tracef("blobsByKeyPrefix: %x %x", token, keyPrefix)
+	log.Tracef("tlogClient blobsByKeyPrefix: %x %x", token, keyPrefix)
 
 	// Get tlog instance
 	tlog, err := c.tlogByID(tlogID)

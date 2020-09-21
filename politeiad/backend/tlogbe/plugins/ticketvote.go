@@ -40,7 +40,9 @@ const (
 	// ticketVoteDirname is the ticket vote data directory name.
 	ticketVoteDirname = "ticketvote"
 
-	// Filenames of memoized data saved to the data dir.
+	// Filenames of cached data saved to the plugin data dir. Brackets
+	// are used to indicate a variable that should be replaced in the
+	// filename.
 	filenameSummary = "{token}-summary.json"
 
 	// Blob entry data descriptors

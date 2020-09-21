@@ -44,8 +44,8 @@ const (
 	// such as searching for a record index that has been buried by
 	// thousands of leaves from plugin data.
 	// TODO key prefix app-dataID:
-	// TODO the pluginID and the dataID should be passed into the tlog function
-	// instead of the keyPrefix
+	// TODO the leaf ExtraData field should be hinted. Similar to what
+	// we do for blobs.
 	keyPrefixRecordIndex   = "recordindex:"
 	keyPrefixRecordContent = "record:"
 	keyPrefixFreezeRecord  = "freeze:"
@@ -196,7 +196,7 @@ func convertBlobEntryFromFile(f backend.File) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	be := store.BlobEntryNew(hint, data)
+	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
 
@@ -213,7 +213,7 @@ func convertBlobEntryFromMetadataStream(ms backend.MetadataStream) (*store.BlobE
 	if err != nil {
 		return nil, err
 	}
-	be := store.BlobEntryNew(hint, data)
+	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
 
@@ -230,7 +230,7 @@ func convertBlobEntryFromRecordMetadata(rm backend.RecordMetadata) (*store.BlobE
 	if err != nil {
 		return nil, err
 	}
-	be := store.BlobEntryNew(hint, data)
+	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
 
@@ -247,7 +247,7 @@ func convertBlobEntryFromRecordIndex(ri recordIndex) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	be := store.BlobEntryNew(hint, data)
+	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
 
@@ -264,7 +264,7 @@ func convertBlobEntryFromFreezeRecord(fr freezeRecord) (*store.BlobEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	be := store.BlobEntryNew(hint, data)
+	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
 
@@ -281,7 +281,7 @@ func convertBlobEntryFromAnchor(a anchor) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	be := store.BlobEntryNew(hint, data)
+	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
 
@@ -1570,6 +1570,11 @@ func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 // the responsibility of the caller to check that a blob is returned for each
 // of the provided merkle hashes.
 func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return nil, errRecordNotFound
+	}
+
 	// Get leaves
 	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
@@ -1650,6 +1655,11 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
 func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return nil, errRecordNotFound
+	}
+
 	// Get leaves
 	leaves, err := t.trillian.leavesAll(treeID)
 	if err != nil {

@@ -41,6 +41,16 @@ type BlobEntry struct {
 	Data     string `json:"data"`     // Data payload, base64 encoded
 }
 
+// NewBlobEntry returns a new BlobEntry.
+func NewBlobEntry(dataHint, data []byte) BlobEntry {
+	return BlobEntry{
+		Hash:     hex.EncodeToString(util.Digest(data)),
+		DataHint: base64.StdEncoding.EncodeToString(dataHint),
+		Data:     base64.StdEncoding.EncodeToString(data),
+	}
+}
+
+// Blobify encodes the provided BlobEntry into a gzipped byte slice.
 func Blobify(be BlobEntry) ([]byte, error) {
 	var b bytes.Buffer
 	zw := gzip.NewWriter(&b)
@@ -56,6 +66,7 @@ func Blobify(be BlobEntry) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// Deblob decodes the provided gzipped byte slice into a BlobEntry.
 func Deblob(blob []byte) (*BlobEntry, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(blob))
 	if err != nil {
@@ -68,14 +79,6 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 		return nil, err
 	}
 	return &be, nil
-}
-
-func BlobEntryNew(dataHint, data []byte) BlobEntry {
-	return BlobEntry{
-		Hash:     hex.EncodeToString(util.Digest(data)),
-		DataHint: base64.StdEncoding.EncodeToString(dataHint),
-		Data:     base64.StdEncoding.EncodeToString(data),
-	}
 }
 
 // Blob represents a blob key-value store.

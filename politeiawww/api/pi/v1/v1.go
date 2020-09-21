@@ -19,6 +19,8 @@ type VoteT int
 const (
 	APIVersion = 1
 
+	// TODO the plugin policies should be returned in a route
+
 	// Proposal routes
 	RouteProposalNew       = "/proposal/new"
 	RouteProposalEdit      = "/proposal/edit"
@@ -484,9 +486,10 @@ type CommentsReply struct {
 	Comments []Comment `json:"comments"`
 }
 
-// UserCommentVote represents a comment vote made by a user. This struct
-// contains all the information in a CommentVote and a CommentVoteReply.
-type UserCommentVote struct {
+// CommentVoteDetails represents all user generated data and server generated
+// metadata for a comment vote.
+type CommentVoteDetails struct {
+	UserID    string       `json:"userid"`
 	State     PropStateT   `json:"state"`
 	Token     string       `json:"token"`
 	CommentID uint32       `json:"commentid"`
@@ -497,7 +500,8 @@ type UserCommentVote struct {
 	Receipt   string       `json:"receipt"`
 }
 
-// CommentVotes returns all comment votes made a specific user on a proposal.
+// CommentVotes returns all comment votes that meet the provided filtering
+// criteria.
 type CommentVotes struct {
 	State  PropStateT `json:"state"`
 	Token  string     `json:"token"`
@@ -506,7 +510,7 @@ type CommentVotes struct {
 
 // CommentVotesReply is the reply to the CommentVotes command.
 type CommentVotesReply struct {
-	Votes []UserCommentVote `json:"votes"`
+	Votes []CommentVoteDetails `json:"votes"`
 }
 
 // VoteAuthorize authorizes a proposal vote or revokes a previous vote
