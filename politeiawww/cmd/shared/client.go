@@ -1329,29 +1329,29 @@ func (c *Client) WWWCensorComment(cc *www.CensorComment) (*www.CensorCommentRepl
 	return &ccr, nil
 }
 
-// StartVoteV2 sends the provided v2 StartVote to the politeiawww backend.
-func (c *Client) StartVoteV2(sv www2.StartVote) (*www2.StartVoteReply, error) {
+// VoteStart sends the provided VoteStart to pi.
+func (c *Client) VoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		www2.APIRoute, www2.RouteStartVote, sv)
+		pi.APIRoute, pi.RouteVoteStart, vs)
 	if err != nil {
 		return nil, err
 	}
 
-	var svr www2.StartVoteReply
-	err = json.Unmarshal(responseBody, &svr)
+	var vsr pi.VoteStartReply
+	err = json.Unmarshal(responseBody, &vsr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal StartVoteReply: %v", err)
+		return nil, fmt.Errorf("unmarshal VoteStartReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		svr.EligibleTickets = []string{"removed by piwww for readability"}
-		err := prettyPrintJSON(svr)
+		vsr.EligibleTickets = []string{"removed by piwww for readability"}
+		err := prettyPrintJSON(vsr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &svr, nil
+	return &vsr, nil
 }
 
 // StartVoteRunoffV2 sends the given StartVoteRunoff to the politeiawww v2

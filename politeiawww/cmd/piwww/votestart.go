@@ -10,17 +10,17 @@ import (
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
-	v2 "github.com/decred/politeia/politeiawww/api/www/v2"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
 
-// StartVoteCmd starts the voting period on the specified proposal.
+// VoteStartCmd starts the voting period on the specified proposal.
 //
 // The QuorumPercentage and PassPercentage are strings and not uint32 so that a
 // value of 0 can be passed in and not be overwritten by the defaults. This is
 // sometimes desirable when testing.
-type StartVoteCmd struct {
+type VoteStartCmd struct {
 	Args struct {
 		Token            string `positional-arg-name:"token" required:"true"`
 		Duration         uint32 `positional-arg-name:"duration"`
@@ -30,13 +30,13 @@ type StartVoteCmd struct {
 }
 
 // Execute executes the start vote command.
-func (cmd *StartVoteCmd) Execute(args []string) error {
+func (cmd *VoteStartCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Get proposal version. This is needed for the VoteV2.
+	// Get proposal version. This is needed for the pi route.
 	pdr, err := client.ProposalDetails(cmd.Args.Token, nil)
 	if err != nil {
 		return err
@@ -71,63 +71,64 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 		pass = uint32(i)
 	}
 
-	// Create StartVote
-	vote := v2.Vote{
+	// Create VoteStart
+	vote := pi.VoteDetails{
 		Token:            cmd.Args.Token,
-		ProposalVersion:  uint32(version),
-		Type:             v2.VoteTypeStandard,
+		Version:          uint32(version),
+		Type:             pi.VoteTypeStandard,
 		Mask:             0x03, // bit 0 no, bit 1 yes
 		Duration:         duration,
 		QuorumPercentage: quorum,
 		PassPercentage:   pass,
-		Options: []v2.VoteOption{
+		Options: []pi.VoteOption{
 			{
-				Id:          decredplugin.VoteOptionIDApprove,
+				ID:          decredplugin.VoteOptionIDApprove,
 				Description: "Approve proposal",
-				Bits:        0x01,
+				Bit:         0x01,
 			},
 			{
-				Id:          decredplugin.VoteOptionIDReject,
+				ID:          decredplugin.VoteOptionIDReject,
 				Description: "Don't approve proposal",
-				Bits:        0x02,
+				Bit:         0x02,
 			},
 		},
 	}
+
 	vb, err := json.Marshal(vote)
 	if err != nil {
 		return err
 	}
 	msg := hex.EncodeToString(util.Digest(vb))
 	sig := cfg.Identity.SignMessage([]byte(msg))
-	sv := v2.StartVote{
+	vs := pi.VoteStart{
 		Vote:      vote,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: hex.EncodeToString(sig[:]),
 	}
 
 	// Print request details
-	err = shared.PrintJSON(sv)
+	err = shared.PrintJSON(vs)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	svr, err := client.StartVoteV2(sv)
+	vsr, err := client.VoteStart(vs)
 	if err != nil {
 		return err
 	}
 
 	// Remove ticket snapshot from the response so that the output
 	// is legible
-	svr.EligibleTickets = []string{"removed by piwww for readability"}
+	vsr.EligibleTickets = []string{"removed by piwww for readability"}
 
 	// Print response details
-	return shared.PrintJSON(svr)
+	return shared.PrintJSON(vsr)
 }
 
-// startVoteHelpMsg is the output of the help command when 'startvote' is
+// voteStartHelpMsg is the output of the help command when 'votestart' is
 // specified.
-var startVoteHelpMsg = `startvote <token> <duration> <quorumpercentage> <passpercentage>
+var voteStartHelpMsg = `votestart <token> <duration> <quorumpercentage> <passpercentage>
 
 Start voting period for a proposal. Requires admin privileges.
 
@@ -140,12 +141,4 @@ Arguments:
 2. duration           (uint32, optional)  Duration of vote in blocks (default: 2016)
 3. quorumpercentage   (string, optional)  Percent of votes required for quorum (default: 10)
 4. passpercentage     (string, optional)  Percent of votes required to pass (default: 60)
-
-Result:
-
-{
-  "startblockheight"     (string)    Block height at start of vote
-  "startblockhash"       (string)    Hash of first block of vote interval
-  "endheight"            (string)    Height of vote end
-  "eligibletickets"      ([]string)  Valid voting tickets   
-}`
+`

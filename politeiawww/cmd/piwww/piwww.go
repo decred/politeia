@@ -57,6 +57,7 @@ type piwww struct {
 	CommentVotes  CommentVotesCmd  `command:"commentvotes" description:"(user) get comment upvotes/downvotes for a proposal from the provided user"`
 
 	// Vote commands
+	VoteStart     VoteStartCmd     `command:"votestart" description:"(admin) start the voting period on a proposal"`
 	VoteAuthorize VoteAuthorizeCmd `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
 
 	// Commands
@@ -82,7 +83,6 @@ type piwww struct {
 	Secret             shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
 	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
-	StartVote          StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a proposal"`
 	StartVoteRunoff    StartVoteRunoffCmd       `command:"startvoterunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
 	Tally              TallyCmd                 `command:"tally" description:"(public) get the vote tally for a proposal"`

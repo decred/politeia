@@ -310,7 +310,7 @@ func EncodeStartReply(sr StartReply) ([]byte, error) {
 }
 
 // DecodeStartReply decodes a JSON byte slice into a StartReply.
-func DecodeStartReplyVote(payload []byte) (*StartReply, error) {
+func DecodeStartReply(payload []byte) (*StartReply, error) {
 	var sr StartReply
 	err := json.Unmarshal(payload, &sr)
 	if err != nil {

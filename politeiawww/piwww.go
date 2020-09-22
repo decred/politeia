@@ -1460,7 +1460,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 		}
 	}
 
-	// Call pi plugin to add new comment
+	// Call the pi plugin to add new comment
 	reply, err := p.piCommentNew(piplugin.CommentNew{
 		UUID:      usr.ID.String(),
 		Token:     cn.Token,
@@ -1552,7 +1552,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 		}
 	}
 
-	// Call pi plugin to add new comment
+	// Call the pi plugin to add new comment
 	reply, err := p.piCommentVote(piplugin.CommentVote{
 		UUID:      usr.ID.String(),
 		Token:     cv.Token,
@@ -1604,7 +1604,7 @@ func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) 
 func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) {
 	log.Tracef("processComments: %v", c.Token)
 
-	// Call comments plugin to get comments
+	// Call the comments plugin to get comments
 	reply, err := p.comments(comments.GetAll{
 		Token: c.Token,
 		State: convertCommentsPluginPropStateFromPi(c.State),
@@ -1663,7 +1663,7 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) processCommentVotes(cvs pi.CommentVotes) (*pi.CommentVotesReply, error) {
 	log.Tracef("processCommentVotes: %v %v", cvs.Token, cvs.UserID)
 
-	// Call comments plugin to get filtered record's comment votes
+	// Call the comments plugin to get filtered record's comment votes
 	reply, err := p.commentVotes(comments.Votes{
 		Token:  cvs.Token,
 		State:  convertCommentsPluginPropStateFromPi(cvs.State),
@@ -1722,7 +1722,7 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 		}
 	}
 
-	// Call comments plugin to censor comment
+	// Call the comments plugin to censor comment
 	reply, err := p.commentCensor(comments.Del{
 		State:     convertCommentsPluginPropStateFromPi(cc.State),
 		Token:     cc.Token,
@@ -1784,8 +1784,8 @@ func convertVoteAuthActionFromPi(a pi.VoteAuthActionT) ticketvote.AuthActionT {
 func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, error) {
 	log.Tracef("processVoteAuthorize: %v", va.Token)
 
-	// Call ticketvote plugin to authorize vote
-	reply, err := p.authorizeVote(ticketvote.Authorize{
+	// Call the ticketvote plugin to authorize vote
+	reply, err := p.voteAuthorize(ticketvote.Authorize{
 		Token:     va.Token,
 		Version:   va.Version,
 		Action:    convertVoteAuthActionFromPi(va.Action),
@@ -1824,6 +1824,83 @@ func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
+func convertVoteTypeFromPi(t pi.VoteT) ticketvote.VoteT {
+	switch t {
+	case pi.VoteTypeStandard:
+		return ticketvote.VoteTypeStandard
+	case pi.VoteTypeRunoff:
+		return ticketvote.VoteTypeRunoff
+	}
+	return ticketvote.VoteTypeInvalid
+}
+
+func convertVoteDetailsFromPi(v pi.VoteDetails) ticketvote.VoteDetails {
+	tv := ticketvote.VoteDetails{
+		Token:            v.Token,
+		Version:          v.Version,
+		Type:             convertVoteTypeFromPi(v.Type),
+		Mask:             v.Mask,
+		Duration:         v.Duration,
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+	}
+	// Convert vote options
+	vo := make([]ticketvote.VoteOption, 0, len(v.Options))
+	for _, vi := range v.Options {
+		vo = append(vo, ticketvote.VoteOption{
+			ID:          vi.ID,
+			Description: vi.Description,
+			Bit:         vi.Bit,
+		})
+	}
+	tv.Options = vo
+
+	return tv
+}
+
+func (p *politeiawww) processVoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
+	log.Tracef("processVoteStart: %v", vs.Vote.Token)
+
+	// Call the ticketvote plugin to start vote
+	reply, err := p.voteStart(ticketvote.Start{
+		Vote:      convertVoteDetailsFromPi(vs.Vote),
+		PublicKey: vs.PublicKey,
+		Signature: vs.Signature,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.VoteStartReply{
+		StartBlockHeight: reply.StartBlockHeight,
+		StartBlockHash:   reply.StartBlockHash,
+		EndBlockHeight:   reply.EndBlockHeight,
+		EligibleTickets:  reply.EligibleTickets,
+	}, nil
+}
+
+func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteStart")
+
+	var vs pi.VoteStart
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vs); err != nil {
+		respondWithPiError(w, r, "handleVoteStart: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vsr, err := p.processVoteStart(vs)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleVoteStart: processVoteStart: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vsr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -1835,6 +1912,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteAuthorize, p.handleVoteAuthorize, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteStart, p.handleVoteStart, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

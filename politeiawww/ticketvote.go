@@ -9,8 +9,28 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-func (p *politeiawww) authorizeVote(a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
-	// Prop plugin command
+func (p *politeiawww) voteStart(vs ticketvote.Start) (*ticketvote.StartReply, error) {
+	// Prep plugin command
+	payload, err := ticketvote.EncodeStart(vs)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStart, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	vsr, err := ticketvote.DecodeStartReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	return vsr, nil
+}
+
+func (p *politeiawww) voteAuthorize(a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
+	// Prep plugin command
 	payload, err := ticketvote.EncodeAuthorize(a)
 	if err != nil {
 		return nil, err
