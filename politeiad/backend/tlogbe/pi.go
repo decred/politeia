@@ -31,7 +31,7 @@ var (
 	_ pluginClient = (*piPlugin)(nil)
 )
 
-// piPlugin satisfies the Plugin interface.
+// piPlugin satisfies the pluginClient interface.
 type piPlugin struct {
 	sync.Mutex
 	backend backend.Backend
@@ -510,6 +510,9 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	return nil
 }
 
+// setup performs any plugin setup work that needs to be done.
+//
+// This function satisfies the Plugin interface.
 func (p *piPlugin) setup() error {
 	log.Tracef("pi setup")
 
@@ -518,6 +521,9 @@ func (p *piPlugin) setup() error {
 	return nil
 }
 
+// cmd executes a plugin command.
+//
+// This function satisfies the pluginClient interface.
 func (p *piPlugin) cmd(cmd, payload string) (string, error) {
 	log.Tracef("pi cmd: %v %v", cmd, payload)
 
@@ -537,6 +543,9 @@ func (p *piPlugin) cmd(cmd, payload string) (string, error) {
 	return "", backend.ErrPluginCmdInvalid
 }
 
+// hook executes a plugin hook.
+//
+// This function satisfies the pluginClient interface.
 func (p *piPlugin) hook(h hookT, payload string) error {
 	log.Tracef("pi hook: %v", hooks[h])
 
@@ -552,6 +561,9 @@ func (p *piPlugin) hook(h hookT, payload string) error {
 	return nil
 }
 
+// fsck performs a plugin filesystem check.
+//
+// This function satisfies the pluginClient interface.
 func (p *piPlugin) fsck() error {
 	log.Tracef("pi fsck")
 

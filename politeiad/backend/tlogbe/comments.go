@@ -1701,7 +1701,7 @@ func (p *commentsPlugin) fsck() error {
 	return nil
 }
 
-// Setup performs any plugin setup work that needs to be done.
+// setup performs any plugin setup work that needs to be done.
 //
 // This function satisfies the pluginClient interface.
 func (p *commentsPlugin) setup() error {

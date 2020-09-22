@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package plugins
+package tlogbe
 
 import (
 	"bytes"
@@ -21,7 +21,6 @@ import (
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
 )
@@ -35,10 +34,10 @@ const (
 )
 
 var (
-	_ tlogbe.Plugin = (*dcrdataPlugin)(nil)
+	_ pluginClient = (*dcrdataPlugin)(nil)
 )
 
-// dcrdataplugin satisfies the Plugin interface.
+// dcrdataplugin satisfies the pluginClient interface.
 type dcrdataPlugin struct {
 	sync.Mutex
 	host   string
@@ -345,44 +344,6 @@ func (p *dcrdataPlugin) cmdTxsTrimmed(payload string) (string, error) {
 	return string(reply), nil
 }
 
-// Cmd executes a plugin command.
-//
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Cmd(cmd, payload string) (string, error) {
-	log.Tracef("dcrdata Cmd: %v", cmd)
-
-	switch cmd {
-	case dcrdata.CmdBestBlock:
-		return p.cmdBestBlock(payload)
-	case dcrdata.CmdBlockDetails:
-		return p.cmdBlockDetails(payload)
-	case dcrdata.CmdTicketPool:
-		return p.cmdTicketPool(payload)
-	case dcrdata.CmdTxsTrimmed:
-		return p.cmdTxsTrimmed(payload)
-	}
-
-	return "", backend.ErrPluginCmdInvalid
-}
-
-// Hook executes a plugin hook.
-//
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Hook(h tlogbe.HookT, payload string) error {
-	log.Tracef("dcrdata Hook: %v %v", tlogbe.Hooks[h], payload)
-
-	return nil
-}
-
-// Fsck performs a plugin filesystem check.
-//
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Fsck() error {
-	log.Tracef("dcrdata Fsck")
-
-	return nil
-}
-
 func (p *dcrdataPlugin) websocketMonitor() {
 	defer func() {
 		log.Infof("Dcrdata websocket closed")
@@ -464,11 +425,11 @@ func (p *dcrdataPlugin) websocketSetup() {
 	go p.websocketMonitor()
 }
 
-// Setup performs any plugin setup work that needs to be done.
+// setup performs any plugin setup work that needs to be done.
 //
 // This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) Setup() error {
-	log.Tracef("dcrdata Setup")
+func (p *dcrdataPlugin) setup() error {
+	log.Tracef("dcrdata setup")
 
 	// Setup dcrdata websocket subscriptions and monitoring. This is
 	// done in a go routine so setup will continue in the event that
@@ -479,7 +440,45 @@ func (p *dcrdataPlugin) Setup() error {
 	return nil
 }
 
-func DcrdataPluginNew(settings []backend.PluginSetting) *dcrdataPlugin {
+// cmd executes a plugin command.
+//
+// This function satisfies the pluginClient interface.
+func (p *dcrdataPlugin) cmd(cmd, payload string) (string, error) {
+	log.Tracef("dcrdata cmd: %v", cmd)
+
+	switch cmd {
+	case dcrdata.CmdBestBlock:
+		return p.cmdBestBlock(payload)
+	case dcrdata.CmdBlockDetails:
+		return p.cmdBlockDetails(payload)
+	case dcrdata.CmdTicketPool:
+		return p.cmdTicketPool(payload)
+	case dcrdata.CmdTxsTrimmed:
+		return p.cmdTxsTrimmed(payload)
+	}
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// hook executes a plugin hook.
+//
+// This function satisfies the pluginClient interface.
+func (p *dcrdataPlugin) hook(h hookT, payload string) error {
+	log.Tracef("dcrdata hook: %v %v", hooks[h], payload)
+
+	return nil
+}
+
+// fsck performs a plugin filesystem check.
+//
+// This function satisfies the pluginClient interface.
+func (p *dcrdataPlugin) fsck() error {
+	log.Tracef("dcrdata fsck")
+
+	return nil
+}
+
+func newDcrdataPlugin(settings []backend.PluginSetting) *dcrdataPlugin {
 	// TODO these should be passed in as plugin settings
 	var dcrdataHost string
 
