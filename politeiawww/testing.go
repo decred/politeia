@@ -23,7 +23,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -423,25 +422,28 @@ func newStartVote(t *testing.T, token string, v uint32, d uint32, vt www2.VoteT,
 func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, d uint32, id *identity.FullIdentity) pd.PluginCommand {
 	t.Helper()
 
-	sv := newStartVote(t, token, proposalVersion, d, www2.VoteTypeStandard, id)
-	dsv := convertStartVoteV2ToDecred(sv)
-	payload, err := decredplugin.EncodeStartVoteV2(dsv)
-	if err != nil {
-		t.Fatal(err)
-	}
+	/*
+		sv := newStartVote(t, token, proposalVersion, d, www2.VoteTypeStandard, id)
+		dsv := convertStartVoteV2ToDecred(sv)
+		payload, err := decredplugin.EncodeStartVoteV2(dsv)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		t.Fatal(err)
-	}
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	return pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdStartVote,
-		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
-		Payload:   string(payload),
-	}
+		return pd.PluginCommand{
+			Challenge: hex.EncodeToString(challenge),
+			ID:        decredplugin.ID,
+			Command:   decredplugin.CmdStartVote,
+			CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
+			Payload:   string(payload),
+		}
+	*/
+	return pd.PluginCommand{}
 }
 
 func newStartVoteRunoff(t *testing.T, tk string, avs []www2.AuthorizeVote, svs []www2.StartVote) www2.StartVoteRunoff {
@@ -481,25 +483,28 @@ func newAuthorizeVote(t *testing.T, token, version, action string, id *identity.
 func newAuthorizeVoteCmd(t *testing.T, token, version, action string, id *identity.FullIdentity) pd.PluginCommand {
 	t.Helper()
 
-	av := newAuthorizeVote(t, token, version, action, id)
-	dav := convertAuthorizeVoteToDecred(av)
-	payload, err := decredplugin.EncodeAuthorizeVote(dav)
-	if err != nil {
-		t.Fatal(err)
-	}
+	/*
+		av := newAuthorizeVote(t, token, version, action, id)
+		dav := convertAuthorizeVoteToDecred(av)
+		payload, err := decredplugin.EncodeAuthorizeVote(dav)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		t.Fatal(err)
-	}
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	return pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdAuthorizeVote,
-		CommandID: decredplugin.CmdAuthorizeVote + " " + av.Token,
-		Payload:   string(payload),
-	}
+		return pd.PluginCommand{
+			Challenge: hex.EncodeToString(challenge),
+			ID:        decredplugin.ID,
+			Command:   decredplugin.CmdAuthorizeVote,
+			CommandID: decredplugin.CmdAuthorizeVote + " " + av.Token,
+			Payload:   string(payload),
+		}
+	*/
+	return pd.PluginCommand{}
 }
 
 func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s www.PropStatusT) www.ProposalRecord {

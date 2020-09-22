@@ -20,7 +20,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
 	"github.com/decred/politeia/mdstream"
@@ -612,7 +611,6 @@ func _main() error {
 	p := &politeiawww{
 		cfg:          loadedCfg,
 		ws:           make(map[string]map[string]*wsContext),
-		templates:    make(map[string]*template.Template),
 		eventManager: newEventManager(),
 
 		// XXX reevaluate where this goes

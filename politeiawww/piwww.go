@@ -90,8 +90,7 @@ func tokenIsFullLength(token string) bool {
 	return true
 }
 
-// proposalNameIsValid returns whether the provided name is a valid proposal
-// name.
+// proposalNameIsValid returns whether the provided proposal name is a valid.
 func proposalNameIsValid(name string) bool {
 	return validProposalName.MatchString(name)
 }

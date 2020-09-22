@@ -2663,7 +2663,7 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 		svInvalidToken)
 
 	// Proposal submission record not found
-	randomToken, err := util.Random(pd.TokenSize)
+	randomToken, err := util.Random(pd.TokenSizeMax)
 	if err != nil {
 		t.Fatal(err)
 	}

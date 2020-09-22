@@ -1617,47 +1617,6 @@ func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, er
 	}, nil
 }
 
-// processUserProposals returns a page of proposals for the given user.
-func (p *politeiawww) processUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
-	// Verify user exists
-	_, err := p.userByIDStr(up.UserId)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get a page of user proposals
-	props, ps, err := p.getUserProps(proposalsFilter{
-		After:  up.After,
-		Before: up.Before,
-		UserID: up.UserId,
-		StateMap: map[www.PropStateT]bool{
-			www.PropStateUnvetted: isCurrentUser || isAdminUser,
-			www.PropStateVetted:   true,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the number of proposals the user has submitted. This
-	// number will be different depending on who is requesting it.
-	// Non-public proposals are included in the calculation when
-	// an admin or the author is requesting the data.
-	numProposals := ps.Public + ps.Abandoned
-	if isCurrentUser || isAdminUser {
-		numProposals += ps.NotReviewed + ps.UnreviewedChanges + ps.Censored
-	}
-
-	return &www.UserProposalsReply{
-		Proposals:      props,
-		NumOfProposals: numProposals,
-	}, nil
-}
-
-//
-// admin user code follows
-//
-
 // _logAdminAction logs a string to the admin log file.
 //
 // This function must be called WITH the mutex held.

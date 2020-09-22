@@ -59,11 +59,11 @@ const (
 	// The following routes WILL BE DEPRECATED in the near future and
 	// should not be used. The pi v1 API should be used instead.
 	RouteTokenInventory   = "/proposals/tokeninventory"
-	RouteBatchProposals   = "/proposals/batch"
-	RouteBatchVoteSummary = "/proposals/batchvotesummary"
 	RouteProposalDetails  = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
+	RouteBatchProposals   = "/proposals/batch"
 	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
 	RouteCastVotes        = "/proposals/castvotes"
+	RouteBatchVoteSummary = "/proposals/batchvotesummary"
 
 	// The following route HAVE BEEN DEPRECATED. The pi v1 API should
 	// be used instead.

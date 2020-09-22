@@ -20,6 +20,8 @@ const (
 	APIVersion = 1
 
 	// TODO the plugin policies should be returned in a route
+	// TODO the proposals route should allow filtering by user ID
+	// TODO max page sizes should be added to RouteProposals
 
 	// Proposal routes
 	RouteProposalNew       = "/proposal/new"

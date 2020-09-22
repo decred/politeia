@@ -51,9 +51,8 @@ const (
 	proposalMDFilename      = "00.metadata.txt"
 
 	// Journal actions
-	journalActionAdd     = "add"     // Add entry
-	journalActionDel     = "del"     // Delete entry
-	journalActionAddLike = "addlike" // Add comment like
+	journalActionAdd = "add" // Add entry
+	journalActionDel = "del" // Delete entry
 )
 
 var (
@@ -450,14 +449,6 @@ func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
 				return fmt.Errorf("journal censor: %v", err)
 			}
 			pubkeys[cc.PublicKey] = struct{}{}
-
-		case journalActionAddLike:
-			var lc decredplugin.LikeComment
-			err = d.Decode(&lc)
-			if err != nil {
-				return fmt.Errorf("journal addlike: %v", err)
-			}
-			pubkeys[lc.PublicKey] = struct{}{}
 
 		default:
 			return fmt.Errorf("invalid action: %v",

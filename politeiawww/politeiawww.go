@@ -11,14 +11,12 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
@@ -59,64 +57,60 @@ func (w *wsContext) isAuthenticated() bool {
 	return w.uuid != ""
 }
 
-// politeiawww application context.
+// politeiawww represents the politeiawww server.
 type politeiawww struct {
-	cfg      *config
-	router   *mux.Router
-	sessions sessions.Store
-	plugins  []plugin
+	sync.RWMutex
+	cfg          *config
+	params       *chaincfg.Params
+	router       *mux.Router
+	sessions     sessions.Store
+	client       *http.Client
+	smtp         *smtp
+	db           user.Database
+	eventManager *eventManager
+	plugins      []plugin
 
+	// Client websocket connections
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
 
-	// Politeiad client
-	client *http.Client
-
-	// SMTP client
-	smtp *smtp
-
-	templates map[string]*template.Template
-	tmplMtx   sync.RWMutex
-
-	// XXX This needs to be abstracted away
-	sync.RWMutex // XXX This needs to be the first entry in struct
-
-	db           user.Database // User database XXX GOT TO GO
-	params       *chaincfg.Params
-	eventManager *eventManager
-
-	// These properties are only used for testing.
-	test bool
-
-	// Following entries require locks
-	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
-
-	// XXX userEmails is a temporary measure until the user by email
-	// lookups are completely removed from politeiawww.
+	// userEmails contains a mapping of all user emails to user ID.
+	// This is required for now because the email is stored as part of
+	// the encrypted user blob in the user database, but we also allow
+	// the user to sign in using their email address, requiring a user
+	// lookup by email. This is a temporary measure and should be
+	// removed once all user by email lookups have been taken out.
 	userEmails map[string]uuid.UUID // [email]userID
 
-	// Following entries are use only during cmswww mode
-	cmsDB cmsdatabase.Database
-	cron  *cron.Cron
+	// These fields are only used during piwww mode
+	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 
-	// wsDcrdata is a dcrdata websocket client
+	// These fields are use only during cmswww mode
+	cmsDB     cmsdatabase.Database
+	cron      *cron.Cron
 	wsDcrdata *wsdcrdata.Client
+
+	// The following fields are only used during testing.
+	test bool
 }
 
-// XXX rig this up
-func (p *politeiawww) addTemplate(templateName, templateContent string) {
-	p.tmplMtx.Lock()
-	defer p.tmplMtx.Unlock()
+// handleNotFound is a generic handler for an invalid route.
+func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
+		r.Proto)
 
-	p.templates[templateName] = template.Must(
-		template.New(templateName).Parse(templateContent))
-}
+	// Trace incoming request
+	log.Tracef("%v", newLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("logging: "+
+				"DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
 
-// XXX rig this up
-func (p *politeiawww) getTemplate(templateName string) *template.Template {
-	p.tmplMtx.RLock()
-	defer p.tmplMtx.RUnlock()
-	return p.templates[templateName]
+	util.RespondWithJSON(w, http.StatusNotFound, www.ErrorReply{})
 }
 
 // version is an HTTP GET to determine the lowest API route version that this
@@ -157,48 +151,59 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(vr)
 }
 
-// handleNotFound is a generic handler for an invalid route.
-func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
-	// Log incoming connection
-	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
-		r.Proto)
+func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
+	// Get the policy command.
+	log.Tracef("handlePolicy")
 
-	// Trace incoming request
-	log.Tracef("%v", newLogClosure(func() string {
-		trace, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			trace = []byte(fmt.Sprintf("logging: "+
-				"DumpRequest %v", err))
-		}
-		return string(trace)
-	}))
+	reply := &www.PolicyReply{
+		MinPasswordLength:          www.PolicyMinPasswordLength,
+		MinUsernameLength:          www.PolicyMinUsernameLength,
+		MaxUsernameLength:          www.PolicyMaxUsernameLength,
+		UsernameSupportedChars:     www.PolicyUsernameSupportedChars,
+		ProposalListPageSize:       www.ProposalListPageSize,
+		UserListPageSize:           www.UserListPageSize,
+		MaxImages:                  www.PolicyMaxImages,
+		MaxImageSize:               www.PolicyMaxImageSize,
+		MaxMDs:                     www.PolicyMaxMDs,
+		MaxMDSize:                  www.PolicyMaxMDSize,
+		PaywallEnabled:             p.paywallIsEnabled(),
+		ValidMIMETypes:             mime.ValidMimeTypes(),
+		MinProposalNameLength:      www.PolicyMinProposalNameLength,
+		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
+		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
+		MaxCommentLength:           www.PolicyMaxCommentLength,
+		TokenPrefixLength:          www.TokenPrefixLength,
+		BuildInformation:           version.BuildInformation(),
+		IndexFilename:              www.PolicyIndexFilename,
+		MinLinkByPeriod:            p.linkByPeriodMin(),
+		MaxLinkByPeriod:            p.linkByPeriodMax(),
+		MinVoteDuration:            p.cfg.VoteDurationMin,
+		MaxVoteDuration:            p.cfg.VoteDurationMax,
+	}
 
-	util.RespondWithJSON(w, http.StatusNotFound, www.ErrorReply{})
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleAllVetted replies with the list of vetted proposals.
-func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAllVetted")
+// handleTokenInventory returns the tokens of all proposals in the inventory.
+func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleTokenInventory")
 
-	// Get the all vetted command.
-	var v www.GetAllVetted
-	err := util.ParseGetParams(r, &v)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleAllVetted: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
+	// Get session user. This is a public route so one might not exist.
+	user, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleTokenInventory: getSessionUser %v", err)
 		return
 	}
 
-	vr, err := p.processAllVetted(v)
+	isAdmin := user != nil && user.Admin
+	reply, err := p.processTokenInventory(isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleAllVetted: processAllVetted %v", err)
+			"handleTokenInventory: processTokenInventory: %v", err)
 		return
 	}
-
-	util.RespondWithJSON(w, http.StatusOK, vr)
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleProposalDetails handles the incoming proposal details command. It
@@ -240,31 +245,6 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleBatchVoteSummary handles the incoming batch vote summary command. It
-// returns a VoteSummary for each of the provided censorship tokens.
-func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleBatchVoteSummary")
-
-	var bvs www.BatchVoteSummary
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bvs); err != nil {
-		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processBatchVoteSummary(bvs)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // handleBatchProposals handles the incoming batch proposals command. It
 // returns a ProposalRecord for each of the provided censorship tokens.
 func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Request) {
@@ -298,123 +278,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
-	// Get the policy command.
-	log.Tracef("handlePolicy")
-
-	reply := &www.PolicyReply{
-		MinPasswordLength:          www.PolicyMinPasswordLength,
-		MinUsernameLength:          www.PolicyMinUsernameLength,
-		MaxUsernameLength:          www.PolicyMaxUsernameLength,
-		UsernameSupportedChars:     www.PolicyUsernameSupportedChars,
-		ProposalListPageSize:       www.ProposalListPageSize,
-		UserListPageSize:           www.UserListPageSize,
-		MaxImages:                  www.PolicyMaxImages,
-		MaxImageSize:               www.PolicyMaxImageSize,
-		MaxMDs:                     www.PolicyMaxMDs,
-		MaxMDSize:                  www.PolicyMaxMDSize,
-		PaywallEnabled:             p.paywallIsEnabled(),
-		ValidMIMETypes:             mime.ValidMimeTypes(),
-		MinProposalNameLength:      www.PolicyMinProposalNameLength,
-		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
-		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
-		MaxCommentLength:           www.PolicyMaxCommentLength,
-		TokenPrefixLength:          www.TokenPrefixLength,
-		BuildInformation:           version.BuildInformation(),
-		IndexFilename:              www.PolicyIndexFilename,
-		MinLinkByPeriod:            p.linkByPeriodMin(),
-		MaxLinkByPeriod:            p.linkByPeriodMax(),
-		MinVoteDuration:            p.cfg.VoteDurationMin,
-		MaxVoteDuration:            p.cfg.VoteDurationMax,
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleCommentsGet handles batched comments get.
-func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentsGet")
-
-	pathParams := mux.Vars(r)
-	token := pathParams["token"]
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
-		RespondWithError(w, r, 0,
-			"handleCommentsGet: getSessionUser %v", err)
-		return
-	}
-
-	gcr, err := p.processCommentsGet(token, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleCommentsGet: processCommentsGet %v", err)
-		return
-	}
-	util.RespondWithJSON(w, http.StatusOK, gcr)
-}
-
-// handleUserProposals returns the proposals for the given user.
-func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserProposals")
-
-	// Get the user proposals command.
-	var up www.UserProposals
-	err := util.ParseGetParams(r, &up)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleUserProposals: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	userId, err := uuid.Parse(up.UserId)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
-		RespondWithError(w, r, 0,
-			"handleUserProposals: getSessionUser %v", err)
-		return
-	}
-
-	upr, err := p.processUserProposals(
-		&up,
-		user != nil && user.ID == userId,
-		user != nil && user.Admin)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserProposals: processUserProposals %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, upr)
-}
-
-// handleActiveVote returns all active proposals that have an active vote.
-func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleActiveVote")
-
-	avr, err := p.processActiveVote()
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleActiveVote: processActiveVote %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, avr)
-}
-
-// handleCastVotes records the user votes in politeiad.
+// handleCastVotes casts dcr ticket votes for a proposal vote.
 func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCastVotes")
 
@@ -455,67 +319,28 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
-// handleVoteDetails returns the vote details for the given proposal token.
-func (p *politeiawww) handleVoteDetailsV2(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteDetailsV2")
+// handleBatchVoteSummary handles the incoming batch vote summary command. It
+// returns a VoteSummary for each of the provided censorship tokens.
+func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleBatchVoteSummary")
 
-	pathParams := mux.Vars(r)
-	token := pathParams["token"]
+	var bvs www.BatchVoteSummary
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bvs); err != nil {
+		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
 
-	vrr, err := p.processVoteDetailsV2(token)
+	reply, err := p.processBatchVoteSummary(bvs)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleVoteDetailsV2: processVoteDetailsV2: %v",
-			err)
+			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vrr)
-}
-
-// handleGetAllVoteStatus returns the voting status of all public proposals.
-func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
-	gasvr, err := p.processGetAllVoteStatus()
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleGetAllVoteStatus: processGetAllVoteStatus %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, gasvr)
-}
-
-// handleVoteStatus returns the vote status for a given proposal.
-func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
-	pathParams := mux.Vars(r)
-	vsr, err := p.processVoteStatus(pathParams["token"])
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVoteStatus: ProcessVoteStatus: %v", err)
-		return
-	}
-	util.RespondWithJSON(w, http.StatusOK, vsr)
-}
-
-// handleTokenInventory returns the tokens of all proposals in the inventory.
-func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleTokenInventory")
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
-		RespondWithError(w, r, 0,
-			"handleTokenInventory: getSessionUser %v", err)
-		return
-	}
-
-	isAdmin := user != nil && user.Admin
-	reply, err := p.processTokenInventory(isAdmin)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleTokenInventory: processTokenInventory: %v", err)
-		return
-	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -539,95 +364,6 @@ func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *htt
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleNewComment handles incomming comments.
-func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleNewComment")
-
-	var sc www.NewComment
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sc); err != nil {
-		RespondWithError(w, r, 0, "handleNewComment: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewComment: getSessionUser %v", err)
-		return
-	}
-
-	cr, err := p.processNewComment(sc, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewComment: processNewComment: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, cr)
-}
-
-// handleLikeComment handles up or down voting of commentd.
-func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleLikeComment")
-
-	var lc www.LikeComment
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&lc); err != nil {
-		RespondWithError(w, r, 0, "handleLikeComment: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleLikeComment: getSessionUser %v", err)
-		return
-	}
-
-	cr, err := p.processLikeComment(lc, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleLikeComment: processLikeComment %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, cr)
-}
-
-// handleAuthorizeVote handles authorizing a proposal vote.
-func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAuthorizeVote")
-	var av www.AuthorizeVote
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&av); err != nil {
-		RespondWithError(w, r, 0, "handleAuthorizeVote: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAuthorizeVote: getSessionUser %v", err)
-		return
-	}
-	avr, err := p.processAuthorizeVote(av, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAuthorizeVote: processAuthorizeVote %v", err)
-		return
-	}
-	util.RespondWithJSON(w, http.StatusOK, avr)
 }
 
 // handleProposalPaywallPayment returns the payment details for a pending
@@ -895,223 +631,36 @@ func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *htt
 	p.handleWebsocket(w, r, id)
 }
 
-// handleStartVote handles the v2 StartVote route.
-func (p *politeiawww) handleStartVoteV2(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleStartVoteV2")
-
-	var sv www2.StartVote
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sv); err != nil {
-		RespondWithError(w, r, 0, "handleStartVoteV2: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleStartVoteV2: getSessionUser %v", err)
-		return
-	}
-
-	// Sanity
-	if !user.Admin {
-		RespondWithError(w, r, 0,
-			"handleStartVoteV2: admin %v", user.Admin)
-		return
-	}
-
-	svr, err := p.processStartVoteV2(sv, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleStartVoteV2: processStartVoteV2 %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, svr)
-}
-
-// handleStartVoteRunoffV2 handles starting a runoff vote for RFP proposal
-// submissions.
-func (p *politeiawww) handleStartVoteRunoffV2(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleStartVoteRunoffV2")
-
-	var sv www2.StartVoteRunoff
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sv); err != nil {
-		RespondWithError(w, r, 0, "handleStartVoteRunoffV2: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleStartVoteRunoffV2: getSessionUser %v", err)
-		return
-	}
-
-	// Sanity
-	if !user.Admin {
-		RespondWithError(w, r, 0,
-			"handleStartVoteRunoffV2: admin %v", user.Admin)
-		return
-	}
-
-	svr, err := p.processStartVoteRunoffV2(sv, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleStartVoteRunoffV2: processStartVoteRunoff %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, svr)
-}
-
-// handleCensorComment handles the censoring of a comment by an admin.
-func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCensorComment")
-
-	var cc www.CensorComment
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cc); err != nil {
-		RespondWithError(w, r, 0, "handleCensorComment: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleCensorComment: getSessionUser %v", err)
-		return
-	}
-
-	cr, err := p.processCensorComment(cc, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleCensorComment: processCensorComment %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, cr)
-}
-
-// handleSetTOTP handles the setting of TOTP Key
-func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleSetTOTP")
-
-	var st www.SetTOTP
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&st); err != nil {
-		RespondWithError(w, r, 0, "handleSetTOTP: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	u, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetTOTP: getSessionUser %v", err)
-		return
-	}
-
-	str, err := p.processSetTOTP(st, u)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetTOTP: processSetTOTP %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, str)
-}
-
-// handleVerifyTOTP handles the request to verify a set TOTP Key.
-func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVerifyTOTP")
-
-	var vt www.VerifyTOTP
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vt); err != nil {
-		RespondWithError(w, r, 0, "handleVerifyTOTP: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	u, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyTOTP: getSessionUser %v", err)
-		return
-	}
-
-	vtr, err := p.processVerifyTOTP(vt, u)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyTOTP: processVerifyTOTP %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vtr)
-}
-
 // setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
-	// Public routes.
-	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
+	// Home
+	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).
+		Methods(http.MethodGet)
+
+	// Not found
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+
+	// Public routes
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteVersion, p.handleVersion,
-		permissionPublic)
-
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteAllVetted, p.handleAllVetted,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteProposalDetails, p.handleProposalDetails,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteCommentsGet, p.handleCommentsGet,
+		www.RouteTokenInventory, p.handleTokenInventory,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserProposals, p.handleUserProposals,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteActiveVote, p.handleActiveVote,
+		www.RouteProposalDetails, p.handleProposalDetails,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handleBatchProposals,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteCastVotes, p.handleCastVotes,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteVoteResults, p.handleVoteResults,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www2.APIRoute,
-		www2.RouteVoteDetails, p.handleVoteDetailsV2,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteAllVoteStatus, p.handleGetAllVoteStatus,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVoteStatus, p.handleVoteStatus,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteTokenInventory, p.handleTokenInventory,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteBatchProposals, p.handleBatchProposals,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteBatchVoteSummary, p.handleBatchVoteSummary,
@@ -1121,23 +670,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteProposalPaywallDetails, p.handleProposalPaywallDetails,
 		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteNewComment, p.handleNewComment,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLikeComment, p.handleLikeComment,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteAuthorizeVote, p.handleAuthorizeVote,
-		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteProposalPaywallPayment, p.handleProposalPaywallPayment,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSetTOTP, p.handleSetTOTP,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyTOTP, p.handleVerifyTOTP,
 		permissionLogin)
 
 	// Unauthenticated websocket
@@ -1148,15 +682,4 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	p.addRoute("", www.PoliteiaWWWAPIRoute,
 		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
 		permissionLogin)
-
-	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, www2.APIRoute,
-		www2.RouteStartVote, p.handleStartVoteV2,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, www2.APIRoute,
-		www2.RouteStartVoteRunoff, p.handleStartVoteRunoffV2,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteCensorComment, p.handleCensorComment,
-		permissionAdmin)
 }
