@@ -366,17 +366,10 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	}
 
 	// Prepare reply.
-	merkle := record.RecordMetadata.Merkle
-	signature := p.identity.SignMessage([]byte(merkle + t.Token))
 	response := p.identity.SignMessage(challenge)
-
 	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
-		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    merkle,
-			Token:     t.Token,
-			Signature: hex.EncodeToString(signature[:]),
-		},
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
@@ -686,6 +679,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 	// Prepare reply.
 	reply := v1.SetVettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	s := convertBackendStatus(record.RecordMetadata.Status)
@@ -748,6 +742,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	// Prepare reply.
 	reply := v1.SetUnvettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	s := convertBackendStatus(record.RecordMetadata.Status)

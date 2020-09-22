@@ -286,10 +286,11 @@ type SetUnvettedStatus struct {
 	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
 }
 
-// SetUnvettedStatus is a response to a SetUnvettedStatus.  It returns the
+// SetUnvettedStatusReply is a response to a SetUnvettedStatus.  It returns the
 // potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`   // Record
 }
 
 // SetVettedStatus updates the status of a vetted record. This is used to
@@ -306,6 +307,7 @@ type SetVettedStatus struct {
 // potentially modified record without the Files.
 type SetVettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`   // Record
 }
 
 // UpdateRecord updates a record. This is used for both unvetted and vetted
@@ -322,8 +324,8 @@ type UpdateRecord struct {
 // UpdateRecordReply returns a CensorshipRecord which may or may not have
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
-	Response         string           `json:"response"`         // Challenge response
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"` // Censorship record
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`   // Record
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for

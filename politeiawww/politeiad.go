@@ -126,7 +126,7 @@ func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (
 
 // updateRecord updates a record in politeiad. This can be used to update
 // unvetted or vetted records depending on the route that is provided.
-func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.CensorshipRecord, error) {
+func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -159,17 +159,17 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 		return nil, err
 	}
 
-	return &urr.CensorshipRecord, nil
+	return &urr.Record, nil
 }
 
 // updateUnvetted updates an unvetted record in politeiad.
-func (p *politeiawww) updateUnvetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.CensorshipRecord, error) {
+func (p *politeiawww) updateUnvetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
 	return p.updateRecord(pd.UpdateUnvettedRoute, token,
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
 
 // updateVetted updates a vetted record in politeiad.
-func (p *politeiawww) updateVetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.CensorshipRecord, error) {
+func (p *politeiawww) updateVetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
 	return p.updateRecord(pd.UpdateVettedRoute, token,
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
@@ -249,11 +249,11 @@ func (p *politeiawww) updateVettedMetadata(token string, mdAppend, mdOverwrite [
 }
 
 // setUnvettedStatus sets the status of a unvetted record in politeiad.
-func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) error {
+func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sus := pd.SetUnvettedStatus{
 		Challenge:   hex.EncodeToString(challenge),
@@ -267,31 +267,31 @@ func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, m
 	resBody, err := p.makeRequest(http.MethodPost, pd.SetUnvettedStatusRoute,
 		sus)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Receive reply
 	var susr pd.SetUnvettedStatusReply
 	err = json.Unmarshal(resBody, &susr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, susr.Response)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &susr.Record, nil
 }
 
 // setVettedStatus sets the status of a vetted record in politeiad.
-func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) error {
+func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	svs := pd.SetVettedStatus{
 		Challenge:   hex.EncodeToString(challenge),
@@ -305,23 +305,23 @@ func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdA
 	resBody, err := p.makeRequest(http.MethodPost, pd.SetVettedStatusRoute,
 		svs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Receive reply
 	var svsr pd.SetVettedStatusReply
 	err = json.Unmarshal(resBody, &svsr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verify challenge
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, svsr.Response)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &svsr.Record, nil
 }
 
 // getUnvetted retrieves an unvetted record from politeiad.

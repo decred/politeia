@@ -1126,16 +1126,16 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	// Send politeiad request
 	// TODO verify that this will throw an error if no proposal files
 	// were changed.
-	var cr *pd.CensorshipRecord
+	var r *pd.Record
 	switch pe.State {
 	case pi.PropStateUnvetted:
-		cr, err = p.updateUnvetted(pe.Token, mdAppend, mdOverwrite,
+		r, err = p.updateUnvetted(pe.Token, mdAppend, mdOverwrite,
 			filesAdd, filesDel)
 		if err != nil {
 			return nil, err
 		}
 	case pi.PropStateVetted:
-		cr, err = p.updateVetted(pe.Token, mdAppend, mdOverwrite,
+		r, err = p.updateVetted(pe.Token, mdAppend, mdOverwrite,
 			filesAdd, filesDel)
 		if err != nil {
 			return nil, err
@@ -1150,7 +1150,7 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		username: usr.Username,
 		token:    pe.Token,
 		name:     pm.Name,
-		// TODO version:  version,
+		version:  r.Version,
 	})
 
 	log.Infof("Proposal edited: %v %v", pe.Token, pm.Name)
@@ -1159,7 +1159,7 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	}
 
 	return &pi.ProposalEditReply{
-		CensorshipRecord: convertCensorshipRecordFromPD(*cr),
+		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
 		Timestamp:        timestamp,
 	}, nil
 }
@@ -1248,15 +1248,16 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	// Send politeiad request
 	// TODO verify proposal not found error is returned when wrong
 	// token or state is used
+	var r *pd.Record
 	status := convertRecordStatusFromPropStatus(pss.Status)
 	switch pss.State {
 	case pi.PropStateUnvetted:
-		err = p.setUnvettedStatus(pss.Token, status, mdAppend, mdOverwrite)
+		r, err = p.setUnvettedStatus(pss.Token, status, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
 	case pi.PropStateVetted:
-		err = p.setVettedStatus(pss.Token, status, mdAppend, mdOverwrite)
+		r, err = p.setVettedStatus(pss.Token, status, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
@@ -1266,7 +1267,8 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	p.eventManager.emit(eventProposalStatusChange,
 		dataProposalStatusChange{
 			token:   pss.Token,
-			status:  pss.Status,
+			status:  convertPropStatusFromPD(r.Status),
+			version: r.Version,
 			reason:  pss.Reason,
 			adminID: usr.ID.String(),
 		})

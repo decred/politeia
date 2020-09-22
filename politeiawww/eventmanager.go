@@ -258,6 +258,7 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 type dataProposalStatusChange struct {
 	token   string         // Proposal censorship token
 	status  pi.PropStatusT // Proposal status
+	version string         // Proposal version
 	reason  string         // Status change reason
 	adminID string         // Admin uuid
 }
