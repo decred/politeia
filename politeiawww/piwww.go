@@ -285,6 +285,30 @@ func convertCommentFromPlugin(cm comments.Comment) pi.Comment {
 	}
 }
 
+func convertVoteFromComments(v comments.VoteT) pi.CommentVoteT {
+	switch v {
+	case comments.VoteDownvote:
+		return pi.CommentVoteDownvote
+	case comments.VoteUpvote:
+		return pi.CommentVoteUpvote
+	}
+	return pi.CommentVoteInvalid
+}
+
+func convertCommentVoteFromPlugin(cv comments.CommentVote) pi.CommentVoteDetails {
+	return pi.CommentVoteDetails{
+		UserID:    cv.UserID,
+		State:     convertPropStateFromComments(cv.State),
+		Token:     cv.Token,
+		CommentID: cv.CommentID,
+		Vote:      convertVoteFromComments(cv.Vote),
+		PublicKey: cv.PublicKey,
+		Signature: cv.Signature,
+		Timestamp: cv.Timestamp,
+		Receipt:   cv.Receipt,
+	}
+}
+
 func convertFilesFromPD(f []pd.File) ([]pi.File, []pi.Metadata) {
 	files := make([]pi.File, 0, len(f))
 	metadata := make([]pi.Metadata, 0, len(f))
@@ -1632,6 +1656,50 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
+func (p *politeiawww) processCommentVotes(cvs pi.CommentVotes) (*pi.CommentVotesReply, error) {
+	log.Tracef("processCommentVotes: %v %v", cvs.Token, cvs.UserID)
+
+	// Call comments plugin to get filtered record's comment votes
+	reply, err := p.commentVotes(comments.Votes{
+		Token:  cvs.Token,
+		State:  convertCommentsPluginPropStateFromPi(cvs.State),
+		UserID: cvs.UserID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Translate to pi
+	var cvsr pi.CommentVotesReply
+	ucvs := make([]pi.CommentVoteDetails, 0, len(reply.Votes))
+	for _, cv := range reply.Votes {
+		ucvs = append(ucvs, convertCommentVoteFromPlugin(cv))
+	}
+	cvsr.Votes = ucvs
+
+	return &cvsr, nil
+}
+
+func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentVotes")
+
+	var cvs pi.CommentVotes
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cvs); err != nil {
+		respondWithPiError(w, r, "handleCommentVotes: unmarshal",
+			pi.UserErrorReply{})
+		return
+	}
+
+	cvsr, err := p.processCommentVotes(cvs)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVotes: processCommentVotes: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cvsr)
+}
+
 func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (*pi.CommentCensorReply, error) {
 	log.Tracef("processCommentCensor: %v %v", cc.Token, cc.CommentID)
 
@@ -1721,6 +1789,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteCommentVote, p.handleCommentVote, permissionLogin)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentVotes, p.handleCommentVotes, permissionLogin)
 
 	// Admin routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

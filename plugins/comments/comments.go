@@ -167,7 +167,7 @@ type CommentVote struct {
 	State     StateT `json:"state"`     // Record state
 	Token     string `json:"token"`     // Record token
 	CommentID uint32 `json:"commentid"` // Comment ID
-	Vote      int64  `json:"vote"`      // Upvote or downvote
+	Vote      VoteT  `json:"vote"`      // Upvote or downvote
 	PublicKey string `json:"publickey"` // Public key used for signature
 	Signature string `json:"signature"` // Client signature
 

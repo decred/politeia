@@ -1231,30 +1231,29 @@ func (c *Client) InvoiceComments(token string) (*www.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-// UserCommentsLikes retrieves the comment likes (upvotes/downvotes) for the
-// specified proposal that are from the logged in user.
-func (c *Client) UserCommentsLikes(token string) (*www.UserCommentsLikesReply, error) {
-	route := "/user/proposals/" + token + "/commentslikes"
-	responseBody, err := c.makeRequest(http.MethodGet,
-		www.PoliteiaWWWAPIRoute, route, nil)
+// CommentVotes retrieves the comment likes (upvotes/downvotes) for the
+// specified proposal that are from the privoded user.
+func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteCommentVotes, cv)
 	if err != nil {
 		return nil, err
 	}
 
-	var uclr www.UserCommentsLikesReply
-	err = json.Unmarshal(responseBody, &uclr)
+	var cvr pi.CommentVotesReply
+	err = json.Unmarshal(responseBody, &cvr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal UserCommentsLikesReply: %v", err)
+		return nil, fmt.Errorf("unmarshal CommentVotes: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(uclr)
+		err := prettyPrintJSON(cvr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &uclr, nil
+	return &cvr, nil
 }
 
 // CommentVote casts a like comment action (upvote/downvote) for the logged in

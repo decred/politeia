@@ -50,10 +50,11 @@ type piwww struct {
 	ProposalSetStatus ProposalSetStatusCmd `command:"proposalsetstatus"`
 
 	// Comments commands
-	CommentNew    CommentNewCmd    `command:"commentnew" description:"(user)   create a new comment"`
-	CommentVote   CommentVoteCmd   `command:"commentvote" description:"(user)   upvote/downvote a comment"`
-	CommentCensor CommentCensorCmd `command:"commentcensor" description:"(admin)  censor a comment"`
+	CommentNew    CommentNewCmd    `command:"commentnew" description:"(user) create a new comment"`
+	CommentVote   CommentVoteCmd   `command:"commentvote" description:"(user) upvote/downvote a comment"`
+	CommentCensor CommentCensorCmd `command:"commentcensor" description:"(admin) censor a comment"`
 	Comments      CommentsCmd      `command:"comments" description:"(public) get the comments for a proposal"`
+	CommentVotes  CommentVotesCmd  `command:"commentvotes" description:"(user) get comment upvotes/downvotes for a proposal from the provided user"`
 
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
@@ -87,7 +88,6 @@ type piwww struct {
 	TokenInventory     shared.TokenInventoryCmd `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
 	UpdateUserKey      shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails        UserDetailsCmd           `command:"userdetails" description:"(public) get the details of a user profile"`
-	UserLikeComments   UserLikeCommentsCmd      `command:"userlikecomments" description:"(user)   get the logged in user's comment upvotes/downvotes for a proposal"`
 	UserPendingPayment UserPendingPaymentCmd    `command:"userpendingpayment" description:"(user)   get details for a pending payment for the logged in user"`
 	UserProposals      UserProposalsCmd         `command:"userproposals" description:"(public) get all proposals submitted by a specific user"`
 	Users              shared.UsersCmd          `command:"users" description:"(public) get a list of users"`

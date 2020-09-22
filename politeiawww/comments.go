@@ -31,6 +31,26 @@ func (p *politeiawww) commentCensor(cc comments.Del) (*comments.DelReply, error)
 	return ccr, nil
 }
 
+func (p *politeiawww) commentVotes(vs comments.Votes) (*comments.VotesReply, error) {
+	// Prep plugin payload
+	payload, err := comments.EncodeVotes(vs)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(comments.ID, comments.CmdVotes, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	vsr, err := comments.DecodeVotesReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	return vsr, nil
+}
+
 // comments calls the comments plugin to get record's comments.
 func (p *politeiawww) comments(cp comments.GetAll) (*comments.GetAllReply, error) {
 	// Prep plugin payload
