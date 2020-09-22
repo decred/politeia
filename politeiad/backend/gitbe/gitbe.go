@@ -2818,6 +2818,7 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (string, error) {
 	log.Tracef("Plugin: %v", command)
 	switch command {
+	// Decred plugin
 	case decredplugin.CmdAuthorizeVote:
 		return g.pluginAuthorizeVote(payload)
 	case decredplugin.CmdStartVote:
@@ -2826,24 +2827,16 @@ func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (strin
 		return g.pluginStartVoteRunoff(payload)
 	case decredplugin.CmdBallot:
 		return g.pluginBallot(payload)
-	case decredplugin.CmdProposalVotes:
-		return g.pluginProposalVotes(payload)
 	case decredplugin.CmdBestBlock:
 		return g.pluginBestBlock()
 	case decredplugin.CmdNewComment:
 		return g.pluginNewComment(payload)
-	case decredplugin.CmdLikeComment:
-		return g.pluginLikeComment(payload)
 	case decredplugin.CmdCensorComment:
 		return g.pluginCensorComment(payload)
 	case decredplugin.CmdGetComments:
 		return g.pluginGetComments(payload)
-	case decredplugin.CmdProposalCommentsLikes:
-		return g.pluginGetProposalCommentsLikes(payload)
-	case decredplugin.CmdInventory:
-		return g.pluginInventory(payload)
-	case decredplugin.CmdLoadVoteResults:
-		return g.pluginLoadVoteResults()
+
+	// CMS plugin
 	case cmsplugin.CmdInventory:
 		return g.pluginCMSInventory()
 	case cmsplugin.CmdStartVote:
@@ -2857,7 +2850,8 @@ func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (strin
 	case cmsplugin.CmdVoteSummary:
 		return g.pluginDCCVoteSummary(payload)
 	}
-	return "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
+
+	return "", fmt.Errorf("invalid payload command")
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown

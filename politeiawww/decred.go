@@ -8,38 +8,6 @@ import (
 	"github.com/decred/politeia/decredplugin"
 )
 
-// decredGetComment sends the decred plugin getcomment command to the cache and
-// returns the specified comment.
-func (p *politeiawww) decredGetComment(gc decredplugin.GetComment) (*decredplugin.Comment, error) {
-	// Setup plugin command
-	payload, err := decredplugin.EncodeGetComment(gc)
-	if err != nil {
-		return nil, err
-	}
-
-	// Execute plugin command
-	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdGetComment,
-		decredplugin.CmdGetComment, string(payload))
-
-	// Receive plugin command reply
-	gcr, err := decredplugin.DecodeGetCommentReply([]byte(reply))
-	if err != nil {
-		return nil, err
-	}
-
-	return &gcr.Comment, nil
-}
-
-// decredCommentGetByID retrieves the specified decred plugin comment from the
-// cache.
-func (p *politeiawww) decredCommentGetByID(token, commentID string) (*decredplugin.Comment, error) {
-	gc := decredplugin.GetComment{
-		Token:     token,
-		CommentID: commentID,
-	}
-	return p.decredGetComment(gc)
-}
-
 // decredGetComments sends the decred plugin getcomments command to the cache
 // and returns all of the comments for the passed in proposal token.
 func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, error) {

@@ -784,13 +784,20 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	}
 
 	// Get comment
-	c, err := p.getDCCComment(nc.Token, ncr.CommentID)
+	comments, err := p.getDCCComments(nc.Token)
 	if err != nil {
-		return nil, fmt.Errorf("getComment: %v", err)
+		return nil, fmt.Errorf("getComments: %v", err)
+	}
+	var c www.Comment
+	for _, v := range comments {
+		if v.CommentID == ncr.CommentID {
+			c = v
+			break
+		}
 	}
 
 	return &www.NewCommentReply{
-		Comment: *c,
+		Comment: c,
 	}, nil
 }
 
@@ -852,27 +859,6 @@ func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
 	}
 
 	return comments, nil
-}
-
-// getDCCComment retrieves a comment from politeiad using the decred plugin
-// command then fills in the missing user information.
-func (p *politeiawww) getDCCComment(token, commentID string) (*www.Comment, error) {
-	// Fetch comment
-	dc, err := p.decredCommentGetByID(token, commentID)
-	if err != nil {
-		return nil, fmt.Errorf("decredGetComment: %v", err)
-	}
-	c := convertCommentFromDecred(*dc)
-
-	// Lookup author info
-	u, err := p.db.UserGetByPubKey(c.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("UserGetbyPubKey: %v", err)
-	}
-	c.UserID = u.ID.String()
-	c.Username = u.Username
-
-	return &c, nil
 }
 
 func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {

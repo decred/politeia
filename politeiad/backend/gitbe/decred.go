@@ -117,9 +117,8 @@ var (
 	pluginDataDir = filepath.Join("plugins", "decred")
 
 	// Cached values, requires lock. These caches are built on startup.
-	decredPluginVotesCache         = make(map[string]map[string]struct{})             // [token][ticket]struct{}
-	decredPluginCommentsCache      = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
-	decredPluginCommentsLikesCache = make(map[string][]decredplugin.LikeComment)      // [token]LikeComment
+	decredPluginVotesCache    = make(map[string]map[string]struct{})             // [token][ticket]struct{}
+	decredPluginCommentsCache = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
 
 	journalsReplayed bool = false
 )
@@ -1090,121 +1089,6 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	return string(ncrb), nil
 }
 
-// pluginLikeComment handles up and down votes of comments.
-func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
-	log.Tracef("pluginLikeComment")
-
-	// Check if journals were replayed
-	if !journalsReplayed {
-		return "", backend.ErrJournalsNotReplayed
-	}
-
-	// XXX this should become part of some sort of context
-	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
-	if !ok {
-		return "", fmt.Errorf("full identity not set")
-	}
-	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
-	if err != nil {
-		return "", err
-	}
-
-	// Decode comment
-	like, err := decredplugin.DecodeLikeComment([]byte(payload))
-	if err != nil {
-		return "", fmt.Errorf("DecodeLikeComment: %v", err)
-	}
-
-	// Make sure action makes sense
-	if like.Action != "-1" && like.Action != "1" {
-		return "", fmt.Errorf("invalid action")
-	}
-
-	// Verify proposal exists, we can run this lockless
-	if !g.vettedPropExists(like.Token) {
-		return "", fmt.Errorf("unknown proposal: %v", like.Token)
-	}
-
-	// XXX make sure comment id exists and is in the right prop
-
-	// Sign signature
-	r := fi.SignMessage([]byte(like.Signature))
-	receipt := hex.EncodeToString(r[:])
-
-	// Comment journal filename
-	flushFilename := pijoin(g.journals, like.Token,
-		defaultCommentsFlushed)
-
-	// Ensure proposal exists in comments cache
-	g.Lock()
-
-	// Mark comment journal dirty
-	_ = os.Remove(flushFilename)
-
-	// Verify cache
-	c, ok := decredPluginCommentsCache[like.Token][like.CommentID]
-	if !ok {
-		g.Unlock()
-		return "", fmt.Errorf("comment not found %v:%v",
-			like.Token, like.CommentID)
-	}
-
-	cc := decredPluginCommentsLikesCache[like.Token]
-
-	// Update cache
-	decredPluginCommentsLikesCache[like.Token] = append(cc, *like)
-	g.Unlock()
-
-	// We create an unwind function that MUST be called from all error
-	// paths. If everything works ok it is a no-op.
-	unwind := func() {
-		g.Lock()
-		decredPluginCommentsLikesCache[like.Token] = cc
-		g.Unlock()
-	}
-
-	// Create Journal entry
-	lc := decredplugin.LikeComment{
-		Token:     like.Token,
-		CommentID: like.CommentID,
-		Action:    like.Action,
-		Signature: like.Signature,
-		PublicKey: like.PublicKey,
-		Receipt:   receipt,
-		Timestamp: time.Now().Unix(),
-	}
-	blob, err := decredplugin.EncodeLikeComment(lc)
-	if err != nil {
-		unwind()
-		return "", fmt.Errorf("EncodeLikeComment: %v", err)
-	}
-
-	// Add comment to journal
-	cfilename := pijoin(g.journals, like.Token,
-		defaultCommentFilename)
-	err = g.journal.Journal(cfilename, string(journalAddLike)+
-		string(blob))
-	if err != nil {
-		unwind()
-		return "", fmt.Errorf("could not journal %v: %v", lc.Token, err)
-	}
-
-	// Encode reply
-	lcr := decredplugin.LikeCommentReply{
-		Total:   c.TotalVotes,
-		Result:  c.ResultVotes,
-		Receipt: receipt,
-	}
-	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
-	if err != nil {
-		unwind()
-		return "", fmt.Errorf("EncodeLikeCommentReply: %v", err)
-	}
-
-	// return success and encoded answer
-	return string(lcrb), nil
-}
-
 func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	log.Tracef("pluginCensorComment")
 
@@ -1377,7 +1261,6 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 	}()
 
 	comments := make(map[string]decredplugin.Comment)
-	commentsLikes := make([]decredplugin.LikeComment, 0, 1024)
 
 	for {
 		err = g.journal.Replay(cfilename, func(s string) error {
@@ -1431,16 +1314,6 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 				c.Censored = true
 				comments[cc.CommentID] = c
 
-			case journalActionAddLike:
-				var lc decredplugin.LikeComment
-				err = d.Decode(&lc)
-				if err != nil {
-					return fmt.Errorf("journal addlike: %v",
-						err)
-				}
-
-				commentsLikes = append(commentsLikes, lc)
-
 			default:
 				return fmt.Errorf("invalid action: %v",
 					action.Action)
@@ -1456,30 +1329,9 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 
 	g.Lock()
 	decredPluginCommentsCache[token] = comments
-	decredPluginCommentsLikesCache[token] = commentsLikes
 	g.Unlock()
 
 	return comments, nil
-}
-
-// pluginGetProposalCommentLikes return all UserCommentVotes for a given proposal
-func (g *gitBackEnd) pluginGetProposalCommentsLikes(payload string) (string, error) {
-	var gpclr decredplugin.GetProposalCommentsLikesReply
-
-	gpcl, err := decredplugin.DecodeGetProposalCommentsLikes([]byte(payload))
-	if err != nil {
-		return "", fmt.Errorf("DecodeGetProposalCommentsLikes: %v", err)
-	}
-
-	g.Lock()
-	gpclr.CommentsLikes = decredPluginCommentsLikesCache[gpcl.Token]
-	g.Unlock()
-
-	egpclr, err := decredplugin.EncodeGetProposalCommentsLikesReply(gpclr)
-	if err != nil {
-		return "", fmt.Errorf("EncodeGetProposalCommentsLikesReply: %v", err)
-	}
-	return string(egpclr), nil
 }
 
 func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {
@@ -2694,230 +2546,4 @@ func (g *gitBackEnd) tallyVotes(token string) ([]decredplugin.CastVote, error) {
 	}
 
 	return cv, nil
-}
-
-// pluginProposalVotes tallies all votes for a proposal. We can run the tally
-// unlocked and just replay the journal. If the replay becomes an issue we
-// could cache it. The Vote that is returned does have to be locked.
-func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
-	log.Tracef("pluginProposalVotes: %v", payload)
-
-	vote, err := decredplugin.DecodeVoteResults([]byte(payload))
-	if err != nil {
-		return "", fmt.Errorf("DecodeVoteResults %v", err)
-	}
-
-	// Verify proposal exists, we can run this lockless
-	if !g.vettedPropExists(vote.Token) {
-		return "", fmt.Errorf("proposal not found: %v", vote.Token)
-	}
-
-	// This portion is must run locked
-
-	g.Lock()
-	defer g.Unlock()
-
-	if g.shutdown {
-		return "", backend.ErrShutdown
-	}
-
-	// Prepare reply
-	var vrr decredplugin.VoteResultsReply
-
-	// Fill out cast votes
-	vrr.CastVotes, err = g.tallyVotes(vote.Token)
-	if err != nil {
-		return "", fmt.Errorf("Could not tally votes: %v", err)
-	}
-
-	// git checkout master
-	err = g.gitCheckout(g.vetted, "master")
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	reply, err := decredplugin.EncodeVoteResultsReply(vrr)
-	if err != nil {
-		return "", fmt.Errorf("Could not encode VoteResultsReply: %v",
-			err)
-	}
-
-	return string(reply), nil
-}
-
-// pluginInventory returns the decred plugin inventory for the specified
-// records. If no record tokens are specified then the decred plugin inventory
-// for all vetted records will be returned.
-func (g *gitBackEnd) pluginInventory(payload string) (string, error) {
-	log.Tracef("pluginInventory")
-
-	inv, err := decredplugin.DecodeInventory([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	var tokens []string
-	if len(inv.Tokens) == 0 {
-		// No records specified. Return the decred plugin data for all
-		// vetted records.
-		g.Lock()
-		tokens, err = g.getVettedTokens()
-		g.Unlock()
-		if err != nil {
-			return "", err
-		}
-	} else {
-		// Records were specified. Only return the decred plugin data for
-		// the specified records.
-		tokens = inv.Tokens
-	}
-
-	log.Debugf("Fetching decred plugin inventory for %x record", len(tokens))
-
-	// Convert tokens to a map
-	include := make(map[string]struct{}, len(tokens))
-	for _, v := range tokens {
-		include[v] = struct{}{}
-	}
-
-	// Compile decred plugin metadata streams for all versions of the
-	// specified records.
-	var (
-		authVotes       = make([]decredplugin.AuthorizeVote, 0, len(include))
-		authVoteReplies = make([]decredplugin.AuthorizeVoteReply, 0, len(include))
-		voteTuples      = make([]decredplugin.StartVoteTuple, 0, len(include))
-	)
-	for token := range include {
-		tokenb, err := hex.DecodeString(token)
-		if err != nil {
-			return "", err
-		}
-
-		// Find the most recent vesion number for this record
-		r, err := g.GetVetted(tokenb, "")
-		if err != nil {
-			return "", fmt.Errorf("GetVetted %v version 0: %v", token, err)
-		}
-		version, err := strconv.ParseUint(r.Version, 10, 64)
-		if err != nil {
-			return "", err
-		}
-
-		// Compile decred plugin metadata streams from all versions of
-		// the record.
-		for version > 0 {
-			// Lookup record
-			r, err := g.GetVetted(tokenb, strconv.FormatUint(version, 10))
-			if err != nil {
-				return "", fmt.Errorf("GetVetted %v version %v: %v",
-					token, version, err)
-			}
-
-			// Check for decred plugin metadata streams
-			var svt decredplugin.StartVoteTuple
-			for _, v := range r.Metadata {
-				switch v.ID {
-				case decredplugin.MDStreamAuthorizeVote:
-					// Authorize vote
-					av, err := decredplugin.DecodeAuthorizeVote([]byte(v.Payload))
-					if err != nil {
-						return "", err
-					}
-					avr := decredplugin.AuthorizeVoteReply{
-						Action:        av.Action,
-						RecordVersion: r.Version,
-						Receipt:       av.Receipt,
-						Timestamp:     av.Timestamp,
-					}
-					authVotes = append(authVotes, *av)
-					authVoteReplies = append(authVoteReplies, avr)
-				case decredplugin.MDStreamVoteBits:
-					// Start vote
-					sv, err := decredplugin.DecodeStartVote([]byte(v.Payload))
-					if err != nil {
-						return "", err
-					}
-					svt.StartVote = *sv
-				case decredplugin.MDStreamVoteSnapshot:
-					// Start vote reply
-					svr, err := decredplugin.DecodeStartVoteReply([]byte(v.Payload))
-					if err != nil {
-						return "", err
-					}
-					svt.StartVoteReply = *svr
-				}
-				// Check if this record version had vote metadata
-				if svt.StartVote.Version != 0 && svt.StartVoteReply.Version != 0 {
-					voteTuples = append(voteTuples, svt)
-				}
-			}
-
-			// Decrement record version
-			version--
-		}
-	}
-
-	// Compile the journal data. This requires the lock.
-	g.Lock()
-	defer g.Unlock()
-
-	// Compile comments and like comments. These can be pulled from the
-	// memory caches.
-	comments := make([]decredplugin.Comment, 0, 1024)
-	likeComments := make([]decredplugin.LikeComment, 0, 1024)
-	for token := range include {
-		// Comments
-		rcomments, ok := decredPluginCommentsCache[token]
-		if !ok {
-			continue
-		}
-		for _, v := range rcomments {
-			comments = append(comments, v)
-		}
-
-		// Like comments
-		lc, ok := decredPluginCommentsLikesCache[token]
-		if !ok {
-			continue
-		}
-		likeComments = append(likeComments, lc...)
-	}
-
-	// Compile cast votes
-	votes := make([]decredplugin.CastVote, 0, len(include)*41000)
-	for token := range include {
-		cv, err := g.tallyVotes(token)
-		if err != nil {
-			return "", fmt.Errorf("tallyVotes %v: %v", token, err)
-		}
-		votes = append(votes, cv...)
-	}
-
-	// Prepare reply
-	ivr := decredplugin.InventoryReply{
-		Comments:             comments,
-		LikeComments:         likeComments,
-		AuthorizeVotes:       authVotes,
-		AuthorizeVoteReplies: authVoteReplies,
-		StartVoteTuples:      voteTuples,
-		CastVotes:            votes,
-	}
-	reply, err := decredplugin.EncodeInventoryReply(ivr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-// pluginLoadVoteResults is a pass through function. CmdLoadVoteResults does
-// not require any work to be performed in gitBackEnd.
-func (g *gitBackEnd) pluginLoadVoteResults() (string, error) {
-	r := decredplugin.LoadVoteResultsReply{}
-	reply, err := decredplugin.EncodeLoadVoteResultsReply(r)
-	if err != nil {
-		return "", err
-	}
-	return string(reply), nil
 }

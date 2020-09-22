@@ -1661,9 +1661,16 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	}
 
 	// Get comment
-	c, err := p.getInvoiceComment(nc.Token, ncr.CommentID)
+	comments, err := p.getInvoiceComments(nc.Token)
 	if err != nil {
 		return nil, fmt.Errorf("getComment: %v", err)
+	}
+	var c www.Comment
+	for _, v := range comments {
+		if v.CommentID == ncr.CommentID {
+			c = v
+			break
+		}
 	}
 
 	if u.Admin {
@@ -1680,7 +1687,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 			})
 	}
 	return &www.NewCommentReply{
-		Comment: *c,
+		Comment: c,
 	}, nil
 }
 
@@ -1761,27 +1768,6 @@ func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
 	}
 
 	return comments, nil
-}
-
-// getInvoiceComment retrieves an invoice comment from politeiad using the
-// decred plugin command then fills in the missing user information.
-func (p *politeiawww) getInvoiceComment(token, commentID string) (*www.Comment, error) {
-	// Fetch comment
-	dc, err := p.decredCommentGetByID(token, commentID)
-	if err != nil {
-		return nil, fmt.Errorf("decredGetComment: %v", err)
-	}
-	c := convertCommentFromDecred(*dc)
-
-	// Lookup author info
-	u, err := p.db.UserGetByPubKey(c.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("UserGetbyPubKey: %v", err)
-	}
-	c.UserID = u.ID.String()
-	c.Username = u.Username
-
-	return &c, nil
 }
 
 // processPayInvoices looks for all approved invoices and then goes about
