@@ -461,12 +461,13 @@ type VoteInventoryReply struct {
 	BestBlock uint32 `json:"bestblock"`
 }
 
-// EncodeVoteInventoryReply encodes a VoteInventoryReply into a JSON byte slice.
+// EncodeVoteInventoryReply encodes a VoteInventoryReply into a JSON byte
+// slice.
 func EncodeVoteInventoryReply(vir VoteInventoryReply) ([]byte, error) {
 	return json.Marshal(vir)
 }
 
-// DecodeVoteInventoryReply decodes a JSON byte slice into a VoteInventoryReply.
+// DecodeVoteInventoryReply decodes a JSON byte slice into VoteInventoryReply.
 func DecodeVoteInventoryReply(payload []byte) (*VoteInventoryReply, error) {
 	var vir VoteInventoryReply
 	err := json.Unmarshal(payload, &vir)

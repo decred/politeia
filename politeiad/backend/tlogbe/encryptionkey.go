@@ -41,7 +41,7 @@ func (e *encryptionKey) decrypt(blob []byte) ([]byte, uint32, error) {
 }
 
 // Zero zeroes out the encryption key.
-func (e *encryptionKey) Zero() {
+func (e *encryptionKey) zero() {
 	e.Lock()
 	defer e.Unlock()
 

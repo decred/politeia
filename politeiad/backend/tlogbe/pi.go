@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package plugins
+package tlogbe
 
 import (
 	"encoding/base64"
@@ -20,7 +20,6 @@ import (
 	"github.com/decred/politeia/plugins/pi"
 	"github.com/decred/politeia/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
 )
 
 const (
@@ -29,13 +28,14 @@ const (
 )
 
 var (
-	_ tlogbe.Plugin = (*piPlugin)(nil)
+	_ pluginClient = (*piPlugin)(nil)
 )
 
 // piPlugin satisfies the Plugin interface.
 type piPlugin struct {
 	sync.Mutex
-	backend *tlogbe.TlogBackend
+	backend backend.Backend
+	tlog    tlogClient
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
@@ -66,9 +66,20 @@ func proposalMetadataFromFiles(files []backend.File) (*pi.ProposalMetadata, erro
 	return pm, nil
 }
 
-// TODO saving the linkedFrom to the filesystem is not scalable between
-// multiple politeiad instances. The plugin needs to have a tree that can be
-// used to share state between the different politeiad instances.
+func convertPropStatusFromMDStatus(s backend.MDStatusT) pi.PropStatusT {
+	var status pi.PropStatusT
+	switch s {
+	case backend.MDStatusUnvetted, backend.MDStatusIterationUnvetted:
+		status = pi.PropStatusUnvetted
+	case backend.MDStatusVetted:
+		status = pi.PropStatusPublic
+	case backend.MDStatusCensored:
+		status = pi.PropStatusCensored
+	case backend.MDStatusArchived:
+		status = pi.PropStatusAbandoned
+	}
+	return status
+}
 
 // linkedFrom is the the structure that is updated and cached for proposal A
 // when proposal B links to proposal A. The list contains all proposals that
@@ -81,14 +92,14 @@ type linkedFrom struct {
 	Tokens map[string]struct{} `json:"tokens"`
 }
 
-func (p *piPlugin) cachedLinkedFromPath(token string) string {
+func (p *piPlugin) linkedFromPath(token string) string {
 	fn := strings.Replace(filenameLinkedFrom, "{token}", token, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
 // This function must be called WITH the lock held.
-func (p *piPlugin) cachedLinkedFromLocked(token string) (*linkedFrom, error) {
-	fp := p.cachedLinkedFromPath(token)
+func (p *piPlugin) linkedFromLocked(token string) (*linkedFrom, error) {
+	fp := p.linkedFromPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -107,26 +118,26 @@ func (p *piPlugin) cachedLinkedFromLocked(token string) (*linkedFrom, error) {
 	return &lf, nil
 }
 
-func (p *piPlugin) cachedLinkedFrom(token string) (*linkedFrom, error) {
+func (p *piPlugin) linkedFrom(token string) (*linkedFrom, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.cachedLinkedFromLocked(token)
+	return p.linkedFromLocked(token)
 }
 
-func (p *piPlugin) cachedLinkedFromAdd(parentToken, childToken string) error {
+func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get existing linked from list
-	lf, err := p.cachedLinkedFromLocked(parentToken)
+	lf, err := p.linkedFromLocked(parentToken)
 	if err == errRecordNotFound {
 		// List doesn't exist. Create a new one.
 		lf = &linkedFrom{
 			Tokens: make(map[string]struct{}, 0),
 		}
 	} else if err != nil {
-		return fmt.Errorf("cachedLinkedFromLocked %v: %v", parentToken, err)
+		return fmt.Errorf("linkedFromLocked %v: %v", parentToken, err)
 	}
 
 	// Update list
@@ -137,7 +148,7 @@ func (p *piPlugin) cachedLinkedFromAdd(parentToken, childToken string) error {
 	if err != nil {
 		return err
 	}
-	fp := p.cachedLinkedFromPath(parentToken)
+	fp := p.linkedFromPath(parentToken)
 	err = ioutil.WriteFile(fp, b, 0664)
 	if err != nil {
 		return fmt.Errorf("WriteFile: %v", err)
@@ -146,14 +157,14 @@ func (p *piPlugin) cachedLinkedFromAdd(parentToken, childToken string) error {
 	return nil
 }
 
-func (p *piPlugin) cachedLinkedFromDel(parentToken, childToken string) error {
+func (p *piPlugin) linkedFromDel(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get existing linked from list
-	lf, err := p.cachedLinkedFromLocked(parentToken)
+	lf, err := p.linkedFromLocked(parentToken)
 	if err != nil {
-		return fmt.Errorf("cachedLinkedFromLocked %v: %v", parentToken, err)
+		return fmt.Errorf("linkedFromLocked %v: %v", parentToken, err)
 	}
 
 	// Update list
@@ -164,7 +175,7 @@ func (p *piPlugin) cachedLinkedFromDel(parentToken, childToken string) error {
 	if err != nil {
 		return err
 	}
-	fp := p.cachedLinkedFromPath(parentToken)
+	fp := p.linkedFromPath(parentToken)
 	err = ioutil.WriteFile(fp, b, 0664)
 	if err != nil {
 		return fmt.Errorf("WriteFile: %v", err)
@@ -173,8 +184,52 @@ func (p *piPlugin) cachedLinkedFromDel(parentToken, childToken string) error {
 	return nil
 }
 
+func (p *piPlugin) cmdProposals(payload string) (string, error) {
+	// TODO
+
+	/*
+		// Just because a cached linked from doesn't exist doesn't
+		// mean the token isn't valid. We need to check if the token
+		// corresponds to a real proposal.
+		proposals := make(map[string]pi.ProposalData, len(ps.Tokens))
+		for _, v := range ps.Tokens {
+			lf, err := p.linkedFrom(v)
+			if err != nil {
+				if err == errRecordNotFound {
+					continue
+				}
+				return "", fmt.Errorf("linkedFrom %v: %v", v, err)
+			}
+		}
+	*/
+
+	return "", nil
+}
+
+func (p *piPlugin) cmdCommentNew(payload string) (string, error) {
+	// TODO
+	// Only allow commenting on vetted
+	return "", nil
+}
+
+func (p *piPlugin) cmdCommentCensor(payload string) (string, error) {
+	// TODO
+	return "", nil
+}
+
+func (p *piPlugin) cmdCommentVote(payload string) (string, error) {
+	// TODO
+	// Only allow voting on vetted
+	return "", nil
+}
+
+func (p *piPlugin) cmdVoteInventory(payload string) (string, error) {
+	// TODO
+	return "", nil
+}
+
 func (p *piPlugin) hookNewRecordPre(payload string) error {
-	nr, err := tlogbe.DecodeNewRecord([]byte(payload))
+	nr, err := decodeHookNewRecord([]byte(payload))
 	if err != nil {
 		return err
 	}
@@ -283,23 +338,8 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	return nil
 }
 
-func convertPropStatusFromMDStatus(s backend.MDStatusT) pi.PropStatusT {
-	var status pi.PropStatusT
-	switch s {
-	case backend.MDStatusUnvetted, backend.MDStatusIterationUnvetted:
-		status = pi.PropStatusUnvetted
-	case backend.MDStatusVetted:
-		status = pi.PropStatusPublic
-	case backend.MDStatusCensored:
-		status = pi.PropStatusCensored
-	case backend.MDStatusArchived:
-		status = pi.PropStatusAbandoned
-	}
-	return status
-}
-
 func (p *piPlugin) hookEditRecordPre(payload string) error {
-	er, err := tlogbe.DecodeEditRecord([]byte(payload))
+	er, err := decodeHookEditRecord([]byte(payload))
 	if err != nil {
 		return err
 	}
@@ -371,7 +411,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 }
 
 func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
-	srs, err := tlogbe.DecodeSetRecordStatus([]byte(payload))
+	srs, err := decodeHookSetRecordStatus([]byte(payload))
 	if err != nil {
 		return err
 	}
@@ -453,16 +493,16 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 		case backend.MDStatusVetted:
 			// Proposal has been made public. Add child token to parent
 			// token's linked from list.
-			err := p.cachedLinkedFromAdd(parentToken, childToken)
+			err := p.linkedFromAdd(parentToken, childToken)
 			if err != nil {
-				return fmt.Errorf("cachedLinkedFromAdd: %v", err)
+				return fmt.Errorf("linkedFromAdd: %v", err)
 			}
 		case backend.MDStatusCensored:
 			// Proposal has been censored. Delete child token from parent
 			// token's linked from list.
-			err := p.cachedLinkedFromDel(parentToken, childToken)
+			err := p.linkedFromDel(parentToken, childToken)
 			if err != nil {
-				return fmt.Errorf("cachedLinkedFromDel: %v", err)
+				return fmt.Errorf("linkedFromDel: %v", err)
 			}
 		}
 	}
@@ -470,76 +510,57 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	return nil
 }
 
-func (p *piPlugin) Setup() error {
-	log.Tracef("pi Setup")
+func (p *piPlugin) setup() error {
+	log.Tracef("pi setup")
 
 	// Verify vote plugin dependency
 
 	return nil
 }
 
-func (p *piPlugin) cmdProposals(payload string) (string, error) {
-	ps, err := pi.DecodeProposals([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-	_ = ps
-
-	/*
-		// TODO just because a cached linked from doesn't exist doesn't
-		// mean the token isn't valid. We need to check if the token
-		// corresponds to a real proposal.
-		proposals := make(map[string]pi.ProposalData, len(ps.Tokens))
-		for _, v := range ps.Tokens {
-			lf, err := p.cachedLinkedFrom(v)
-			if err != nil {
-				if err == errRecordNotFound {
-					continue
-				}
-				return "", fmt.Errorf("cachedLinkedFrom %v: %v", v, err)
-			}
-		}
-	*/
-
-	return "", nil
-}
-
-func (p *piPlugin) Cmd(cmd, payload string) (string, error) {
-	log.Tracef("pi Cmd: %v %v", cmd, payload)
+func (p *piPlugin) cmd(cmd, payload string) (string, error) {
+	log.Tracef("pi cmd: %v %v", cmd, payload)
 
 	switch cmd {
 	case pi.CmdProposals:
 		return p.cmdProposals(payload)
-		// TODO case pi.CmdVoteInventory
+	case pi.CmdCommentNew:
+		return p.cmdCommentNew(payload)
+	case pi.CmdCommentCensor:
+		return p.cmdCommentCensor(payload)
+	case pi.CmdCommentVote:
+		return p.cmdCommentVote(payload)
+	case pi.CmdVoteInventory:
+		return p.cmdVoteInventory(payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
 }
 
-func (p *piPlugin) Hook(h tlogbe.HookT, payload string) error {
-	log.Tracef("pi Hook: %v", tlogbe.Hooks[h])
+func (p *piPlugin) hook(h hookT, payload string) error {
+	log.Tracef("pi hook: %v", hooks[h])
 
 	switch h {
-	case tlogbe.HookNewRecordPre:
+	case hookNewRecordPre:
 		return p.hookNewRecordPre(payload)
-	case tlogbe.HookEditRecordPre:
+	case hookEditRecordPre:
 		return p.hookEditRecordPre(payload)
-	case tlogbe.HookSetRecordStatusPost:
+	case hookSetRecordStatusPost:
 		return p.hookSetRecordStatusPost(payload)
 	}
 
 	return nil
 }
 
-func (p *piPlugin) Fsck() error {
-	log.Tracef("pi Fsck")
+func (p *piPlugin) fsck() error {
+	log.Tracef("pi fsck")
 
 	// linkedFrom cache
 
 	return nil
 }
 
-func NewPiPlugin(backend *tlogbe.TlogBackend, settings []backend.PluginSetting) *piPlugin {
+func newPiPlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) *piPlugin {
 	// TODO these should be passed in as plugin settings
 	var (
 		dataDir string
@@ -547,5 +568,6 @@ func NewPiPlugin(backend *tlogbe.TlogBackend, settings []backend.PluginSetting) 
 	return &piPlugin{
 		dataDir: dataDir,
 		backend: backend,
+		tlog:    tlog,
 	}
 }

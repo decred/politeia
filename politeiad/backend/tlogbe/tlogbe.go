@@ -75,14 +75,6 @@ var (
 	}
 )
 
-// plugin represents a tlogbe plugin.
-type plugin struct {
-	id       string
-	version  string
-	settings []backend.PluginSetting
-	client   pluginClient
-}
-
 // tlogBackend implements the Backend interface.
 type tlogBackend struct {
 	sync.RWMutex
@@ -112,6 +104,14 @@ type tlogBackend struct {
 	// status. Each list of tokens is sorted by the timestamp of the
 	// status change from newest to oldest.
 	inventory map[backend.MDStatusT][]string
+}
+
+// plugin represents a tlogbe plugin.
+type plugin struct {
+	id       string
+	version  string
+	settings []backend.PluginSetting
+	client   pluginClient
 }
 
 func tokenPrefix(token []byte) string {

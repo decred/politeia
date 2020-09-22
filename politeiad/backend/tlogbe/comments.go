@@ -752,6 +752,16 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 		return "", err
 	}
 
+	// Verify state
+	switch n.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
+	}
+
 	// Verify token
 	token, err := hex.DecodeString(n.Token)
 	if err != nil {
@@ -862,6 +872,16 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	e, err := comments.DecodeEdit([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	// Verify state
+	switch e.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
 	}
 
 	// Verify token
@@ -999,6 +1019,16 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 		return "", err
 	}
 
+	// Verify state
+	switch d.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
+	}
+
 	// Verify token
 	token, err := hex.DecodeString(d.Token)
 	if err != nil {
@@ -1111,6 +1141,16 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	v, err := comments.DecodeVote([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	// Verify state
+	switch v.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
 	}
 
 	// Verify token
@@ -1257,6 +1297,16 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 		return "", err
 	}
 
+	// Verify state
+	switch g.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
+	}
+
 	// Verify token
 	token, err := hex.DecodeString(g.Token)
 	if err != nil {
@@ -1301,6 +1351,16 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	ga, err := comments.DecodeGetAll([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	// Verify state
+	switch ga.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
 	}
 
 	// Verify token
@@ -1364,6 +1424,16 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	gv, err := comments.DecodeGetVersion([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	// Verify state
+	switch gv.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
 	}
 
 	// Verify token
@@ -1438,6 +1508,16 @@ func (p *commentsPlugin) cmdCount(payload string) (string, error) {
 		return "", err
 	}
 
+	// Verify state
+	switch c.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
+	}
+
 	// Verify token
 	token, err := hex.DecodeString(c.Token)
 	if err != nil {
@@ -1471,6 +1551,16 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	v, err := comments.DecodeVotes([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	// Verify state
+	switch v.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", comments.UserErrorReply{
+			ErrorCode: comments.ErrorStatusTokenInvalid,
+		}
 	}
 
 	// Verify token

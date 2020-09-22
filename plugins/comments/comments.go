@@ -53,17 +53,18 @@ const (
 
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
-	ErrorStatusTokenInvalid     ErrorStatusT = 1
-	ErrorStatusPublicKeyInvalid ErrorStatusT = 2
-	ErrorStatusSignatureInvalid ErrorStatusT = 3
-	ErrorStatusCommentLengthMax ErrorStatusT = 4
-	ErrorStatusRecordNotFound   ErrorStatusT = 5
-	ErrorStatusCommentNotFound  ErrorStatusT = 6
-	ErrorStatusUserIDInvalid    ErrorStatusT = 7
-	ErrorStatusParentIDInvalid  ErrorStatusT = 8
-	ErrorStatusNoCommentChanges ErrorStatusT = 9
-	ErrorStatusVoteInvalid      ErrorStatusT = 10
-	ErrorStatusVoteChangesMax   ErrorStatusT = 11
+	ErrorStatusStateInvalid     ErrorStatusT = 1
+	ErrorStatusTokenInvalid     ErrorStatusT = 2
+	ErrorStatusPublicKeyInvalid ErrorStatusT = 3
+	ErrorStatusSignatureInvalid ErrorStatusT = 4
+	ErrorStatusCommentLengthMax ErrorStatusT = 5
+	ErrorStatusRecordNotFound   ErrorStatusT = 6
+	ErrorStatusCommentNotFound  ErrorStatusT = 7
+	ErrorStatusUserIDInvalid    ErrorStatusT = 8
+	ErrorStatusParentIDInvalid  ErrorStatusT = 9
+	ErrorStatusNoCommentChanges ErrorStatusT = 10
+	ErrorStatusVoteInvalid      ErrorStatusT = 11
+	ErrorStatusVoteChangesMax   ErrorStatusT = 12
 )
 
 var (

@@ -1734,9 +1734,9 @@ func (t *tlog) close() {
 	t.store.Close()
 	t.trillian.close()
 
-	// Zero out encryption key
+	// Zero out encryption key. An encryption key is optional.
 	if t.encryptionKey != nil {
-		t.encryptionKey.Zero()
+		t.encryptionKey.zero()
 	}
 }
 
