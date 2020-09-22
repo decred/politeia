@@ -9,6 +9,26 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
+func (p *politeiawww) authorizeVote(a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
+	// Prop plugin command
+	payload, err := ticketvote.EncodeAuthorize(a)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdAuthorize, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	va, err := ticketvote.DecodeAuthorizeReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+
+	return va, nil
+}
+
 // voteDetails calls the ticketvote plugin command to get vote details.
 func (p *politeiawww) voteDetails(token string) (*ticketvote.DetailsReply, error) {
 	// Prep vote details payload
@@ -22,6 +42,9 @@ func (p *politeiawww) voteDetails(token string) (*ticketvote.DetailsReply, error
 
 	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdDetails, "",
 		string(payload))
+	if err != nil {
+		return nil, err
+	}
 	vd, err := ticketvote.DecodeDetailsReply([]byte(r))
 	if err != nil {
 		return nil, err

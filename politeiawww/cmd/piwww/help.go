@@ -99,8 +99,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", commentVotesHelpMsg)
 
 	// Vote commands
-	case "authorizevote":
-		fmt.Printf("%s\n", authorizeVoteHelpMsg)
+	case "voteauthorize":
+		fmt.Printf("%s\n", voteAuthorizeHelpMsg)
 	case "startvote":
 		fmt.Printf("%s\n", startVoteHelpMsg)
 	case "startvoterunoff":

@@ -65,7 +65,7 @@ func (cmd *CommentCensorCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	cc := &pi.CommentCensor{
+	cc := pi.CommentCensor{
 		Token:     token,
 		State:     state,
 		CommentID: uint32(ciUint),

@@ -1258,7 +1258,7 @@ func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error)
 
 // CommentVote casts a like comment action (upvote/downvote) for the logged in
 // user.
-func (c *Client) CommentVote(cv *pi.CommentVote) (*pi.CommentVoteReply, error) {
+func (c *Client) CommentVote(cv pi.CommentVote) (*pi.CommentVoteReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
 		pi.APIRoute, pi.RouteCommentVote, cv)
 	if err != nil {
@@ -1282,7 +1282,7 @@ func (c *Client) CommentVote(cv *pi.CommentVote) (*pi.CommentVoteReply, error) {
 }
 
 // CommentCensor censors the specified proposal comment.
-func (c *Client) CommentCensor(cc *pi.CommentCensor) (*pi.CommentCensorReply, error) {
+func (c *Client) CommentCensor(cc pi.CommentCensor) (*pi.CommentCensorReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
 		pi.RouteCommentCensor, cc)
 	if err != nil {
@@ -1581,29 +1581,29 @@ func (c *Client) EditUser(eu *www.EditUser) (*www.EditUserReply, error) {
 	return &eur, nil
 }
 
-// AuthorizeVote authorizes the voting period for the specified proposal using
+// VoteAuthorize authorizes the voting period for the specified proposal using
 // the logged in user.
-func (c *Client) AuthorizeVote(av *www.AuthorizeVote) (*www.AuthorizeVoteReply, error) {
-	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteAuthorizeVote, av)
+func (c *Client) VoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteAuthorize, va)
 	if err != nil {
 		return nil, err
 	}
 
-	var avr www.AuthorizeVoteReply
-	err = json.Unmarshal(responseBody, &avr)
+	var vr pi.VoteAuthorizeReply
+	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal AuthorizeVoteReply: %v", err)
+		return nil, fmt.Errorf("unmarshal VoteAuthorizeReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(avr)
+		err := prettyPrintJSON(vr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &avr, nil
+	return &vr, nil
 }
 
 // VoteStatus retrieves the vote status for the specified proposal.

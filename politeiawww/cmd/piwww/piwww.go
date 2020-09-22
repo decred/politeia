@@ -56,9 +56,11 @@ type piwww struct {
 	Comments      CommentsCmd      `command:"comments" description:"(public) get the comments for a proposal"`
 	CommentVotes  CommentVotesCmd  `command:"commentvotes" description:"(user) get comment upvotes/downvotes for a proposal from the provided user"`
 
+	// Vote commands
+	VoteAuthorize VoteAuthorizeCmd `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
+
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
-	AuthorizeVote      AuthorizeVoteCmd         `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
 	BatchProposals     shared.BatchProposalsCmd `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	BatchVoteSummary   BatchVoteSummaryCmd      `command:"batchvotesummary" description:"(user)   retrieve the vote summary for a set of proposals"`
 	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`

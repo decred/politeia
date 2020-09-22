@@ -19,6 +19,7 @@ import (
 
 	"github.com/decred/politeia/plugins/comments"
 	piplugin "github.com/decred/politeia/plugins/pi"
+	"github.com/decred/politeia/plugins/ticketvote"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -1645,7 +1646,9 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&c); err != nil {
 		respondWithPiError(w, r, "handleComments: unmarshal",
-			pi.UserErrorReply{})
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
 		return
 	}
 
@@ -1689,7 +1692,9 @@ func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request)
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cvs); err != nil {
 		respondWithPiError(w, r, "handleCommentVotes: unmarshal",
-			pi.UserErrorReply{})
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
 		return
 	}
 
@@ -1744,7 +1749,9 @@ func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cc); err != nil {
 		respondWithPiError(w, r, "handleCommentCensor: unmarshal",
-			pi.UserErrorReply{})
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
 		return
 	}
 
@@ -1764,6 +1771,60 @@ func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, ccr)
 }
 
+func convertVoteAuthActionFromPi(a pi.VoteAuthActionT) ticketvote.AuthActionT {
+	switch a {
+	case pi.VoteAuthActionAuthorize:
+		return ticketvote.ActionAuthorize
+	case pi.VoteAuthActionRevoke:
+		return ticketvote.ActionRevoke
+	default:
+		return ticketvote.ActionAuthorize
+	}
+}
+
+func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, error) {
+	log.Tracef("processVoteAuthorize: %v", va.Token)
+
+	// Call ticketvote plugin to authorize vote
+	reply, err := p.authorizeVote(ticketvote.Authorize{
+		Token:     va.Token,
+		Version:   va.Version,
+		Action:    convertVoteAuthActionFromPi(va.Action),
+		PublicKey: va.PublicKey,
+		Signature: va.Signature,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.VoteAuthorizeReply{
+		Timestamp: reply.Timestamp,
+		Receipt:   reply.Receipt,
+	}, nil
+}
+
+func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteAuthorize")
+
+	var va pi.VoteAuthorize
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&va); err != nil {
+		respondWithPiError(w, r, "handleVoteAuthorize: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vr, err := p.processVoteAuthorize(va)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleVoteAuthorize: processVoteAuthorize: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -1772,6 +1833,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteComments, p.handleComments, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteAuthorize, p.handleVoteAuthorize, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

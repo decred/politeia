@@ -59,7 +59,7 @@ func (cmd *CommentVoteCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	cv := &pi.CommentVote{
+	cv := pi.CommentVote{
 		Token:     token,
 		State:     pi.PropStateVetted,
 		CommentID: uint32(ciUint),
