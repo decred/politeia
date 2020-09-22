@@ -110,7 +110,7 @@ func convertWWWErrorStatusFromComments(e comments.ErrorStatusT) www.ErrorStatusT
 		// changes.
 	case comments.ErrorStatusVoteInvalid:
 		return www.ErrorStatusInvalidLikeCommentAction
-	case comments.ErrorStatusMaxVoteChanges:
+	case comments.ErrorStatusVoteChangesMax:
 		return www.ErrorStatusInvalidLikeCommentAction
 	}
 	return www.ErrorStatusInvalid
@@ -220,8 +220,8 @@ func convertPiErrorStatusFromComments(e comments.ErrorStatusT) pi.ErrorStatusT {
 		return pi.ErrorStatusCommentTextInvalid
 	case comments.ErrorStatusVoteInvalid:
 		return pi.ErrorStatusCommentVoteInvalid
-	case comments.ErrorStatusMaxVoteChanges:
-		return pi.ErrorStatusCommentMaxVoteChanges
+	case comments.ErrorStatusVoteChangesMax:
+		return pi.ErrorStatusCommentVoteChangesMax
 	}
 	return pi.ErrorStatusInvalid
 }

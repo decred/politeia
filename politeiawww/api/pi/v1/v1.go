@@ -142,7 +142,7 @@ const (
 	ErrorStatusCommentParentIDInvalid
 	ErrorStatusCommentVoteInvalid
 	ErrorStatusCommentNotFound
-	ErrorStatusCommentMaxVoteChanges
+	ErrorStatusCommentVoteChangesMax
 
 	// Vote errors
 	ErrorStatusVoteStatusInvalid

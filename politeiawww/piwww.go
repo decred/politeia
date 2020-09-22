@@ -267,7 +267,7 @@ func convertPropStateFromComments(s comments.StateT) pi.PropStateT {
 
 func convertCommentFromPlugin(cm comments.Comment) pi.Comment {
 	return pi.Comment{
-		UserID:    cm.UUID,
+		UserID:    cm.UserID,
 		Username:  "", // Intentionally omitted, needs to be pulled from userdb
 		State:     convertPropStateFromComments(cm.State),
 		Token:     cm.Token,
@@ -1595,7 +1595,7 @@ func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) 
 		pic := convertCommentFromPlugin(cm)
 		// Get comment's author username
 		// Parse string uuid
-		uuid, err := uuid.Parse(cm.UUID)
+		uuid, err := uuid.Parse(cm.UserID)
 		if err != nil {
 			return nil, err
 		}
