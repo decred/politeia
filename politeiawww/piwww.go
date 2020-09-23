@@ -1781,17 +1781,21 @@ func convertVoteAuthActionFromPi(a pi.VoteAuthActionT) ticketvote.AuthActionT {
 	}
 }
 
-func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, error) {
-	log.Tracef("processVoteAuthorize: %v", va.Token)
-
-	// Call the ticketvote plugin to authorize vote
-	reply, err := p.voteAuthorize(ticketvote.Authorize{
+func convertVoteAuthorizeFromPi(va pi.VoteAuthorize) ticketvote.Authorize {
+	return ticketvote.Authorize{
 		Token:     va.Token,
 		Version:   va.Version,
 		Action:    convertVoteAuthActionFromPi(va.Action),
 		PublicKey: va.PublicKey,
 		Signature: va.Signature,
-	})
+	}
+}
+
+func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, error) {
+	log.Tracef("processVoteAuthorize: %v", va.Token)
+
+	// Call the ticketvote plugin to authorize vote
+	reply, err := p.voteAuthorize(convertVoteAuthorizeFromPi(va))
 	if err != nil {
 		return nil, err
 	}
@@ -1858,15 +1862,19 @@ func convertVoteParamsFromPi(v pi.VoteParams) ticketvote.VoteParams {
 	return tv
 }
 
+func convertVoteStartFromPi(vs pi.VoteStart) ticketvote.Start {
+	return ticketvote.Start{
+		Params:    convertVoteParamsFromPi(vs.Params),
+		PublicKey: vs.PublicKey,
+		Signature: vs.Signature,
+	}
+}
+
 func (p *politeiawww) processVoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
 	log.Tracef("processVoteStart: %v", vs.Params.Token)
 
 	// Call the ticketvote plugin to start vote
-	reply, err := p.voteStart(ticketvote.Start{
-		Params:    convertVoteParamsFromPi(vs.Params),
-		PublicKey: vs.PublicKey,
-		Signature: vs.Signature,
-	})
+	reply, err := p.voteStart(convertVoteStartFromPi(vs))
 	if err != nil {
 		return nil, err
 	}
@@ -1901,6 +1909,62 @@ func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
+func (p *politeiawww) processVoteStartRunoff(cvr pi.VoteStartRunoff) (*pi.VoteStartRunoffReply, error) {
+	log.Tracef("processVoteStartRunoff: %v", cvr.Token)
+
+	// Call the ticketvote plugin to start runoff vote
+	// Transalte payload
+	pcvr := ticketvote.StartRunoff{
+		Token: cvr.Token,
+	}
+	// Transalte submissions' vote authorizations structs
+	auths := make([]ticketvote.Authorize, 0, len(cvr.Authorizations))
+	for _, auth := range cvr.Authorizations {
+		auths = append(auths, convertVoteAuthorizeFromPi(auth))
+	}
+	pcvr.Auths = auths
+	// Transate submissions' vote start structs
+	starts := make([]ticketvote.Start, 0, len(cvr.Starts))
+	for _, s := range cvr.Starts {
+		starts = append(starts, convertVoteStartFromPi(s))
+	}
+	pcvr.Starts = starts
+
+	reply, err := p.voteStartRunoff(pcvr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.VoteStartRunoffReply{
+		StartBlockHeight: reply.StartBlockHeight,
+		StartBlockHash:   reply.StartBlockHash,
+		EndBlockHeight:   reply.EndBlockHeight,
+		EligibleTickets:  reply.EligibleTickets,
+	}, nil
+}
+
+func (p *politeiawww) handleVoteStartRunoff(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteStartRunoff")
+
+	var vsr pi.VoteStartRunoff
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vsr); err != nil {
+		respondWithPiError(w, r, "handleVoteStartRunoff: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vsrr, err := p.processVoteStartRunoff(vsr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleVoteStartRunoff: processVoteStartRunoff: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vsrr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -1915,6 +1979,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteStart, p.handleVoteStart, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteStartRunoff, p.handleVoteStartRunoff, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

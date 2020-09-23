@@ -649,8 +649,21 @@ type VoteStartReply struct {
 	EligibleTickets  []string `json:"eligibletickets"`
 }
 
-type VoteStartRunoff struct{}
-type VoteStartRunoffReply struct{}
+// VoteStartRunoff starts a runoff vote between the provided submissions. Each
+// submission is required to have its own Authorize and Start.
+type VoteStartRunoff struct {
+	Token          string          `json:"token"` // RFP token
+	Authorizations []VoteAuthorize `json:"authorizations"`
+	Starts         []VoteStart     `json:"starts"`
+}
+
+// VoteStartRunoffReply is the reply to the VoteStartRunoff command.
+type VoteStartRunoffReply struct {
+	StartBlockHeight uint32   `json:"startblockheight"`
+	StartBlockHash   string   `json:"startblockhash"`
+	EndBlockHeight   uint32   `json:"endblockheight"`
+	EligibleTickets  []string `json:"eligibletickets"` // Ticket hashes
+}
 
 type VoteBallot struct{}
 type VoteBallotReply struct{}

@@ -1354,30 +1354,30 @@ func (c *Client) VoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
 	return &vsr, nil
 }
 
-// StartVoteRunoffV2 sends the given StartVoteRunoff to the politeiawww v2
-// StartVoteRunoffRoute and returns the reply.
-func (c *Client) StartVoteRunoffV2(svr www2.StartVoteRunoff) (*www2.StartVoteRunoffReply, error) {
+// VoteStartRunoff sends the given VoteStartRunoff to the pi api
+// RouteVoteStartRunoff and returns the reply.
+func (c *Client) VoteStartRunoff(vsr pi.VoteStartRunoff) (*pi.VoteStartRunoffReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		www2.APIRoute, www2.RouteStartVoteRunoff, svr)
+		pi.APIRoute, pi.RouteVoteStartRunoff, vsr)
 	if err != nil {
 		return nil, err
 	}
 
-	var svrr www2.StartVoteRunoffReply
-	err = json.Unmarshal(responseBody, &svrr)
+	var vsrr pi.VoteStartRunoffReply
+	err = json.Unmarshal(responseBody, &vsrr)
 	if err != nil {
 		return nil, err
 	}
 
 	if c.cfg.Verbose {
-		svrr.EligibleTickets = []string{"removed by piwww for readability"}
-		err := prettyPrintJSON(svr)
+		vsrr.EligibleTickets = []string{"removed by piwww for readability"}
+		err := prettyPrintJSON(vsrr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &svrr, nil
+	return &vsrr, nil
 }
 
 // VerifyUserPayment checks whether the logged in user has paid their user

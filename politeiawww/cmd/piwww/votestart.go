@@ -72,7 +72,7 @@ func (cmd *VoteStartCmd) Execute(args []string) error {
 	}
 
 	// Create VoteStart
-	vote := pi.VoteDetails{
+	vote := pi.VoteParams{
 		Token:            cmd.Args.Token,
 		Version:          uint32(version),
 		Type:             pi.VoteTypeStandard,
@@ -101,7 +101,7 @@ func (cmd *VoteStartCmd) Execute(args []string) error {
 	msg := hex.EncodeToString(util.Digest(vb))
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	vs := pi.VoteStart{
-		Vote:      vote,
+		Params:    vote,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: hex.EncodeToString(sig[:]),
 	}

@@ -10,19 +10,19 @@ import (
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
-	v2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
 
-// StartVoteRunoffCmd starts the voting period on all public submissions to a
+// VoteStartRunoffCmd starts the voting period on all public submissions to a
 // request for proposals (RFP).
 //
 // The QuorumPercentage and PassPercentage are strings and not uint32 so that a
 // value of 0 can be passed in and not be overwritten by the defaults. This is
 // sometimes desirable when testing.
-type StartVoteRunoffCmd struct {
+type VoteStartRunoffCmd struct {
 	Args struct {
 		TokenRFP         string `positional-arg-name:"token" required:"true"` // RFP censorship token
 		Duration         uint32 `positional-arg-name:"duration"`              // Duration in blocks
@@ -32,7 +32,7 @@ type StartVoteRunoffCmd struct {
 }
 
 // Execute executes the StartVoteRunoff command.
-func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
+func (cmd *VoteStartRunoffCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
@@ -85,13 +85,13 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 		}
 	}
 
-	// Prepare AuthorizeVote for each submission
-	authVotes := make([]v2.AuthorizeVote, 0, len(submissions))
+	// Prepare VoteAuthorize for each submission
+	auths := make([]pi.VoteAuthorize, 0, len(submissions))
 	for _, v := range submissions {
-		action := v2.AuthVoteActionAuthorize
-		msg := v.CensorshipRecord.Token + v.Version + action
+		action := pi.VoteAuthActionAuthorize
+		msg := v.CensorshipRecord.Token + v.Version + string(action)
 		sig := cfg.Identity.SignMessage([]byte(msg))
-		authVotes = append(authVotes, v2.AuthorizeVote{
+		auths = append(auths, pi.VoteAuthorize{
 			Token:     v.CensorshipRecord.Token,
 			Action:    action,
 			PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
@@ -99,32 +99,32 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 		})
 	}
 
-	// Prepare StartVote for each submission
-	startVotes := make([]v2.StartVote, 0, len(submissions))
+	// Prepare VoteStart for each submission
+	starts := make([]pi.VoteStart, 0, len(submissions))
 	for _, v := range submissions {
 		version, err := strconv.ParseUint(v.Version, 10, 32)
 		if err != nil {
 			return err
 		}
 
-		vote := v2.Vote{
+		vote := pi.VoteParams{
 			Token:            v.CensorshipRecord.Token,
-			ProposalVersion:  uint32(version),
-			Type:             v2.VoteTypeRunoff,
+			Version:          uint32(version),
+			Type:             pi.VoteTypeRunoff,
 			Mask:             0x03, // bit 0 no, bit 1 yes
 			Duration:         duration,
 			QuorumPercentage: quorum,
 			PassPercentage:   pass,
-			Options: []v2.VoteOption{
+			Options: []pi.VoteOption{
 				{
-					Id:          decredplugin.VoteOptionIDApprove,
+					ID:          decredplugin.VoteOptionIDApprove,
 					Description: "Approve proposal",
-					Bits:        0x01,
+					Bit:         0x01,
 				},
 				{
-					Id:          decredplugin.VoteOptionIDReject,
+					ID:          decredplugin.VoteOptionIDReject,
 					Description: "Don't approve proposal",
-					Bits:        0x02,
+					Bit:         0x02,
 				},
 			},
 		}
@@ -135,24 +135,24 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 		msg := hex.EncodeToString(util.Digest(vb))
 		sig := cfg.Identity.SignMessage([]byte(msg))
 
-		startVotes = append(startVotes, v2.StartVote{
-			Vote:      vote,
+		starts = append(starts, pi.VoteStart{
+			Params:    vote,
 			PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 			Signature: hex.EncodeToString(sig[:]),
 		})
 	}
 
 	// Prepare and send request
-	svr := v2.StartVoteRunoff{
+	svr := pi.VoteStartRunoff{
 		Token:          cmd.Args.TokenRFP,
-		AuthorizeVotes: authVotes,
-		StartVotes:     startVotes,
+		Authorizations: auths,
+		Starts:         starts,
 	}
 	err = shared.PrintJSON(svr)
 	if err != nil {
 		return err
 	}
-	svrr, err := client.StartVoteRunoffV2(svr)
+	svrr, err := client.VoteStartRunoff(svr)
 	if err != nil {
 		return err
 	}
@@ -170,8 +170,8 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 	return nil
 }
 
-// startVoteRunoffHelpMsg is the help command output for 'startvoterunoff'.
-var startVoteRunoffHelpMsg = `startvoterunoff <token> <duration> <quorumpercentage> <passpercentage>
+// voteStartRunoffHelpMsg is the help command output for 'votestartrunoff'.
+var voteStartRunoffHelpMsg = `votestartrunoff <token> <duration> <quorumpercentage> <passpercentage>
 
 Start the voting period on all public submissions to an RFP proposal. The
 optional arguments must either all be used or none be used.
