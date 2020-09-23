@@ -11,7 +11,6 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
@@ -33,7 +32,6 @@ func TestNewCodeStats(t *testing.T) {
 	defer close()
 
 	// Arguments
-	userID := uuid.New()
 	githubName := "github"
 	repo := "decred"
 	monthAug := 8
@@ -58,20 +56,32 @@ func TestNewCodeStats(t *testing.T) {
 
 	year := 2020
 
-	augID := userID.String() + githubName + strconv.Itoa(monthAug) +
+	augID := githubName + repo + strconv.Itoa(monthAug) +
 		strconv.Itoa(year)
 	codeStats := make([]user.CodeStats, 0, 2)
 	codeStats = append(codeStats, user.CodeStats{
-		Repository: repo,
-		Month:      monthAug,
-		Year:       year,
+		Repository:      repo,
+		Month:           monthAug,
+		Year:            year,
+		PRs:             prsAug,
+		Reviews:         reviewsAug,
+		MergedAdditions: int64(mergeAdditionsAug),
+		MergedDeletions: int64(mergeDeletionsAug),
+		ReviewAdditions: int64(reviewAdditionsAug),
+		ReviewDeletions: int64(reviewDeletionsAug),
 	})
-	septID := userID.String() + githubName + strconv.Itoa(monthSept) +
+	septID := githubName + repo + strconv.Itoa(monthSept) +
 		strconv.Itoa(year)
 	codeStats = append(codeStats, user.CodeStats{
-		Repository: repo,
-		Month:      monthSept,
-		Year:       year,
+		Repository:      repo,
+		Month:           monthSept,
+		Year:            year,
+		PRs:             prsSept,
+		Reviews:         reviewsSept,
+		MergedAdditions: int64(mergeAdditionsSept),
+		MergedDeletions: int64(mergeDeletionsSept),
+		ReviewAdditions: int64(reviewAdditionsSept),
+		ReviewDeletions: int64(reviewDeletionsSept),
 	})
 	nu := &user.NewCMSCodeStats{
 		UserCodeStats: codeStats,
@@ -114,111 +124,50 @@ func TestNewCodeStats(t *testing.T) {
 	}
 }
 
-/*
 func TestUpdateCodeStats(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
 	// Arguments
-	index := newPaywallAddressIndex(t, 1)
-	usr := user.User{
-		Email:    "test@test.com",
-		Username: "test",
+	githubName := "github"
+	repo := "decred"
+	monthAug := 8
+	mergeAdditionsAug := 100
+	mergeDeletionsAug := 99
+	reviewAdditionsAug := 200
+	reviewDeletionsAug := 199
+	year := 2020
+	codeStats := make([]user.CodeStats, 0, 2)
+	codeStats = append(codeStats, user.CodeStats{
+		Repository:      repo,
+		Month:           monthAug,
+		Year:            year,
+		MergedAdditions: int64(mergeAdditionsAug),
+		MergedDeletions: int64(mergeDeletionsAug),
+		ReviewAdditions: int64(reviewAdditionsAug),
+		ReviewDeletions: int64(reviewDeletionsAug),
+	})
+	ucs := &user.UpdateCMSCodeStats{
+		UserCodeStats: codeStats,
 	}
-
-	// Queries
-	sqlSelectIndex := `SELECT * FROM "key_value" WHERE "key_value"."key" = $1`
-	sqlInsertUser := `INSERT INTO "users" ` +
-		`("id","username","blob","created_at","updated_at") ` +
-		`VALUES ($1,$2,$3,$4,$5) ` +
-		`RETURNING "users"."id"`
-	sqlUpdateIndex := `UPDATE "key_value" SET "value" = $1 ` +
-		`WHERE "key_value"."key" = $2`
-
-	// Success Expectations
-	mock.ExpectBegin()
-	// Select paywall address index
-	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectIndex)).
-		WithArgs(keyPaywallAddressIndex).
-		WillReturnRows(sqlmock.NewRows([]string{"key", "value"}).
-			AddRow(keyPaywallAddressIndex, index))
-	// Insert user to db
-	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertUser)).
-		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{},
-			AnyTime{}, AnyTime{}).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(usr.ID))
-	// Update paywall address index
-	mock.ExpectExec(regexp.QuoteMeta(sqlUpdateIndex)).
-		WithArgs(sqlmock.AnyArg(), keyPaywallAddressIndex).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
-
-	// Execute method
-	err := cdb.UserNew(usr)
-	if err != nil {
-		t.Errorf("UserNew unwanted error: %s", err)
-	}
-
-	// Negative Expectations
-	expectedError := user.ErrUserExists
-	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta(sqlSelectIndex)).
-		WithArgs(keyPaywallAddressIndex).
-		WillReturnRows(sqlmock.NewRows([]string{"key", "value"}).
-			AddRow(keyPaywallAddressIndex, index))
-	// User already exists error
-	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertUser)).
-		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{},
-			AnyTime{}, AnyTime{}).
-		WillReturnError(expectedError)
-	mock.ExpectRollback()
-
-	// Execute method
-	err = cdb.UserNew(usr)
-	if err == nil {
-		t.Errorf("expecting error but there was none")
-	}
-
-	// Make sure we got the expected error
-	if err.Error() != fmt.Errorf("create user: %v", expectedError).Error() {
-		t.Errorf("expecting error %s but got %s", expectedError, err)
-	}
-
-	// Make sure expectations were met for both success and failure
-	// conditions
-	err = mock.ExpectationsWereMet()
-	if err != nil {
-		t.Errorf("unfulfilled expectations: %s", err)
-	}
-}
-
-func TestUpdateCodeStats(t *testing.T) {
-	cdb, mock, close := setupTestDB(t)
-	defer close()
-
-	// Arguments
-	id := uuid.New()
-	usr := user.User{
-		ID:         id,
-		Identities: []user.Identity{},
-		Email:      "test@test.com",
-		Username:   "test",
-	}
-
 	// Query
-	sql := `UPDATE "users" ` +
-		`SET "username" = $1, "blob" = $2, "updated_at" = $3 ` +
-		`WHERE "users"."id" = $4`
+	sqlUpdateCMSCodeStats := `UPDATE "cms_code_stats" ` +
+		`SET "merge_additions" = $1, "merge_deletions" = $2, ` +
+		`"review_additions" = $3, "review_deletions" = $4 ` +
+		`WHERE "cms_code_stats"."id" = $5`
 
+	augID := githubName + repo + strconv.Itoa(monthAug) +
+		strconv.Itoa(year)
 	// Success Expectations
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(sql)).
-		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, usr.ID).
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpdateCMSCodeStats)).
+		WithArgs(mergeAdditionsAug, mergeDeletionsAug, reviewAdditionsAug,
+			reviewDeletionsAug, augID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	// Execute method
-	err := cdb.UserUpdate(usr)
+	err := cdb.UpdateCMSCodeStats(ucs)
 	if err != nil {
 		t.Errorf("UserUpdate unwanted error: %s", err)
 	}
@@ -230,6 +179,7 @@ func TestUpdateCodeStats(t *testing.T) {
 	}
 }
 
+/*
 func TestCodeStatsByUserMonthYear(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()

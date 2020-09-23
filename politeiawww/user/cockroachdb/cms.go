@@ -427,16 +427,7 @@ func (c *cockroachdb) cmdUpdateCMSCodeStats(payload string) (string, error) {
 		return "", err
 	}
 
-	tx := c.userDB.Begin()
-	for _, ncs := range nu.UserCodeStats {
-		cms := convertCodestatsToDatabase(ncs)
-		err = c.updateCMSCodeStats(tx, cms)
-		if err != nil {
-			tx.Rollback()
-			return "", err
-		}
-	}
-	err = tx.Commit().Error
+	err = c.UpdateCMSCodeStats(nu)
 	if err != nil {
 		return "", err
 	}
@@ -449,6 +440,19 @@ func (c *cockroachdb) cmdUpdateCMSCodeStats(payload string) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+func (c *cockroachdb) UpdateCMSCodeStats(ucs *user.UpdateCMSCodeStats) error {
+	tx := c.userDB.Begin()
+	for _, ncs := range ucs.UserCodeStats {
+		cms := convertCodestatsToDatabase(ncs)
+		err := c.updateCMSCodeStats(tx, cms)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit().Error
 }
 
 // updateCMSCodeStats updates a CMS Code stats record
