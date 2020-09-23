@@ -503,10 +503,14 @@ func (c *cockroachdb) cmdCMSCodeStatsByUserMonthYear(payload string) (string, er
 func (c *cockroachdb) CMSCodeStatsByUserMonthYear(p *user.CMSCodeStatsByUserMonthYear) ([]user.CodeStats, error) {
 	var cmsCodeStats []CMSCodeStats
 	err := c.userDB.
-		Where("git_hub_name = ? AND month = ? and year = ?", p.GithubName, p.Month, p.Year).
+		Where("git_hub_name = ? AND month = ? AND year = ?", p.GithubName, p.Month, p.Year).
 		Find(&cmsCodeStats).
 		Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = user.ErrCodeStatsNotFound
+			return nil, err
+		}
 		return nil, err
 	}
 	// Prepare reply

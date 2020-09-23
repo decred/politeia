@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"testing"
@@ -57,10 +58,11 @@ func TestNewCodeStats(t *testing.T) {
 
 	year := 2020
 
-	augID := githubName + repo + strconv.Itoa(monthAug) +
-		strconv.Itoa(year)
+	augID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthAug),
+		strconv.Itoa(year))
 	codeStats := make([]user.CodeStats, 0, 2)
 	codeStats = append(codeStats, user.CodeStats{
+		GitHubName:      githubName,
 		Repository:      repo,
 		Month:           monthAug,
 		Year:            year,
@@ -71,9 +73,10 @@ func TestNewCodeStats(t *testing.T) {
 		ReviewAdditions: int64(reviewAdditionsAug),
 		ReviewDeletions: int64(reviewDeletionsAug),
 	})
-	septID := githubName + repo + strconv.Itoa(monthSept) +
-		strconv.Itoa(year)
+	septID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthSept),
+		strconv.Itoa(year))
 	codeStats = append(codeStats, user.CodeStats{
+		GitHubName:      githubName,
 		Repository:      repo,
 		Month:           monthSept,
 		Year:            year,
@@ -84,30 +87,49 @@ func TestNewCodeStats(t *testing.T) {
 		ReviewAdditions: int64(reviewAdditionsSept),
 		ReviewDeletions: int64(reviewDeletionsSept),
 	})
+	convertedCodeStatsAug := convertCodestatsToDatabase(codeStats[0])
+	convertedCodeStatsSept := convertCodestatsToDatabase(codeStats[1])
 	nu := &user.NewCMSCodeStats{
 		UserCodeStats: codeStats,
 	}
 
 	// Queries
 	sqlInsertCMSCodeStats := `INSERT INTO "cms_code_stats" ` +
-		`("id","git_hub_name","repository","month","year","prs","reviews",` +
-		`"merge_additions","merge_deletions","review_additions",` +
-		`"review_deletions","created_at","updated_at") VALUES ` +
-		`($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ` +
+		`("id","git_hub_name","repository","month","year","p_rs","reviews",` +
+		`"merged_additions","merged_deletions","review_additions",` +
+		`"review_deletions") VALUES ` +
+		`($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ` +
 		`RETURNING "cms_code_stats"."id"`
 
 	// Success Expectations
 	mock.ExpectBegin()
 	// Insert user to db
 	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertCMSCodeStats)).
-		WithArgs(sqlmock.AnyArg(), githubName, monthAug, year, prsAug,
-			reviewsAug, mergeAdditionsAug, mergeDeletionsAug, reviewAdditionsAug,
-			reviewDeletionsAug, AnyTime{}, AnyTime{}).
+		WithArgs(
+			sqlmock.AnyArg(),
+			convertedCodeStatsAug.GitHubName,
+			convertedCodeStatsAug.Repository,
+			convertedCodeStatsAug.Month,
+			convertedCodeStatsAug.Year,
+			convertedCodeStatsAug.PRs,
+			convertedCodeStatsAug.Reviews,
+			convertedCodeStatsAug.MergedAdditions,
+			convertedCodeStatsAug.MergedDeletions,
+			convertedCodeStatsAug.ReviewAdditions,
+			convertedCodeStatsAug.ReviewDeletions).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(augID))
 	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertCMSCodeStats)).
-		WithArgs(sqlmock.AnyArg(), githubName, monthSept, year, prsSept,
-			reviewsSept, mergeAdditionsSept, mergeDeletionsSept,
-			reviewAdditionsSept, reviewDeletionsSept, AnyTime{}, AnyTime{}).
+		WithArgs(sqlmock.AnyArg(),
+			convertedCodeStatsSept.GitHubName,
+			convertedCodeStatsSept.Repository,
+			convertedCodeStatsSept.Month,
+			convertedCodeStatsSept.Year,
+			convertedCodeStatsSept.PRs,
+			convertedCodeStatsSept.Reviews,
+			convertedCodeStatsSept.MergedAdditions,
+			convertedCodeStatsSept.MergedDeletions,
+			convertedCodeStatsSept.ReviewAdditions,
+			convertedCodeStatsSept.ReviewDeletions).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(septID))
 	mock.ExpectCommit()
 
@@ -138,11 +160,18 @@ func TestUpdateCodeStats(t *testing.T) {
 	reviewAdditionsAug := 200
 	reviewDeletionsAug := 199
 	year := 2020
-	codeStats := make([]user.CodeStats, 0, 2)
+	prsAug := []string{"https://github.com/decred/pr/pull/1",
+		"https://github.com/decred/pr/pull/2"}
+	reviewsAug := []string{"https://github.com/decred/review/pull/1",
+		"https://github.com/decred/review/pull/1"}
+	codeStats := make([]user.CodeStats, 0, 1)
 	codeStats = append(codeStats, user.CodeStats{
+		GitHubName:      githubName,
 		Repository:      repo,
 		Month:           monthAug,
 		Year:            year,
+		PRs:             prsAug,
+		Reviews:         reviewsAug,
 		MergedAdditions: int64(mergeAdditionsAug),
 		MergedDeletions: int64(mergeDeletionsAug),
 		ReviewAdditions: int64(reviewAdditionsAug),
@@ -151,19 +180,31 @@ func TestUpdateCodeStats(t *testing.T) {
 	ucs := &user.UpdateCMSCodeStats{
 		UserCodeStats: codeStats,
 	}
+	convertCodeStats := convertCodestatsToDatabase(codeStats[0])
 	// Query
 	sqlUpdateCMSCodeStats := `UPDATE "cms_code_stats" ` +
-		`SET "merge_additions" = $1, "merge_deletions" = $2, ` +
-		`"review_additions" = $3, "review_deletions" = $4 ` +
-		`WHERE "cms_code_stats"."id" = $5`
+		`SET "git_hub_name" = $1, "repository" = $2, "month" = $3, "year" = $4, "p_rs" = $5, "reviews" = $6, "merged_additions" = $7, "merged_deletions" = $8, ` +
+		`"review_additions" = $9, "review_deletions" = $10 ` +
+		`WHERE "cms_code_stats"."id" = $11`
 
-	augID := githubName + repo + strconv.Itoa(monthAug) +
-		strconv.Itoa(year)
+	augID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthAug),
+		strconv.Itoa(year))
+
 	// Success Expectations
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(sqlUpdateCMSCodeStats)).
-		WithArgs(mergeAdditionsAug, mergeDeletionsAug, reviewAdditionsAug,
-			reviewDeletionsAug, augID).
+		WithArgs(
+			convertCodeStats.GitHubName,
+			convertCodeStats.Repository,
+			convertCodeStats.Month,
+			convertCodeStats.Year,
+			convertCodeStats.PRs,
+			convertCodeStats.Reviews,
+			convertCodeStats.MergedAdditions,
+			convertCodeStats.MergedDeletions,
+			convertCodeStats.ReviewAdditions,
+			convertCodeStats.ReviewDeletions,
+			augID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -195,10 +236,8 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 	reviewDeletionsAug := 199
 	year := 2020
 
-	prsAug := []string{"https://github.com/decred/pr/pull/1",
-		"https://github.com/decred/pr/pull/2"}
-	reviewsAug := []string{"https://github.com/decred/review/pull/1",
-		"https://github.com/decred/review/pull/1"}
+	prsAug := "https://github.com/decred/pr/pull/1,https://github.com/decred/pr/pull/2"
+	reviewsAug := "https://github.com/decred/review/pull/1,https://github.com/decred/review/pull/1"
 
 	augID := githubName + repo + strconv.Itoa(monthAug) +
 		strconv.Itoa(year)
@@ -223,8 +262,7 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 		reviewDeletionsAug, now, now)
 
 	// Query
-	sql := `SELECT * FROM "cms_code_stats" WHERE (git_hub_name = $1 AND ` +
-		`month = $2 AND year = $3)`
+	sql := `SELECT * FROM "cms_code_stats" WHERE (git_hub_name = $1 AND month = $2 AND year = $3)`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -239,7 +277,7 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 	// Execute method
 	cs, err := cdb.CMSCodeStatsByUserMonthYear(csbm)
 	if err != nil {
-		t.Errorf("UserGetByUsername unwanted error: %s", err)
+		t.Errorf("CMSCodeStatsByUserMonthYear unwanted error: %s", err)
 	}
 	for _, codeStat := range cs {
 		// Make sure correct code stat was fetched
@@ -247,9 +285,13 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 			t.Errorf("expecting user of id %s but received %s", codeStat.ID, augID)
 		}
 	}
-
 	// Negative Expectations
 	randomGithubName := "random"
+	csbm = &user.CMSCodeStatsByUserMonthYear{
+		GithubName: randomGithubName,
+		Month:      monthAug,
+		Year:       year,
+	}
 	expectedError := user.ErrCodeStatsNotFound
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
 		WithArgs(randomGithubName, monthAug, year).
@@ -257,8 +299,8 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 
 	// Execute method
 	cs, err = cdb.CMSCodeStatsByUserMonthYear(csbm)
-	if err != nil {
-		t.Errorf("UserGetByUsername unwanted error: %s", err)
+	if err == nil {
+		t.Errorf("expecting error but there was none")
 	}
 
 	if len(cs) > 0 {
