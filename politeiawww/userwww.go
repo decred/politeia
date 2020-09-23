@@ -18,16 +18,6 @@ import (
 )
 
 var (
-	templateNewUserEmail = template.Must(
-		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
-	templateResetPasswordEmail = template.Must(
-		template.New("reset_password_email_template").Parse(templateResetPasswordEmailRaw))
-	templateUpdateUserKeyEmail = template.Must(
-		template.New("update_user_key_email_template").Parse(templateUpdateUserKeyEmailRaw))
-	templateUserLockedResetPassword = template.Must(
-		template.New("user_locked_reset_password").Parse(templateUserLockedResetPasswordRaw))
-	templateUserPasswordChanged = template.Must(
-		template.New("user_changed_password").Parse(templateUserPasswordChangedRaw))
 	templateInviteNewUserEmail = template.Must(
 		template.New("invite_new_user_email_template").Parse(templateInviteNewUserEmailRaw))
 	templateApproveDCCUserEmail = template.Must(

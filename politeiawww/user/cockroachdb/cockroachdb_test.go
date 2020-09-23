@@ -38,7 +38,6 @@ func (a AnyTime) Match(v driver.Value) bool {
 
 // Helpers
 var (
-	errUpdate = fmt.Errorf("update user error")
 	errSelect = fmt.Errorf("select user error")
 	errDelete = fmt.Errorf("delete user error")
 )

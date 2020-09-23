@@ -455,7 +455,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		// Email the verification token before updating the
 		// database. If the email fails, the database won't
 		// be updated.
-		err = p.emailNewUserVerificationLink(u.Email,
+		err = p.emailUserEmailVerify(u.Email,
 			hex.EncodeToString(tokenb), u.Username)
 		if err != nil {
 			log.Errorf("processNewUser: mail verification "+
@@ -548,7 +548,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 	// then the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailNewUserVerificationLink(newUser.Email,
+	err = p.emailUserEmailVerify(newUser.Email,
 		hex.EncodeToString(tokenb), newUser.Username)
 	if err != nil {
 		log.Errorf("processNewUser: mail verification token "+
@@ -922,7 +922,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	// the user won't be updated.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailNewUserVerificationLink(u.Email,
+	err = p.emailUserEmailVerify(u.Email,
 		hex.EncodeToString(token), u.Username)
 	if err != nil {
 		log.Errorf("processResendVerification: email verification "+
@@ -1001,7 +1001,7 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 	//
 	// This is conditional on the email server being setup.
 	token := hex.EncodeToString(tokenb)
-	err = p.emailUpdateUserKeyVerificationLink(usr.Email, uuk.PublicKey,
+	err = p.emailUserKeyUpdate(usr.Email, uuk.PublicKey,
 		token)
 	if err != nil {
 		return nil, err
@@ -1133,7 +1133,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			// send them an email informing them their account is
 			// now locked.
 			if userIsLocked(u.FailedLoginAttempts) {
-				err := p.emailUserLocked(u.Email)
+				err := p.emailUserAccountLocked(u.Email)
 				if err != nil {
 					return loginResult{
 						reply: nil,
@@ -1267,9 +1267,9 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 		// login attempts, send the user an email to notify them
 		// that their account is locked.
 		if userIsLocked(u.FailedLoginAttempts) {
-			err := p.emailUserLocked(u.Email)
+			err := p.emailUserAccountLocked(u.Email)
 			if err != nil {
-				log.Errorf("processLogin: emailUserLocked '%v': %v",
+				log.Errorf("processLogin: emailUserAccountLocked '%v': %v",
 					u.Email, err)
 			}
 		}
@@ -1457,7 +1457,7 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 
 	// Try to email the verification link first. If it fails, the
 	// user record won't be updated in the database.
-	err = p.emailResetPasswordVerificationLink(rp.Email, rp.Username,
+	err = p.emailUserPasswordReset(rp.Email, rp.Username,
 		hex.EncodeToString(tokenb))
 	if err != nil {
 		return resetPasswordResult{
