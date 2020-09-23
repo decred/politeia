@@ -483,7 +483,7 @@ func (p *ticketVotePlugin) authorizes(token []byte) ([]ticketvote.AuthorizeDetai
 	return auths, nil
 }
 
-func (p *ticketVotePlugin) startSave(vd ticketvote.VoteDetails) error {
+func (p *ticketVotePlugin) voteSave(vd ticketvote.VoteDetails) error {
 	token, err := hex.DecodeString(vd.Params.Token)
 	if err != nil {
 		return err
@@ -517,8 +517,7 @@ func (p *ticketVotePlugin) startSave(vd ticketvote.VoteDetails) error {
 	return nil
 }
 
-// startDetails returns the VoteDetails for the provided record if one exists.
-func (p *ticketVotePlugin) startDetails(token []byte) (*ticketvote.VoteDetails, error) {
+func (p *ticketVotePlugin) voteDetails(token []byte) (*ticketvote.VoteDetails, error) {
 	// Retrieve blobs
 	blobs, err := p.tlog.blobsByKeyPrefix(tlogIDVetted, token,
 		keyPrefixVoteDetails)
@@ -527,14 +526,14 @@ func (p *ticketVotePlugin) startDetails(token []byte) (*ticketvote.VoteDetails, 
 	}
 	switch len(blobs) {
 	case 0:
-		// A start vote does not exist
+		// A vote details does not exist
 		return nil, nil
 	case 1:
-		// A start vote exists; continue
+		// A vote details exists; continue
 	default:
 		// This should not happen. There should only ever be a max of
-		// one start vote.
-		return nil, fmt.Errorf("multiple start votes found (%v) for record %x",
+		// one vote details.
+		return nil, fmt.Errorf("multiple vote detailss found (%v) for record %x",
 			len(blobs), token)
 	}
 
@@ -1199,7 +1198,7 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 		return "", err
 	}
 
-	// Any previous start vote must be retrieved to verify that a vote
+	// Any previous vote details must be retrieved to verify that a vote
 	// has not already been started. The lock must be held for the
 	// remainder of this function.
 	m := p.mutex(s.Params.Token)
@@ -1207,7 +1206,7 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 	defer m.Unlock()
 
 	// Verify vote has not already been started
-	svp, err := p.startDetails(token)
+	svp, err := p.voteDetails(token)
 	if err != nil {
 		return "", err
 	}
@@ -1219,7 +1218,7 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 		}
 	}
 
-	// Prepare start vote
+	// Prepare vote details
 	vd := ticketvote.VoteDetails{
 		Params:           s.Params,
 		PublicKey:        s.PublicKey,
@@ -1230,8 +1229,8 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 		EligibleTickets:  sr.EligibleTickets,
 	}
 
-	// Save start vote
-	err = p.startSave(vd)
+	// Save vote details
+	err = p.voteSave(vd)
 	if err != nil {
 		return "", fmt.Errorf("startSave: %v", err)
 	}
@@ -1322,7 +1321,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 	}
 
 	// Verify record vote status
-	vd, err := p.startDetails(token)
+	vd, err := p.voteDetails(token)
 	if err != nil {
 		return "", err
 	}
@@ -1497,30 +1496,39 @@ func (p *ticketVotePlugin) cmdDetails(payload string) (string, error) {
 		return "", err
 	}
 
-	// Verify token
-	token, err := hex.DecodeString(d.Token)
-	if err != nil {
-		return "", ticketvote.UserErrorReply{
-			ErrorCode: ticketvote.ErrorStatusTokenInvalid,
+	votes := make(map[string]ticketvote.RecordVote, len(d.Tokens))
+	for _, v := range d.Tokens {
+		// Verify token
+		token, err := hex.DecodeString(v)
+		if err != nil {
+			continue
 		}
-	}
 
-	// Get authorize votes
-	auths, err := p.authorizes(token)
-	if err != nil {
-		return "", err
-	}
+		// Get authorize votes
+		auths, err := p.authorizes(token)
+		if err != nil {
+			if err == errRecordNotFound {
+				continue
+			}
+			return "", fmt.Errorf("authorizes: %v", err)
+		}
 
-	// Get start vote
-	vd, err := p.startDetails(token)
-	if err != nil {
-		return "", fmt.Errorf("startDetails: %v", err)
+		// Get vote details
+		vd, err := p.voteDetails(token)
+		if err != nil {
+			return "", fmt.Errorf("startDetails: %v", err)
+		}
+
+		// Add record vote
+		votes[v] = ticketvote.RecordVote{
+			Auths: auths,
+			Vote:  vd,
+		}
 	}
 
 	// Prepare rely
 	dr := ticketvote.DetailsReply{
-		Auths: auths,
-		Vote:  vd,
+		Votes: votes,
 	}
 	reply, err := ticketvote.EncodeDetailsReply(dr)
 	if err != nil {
@@ -1606,7 +1614,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	}
 
 	// Vote has been authorized. Check if it has been started yet.
-	vd, err := p.startDetails(token)
+	vd, err := p.voteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("startDetails: %v", err)
 	}

@@ -14,7 +14,7 @@ type VoteT int
 const (
 	APIVersion = 2
 
-	// All www/v2 routes have been deprecated. The pi/v1 API should be
+	// All www/v2 routes have been DEPRECATED. The pi/v1 API should be
 	// used instead.
 	RouteStartVote       = "/vote/start"
 	RouteStartVoteRunoff = "/vote/startrunoff"

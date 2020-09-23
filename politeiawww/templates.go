@@ -80,7 +80,7 @@ Start" button.
 {{.Name}}
 {{.Link}}
 
-If you have any questions, drop by the proposals channel on matrix:
+If you have any questions, drop by the proposals channel on matrix.
 https://chat.decred.org/#/room/#proposals:decred.org
 `
 

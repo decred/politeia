@@ -61,13 +61,14 @@ const (
 	VoteUpvote   VoteT = 1
 
 	// User error status codes
-	// TODO number error codes
+	// TODO number error codes and add human readable error messages
 	ErrorStatusInvalid ErrorStatusT = iota
 	ErrorStatusPropVersionInvalid
 	ErrorStatusPropStatusInvalid
 	ErrorStatusPropStatusChangeInvalid
 	ErrorStatusPropLinkToInvalid
 	ErrorStatusVoteStatusInvalid
+	ErrorStatusPageSizeExceeded
 )
 
 var (

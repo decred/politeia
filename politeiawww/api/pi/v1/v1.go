@@ -16,12 +16,14 @@ type VoteStatusT int
 type VoteAuthActionT string
 type VoteT int
 
+// TODO the plugin policies should be returned in a route
+// TODO the proposals route should allow filtering by user ID
+
 const (
 	APIVersion = 1
 
-	// TODO the plugin policies should be returned in a route
-	// TODO the proposals route should allow filtering by user ID
-	// TODO max page sizes should be added to RouteProposals
+	// APIRoute is prefixed onto all routes.
+	APIRoute = "/v1"
 
 	// Proposal routes
 	RouteProposalNew       = "/proposal/new"
@@ -46,6 +48,11 @@ const (
 	RouteVoteResults     = "/votes/results"
 	RouteVoteSummaries   = "/votes/summaries"
 	RouteVoteInventory   = "/votes/inventory"
+
+	// TODO implement PolicyProposalPageSize
+	// PolicyProposalsPageSize is the maximum number of results that can
+	// be returned from any of the batched proposal commands.
+	PolicyProposalsPageSize = 10
 
 	// Proposal states. A proposal state can be either unvetted or
 	// vetted. The PropStatusT type further breaks down these two
@@ -137,6 +144,7 @@ const (
 	ErrorStatusPropStatusInvalid             ErrorStatusT = 222
 	ErrorStatusPropStatusChangeInvalid       ErrorStatusT = 223
 	ErrorStatusPropStatusChangeReasonInvalid ErrorStatusT = 224
+	ErrorStatusPropPageSizeExceeded          ErrorStatusT = 225
 
 	// Comment errors
 	// TODO number error codes
@@ -150,12 +158,10 @@ const (
 	ErrorStatusVoteStatusInvalid
 	ErrorStatusVoteParamsInvalid
 	ErrorStatusBallotInvalid
+	ErrorStatusVotePageSizeExceeded
 )
 
 var (
-	// APIRoute is the prefix to all API routes.
-	APIRoute = fmt.Sprintf("/v%v", APIVersion)
-
 	// ErrorStatus contains human readable error messages.
 	// TODO fill in error status messages
 	ErrorStatus = map[ErrorStatusT]string{
@@ -567,14 +573,6 @@ type VoteDetails struct {
 	EligibleTickets  []string   `json:"eligibletickets"` // Ticket hashes
 }
 
-// ProposalVote contains all vote authorizations and the vote details for a
-// proposal vote. The vote details will be null if the proposal vote has not
-// been started yet.
-type ProposalVote struct {
-	Auths []AuthorizeDetails `json:"auths"`
-	Vote  *VoteDetails       `json:"vote"`
-}
-
 // CastVoteDetails contains the details of a cast vote.
 type CastVoteDetails struct {
 	Token     string `json:"token"`     // Record token
@@ -668,10 +666,24 @@ type VoteStartRunoffReply struct {
 type VoteBallot struct{}
 type VoteBallotReply struct{}
 
+// ProposalVote contains all vote authorizations and the vote details for a
+// proposal vote. The vote details will be null if the proposal vote has not
+// been started yet.
+type ProposalVote struct {
+	Auths []AuthorizeDetails `json:"auths"`
+	Vote  *VoteDetails       `json:"vote"`
+}
+
+// Votes returns the vote authorizations and vote details for each of the
+// provided proposal tokens.
 type Votes struct {
 	Tokens []string `json:"tokens"`
 }
 
+// VoteReply is the reply to the Votes command. The returned map will not
+// contain an entry for any tokens that did not correspond to an actual
+// proposal. It is the callers responsibility to ensure that a entry is
+// returned for all of the provided tokens.
 type VotesReply struct {
 	Votes map[string]ProposalVote `json:"votes"`
 }
