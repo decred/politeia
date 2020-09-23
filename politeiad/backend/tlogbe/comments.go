@@ -1233,7 +1233,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		UserID:    v.UserID,
 		Token:     v.Token,
 		CommentID: v.CommentID,
-		Vote:      int64(v.Vote),
+		Vote:      v.Vote,
 		PublicKey: v.PublicKey,
 		Signature: v.Signature,
 		Timestamp: time.Now().Unix(),
