@@ -484,26 +484,10 @@ func (c *cockroachdb) cmdCMSCodeStatsByUserMonthYear(payload string) (string, er
 	if err != nil {
 		return "", err
 	}
-	var cmsCodeStats []CMSCodeStats
 
-	// This is done this way currently because GORM doesn't appear to properly
-	// parse the following:
-	// Where("? = ANY(string_to_array(supervisor_user_id, ','))", p.ID)
-	err = c.userDB.
-		Where("git_hub_name = ? AND month = ? and year = ?", p.GithubName, p.Month, p.Year).
-		Find(&cmsCodeStats).
-		Error
+	userCodeStats, err := c.CMSCodeStatsByUserMonthYear(p)
 	if err != nil {
 		return "", err
-	}
-	// Prepare reply
-	userCodeStats := make([]user.CodeStats, 0, len(cmsCodeStats))
-	for _, u := range cmsCodeStats {
-		codeStat := convertCodestatsFromDatabase(u)
-		if err != nil {
-			return "", err
-		}
-		userCodeStats = append(userCodeStats, codeStat)
 	}
 	r := user.CMSCodeStatsByUserMonthYearReply{
 		UserCodeStats: userCodeStats,
@@ -514,6 +498,23 @@ func (c *cockroachdb) cmdCMSCodeStatsByUserMonthYear(payload string) (string, er
 	}
 
 	return string(reply), nil
+}
+
+func (c *cockroachdb) CMSCodeStatsByUserMonthYear(p *user.CMSCodeStatsByUserMonthYear) ([]user.CodeStats, error) {
+	var cmsCodeStats []CMSCodeStats
+	err := c.userDB.
+		Where("git_hub_name = ? AND month = ? and year = ?", p.GithubName, p.Month, p.Year).
+		Find(&cmsCodeStats).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	// Prepare reply
+	userCodeStats := make([]user.CodeStats, 0, len(cmsCodeStats))
+	for _, u := range cmsCodeStats {
+		userCodeStats = append(userCodeStats, convertCodestatsFromDatabase(u))
+	}
+	return userCodeStats, nil
 }
 
 // Exec executes a cms plugin command.

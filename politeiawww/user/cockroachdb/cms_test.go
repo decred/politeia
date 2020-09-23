@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/decred/politeia/politeiawww/user"
@@ -179,59 +180,90 @@ func TestUpdateCodeStats(t *testing.T) {
 	}
 }
 
-/*
 func TestCodeStatsByUserMonthYear(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
 	// Arguments
 	now := time.Now()
-	usr, blob := newCdbUser(t, cdb)
+	githubName := "github"
+	repo := "decred"
+	monthAug := 8
+	mergeAdditionsAug := 100
+	mergeDeletionsAug := 99
+	reviewAdditionsAug := 200
+	reviewDeletionsAug := 199
+	year := 2020
+
+	prsAug := []string{"https://github.com/decred/pr/pull/1",
+		"https://github.com/decred/pr/pull/2"}
+	reviewsAug := []string{"https://github.com/decred/review/pull/1",
+		"https://github.com/decred/review/pull/1"}
+
+	augID := githubName + repo + strconv.Itoa(monthAug) +
+		strconv.Itoa(year)
 
 	// Mock rows data
 	rows := sqlmock.NewRows([]string{
 		"id",
-		"username",
-		"blob",
+		"git_hub_name",
+		"repository",
+		"month",
+		"year",
+		"prs",
+		"reviews",
+		"merge_additions",
+		"merge_deletions",
+		"review_additions",
+		"review_deletions",
 		"created_at",
 		"updated_at",
-	}).AddRow(usr.ID, usr.Username, blob, now, now)
+	}).AddRow(augID, githubName, repo, monthAug, year, prsAug, reviewsAug,
+		mergeAdditionsAug, mergeDeletionsAug, reviewAdditionsAug,
+		reviewDeletionsAug, now, now)
 
 	// Query
-	sql := `SELECT * FROM "users" WHERE (username = $1)`
+	sql := `SELECT * FROM "cms_code_stats" WHERE (git_hub_name = $1 AND ` +
+		`month = $2 AND year = $3)`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
-		WithArgs(usr.Username).
+		WithArgs(githubName, monthAug, year).
 		WillReturnRows(rows)
 
+	csbm := &user.CMSCodeStatsByUserMonthYear{
+		GithubName: githubName,
+		Month:      monthAug,
+		Year:       year,
+	}
 	// Execute method
-	u, err := cdb.UserGetByUsername(usr.Username)
+	cs, err := cdb.CMSCodeStatsByUserMonthYear(csbm)
+	if err != nil {
+		t.Errorf("UserGetByUsername unwanted error: %s", err)
+	}
+	for _, codeStat := range cs {
+		// Make sure correct code stat was fetched
+		if codeStat.ID != augID {
+			t.Errorf("expecting user of id %s but received %s", codeStat.ID, augID)
+		}
+	}
+
+	// Negative Expectations
+	randomGithubName := "random"
+	expectedError := user.ErrCodeStatsNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomGithubName, monthAug, year).
+		WillReturnError(expectedError)
+
+	// Execute method
+	cs, err = cdb.CMSCodeStatsByUserMonthYear(csbm)
 	if err != nil {
 		t.Errorf("UserGetByUsername unwanted error: %s", err)
 	}
 
-	// Make sure correct user was fetched
-	if u.ID != usr.ID {
-		t.Errorf("expecting user of id %s but received %s", usr.ID, u.ID)
-	}
-
-	// Negative Expectations
-	randomUsername := "random"
-	expectedError := user.ErrUserNotFound
-	mock.ExpectQuery(regexp.QuoteMeta(sql)).
-		WithArgs(randomUsername).
-		WillReturnError(expectedError)
-
-	// Execute method
-	u, err = cdb.UserGetByUsername(randomUsername)
-	if err == nil {
-		t.Errorf("expecting error %s, but there was none", expectedError)
-	}
-
-	// Make sure no user was fetched
-	if u != nil {
-		t.Errorf("expecting nil user to be returned, but got user %s", u.ID)
+	if len(cs) > 0 {
+		t.Errorf("expecting nil user to be returned, but got code stats of "+
+			"len %v", len(cs))
 	}
 
 	// Make sure we got the expected error
@@ -246,4 +278,3 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
-*/
