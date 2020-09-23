@@ -1834,8 +1834,8 @@ func convertVoteTypeFromPi(t pi.VoteT) ticketvote.VoteT {
 	return ticketvote.VoteTypeInvalid
 }
 
-func convertVoteDetailsFromPi(v pi.VoteDetails) ticketvote.VoteDetails {
-	tv := ticketvote.VoteDetails{
+func convertVoteParamsFromPi(v pi.VoteParams) ticketvote.VoteParams {
+	tv := ticketvote.VoteParams{
 		Token:            v.Token,
 		Version:          v.Version,
 		Type:             convertVoteTypeFromPi(v.Type),
@@ -1859,11 +1859,11 @@ func convertVoteDetailsFromPi(v pi.VoteDetails) ticketvote.VoteDetails {
 }
 
 func (p *politeiawww) processVoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
-	log.Tracef("processVoteStart: %v", vs.Vote.Token)
+	log.Tracef("processVoteStart: %v", vs.Params.Token)
 
 	// Call the ticketvote plugin to start vote
 	reply, err := p.voteStart(ticketvote.Start{
-		Vote:      convertVoteDetailsFromPi(vs.Vote),
+		Params:    convertVoteParamsFromPi(vs.Params),
 		PublicKey: vs.PublicKey,
 		Signature: vs.Signature,
 	})

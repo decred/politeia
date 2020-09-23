@@ -127,7 +127,7 @@ func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) www.ErrorSta
 		return www.ErrorStatusProposalNotFound
 	case ticketvote.ErrorStatusRecordStatusInvalid:
 		return www.ErrorStatusWrongStatus
-	case ticketvote.ErrorStatusVoteDetailsInvalid:
+	case ticketvote.ErrorStatusVoteParamsInvalid:
 		return www.ErrorStatusInvalidPropVoteParams
 	case ticketvote.ErrorStatusVoteStatusInvalid:
 		return www.ErrorStatusInvalidPropVoteStatus
@@ -237,8 +237,8 @@ func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatu
 		return pi.ErrorStatusPropNotFound
 	case ticketvote.ErrorStatusRecordStatusInvalid:
 		return pi.ErrorStatusPropStatusInvalid
-	case ticketvote.ErrorStatusVoteDetailsInvalid:
-		return pi.ErrorStatusVoteDetailsInvalid
+	case ticketvote.ErrorStatusVoteParamsInvalid:
+		return pi.ErrorStatusVoteParamsInvalid
 	case ticketvote.ErrorStatusVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
 	case ticketvote.ErrorStatusBallotInvalid:

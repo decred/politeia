@@ -285,30 +285,31 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	}
 
 	// Convert reply to www
+	startHeight := strconv.FormatUint(uint64(vd.Vote.StartBlockHeight), 10)
+	endHeight := strconv.FormatUint(uint64(vd.Vote.EndBlockHeight), 10)
 	res := www.VoteResultsReply{
 		StartVote: www.StartVote{
 			PublicKey: vd.Vote.PublicKey,
 			Signature: vd.Vote.Signature,
 			Vote: www.Vote{
-				Token:            vd.Vote.Vote.Token,
-				Mask:             vd.Vote.Vote.Mask,
-				Duration:         vd.Vote.Vote.Duration,
-				QuorumPercentage: vd.Vote.Vote.QuorumPercentage,
-				PassPercentage:   vd.Vote.Vote.PassPercentage,
+				Token:            vd.Vote.Params.Token,
+				Mask:             vd.Vote.Params.Mask,
+				Duration:         vd.Vote.Params.Duration,
+				QuorumPercentage: vd.Vote.Params.QuorumPercentage,
+				PassPercentage:   vd.Vote.Params.PassPercentage,
 			},
 		},
 		StartVoteReply: www.StartVoteReply{
-			StartBlockHeight: strconv.FormatUint(uint64(vd.Vote.StartBlockHeight),
-				10),
-			StartBlockHash:  vd.Vote.StartBlockHash,
-			EndHeight:       strconv.FormatUint(uint64(vd.Vote.EndBlockHeight), 10),
-			EligibleTickets: vd.Vote.EligibleTickets,
+			StartBlockHeight: startHeight,
+			StartBlockHash:   vd.Vote.StartBlockHash,
+			EndHeight:        endHeight,
+			EligibleTickets:  vd.Vote.EligibleTickets,
 		},
 	}
 
 	// Transalte vote options
-	vo := make([]www.VoteOption, 0, len(vd.Vote.Vote.Options))
-	for _, o := range vd.Vote.Vote.Options {
+	vo := make([]www.VoteOption, 0, len(vd.Vote.Params.Options))
+	for _, o := range vd.Vote.Params.Options {
 		vo = append(vo, www.VoteOption{
 			Id:          o.ID,
 			Description: o.Description,

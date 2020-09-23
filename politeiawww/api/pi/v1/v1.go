@@ -148,7 +148,7 @@ const (
 
 	// Vote errors
 	ErrorStatusVoteStatusInvalid
-	ErrorStatusVoteDetailsInvalid
+	ErrorStatusVoteParamsInvalid
 	ErrorStatusBallotInvalid
 )
 
@@ -515,6 +515,99 @@ type CommentVotesReply struct {
 	Votes []CommentVoteDetails `json:"votes"`
 }
 
+// AuthorizeDetails contains the details of a vote authorization.
+type AuthorizeDetails struct {
+	Token     string `json:"token"`     // Proposal token
+	Version   uint32 `json:"version"`   // Proposal version
+	Action    string `json:"action"`    // Authorize or revoke
+	PublicKey string `json:"publickey"` // Public key used for signature
+	Signature string `json:"signature"` // Signature of token+version+action
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// VoteOption describes a single vote option.
+type VoteOption struct {
+	ID          string `json:"id"`          // Single, unique word (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote
+	Bit         uint64 `json:"bit"`         // Bit used for this option
+}
+
+// VoteParams contains all client defined vote params required by server to
+// start a proposal vote.
+type VoteParams struct {
+	Token    string `json:"token"`    // Proposal token
+	Version  uint32 `json:"version"`  // Proposal version
+	Type     VoteT  `json:"type"`     // Vote type
+	Mask     uint64 `json:"mask"`     // Valid vote bits
+	Duration uint32 `json:"duration"` // Duration in blocks
+
+	// QuorumPercentage is the percent of elligible votes required for
+	// the vote to meet a quorum.
+	QuorumPercentage uint32 `json:"quorumpercentage"`
+
+	// PassPercentage is the percent of total votes that are required
+	// to consider a vote option as passed.
+	PassPercentage uint32 `json:"passpercentage"`
+
+	Options []VoteOption `json:"options"`
+}
+
+// VoteDetails contains the details of a proposal vote.
+//
+// Signature is the client signature of the SHA256 digest of the JSON encoded
+// Vote struct.
+type VoteDetails struct {
+	Params           VoteParams `json:"params"`
+	PublicKey        string     `json:"publickey"`
+	Signature        string     `json:"signature"`
+	StartBlockHeight uint32     `json:"startblockheight"`
+	StartBlockHash   string     `json:"startblockhash"`
+	EndBlockHeight   uint32     `json:"endblockheight"`
+	EligibleTickets  []string   `json:"eligibletickets"` // Ticket hashes
+}
+
+// ProposalVote contains all vote authorizations and the vote details for a
+// proposal vote. The vote details will be null if the proposal vote has not
+// been started yet.
+type ProposalVote struct {
+	Auths []AuthorizeDetails `json:"auths"`
+	Vote  *VoteDetails       `json:"vote"`
+}
+
+// CastVoteDetails contains the details of a cast vote.
+type CastVoteDetails struct {
+	Token     string `json:"token"`     // Record token
+	Ticket    string `json:"ticket"`    // Ticket hash
+	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
+	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// VoteResult describes a vote option and the total number of votes that have
+// been cast for this option.
+type VoteResult struct {
+	ID          string `json:"id"`          // Single unique word (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote
+	VoteBit     uint64 `json:"votebit"`     // Bits used for this option
+	Votes       uint64 `json:"votes"`       // Votes cast for this option
+}
+
+// VoteSummary summarizes the vote params and results of a proposal vote.
+type VoteSummary struct {
+	Type             VoteT        `json:"type"`
+	Status           VoteStatusT  `json:"status"`
+	Duration         uint32       `json:"duration"`
+	StartBlockHeight uint32       `json:"startblockheight"`
+	StartBlockHash   string       `json:"startblockhash"`
+	EndBlockHeight   uint32       `json:"endblockheight"`
+	EligibleTickets  uint32       `json:"eligibletickets"`
+	QuorumPercentage uint32       `json:"quorumpercentage"`
+	PassPercentage   uint32       `json:"passpercentage"`
+	Results          []VoteResult `json:"results"`
+	Approved         bool         `json:"approved"`
+}
+
 // VoteAuthorize authorizes a proposal vote or revokes a previous vote
 // authorization.  All proposal votes must be authorized by the proposal author
 // before an admin is able to start the voting process.
@@ -537,48 +630,18 @@ type VoteAuthorizeReply struct {
 	Receipt   string `json:"receipt"`
 }
 
-// VoteOption describes a single vote option.
-type VoteOption struct {
-	ID          string `json:"id"`          // Single, unique word (e.g. yes)
-	Description string `json:"description"` // Longer description of the vote
-	Bit         uint64 `json:"bit"`         // Bit used for this option
-}
-
-// VoteDetails includes all data required by server to start vote on a
-// proposal.
-type VoteDetails struct {
-	Token    string `json:"token"`    // Proposal token
-	Version  uint32 `json:"version"`  // Proposal version
-	Type     VoteT  `json:"type"`     // Vote type
-	Mask     uint64 `json:"mask"`     // Valid vote bits
-	Duration uint32 `json:"duration"` // Duration in blocks
-
-	// QuorumPercentage is the percent of elligible votes required for
-	// the vote to meet a quorum.
-	QuorumPercentage uint32 `json:"quorumpercentage"`
-
-	// PassPercentage is the percent of total votes that are required
-	// to consider a vote option as passed.
-	PassPercentage uint32 `json:"passpercentage"`
-
-	Options []VoteOption `json:"options"`
-}
-
 // VoteStart starts a proposal vote.  All proposal votes must be authorized
 // by the proposal author before an admin is able to start the voting process.
 //
-// Signature is the signature of a SHA256 digest of the JSON
-// encoded Vote structure.
+// Signature is the signature of a SHA256 digest of the JSON encoded Vote
+// structure.
 type VoteStart struct {
-	Vote      VoteDetails `json:"vote"`
-	PublicKey string      `json:"publickey"`
-	Signature string      `json:"signature"`
+	Params    VoteParams `json:"params"`
+	PublicKey string     `json:"publickey"`
+	Signature string     `json:"signature"`
 }
 
 // VoteStartReply is the reply to the VoteStart command.
-//
-// Receipt is the server signature of the client signature. This is proof that
-// the server received and processed the VoteStart command.
 type VoteStartReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"`
 	StartBlockHash   string   `json:"startblockhash"`
@@ -592,11 +655,21 @@ type VoteStartRunoffReply struct{}
 type VoteBallot struct{}
 type VoteBallotReply struct{}
 
-type Votes struct{}
-type VotesReply struct{}
+type Votes struct {
+	Tokens []string `json:"tokens"`
+}
 
-type VoteResults struct{}
-type VoteResultsReply struct{}
+type VotesReply struct {
+	Votes map[string]ProposalVote `json:"votes"`
+}
+
+type VoteResults struct {
+	Token string `json:"token"`
+}
+
+type VoteResultsReply struct {
+	Votes []CastVoteDetails `json:"votes"`
+}
 
 type VoteSummaries struct{}
 type VoteSummariesReply struct{}

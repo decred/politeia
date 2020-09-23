@@ -103,9 +103,9 @@ func (p *politeiawww) ballot(ballot *www.Ballot) (*ticketvote.BallotReply, error
 	var bp ticketvote.Ballot
 
 	// Transale votes
-	votes := make([]ticketvote.Vote, 0, len(ballot.Votes))
+	votes := make([]ticketvote.CastVote, 0, len(ballot.Votes))
 	for _, vote := range ballot.Votes {
-		votes = append(votes, ticketvote.Vote{
+		votes = append(votes, ticketvote.CastVote{
 			Token:     vote.Ticket,
 			Ticket:    vote.Ticket,
 			VoteBit:   vote.VoteBit,
