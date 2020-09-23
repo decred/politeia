@@ -85,8 +85,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	// the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailInviteNewUserVerificationLink(u.Email,
-		hex.EncodeToString(token))
+	err = p.emailUserCMSInvite(u.Email, hex.EncodeToString(token))
 	if err != nil {
 		log.Errorf("processInviteNewUser: verification email "+
 			"failed for '%v': %v", u.Email, err)
@@ -731,7 +730,7 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	// the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailApproveDCCVerificationLink(nominatedUser.Email)
+	err = p.emailUserDCCApproved(nominatedUser.Email)
 	if err != nil {
 		log.Errorf("processApproveDCC: verification email "+
 			"failed for '%v': %v", nominatedUser.Email, err)

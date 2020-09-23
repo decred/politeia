@@ -334,33 +334,6 @@ func (p *politeiawww) emailUserEmailVerify(email, token, username string) error 
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailUserPasswordReset emails the link with the reset password verification
-// token if the email server is set up.
-func (p *politeiawww) emailUserPasswordReset(email, username, token string) error {
-	// Setup URL
-	u, err := url.Parse(p.cfg.WebServerAddress + www.RouteResetPassword)
-	if err != nil {
-		return err
-	}
-	q := u.Query()
-	q.Set("verificationtoken", token)
-	q.Set("username", username)
-	u.RawQuery = q.Encode()
-
-	// Setup email
-	subject := "Reset Your Password"
-	tplData := userPasswordReset{
-		Link: u.String(),
-	}
-	body, err := createBody(userPasswordResetTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{email})
-}
-
 // emailUserKeyUpdate emails the link with the verification token used for
 // setting a new key pair if the email server is set up.
 func (p *politeiawww) emailUserKeyUpdate(username, email, publicKey, token string) error {
@@ -385,21 +358,31 @@ func (p *politeiawww) emailUserKeyUpdate(username, email, publicKey, token strin
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailUserPasswordChanged notifies the user that his password was changed,
-// and verifies if he was the author of this action, for security purposes.
-func (p *politeiawww) emailUserPasswordChanged(username, email string) error {
-	tplData := userPasswordChanged{
-		Username: username,
-	}
-
-	subject := "Password Changed - Security Verification"
-	body, err := createBody(userPasswordChangedTmpl, tplData)
+// emailUserPasswordReset emails the link with the reset password verification
+// token to the provided email address.
+func (p *politeiawww) emailUserPasswordReset(email, username, token string) error {
+	// Setup URL
+	u, err := url.Parse(p.cfg.WebServerAddress + www.RouteResetPassword)
 	if err != nil {
 		return err
 	}
-	recipients := []string{email}
+	q := u.Query()
+	q.Set("verificationtoken", token)
+	q.Set("username", username)
+	u.RawQuery = q.Encode()
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	// Setup email
+	subject := "Reset Your Password"
+	tplData := userPasswordReset{
+		Link: u.String(),
+	}
+	body, err := createBody(userPasswordResetTmpl, tplData)
+	if err != nil {
+		return err
+	}
+
+	// Send email
+	return p.smtp.sendEmailTo(subject, body, []string{email})
 }
 
 // emailUserAccountLocked notifies the user its account has been locked and
@@ -427,21 +410,38 @@ func (p *politeiawww) emailUserAccountLocked(username, email string) error {
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailInviteNewUserVerificationLink emails the link to invite a user to
-// join the Contractor Management System, if the email server is set up.
-func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) error {
+// emailUserPasswordChanged notifies the user that his password was changed,
+// and verifies if he was the author of this action, for security purposes.
+func (p *politeiawww) emailUserPasswordChanged(username, email string) error {
+	tplData := userPasswordChanged{
+		Username: username,
+	}
+
+	subject := "Password Changed - Security Verification"
+	body, err := createBody(userPasswordChangedTmpl, tplData)
+	if err != nil {
+		return err
+	}
+	recipients := []string{email}
+
+	return p.smtp.sendEmailTo(subject, body, recipients)
+}
+
+// emailUserCMSInvite emails the invitation link for the Contractor Management
+// System to the provided user email address.
+func (p *politeiawww) emailUserCMSInvite(email, token string) error {
 	link, err := p.createEmailLink(guiRouteRegisterNewUser, "", token, "")
 	if err != nil {
 		return err
 	}
 
-	tplData := newInviteUserEmailTemplateData{
+	tplData := userCMSInvite{
 		Email: email,
 		Link:  link,
 	}
 
 	subject := "Welcome to the Contractor Management System"
-	body, err := createBody(templateInviteNewUserEmail, tplData)
+	body, err := createBody(userCMSInviteTmpl, tplData)
 	if err != nil {
 		return err
 	}
@@ -450,15 +450,15 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailApproveDCCVerificationLink emails the link to invite a user that
-// has been approved by the other contractors from a DCC proposal.
-func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
-	tplData := approveDCCUserEmailTemplateData{
+// emailUserDCCApproved emails the link to invite a user that has been approved
+// by the other contractors from a DCC proposal.
+func (p *politeiawww) emailUserDCCApproved(email string) error {
+	tplData := userDCCApproved{
 		Email: email,
 	}
 
 	subject := "Congratulations, You've been approved!"
-	body, err := createBody(templateApproveDCCUserEmail, tplData)
+	body, err := createBody(userDCCApprovedTmpl, tplData)
 	if err != nil {
 		return err
 	}
@@ -467,74 +467,21 @@ func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
 	return p.smtp.sendEmailTo(subject, body, recipients)
 }
 
-// emailInvoiceNotifications emails users that have not yet submitted an invoice
-// for the given month/year
-func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
-	// Set the date to the first day of the previous month.
-	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
-	tplData := invoiceNotificationEmailData{
-		Username: username,
-		Month:    newDate.Month().String(),
-		Year:     newDate.Year(),
-	}
-
-	subject := "Awaiting Monthly Invoice"
-	body, err := createBody(templateInvoiceNotification, tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{email}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
-// emailInvoiceComment sends email for the invoice comment event. Sends
-// email to the user regarding that invoice.
-func (p *politeiawww) emailInvoiceComment(userEmail string) error {
-	var tplData interface{}
-	subject := "New Invoice Comment"
-
-	body, err := createBody(templateNewInvoiceComment, tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{userEmail}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
-// emailInvoiceStatusUpdate sends email for the invoice status update event.
-// Sends email for the user regarding that invoice.
-func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
-	tplData := newInvoiceStatusUpdateTemplate{
-		Token: invoiceToken,
-	}
-
-	subject := "Invoice status has been updated"
-	body, err := createBody(templateNewInvoiceStatusUpdate, tplData)
-	if err != nil {
-		return err
-	}
-	recipients := []string{userEmail}
-
-	return p.smtp.sendEmailTo(subject, body, recipients)
-}
-
-// emailDCCNew sends email regarding the DCC New event. Sends email
-// to all admins.
-func (p *politeiawww) emailDCCNew(token string, emails []string) error {
+// emailDCCSubmitted sends email regarding the DCC New event. Sends email
+// to the provided email addresses.
+func (p *politeiawww) emailDCCSubmitted(token string, emails []string) error {
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
 		return err
 	}
 
-	tplData := newDCCSubmittedTemplateData{
+	tplData := dccSubmitted{
 		Link: l.String(),
 	}
 
 	subject := "New DCC Submitted"
-	body, err := createBody(templateNewDCCSubmitted, tplData)
+	body, err := createBody(dccSubmittedTmpl, tplData)
 	if err != nil {
 		return err
 	}
@@ -543,7 +490,7 @@ func (p *politeiawww) emailDCCNew(token string, emails []string) error {
 }
 
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
-// Sends emails to all admin users.
+// Sends emails to the provided email addresses.
 func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error {
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
@@ -551,15 +498,68 @@ func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error
 		return err
 	}
 
-	tplData := newDCCSupportOpposeTemplateData{
+	tplData := dccSupportOppose{
 		Link: l.String(),
 	}
 
 	subject := "New DCC Support/Opposition Submitted"
-	body, err := createBody(templateNewDCCSupportOppose, tplData)
+	body, err := createBody(dccSupportOpposeTmpl, tplData)
 	if err != nil {
 		return err
 	}
 
 	return p.smtp.sendEmailTo(subject, body, emails)
+}
+
+// emailInvoiceStatusUpdate sends email for the invoice status update event.
+// Send email for the provided user email address.
+func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
+	tplData := invoiceStatusUpdate{
+		Token: invoiceToken,
+	}
+
+	subject := "Invoice status has been updated"
+	body, err := createBody(invoiceStatusUpdateTmpl, tplData)
+	if err != nil {
+		return err
+	}
+	recipients := []string{userEmail}
+
+	return p.smtp.sendEmailTo(subject, body, recipients)
+}
+
+// emailInvoiceNotSent sends a invoice not sent email notification to the
+// provided email address.
+func (p *politeiawww) emailInvoiceNotSent(email, username string) error {
+	// Set the date to the first day of the previous month.
+	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
+	tplData := invoiceNotSent{
+		Username: username,
+		Month:    newDate.Month().String(),
+		Year:     newDate.Year(),
+	}
+
+	subject := "Awaiting Monthly Invoice"
+	body, err := createBody(invoiceNotSentTmpl, tplData)
+	if err != nil {
+		return err
+	}
+	recipients := []string{email}
+
+	return p.smtp.sendEmailTo(subject, body, recipients)
+}
+
+// emailInvoiceNewComment sends email for the invoice new comment event. Send
+// email to the provided user email address.
+func (p *politeiawww) emailInvoiceNewComment(userEmail string) error {
+	var tplData interface{}
+	subject := "New Invoice Comment"
+
+	body, err := createBody(invoiceNewCommentTmpl, tplData)
+	if err != nil {
+		return err
+	}
+	recipients := []string{userEmail}
+
+	return p.smtp.sendEmailTo(subject, body, recipients)
 }

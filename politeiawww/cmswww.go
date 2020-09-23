@@ -8,26 +8,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"text/template"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-)
-
-var (
-	templateInvoiceNotification = template.Must(
-		template.New("invoice_notification").Parse(templateInvoiceNotificationRaw))
-	templateNewInvoiceComment = template.Must(
-		template.New("invoice_comment").Parse(templateNewInvoiceCommentRaw))
-	templateNewInvoiceStatusUpdate = template.Must(
-		template.New("invoice_status_update").Parse(templateNewInvoiceStatusUpdateRaw))
-	templateNewDCCSubmitted = template.Must(
-		template.New("dcc_new").Parse(templateNewDCCSubmittedRaw))
-	templateNewDCCSupportOppose = template.Must(
-		template.New("dcc_support_oppose").Parse(templateNewDCCSupportOpposeRaw))
 )
 
 // handleInviteNewUser handles the invitation of a new contractor by an

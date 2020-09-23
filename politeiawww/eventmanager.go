@@ -566,9 +566,9 @@ func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 			continue
 		}
 
-		err := p.emailInvoiceComment(d.email)
+		err := p.emailInvoiceNewComment(d.email)
 		if err != nil {
-			log.Errorf("emailInvoiceComment %v: %v", err)
+			log.Errorf("emailInvoiceNewComment %v: %v", err)
 		}
 
 		log.Debugf("Sent invoice comment notification %v", d.token)
@@ -624,9 +624,9 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 			emails = append(emails, u.Email)
 		})
 
-		err = p.emailDCCNew(d.token, emails)
+		err = p.emailDCCSubmitted(d.token, emails)
 		if err != nil {
-			log.Errorf("emailDCCNew %v: %v", err)
+			log.Errorf("emailDCCSubmitted %v: %v", err)
 		}
 
 		log.Debugf("Sent DCC new notification %v", d.token)

@@ -295,12 +295,14 @@ var userPasswordChangedTmpl = template.Must(
 	template.New("userPasswordChanged").Parse(userPasswordChangedText))
 
 // CMS events
-type newInviteUserEmailTemplateData struct {
-	Email string
-	Link  string
+
+// User CMS invite - Send to user being invited
+type userCMSInvite struct {
+	Email string // User email
+	Link  string // Registration link
 }
 
-const templateInviteNewUserEmailRaw = `
+const userCMSInviteText = `
 You are invited to join Decred as a contractor! To complete your registration, you will need to use the following link and register on the CMS site:
 
 {{.Link}}
@@ -309,12 +311,15 @@ You are receiving this email because {{.Email}} was used to be invited to Decred
 If you do not recognize this, please ignore this email.
 `
 
-type approveDCCUserEmailTemplateData struct {
-	Email string
-	Link  string
+var userCMSInviteTmpl = template.Must(
+	template.New("userCMSInvite").Parse(userCMSInviteText))
+
+// User DCC approved - Send to approved user
+type userDCCApproved struct {
+	Email string // User email
 }
 
-const templateApproveDCCUserEmailRaw = `
+const userDCCApprovedText = `
 Congratulations! Your Decred Contractor Clearance Proposal has been approved! 
 
 You are now a fully registered contractor and may now submit invoices.  You should also be receiving an invitation to the contractors room on matrix.  
@@ -324,24 +329,15 @@ You are receiving this email because {{.Email}} was used to be invited to Decred
 If you do not recognize this, please ignore this email.
 `
 
-type newInvoiceStatusUpdateTemplate struct {
-	Token string
+var userDCCApprovedTmpl = template.Must(
+	template.New("userDCCApproved").Parse(userDCCApprovedText))
+
+// DCC submitted - Send to admins
+type dccSubmitted struct {
+	Link string // DCC gui link
 }
 
-const templateNewInvoiceStatusUpdateRaw = `
-An invoice's status has been updated, please login to cms.decred.org to review the changes.
-
-Updated Invoice Token: {{.Token}}
-
-Regards,
-Contractor Management System
-`
-
-type newDCCSubmittedTemplateData struct {
-	Link string
-}
-
-const templateNewDCCSubmittedRaw = `
+const dccSubmittedText = `
 A new DCC has been submitted.
 
 {{.Link}}
@@ -350,11 +346,15 @@ Regards,
 Contractor Management System
 `
 
-type newDCCSupportOpposeTemplateData struct {
-	Link string
+var dccSubmittedTmpl = template.Must(
+	template.New("dccSubmitted").Parse(dccSubmittedText))
+
+// DCC support/oppose - Send to admins
+type dccSupportOppose struct {
+	Link string // DCC gui link
 }
 
-const templateNewDCCSupportOpposeRaw = `
+const dccSupportOpposeText = `
 A DCC has received new support or opposition.
 
 {{.Link}}
@@ -363,13 +363,34 @@ Regards,
 Contractor Management System
 `
 
-type invoiceNotificationEmailData struct {
-	Username string
-	Month    string
-	Year     int
+var dccSupportOpposeTmpl = template.Must(
+	template.New("dccSupportOppose").Parse(dccSupportOpposeText))
+
+// Invoice status update - Send to invoice owner
+type invoiceStatusUpdate struct {
+	Token string // Invoice token
 }
 
-const templateInvoiceNotificationRaw = `
+const invoiceStatusUpdateText = `
+An invoice's status has been updated, please login to cms.decred.org to review the changes.
+
+Updated Invoice Token: {{.Token}}
+
+Regards,
+Contractor Management System
+`
+
+var invoiceStatusUpdateTmpl = template.Must(
+	template.New("invoiceStatusUpdate").Parse(invoiceStatusUpdateText))
+
+// Invoice not sent - Send to users that did not send monthly invoice yet
+type invoiceNotSent struct {
+	Username string // User username
+	Month    string // Current month
+	Year     int    // Current year
+}
+
+const invoiceNotSentText = `
 {{.Username}},
 
 You have not yet submitted an invoice for {{.Month}} {{.Year}}.  Please do so as soon as possible, so your invoice may be reviewed and paid out in a timely manner.
@@ -378,6 +399,13 @@ Regards,
 Contractor Management System
 `
 
-const templateNewInvoiceCommentRaw = `
+var invoiceNotSentTmpl = template.Must(
+	template.New("invoiceNotSent").Parse(invoiceNotSentText))
+
+// Invoice new comment - Send to invoice owner
+const invoiceNewCommentText = `
 An administrator has submitted a new comment to your invoice, please login to cms.decred.org to view the message.
 `
+
+var invoiceNewCommentTmpl = template.Must(
+	template.New("invoiceNewComment").Parse(invoiceNewCommentText))
