@@ -15,6 +15,7 @@ type CommentVoteT int
 type VoteStatusT int
 type VoteAuthActionT string
 type VoteT int
+type VoteErrorT int
 
 // TODO the plugin policies should be returned in a route
 // TODO the proposals route should allow filtering by user ID
@@ -159,6 +160,18 @@ const (
 	ErrorStatusVoteParamsInvalid
 	ErrorStatusBallotInvalid
 	ErrorStatusVotePageSizeExceeded
+
+	// Cast vote errors
+	VoteErrorInvalid             VoteErrorT = 0
+	VoteErrorInternalError       VoteErrorT = 1
+	VoteErrorTokenInvalid        VoteErrorT = 2
+	VoteErrorRecordNotFound      VoteErrorT = 3
+	VoteErrorMultipleRecordVotes VoteErrorT = 4
+	VoteErrorVoteStatusInvalid   VoteErrorT = 5
+	VoteErrorVoteBitInvalid      VoteErrorT = 6
+	VoteErrorSignatureInvalid    VoteErrorT = 7
+	VoteErrorTicketNotEligible   VoteErrorT = 8
+	VoteErrorTicketAlreadyVoted  VoteErrorT = 9
 )
 
 var (
@@ -575,7 +588,7 @@ type VoteDetails struct {
 
 // CastVoteDetails contains the details of a cast vote.
 type CastVoteDetails struct {
-	Token     string `json:"token"`     // Record token
+	Token     string `json:"token"`     // Proposal token
 	Ticket    string `json:"ticket"`    // Ticket hash
 	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
 	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
@@ -663,8 +676,35 @@ type VoteStartRunoffReply struct {
 	EligibleTickets  []string `json:"eligibletickets"` // Ticket hashes
 }
 
-type VoteBallot struct{}
-type VoteBallotReply struct{}
+// CastVote is a signed ticket vote.
+type CastVote struct {
+	Token     string `json:"token"`     // Proposal token
+	Ticket    string `json:"ticket"`    // Ticket ID
+	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
+	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
+}
+
+// CastVoteReply contains the receipt for the cast vote.
+type CastVoteReply struct {
+	Ticket  string `json:"ticket"`  // Ticket ID
+	Receipt string `json:"receipt"` // Server signature of client signature
+
+	// The follwing fields will only be present if an error occured
+	// while attempting to cast the vote.
+	ErrorCode    VoteErrorT `json:"errorcode,omitempty"`
+	ErrorContext string     `json:"errorcontext,omitempty"`
+}
+
+// VoteBallot is a batch of votes that are sent to the server. A ballot can only
+// contain the votes for a single record.
+type VoteBallot struct {
+	Votes []CastVote `json:"votes"`
+}
+
+// VoteBallotReply is a reply to a batched list of votes.
+type VoteBallotReply struct {
+	Receipts []CastVoteReply `json:"receipts"`
+}
 
 // ProposalVote contains all vote authorizations and the vote details for a
 // proposal vote. The vote details will be null if the proposal vote has not

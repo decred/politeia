@@ -1703,28 +1703,28 @@ func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
-// CastVotes casts votes for a proposal.
-func (c *Client) CastVotes(b *www.Ballot) (*www.BallotReply, error) {
+// VoteBallot casts ballot of votes for a proposal.
+func (c *Client) VoteBallot(vb *pi.VoteBallot) (*pi.VoteBallotReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		www.PoliteiaWWWAPIRoute, www.RouteCastVotes, &b)
+		pi.APIRoute, pi.RouteVoteBallot, &vb)
 	if err != nil {
 		return nil, err
 	}
 
-	var br www.BallotReply
-	err = json.Unmarshal(responseBody, &br)
+	var vbr pi.VoteBallotReply
+	err = json.Unmarshal(responseBody, &vbr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal BallotReply: %v", err)
+		return nil, fmt.Errorf("unmarshal VoteBallotReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(br)
+		err := prettyPrintJSON(vbr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &br, nil
+	return &vbr, nil
 }
 
 // UpdateUserKey updates the identity of the logged in user.

@@ -279,37 +279,46 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	log.Tracef("processVoteResults: %v", token)
 
 	// Call ticketvote plugin
-	vd, err := p.voteDetails(token)
+	vd, err := p.voteDetails([]string{token})
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert reply to www
-	startHeight := strconv.FormatUint(uint64(vd.Vote.StartBlockHeight), 10)
-	endHeight := strconv.FormatUint(uint64(vd.Vote.EndBlockHeight), 10)
+	var (
+		vote ticketvote.RecordVote
+		ok   bool
+	)
+	if vote, ok = vd.Votes[token]; !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	startHeight := strconv.FormatUint(uint64(vote.Vote.StartBlockHeight), 10)
+	endHeight := strconv.FormatUint(uint64(vote.Vote.EndBlockHeight), 10)
 	res := www.VoteResultsReply{
 		StartVote: www.StartVote{
-			PublicKey: vd.Vote.PublicKey,
-			Signature: vd.Vote.Signature,
+			PublicKey: vote.Vote.PublicKey,
+			Signature: vote.Vote.Signature,
 			Vote: www.Vote{
-				Token:            vd.Vote.Params.Token,
-				Mask:             vd.Vote.Params.Mask,
-				Duration:         vd.Vote.Params.Duration,
-				QuorumPercentage: vd.Vote.Params.QuorumPercentage,
-				PassPercentage:   vd.Vote.Params.PassPercentage,
+				Token:            vote.Vote.Params.Token,
+				Mask:             vote.Vote.Params.Mask,
+				Duration:         vote.Vote.Params.Duration,
+				QuorumPercentage: vote.Vote.Params.QuorumPercentage,
+				PassPercentage:   vote.Vote.Params.PassPercentage,
 			},
 		},
 		StartVoteReply: www.StartVoteReply{
 			StartBlockHeight: startHeight,
-			StartBlockHash:   vd.Vote.StartBlockHash,
+			StartBlockHash:   vote.Vote.StartBlockHash,
 			EndHeight:        endHeight,
-			EligibleTickets:  vd.Vote.EligibleTickets,
+			EligibleTickets:  vote.Vote.EligibleTickets,
 		},
 	}
 
 	// Transalte vote options
-	vo := make([]www.VoteOption, 0, len(vd.Vote.Params.Options))
-	for _, o := range vd.Vote.Params.Options {
+	vo := make([]www.VoteOption, 0, len(vote.Vote.Params.Options))
+	for _, o := range vote.Vote.Params.Options {
 		vo = append(vo, www.VoteOption{
 			Id:          o.ID,
 			Description: o.Description,

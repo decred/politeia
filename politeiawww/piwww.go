@@ -1965,6 +1965,87 @@ func (p *politeiawww) handleVoteStartRunoff(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, vsrr)
 }
 
+func convertPiVoteErrorFromTicketVote(e ticketvote.VoteErrorT) pi.VoteErrorT {
+	switch e {
+	case ticketvote.VoteErrorInvalid:
+		return pi.VoteErrorInvalid
+	case ticketvote.VoteErrorInternalError:
+		return pi.VoteErrorInternalError
+	case ticketvote.VoteErrorRecordNotFound:
+		return pi.VoteErrorRecordNotFound
+	case ticketvote.VoteErrorVoteBitInvalid:
+		return pi.VoteErrorVoteBitInvalid
+	case ticketvote.VoteErrorVoteStatusInvalid:
+		return pi.VoteErrorVoteStatusInvalid
+	case ticketvote.VoteErrorTicketAlreadyVoted:
+		return pi.VoteErrorTicketAlreadyVoted
+	case ticketvote.VoteErrorTicketNotEligible:
+		return pi.VoteErrorTicketNotEligible
+	default:
+		return pi.VoteErrorInternalError
+	}
+}
+
+func (p *politeiawww) processVoteBallot(vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
+	log.Tracef("processVoteBallot")
+
+	// Call the ticketvote to cast ballot of votes
+	// Transalte payload
+	var vbp ticketvote.Ballot
+	votes := make([]ticketvote.CastVote, 0, len(vb.Votes))
+	for _, v := range vb.Votes {
+		votes = append(votes, ticketvote.CastVote{
+			Token:     v.Token,
+			Ticket:    v.Ticket,
+			VoteBit:   v.VoteBit,
+			Signature: v.Signature,
+		})
+	}
+	vbp.Votes = votes
+
+	reply, err := p.voteBallot(vbp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Translate reply
+	var vbr pi.VoteBallotReply
+	vrs := make([]pi.CastVoteReply, 0, len(reply.Receipts))
+	for _, vr := range reply.Receipts {
+		vrs = append(vrs, pi.CastVoteReply{
+			Ticket:       vr.Ticket,
+			Receipt:      vr.Receipt,
+			ErrorCode:    convertPiVoteErrorFromTicketVote(vr.ErrorCode),
+			ErrorContext: vr.ErrorContext,
+		})
+	}
+	vbr.Receipts = vrs
+
+	return &vbr, nil
+}
+
+func (p *politeiawww) handleVoteBallot(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteBallot")
+
+	var vb pi.VoteBallot
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vb); err != nil {
+		respondWithPiError(w, r, "handleVoteBallot: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vbr, err := p.processVoteBallot(vb)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleVoteBallot: processVoteBallot: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vbr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -1982,6 +2063,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteStartRunoff, p.handleVoteStartRunoff, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteBallot, p.handleVoteBallot, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

@@ -14,7 +14,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -154,10 +155,10 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	}
 
 	// Setup cast votes request
-	votes := make([]v1.CastVote, 0, len(eligibleTickets))
+	votes := make([]pi.CastVote, 0, len(eligibleTickets))
 	for i, ticket := range eligibleTickets {
 		// eligibleTickets and sigs use the same index
-		votes = append(votes, v1.CastVote{
+		votes = append(votes, pi.CastVote{
 			Token:     token,
 			Ticket:    ticket,
 			VoteBit:   voteBits,
@@ -166,7 +167,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	}
 
 	// Cast proposal votes
-	br, err := client.CastVotes(&v1.Ballot{
+	br, err := client.VoteBallot(&pi.VoteBallot{
 		Votes: votes,
 	})
 	if err != nil {
@@ -177,7 +178,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	// the ticket hash so in order to associate a failed
 	// receipt with a specific ticket, we need  to lookup the
 	// ticket hash and store it separately.
-	failedReceipts := make([]v1.CastVoteReply, 0, len(br.Receipts))
+	failedReceipts := make([]pi.CastVoteReply, 0, len(br.Receipts))
 	failedTickets := make([]string, 0, len(eligibleTickets))
 	for i, v := range br.Receipts {
 		// Lookup ticket hash
@@ -185,23 +186,24 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		h := eligibleTickets[i]
 
 		// Check for voting error
-		if v.Error != "" {
+		if v.ErrorContext != "" {
 			failedReceipts = append(failedReceipts, v)
 			failedTickets = append(failedTickets, h)
 			continue
 		}
 
 		// Validate server signature
-		sig, err := identity.SignatureFromString(v.Signature)
+		sig, err := identity.SignatureFromString(v.Receipt)
 		if err != nil {
-			v.Error = err.Error()
+			v.ErrorContext = err.Error()
 			failedReceipts = append(failedReceipts, v)
 			failedTickets = append(failedTickets, h)
 			continue
 		}
 
-		if !serverID.VerifyMessage([]byte(v.ClientSignature), *sig) {
-			v.Error = "Could not verify receipt " + v.ClientSignature
+		clientSig := votes[i].Signature
+		if !serverID.VerifyMessage([]byte(clientSig), *sig) {
+			v.ErrorContext = "Could not verify receipt " + clientSig
 			failedReceipts = append(failedReceipts, v)
 			failedTickets = append(failedTickets, h)
 		}
@@ -212,7 +214,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		fmt.Printf("Votes succeeded: %v\n", len(br.Receipts)-len(failedReceipts))
 		fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
 		for i, v := range failedReceipts {
-			fmt.Printf("Failed vote    : %v %v\n", failedTickets[i], v.Error)
+			fmt.Printf("Failed vote    : %v %v\n", failedTickets[i], v.ErrorContext)
 		}
 	}
 
@@ -227,8 +229,4 @@ Cast ticket votes for a proposal.
 Arguments:
 1. token       (string, optional)   Proposal censorship token
 2. voteid      (string, optional)   A single word identifying vote (e.g. yes)
-
-Result:
-Enter the private passphrase of your wallet:
-Votes succeeded:  (int)  Number of successful votes
-Votes failed   :  (int)  Number of failed votes`
+`
