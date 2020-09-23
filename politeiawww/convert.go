@@ -1600,9 +1600,10 @@ func convertPRsToUserCodeStats(githubName string, year, month int, prs []codetra
 			}
 		}
 		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, pr.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
 			repoStat := user.CodeStats{
-				ID: githubName + "-" + pr.Repository + "-" +
-					strconv.Itoa(year) + "-" + strconv.Itoa(month),
+				ID:              id,
 				GitHubName:      githubName,
 				Month:           month,
 				Year:            year,

@@ -381,6 +381,22 @@ func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
 	return string(reply), nil
 }
 
+// NewCMSCodeStats is an exported function (for testing) to insert a new
+// code stats row into the cms_code_stats table.
+func (c *cockroachdb) NewCMSCodeStats(nu *user.NewCMSCodeStats) error {
+
+	tx := c.userDB.Begin()
+	for _, ncs := range nu.UserCodeStats {
+		cms := convertCodestatsToDatabase(ncs)
+		err := c.newCMSCodeStats(tx, cms)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit().Error
+}
+
 // cmdNewCMSCodeStats inserts a new CMSUser record into the database.
 func (c *cockroachdb) cmdNewCMSCodeStats(payload string) (string, error) {
 	// Decode payload
@@ -388,17 +404,7 @@ func (c *cockroachdb) cmdNewCMSCodeStats(payload string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	tx := c.userDB.Begin()
-	for _, ncs := range nu.UserCodeStats {
-		cms := convertCodestatsToDatabase(ncs)
-		err = c.newCMSCodeStats(tx, cms)
-		if err != nil {
-			tx.Rollback()
-			return "", err
-		}
-	}
-	err = tx.Commit().Error
+	err = c.NewCMSCodeStats(nu)
 	if err != nil {
 		return "", err
 	}

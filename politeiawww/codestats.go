@@ -124,7 +124,9 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 		allRepoStats = append(allRepoStats,
 			convertCodeStatsFromDatabase(reply.UserCodeStats)...)
 
-		startDate = time.Date(startDate.Year(), startDate.Month()+1, startDate.Day(), startDate.Hour(), startDate.Minute(), 0, 0, time.UTC)
+		startDate = time.Date(startDate.Year(), startDate.Month()+1,
+			startDate.Day(), startDate.Hour(), startDate.Minute(), 0, 0,
+			time.UTC)
 	}
 	return &cms.UserCodeStatsReply{
 		RepoStats: allRepoStats,

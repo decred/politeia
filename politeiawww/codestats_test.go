@@ -34,20 +34,26 @@ func TestProcessUserCodeStats(t *testing.T) {
 	// mockedCodeStats currently creates mocked code stats in user db
 	mockedCodeStats := createMockedStats(requestedUser.GitHubName)
 
-	oneMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
-	oneMonthEndDate := time.Date(startingYear, time.Month(startingMonth+1), 1, 0, 0, 0, 0, time.UTC)
+	oneMonthStartDate := time.Date(startingYear, time.Month(startingMonth),
+		1, 0, 0, 0, 0, time.UTC)
+	oneMonthEndDate := time.Date(startingYear, time.Month(startingMonth+1),
+		1, 0, 0, 0, 0, time.UTC)
 
 	oneMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		oneMonthStartDate, oneMonthEndDate)
 
-	twoMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
-	twoMonthEndDate := time.Date(startingYear, time.Month(startingMonth+2), 1, 0, 0, 0, 0, time.UTC)
+	twoMonthStartDate := time.Date(startingYear, time.Month(startingMonth),
+		1, 0, 0, 0, 0, time.UTC)
+	twoMonthEndDate := time.Date(startingYear, time.Month(startingMonth+2),
+		1, 0, 0, 0, 0, time.UTC)
 
 	twoMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		twoMonthStartDate, twoMonthEndDate)
 
-	threeMonthStartDate := time.Date(startingYear, time.Month(startingMonth), 1, 0, 0, 0, 0, time.UTC)
-	threeMonthEndDate := time.Date(startingYear, time.Month(startingMonth+numberOfMonths), 1, 0, 0, 0, 0, time.UTC)
+	threeMonthStartDate := time.Date(startingYear, time.Month(startingMonth),
+		1, 0, 0, 0, 0, time.UTC)
+	threeMonthEndDate := time.Date(startingYear,
+		time.Month(startingMonth+numberOfMonths), 1, 0, 0, 0, 0, time.UTC)
 
 	threeMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		threeMonthStartDate, threeMonthEndDate)
@@ -279,9 +285,11 @@ func createMockedStats(username string) []user.CodeStats {
 	for month := startingMonth; month < numberOfMonths+startingMonth; month++ {
 		prs := make([]codetracker.PullRequestInformation, 0, numberOfMonthPrs)
 		for i := 1; i <= numberOfMonthPrs; i++ {
-			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0, time.UTC)
+			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0,
+				time.UTC)
 			prNumber := i + month*10
-			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", month, prNumber)
+			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", month,
+				prNumber)
 			additions := rand.Intn(100)
 			deletions := rand.Intn(100)
 			prs = append(prs, codetracker.PullRequestInformation{
@@ -294,11 +302,14 @@ func createMockedStats(username string) []user.CodeStats {
 				State:      "MERGED",
 			})
 		}
-		reviews := make([]codetracker.ReviewInformation, 0, numberOfMonthReviews)
+		reviews := make([]codetracker.ReviewInformation, 0,
+			numberOfMonthReviews)
 		for i := 1; i <= numberOfMonthReviews; i++ {
-			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0, time.UTC)
+			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0,
+				time.UTC)
 			prNumber := i + month*10
-			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", month, prNumber)
+			url := fmt.Sprintf("http://github.com/test/%v/pull/%v", month,
+				prNumber)
 			additions := rand.Intn(100)
 			deletions := rand.Intn(100)
 			reviews = append(reviews, codetracker.ReviewInformation{
@@ -322,11 +333,13 @@ func convertExpectedResults(codeStats []user.CodeStats, start, end time.Time) *c
 	rangeCodeStats := make([]user.CodeStats, 0, 6)
 	for start.Before(end) {
 		for _, codeStat := range codeStats {
-			if codeStat.Month == int(start.Month()) && codeStat.Year == start.Year() {
+			if codeStat.Month == int(start.Month()) &&
+				codeStat.Year == start.Year() {
 				rangeCodeStats = append(rangeCodeStats, codeStat)
 			}
 		}
-		start = time.Date(start.Year(), start.Month()+1, start.Day(), start.Hour(), 0, 0, 0, time.UTC)
+		start = time.Date(start.Year(), start.Month()+1, start.Day(),
+			start.Hour(), 0, 0, 0, time.UTC)
 	}
 	reply.RepoStats = convertCodeStatsFromDatabase(rangeCodeStats)
 

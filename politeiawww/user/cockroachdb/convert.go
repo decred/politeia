@@ -1,6 +1,8 @@
 package cockroachdb
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/decred/politeia/politeiawww/user"
@@ -105,8 +107,10 @@ func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 			reviews += review
 		}
 	}
+	id := fmt.Sprintf("%v-%v-%v-%v", cs.GitHubName, cs.Repository,
+		strconv.Itoa(cs.Month), strconv.Itoa(cs.Year))
 	return CMSCodeStats{
-		ID:              cs.ID,
+		ID:              id,
 		GitHubName:      cs.GitHubName,
 		Repository:      cs.Repository,
 		Month:           cs.Month,
