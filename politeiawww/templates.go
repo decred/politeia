@@ -187,24 +187,22 @@ var proposalVoteStartedToAuthorTmpl = template.Must(
 	template.New("proposalVoteStartedToAuthor").
 		Parse(proposalVoteStartedToAuthorText))
 
-// User events
-
 // User email verify - Send verification link to new user
 type userEmailVerify struct {
 	Username string // User username
-	Email    string // User email
 	Link     string // Verification link
 }
 
 const userEmailVerifyText = `
 Thanks for joining Politeia, {{.Username}}!
 
-Click the link below to verify your email and complete your registration:
+Click the link below to verify your email and complete your registration.
 
 {{.Link}}
 
-You are receiving this email because {{.Email}} was used to register for Politeia.
-If you did not perform this action, please ignore this email.
+You are receiving this notification because this email address was used to
+register a Politeia account.  If you did not perform this action, please ignore
+this email.
 `
 
 var userEmailVerifyTmpl = template.Must(
@@ -212,9 +210,9 @@ var userEmailVerifyTmpl = template.Must(
 
 // User key update - Send key verification link to user
 type userKeyUpdate struct {
-	Link      string // Verify key link
 	PublicKey string // User new public key
-	Email     string // User
+	Username  string
+	Link      string // Verify key link
 }
 
 const userKeyUpdateText = `
@@ -222,9 +220,15 @@ Click the link below to verify your new identity:
 
 {{.Link}}
 
-You are receiving this email because a new identity (public key: {{.PublicKey}})
-was generated for {{.Email}} on Politeia. If you did not perform this action,
-please contact Politeia administrators.
+You are receiving this notification because a new identity was generated for
+{{.Username}} on Politeia with the following public key. 
+
+Public key: {{.PublicKey}} 
+
+If you did not perform this action, please contact a Politeia administrators in
+the Politeia channel on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
 var userKeyUpdateTmpl = template.Must(
@@ -232,8 +236,7 @@ var userKeyUpdateTmpl = template.Must(
 
 // User password reset - Send password reset link to user
 type userPasswordReset struct {
-	Link  string // Password reset link
-	Email string // User email
+	Link string // Password reset link
 }
 
 const userPasswordResetText = `
@@ -241,10 +244,11 @@ Click the link below to continue resetting your password:
 
 {{.Link}}
 
-You are receiving this email because a password reset was initiated for {{.Email}}
-on Politeia. If you did not perform this action, it is possible that your account has been
-compromised. Please contact Politeia administrators through Matrix on the
-#politeia:decred.org channel.
+A password reset was initiated for this Politeia account.  If you did not
+perform this action, it's possible that your account has been compromised.
+Please contact a Politeia administrator in the Politeia channel on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
 var userPasswordResetTmpl = template.Must(
@@ -252,18 +256,20 @@ var userPasswordResetTmpl = template.Must(
 
 // User account locked - Send reset password link to user
 type userAccountLocked struct {
-	Link  string // Reset password link
-	Email string // User email
+	Link     string // Reset password link
+	Username string
 }
 
 const userAccountLockedText = `
-Your account was locked due to too many login attempts. You need to reset your
-password in order to unlock your account:
+The Politeia account for {{.Username}} was locked due to too many login
+attempts. You need to reset your password in order to unlock your account:
 
 {{.Link}}
 
-You are receiving this email because someone made too many login attempts for
-{{.Email}} on Politeia. If that was not you, please notify Politeia administrators.
+If these login attempts were not made by you, please notify a Politeia
+administrators in the Politeia channel on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
 var userAccountLockedTmpl = template.Must(
@@ -271,14 +277,18 @@ var userAccountLockedTmpl = template.Must(
 
 // User password changed - Send to user
 type userPasswordChanged struct {
-	Email string // User email
+	Username string
 }
 
 const userPasswordChangedText = `
-You are receiving this email to notify you that your password has changed for 
-{{.Email}} on Politeia. If you did not perform this action, it is possible that 
-your account has been compromised. Please contact Politeia administrators 
-through Matrix on the #politeia:decred.org channel for further instructions.
+The password has been changed for your Politeia account with the username
+{{.Username}}. 
+
+If you did not perform this action, it's possible that your account has been
+compromised.  Please contact a Politeia administrator in the Politeia channel
+on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
 var userPasswordChangedTmpl = template.Must(

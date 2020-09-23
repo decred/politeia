@@ -321,7 +321,6 @@ func (p *politeiawww) emailUserEmailVerify(email, token, username string) error 
 
 	tplData := userEmailVerify{
 		Username: username,
-		Email:    email,
 		Link:     link,
 	}
 
@@ -351,8 +350,7 @@ func (p *politeiawww) emailUserPasswordReset(email, username, token string) erro
 	// Setup email
 	subject := "Reset Your Password"
 	tplData := userPasswordReset{
-		Email: email,
-		Link:  u.String(),
+		Link: u.String(),
 	}
 	body, err := createBody(userPasswordResetTmpl, tplData)
 	if err != nil {
@@ -365,15 +363,15 @@ func (p *politeiawww) emailUserPasswordReset(email, username, token string) erro
 
 // emailUserKeyUpdate emails the link with the verification token used for
 // setting a new key pair if the email server is set up.
-func (p *politeiawww) emailUserKeyUpdate(email, publicKey, token string) error {
+func (p *politeiawww) emailUserKeyUpdate(username, email, publicKey, token string) error {
 	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token, "")
 	if err != nil {
 		return err
 	}
 
 	tplData := userKeyUpdate{
-		Email:     email,
 		PublicKey: publicKey,
+		Username:  username,
 		Link:      link,
 	}
 
@@ -389,9 +387,9 @@ func (p *politeiawww) emailUserKeyUpdate(email, publicKey, token string) error {
 
 // emailUserPasswordChanged notifies the user that his password was changed,
 // and verifies if he was the author of this action, for security purposes.
-func (p *politeiawww) emailUserPasswordChanged(email string) error {
+func (p *politeiawww) emailUserPasswordChanged(username, email string) error {
 	tplData := userPasswordChanged{
-		Email: email,
+		Username: username,
 	}
 
 	subject := "Password Changed - Security Verification"
@@ -407,7 +405,7 @@ func (p *politeiawww) emailUserPasswordChanged(email string) error {
 // emailUserAccountLocked notifies the user its account has been locked and
 // emails the link with the reset password verification token if the email
 // server is set up.
-func (p *politeiawww) emailUserAccountLocked(email string) error {
+func (p *politeiawww) emailUserAccountLocked(username, email string) error {
 	link, err := p.createEmailLink(ResetPasswordGuiRoute,
 		email, "", "")
 	if err != nil {
@@ -415,8 +413,8 @@ func (p *politeiawww) emailUserAccountLocked(email string) error {
 	}
 
 	tplData := userAccountLocked{
-		Email: email,
-		Link:  link,
+		Link:     link,
+		Username: username,
 	}
 
 	subject := "Locked Account - Reset Your Password"

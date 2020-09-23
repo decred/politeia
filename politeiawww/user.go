@@ -1001,8 +1001,7 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 	//
 	// This is conditional on the email server being setup.
 	token := hex.EncodeToString(tokenb)
-	err = p.emailUserKeyUpdate(usr.Email, uuk.PublicKey,
-		token)
+	err = p.emailUserKeyUpdate(usr.Username, usr.Email, uuk.PublicKey, token)
 	if err != nil {
 		return nil, err
 	}
@@ -1133,7 +1132,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			// send them an email informing them their account is
 			// now locked.
 			if userIsLocked(u.FailedLoginAttempts) {
-				err := p.emailUserAccountLocked(u.Email)
+				err := p.emailUserAccountLocked(u.Username, u.Email)
 				if err != nil {
 					return loginResult{
 						reply: nil,
@@ -1405,7 +1404,7 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 		return nil, err
 	}
 
-	err = p.emailUserPasswordChanged(email)
+	err = p.emailUserPasswordChanged(u.Username, email)
 	if err != nil {
 		return nil, err
 	}
