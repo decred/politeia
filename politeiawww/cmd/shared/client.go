@@ -1061,6 +1061,31 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 	return &pir, nil
 }
 
+// ProposalInventory retrieves the censorship tokens of all proposals,
+// separated by their status.
+func (c *Client) ProposalInventory() (*pi.ProposalInventoryReply, error) {
+	respondeBody, err := c.makeRequest(http.MethodGet, pi.APIRoute,
+		pi.RouteProposalInventory, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pir pi.ProposalInventoryReply
+	err = json.Unmarshal(respondeBody, &pir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalInventory: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pir, nil
+}
+
 // BatchProposals retrieves a list of proposals
 func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,

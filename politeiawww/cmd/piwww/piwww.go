@@ -48,6 +48,7 @@ type piwww struct {
 	ProposalNew       ProposalNewCmd       `command:"proposalnew"`
 	ProposalEdit      ProposalEditCmd      `command:"proposaledit"`
 	ProposalSetStatus ProposalSetStatusCmd `command:"proposalsetstatus"`
+	ProposalInventory ProposalInventoryCmd `command:"proposalinventory"`
 
 	// Comments commands
 	CommentNew    CommentNewCmd    `command:"commentnew" description:"(user) create a new comment"`
