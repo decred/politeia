@@ -720,7 +720,7 @@ type Votes struct {
 	Tokens []string `json:"tokens"`
 }
 
-// VoteReply is the reply to the Votes command. The returned map will not
+// VotesReply is the reply to the Votes command. The returned map will not
 // contain an entry for any tokens that did not correspond to an actual
 // proposal. It is the callers responsibility to ensure that a entry is
 // returned for all of the provided tokens.

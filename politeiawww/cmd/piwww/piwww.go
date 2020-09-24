@@ -60,6 +60,12 @@ type piwww struct {
 	VoteStartRunoff VoteStartRunoffCmd `command:"votestartrunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
 	VoteStart       VoteStartCmd       `command:"votestart" description:"(admin) start the voting period on a proposal"`
 	VoteAuthorize   VoteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
+	Votes           VotesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
+
+	// XXX will go
+	Tally     TallyCmd     `command:"tally" description:"(public) get the vote tally for a proposal"`
+	Inventory InventoryCmd `command:"inventory" description:"(public) get the proposals that are being voted on"`
+	Vote      VoteCmd      `command:"vote" description:"(public) cast votes for a proposal"`
 
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
@@ -69,7 +75,6 @@ type piwww struct {
 	ChangeUsername     shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	EditUser           EditUserCmd              `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
 	Help               HelpCmd                  `command:"help" description:"         print a detailed help message for a specific command"`
-	Inventory          InventoryCmd             `command:"inventory" description:"(public) get the proposals that are being voted on"`
 	Login              shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout             shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
 	ManageUser         shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
@@ -85,7 +90,6 @@ type piwww struct {
 	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
 	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
-	Tally              TallyCmd                 `command:"tally" description:"(public) get the vote tally for a proposal"`
 	TestRun            TestRunCmd               `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
 	TokenInventory     shared.TokenInventoryCmd `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
 	UpdateUserKey      shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
@@ -98,7 +102,6 @@ type piwww struct {
 	VerifyTOTP         shared.VerifyTOTPCmd     `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
-	Vote               VoteCmd                  `command:"vote" description:"(public) cast votes for a proposal"`
 	VoteDetails        VoteDetailsCmd           `command:"votedetails" description:"(public) get the details for a proposal vote"`
 	VoteResults        VoteResultsCmd           `command:"voteresults" description:"(public) get vote results for a proposal"`
 	VoteStatus         VoteStatusCmd            `command:"votestatus" description:"(public) get the vote status of a proposal"`

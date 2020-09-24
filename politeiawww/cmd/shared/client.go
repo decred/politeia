@@ -1231,6 +1231,30 @@ func (c *Client) InvoiceComments(token string) (*www.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
+// Votes rerieves the vote details for a given proposal.
+func (c *Client) Votes(vs pi.Votes) (*pi.VotesReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteVotes, vs)
+	if err != nil {
+		return nil, err
+	}
+
+	var vsr pi.VotesReply
+	err = json.Unmarshal(responseBody, &vsr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal Votes: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vsr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vsr, nil
+}
+
 // CommentVotes retrieves the comment likes (upvotes/downvotes) for the
 // specified proposal that are from the privoded user.
 func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {

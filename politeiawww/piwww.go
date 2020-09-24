@@ -2046,6 +2046,125 @@ func (p *politeiawww) handleVoteBallot(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vbr)
 }
 
+func convertVoteTypeFromPlugin(t ticketvote.VoteT) pi.VoteT {
+	switch t {
+	case ticketvote.VoteTypeStandard:
+		return pi.VoteTypeStandard
+	case ticketvote.VoteTypeRunoff:
+		return pi.VoteTypeRunoff
+	}
+	return pi.VoteTypeInvalid
+
+}
+
+func convertVoteParamsFromPlugin(v ticketvote.VoteParams) pi.VoteParams {
+	vp := pi.VoteParams{
+		Token:            v.Token,
+		Version:          v.Version,
+		Type:             convertVoteTypeFromPlugin(v.Type),
+		Mask:             v.Mask,
+		Duration:         v.Duration,
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+	}
+	vo := make([]pi.VoteOption, 0, len(v.Options))
+	for _, o := range v.Options {
+		vo = append(vo, pi.VoteOption{
+			ID:          o.ID,
+			Description: o.Description,
+			Bit:         o.Bit,
+		})
+	}
+	vp.Options = vo
+
+	return vp
+}
+
+func convertVoteDetailsFromPlugin(vd ticketvote.VoteDetails) *pi.VoteDetails {
+	return &pi.VoteDetails{
+		Params:           convertVoteParamsFromPlugin(vd.Params),
+		PublicKey:        vd.PublicKey,
+		Signature:        vd.Signature,
+		StartBlockHeight: vd.StartBlockHeight,
+		StartBlockHash:   vd.StartBlockHash,
+		EndBlockHeight:   vd.EndBlockHeight,
+		EligibleTickets:  vd.EligibleTickets,
+	}
+}
+
+func convertAuthorizeDetailsFromPlugin(ad ticketvote.AuthorizeDetails) pi.AuthorizeDetails {
+	return pi.AuthorizeDetails{
+		Token:     ad.Token,
+		Version:   ad.Version,
+		Action:    ad.Action,
+		PublicKey: ad.PublicKey,
+		Signature: ad.Signature,
+		Timestamp: ad.Timestamp,
+		Receipt:   ad.Receipt,
+	}
+}
+
+func (p *politeiawww) processVotes(v pi.Votes) (*pi.VotesReply, error) {
+	log.Tracef("processVotes: %v", v.Tokens)
+
+	// Call the ticketvote plugin to get vote details
+	vd, err := p.voteDetails(v.Tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to pi
+	var (
+		vote ticketvote.RecordVote
+		ok   bool
+		vr   pi.VotesReply
+	)
+	votes := make(map[string]pi.ProposalVote)
+	for _, token := range v.Tokens {
+		if vote, ok = vd.Votes[token]; !ok {
+			// No related vote details, skip token
+			continue
+		}
+		pv := pi.ProposalVote{
+			Vote: convertVoteDetailsFromPlugin(*(vote.Vote)),
+		}
+
+		// Transalte vote auth
+		auths := make([]pi.AuthorizeDetails, 0, len(vote.Auths))
+		for _, a := range vote.Auths {
+			auths = append(auths, convertAuthorizeDetailsFromPlugin(a))
+		}
+		pv.Auths = auths
+
+		votes[token] = pv
+	}
+	vr.Votes = votes
+
+	return &vr, nil
+}
+
+func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVotes")
+
+	var v pi.Votes
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&v); err != nil {
+		respondWithPiError(w, r, "handleVotes: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vr, err := p.processVotes(v)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleVotes: processVotes: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -2066,6 +2185,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteBallot, p.handleVoteBallot, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVotes, p.handleVotes, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

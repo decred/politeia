@@ -58,14 +58,10 @@ func (cmd *TallyCmd) Execute(args []string) error {
 
 // tallyHelpMsg is the output for the help command when 'tally' is specified.
 const tallyHelpMsg = `tally "token"
-
 Fetch the vote tally for a proposal.
-
 Arguments:
 1. token       (string, required)  Proposal censorship token
-
 Response:
-
 Vote Option:
   ID                   : (string)  Unique word identifying vote (e.g. 'no')
   Description          : (string)  Longer description of the vote
