@@ -148,6 +148,7 @@ func DecodeProposalMetadata(payload []byte) (*ProposalMetadata, error) {
 // Signature is the client signature of the proposal merkle root. The merkle
 // root is the ordered merkle root of all proposal Files and Metadata.
 type ProposalGeneral struct {
+	UserID    string `json:"userid"`    // Unique user ID
 	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
 	Timestamp int64  `json:"timestamp"` // Submission UNIX timestamp
@@ -273,7 +274,7 @@ func DecodeProposalsReply(payload []byte) (*ProposalsReply, error) {
 //
 // Signature is the client signature of State+Token+ParentID+Comment.
 type CommentNew struct {
-	UUID      string     `json:"uuid"`      // Unique user ID
+	UserID    string     `json:"userid"`    // Unique user ID
 	State     PropStateT `json:"state"`     // Record state
 	Token     string     `json:"token"`     // Record token
 	ParentID  uint32     `json:"parentid"`  // Parent comment ID
@@ -375,15 +376,15 @@ func DecodeCommentCensorReply(payload []byte) (*CommentCensorReply, error) {
 // validation that is specific to pi.
 //
 // The effect of a new vote on a comment score depends on the previous vote
-// from that uuid. Example, a user upvotes a comment that they have already
+// from that user ID. Example, a user upvotes a comment that they have already
 // upvoted, the resulting vote score is 0 due to the second upvote removing the
 // original upvote. The public key cannot be relied on to remain the same for
-// each user so a uuid must be included.
+// each user so a user ID must be included.
 //
 // Signature is the client signature of the State+Token+CommentID+Vote.
 type CommentVote struct {
+	UserID    string     `json:"userid"`    // Unique user ID
 	State     PropStateT `json:"state"`     // Record state
-	UUID      string     `json:"uuid"`      // Unique user ID
 	Token     string     `json:"token"`     // Record token
 	CommentID uint32     `json:"commentid"` // Comment ID
 	Vote      VoteT      `json:"vote"`      // Upvote or downvote

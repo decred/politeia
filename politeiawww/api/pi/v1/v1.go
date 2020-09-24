@@ -18,7 +18,9 @@ type VoteT int
 type VoteErrorT int
 
 // TODO the plugin policies should be returned in a route
-// TODO the proposals route should allow filtering by user ID
+// TODO the proposals route should allow filtering by user ID. Actually, this
+// is going to have to wait until after the intial release. This is non-trivial
+// to accomplish and is outside the scope of the core functionality.
 
 const (
 	APIVersion = 1

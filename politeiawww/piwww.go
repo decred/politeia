@@ -968,6 +968,7 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	// Setup metadata stream
 	timestamp := time.Now().Unix()
 	pg := piplugin.ProposalGeneral{
+		UserID:    usr.ID.String(),
 		PublicKey: pn.PublicKey,
 		Signature: pn.Signature,
 		Timestamp: timestamp,
@@ -1107,6 +1108,7 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	// Setup politeiad metadata
 	timestamp := time.Now().Unix()
 	pg := piplugin.ProposalGeneral{
+		UserID:    usr.ID.String(),
 		PublicKey: pe.PublicKey,
 		Signature: pe.Signature,
 		Timestamp: timestamp,
@@ -1461,8 +1463,8 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	}
 
 	// Call the pi plugin to add new comment
-	reply, err := p.commentNewPi(piplugin.CommentNew{
-		UUID:      usr.ID.String(),
+	reply, err := p.piCommentNew(piplugin.CommentNew{
+		UserID:    usr.ID.String(),
 		Token:     cn.Token,
 		ParentID:  cn.ParentID,
 		Comment:   cn.Comment,
@@ -1553,8 +1555,8 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 	}
 
 	// Call the pi plugin to add new comment
-	reply, err := p.commentVotePi(piplugin.CommentVote{
-		UUID:      usr.ID.String(),
+	reply, err := p.piCommentVote(piplugin.CommentVote{
+		UserID:    usr.ID.String(),
 		Token:     cv.Token,
 		CommentID: cv.CommentID,
 		Vote:      convertVoteFromPi(cv.Vote),

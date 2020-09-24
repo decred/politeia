@@ -63,10 +63,10 @@ type politeiawww struct {
 	cfg          *config
 	params       *chaincfg.Params
 	router       *mux.Router
-	sessions     sessions.Store
 	client       *http.Client
 	smtp         *smtp
 	db           user.Database
+	sessions     sessions.Store
 	eventManager *eventManager
 	plugins      []plugin
 
