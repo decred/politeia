@@ -275,8 +275,8 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 	return nil, nil
 }
 
-func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
-	log.Tracef("processVoteResults: %v", token)
+func (p *politeiawww) processVoteResultsWWW(token string) (*www.VoteResultsReply, error) {
+	log.Tracef("processVoteResultsWWW: %v", token)
 
 	// Call ticketvote plugin
 	vd, err := p.voteDetails([]string{token})

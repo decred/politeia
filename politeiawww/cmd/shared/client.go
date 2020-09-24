@@ -1455,15 +1455,14 @@ func (c *Client) VerifyUserPayment() (*www.VerifyUserPaymentReply, error) {
 }
 
 // VoteResults retrieves the vote results for the specified proposal.
-func (c *Client) VoteResults(token string) (*www.VoteResultsReply, error) {
-	route := "/proposals/" + token + "/votes"
+func (c *Client) VoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet,
-		www.PoliteiaWWWAPIRoute, route, nil)
+		pi.APIRoute, pi.RouteVoteResults, vr)
 	if err != nil {
 		return nil, err
 	}
 
-	var vrr www.VoteResultsReply
+	var vrr pi.VoteResultsReply
 	err = json.Unmarshal(responseBody, &vrr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalVotesReply: %v", err)

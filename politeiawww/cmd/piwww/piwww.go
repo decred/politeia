@@ -62,9 +62,9 @@ type piwww struct {
 	VoteStart       VoteStartCmd       `command:"votestart" description:"(admin) start the voting period on a proposal"`
 	VoteAuthorize   VoteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
 	Votes           VotesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
+	VoteResults     VoteResultsCmd     `command:"voteresults" description:"(public) get vote results for a proposal"`
 
 	// XXX will go
-	Tally     TallyCmd     `command:"tally" description:"(public) get the vote tally for a proposal"`
 	Inventory InventoryCmd `command:"inventory" description:"(public) get the proposals that are being voted on"`
 	Vote      VoteCmd      `command:"vote" description:"(public) cast votes for a proposal"`
 
@@ -104,7 +104,6 @@ type piwww struct {
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	VoteDetails        VoteDetailsCmd           `command:"votedetails" description:"(public) get the details for a proposal vote"`
-	VoteResults        VoteResultsCmd           `command:"voteresults" description:"(public) get vote results for a proposal"`
 	VoteStatus         VoteStatusCmd            `command:"votestatus" description:"(public) get the vote status of a proposal"`
 	VoteStatuses       VoteStatusesCmd          `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
 }

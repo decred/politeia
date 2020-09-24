@@ -728,10 +728,13 @@ type VotesReply struct {
 	Votes map[string]ProposalVote `json:"votes"`
 }
 
+// VoteResults returns the votes that have been cast for the specified
+// proposal.
 type VoteResults struct {
 	Token string `json:"token"`
 }
 
+// VoteResultsReply is the reply to the VoteResults command.
 type VoteResultsReply struct {
 	Votes []CastVoteDetails `json:"votes"`
 }

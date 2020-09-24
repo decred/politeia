@@ -2165,6 +2165,53 @@ func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
+func (p *politeiawww) processVoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
+	log.Tracef("processVoteResults: %v", vr.Token)
+
+	// Get cast votes information
+	cv, err := p.castVotes(vr.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Transalte to pi
+	var vrr pi.VoteResultsReply
+	votes := make([]pi.CastVoteDetails, 0, len(cv.Votes))
+	for _, v := range cv.Votes {
+		votes = append(votes, pi.CastVoteDetails{
+			Token:     v.Token,
+			Ticket:    v.Ticket,
+			VoteBit:   v.VoteBit,
+			Signature: v.Signature,
+		})
+	}
+	vrr.Votes = votes
+
+	return &vrr, nil
+}
+
+func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteResults")
+
+	var vr pi.VoteResults
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vr); err != nil {
+		respondWithPiError(w, r, "handleVoteResults: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vrr, err := p.processVoteResults(vr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleVoteResults: prcoessVoteResults: %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vrr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -2188,6 +2235,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVotes, p.handleVotes, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteResults, p.handleVoteResults, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,
