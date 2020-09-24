@@ -79,8 +79,6 @@ type PullRequest struct {
 	Additions    int
 	Deletions    int
 	MergedBy     string
-
-	Reviews []PullRequestReview
 }
 
 // PullRequestReview contains any information about reviews that a user

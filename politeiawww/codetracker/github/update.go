@@ -97,11 +97,12 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 		if err != nil {
 			return err
 		}
-		dbPullRequest.Reviews = reviews
-		err = g.codedb.NewPullRequest(dbPullRequest)
-		if err != nil {
-			log.Errorf("error adding new pull request: %v", err)
-			return err
+		for _, review := range reviews {
+			err = g.codedb.NewPullRequestReview(&review)
+			if err != nil {
+				log.Errorf("error adding new pull request review: %v", err)
+				continue
+			}
 		}
 		return nil
 	} else if err != nil {
@@ -117,11 +118,12 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 		if err != nil {
 			return err
 		}
-		dbPullRequest.Reviews = reviews
-		err = g.codedb.UpdatePullRequest(dbPullRequest)
-		if err != nil {
-			log.Errorf("error updating new pull request: %v", err)
-			return err
+		for _, review := range reviews {
+			err = g.codedb.UpdatePullRequestReview(&review)
+			if err != nil {
+				log.Errorf("error updating new pull request review: %v", err)
+				continue
+			}
 		}
 	}
 	return nil

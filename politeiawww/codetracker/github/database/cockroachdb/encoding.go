@@ -18,6 +18,7 @@ func EncodePullRequestReview(dbPullRequestReview *database.PullRequestReview) Pu
 	prReview.ID = dbPullRequestReview.ID
 	prReview.Number = dbPullRequestReview.Number
 	prReview.Repo = dbPullRequestReview.Repo
+	prReview.PullRequestURL = dbPullRequestReview.PullRequestURL
 
 	return prReview
 }
@@ -54,11 +55,6 @@ func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
 	pr.Deletions = dbPullRequest.Deletions
 	pr.MergedBy = dbPullRequest.MergedBy
 
-	reviews := make([]PullRequestReview, 0, len(dbPullRequest.Reviews))
-	for _, dbReview := range dbPullRequest.Reviews {
-		reviews = append(reviews, EncodePullRequestReview(&dbReview))
-	}
-	pr.Reviews = reviews
 	return pr
 }
 
@@ -78,12 +74,6 @@ func DecodePullRequest(pr *PullRequest) *database.PullRequest {
 	dbPullRequest.Additions = pr.Additions
 	dbPullRequest.Deletions = pr.Deletions
 	dbPullRequest.MergedBy = pr.MergedBy
-
-	dbReviews := make([]database.PullRequestReview, 0, len(pr.Reviews))
-	for _, review := range pr.Reviews {
-		dbReviews = append(dbReviews, DecodePullRequestReview(&review))
-	}
-	dbPullRequest.Reviews = dbReviews
 
 	return dbPullRequest
 }

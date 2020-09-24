@@ -21,11 +21,10 @@ const (
 	ghVersion = "1"
 
 	// Database table names
-	tableNameVersions     = "versions"
-	tableNameOrganization = "organizations"
-	tableNamePullRequest  = "pullrequests"
-	tableNameCommits      = "commits"
-	tableNameReviews      = "reviews"
+	tableNameVersions    = "versions"
+	tableNamePullRequest = "pullrequests"
+	tableNameCommits     = "commits"
+	tableNameReviews     = "reviews"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -203,12 +202,6 @@ func createGHTables(tx *gorm.DB) error {
 	// Create cms tables
 	if !tx.HasTable(tableNamePullRequest) {
 		err := tx.CreateTable(&PullRequest{}).Error
-		if err != nil {
-			return err
-		}
-	}
-	if !tx.HasTable(tableNameCommits) {
-		err := tx.CreateTable(&Commit{}).Error
 		if err != nil {
 			return err
 		}

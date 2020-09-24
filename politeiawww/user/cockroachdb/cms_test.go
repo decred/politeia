@@ -16,18 +16,6 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
-func newCdbCMSUser(usr user.User, domain, contractorType int, t *testing.T, cdb *cockroachdb) CMSUser {
-	t.Helper()
-
-	u := CMSUser{
-		ID:             usr.ID,
-		Domain:         domain,
-		ContractorType: contractorType,
-	}
-
-	return u
-}
-
 // Tests
 func TestNewCodeStats(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
