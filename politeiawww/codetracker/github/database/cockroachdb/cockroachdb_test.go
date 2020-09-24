@@ -266,3 +266,61 @@ func TestUpdatePullRequestsReview(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestPullRequestByURL(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Execute method
+	_, err := cdb.PullRequestByURL("url")
+	if err != nil {
+		t.Errorf("UserUpdate unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+func TestPullRequestsByUserDates(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+	// Execute method
+	_, err := cdb.PullRequestsByUserDates("username", 10, 10)
+	if err != nil {
+		t.Errorf("UserUpdate unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+func TestReviewsByUserDates(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+	// Execute method
+	_, err := cdb.ReviewsByUserDates("username", 10, 10)
+	if err != nil {
+		t.Errorf("UserUpdate unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+func TestAllUsersByDates(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+	// Execute method
+	_, err := cdb.AllUsersByDates(10, 10)
+	if err != nil {
+		t.Errorf("UserUpdate unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
