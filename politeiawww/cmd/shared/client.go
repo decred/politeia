@@ -1110,29 +1110,29 @@ func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsRepl
 	return &bpr, nil
 }
 
-// BatchVoteSummary retrieves a summary of the voting process for a set of
+// VoteSummaries retrieves a summary of the voting process for a set of
 // proposals.
-func (c *Client) BatchVoteSummary(bvs *www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
-	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteBatchVoteSummary, bvs)
+func (c *Client) VoteSummaries(vs *pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteSummaries, vs)
 	if err != nil {
 		return nil, err
 	}
 
-	var bvsr www.BatchVoteSummaryReply
-	err = json.Unmarshal(responseBody, &bvsr)
+	var vsr pi.VoteSummariesReply
+	err = json.Unmarshal(responseBody, &vsr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal BatchVoteSummary: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(bvsr)
+		err := prettyPrintJSON(vsr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &bvsr, nil
+	return &vsr, nil
 }
 
 // GetAllVetted retrieves a page of vetted proposals.

@@ -739,8 +739,25 @@ type VoteResultsReply struct {
 	Votes []CastVoteDetails `json:"votes"`
 }
 
-type VoteSummaries struct{}
-type VoteSummariesReply struct{}
+// VoteSummaries summarizes the vote params and results for a ticket vote.
+type VoteSummaries struct {
+	Tokens []string `json:"tokens"`
+}
+
+// VoteSummariesReply is the reply to the VoteSummaries command.
+//
+// Summaries field contains a vote summary for each of the provided
+// tokens. The map will not contain an entry for any tokens that
+// did not correspond to an actual record. It is the callers
+// responsibility to ensure that a summary is returned for all of
+// the provided tokens.
+type VoteSummariesReply struct {
+	Summaries map[string]VoteSummary `json:"summaries"` // [token]Summary
+
+	// BestBlock is the best block value that was used to prepare the
+	// summaries.
+	BestBlock uint32 `json:"bestblock"`
+}
 
 type VoteInventory struct{}
 type VoteInventoryReply struct{}

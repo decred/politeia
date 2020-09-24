@@ -117,8 +117,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", voteStatusHelpMsg)
 	case "votestatuses":
 		fmt.Printf("%s\n", voteStatusesHelpMsg)
-	case "batchvotesummary":
-		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
+	case "votesummaries":
+		fmt.Printf("%s\n", voteSummariesHelpMsg)
 	case "votedetails":
 		fmt.Printf("%s\n", voteDetailsHelpMsg)
 

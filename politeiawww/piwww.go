@@ -2212,6 +2212,95 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
+func convertVoteStatusFromPlugin(s ticketvote.VoteStatusT) pi.VoteStatusT {
+	switch s {
+	case ticketvote.VoteStatusInvalid:
+		return pi.VoteStatusInvalid
+	case ticketvote.VoteStatusUnauthorized:
+		return pi.VoteStatusUnauthorized
+	case ticketvote.VoteStatusAuthorized:
+		return pi.VoteStatusAuthorized
+	case ticketvote.VoteStatusStarted:
+		return pi.VoteStatusStarted
+	case ticketvote.VoteStatusFinished:
+		return pi.VoteStatusFinished
+	default:
+		return pi.VoteStatusInvalid
+	}
+}
+
+func convertVoteSummaryFromPlugin(s ticketvote.Summary) pi.VoteSummary {
+	vs := pi.VoteSummary{
+		Type:             convertVoteTypeFromPlugin(s.Type),
+		Status:           convertVoteStatusFromPlugin(s.Status),
+		Duration:         s.Duration,
+		StartBlockHeight: s.StartBlockHeight,
+		StartBlockHash:   s.StartBlockHash,
+		EndBlockHeight:   s.EndBlockHeight,
+		EligibleTickets:  s.EligibleTickets,
+		QuorumPercentage: s.QuorumPercentage,
+		Approved:         s.Approved,
+	}
+	// Transalte results
+	rs := make([]pi.VoteResult, 0, len(s.Results))
+	for _, v := range s.Results {
+		rs = append(rs, pi.VoteResult{
+			ID:          v.ID,
+			Description: v.Description,
+			VoteBit:     v.VoteBit,
+			Votes:       v.Votes,
+		})
+	}
+	vs.Results = rs
+
+	return vs
+}
+
+func (p *politeiawww) processVoteSummaries(vs pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
+	log.Tracef("processVoteSummaries: %v", vs.Tokens)
+
+	// Call the ticket vote to get the vote summaries
+	r, err := p.voteSummaries(vs.Tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	// Translate to pi
+	vsr := pi.VoteSummariesReply{
+		BestBlock: r.BestBlock,
+	}
+	// Translate summaries
+	sms := make(map[string]pi.VoteSummary)
+	for t, s := range r.Summaries {
+		sms[t] = convertVoteSummaryFromPlugin(s)
+	}
+	vsr.Summaries = sms
+
+	return &vsr, nil
+}
+
+func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteSummaries")
+
+	var vs pi.VoteSummaries
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vs); err != nil {
+		respondWithPiError(w, r, "handleVoteSummaries: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vsr, err := p.processVoteSummaries(vs)
+	if err != nil {
+		respondWithPiError(w, r, "handleVoteSummaries: processVoteSummaries: %v",
+			err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vsr)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -2238,6 +2327,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteResults, p.handleVoteResults, permissionPublic)
+
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteSummaries, p.handleVoteSummaries, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

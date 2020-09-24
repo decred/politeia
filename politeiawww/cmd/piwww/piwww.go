@@ -63,6 +63,7 @@ type piwww struct {
 	VoteAuthorize   VoteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
 	Votes           VotesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
 	VoteResults     VoteResultsCmd     `command:"voteresults" description:"(public) get vote results for a proposal"`
+	VoteSummaries   VoteSummariesCmd   `command:"votesummaries" description:"(user) retrieve the vote summary for a set of proposals"`
 
 	// XXX will go
 	Inventory InventoryCmd `command:"inventory" description:"(public) get the proposals that are being voted on"`
@@ -71,7 +72,6 @@ type piwww struct {
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`
 	BatchProposals     shared.BatchProposalsCmd `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
-	BatchVoteSummary   BatchVoteSummaryCmd      `command:"batchvotesummary" description:"(user)   retrieve the vote summary for a set of proposals"`
 	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername     shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	EditUser           EditUserCmd              `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
