@@ -10,27 +10,6 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-// commentCensor calls the comments plugin to censor a given comment.
-func (p *politeiawww) commentCensor(cc comments.Del) (*comments.DelReply, error) {
-	// Prep plugin payload
-	payload, err := comments.EncodeDel(cc)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(comments.ID, comments.CmdDel, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	ccr, err := comments.DecodeDelReply(([]byte(r)))
-	if err != nil {
-		return nil, err
-	}
-
-	return ccr, nil
-}
-
 func (p *politeiawww) commentVotes(vs comments.Votes) (*comments.VotesReply, error) {
 	// Prep plugin payload
 	payload, err := comments.EncodeVotes(vs)

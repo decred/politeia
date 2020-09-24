@@ -8,6 +8,27 @@ import (
 	piplugin "github.com/decred/politeia/plugins/pi"
 )
 
+// commentCensor calls the pi plugin to censor a given comment.
+func (p *politeiawww) commentCensor(cc piplugin.CommentCensor) (*piplugin.CommentCensorReply, error) {
+	// Prep plugin payload
+	payload, err := piplugin.EncodeCommentCensor(cc)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentCensor, "",
+		string(payload))
+	if err != nil {
+		return nil, err
+	}
+	ccr, err := piplugin.DecodeCommentCensorReply(([]byte(r)))
+	if err != nil {
+		return nil, err
+	}
+
+	return ccr, nil
+}
+
 // piCommentVote calls the pi plugin to vote on a comment.
 func (p *politeiawww) piCommentVote(cvp piplugin.CommentVote) (*piplugin.CommentVoteReply, error) {
 	// Prep comment vote payload

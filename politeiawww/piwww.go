@@ -1722,9 +1722,9 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 		}
 	}
 
-	// Call the comments plugin to censor comment
-	reply, err := p.commentCensor(comments.Del{
-		State:     convertCommentsPluginPropStateFromPi(cc.State),
+	// Call the pi plugin to censor comment
+	reply, err := p.commentCensor(piplugin.CommentCensor{
+		State:     convertPropStateFromPi(cc.State),
 		Token:     cc.Token,
 		CommentID: cc.CommentID,
 		Reason:    cc.Reason,
