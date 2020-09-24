@@ -19,7 +19,8 @@ type ErrorStatusT int
 type VoteT int
 
 const (
-	ID = "pi"
+	ID      = "pi"
+	Version = "1"
 
 	// Plugin commands. Many of these plugin commands rely on the
 	// commands from other plugins, but perform additional validation

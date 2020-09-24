@@ -33,7 +33,7 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user"
-	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
+	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -277,8 +277,8 @@ func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
 }
 
 // Fetch remote identity
-func (p *politeiawww) getIdentity() error {
-	id, err := util.RemoteIdentity(false, p.cfg.RPCHost, p.cfg.RPCCert)
+func getIdentity(rpcHost, rpcCert, rpcIdentityFile, interactive string) error {
+	id, err := util.RemoteIdentity(false, rpcHost, rpcCert)
 	if err != nil {
 		return err
 	}
@@ -288,29 +288,29 @@ func (p *politeiawww) getIdentity() error {
 	log.Infof("Key        : %x", id.Key)
 	log.Infof("Fingerprint: %v", id.Fingerprint())
 
-	if p.cfg.Interactive != allowInteractive {
+	if interactive != allowInteractive {
 		// Ask user if we like this identity
 		log.Infof("Press enter to save to %v or ctrl-c to abort",
-			p.cfg.RPCIdentityFile)
+			rpcIdentityFile)
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 		if err = scanner.Err(); err != nil {
 			return err
 		}
 	} else {
-		log.Infof("Saving identity to %v", p.cfg.RPCIdentityFile)
+		log.Infof("Saving identity to %v", rpcIdentityFile)
 	}
 
 	// Save identity
-	err = os.MkdirAll(filepath.Dir(p.cfg.RPCIdentityFile), 0700)
+	err = os.MkdirAll(filepath.Dir(rpcIdentityFile), 0700)
 	if err != nil {
 		return err
 	}
-	err = id.SavePublicIdentity(p.cfg.RPCIdentityFile)
+	err = id.SavePublicIdentity(rpcIdentityFile)
 	if err != nil {
 		return err
 	}
-	log.Infof("Identity saved to: %v", p.cfg.RPCIdentityFile)
+	log.Infof("Identity saved to: %v", rpcIdentityFile)
 
 	return nil
 }
@@ -553,6 +553,187 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 	}
 }
 
+func (p *politeiawww) setupPi() error {
+	// Setup routes
+	p.setPoliteiaWWWRoutes()
+	p.setUserWWWRoutes()
+	p.setPiRoutes()
+
+	// Verify paywall settings
+	switch {
+	case p.cfg.PaywallAmount != 0 && p.cfg.PaywallXpub != "":
+		// Paywall is enabled
+		paywallAmountInDcr := float64(p.cfg.PaywallAmount) / 1e8
+		log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+
+	case p.cfg.PaywallAmount == 0 && p.cfg.PaywallXpub == "":
+		// Paywall is disabled
+		log.Infof("Paywall: DISABLED")
+
+	default:
+		// Invalid paywall setting
+		return fmt.Errorf("paywall settings invalid, both an amount " +
+			"and public key MUST be set")
+	}
+
+	// Setup paywall pool
+	p.userPaywallPool = make(map[uuid.UUID]paywallPoolMember)
+	err := p.initPaywallChecker()
+	if err != nil {
+		return err
+	}
+
+	// Setup event manager
+	p.setupEventListenersPi()
+
+	// TODO Verify politeiad plugins
+
+	return nil
+}
+
+func (p *politeiawww) setupCMS() error {
+	// Setup routes
+	p.setCMSWWWRoutes()
+	p.setCMSUserWWWRoutes()
+
+	// Setup event manager
+	p.setupEventListenersCMS()
+
+	// Setup dcrdata websocket connection
+	ws, err := wsdcrdata.New(p.dcrdataHostWS())
+	if err != nil {
+		// Continue even if a websocket connection was not able to be
+		// made. The application specific websocket setup (pi, cms, etc)
+		// can decide whether to attempt reconnection or to exit.
+		log.Errorf("wsdcrdata New: %v", err)
+	}
+	p.wsDcrdata = ws
+
+	// Verify politeiad plugins
+	pluginFound := false
+	for _, plugin := range p.plugins {
+		if plugin.ID == "cms" {
+			pluginFound = true
+			break
+		}
+	}
+	if !pluginFound {
+		return fmt.Errorf("politeiad plugin 'cms' not found")
+	}
+
+	// Setup cmsdb
+	net := filepath.Base(p.cfg.DataDir)
+	p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
+		p.cfg.DBCert, p.cfg.DBKey)
+	if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
+		// The cmsdb version record was either not found or
+		// is the wrong version which means that the cmsdb
+		// needs to be built/rebuilt.
+		p.cfg.BuildCMSDB = true
+	} else if err != nil {
+		return err
+	}
+	err = p.cmsDB.Setup()
+	if err != nil {
+		return fmt.Errorf("cmsdb setup: %v", err)
+	}
+
+	// Build the cms database
+	if p.cfg.BuildCMSDB {
+		// Request full record inventory from backend
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			return err
+		}
+
+		pdCommand := pd.Inventory{
+			Challenge:    hex.EncodeToString(challenge),
+			IncludeFiles: true,
+			AllVersions:  true,
+		}
+
+		responseBody, err := p.makeRequest(http.MethodPost,
+			pd.InventoryRoute, pdCommand)
+		if err != nil {
+			return err
+		}
+
+		var pdReply pd.InventoryReply
+		err = json.Unmarshal(responseBody, &pdReply)
+		if err != nil {
+			return fmt.Errorf("Could not unmarshal InventoryReply: %v",
+				err)
+		}
+
+		// Verify the UpdateVettedMetadata challenge.
+		err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+		if err != nil {
+			return err
+		}
+
+		vetted := pdReply.Vetted
+		dbInvs := make([]database.Invoice, 0, len(vetted))
+		dbDCCs := make([]database.DCC, 0, len(vetted))
+		for _, r := range vetted {
+			for _, m := range r.Metadata {
+				switch m.ID {
+				case mdstream.IDInvoiceGeneral:
+					i, err := convertRecordToDatabaseInvoice(r)
+					if err != nil {
+						log.Errorf("convertRecordToDatabaseInvoice: %v", err)
+						break
+					}
+					u, err := p.db.UserGetByPubKey(i.PublicKey)
+					if err != nil {
+						log.Errorf("usergetbypubkey: %v %v", err, i.PublicKey)
+						break
+					}
+					i.UserID = u.ID.String()
+					i.Username = u.Username
+					dbInvs = append(dbInvs, *i)
+				case mdstream.IDDCCGeneral:
+					d, err := convertRecordToDatabaseDCC(r)
+					if err != nil {
+						log.Errorf("convertRecordToDatabaseDCC: %v", err)
+						break
+					}
+					dbDCCs = append(dbDCCs, *d)
+				}
+			}
+		}
+
+		// Build the cmsdb
+		err = p.cmsDB.Build(dbInvs, dbDCCs)
+		if err != nil {
+			return fmt.Errorf("build cmsdb: %v", err)
+		}
+	}
+	// Register cms userdb plugin
+	plugin := user.Plugin{
+		ID:      user.CMSPluginID,
+		Version: user.CMSPluginVersion,
+	}
+	err = p.db.RegisterPlugin(plugin)
+	if err != nil {
+		return fmt.Errorf("register userdb plugin: %v", err)
+	}
+
+	// Setup invoice notifications
+	p.cron = cron.New()
+	p.checkInvoiceNotifications()
+
+	// Setup dcrdata websocket subscriptions and monitoring. This is
+	// done in a go routine so cmswww startup will continue in
+	// the event that a dcrdata websocket connection was not able to
+	// be made during client initialization and reconnection attempts
+	// are required.
+	go func() {
+		p.setupCMSAddressWatcher()
+	}()
+
+	return nil
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -571,28 +752,20 @@ func _main() error {
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	if loadedCfg.PaywallAmount != 0 && loadedCfg.PaywallXpub != "" {
-		paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
-		log.Infof("Paywall : %v DCR", paywallAmountInDcr)
-	} else if loadedCfg.PaywallAmount == 0 && loadedCfg.PaywallXpub == "" {
-		log.Infof("Paywall : DISABLED")
-	} else {
-		return fmt.Errorf("Paywall settings invalid, both an amount " +
-			"and public key MUST be set")
-	}
-
-	if loadedCfg.MailHost == "" {
-		log.Infof("Email   : DISABLED")
-	}
-
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
 	if err != nil {
 		return err
 	}
 
-	// Generate the TLS cert and key file if both don't already
-	// exist.
+	// Check if this command is being run to fetch the politeiad
+	// identity.
+	if loadedCfg.FetchIdentity {
+		return getIdentity(loadedCfg.RPCHost, loadedCfg.RPCCert,
+			loadedCfg.RPCIdentityFile, loadedCfg.Interactive)
+	}
+
+	// Generate the TLS cert and key file if both don't already exist.
 	if !fileExists(loadedCfg.HTTPSKey) &&
 		!fileExists(loadedCfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
@@ -604,73 +777,98 @@ func _main() error {
 				err)
 		}
 
-		log.Infof("HTTPS keypair created...")
+		log.Infof("HTTPS keypair created")
 	}
 
-	// Setup application context.
-	p := &politeiawww{
-		cfg:          loadedCfg,
-		ws:           make(map[string]map[string]*wsContext),
-		eventManager: newEventManager(),
+	// Setup router
+	router := mux.NewRouter()
+	router.Use(recoverMiddleware)
 
-		// XXX reevaluate where this goes
-		userEmails:      make(map[string]uuid.UUID),
-		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
-		params:          activeNetParams.Params,
-	}
-
-	// Check if this command is being run to fetch the identity.
-	if p.cfg.FetchIdentity {
-		return p.getIdentity()
-	}
-
-	// Setup email
-	smtp, err := newSMTP(p.cfg.MailHost, p.cfg.MailUser,
-		p.cfg.MailPass, p.cfg.MailAddress, p.cfg.SystemCerts,
-		p.cfg.SMTPSkipVerify)
+	// Setup smtp client
+	smtp, err := newSMTP(loadedCfg.MailHost, loadedCfg.MailUser,
+		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.SystemCerts,
+		loadedCfg.SMTPSkipVerify)
 	if err != nil {
-		return fmt.Errorf("unable to initialize SMTP client: %v",
-			err)
+		return fmt.Errorf("newSMTP: %v", err)
 	}
-	p.smtp = smtp
+
+	// Setup politeiad client
+	client, err := util.NewClient(false, loadedCfg.RPCCert)
+	if err != nil {
+		return err
+	}
 
 	// Setup user database
-	switch p.cfg.UserDB {
+	var userDB user.Database
+	switch loadedCfg.UserDB {
 	case userDBLevel:
-		db, err := localdb.New(p.cfg.DataDir)
+		db, err := localdb.New(loadedCfg.DataDir)
 		if err != nil {
 			return err
 		}
-		p.db = db
+		userDB = db
+
 	case userDBCockroach:
 		// If old encryption key is set it means that we need
 		// to open a db connection using the old key and then
 		// rotate keys.
 		var encryptionKey string
-		if p.cfg.OldEncryptionKey != "" {
-			encryptionKey = p.cfg.OldEncryptionKey
+		if loadedCfg.OldEncryptionKey != "" {
+			encryptionKey = loadedCfg.OldEncryptionKey
 		} else {
-			encryptionKey = p.cfg.EncryptionKey
+			encryptionKey = loadedCfg.EncryptionKey
 		}
 
 		// Open db connection
-		network := filepath.Base(p.cfg.DataDir)
-		db, err := userdb.New(p.cfg.DBHost, network, p.cfg.DBRootCert,
-			p.cfg.DBCert, p.cfg.DBKey, encryptionKey)
+		network := filepath.Base(loadedCfg.DataDir)
+		db, err := cockroachdb.New(loadedCfg.DBHost, network,
+			loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
+			encryptionKey)
 		if err != nil {
 			return fmt.Errorf("new cockroachdb: %v", err)
 		}
-		p.db = db
+		userDB = db
 
 		// Rotate keys
-		if p.cfg.OldEncryptionKey != "" {
-			err = db.RotateKeys(p.cfg.EncryptionKey)
+		if loadedCfg.OldEncryptionKey != "" {
+			err = db.RotateKeys(loadedCfg.EncryptionKey)
 			if err != nil {
 				return fmt.Errorf("rotate userdb keys: %v", err)
 			}
 		}
+
 	default:
-		return fmt.Errorf("no user db option found")
+		return fmt.Errorf("invalid userdb '%v'", loadedCfg.UserDB)
+	}
+
+	// Setup sessions store
+	var cookieKey []byte
+	if cookieKey, err = ioutil.ReadFile(loadedCfg.CookieKeyFile); err != nil {
+		log.Infof("Cookie key not found, generating one...")
+		cookieKey, err = util.Random(32)
+		if err != nil {
+			return err
+		}
+		err = ioutil.WriteFile(loadedCfg.CookieKeyFile, cookieKey, 0400)
+		if err != nil {
+			return err
+		}
+		log.Infof("Cookie key generated")
+	}
+	sessions := newSessionStore(userDB, sessionMaxAge, cookieKey)
+
+	// Setup application context
+	p := &politeiawww{
+		cfg:          loadedCfg,
+		params:       activeNetParams.Params,
+		router:       router,
+		client:       client,
+		smtp:         smtp,
+		db:           userDB,
+		sessions:     sessions,
+		eventManager: newEventManager(),
+		ws:           make(map[string]map[string]*wsContext),
+		userEmails:   make(map[string]uuid.UUID),
 	}
 
 	// Get plugins from politeiad
@@ -679,10 +877,26 @@ func _main() error {
 		return fmt.Errorf("getPluginInventory: %v", err)
 	}
 
-	// Setup email-userID map
+	// Setup email-userID cache
 	err = p.initUserEmailsCache()
 	if err != nil {
 		return err
+	}
+
+	// Perform application specific setup
+	switch p.cfg.Mode {
+	case politeiaWWWMode:
+		err = p.setupPi()
+		if err != nil {
+			return fmt.Errorf("setupPi: %v", err)
+		}
+	case cmsWWWMode:
+		err = p.setupCMS()
+		if err != nil {
+			return fmt.Errorf("setupCMS: %v", err)
+		}
+	default:
+		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
 	}
 
 	// Load or create new CSRF key
@@ -729,187 +943,6 @@ func _main() error {
 		csrf.Path("/"),
 		csrf.MaxAge(sessionMaxAge),
 	)
-
-	p.router = mux.NewRouter()
-	p.router.Use(recoverMiddleware)
-
-	switch p.cfg.Mode {
-	case politeiaWWWMode:
-		// Setup routes
-		p.setPoliteiaWWWRoutes()
-		p.setUserWWWRoutes()
-
-		p.setPiRoutes()
-
-		err = p.initPaywallChecker()
-		if err != nil {
-			return err
-		}
-		// Setup event manager
-		p.setupEventListenersPi()
-
-	case cmsWWWMode:
-		// Setup event manager
-		p.setupEventListenersCMS()
-
-		// Setup dcrdata websocket connection
-		ws, err := wsdcrdata.New(p.dcrdataHostWS())
-		if err != nil {
-			// Continue even if a websocket connection was not able to be
-			// made. The application specific websocket setup (pi, cms, etc)
-			// can decide whether to attempt reconnection or to exit.
-			log.Errorf("wsdcrdata New: %v", err)
-		}
-		p.wsDcrdata = ws
-
-		pluginFound := false
-		for _, plugin := range p.plugins {
-			if plugin.ID == "cms" {
-				pluginFound = true
-				break
-			}
-		}
-		if !pluginFound {
-			return fmt.Errorf("politeiad plugin 'cms' not found")
-		}
-
-		p.setCMSWWWRoutes()
-		// XXX setup user routes
-		p.setCMSUserWWWRoutes()
-
-		// Setup cmsdb
-		net := filepath.Base(p.cfg.DataDir)
-		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
-			p.cfg.DBCert, p.cfg.DBKey)
-		if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
-			// The cmsdb version record was either not found or
-			// is the wrong version which means that the cmsdb
-			// needs to be built/rebuilt.
-			p.cfg.BuildCMSDB = true
-		} else if err != nil {
-			return err
-		}
-		err = p.cmsDB.Setup()
-		if err != nil {
-			return fmt.Errorf("cmsdb setup: %v", err)
-		}
-
-		// Build the cms database
-		if p.cfg.BuildCMSDB {
-			// Request full record inventory from backend
-			challenge, err := util.Random(pd.ChallengeSize)
-			if err != nil {
-				return err
-			}
-
-			pdCommand := pd.Inventory{
-				Challenge:    hex.EncodeToString(challenge),
-				IncludeFiles: true,
-				AllVersions:  true,
-			}
-
-			responseBody, err := p.makeRequest(http.MethodPost,
-				pd.InventoryRoute, pdCommand)
-			if err != nil {
-				return err
-			}
-
-			var pdReply pd.InventoryReply
-			err = json.Unmarshal(responseBody, &pdReply)
-			if err != nil {
-				return fmt.Errorf("Could not unmarshal InventoryReply: %v",
-					err)
-			}
-
-			// Verify the UpdateVettedMetadata challenge.
-			err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
-			if err != nil {
-				return err
-			}
-
-			vetted := pdReply.Vetted
-			dbInvs := make([]database.Invoice, 0, len(vetted))
-			dbDCCs := make([]database.DCC, 0, len(vetted))
-			for _, r := range vetted {
-				for _, m := range r.Metadata {
-					switch m.ID {
-					case mdstream.IDInvoiceGeneral:
-						i, err := convertRecordToDatabaseInvoice(r)
-						if err != nil {
-							log.Errorf("convertRecordToDatabaseInvoice: %v", err)
-							break
-						}
-						u, err := p.db.UserGetByPubKey(i.PublicKey)
-						if err != nil {
-							log.Errorf("usergetbypubkey: %v %v", err, i.PublicKey)
-							break
-						}
-						i.UserID = u.ID.String()
-						i.Username = u.Username
-						dbInvs = append(dbInvs, *i)
-					case mdstream.IDDCCGeneral:
-						d, err := convertRecordToDatabaseDCC(r)
-						if err != nil {
-							log.Errorf("convertRecordToDatabaseDCC: %v", err)
-							break
-						}
-						dbDCCs = append(dbDCCs, *d)
-					}
-				}
-			}
-
-			// Build the cmsdb
-			err = p.cmsDB.Build(dbInvs, dbDCCs)
-			if err != nil {
-				return fmt.Errorf("build cmsdb: %v", err)
-			}
-		}
-		// Register cms userdb plugin
-		plugin := user.Plugin{
-			ID:      user.CMSPluginID,
-			Version: user.CMSPluginVersion,
-		}
-		err = p.db.RegisterPlugin(plugin)
-		if err != nil {
-			return fmt.Errorf("register userdb plugin: %v", err)
-		}
-
-		// Setup invoice notifications
-		p.cron = cron.New()
-		p.checkInvoiceNotifications()
-
-		// Setup dcrdata websocket subscriptions and monitoring. This is
-		// done in a go routine so cmswww startup will continue in
-		// the event that a dcrdata websocket connection was not able to
-		// be made during client initialization and reconnection attempts
-		// are required.
-		go func() {
-			p.setupCMSAddressWatcher()
-		}()
-
-	default:
-		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
-	}
-	// Persist session cookies.
-	var cookieKey []byte
-	if cookieKey, err = ioutil.ReadFile(p.cfg.CookieKeyFile); err != nil {
-		log.Infof("Cookie key not found, generating one...")
-		cookieKey, err = util.Random(32)
-		if err != nil {
-			return err
-		}
-		err = ioutil.WriteFile(p.cfg.CookieKeyFile, cookieKey, 0400)
-		if err != nil {
-			return err
-		}
-		log.Infof("Cookie key generated.")
-	}
-	sessionsDir := filepath.Join(p.cfg.DataDir, "sessions")
-	err = os.MkdirAll(sessionsDir, 0700)
-	if err != nil {
-		return err
-	}
-	p.sessions = NewSessionStore(p.db, sessionMaxAge, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
@@ -968,8 +1001,11 @@ done:
 	// Close user db connection
 	p.db.Close()
 
-	// Shutdown all dcrdata websockets
-	if p.wsDcrdata != nil {
+	// Perform application specific shutdown
+	switch p.cfg.Mode {
+	case politeiaWWWMode:
+		// Nothing to do
+	case cmsWWWMode:
 		p.wsDcrdata.Close()
 	}
 

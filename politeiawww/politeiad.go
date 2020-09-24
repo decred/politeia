@@ -40,11 +40,11 @@ func (e pdError) Error() string {
 // if politeiad does not respond with a 200.
 func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([]byte, error) {
 	var (
-		requestBody []byte
-		err         error
+		reqBody []byte
+		err     error
 	)
 	if v != nil {
-		requestBody, err = json.Marshal(v)
+		reqBody, err = json.Marshal(v)
 		if err != nil {
 			return nil, err
 		}
@@ -52,15 +52,9 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 
 	fullRoute := p.cfg.RPCHost + route
 
-	if p.client == nil {
-		p.client, err = util.NewClient(false, p.cfg.RPCCert)
-		if err != nil {
-			return nil, err
-		}
-	}
+	log.Debugf("%v %v %+v", method, fullRoute, v)
 
-	req, err := http.NewRequest(method, fullRoute,
-		bytes.NewReader(requestBody))
+	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +69,7 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 		var e pdErrorReply
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&e); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("status code %v: %v", r.StatusCode, err)
 		}
 
 		return nil, pdError{

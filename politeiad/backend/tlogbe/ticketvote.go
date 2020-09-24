@@ -1941,7 +1941,7 @@ func (p *ticketVotePlugin) fsck() error {
 	return nil
 }
 
-func TicketVotePluginNew(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) (*ticketVotePlugin, error) {
+func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) *ticketVotePlugin {
 	var (
 		// TODO these should be passed in as plugin settings
 		dataDir         string
@@ -1966,5 +1966,5 @@ func TicketVotePluginNew(backend backend.Backend, tlog tlogClient, settings []ba
 		activeNetParams: activeNetParams,
 		voteDurationMin: voteDurationMin,
 		voteDurationMax: voteDurationMax,
-	}, nil
+	}
 }

@@ -462,6 +462,7 @@ func newTrillianClient(host, keyFile string) (*trillianClient, error) {
 	}
 
 	// Setup trillian connection
+	// TODO should this be WithInsecure?
 	g, err := grpc.Dial(host, grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial: %v", err)
@@ -487,10 +488,13 @@ func newTrillianClient(host, keyFile string) (*trillianClient, error) {
 		publicKey:  signer.Public(),
 	}
 
+	// The grpc dial requires a little time to connect
+	time.Sleep(time.Second)
+
 	// Ensure trillian is up and running
 	for t.grpc.GetState() != connectivity.Ready {
 		wait := 15 * time.Second
-		log.Infof("Cannot connect to trillian; retry in %v ", wait)
+		log.Infof("Cannot connect to trillian at %v; retry in %v ", host, wait)
 		time.Sleep(wait)
 	}
 

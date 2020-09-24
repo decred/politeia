@@ -31,7 +31,6 @@ import (
 	"github.com/subosito/gozaru"
 )
 
-// TODO we need an unvetted censored status
 // TODO testnet vs mainnet trillian databases
 // TODO fsck
 // TODO allow token prefix lookups
@@ -1344,21 +1343,30 @@ func (t *tlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 func (t *tlogBackend) RegisterPlugin(p backend.Plugin) error {
 	log.Tracef("RegisterPlugin: %v", p.ID)
 
-	var client pluginClient
+	var (
+		client pluginClient
+		err    error
+	)
 	switch p.ID {
 	case comments.ID:
+		client = newCommentsPlugin(t, newBackendClient(t), p.Settings)
 	case dcrdata.ID:
+		client, err = newDcrdataPlugin(p.Settings)
+		if err != nil {
+			return err
+		}
 	case pi.ID:
+		client = newPiPlugin(t, newBackendClient(t), p.Settings)
 	case ticketvote.ID:
+		client = newTicketVotePlugin(t, newBackendClient(t), p.Settings)
 	default:
 		return backend.ErrPluginInvalid
 	}
 
 	t.plugins[p.ID] = plugin{
-		id:       p.ID,
-		version:  p.Version,
-		settings: p.Settings,
-		client:   client,
+		id:      p.ID,
+		version: p.Version,
+		client:  client,
 	}
 
 	return nil

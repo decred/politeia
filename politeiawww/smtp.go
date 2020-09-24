@@ -62,6 +62,7 @@ func (s *smtp) sendEmail(subject, body string, addToAddressesFn func(*goemail.Me
 func newSMTP(host, user, password, emailAddress string, systemCerts *x509.CertPool, skipVerify bool) (*smtp, error) {
 	// Check if email has been disabled
 	if host == "" || user == "" || password == "" {
+		log.Infof("Email: DISABLED")
 		return &smtp{
 			disabled: true,
 		}, nil

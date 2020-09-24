@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 )
 
 // NormalizeAddress returns addr with the passed default port appended if
@@ -43,9 +44,13 @@ func NewClient(skipVerify bool, certFilename string) (*http.Client, error) {
 		tlsConfig.RootCAs = certPool
 	}
 
-	return &http.Client{Transport: &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}}, nil
+	return &http.Client{
+		Timeout: 1 * time.Minute,
+		Transport: &http.Transport{
+			IdleConnTimeout:       1 * time.Minute,
+			ResponseHeaderTimeout: 1 * time.Minute,
+			TLSClientConfig:       tlsConfig,
+		}}, nil
 }
 
 // ConvertBodyToByteArray converts a response body into a byte array

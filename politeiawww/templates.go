@@ -6,6 +6,8 @@ package main
 
 import "text/template"
 
+// TODO move templates to the email file where they're being used
+
 // Proposal submitted - Send to admins
 type proposalSubmitted struct {
 	Username string // Author username

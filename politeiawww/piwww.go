@@ -32,6 +32,8 @@ import (
 // TODO use pi policies. Should the policies be defined in the pi plugin
 // or the pi api spec?
 
+// TODO politeiad needs to return the plugin with the error.
+
 const (
 	// MIME types
 	mimeTypeText     = "text/plain"

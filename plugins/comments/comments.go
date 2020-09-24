@@ -18,7 +18,8 @@ type ErrorStatusT int
 // TODO add a hint to comments that can be used freely by the client. This
 // is how we'll distinguish proposal comments from update comments.
 const (
-	ID = "comments"
+	ID      = "comments"
+	Version = "1"
 
 	// Plugin commands
 	CmdNew        = "new"        // Create a new comment

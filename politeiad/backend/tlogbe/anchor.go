@@ -386,7 +386,7 @@ func (t *tlog) anchor() {
 			t.id, v.TreeId, lr.TreeSize)
 	}
 	if len(anchors) == 0 {
-		log.Infof("Nothing to anchor")
+		log.Infof("No %v trees to to anchor", t.id)
 		return
 	}
 

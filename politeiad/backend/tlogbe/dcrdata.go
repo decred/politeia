@@ -6,7 +6,6 @@ package tlogbe
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	v4 "github.com/decred/dcrdata/api/types/v4"
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
@@ -40,9 +38,10 @@ var (
 // dcrdataplugin satisfies the pluginClient interface.
 type dcrdataPlugin struct {
 	sync.Mutex
-	host   string
-	client *http.Client      // HTTP client
-	ws     *wsdcrdata.Client // Websocket client
+	hostHTTP string            // dcrdata HTTP host
+	hostWS   string            // dcrdata websocket host
+	client   *http.Client      // HTTP client
+	ws       *wsdcrdata.Client // Websocket client
 
 	// bestBlock is the cached best block height. This field is kept up
 	// to date by the websocket connection. If the websocket connection
@@ -84,7 +83,7 @@ func (p *dcrdataPlugin) bestBlockIsStale() bool {
 
 func (p *dcrdataPlugin) makeReq(method string, route string, v interface{}) ([]byte, error) {
 	var (
-		url     = p.host + route
+		url     = p.hostHTTP + route
 		reqBody []byte
 		err     error
 	)
@@ -398,7 +397,7 @@ func (p *dcrdataPlugin) websocketMonitor() {
 		// Setup a new messages channel using the new connection.
 		receiver = p.ws.Receive()
 
-		log.Infof("Successfully reconnected dcrdata websocket")
+		log.Infof("Dcrdata websocket successfully reconnected")
 	}
 }
 
@@ -409,7 +408,7 @@ func (p *dcrdataPlugin) websocketSetup() {
 		// Best block
 		err := p.ws.NewBlockSubscribe()
 		if err != nil && err != wsdcrdata.ErrDuplicateSub {
-			log.Errorf("NewBlockSubscribe: %v", err)
+			log.Errorf("dcrdataPlugin: NewBlockSubscribe: %v", err)
 			goto reconnect
 		}
 
@@ -430,6 +429,15 @@ func (p *dcrdataPlugin) websocketSetup() {
 // This function satisfies the Plugin interface.
 func (p *dcrdataPlugin) setup() error {
 	log.Tracef("dcrdata setup")
+
+	// Setup websocket client
+	ws, err := wsdcrdata.New(p.hostWS)
+	if err != nil {
+		// Continue even if a websocket connection was not able to be
+		// made. Reconnection attempts will be made in the plugin setup.
+		log.Errorf("wsdcrdata New: %v", err)
+	}
+	p.ws = ws
 
 	// Setup dcrdata websocket subscriptions and monitoring. This is
 	// done in a go routine so setup will continue in the event that
@@ -478,33 +486,19 @@ func (p *dcrdataPlugin) fsck() error {
 	return nil
 }
 
-func newDcrdataPlugin(settings []backend.PluginSetting) *dcrdataPlugin {
+func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) {
 	// TODO these should be passed in as plugin settings
-	var dcrdataHost string
+	dcrdataHostHTTP := "https://dcrdata.decred.org/"
+	dcrdataHostWS := "wss://dcrdata.decred.org/ps"
 
-	// Setup http client
-	client := &http.Client{
-		Timeout: 1 * time.Minute,
-		Transport: &http.Transport{
-			IdleConnTimeout:       1 * time.Minute,
-			ResponseHeaderTimeout: 1 * time.Minute,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,
-			},
-		},
-	}
-
-	// Setup websocket client
-	ws, err := wsdcrdata.New(dcrdataHost)
+	client, err := util.NewClient(false, "")
 	if err != nil {
-		// Continue even if a websocket connection was not able to be
-		// made. Reconnection attempts will be made in the plugin setup.
-		log.Errorf("wsdcrdata New: %v", err)
+		return nil, err
 	}
 
 	return &dcrdataPlugin{
-		host:   dcrdataHost,
-		client: client,
-		ws:     ws,
-	}
+		hostHTTP: dcrdataHostHTTP,
+		hostWS:   dcrdataHostWS,
+		client:   client,
+	}, nil
 }

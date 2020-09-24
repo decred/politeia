@@ -69,7 +69,8 @@ func convertBackendPluginSetting(bpi backend.PluginSetting) v1.PluginSetting {
 
 func convertBackendPlugin(bpi backend.Plugin) v1.Plugin {
 	p := v1.Plugin{
-		ID: bpi.ID,
+		ID:      bpi.ID,
+		Version: bpi.Version,
 	}
 	for _, v := range bpi.Settings {
 		p.Settings = append(p.Settings, convertBackendPluginSetting(v))
@@ -185,6 +186,25 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	}
 
 	return pr
+}
+
+// handleNotFound is a generic handler for an invalid route.
+func (p *politeia) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
+		r.Proto)
+
+	// Trace incoming request
+	log.Tracef("%v", newLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("logging: "+
+				"DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
+
+	util.RespondWithJSON(w, http.StatusNotFound, v1.ServerErrorReply{})
 }
 
 func (p *politeia) respondWithUserError(w http.ResponseWriter,
@@ -1088,6 +1108,9 @@ func _main() error {
 	// Setup mux
 	p.router = mux.NewRouter()
 
+	// Not found
+	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+
 	// Unprivileged routes
 	p.addRoute(http.MethodPost, v1.IdentityRoute, p.getIdentity,
 		permissionPublic)
@@ -1145,6 +1168,8 @@ func _main() error {
 	*/
 
 	// Setup plugins
+	// TODO fix this
+	loadedCfg.Plugins = []string{"comments", "dcrdata", "pi", "ticketvote"}
 	if len(loadedCfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
@@ -1157,9 +1182,29 @@ func _main() error {
 			var plugin backend.Plugin
 			switch v {
 			case comments.ID:
+				plugin = backend.Plugin{
+					ID:       comments.ID,
+					Version:  comments.Version,
+					Settings: make([]backend.PluginSetting, 0),
+				}
 			case dcrdata.ID:
+				plugin = backend.Plugin{
+					ID:       dcrdata.ID,
+					Version:  dcrdata.Version,
+					Settings: make([]backend.PluginSetting, 0),
+				}
 			case pi.ID:
+				plugin = backend.Plugin{
+					ID:       pi.ID,
+					Version:  pi.Version,
+					Settings: make([]backend.PluginSetting, 0),
+				}
 			case ticketvote.ID:
+				plugin = backend.Plugin{
+					ID:       ticketvote.ID,
+					Version:  ticketvote.Version,
+					Settings: make([]backend.PluginSetting, 0),
+				}
 			case decredplugin.ID:
 				// TODO plugin setup for cms
 			case cmsplugin.ID:
@@ -1182,7 +1227,7 @@ func _main() error {
 
 		// Setup plugins
 		for _, v := range loadedCfg.Plugins {
-			log.Infof("Performing plugin setup for %v plugin", v)
+			log.Infof("Setting up plugin: %v", v)
 			err := p.backend.SetupPlugin(v)
 			if err != nil {
 				return fmt.Errorf("SetupPlugin %v: %v", v, err)

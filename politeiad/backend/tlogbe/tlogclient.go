@@ -43,6 +43,12 @@ type backendClient struct {
 	backend *tlogBackend
 }
 
+func newBackendClient(tlog *tlogBackend) *backendClient {
+	return &backendClient{
+		backend: tlog,
+	}
+}
+
 // tlogByID returns the tlog instance that corresponds to the provided ID.
 func (c *backendClient) tlogByID(tlogID string) (*tlog, error) {
 	switch tlogID {
