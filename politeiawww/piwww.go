@@ -1465,7 +1465,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	}
 
 	// Call the pi plugin to add new comment
-	reply, err := p.piCommentNew(piplugin.CommentNew{
+	reply, err := p.commentNewPi(piplugin.CommentNew{
 		UserID:    usr.ID.String(),
 		Token:     cn.Token,
 		ParentID:  cn.ParentID,
@@ -1557,7 +1557,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 	}
 
 	// Call the pi plugin to add new comment
-	reply, err := p.piCommentVote(piplugin.CommentVote{
+	reply, err := p.commentVotePi(piplugin.CommentVote{
 		UserID:    usr.ID.String(),
 		Token:     cv.Token,
 		CommentID: cv.CommentID,
