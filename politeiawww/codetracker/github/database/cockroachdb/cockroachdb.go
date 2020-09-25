@@ -101,6 +101,19 @@ func (c *cockroachdb) PullRequestsByUserDates(username string, start, end int64)
 	return dbPRs, nil
 }
 
+type MatchingReviews struct {
+	PullRequestURL string
+	ID             int64
+	Author         string
+	State          string
+	SubmittedAt    int64
+	CommitID       string
+	Repo           string
+	Number         int
+	Additions      int
+	Deletions      int
+}
+
 // ReviewsByUserDates takes username, start and end date and returns all reviews
 // that match the provided criteria.
 func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]database.PullRequestReview, error) {
@@ -108,42 +121,44 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 		time.Unix(end, 0))
 
 	// Get all Reviews from a user between the given dates.
-	reviews := make([]PullRequestReview, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Table(tableNameReviews).
-		Where("author = ? AND state = ? AND "+
-			"submitted_at BETWEEN ? AND ?",
-			username,
-			"APPROVED",
-			start,
-			end).
-		Find(&reviews).
-		Error
+	query := `
+    SELECT 
+      reviews.pull_request_url,
+      reviews.id,
+      reviews.author,
+      reviews.state,
+      reviews.submitted_at,
+      reviews.commit_id,
+      reviews.repo,
+      reviews.number,
+      pullrequests.additions,
+      pullrequests.deletions,
+    FROM reviews
+	INNER JOIN pullrequests
+      ON pullrequests.url = reviews.pull_request_url
+    WHERE reviews.author = $1 AND reviews.state = $2 AND 
+	  reviews.submitted_at BETWEEN $3 AND $4`
+
+	rows, err := c.recordsdb.Raw(query, username, "APPROVED", start, end).Rows()
 	if err != nil {
 		return nil, err
 	}
-	dbReviews := make([]database.PullRequestReview, 0, len(reviews))
-	for _, vv := range reviews {
-		pr := PullRequest{}
+	defer rows.Close()
 
-		err := c.recordsdb.
-			Table(tableNamePullRequest).
-			Where("repo = ? AND number = ?",
-				vv.Repo,
-				vv.Number).
-			Find(&pr).
-			Error
+	matching := make([]MatchingReviews, 0, 1024)
+	for rows.Next() {
+		var i MatchingReviews
+		err := c.recordsdb.ScanRows(rows, &i)
 		if err != nil {
-			log.Errorf("pull request %v %v for review not found", vv.Repo,
-				vv.Number)
-			continue
+			return nil, err
 		}
-		dbReview := DecodePullRequestReview(&vv)
-		dbReview.Additions = pr.Additions
-		dbReview.Deletions = pr.Deletions
-		dbReviews = append(dbReviews, dbReview)
+		matching = append(matching, i)
 	}
-	return dbReviews, nil
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return convertMatchingReviewsToDatabaseReviews(matching), nil
 }
 
 // Return all users that have any merged PRs in the provided range.

@@ -250,7 +250,8 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 		reviewDeletionsAug, now, now)
 
 	// Query
-	sql := `SELECT * FROM "cms_code_stats" WHERE (git_hub_name = $1 AND month = $2 AND year = $3)`
+	sql := `SELECT * FROM "cms_code_stats" WHERE (git_hub_name = $1 AND ` +
+		`month = $2 AND year = $3)`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).

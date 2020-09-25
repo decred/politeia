@@ -77,3 +77,21 @@ func DecodePullRequest(pr *PullRequest) *database.PullRequest {
 
 	return dbPullRequest
 }
+
+func convertMatchingReviewsToDatabaseReviews(matching []MatchingReviews) []database.PullRequestReview {
+	reviews := make([]database.PullRequestReview, 0, len(matching))
+	for _, match := range matching {
+		review := database.PullRequestReview{
+			PullRequestURL: match.PullRequestURL,
+			ID:             match.ID,
+			Author:         match.Author,
+			State:          match.State,
+			Repo:           match.Repo,
+			SubmittedAt:    match.SubmittedAt,
+			Additions:      match.Additions,
+			Deletions:      match.Deletions,
+		}
+		reviews = append(reviews, review)
+	}
+	return reviews
+}
