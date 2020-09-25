@@ -400,18 +400,24 @@ func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
 }
 
 func (t *tlog) treeNew() (int64, error) {
+	log.Tracef("tlog treeNew")
+
 	tree, _, err := t.trillian.treeNew()
 	if err != nil {
 		return 0, err
 	}
+
 	return tree.TreeId, nil
 }
 
 func (t *tlog) treeExists(treeID int64) bool {
+	log.Tracef("tlog treeExists: %v", treeID)
+
 	_, err := t.trillian.tree(treeID)
 	if err == nil {
 		return true
 	}
+
 	return false
 }
 
@@ -427,6 +433,8 @@ type freezeRecord struct {
 // update the status of the tree to frozen in trillian, at which point trillian
 // will not allow any additional leaves to be appended onto the tree.
 func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, fr freezeRecord) error {
+	log.Tracef("tlog treeFreeze: %v")
+
 	// Get tree leaves
 	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
@@ -552,8 +560,14 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	return nil
 }
 
-// lastLeaf returns the last leaf of the given trillian tree.
-func (t *tlog) lastLeaf(treeID int64) (*trillian.LogLeaf, error) {
+// freeze record returns the freeze record of the provided tree if one exists.
+// If one does not exists a errFreezeRecordNotFound error is returned.
+func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
+	log.Tracef("tlog freezeRecord: %v", treeID)
+
+	// Check if the tree contains a freeze record. The last two leaves
+	// are checked because the last leaf will be the final anchor drop,
+	// which may not exist yet if the tree was recently frozen.
 	tree, err := t.trillian.tree(treeID)
 	if err != nil {
 		return nil, errRecordNotFound
@@ -562,32 +576,36 @@ func (t *tlog) lastLeaf(treeID int64) (*trillian.LogLeaf, error) {
 	if err != nil {
 		return nil, fmt.Errorf("signedLogRootForTree: %v", err)
 	}
-	leaves, err := t.trillian.leavesByRange(treeID, int64(lr.TreeSize)-1, 1)
+
+	var startIndex, count int64
+	switch lr.TreeSize {
+	case 0:
+		return nil, errFreezeRecordNotFound
+	case 1:
+		startIndex = 0
+		count = 1
+	default:
+		startIndex = int64(lr.TreeSize) - 1
+		count = 2
+	}
+
+	leaves, err := t.trillian.leavesByRange(treeID, startIndex, count)
 	if err != nil {
 		return nil, fmt.Errorf("leavesByRange: %v", err)
 	}
-	if len(leaves) != 1 {
-		return nil, fmt.Errorf("unexpected leaves count: got %v, want 1",
-			len(leaves))
+	var l *trillian.LogLeaf
+	for _, v := range leaves {
+		if leafIsFreezeRecord(l) {
+			l = v
+			break
+		}
 	}
-	return leaves[0], nil
-}
-
-// TODO the last leaf will be a anchor
-// freeze record returns the freeze record of the provided tree if one exists.
-// If one does not exists a errFreezeRecordNotFound error is returned.
-func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
-	// Check if the last leaf of the tree is a freeze record
-	l, err := t.lastLeaf(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("lastLeaf %v: %v", treeID, err)
-	}
-	if !leafIsFreezeRecord(l) {
-		// Leaf is not a freeze record
+	if l == nil {
+		// No freeze record was found
 		return nil, errFreezeRecordNotFound
 	}
 
-	// The leaf is a freeze record. Get it from the store.
+	// A freeze record was found. Pull it from the store.
 	k, err := extractKeyFromLeaf(l)
 	if err != nil {
 		return nil, err
@@ -1044,6 +1062,8 @@ func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 
 // We do not unwind.
 func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+	log.Tracef("tlog recordSave: %v", treeID)
+
 	// Ensure tree exists
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
@@ -1125,6 +1145,8 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 }
 
 func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	log.Tracef("tlog recordMetadataUpdate: %v", treeID)
+
 	// Ensure tree exists
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
@@ -1208,6 +1230,8 @@ func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, met
 // recordDel walks the provided tree and deletes all blobs in the store that
 // correspond to record files. This is done for all versions of the record.
 func (t *tlog) recordDel(treeID int64) error {
+	log.Tracef("tlog recordDel: %v", treeID)
+
 	// Ensure tree exists
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
@@ -1262,6 +1286,8 @@ func (t *tlog) recordDel(treeID int64) error {
 }
 
 func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
+	log.Tracef("tlog record: %v %v", treeID, version)
+
 	// Ensure tree exists
 	if !t.treeExists(treeID) {
 		return nil, errRecordNotFound
@@ -1434,6 +1460,8 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 }
 
 func (t *tlog) recordLatest(treeID int64) (*backend.Record, error) {
+	log.Tracef("tlog recordLatest: %v", treeID)
+
 	return t.record(treeID, 0)
 }
 
@@ -1444,6 +1472,8 @@ func (t *tlog) recordProof(treeID int64, version uint32) {}
 // onto the trillian tree. Note, hashes contains the hashes of the data encoded
 // in the blobs. The hashes must share the same ordering as the blobs.
 func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
+	log.Tracef("tlog blobsSave: %v %v %v", treeID, keyPrefix, encrypt)
+
 	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return nil, errRecordNotFound
@@ -1521,6 +1551,8 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 
 // del deletes the blobs that correspond to the provided merkle leaf hashes.
 func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
+	log.Tracef("tlog blobsDel: %v", treeID)
+
 	// Ensure tree exists. We allow blobs to be deleted from both
 	// frozen and non frozen trees.
 	if !t.treeExists(treeID) {
@@ -1570,6 +1602,8 @@ func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 // the responsibility of the caller to check that a blob is returned for each
 // of the provided merkle hashes.
 func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
+	log.Tracef("tlog blobsByMerkle: %v", treeID)
+
 	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return nil, errRecordNotFound
@@ -1655,6 +1689,8 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
 func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
+	log.Tracef("tlog blobsByKeyPrefix: %v %v", treeID, keyPrefix)
+
 	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return nil, errRecordNotFound
@@ -1730,6 +1766,8 @@ func (t *tlog) fsck() {
 }
 
 func (t *tlog) close() {
+	log.Tracef("tlog close: %v", t.id)
+
 	// Close connections
 	t.store.Close()
 	t.trillian.close()

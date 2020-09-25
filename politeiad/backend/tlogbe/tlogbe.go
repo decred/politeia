@@ -961,24 +961,28 @@ func (t *tlogBackend) VettedExists(token []byte) bool {
 
 // This function satisfies the Backend interface.
 func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record, error) {
-	log.Tracef("GetUnvetted: %x", token)
+	log.Tracef("GetUnvetted: %x %v", token, version)
 
 	if t.isShutdown() {
 		return nil, backend.ErrShutdown
 	}
 
 	treeID := treeIDFromToken(token)
-	v, err := strconv.ParseUint(version, 10, 64)
-	if err != nil {
-		return nil, backend.ErrRecordNotFound
+	var v uint32
+	if version != "" {
+		u, err := strconv.ParseUint(version, 10, 64)
+		if err != nil {
+			return nil, backend.ErrRecordNotFound
+		}
+		v = uint32(u)
 	}
 
-	return t.unvetted.record(treeID, uint32(v))
+	return t.unvetted.record(treeID, v)
 }
 
 // This function satisfies the Backend interface.
 func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, error) {
-	log.Tracef("GetVetted: %x", token)
+	log.Tracef("GetVetted: %x %v", token, version)
 
 	if t.isShutdown() {
 		return nil, backend.ErrShutdown
@@ -991,12 +995,16 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 	}
 
 	// Parse version
-	v, err := strconv.ParseUint(version, 10, 64)
-	if err != nil {
-		return nil, backend.ErrRecordNotFound
+	var v uint32
+	if version != "" {
+		u, err := strconv.ParseUint(version, 10, 64)
+		if err != nil {
+			return nil, backend.ErrRecordNotFound
+		}
+		v = uint32(u)
 	}
 
-	return t.vetted.record(treeID, uint32(v))
+	return t.vetted.record(treeID, v)
 }
 
 // This function must be called WITH the unvetted lock held.
@@ -1457,16 +1465,23 @@ func (t *tlogBackend) Close() {
 }
 
 func (t *tlogBackend) setup() error {
+	log.Tracef("setup")
+
 	// Get all trees
 	trees, err := t.unvetted.trillian.treesAll()
 	if err != nil {
 		return fmt.Errorf("unvetted treesAll: %v", err)
 	}
 
+	log.Infof("Building backend caches")
+
 	// Build all memory caches
 	for _, v := range trees {
-		// Add tree to prefixes cache
 		token := tokenFromTreeID(v.TreeId)
+
+		log.Debugf("Building cache: %v %x", v.TreeId, token)
+
+		// Add tree to prefixes cache
 		t.prefixAdd(token)
 
 		// Check if the tree needs to be added to the vettedTreeIDs cache

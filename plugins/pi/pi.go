@@ -32,10 +32,9 @@ const (
 	CmdCommentVote   = "commentvote"   // Upvote/downvote a comment
 	CmdVoteInventory = "voteinventory" // Get inventory by vote status
 
-	// Metadata stream IDs. All metadata streams in this plugin will
-	// use 1xx numbering.
-	MDStreamIDProposalGeneral = 101
-	MDStreamIDStatusChanges   = 102
+	// Metadata stream IDs
+	MDStreamIDProposalGeneral = 1
+	MDStreamIDStatusChanges   = 2
 
 	// FileNameProposalMetadata is the filename of the ProposalMetadata
 	// file that is saved to politeiad. ProposalMetadata is saved to

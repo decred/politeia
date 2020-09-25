@@ -52,7 +52,7 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 
 	fullRoute := p.cfg.RPCHost + route
 
-	log.Debugf("%v %v %+v", method, fullRoute, v)
+	log.Debugf("%v %v", method, fullRoute)
 
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(reqBody))
 	if err != nil {

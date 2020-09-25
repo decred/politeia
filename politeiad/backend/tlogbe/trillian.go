@@ -37,6 +37,7 @@ import (
 // for the backend to use and ensures that proper verification of all trillian
 // responses is performed.
 type trillianClient struct {
+	host       string
 	grpc       *grpc.ClientConn
 	client     trillian.TrillianLogClient
 	admin      trillian.TrillianAdminClient
@@ -80,7 +81,7 @@ func logLeafNew(value []byte, extraData []byte) *trillian.LogLeaf {
 // correct. It returns the tree and the signed log root which can be externally
 // verified.
 func (t *trillianClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
-	log.Tracef("treeNew")
+	log.Tracef("trillian treeNew")
 
 	pk, err := ptypes.MarshalAny(t.privateKey)
 	if err != nil {
@@ -145,6 +146,8 @@ func (t *trillianClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, err
 }
 
 func (t *trillianClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
+	log.Tracef("trillian treeFreeze: %v", treeID)
+
 	// Get the current tree
 	tree, err := t.tree(treeID)
 	if err != nil {
@@ -169,7 +172,7 @@ func (t *trillianClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
 }
 
 func (t *trillianClient) tree(treeID int64) (*trillian.Tree, error) {
-	log.Tracef("tree: %v", treeID)
+	log.Tracef("trillian tree: %v", treeID)
 
 	tree, err := t.admin.GetTree(t.ctx, &trillian.GetTreeRequest{
 		TreeId: treeID,
@@ -187,7 +190,7 @@ func (t *trillianClient) tree(treeID int64) (*trillian.Tree, error) {
 }
 
 func (t *trillianClient) treesAll() ([]*trillian.Tree, error) {
-	log.Tracef("treesAll")
+	log.Tracef("trillian treesAll")
 
 	ltr, err := t.admin.ListTrees(t.ctx, &trillian.ListTreesRequest{})
 	if err != nil {
@@ -198,7 +201,7 @@ func (t *trillianClient) treesAll() ([]*trillian.Tree, error) {
 }
 
 func (t *trillianClient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *types.LogRootV1) (*trillian.Proof, error) {
-	log.Tracef("inclusionProof: %v %x", treeID, merkleLeafHash)
+	log.Tracef("tillian inclusionProof: %v %x", treeID, merkleLeafHash)
 
 	resp, err := t.client.GetInclusionProofByHash(t.ctx,
 		&trillian.GetInclusionProofByHashRequest{
@@ -254,7 +257,7 @@ func (t *trillianClient) signedLogRootForTree(tree *trillian.Tree) (*trillian.Si
 // signedLogRoot returns the signed log root for the provided tree ID at its
 // current height. The log root is structure is decoded an returned as well.
 func (t *trillianClient) signedLogRoot(treeID int64) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
-	log.Tracef("SignedLogRoot: %v", treeID)
+	log.Tracef("trillian signedLogRoot: %v", treeID)
 
 	tree, err := t.tree(treeID)
 	if err != nil {
@@ -275,7 +278,7 @@ func (t *trillianClient) signedLogRoot(treeID int64) (*trillian.SignedLogRoot, *
 // fail to be appended. Note leaves that are duplicates will fail and it is the
 // callers responsibility to determine how they should be handled.
 func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
-	log.Tracef("LeavesAppend: %v", treeID)
+	log.Tracef("trillian leavesAppend: %v", treeID)
 
 	// Get the latest signed log root
 	tree, err := t.tree(treeID)
@@ -377,6 +380,8 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 }
 
 func (t *trillianClient) leavesByRange(treeID int64, startIndex, count int64) ([]*trillian.LogLeaf, error) {
+	log.Tracef("trillian leavesByRange: %v %v %v", treeID, startIndex, count)
+
 	glbrr, err := t.client.GetLeavesByRange(t.ctx,
 		&trillian.GetLeavesByRangeRequest{
 			LogId:      treeID,
@@ -391,6 +396,8 @@ func (t *trillianClient) leavesByRange(treeID int64, startIndex, count int64) ([
 
 // leavesAll returns all of the leaves for the provided treeID.
 func (t *trillianClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
+	log.Tracef("trillian leavesAll: %v", treeID)
+
 	// Get log root
 	_, lr, err := t.signedLogRoot(treeID)
 	if err != nil {
@@ -405,7 +412,8 @@ func (t *trillianClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 // hashes. The inclusion proof returned in the leafProof is for the tree height
 // specified by the provided LogRootV1.
 func (t *trillianClient) leafProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
-	log.Tracef("leafProofs: %v %v %x", treeID, lr.TreeSize, merkleLeafHashes)
+	log.Tracef("trillian leafProofs: %v %v %x",
+		treeID, lr.TreeSize, merkleLeafHashes)
 
 	// Retrieve leaves
 	r, err := t.client.GetLeavesByHash(t.ctx,
@@ -433,8 +441,10 @@ func (t *trillianClient) leafProofs(treeID int64, merkleLeafHashes [][]byte, lr 
 	return proofs, nil
 }
 
-// Close closes the trillian grpc connection.
+// close closes the trillian grpc connection.
 func (t *trillianClient) close() {
+	log.Tracef("trillian close %v", t.host)
+
 	t.grpc.Close()
 }
 
