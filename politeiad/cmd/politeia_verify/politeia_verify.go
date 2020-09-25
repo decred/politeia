@@ -13,8 +13,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/agl/ed25519"
 	"github.com/decred/dcrtime/merkle"
+	"golang.org/x/crypto/ed25519"
 )
 
 var (
@@ -88,7 +88,7 @@ func findMerkle() (*[sha256.Size]byte, error) {
 }
 
 func verifyRecord(key [ed25519.PublicKeySize]byte, merkle, token string, signature [ed25519.SignatureSize]byte) bool {
-	return ed25519.Verify(&key, []byte(merkle+token), &signature)
+	return ed25519.Verify(key[:], []byte(merkle+token), signature[:])
 }
 
 func _main() error {
