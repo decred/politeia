@@ -1461,7 +1461,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	}
 
 	// Call the pi plugin to add new comment
-	reply, err := p.piCommentNew(piplugin.CommentNew{
+	reply, err := p.commentNewPi(piplugin.CommentNew{
 		UUID:      usr.ID.String(),
 		Token:     cn.Token,
 		ParentID:  cn.ParentID,
@@ -1553,7 +1553,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 	}
 
 	// Call the pi plugin to add new comment
-	reply, err := p.piCommentVote(piplugin.CommentVote{
+	reply, err := p.commentVotePi(piplugin.CommentVote{
 		UUID:      usr.ID.String(),
 		Token:     cv.Token,
 		CommentID: cv.CommentID,
@@ -1723,7 +1723,7 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 	}
 
 	// Call the pi plugin to censor comment
-	reply, err := p.commentCensor(piplugin.CommentCensor{
+	reply, err := p.commentCensorPi(piplugin.CommentCensor{
 		State:     convertPropStateFromPi(cc.State),
 		Token:     cc.Token,
 		CommentID: cc.CommentID,
@@ -2301,6 +2301,47 @@ func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
+func (p *politeiawww) processVoteInventory() (*pi.VoteInventoryReply, error) {
+	log.Tracef("processVoteInventory")
+
+	// Call the pi plugin vote inventory
+	r, err := p.voteInventoryPi(piplugin.VoteInventory{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pi.VoteInventoryReply{
+		Unauthorized: r.Unauthorized,
+		Authorized:   r.Authorized,
+		Started:      r.Started,
+		Approved:     r.Approved,
+		Rejected:     r.Rejected,
+		BestBlock:    r.BestBlock,
+	}, nil
+}
+
+func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteInventory")
+
+	var vi pi.VoteInventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vi); err != nil {
+		respondWithPiError(w, r, "handleVoteInventory: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vir, err := p.processVoteInventory()
+	if err != nil {
+		respondWithPiError(w, r, "handleVoteInventory: processVoteInventory: %v",
+			err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vir)
+}
+
 func (p *politeiawww) setPiRoutes() {
 	// Public routes
 	p.addRoute(http.MethodGet, pi.APIRoute,
@@ -2330,6 +2371,9 @@ func (p *politeiawww) setPiRoutes() {
 
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteSummaries, p.handleVoteSummaries, permissionPublic)
+
+	p.addRoute(http.MethodGet, pi.APIRoute,
+		pi.RouteVoteInventory, p.handleVoteInventory, permissionPublic)
 
 	// Logged in routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

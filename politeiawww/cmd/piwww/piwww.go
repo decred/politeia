@@ -63,11 +63,11 @@ type piwww struct {
 	VoteAuthorize   VoteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
 	Votes           VotesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
 	VoteResults     VoteResultsCmd     `command:"voteresults" description:"(public) get vote results for a proposal"`
-	VoteSummaries   VoteSummariesCmd   `command:"votesummaries" description:"(user) retrieve the vote summary for a set of proposals"`
+	VoteSummaries   VoteSummariesCmd   `command:"votesummaries" description:"(public) retrieve the vote summary for a set of proposals"`
+	VoteInventory   VoteInventoryCmd   `command:"voteinventory" description:"(public) retrieve the tokens of all public, non-abandoned proposal separated by vote status"`
 
 	// XXX will go
-	Inventory InventoryCmd `command:"inventory" description:"(public) get the proposals that are being voted on"`
-	Vote      VoteCmd      `command:"vote" description:"(public) cast votes for a proposal"`
+	Vote VoteCmd `command:"vote" description:"(public) cast votes for a proposal"`
 
 	// Commands
 	ActiveVotes        ActiveVotesCmd           `command:"activevotes" description:"(public) get the proposals that are being voted on"`

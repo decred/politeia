@@ -121,6 +121,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", voteSummariesHelpMsg)
 	case "votedetails":
 		fmt.Printf("%s\n", voteDetailsHelpMsg)
+	case "voteinventory":
+		fmt.Printf("%s\n", voteInventoryHelpMsg)
 
 	// Websocket commands
 	case "subscribe":
@@ -133,8 +135,6 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
 
 	// politeiavoter mock commands
-	case "inventory":
-		fmt.Printf("%s\n", inventoryHelpMsg)
 	case "vote":
 		fmt.Printf("%s\n", voteHelpMsg)
 

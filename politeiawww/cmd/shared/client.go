@@ -1061,6 +1061,31 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 	return &pir, nil
 }
 
+// VoteInventory retrieves the tokens of all proposals in the inventory
+// catagorized by their vote status.
+func (c *Client) VoteInventory() (*pi.VoteInventoryReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, pi.APIRoute,
+		pi.RouteVoteInventory, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var vir pi.VoteInventoryReply
+	err = json.Unmarshal(responseBody, &vir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteInventory: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vir, nil
+}
+
 // ProposalInventory retrieves the censorship tokens of all proposals,
 // separated by their status.
 func (c *Client) ProposalInventory() (*pi.ProposalInventoryReply, error) {

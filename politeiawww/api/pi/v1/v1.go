@@ -759,5 +759,19 @@ type VoteSummariesReply struct {
 	BestBlock uint32 `json:"bestblock"`
 }
 
+// VoteInventory retrieves the tokens of all public, non-abandoned proposals
+// catagorized by their vote status.
 type VoteInventory struct{}
-type VoteInventoryReply struct{}
+
+// VoteInventoryReply in the reply to the VoteInventory command.
+type VoteInventoryReply struct {
+	Unauthorized []string `json:"unauthorized"`
+	Authorized   []string `json:"authorized"`
+	Started      []string `json:"started"`
+	Approved     []string `json:"approved"`
+	Rejected     []string `json:"rejected"`
+
+	// BestBlock is the best block value that was used to prepare the
+	// inventory.
+	BestBlock uint32 `json:"bestblock"`
+}
