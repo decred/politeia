@@ -76,6 +76,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", proposalEditHelpMsg)
 	case "proposalsetstatus":
 		fmt.Printf("%s\n", proposalSetStatusHelpMsg)
+	case "proposals":
+		fmt.Printf("%s\n", proposalsHelpMsg)
 	case "proposalinventory":
 		fmt.Printf("%s\n", proposalInventoryHelpMsg)
 
