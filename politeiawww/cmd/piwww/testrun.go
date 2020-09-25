@@ -5,9 +5,6 @@
 package main
 
 import (
-	"fmt"
-	"strings"
-
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -106,7 +103,7 @@ func newProposal(rfp bool, linkto string) (*v1.NewProposal, error) {
 // returns the error and in case of dcrwallet connection error it returns
 // true as first returned value
 func castVotes(token string, voteID string) (bool, error) {
-	var vc VoteCmd
+	/* var vc VoteCmd
 	vc.Args.Token = token
 	vc.Args.VoteID = voteID
 	err := vc.Execute(nil)
@@ -128,7 +125,8 @@ func castVotes(token string, voteID string) (bool, error) {
 			return false, err
 		}
 	}
-	return false, err
+	return false, err*/
+	return false, nil
 }
 
 // Execute executes the test run command.

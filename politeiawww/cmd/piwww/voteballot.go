@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,21 +15,20 @@ import (
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// VoteCmd casts a proposal ballot for the specified proposal.
-type VoteCmd struct {
+// VoteBallotCmd casts a votes ballot for the specified proposal.
+type VoteBallotCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token"`  // Censorship token
 		VoteID string `positional-arg-name:"voteid"` // Vote choice ID
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the vote command.
-func (cmd *VoteCmd) Execute(args []string) error {
+// Execute executes the vote ballot command.
+func (cmd *VoteBallotCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	voteID := cmd.Args.VoteID
 
@@ -51,42 +50,37 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Get all active proposal votes
-	avr, err := client.ActiveVotes()
+	// Get vote details of provided proposal
+	avr, err := client.Votes(pi.Votes{
+		Tokens: []string{token},
+	})
 	if err != nil {
-		return fmt.Errorf("ActiveVotes: %v", err)
+		return fmt.Errorf("Votes: %v", err)
 	}
 
 	// Find the proposal that the user wants to vote on
-	var pvt v1.ProposalVoteTuple
-	for _, v := range avr.Votes {
-		if token == v.Proposal.CensorshipRecord.Token {
-			pvt = v
-			break
-		}
-	}
-
-	if pvt.Proposal.Name == "" {
+	pvt, ok := avr.Votes[token]
+	if !ok {
 		return fmt.Errorf("proposal not found: %v", token)
 	}
 
 	// Ensure that the passed in voteID is one of the
 	// proposal's voting options and save the vote bits
-	var voteBits string
-	for _, option := range pvt.StartVote.Vote.Options {
-		if voteID == option.Id {
-			voteBits = strconv.FormatUint(option.Bits, 16)
+	var voteBit string
+	for _, option := range pvt.Vote.Params.Options {
+		if voteID == option.ID {
+			voteBit = strconv.FormatUint(option.Bit, 16)
 			break
 		}
 	}
 
-	if voteBits == "" {
+	if voteBit == "" {
 		return fmt.Errorf("vote id not found: %v", voteID)
 	}
 
 	// Find user's tickets that are eligible to vote on this
 	// proposal
-	ticketPool, err := convertTicketHashes(pvt.StartVoteReply.EligibleTickets)
+	ticketPool, err := convertTicketHashes(pvt.Vote.EligibleTickets)
 	if err != nil {
 		return err
 	}
@@ -101,7 +95,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 
 	if len(ctr.TicketAddresses) == 0 {
 		return fmt.Errorf("user has no eligible tickets: %v",
-			pvt.StartVote.Vote.Token)
+			token)
 	}
 
 	// Create slice of hexadecimal ticket hashes to represent
@@ -132,7 +126,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		len(eligibleTickets))
 	for i, v := range ctr.TicketAddresses {
 		// ctr.TicketAddresses and eligibleTickets use the same index
-		msg := token + eligibleTickets[i] + voteBits
+		msg := token + eligibleTickets[i] + voteBit
 		messages = append(messages, &walletrpc.SignMessagesRequest_Message{
 			Address: v.Address,
 			Message: msg,
@@ -161,7 +155,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		votes = append(votes, pi.CastVote{
 			Token:     token,
 			Ticket:    ticket,
-			VoteBit:   voteBits,
+			VoteBit:   voteBit,
 			Signature: hex.EncodeToString(sigs.Replies[i].Signature),
 		})
 	}
@@ -171,7 +165,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		Votes: votes,
 	})
 	if err != nil {
-		return fmt.Errorf("CastVotes: %v", err)
+		return fmt.Errorf("VoteBallot: %v", err)
 	}
 
 	// Check for any failed votes. Vote receipts don't include
@@ -221,8 +215,9 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	return nil
 }
 
-// voteHelpMsg is the output of the help command when 'vote' is specified.
-const voteHelpMsg = `vote "token" "voteid"
+// voteBallotHelpMsg is the output of the help command when 'voteballot'
+// is specified.
+const voteBallotHelpMsg = `voteballot "token" "voteid"
 
 Cast ticket votes for a proposal.
 

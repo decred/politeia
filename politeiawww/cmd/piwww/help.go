@@ -111,8 +111,6 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", votesHelpMsg)
 	case "voteresults":
 		fmt.Printf("%s\n", voteResultsHelpMsg)
-	case "activevotes":
-		fmt.Printf("%s\n", activeVotesHelpMsg)
 	case "votestatus":
 		fmt.Printf("%s\n", voteStatusHelpMsg)
 	case "votestatuses":
@@ -122,6 +120,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "votedetails":
 		fmt.Printf("%s\n", voteDetailsHelpMsg)
 	case "voteinventory":
+		fmt.Printf("%s\n", voteInventoryHelpMsg)
+	case "voteballot":
 		fmt.Printf("%s\n", voteInventoryHelpMsg)
 
 	// Websocket commands
@@ -133,10 +133,6 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", testRunHelpMsg)
 	case "sendfaucettx":
 		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
-
-	// politeiavoter mock commands
-	case "vote":
-		fmt.Printf("%s\n", voteHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use 'piwww -h' " +

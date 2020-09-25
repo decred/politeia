@@ -1728,30 +1728,6 @@ func (c *Client) GetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
 	return &avsr, nil
 }
 
-// ActiveVotes retreives all proposals that are currently being voted on.
-func (c *Client) ActiveVotes() (*www.ActiveVoteReply, error) {
-	responseBody, err := c.makeRequest(http.MethodGet,
-		www.PoliteiaWWWAPIRoute, www.RouteActiveVote, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var avr www.ActiveVoteReply
-	err = json.Unmarshal(responseBody, &avr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ActiveVoteReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(avr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &avr, nil
-}
-
 // ActiveVotesDCC retreives all dccs that are currently being voted on.
 func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet,
