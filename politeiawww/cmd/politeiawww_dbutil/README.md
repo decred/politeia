@@ -4,114 +4,128 @@ politeiawww_dbutil is a tool that allows you to interact with the politeiawww
 database.
 
 **Note**: If you are using LevelDB for the user database you have to shut down
-politeiawww before using this tool.  LevelDB only allows for a single
+politeiawww before using this tool. LevelDB only allows for a single
 connection at a time.
 
+## Setup
+
+You should add a custom config file to make `politeiawww_dbutil` usage easier.
+
+1. create a `politeiawww_dbutil.conf` file into the politeiawww config path
+2. copy and change the `sample-politeiawww_dbutil.conf` file
+   Or you can use a default config file:
+
+   ```conf
+   testnet=true
+   database=cockroachdb
+   datadir=~/.politeiawww/data
+   host=localhost:26257
+   rootcert=~/.cockroachdb/certs/clients/politeiawww/ca.crt
+   clientcert=~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt
+   clientkey=~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key
+   encryptionkey=~/.politeiawww/sbox.key
+   ```
+
+   Data paths can change depending on the OS. Please check the
+   [Politeia's development guide](https://github.com/decred/politeia#development)
+   for more info.
 
 ## Usage
 
 You can specify the following options:
 
     Database options
-      -leveldb
+      --database=leveldb
             Use LevelDB
-      -cockroachdb
+      --database=cockroachdb
             Use CockroachDB
 
     Application options
-      -testnet
+      --testnet
             Use testnet database
-      -datadir string
+      --datadir=string
             politeiawww data directory
             (default osDataDir/politeiawww/data)
-      -host string
-            CockroachDB ip:port 
+      --host=string
+            CockroachDB ip:port
             (default localhost:26257)
-      -rootcert string
-            File containing the CockroachDB SSL root cert
+      --rootcert=string
+            Path to file containing the CockroachDB SSL root cert
             (default ~/.cockroachdb/certs/clients/politeiawww/ca.crt)
-      -clientcert string
-            File containing the CockroachDB SSL client cert
+      --clientcert=string
+            Path to file containing the CockroachDB SSL client cert
             (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt)
-      -clientkey string
-            File containing the CockroachDB SSL client cert key
+      --clientkey=string
+            Path to file containing the CockroachDB SSL client cert key
             (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key)
-      -encryptionkey string
-            File containing the CockroachDB encryption key
+      --encryptionkey=string
+            Path to file containing the CockroachDB encryption key
             (default osDataDir/politeiawww/sbox.key)
 
     Commands
-      -addcredits
+      addcredits
             Add proposal credits to a user's account
-            Required DB flag : -leveldb or -cockroachdb
+            Required DB flag : `leveldb` or `cockroachdb`
             LevelDB args     : <email> <quantity>
             CockroachDB args : <username> <quantity>
-      -setadmin
+      setadmin
             Set the admin flag for a user
-            Required DB flag : -leveldb or -cockroachdb
+            Required DB flag : `leveldb` or `cockroachdb`
             LevelDB args     : <email> <true/false>
             CockroachDB args : <username> <true/false>
-      -setemail
+      setemail
             Set a user's email to the provided email address
-            Required DB flag : -cockroachdb
+            Required DB flag : `cockroachdb`
             CockroachDB args : <username> <email>
-      -stubusers
+      stubusers
             Create user stubs for the public keys in a politeia repo
-            Required DB flag : -leveldb or -cockroachdb
+            Required DB flag : `leveldb` or `cockroachdb`
             LevelDB args     : <importDir>
             CockroachDB args : <importDir>
-      -dump
+      dump
             Dump the entire database or the contents of a specific user
-            Required DB flag : -leveldb
+            Required DB flag : `leveldb`
             LevelDB args     : <email>
-      -createkey
+      createkey
             Create a new encryption key that can be used to encrypt data at rest
             Required DB flag : None
             Args             : <destination (optional)>
                                (default osDataDir/politeiawww/sbox.key)
-      -migrate
+      migrate
             Migrate a LevelDB user database to CockroachDB
             Required DB flag : None
             Args             : None
-     -verifyidentities
+     verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
-          Required DB flag : -cockroachdb
+          Required DB flag : `cockroachdb`
           Args             : <username>
 
-      -resettotp
-          Reset a user's totp settings in case they are locked out and 
-          confirm identity. 
-          Required DB flag : -leveldb or -cockroachdb
-          LevelDB args     : <email>
-          CockroachDB args : <username>
+      resettotp
+          Reset a user's totp settings in case they are locked out and
+          confirm identity.
+          Required DB flag : `leveldb` or `cockroachdb`
+          Args             : <username>
 
-### Examples
-
-Mainnet example:
-
-    $ politeiawww_dbutil -cockroachdb -setadmin username true
-
-Testnet example:
-
-    $ politeiawww_dbutil -testnet -cockroachdb -setadmin username true
+You can use the `politeiawww_dbutil help <command>` command to get the use details
+for each command
 
 ### Migrate from LevelDB to CockroachDB
 
-The `-migrate` command allows you to migrate a LevelDB instance to CockroachDB.
+The `migrate` command allows you to migrate a LevelDB instance to CockroachDB.
 CockroachDB encrypts data at rest so you will first need to create an
-encryption key using the `-createkey` command.  The flags `-datadir`, `-host`,
-`-rootcert`, `-clientcert`, `-clientkey`, and `-encryptionkey` only need to be
+encryption key using the `createkey` command. The flags `--datadir`, `--host`,
+`--rootcert`, `--clientcert`, `--clientkey`, and `--encryptionkey` only need to be
 set if they deviate from the defaults.
 
 Create an encryption key.
 
-    $ politeiawww_dbutil -createkey
+    $ politeiawww_dbutil createkey
     Encryption key saved to: ~/.politeiawww/sbox.key
 
 Migrate the user database.
 
-    $ politeiawww_dbutil -migrate
+    $ politeiawww_dbutil migrate
     LevelDB     : ~/.politeiawww/data/mainnet/users
     CockroachDB : localhost:26257 mainnet
     Migrating records from LevelDB to CockroachDB...
@@ -119,7 +133,7 @@ Migrate the user database.
     Paywall index  : 5
     Done!
 
-Update your politeiawww.conf file.  The location of the encryption key may
+Update your politeiawww.conf file. The location of the encryption key may
 differ depending on your operating system.
 
     userdb=cockroachdb
@@ -130,6 +144,10 @@ differ depending on your operating system.
 If you import data from a public politeia repo using the
 [politeiaimport](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeiaimport)
 tool, you will also need to create user stubs in the politeiawww database for
-the public keys found in the import data.  Without the user stubs, politeiawww
+the public keys found in the import data. Without the user stubs, politeiawww
 won't be able to associate the public keys with specific user accounts and will
 error out.
+
+Example:
+
+      $ politeiawww_dbutil [options] stubusers <importdir>
