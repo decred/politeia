@@ -112,7 +112,7 @@ const (
 
 	// Error status codes
 	ErrorStatusInvalid      ErrorStatusT = 0
-	ErrorStatusInvalidInput ErrorStatusT = 1
+	ErrorStatusInputInvalid ErrorStatusT = 1
 
 	// User errors
 	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 2
@@ -125,35 +125,35 @@ const (
 	ErrorStatusSignatureInvalid ErrorStatusT = 101
 
 	// Proposal errors
-	ErrorStatusFileCountInvalid              ErrorStatusT = 202
-	ErrorStatusFileNameInvalid               ErrorStatusT = 203
-	ErrorStatusFileMIMEInvalid               ErrorStatusT = 204
-	ErrorStatusFileDigestInvalid             ErrorStatusT = 205
-	ErrorStatusFilePayloadInvalid            ErrorStatusT = 206
-	ErrorStatusIndexFileNameInvalid          ErrorStatusT = 207
-	ErrorStatusIndexFileCountInvalid         ErrorStatusT = 207
-	ErrorStatusIndexFileSizeInvalid          ErrorStatusT = 208
-	ErrorStatusTextFileCountInvalid          ErrorStatusT = 209
-	ErrorStatusImageFileCountInvalid         ErrorStatusT = 210
-	ErrorStatusImageFileSizeInvalid          ErrorStatusT = 211
-	ErrorStatusMetadataCountInvalid          ErrorStatusT = 212
-	ErrorStatusMetadataHintInvalid           ErrorStatusT = 213
-	ErrorStatusMetadataDigestInvalid         ErrorStatusT = 214
-	ErrorStatusMetadataPayloadInvalid        ErrorStatusT = 215
-	ErrorStatusPropNameInvalid               ErrorStatusT = 216
-	ErrorStatusPropLinkToInvalid             ErrorStatusT = 217
-	ErrorStatusPropLinkByInvalid             ErrorStatusT = 218
-	ErrorStatusPropTokenInvalid              ErrorStatusT = 219
-	ErrorStatusPropNotFound                  ErrorStatusT = 220
-	ErrorStatusPropStateInvalid              ErrorStatusT = 221
-	ErrorStatusPropStatusInvalid             ErrorStatusT = 222
-	ErrorStatusPropStatusChangeInvalid       ErrorStatusT = 223
-	ErrorStatusPropStatusChangeReasonInvalid ErrorStatusT = 224
-	ErrorStatusPropPageSizeExceeded          ErrorStatusT = 225
+	// TODO number error codes
+	ErrorStatusFileCountInvalid ErrorStatusT = 200
+	ErrorStatusFileNameInvalid  ErrorStatusT = iota
+	ErrorStatusFileMIMEInvalid
+	ErrorStatusFileDigestInvalid
+	ErrorStatusFilePayloadInvalid
+	ErrorStatusIndexFileNameInvalid
+	ErrorStatusIndexFileCountInvalid
+	ErrorStatusIndexFileSizeInvalid
+	ErrorStatusTextFileCountInvalid
+	ErrorStatusImageFileCountInvalid
+	ErrorStatusImageFileSizeInvalid
+	ErrorStatusMetadataCountInvalid
+	ErrorStatusMetadataDigestInvalid
+	ErrorStatusMetadataPayloadInvalid
+	ErrorStatusPropMetadataNotFound
+	ErrorStatusPropNameInvalid
+	ErrorStatusPropLinkToInvalid
+	ErrorStatusPropLinkByInvalid
+	ErrorStatusPropTokenInvalid
+	ErrorStatusPropNotFound
+	ErrorStatusPropStateInvalid
+	ErrorStatusPropStatusInvalid
+	ErrorStatusPropStatusChangeInvalid
+	ErrorStatusPropStatusChangeReasonInvalid
+	ErrorStatusPropPageSizeExceeded
 
 	// Comment errors
-	// TODO number error codes
-	ErrorStatusCommentTextInvalid ErrorStatusT = iota
+	ErrorStatusCommentTextInvalid
 	ErrorStatusCommentParentIDInvalid
 	ErrorStatusCommentVoteInvalid
 	ErrorStatusCommentNotFound

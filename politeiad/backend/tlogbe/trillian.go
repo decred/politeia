@@ -403,6 +403,9 @@ func (t *trillianClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	if err != nil {
 		return nil, fmt.Errorf("SignedLogRoot: %v", err)
 	}
+	if lr.TreeSize == 0 {
+		return []*trillian.LogLeaf{}, nil
+	}
 
 	// Get all leaves
 	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))

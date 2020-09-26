@@ -849,11 +849,8 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	// a ProposalMetadata.
 	switch {
 	case len(metadata) == 0:
-		e := fmt.Sprintf("metadata with hint %v not found",
-			www.HintProposalMetadata)
 		return nil, pi.UserErrorReply{
-			ErrorCode:    pi.ErrorStatusMetadataCountInvalid,
-			ErrorContext: []string{e},
+			ErrorCode: pi.ErrorStatusPropMetadataNotFound,
 		}
 	case len(metadata) > 1:
 		e := fmt.Sprintf("metadata should only contain %v",
@@ -865,10 +862,8 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	}
 	md := metadata[0]
 	if md.Hint != www.HintProposalMetadata {
-		e := fmt.Sprintf("unknown metadata hint %v", md.Hint)
 		return nil, pi.UserErrorReply{
-			ErrorCode:    pi.ErrorStatusMetadataHintInvalid,
-			ErrorContext: []string{e},
+			ErrorCode: pi.ErrorStatusPropMetadataNotFound,
 		}
 	}
 
@@ -1340,7 +1335,7 @@ func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) 
 	if err := decoder.Decode(&pn); err != nil {
 		respondWithPiError(w, r, "handleProposalNew: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1370,7 +1365,7 @@ func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request)
 	if err := decoder.Decode(&pe); err != nil {
 		respondWithPiError(w, r, "handleProposalEdit: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1400,7 +1395,7 @@ func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Req
 	if err := decoder.Decode(&pss); err != nil {
 		respondWithPiError(w, r, "handleProposalSetStatus: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1503,7 +1498,7 @@ func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&cn); err != nil {
 		respondWithPiError(w, r, "handleCommentNew: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1556,7 +1551,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 		}
 	}
 
-	// Call the pi plugin to add new comment
+	// Call the pi plugin to vote on a comment
 	reply, err := p.commentVotePi(piplugin.CommentVote{
 		UserID:    usr.ID.String(),
 		Token:     cv.Token,
@@ -1585,7 +1580,7 @@ func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) 
 	if err := decoder.Decode(&cv); err != nil {
 		respondWithPiError(w, r, "handleCommentVote: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1650,7 +1645,7 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&c); err != nil {
 		respondWithPiError(w, r, "handleComments: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1696,7 +1691,7 @@ func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request)
 	if err := decoder.Decode(&cvs); err != nil {
 		respondWithPiError(w, r, "handleCommentVotes: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1753,7 +1748,7 @@ func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request
 	if err := decoder.Decode(&cc); err != nil {
 		respondWithPiError(w, r, "handleCommentCensor: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1818,7 +1813,7 @@ func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request
 	if err := decoder.Decode(&va); err != nil {
 		respondWithPiError(w, r, "handleVoteAuthorize: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1899,7 +1894,7 @@ func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&vs); err != nil {
 		respondWithPiError(w, r, "handleVoteStart: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -1955,7 +1950,7 @@ func (p *politeiawww) handleVoteStartRunoff(w http.ResponseWriter, r *http.Reque
 	if err := decoder.Decode(&vsr); err != nil {
 		respondWithPiError(w, r, "handleVoteStartRunoff: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -2036,7 +2031,7 @@ func (p *politeiawww) handleVoteBallot(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&vb); err != nil {
 		respondWithPiError(w, r, "handleVoteBallot: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -2155,7 +2150,7 @@ func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&v); err != nil {
 		respondWithPiError(w, r, "handleVotes: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -2202,7 +2197,7 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	if err := decoder.Decode(&vr); err != nil {
 		respondWithPiError(w, r, "handleVoteResults: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -2291,7 +2286,7 @@ func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request
 	if err := decoder.Decode(&vs); err != nil {
 		respondWithPiError(w, r, "handleVoteSummaries: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
@@ -2332,7 +2327,7 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 	if err := decoder.Decode(&vi); err != nil {
 		respondWithPiError(w, r, "handleVoteInventory: unmarshal",
 			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInvalidInput,
+				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}

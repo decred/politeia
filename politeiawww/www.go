@@ -784,20 +784,6 @@ func _main() error {
 	router := mux.NewRouter()
 	router.Use(recoverMiddleware)
 
-	// Setup smtp client
-	smtp, err := newSMTP(loadedCfg.MailHost, loadedCfg.MailUser,
-		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.SystemCerts,
-		loadedCfg.SMTPSkipVerify)
-	if err != nil {
-		return fmt.Errorf("newSMTP: %v", err)
-	}
-
-	// Setup politeiad client
-	client, err := util.NewClient(false, loadedCfg.RPCCert)
-	if err != nil {
-		return err
-	}
-
 	// Setup user database
 	var userDB user.Database
 	switch loadedCfg.UserDB {
@@ -856,6 +842,20 @@ func _main() error {
 		log.Infof("Cookie key generated")
 	}
 	sessions := newSessionStore(userDB, sessionMaxAge, cookieKey)
+
+	// Setup smtp client
+	smtp, err := newSMTP(loadedCfg.MailHost, loadedCfg.MailUser,
+		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.SystemCerts,
+		loadedCfg.SMTPSkipVerify)
+	if err != nil {
+		return fmt.Errorf("newSMTP: %v", err)
+	}
+
+	// Setup politeiad client
+	client, err := util.NewClient(false, loadedCfg.RPCCert)
+	if err != nil {
+		return err
+	}
 
 	// Setup application context
 	p := &politeiawww{

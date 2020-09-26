@@ -52,7 +52,15 @@ const (
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
 
-	// XXX these routes should be user routes
+	// TODO the user payment routes are a mess. The route naming
+	// convention should be updated to be the following.
+	// RouteUserRegistrationPayment = "/user/payments/registration"
+	// RouteUserProposalPaywall     = "/user/payments/paywall"
+	// RouteUserProposalPaywallTx   = "/user/payments/paywalltx"
+	// RouteUserProposalCredits     = "/user/payments/credits"
+	// RouteUserPaymentsRescan      = "/user/payments/rescan"
+
+	// TODO these routes should be user routes
 	RouteProposalPaywallDetails = "/proposals/paywall"
 	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 

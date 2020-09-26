@@ -151,7 +151,7 @@ func blobIsEncrypted(b []byte) bool {
 // tree's leaves. A tree is considered frozen if the tree contains a freeze
 // record leaf.
 func treeIsFrozen(leaves []*trillian.LogLeaf) bool {
-	for i := len(leaves) - 1; i >= 0; i-- {
+	for i := 0; i < len(leaves); i++ {
 		if leafIsFreezeRecord(leaves[i]) {
 			return true
 		}
@@ -818,10 +818,8 @@ type recordBlobsPrepareReply struct {
 
 // TODO test this function
 func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, error) {
-	// Ensure tree is not frozen. A tree is considered frozen if the
-	// last leaf on the tree is a freeze record.
-	lastLeaf := args.leaves[len(args.leaves)-1]
-	if leafIsFreezeRecord(lastLeaf) {
+	// Ensure tree is not frozen
+	if treeIsFrozen(args.leaves) {
 		return nil, errTreeIsFrozen
 	}
 
@@ -1688,6 +1686,8 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 }
 
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
+//
+// This function satisfies the backendClient interface.
 func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
 	log.Tracef("tlog blobsByKeyPrefix: %v %v", treeID, keyPrefix)
 

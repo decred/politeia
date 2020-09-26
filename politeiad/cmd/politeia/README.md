@@ -9,8 +9,8 @@ $ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
 Key        : 8f627e9da14322626d7e81d789f7fcafd25f62235a95377f39cbc7293c4944ad
 Fingerprint: j2J+naFDImJtfoHXiff8r9JfYiNalTd/OcvHKTxJRK0=
 
-Save to /home/marco/.politeia/identity.json or ctrl-c to abort
-Identity saved to: /home/marco/.politeia/identity.json
+Save to /home/user/.politeia/identity.json or ctrl-c to abort
+Identity saved to: /home/user/.politeia/identity.json
 ```
 
 ## Add a new record

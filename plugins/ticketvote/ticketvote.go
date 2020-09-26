@@ -8,7 +8,6 @@ package ticketvote
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 type VoteStatusT int
@@ -149,17 +148,6 @@ var (
 		ErrorStatusPageSizeExceeded:     "page size exceeded",
 	}
 )
-
-// UserErrorReply represents an error that is caused by the user.
-type UserErrorReply struct {
-	ErrorCode    ErrorStatusT
-	ErrorContext []string
-}
-
-// Error satisfies the error interface.
-func (e UserErrorReply) Error() string {
-	return fmt.Sprintf("ticketvote plugin error code: %v", e.ErrorCode)
-}
 
 // AuthorizeDetails is the structure that is saved to disk when a vote is
 // authorized or a previous authorization is revoked. It contains all the

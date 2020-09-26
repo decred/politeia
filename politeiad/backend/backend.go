@@ -101,9 +101,22 @@ type StateTransitionError struct {
 	To   MDStatusT
 }
 
+// Error satisfies the error interface.
 func (s StateTransitionError) Error() string {
 	return fmt.Sprintf("invalid record status transition %v (%v) -> %v (%v)",
 		s.From, MDStatus[s.From], s.To, MDStatus[s.To])
+}
+
+// PluginUserError represents a plugin error that is caused by the user.
+type PluginUserError struct {
+	PluginID     string
+	ErrorCode    int
+	ErrorContext []string
+}
+
+// Error satisfies the error interface.
+func (e PluginUserError) Error() string {
+	return fmt.Sprintf("plugin error code: %v", e.ErrorCode)
 }
 
 // RecordMetadata is the metadata of a record.

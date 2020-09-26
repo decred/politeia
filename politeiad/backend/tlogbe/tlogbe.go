@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -977,7 +978,15 @@ func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record
 		v = uint32(u)
 	}
 
-	return t.unvetted.record(treeID, v)
+	r, err := t.unvetted.record(treeID, v)
+	if err != nil {
+		if err == errRecordNotFound {
+			err = backend.ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return r, nil
 }
 
 // This function satisfies the Backend interface.
@@ -1004,7 +1013,15 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 		v = uint32(u)
 	}
 
-	return t.vetted.record(treeID, v)
+	r, err := t.vetted.record(treeID, v)
+	if err != nil {
+		if err == errRecordNotFound {
+			err = backend.ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return r, nil
 }
 
 // This function must be called WITH the unvetted lock held.
@@ -1440,7 +1457,11 @@ func (t *tlogBackend) pluginHook(h hookT, payload string) error {
 	for _, v := range t.plugins {
 		err := v.client.hook(h, payload)
 		if err != nil {
-			return fmt.Errorf("Hook %v: %v", v.id, err)
+			var e backend.PluginUserError
+			if errors.As(err, &e) {
+				return err
+			}
+			return fmt.Errorf("hook %v: %v", v.id, err)
 		}
 	}
 
@@ -1509,11 +1530,23 @@ func (t *tlogBackend) setup() error {
 		if vettedTreeID != 0 {
 			r, err = t.GetVetted(token, "")
 			if err != nil {
+				if err == backend.ErrRecordNotFound {
+					// A tree that was created but no record was appended onto
+					// it for whatever reason. This can happen if there is a
+					// network failure or internal server error.
+					continue
+				}
 				return fmt.Errorf("GetVetted %x: %v", token, err)
 			}
 		} else {
 			r, err = t.GetUnvetted(token, "")
 			if err != nil {
+				if err == backend.ErrRecordNotFound {
+					// A tree that was created but no record was appended onto
+					// it for whatever reason. This can happen if there is a
+					// network failure or internal server error.
+					continue
+				}
 				return fmt.Errorf("GetUnvetted %x: %v", token, err)
 			}
 		}

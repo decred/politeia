@@ -8,7 +8,6 @@ package pi
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"strings"
 )
@@ -63,10 +62,10 @@ const (
 	// User error status codes
 	// TODO number error codes and add human readable error messages
 	ErrorStatusInvalid ErrorStatusT = iota
+	ErrorStatusPropLinkToInvalid
 	ErrorStatusPropVersionInvalid
 	ErrorStatusPropStatusInvalid
 	ErrorStatusPropStatusChangeInvalid
-	ErrorStatusPropLinkToInvalid
 	ErrorStatusVoteStatusInvalid
 	ErrorStatusPageSizeExceeded
 )
@@ -96,17 +95,6 @@ var (
 		ErrorStatusVoteStatusInvalid: "vote status invalid",
 	}
 )
-
-// UserErrorReply represents an error that is caused by the user.
-type UserErrorReply struct {
-	ErrorCode    ErrorStatusT
-	ErrorContext []string
-}
-
-// Error satisfies the error interface.
-func (e UserErrorReply) Error() string {
-	return fmt.Sprintf("pi plugin error code: %v", e.ErrorCode)
-}
 
 // ProposalMetadata contains proposal metadata that is provided by the user on
 // proposal submission. ProposalMetadata is saved to politeiad as a file, not

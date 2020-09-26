@@ -8,7 +8,6 @@ package comments
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 type StateT int
@@ -83,17 +82,6 @@ var (
 		ErrorStatusVoteChangesMax:   "vote changes max exceeded",
 	}
 )
-
-// UserErrorReply represents an error that is cause by the user.
-type UserErrorReply struct {
-	ErrorCode    ErrorStatusT
-	ErrorContext []string
-}
-
-// Error satisfies the error interface.
-func (e UserErrorReply) Error() string {
-	return fmt.Sprintf("comments plugin error code: %v", e.ErrorCode)
-}
 
 // Comment represent a record comment.
 //

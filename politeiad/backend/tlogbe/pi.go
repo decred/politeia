@@ -261,23 +261,27 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	// have been approved by a ticket vote.
 	if pm.LinkTo != "" {
 		if isRFP(*pm) {
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"an rfp cannot have linkto set"},
 			}
 		}
 		tokenb, err := hex.DecodeString(pm.LinkTo)
 		if err != nil {
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"invalid hex"},
 			}
 		}
 		r, err := p.backend.GetVetted(tokenb, "")
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
-				return pi.UserErrorReply{
-					ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+				return backend.PluginUserError{
+					PluginID:     pi.ID,
+					ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 					ErrorContext: []string{"proposal not found"},
 				}
 			}
@@ -288,21 +292,24 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 			return err
 		}
 		if linkToPM == nil {
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"proposal not an rfp"},
 			}
 		}
 		if !isRFP(*linkToPM) {
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"proposal not an rfp"},
 			}
 		}
 		if time.Now().Unix() > linkToPM.LinkBy {
 			// Link by deadline has expired. New links are not allowed.
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"rfp link by deadline expired"},
 			}
 		}
@@ -328,8 +335,9 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 			return fmt.Errorf("summary not found %v", pm.LinkTo)
 		}
 		if !summary.Approved {
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"rfp vote not approved"},
 			}
 		}
@@ -350,8 +358,9 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	// Verify proposal status
 	status := convertPropStatusFromMDStatus(er.Current.RecordMetadata.Status)
 	if status != pi.PropStatusUnvetted && status != pi.PropStatusPublic {
-		return pi.UserErrorReply{
-			ErrorCode: pi.ErrorStatusPropStatusInvalid,
+		return backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropStatusInvalid),
 		}
 	}
 
@@ -381,8 +390,9 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 		e := fmt.Sprintf("vote status got %v, want %v",
 			ticketvote.VoteStatus[summary.Status],
 			ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
-		return pi.UserErrorReply{
-			ErrorCode:    pi.ErrorStatusVoteStatusInvalid,
+		return backend.PluginUserError{
+			PluginID:     pi.ID,
+			ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
 			ErrorContext: []string{e},
 		}
 	}
@@ -400,8 +410,9 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			return err
 		}
 		if pmCurr.LinkTo != pmNew.LinkTo {
-			return pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPropLinkToInvalid,
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"linkto cannot change on public proposal"},
 			}
 		}
@@ -451,8 +462,9 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	if sc.Version != srs.Current.Version {
 		e := fmt.Sprintf("version not current: got %v, want %v",
 			sc.Version, srs.Current.Version)
-		return pi.UserErrorReply{
-			ErrorCode:    pi.ErrorStatusPropVersionInvalid,
+		return backend.PluginUserError{
+			PluginID:     pi.ID,
+			ErrorCode:    int(pi.ErrorStatusPropVersionInvalid),
 			ErrorContext: []string{e},
 		}
 	}
@@ -469,8 +481,9 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	if !isAllowed {
 		e := fmt.Sprintf("from %v to %v status change not allowed",
 			from, sc.Status)
-		return pi.UserErrorReply{
-			ErrorCode:    pi.ErrorStatusPropStatusChangeInvalid,
+		return backend.PluginUserError{
+			PluginID:     pi.ID,
+			ErrorCode:    int(pi.ErrorStatusPropStatusChangeInvalid),
 			ErrorContext: []string{e},
 		}
 	}

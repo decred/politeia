@@ -206,7 +206,7 @@ func encryptFromCommentState(s comments.StateT) bool {
 	}
 }
 
-func convertCommentsErrorFromSignatureError(err error) comments.UserErrorReply {
+func convertCommentsErrorFromSignatureError(err error) backend.PluginUserError {
 	var e util.SignatureError
 	var s comments.ErrorStatusT
 	if errors.As(err, &e) {
@@ -217,8 +217,9 @@ func convertCommentsErrorFromSignatureError(err error) comments.UserErrorReply {
 			s = comments.ErrorStatusSignatureInvalid
 		}
 	}
-	return comments.UserErrorReply{
-		ErrorCode:    s,
+	return backend.PluginUserError{
+		PluginID:     comments.ID,
+		ErrorCode:    int(s),
 		ErrorContext: e.ErrorContext,
 	}
 }
@@ -757,16 +758,18 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(n.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -780,8 +783,9 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 
 	// Verify comment
 	if len(n.Comment) > comments.PolicyCommentLengthMax {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusCommentLengthMax,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusCommentLengthMax),
 		}
 	}
 
@@ -800,8 +804,9 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	// Verify parent comment exists if set. A parent ID of 0 means that
 	// this is a base level comment, not a reply to another comment.
 	if n.ParentID > 0 && !commentExists(*idx, n.ParentID) {
-		return "", comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusParentIDInvalid,
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusParentIDInvalid),
 			ErrorContext: []string{"parent ID comment not found"},
 		}
 	}
@@ -826,8 +831,9 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	merkleHash, err := p.commentAddSave(ca)
 	if err != nil {
 		if err == errRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
 			}
 		}
 		return "", fmt.Errorf("commentAddSave: %v", err)
@@ -879,16 +885,18 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(e.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -902,8 +910,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 
 	// Verify comment
 	if len(e.Comment) > comments.PolicyCommentLengthMax {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusCommentLengthMax,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusCommentLengthMax),
 		}
 	}
 
@@ -926,8 +935,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	}
 	existing, ok := cs[e.CommentID]
 	if !ok {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusCommentNotFound,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusCommentNotFound),
 		}
 	}
 
@@ -935,8 +945,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	if e.UserID != existing.UserID {
 		e := fmt.Sprintf("user id cannot change; got %v, want %v",
 			e.UserID, existing.UserID)
-		return "", comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusUserIDInvalid,
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusUserIDInvalid),
 			ErrorContext: []string{e},
 		}
 	}
@@ -945,16 +956,18 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	if e.ParentID != existing.ParentID {
 		e := fmt.Sprintf("parent id cannot change; got %v, want %v",
 			e.ParentID, existing.ParentID)
-		return "", comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusParentIDInvalid,
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusParentIDInvalid),
 			ErrorContext: []string{e},
 		}
 	}
 
 	// Verify comment changes
 	if e.Comment == existing.Comment {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusNoCommentChanges,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusNoCommentChanges),
 		}
 	}
 
@@ -977,8 +990,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	merkle, err := p.commentAddSave(ca)
 	if err != nil {
 		if err == errRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
 			}
 		}
 		return "", fmt.Errorf("commentSave: %v", err)
@@ -1024,16 +1038,18 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(d.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -1064,8 +1080,9 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	}
 	existing, ok := cs[d.CommentID]
 	if !ok {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusCommentNotFound,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusCommentNotFound),
 		}
 	}
 
@@ -1087,8 +1104,9 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	merkle, err := p.commentDelSave(cd)
 	if err != nil {
 		if err == errRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
 			}
 		}
 		return "", fmt.Errorf("commentDelSave: %v", err)
@@ -1148,16 +1166,18 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(v.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -1166,8 +1186,9 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	case comments.VoteDownvote, comments.VoteUpvote:
 		// These are allowed
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusVoteInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusVoteInvalid),
 		}
 	}
 
@@ -1195,8 +1216,9 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Verify comment exists
 	cidx, ok := idx.Comments[v.CommentID]
 	if !ok {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusCommentNotFound,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusCommentNotFound),
 		}
 	}
 
@@ -1206,8 +1228,9 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		uvotes = make([]voteIndex, 0)
 	}
 	if len(uvotes) > comments.PolicyVoteChangesMax {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusVoteChangesMax,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusVoteChangesMax),
 		}
 	}
 
@@ -1221,8 +1244,9 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		return "", fmt.Errorf("comment not found %v", v.CommentID)
 	}
 	if v.UserID == c.UserID {
-		return "", comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusVoteInvalid,
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusVoteInvalid),
 			ErrorContext: []string{"user cannot vote on their own comment"},
 		}
 	}
@@ -1244,8 +1268,9 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	merkle, err := p.commentVoteSave(cv)
 	if err != nil {
 		if err == errRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
 			}
 		}
 		return "", fmt.Errorf("commentVoteSave: %v", err)
@@ -1302,16 +1327,18 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(g.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -1325,8 +1352,9 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	cs, err := p.comments(g.State, token, *idx, g.CommentIDs)
 	if err != nil {
 		if err == errRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
 			}
 		}
 		return "", fmt.Errorf("comments: %v", err)
@@ -1358,16 +1386,18 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(ga.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -1387,8 +1417,9 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	c, err := p.comments(ga.State, token, *idx, commentIDs)
 	if err != nil {
 		if err == errRecordNotFound {
-			return "", comments.UserErrorReply{
-				ErrorCode: comments.ErrorStatusRecordNotFound,
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
 			}
 		}
 		return "", fmt.Errorf("comments: %v", err)
@@ -1431,16 +1462,18 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(gv.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -1453,13 +1486,15 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	// Verify comment exists
 	cidx, ok := idx.Comments[gv.CommentID]
 	if !ok {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusCommentNotFound,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusCommentNotFound),
 		}
 	}
 	if cidx.Del != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusCommentNotFound,
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusCommentNotFound),
 			ErrorContext: []string{"comment has been deleted"},
 		}
 	}
@@ -1467,8 +1502,9 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	if !ok {
 		e := fmt.Sprintf("comment %v does not have version %v",
 			gv.CommentID, gv.Version)
-		return "", comments.UserErrorReply{
-			ErrorCode:    comments.ErrorStatusCommentNotFound,
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusCommentNotFound),
 			ErrorContext: []string{e},
 		}
 	}
@@ -1513,16 +1549,18 @@ func (p *commentsPlugin) cmdCount(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(c.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
@@ -1558,16 +1596,18 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	case comments.StateUnvetted, comments.StateVetted:
 		// Allowed; continue
 	default:
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 
 	// Verify token
 	token, err := hex.DecodeString(v.Token)
 	if err != nil {
-		return "", comments.UserErrorReply{
-			ErrorCode: comments.ErrorStatusTokenInvalid,
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
 		}
 	}
 

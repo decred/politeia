@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -207,9 +208,16 @@ func (p *politeia) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusNotFound, v1.ServerErrorReply{})
 }
 
-func (p *politeia) respondWithUserError(w http.ResponseWriter,
-	errorCode v1.ErrorStatusT, errorContext []string) {
+func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.ErrorStatusT, errorContext []string) {
 	util.RespondWithJSON(w, http.StatusBadRequest, v1.UserErrorReply{
+		ErrorCode:    errorCode,
+		ErrorContext: errorContext,
+	})
+}
+
+func (p *politeia) respondWithPluginUserError(w http.ResponseWriter, plugin string, errorCode int, errorContext []string) {
+	util.RespondWithJSON(w, http.StatusBadRequest, v1.PluginUserErrorReply{
+		Plugin:       plugin,
 		ErrorCode:    errorCode,
 		ErrorContext: errorContext,
 	})
@@ -272,6 +280,16 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
+			return
+		}
+
+		// Check for plugin error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
 			return
 		}
 
@@ -376,7 +394,15 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 				contentErr.ErrorContext)
 			return
 		}
-
+		// Check for plugin error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
+			return
+		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Update %v record error code %v: %v",
@@ -687,6 +713,15 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
+		// Check for plugin error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
+			return
+		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Set status error code %v: %v",
@@ -748,6 +783,15 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		if _, ok := err.(backend.StateTransitionError); ok {
 			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
+			return
+		}
+		// Check for plugin error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
 			return
 		}
 		// Generic internal error.
@@ -815,7 +859,15 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 				contentErr.ErrorContext)
 			return
 		}
-
+		// Check for plugin error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
+			return
+		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Update vetted metadata error code %v: %v",
@@ -874,6 +926,15 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
+			return
+		}
+		// Check for plugin error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
 			return
 		}
 		// Generic internal error.
@@ -940,6 +1001,16 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	payload, err := p.backend.Plugin(pc.ID, pc.Command,
 		pc.CommandID, pc.Payload)
 	if err != nil {
+		// Check for a user error
+		var e backend.PluginUserError
+		if errors.As(err, &e) {
+			log.Debugf("%v plugin user error: %v %v",
+				remoteAddr(r), e.PluginID, e.ErrorCode)
+			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+				e.ErrorContext)
+			return
+		}
+
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v %v: backend plugin failed with "+
@@ -1169,7 +1240,7 @@ func _main() error {
 
 	// Setup plugins
 	// TODO fix this
-	loadedCfg.Plugins = []string{"comments", "dcrdata", "pi", "ticketvote"}
+	// loadedCfg.Plugins = []string{"comments", "dcrdata", "pi", "ticketvote"}
 	if len(loadedCfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
