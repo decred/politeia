@@ -59,17 +59,16 @@ type piwww struct {
 	CommentVotes  CommentVotesCmd  `command:"commentvotes" description:"(user) get comment upvotes/downvotes for a proposal from the provided user"`
 
 	// Vote commands
-	VoteStartRunoff VoteStartRunoffCmd `command:"votestartrunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
-	VoteStart       VoteStartCmd       `command:"votestart" description:"(admin) start the voting period on a proposal"`
 	VoteAuthorize   VoteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
+	VoteStart       VoteStartCmd       `command:"votestart" description:"(admin) start the voting period on a proposal"`
+	VoteStartRunoff VoteStartRunoffCmd `command:"votestartrunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
+	VoteBallot      VoteBallotCmd      `command:"voteballot" description:"(public) cast ballot of votes for a proposal"`
 	Votes           VotesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
 	VoteResults     VoteResultsCmd     `command:"voteresults" description:"(public) get vote results for a proposal"`
 	VoteSummaries   VoteSummariesCmd   `command:"votesummaries" description:"(public) retrieve the vote summary for a set of proposals"`
 	VoteInventory   VoteInventoryCmd   `command:"voteinventory" description:"(public) retrieve the tokens of all public, non-abandoned proposal separated by vote status"`
-	VoteBallot      VoteBallotCmd      `command:"voteballot" description:"(public) cast ballot of votes for a proposal"`
 
 	// Commands
-	BatchProposals     shared.BatchProposalsCmd `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername     shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	EditUser           EditUserCmd              `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
@@ -80,7 +79,6 @@ type piwww struct {
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewUser            NewUserCmd               `command:"newuser" description:"(public) create a new user"`
 	Policy             PolicyCmd                `command:"policy" description:"(public) get the server policy"`
-	ProposalDetails    ProposalDetailsCmd       `command:"proposaldetails" description:"(public) get the details of a proposal"`
 	ProposalPaywall    ProposalPaywallCmd       `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
 	RescanUserPayments RescanUserPaymentsCmd    `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
 	ResendVerification ResendVerificationCmd    `command:"resendverification" description:"(public) resend the user verification email"`
@@ -90,7 +88,6 @@ type piwww struct {
 	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
 	TestRun            TestRunCmd               `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
-	TokenInventory     shared.TokenInventoryCmd `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
 	UpdateUserKey      shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails        UserDetailsCmd           `command:"userdetails" description:"(public) get the details of a user profile"`
 	UserPendingPayment UserPendingPaymentCmd    `command:"userpendingpayment" description:"(user)   get details for a pending payment for the logged in user"`

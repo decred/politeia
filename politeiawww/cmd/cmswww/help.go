@@ -77,6 +77,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", dccCommentsHelpMsg)
 	case "newdcccomment":
 		fmt.Printf("%s\n", newDCCCommentHelpMsg)
+	case "batchproposals":
+		fmt.Printf("%s\n", batchProposalsHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use 'cmswww -h' " +

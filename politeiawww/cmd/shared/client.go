@@ -1232,6 +1232,55 @@ func (c *Client) CommentNew(cn pi.CommentNew) (*pi.CommentNewReply, error) {
 	return &cnr, nil
 }
 
+// CommentVote casts a like comment action (upvote/downvote) for the logged in
+// user.
+func (c *Client) CommentVote(cv pi.CommentVote) (*pi.CommentVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteCommentVote, cv)
+	if err != nil {
+		return nil, err
+	}
+
+	var cvr pi.CommentVoteReply
+	err = json.Unmarshal(responseBody, &cvr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CommentVoteReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(cvr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cvr, nil
+}
+
+// CommentCensor censors the specified proposal comment.
+func (c *Client) CommentCensor(cc pi.CommentCensor) (*pi.CommentCensorReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentCensor, cc)
+	if err != nil {
+		return nil, err
+	}
+
+	var ccr pi.CommentCensorReply
+	err = json.Unmarshal(responseBody, &ccr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CensorCommentReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ccr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ccr, nil
+}
+
 // Comments retrieves the comments for the specified proposal.
 func (c *Client) Comments(cs pi.Comments) (*pi.CommentsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
@@ -1254,6 +1303,31 @@ func (c *Client) Comments(cs pi.Comments) (*pi.CommentsReply, error) {
 	}
 
 	return &cr, nil
+}
+
+// CommentVotes retrieves the comment likes (upvotes/downvotes) for the
+// specified proposal that are from the privoded user.
+func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		pi.APIRoute, pi.RouteCommentVotes, cv)
+	if err != nil {
+		return nil, err
+	}
+
+	var cvr pi.CommentVotesReply
+	err = json.Unmarshal(responseBody, &cvr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CommentVotes: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(cvr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cvr, nil
 }
 
 // InvoiceComments retrieves the comments for the specified proposal.
@@ -1303,80 +1377,6 @@ func (c *Client) Votes(vs pi.Votes) (*pi.VotesReply, error) {
 	}
 
 	return &vsr, nil
-}
-
-// CommentVotes retrieves the comment likes (upvotes/downvotes) for the
-// specified proposal that are from the privoded user.
-func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
-	responseBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteCommentVotes, cv)
-	if err != nil {
-		return nil, err
-	}
-
-	var cvr pi.CommentVotesReply
-	err = json.Unmarshal(responseBody, &cvr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentVotes: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cvr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cvr, nil
-}
-
-// CommentVote casts a like comment action (upvote/downvote) for the logged in
-// user.
-func (c *Client) CommentVote(cv pi.CommentVote) (*pi.CommentVoteReply, error) {
-	responseBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteCommentVote, cv)
-	if err != nil {
-		return nil, err
-	}
-
-	var cvr pi.CommentVoteReply
-	err = json.Unmarshal(responseBody, &cvr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentVoteReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cvr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cvr, nil
-}
-
-// CommentCensor censors the specified proposal comment.
-func (c *Client) CommentCensor(cc pi.CommentCensor) (*pi.CommentCensorReply, error) {
-	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteCommentCensor, cc)
-	if err != nil {
-		return nil, err
-	}
-
-	var ccr pi.CommentCensorReply
-	err = json.Unmarshal(responseBody, &ccr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CensorCommentReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(ccr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &ccr, nil
 }
 
 // WWWCensorComment censors the specified proposal comment.

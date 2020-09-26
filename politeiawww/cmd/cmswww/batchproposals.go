@@ -2,12 +2,13 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package shared
+package main
 
 import (
 	"fmt"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // BatchProposalsCmd retrieves a set of proposals.
@@ -31,7 +32,7 @@ func (cmd *BatchProposalsCmd) Execute(args []string) error {
 
 	// Verify proposal censorship records
 	for _, p := range bpr.Proposals {
-		err = VerifyProposal(p, vr.PubKey)
+		err = shared.VerifyProposal(p, vr.PubKey)
 		if err != nil {
 			return fmt.Errorf("unable to verify proposal %v: %v",
 				p.CensorshipRecord.Token, err)
@@ -39,12 +40,12 @@ func (cmd *BatchProposalsCmd) Execute(args []string) error {
 	}
 
 	// Print proposals
-	return PrintJSON(bpr)
+	return shared.PrintJSON(bpr)
 }
 
 // batchProposalsHelpMsg is the output for the help command when
 // 'batchproposals' is specified.
-const BatchProposalsHelpMsg = `batchproposals
+const batchProposalsHelpMsg = `batchproposals
 
 Fetch a list of proposals.
 

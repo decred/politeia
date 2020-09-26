@@ -20,15 +20,12 @@ func (cmd *ProposalPaywallCmd) Execute(args []string) error {
 
 // proposalPaywallHelpMsg is the output of the help command when
 // 'proposalpaywall' is specified.
-const proposalPaywallHelpMsg = `proposalpaywall
-
-Fetch proposal paywall details.
-
-Arguments: None
-
-Response:
-{
-  "creditprice"          (uint64)  Price per proposal credit in atoms
-  "paywalladdress"       (string)  Proposal paywall address
-  "paywalltxnotbefore"   (string)  Minimum timestamp for paywall tx
+const proposalPaywallHelpMsg = `proposalpaywall	
+Fetch proposal paywall details.	
+Arguments: None	
+Response:	
+{	
+  "creditprice"          (uint64)  Price per proposal credit in atoms	
+  "paywalladdress"       (string)  Proposal paywall address	
+  "paywalltxnotbefore"   (string)  Minimum timestamp for paywall tx	
 }`

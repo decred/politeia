@@ -60,10 +60,10 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", shared.UpdateUserKeyHelpMsg)
 	case "userpendingpayment":
 		fmt.Printf("%s\n", userPendingPaymentHelpMsg)
-	case "proposalpaywall":
-		fmt.Printf("%s\n", proposalPaywallHelpMsg)
 	case "rescanuserpayments":
 		fmt.Printf("%s\n", rescanUserPaymentsHelpMsg)
+	case "proposalpaywall":
+		fmt.Printf("%s\n", proposalPaywallHelpMsg)
 	case "verifyuserpayment":
 		fmt.Printf("%s\n", verifyUserPaymentHelpMsg)
 	case "resendverification":
@@ -81,24 +81,20 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "proposalinventory":
 		fmt.Printf("%s\n", proposalInventoryHelpMsg)
 
-	case "proposaldetails":
-		fmt.Printf("%s\n", proposalDetailsHelpMsg)
 	case "userproposals":
 		fmt.Printf("%s\n", userProposalsHelpMsg)
 	case "vettedproposals":
 		fmt.Printf("%s\n", vettedProposalsHelpMsg)
-	case "batchproposals":
-		fmt.Printf("%s\n", shared.BatchProposalsHelpMsg)
 
 	// Comment commands
 	case "commentnew":
 		fmt.Printf("%s\n", commentNewHelpMsg)
-	case "proposalcomments":
-		fmt.Printf("%s\n", proposalCommentsHelpMsg)
-	case "commentcensor":
-		fmt.Printf("%s\n", commentCensorHelpMsg)
 	case "commentvote":
 		fmt.Printf("%s\n", commentVoteHelpMsg)
+	case "commentcensor":
+		fmt.Printf("%s\n", commentCensorHelpMsg)
+	case "comments":
+		fmt.Printf("%s\n", proposalCommentsHelpMsg)
 	case "commentvotes":
 		fmt.Printf("%s\n", commentVotesHelpMsg)
 
@@ -109,22 +105,23 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", voteStartHelpMsg)
 	case "votestartrunoff":
 		fmt.Printf("%s\n", voteStartRunoffHelpMsg)
+	case "voteballot":
+		fmt.Printf("%s\n", voteInventoryHelpMsg)
 	case "votes":
 		fmt.Printf("%s\n", votesHelpMsg)
 	case "voteresults":
 		fmt.Printf("%s\n", voteResultsHelpMsg)
+	case "votesummaries":
+		fmt.Printf("%s\n", voteSummariesHelpMsg)
+	case "voteinventory":
+		fmt.Printf("%s\n", voteInventoryHelpMsg)
+
 	case "votestatus":
 		fmt.Printf("%s\n", voteStatusHelpMsg)
 	case "votestatuses":
 		fmt.Printf("%s\n", voteStatusesHelpMsg)
-	case "votesummaries":
-		fmt.Printf("%s\n", voteSummariesHelpMsg)
 	case "votedetails":
 		fmt.Printf("%s\n", voteDetailsHelpMsg)
-	case "voteinventory":
-		fmt.Printf("%s\n", voteInventoryHelpMsg)
-	case "voteballot":
-		fmt.Printf("%s\n", voteInventoryHelpMsg)
 
 	// Websocket commands
 	case "subscribe":
