@@ -23,8 +23,8 @@ import (
 
 // TODO replace www policies with pi policies
 
-// ProposalNewCmd submits a new proposal.
-type ProposalNewCmd struct {
+// proposalNewCmd submits a new proposal.
+type proposalNewCmd struct {
 	Args struct {
 		IndexFile   string   `positional-arg-name:"indexfile"`
 		Attachments []string `positional-arg-name:"attachments"`
@@ -47,7 +47,7 @@ type ProposalNewCmd struct {
 }
 
 // Execute executes the new proposal command.
-func (cmd *ProposalNewCmd) Execute(args []string) error {
+func (cmd *proposalNewCmd) Execute(args []string) error {
 	indexFile := cmd.Args.IndexFile
 	attachments := cmd.Args.Attachments
 

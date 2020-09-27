@@ -13,9 +13,9 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// CommentVoteCmd is used to upvote/downvote a proposal comment using the
+// commentVoteCmd is used to upvote/downvote a proposal comment using the
 // logged in the user.
-type CommentVoteCmd struct {
+type commentVoteCmd struct {
 	Args struct {
 		Token     string `positional-arg-name:"token"`     // Censorship token
 		CommentID string `positional-arg-name:"commentID"` // Comment ID
@@ -24,7 +24,7 @@ type CommentVoteCmd struct {
 }
 
 // Execute executes the like comment command.
-func (cmd *CommentVoteCmd) Execute(args []string) error {
+func (cmd *commentVoteCmd) Execute(args []string) error {
 	const actionUpvote = "upvote"
 	const actionDownvote = "downvote"
 

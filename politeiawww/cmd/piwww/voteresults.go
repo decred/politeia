@@ -9,16 +9,16 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// VoteResultsCmd gets the votes that have been cast for the specified
+// voteResultsCmd gets the votes that have been cast for the specified
 // proposal.
-type VoteResultsCmd struct {
+type voteResultsCmd struct {
 	Args struct {
 		Token string `positional-arg-name:"token"` // Censorship token
 	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the proposal votes command.
-func (cmd *VoteResultsCmd) Execute(args []string) error {
+func (cmd *voteResultsCmd) Execute(args []string) error {
 	// Prep request payload
 	vr := pi.VoteResults{
 		Token: cmd.Args.Token,

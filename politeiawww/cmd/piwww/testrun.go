@@ -9,8 +9,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// TestRunCmd performs a test run of all the politeiawww routes.
-type TestRunCmd struct {
+// testRunCmd performs a test run of all the politeiawww routes.
+type testRunCmd struct {
 	Args struct {
 		AdminEmail    string `positional-arg-name:"adminemail"`
 		AdminPassword string `positional-arg-name:"adminpassword"`
@@ -130,7 +130,7 @@ func castVotes(token string, voteID string) (bool, error) {
 }
 
 // Execute executes the test run command.
-func (cmd *TestRunCmd) Execute(args []string) error {
+func (cmd *testRunCmd) Execute(args []string) error {
 	/*
 		const (
 			// sleepInterval is the time to wait in between requests

@@ -10,9 +10,9 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// SendFaucetTxCmd uses the Decred testnet faucet to send the specified amount
+// sendFaucetTxCmd uses the Decred testnet faucet to send the specified amount
 // of DCR (in atoms) to the specified address.
-type SendFaucetTxCmd struct {
+type sendFaucetTxCmd struct {
 	Args struct {
 		Address       string `positional-arg-name:"address" required:"true"` // DCR address
 		Amount        uint64 `positional-arg-name:"amount" required:"true"`  // Amount in atoms
@@ -21,7 +21,7 @@ type SendFaucetTxCmd struct {
 }
 
 // Execute executes the send faucet tx command.
-func (cmd *SendFaucetTxCmd) Execute(args []string) error {
+func (cmd *sendFaucetTxCmd) Execute(args []string) error {
 	address := cmd.Args.Address
 	atoms := cmd.Args.Amount
 	dcr := float64(atoms) / 1e8

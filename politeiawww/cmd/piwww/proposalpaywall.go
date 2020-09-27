@@ -6,11 +6,11 @@ package main
 
 import "github.com/decred/politeia/politeiawww/cmd/shared"
 
-// ProposalPaywallCmd gets paywall info for the logged in user.
-type ProposalPaywallCmd struct{}
+// proposalPaywallCmd gets paywall info for the logged in user.
+type proposalPaywallCmd struct{}
 
 // Execute executes the proposal paywall command.
-func (cmd *ProposalPaywallCmd) Execute(args []string) error {
+func (cmd *proposalPaywallCmd) Execute(args []string) error {
 	ppdr, err := client.ProposalPaywallDetails()
 	if err != nil {
 		return err
@@ -21,11 +21,7 @@ func (cmd *ProposalPaywallCmd) Execute(args []string) error {
 // proposalPaywallHelpMsg is the output of the help command when
 // 'proposalpaywall' is specified.
 const proposalPaywallHelpMsg = `proposalpaywall	
+
 Fetch proposal paywall details.	
-Arguments: None	
-Response:	
-{	
-  "creditprice"          (uint64)  Price per proposal credit in atoms	
-  "paywalladdress"       (string)  Proposal paywall address	
-  "paywalltxnotbefore"   (string)  Minimum timestamp for paywall tx	
-}`
+
+Arguments: None`

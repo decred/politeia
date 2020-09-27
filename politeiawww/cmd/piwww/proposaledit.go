@@ -21,8 +21,8 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// ProposalEditCmd edits an existing proposal.
-type ProposalEditCmd struct {
+// proposalEditCmd edits an existing proposal.
+type proposalEditCmd struct {
 	Args struct {
 		Token       string   `positional-arg-name:"token" required:"true"`
 		IndexFile   string   `positional-arg-name:"indexfile"`
@@ -53,7 +53,7 @@ type ProposalEditCmd struct {
 }
 
 // Execute executes the proposal edit command.
-func (cmd *ProposalEditCmd) Execute(args []string) error {
+func (cmd *proposalEditCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	indexFile := cmd.Args.IndexFile
 	attachments := cmd.Args.Attachments

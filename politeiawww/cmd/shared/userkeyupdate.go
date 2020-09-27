@@ -8,16 +8,16 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// UpdateUserKeyCmd creates a new identity for the logged in user.
-type UpdateUserKeyCmd struct {
+// UserKeyUpdateCmd creates a new identity for the logged in user.
+type UserKeyUpdateCmd struct {
 	NoSave bool `long:"nosave"` // Don't save new identity to disk
 }
 
 // Execute executes the update user key command.
-func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
+func (cmd *UserKeyUpdateCmd) Execute(args []string) error {
 	// Get the logged in user's username. We need
 	// this when we save the new identity to disk.
 	me, err := client.Me()
@@ -67,17 +67,11 @@ func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
 	return PrintJSON(vuukr)
 }
 
-// UpdateUserKeyHelpMsg is the output of the help command when 'updateuserkey'
+// UserKeyUpdateHelpMsg is the output of the help command when 'userkeyupdate'
 // is specified.
-const UpdateUserKeyHelpMsg = `updateuserkey
+const UserKeyUpdateHelpMsg = `userkeyupdate
 
 Generate a new public key for the currently logged in user. 
 
 Arguments:
-None
-
-Result:
-{
-  "publickey"   (string)  User's public key
-}
-{}`
+None`

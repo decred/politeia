@@ -7,12 +7,12 @@ package main
 import (
 	"encoding/hex"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// VerifyUserEmailCmd is used to verify a user's email address.
-type VerifyUserEmailCmd struct {
+// userEmailVerifyCmd is used to verify a user's email address.
+type userEmailVerifyCmd struct {
 	Args struct {
 		Username string `positional-arg-name:"username"` // Username
 		Email    string `positional-arg-name:"email"`    // User email address
@@ -21,7 +21,7 @@ type VerifyUserEmailCmd struct {
 }
 
 // Execute executes the verify user email command.
-func (cmd *VerifyUserEmailCmd) Execute(args []string) error {
+func (cmd *userEmailVerifyCmd) Execute(args []string) error {
 	// Load user identity
 	id, err := cfg.LoadIdentity(cmd.Args.Username)
 	if err != nil {
@@ -44,15 +44,12 @@ func (cmd *VerifyUserEmailCmd) Execute(args []string) error {
 	return shared.PrintJSON(vnur)
 }
 
-// verifyUserEmailHelpMsg is the output for the help command when
-// 'verifyuseremail' is specified.
-var verifyUserEmailHelpMsg = `verifyuseremail "email" "token"
+// userEmailVerifyHelpMsg is the output for the help command when
+// 'useremailverify' is specified.
+var userEmailVerifyHelpMsg = `useremailverify "email" "token"
 
 Verify user's email address.
 
 Arguments:
 1. email       (string, optional)   Email of user
-2. token       (string, optional)   Verification token
-
-Result:
-{}`
+2. token       (string, optional)   Verification token`

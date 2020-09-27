@@ -13,8 +13,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// CommentNewCmd submits a new proposal comment.
-type CommentNewCmd struct {
+// commentNewCmd submits a new proposal comment.
+type commentNewCmd struct {
 	Args struct {
 		Token    string `positional-arg-name:"token" required:"true"`   // Censorship token
 		Comment  string `positional-arg-name:"comment" required:"true"` // Comment text
@@ -27,7 +27,7 @@ type CommentNewCmd struct {
 }
 
 // Execute executes the new comment command.
-func (cmd *CommentNewCmd) Execute(args []string) error {
+func (cmd *commentNewCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	comment := cmd.Args.Comment
 	parentID := cmd.Args.ParentID
@@ -83,7 +83,7 @@ func (cmd *CommentNewCmd) Execute(args []string) error {
 	return shared.PrintJSON(ncr)
 }
 
-// commentNewHelpMsg is the output of the help command when 'newcomment' is
+// commentNewHelpMsg is the output of the help command when 'commentnew' is
 // specified.
 const commentNewHelpMsg = `commentnew "token" "comment"
 

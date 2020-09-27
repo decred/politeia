@@ -8,12 +8,12 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// ProposalInventoryCmd retrieves the censorship record tokens of all proposals in
+// proposalInventoryCmd retrieves the censorship record tokens of all proposals in
 // the inventory.
-type ProposalInventoryCmd struct{}
+type proposalInventoryCmd struct{}
 
 // Execute executes the proposal inventory command.
-func (cmd *ProposalInventoryCmd) Execute(args []string) error {
+func (cmd *proposalInventoryCmd) Execute(args []string) error {
 	reply, err := client.ProposalInventory()
 	if err != nil {
 		return err

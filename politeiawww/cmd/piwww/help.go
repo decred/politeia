@@ -10,65 +10,21 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// HelpCmd prints a detailed help message for the specified command.
-type HelpCmd struct {
+// helpCmd prints a detailed help message for the specified command.
+type helpCmd struct {
 	Args struct {
 		Topic string `positional-arg-name:"topic"` // Topic to print help message for
 	} `positional-args:"true"`
 }
 
 // Execute executes the help command.
-func (cmd *HelpCmd) Execute(args []string) error {
+func (cmd *helpCmd) Execute(args []string) error {
 	if cmd.Args.Topic == "" {
 		return fmt.Errorf("Specify a command to print a detailed help " +
 			"message for.  Example: piwww help login")
 	}
 
 	switch cmd.Args.Topic {
-	// Server commands
-	case "version":
-		fmt.Printf("%s\n", shared.VersionHelpMsg)
-	case "policy":
-		fmt.Printf("%s\n", policyHelpMsg)
-
-	// User commands
-	case "login":
-		fmt.Printf("%s\n", shared.LoginHelpMsg)
-	case "logout":
-		fmt.Printf("%s\n", shared.LogoutHelpMsg)
-	case "newuser":
-		fmt.Printf("%s\n", newUserHelpMsg)
-	case "changepassword":
-		fmt.Printf("%s\n", shared.ChangePasswordHelpMsg)
-	case "changeusername":
-		fmt.Printf("%s\n", shared.ChangeUsernameHelpMsg)
-	case "userdetails":
-		fmt.Printf("%s\n", userDetailsHelpMsg)
-	case "manageuser":
-		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
-	case "users":
-		fmt.Printf("%s\n", shared.UsersHelpMsg)
-	case "verifyuseremail":
-		fmt.Printf("%s\n", verifyUserEmailHelpMsg)
-	case "edituser":
-		fmt.Printf("%s\n", editUserHelpMsg)
-	case "me":
-		fmt.Printf("%s\n", shared.MeHelpMsg)
-	case "resetpassword":
-		fmt.Printf("%s\n", shared.ResetPasswordHelpMsg)
-	case "updateuserkey":
-		fmt.Printf("%s\n", shared.UpdateUserKeyHelpMsg)
-	case "userpendingpayment":
-		fmt.Printf("%s\n", userPendingPaymentHelpMsg)
-	case "rescanuserpayments":
-		fmt.Printf("%s\n", rescanUserPaymentsHelpMsg)
-	case "proposalpaywall":
-		fmt.Printf("%s\n", proposalPaywallHelpMsg)
-	case "verifyuserpayment":
-		fmt.Printf("%s\n", verifyUserPaymentHelpMsg)
-	case "resendverification":
-		fmt.Printf("%s\n", resendVerificationHelpMsg)
-
 	// Proposal commands
 	case "proposalnew":
 		fmt.Printf("%s\n", proposalNewHelpMsg)
@@ -81,11 +37,6 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "proposalinventory":
 		fmt.Printf("%s\n", proposalInventoryHelpMsg)
 
-	case "userproposals":
-		fmt.Printf("%s\n", userProposalsHelpMsg)
-	case "vettedproposals":
-		fmt.Printf("%s\n", vettedProposalsHelpMsg)
-
 	// Comment commands
 	case "commentnew":
 		fmt.Printf("%s\n", commentNewHelpMsg)
@@ -94,7 +45,7 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "commentcensor":
 		fmt.Printf("%s\n", commentCensorHelpMsg)
 	case "comments":
-		fmt.Printf("%s\n", proposalCommentsHelpMsg)
+		fmt.Printf("%s\n", commentsHelpMsg)
 	case "commentvotes":
 		fmt.Printf("%s\n", commentVotesHelpMsg)
 
@@ -116,18 +67,65 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "voteinventory":
 		fmt.Printf("%s\n", voteInventoryHelpMsg)
 
+	case "votedetails":
+		fmt.Printf("%s\n", voteDetailsHelpMsg)
 	case "votestatus":
 		fmt.Printf("%s\n", voteStatusHelpMsg)
 	case "votestatuses":
 		fmt.Printf("%s\n", voteStatusesHelpMsg)
-	case "votedetails":
-		fmt.Printf("%s\n", voteDetailsHelpMsg)
+
+	// Server commands
+	case "version":
+		fmt.Printf("%s\n", shared.VersionHelpMsg)
+	case "policy":
+		fmt.Printf("%s\n", policyHelpMsg)
+
+	// User commands
+	case "usernew":
+		fmt.Printf("%s\n", userNewHelpMsg)
+	case "useredit":
+		fmt.Printf("%s\n", userEditHelpMsg)
+	case "userdetails":
+		fmt.Printf("%s\n", userDetailsHelpMsg)
+	case "userpaymentsrescan":
+		fmt.Printf("%s\n", userPaymentsRescanHelpMsg)
+	case "userpendingpayment":
+		fmt.Printf("%s\n", userPendingPaymentHelpMsg)
+	case "useremailverify":
+		fmt.Printf("%s\n", userEmailVerifyHelpMsg)
+	case "userpaymentverify":
+		fmt.Printf("%s\n", userPaymentVerifyHelpMsg)
+	case "usermanage":
+		fmt.Printf("%s\n", shared.UserManageHelpMsg)
+	case "userkeyupdate":
+		fmt.Printf("%s\n", shared.UserKeyUpdateHelpMsg)
+	case "userverificationresend":
+		fmt.Printf("%s\n", userVerificationResendHelpMsg)
+	case "userusernamechange":
+		fmt.Printf("%s\n", shared.UserUsernameChangeHelpMsg)
+	case "userpasswordchange":
+		fmt.Printf("%s\n", shared.UserPasswordChangeHelpMsg)
+	case "userpasswordreset":
+		fmt.Printf("%s\n", shared.UserPasswordResetHelpMsg)
+	case "users":
+		fmt.Printf("%s\n", shared.UsersHelpMsg)
+
+	case "proposalpaywall":
+		fmt.Printf("%s\n", proposalPaywallHelpMsg)
+
+	// Basic commands
+	case "login":
+		fmt.Printf("%s\n", shared.LoginHelpMsg)
+	case "logout":
+		fmt.Printf("%s\n", shared.LogoutHelpMsg)
+	case "me":
+		fmt.Printf("%s\n", shared.MeHelpMsg)
 
 	// Websocket commands
 	case "subscribe":
 		fmt.Printf("%s\n", subscribeHelpMsg)
 
-	// Other commands
+	// Dev commands
 	case "testrun":
 		fmt.Printf("%s\n", testRunHelpMsg)
 	case "sendfaucettx":

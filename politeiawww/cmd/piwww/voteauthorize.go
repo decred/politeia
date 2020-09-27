@@ -13,9 +13,9 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// VoteAuthorizeCmd authorizes a proposal vote.  The VoteAuthorizeCmd must be
+// voteAuthorizeCmd authorizes a proposal vote.  The VoteAuthorizeCmd must be
 // sent by the proposal author to be valid.
-type VoteAuthorizeCmd struct {
+type voteAuthorizeCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token" required:"true"` // Censorship token
 		Action string `positional-arg-name:"action"`                // Authorize or revoke action
@@ -23,7 +23,7 @@ type VoteAuthorizeCmd struct {
 }
 
 // Execute executes the authorize vote command.
-func (cmd *VoteAuthorizeCmd) Execute(args []string) error {
+func (cmd *voteAuthorizeCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 
 	// Check for user identity

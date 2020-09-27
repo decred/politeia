@@ -57,59 +57,59 @@ type cmswww struct {
 	Config shared.Config
 
 	// Commands
-	ActiveVotes            ActiveVotesCmd            `command:"activevotes" description:"(user) get the dccs that are being voted on"`
-	BatchProposals         BatchProposalsCmd         `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
-	NewComment             NewCommentCmd             `command:"newcomment" description:"(user)   create a new comment"`
-	CensorComment          CensorCommentCmd          `command:"censorcomment" description:"(admin)  censor a comment"`
-	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
-	ChangeUsername         shared.ChangeUsernameCmd  `command:"changeusername" description:"(user)   change the username for the logged in user"`
-	CMSUsers               CMSUsersCmd               `command:"cmsusers" description:"(user)   get a list of cms users"`
-	DCCComments            DCCCommentsCmd            `command:"dcccomments" description:"(user)   get the comments for a dcc proposal"`
-	DCCDetails             DCCDetailsCmd             `command:"dccdetails" description:"(user)   get the details of a dcc"`
-	EditInvoice            EditInvoiceCmd            `command:"editinvoice" description:"(user)   edit a invoice"`
-	EditUser               EditUserCmd               `command:"edituser" description:"(user)   edit current cms user information"`
-	GeneratePayouts        GeneratePayoutsCmd        `command:"generatepayouts" description:"(admin)  generate a list of payouts with addresses and amounts to pay"`
-	GetDCCs                GetDCCsCmd                `command:"getdccs" description:"(user)   get all dccs (optional by status)"`
-	Help                   HelpCmd                   `command:"help" description:"         print a detailed help message for a specific command"`
-	InvoiceComments        InvoiceCommentsCmd        `command:"invoicecomments" description:"(user)   get the comments for a invoice"`
-	InvoiceExchangeRate    InvoiceExchangeRateCmd    `command:"invoiceexchangerate" description:"(user)   get exchange rate for a given month/year"`
-	InviteNewUser          InviteNewUserCmd          `command:"invite" description:"(admin)  invite a new user"`
-	InvoiceDetails         InvoiceDetailsCmd         `command:"invoicedetails" description:"(public) get the details of a proposal"`
-	InvoicePayouts         InvoicePayoutsCmd         `command:"invoicepayouts" description:"(admin)  generate paid invoice list for a given date range"`
-	Invoices               InvoicesCmd               `command:"invoices" description:"(user)  get all invoices (optional with optional parameters)"`
-	Login                  shared.LoginCmd           `command:"login" description:"(public) login to Politeia"`
-	Logout                 shared.LogoutCmd          `command:"logout" description:"(public) logout of Politeia"`
-	CMSManageUser          CMSManageUserCmd          `command:"cmsmanageuser" description:"(admin)  edit certain properties of the specified user"`
-	ManageUser             shared.ManageUserCmd      `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
-	Me                     shared.MeCmd              `command:"me" description:"(user)   get user details for the logged in user"`
-	NewDCC                 NewDCCCmd                 `command:"newdcc" description:"(user)   creates a new dcc proposal"`
-	NewDCCComment          NewDCCCommentCmd          `command:"newdcccomment" description:"(user)   creates a new comment on a dcc proposal"`
-	NewInvoice             NewInvoiceCmd             `command:"newinvoice" description:"(user)   create a new invoice"`
-	PayInvoices            PayInvoicesCmd            `command:"payinvoices" description:"(admin)  set all approved invoices to paid"`
-	Policy                 PolicyCmd                 `command:"policy" description:"(public) get the server policy"`
-	ProposalOwner          ProposalOwnerCmd          `command:"proposalowner" description:"(user) get owners of a proposal"`
-	ProposalBilling        ProposalBillingCmd        `command:"proposalbilling" description:"(user) get billing information for a proposal"`
-	ProposalBillingDetails ProposalBillingDetailsCmd `command:"proposalbillingdetails" description:"(admin) get billing information for a proposal"`
-	ProposalBillingSummary ProposalBillingSummaryCmd `command:"proposalbillingsummary" description:"(admin) get all approved proposal billing information"`
-	RegisterUser           RegisterUserCmd           `command:"register" description:"(public) register an invited user to cms"`
-	ResetPassword          shared.ResetPasswordCmd   `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
-	SetDCCStatus           SetDCCStatusCmd           `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
-	SetInvoiceStatus       SetInvoiceStatusCmd       `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
-	SetTOTP                shared.SetTOTPCmd         `command:"settotp" description:"(user)  set the key for TOTP"`
-	StartVote              StartVoteCmd              `command:"startvote" description:"(admin)  start the voting period on a dcc"`
-	SupportOpposeDCC       SupportOpposeDCCCmd       `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
-	TestRun                TestRunCmd                `command:"testrun" description:"         test cmswww routes"`
-	TokenInventory         TokenInventoryCmd         `command:"tokeninventory" description:"(user) get the censorship record tokens of all proposals (passthrough)"`
-	UpdateUserKey          shared.UpdateUserKeyCmd   `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
-	UserDetails            UserDetailsCmd            `command:"userdetails" description:"(user)   get current cms user details"`
-	UserInvoices           UserInvoicesCmd           `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`
-	UserSubContractors     UserSubContractorsCmd     `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
-	Users                  shared.UsersCmd           `command:"users" description:"(user)   get a list of users"`
-	Secret                 shared.SecretCmd          `command:"secret" description:"(user)   ping politeiawww"`
-	VerifyTOTP             shared.VerifyTOTPCmd      `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
-	Version                shared.VersionCmd         `command:"version" description:"(public) get server info and CSRF token"`
-	VoteDCC                VoteDCCCmd                `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
-	VoteDetails            VoteDetailsCmd            `command:"votedetails" description:"(user) get the details for a dcc vote"`
+	ActiveVotes            ActiveVotesCmd               `command:"activevotes" description:"(user) get the dccs that are being voted on"`
+	BatchProposals         BatchProposalsCmd            `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
+	NewComment             NewCommentCmd                `command:"newcomment" description:"(user)   create a new comment"`
+	CensorComment          CensorCommentCmd             `command:"censorcomment" description:"(admin)  censor a comment"`
+	ChangePassword         shared.UserPasswordChangeCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
+	ChangeUsername         shared.UserUsernameChangeCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
+	CMSUsers               CMSUsersCmd                  `command:"cmsusers" description:"(user)   get a list of cms users"`
+	DCCComments            DCCCommentsCmd               `command:"dcccomments" description:"(user)   get the comments for a dcc proposal"`
+	DCCDetails             DCCDetailsCmd                `command:"dccdetails" description:"(user)   get the details of a dcc"`
+	EditInvoice            EditInvoiceCmd               `command:"editinvoice" description:"(user)   edit a invoice"`
+	EditUser               EditUserCmd                  `command:"edituser" description:"(user)   edit current cms user information"`
+	GeneratePayouts        GeneratePayoutsCmd           `command:"generatepayouts" description:"(admin)  generate a list of payouts with addresses and amounts to pay"`
+	GetDCCs                GetDCCsCmd                   `command:"getdccs" description:"(user)   get all dccs (optional by status)"`
+	Help                   HelpCmd                      `command:"help" description:"         print a detailed help message for a specific command"`
+	InvoiceComments        InvoiceCommentsCmd           `command:"invoicecomments" description:"(user)   get the comments for a invoice"`
+	InvoiceExchangeRate    InvoiceExchangeRateCmd       `command:"invoiceexchangerate" description:"(user)   get exchange rate for a given month/year"`
+	InviteNewUser          InviteNewUserCmd             `command:"invite" description:"(admin)  invite a new user"`
+	InvoiceDetails         InvoiceDetailsCmd            `command:"invoicedetails" description:"(public) get the details of a proposal"`
+	InvoicePayouts         InvoicePayoutsCmd            `command:"invoicepayouts" description:"(admin)  generate paid invoice list for a given date range"`
+	Invoices               InvoicesCmd                  `command:"invoices" description:"(user)  get all invoices (optional with optional parameters)"`
+	Login                  shared.LoginCmd              `command:"login" description:"(public) login to Politeia"`
+	Logout                 shared.LogoutCmd             `command:"logout" description:"(public) logout of Politeia"`
+	CMSManageUser          CMSManageUserCmd             `command:"cmsmanageuser" description:"(admin)  edit certain properties of the specified user"`
+	ManageUser             shared.UserManageCmd         `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	Me                     shared.MeCmd                 `command:"me" description:"(user)   get user details for the logged in user"`
+	NewDCC                 NewDCCCmd                    `command:"newdcc" description:"(user)   creates a new dcc proposal"`
+	NewDCCComment          NewDCCCommentCmd             `command:"newdcccomment" description:"(user)   creates a new comment on a dcc proposal"`
+	NewInvoice             NewInvoiceCmd                `command:"newinvoice" description:"(user)   create a new invoice"`
+	PayInvoices            PayInvoicesCmd               `command:"payinvoices" description:"(admin)  set all approved invoices to paid"`
+	Policy                 PolicyCmd                    `command:"policy" description:"(public) get the server policy"`
+	ProposalOwner          ProposalOwnerCmd             `command:"proposalowner" description:"(user) get owners of a proposal"`
+	ProposalBilling        ProposalBillingCmd           `command:"proposalbilling" description:"(user) get billing information for a proposal"`
+	ProposalBillingDetails ProposalBillingDetailsCmd    `command:"proposalbillingdetails" description:"(admin) get billing information for a proposal"`
+	ProposalBillingSummary ProposalBillingSummaryCmd    `command:"proposalbillingsummary" description:"(admin) get all approved proposal billing information"`
+	RegisterUser           RegisterUserCmd              `command:"register" description:"(public) register an invited user to cms"`
+	ResetPassword          shared.UserPasswordResetCmd  `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
+	SetDCCStatus           SetDCCStatusCmd              `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
+	SetInvoiceStatus       SetInvoiceStatusCmd          `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
+	SetTOTP                shared.UserTOTPSetCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
+	StartVote              StartVoteCmd                 `command:"startvote" description:"(admin)  start the voting period on a dcc"`
+	SupportOpposeDCC       SupportOpposeDCCCmd          `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
+	TestRun                TestRunCmd                   `command:"testrun" description:"         test cmswww routes"`
+	TokenInventory         TokenInventoryCmd            `command:"tokeninventory" description:"(user) get the censorship record tokens of all proposals (passthrough)"`
+	UpdateUserKey          shared.UserKeyUpdateCmd      `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
+	UserDetails            UserDetailsCmd               `command:"userdetails" description:"(user)   get current cms user details"`
+	UserInvoices           UserInvoicesCmd              `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`
+	UserSubContractors     UserSubContractorsCmd        `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
+	Users                  shared.UsersCmd              `command:"users" description:"(user)   get a list of users"`
+	Secret                 shared.SecretCmd             `command:"secret" description:"(user)   ping politeiawww"`
+	VerifyTOTP             shared.UserTOTPVerifyCmd     `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
+	Version                shared.VersionCmd            `command:"version" description:"(public) get server info and CSRF token"`
+	VoteDCC                VoteDCCCmd                   `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
+	VoteDetails            VoteDetailsCmd               `command:"votedetails" description:"(user) get the details for a dcc vote"`
 }
 
 // signedMerkleRoot calculates the merkle root of the passed in list of files

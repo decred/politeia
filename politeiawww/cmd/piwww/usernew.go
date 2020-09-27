@@ -8,13 +8,13 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
 
-// NewUserCmd creates a new politeia user.
-type NewUserCmd struct {
+// userNewCmd creates a new politeia user.
+type userNewCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`    // Email address
 		Username string `positional-arg-name:"username"` // Username
@@ -27,7 +27,7 @@ type NewUserCmd struct {
 }
 
 // Execute executes the new user command.
-func (cmd *NewUserCmd) Execute(args []string) error {
+func (cmd *userNewCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 	username := cmd.Args.Username
 	password := cmd.Args.Password
@@ -138,7 +138,7 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 
 	// Pays paywall fee using faucet
 	if cmd.Paywall {
-		faucet := SendFaucetTxCmd{}
+		faucet := sendFaucetTxCmd{}
 		faucet.Args.Address = lr.PaywallAddress
 		faucet.Args.Amount = lr.PaywallAmount
 		err = faucet.Execute(nil)
@@ -150,9 +150,9 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 	return nil
 }
 
-// newUserHelpMsg is the output of the help command when 'newuser' is
+// userNewHelpMsg is the output of the help command when 'usernew' is
 // specified.
-const newUserHelpMsg = `newuser [flags] "email" "username" "password" 
+const userNewHelpMsg = `usernew [flags] "email" "username" "password" 
 
 Create a new Politeia user. Users can be created by supplying all the arguments
 below, or supplying the --random flag. If --random is used, Politeia will 
@@ -167,17 +167,4 @@ Flags:
   --random    (bool, optional)   Generate a random email/password for the user
   --paywall   (bool, optional)   Satisfy the paywall fee using testnet faucet
   --verify    (bool, optional)   Verify the user's email address
-  --nosave    (bool, optional)   Do not save the user identity to disk 
-
-Request:
-{
-  "email":      (string)  User email
-  "password":   (string)  Password
-  "publickey":  (string)  Active public key
-  "username":   (string)  Username
-}
-
-Response:
-{
-  "verificationtoken":   (string)  Server verification token
-}`
+  --nosave    (bool, optional)   Do not save the user identity to disk`

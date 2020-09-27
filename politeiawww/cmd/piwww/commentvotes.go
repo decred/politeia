@@ -9,9 +9,9 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// CommentVotesCmd retreives like comment objects for
+// commentVotesCmd retreives like comment objects for
 // the specified proposal from the provided user.
-type CommentVotesCmd struct {
+type commentVotesCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token"`  // Censorship token
 		UserID string `positional-arg-name:"userid"` // User id
@@ -19,7 +19,7 @@ type CommentVotesCmd struct {
 }
 
 // Execute executes the user comment likes command.
-func (cmd *CommentVotesCmd) Execute(args []string) error {
+func (cmd *commentVotesCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	userID := cmd.Args.UserID
 

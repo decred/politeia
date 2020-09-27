@@ -10,8 +10,8 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// ResetPasswordCmd resets the password of the specified user.
-type ResetPasswordCmd struct {
+// UserPasswordResetCmd resets the password of the specified user.
+type UserPasswordResetCmd struct {
 	Args struct {
 		Username    string `positional-arg-name:"username"`    // Username
 		Email       string `positional-arg-name:"email"`       // User email address
@@ -20,7 +20,7 @@ type ResetPasswordCmd struct {
 }
 
 // Execute executes the reset password command.
-func (cmd *ResetPasswordCmd) Execute(args []string) error {
+func (cmd *UserPasswordResetCmd) Execute(args []string) error {
 	username := cmd.Args.Username
 	email := cmd.Args.Email
 	newPassword := cmd.Args.NewPassword
@@ -86,14 +86,13 @@ func (cmd *ResetPasswordCmd) Execute(args []string) error {
 	return PrintJSON(vrpr)
 }
 
-// ResetPasswordHelpMsg is the output of the help command when 'resetpassword'
+// UserPasswordResetHelpMsg is the output of the help command when 'userpasswordreset'
 // is specified.
-const ResetPasswordHelpMsg = `resetpassword "username" "email" "newpassword"
+const UserPasswordResetHelpMsg = `userpasswordreset "username" "email" "newpassword"
 
 Reset the password for a user that is not logged in.
 
 Arguments:
 1. username   (string, required)   Username of user
 2. email      (string, required)   Email address of user
-3. password   (string, required)   New password
-`
+3. password   (string, required)   New password`

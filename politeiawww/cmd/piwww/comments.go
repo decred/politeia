@@ -11,8 +11,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// CommentsCmd retreives the comments for the specified proposal.
-type CommentsCmd struct {
+// commentsCmd retreives the comments for the specified proposal.
+type commentsCmd struct {
 	Args struct {
 		Token string `positional-arg-name:"token"` // Censorship token
 	} `positional-args:"true" required:"true"`
@@ -23,7 +23,7 @@ type CommentsCmd struct {
 }
 
 // Execute executes the proposal comments command.
-func (cmd *CommentsCmd) Execute(args []string) error {
+func (cmd *commentsCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 
 	// Verify state
@@ -50,9 +50,9 @@ func (cmd *CommentsCmd) Execute(args []string) error {
 	return shared.PrintJSON(gcr)
 }
 
-// proposalCommentsHelpMsg is the output for the help command when
-// 'proposalcomments' is specified.
-const proposalCommentsHelpMsg = `proposalcomments "token" 
+// commentsHelpMsg is the output for the help command when 'comments'
+// is specified.
+const commentsHelpMsg = `comments "token" 
 
 Get the comments for a proposal.
 

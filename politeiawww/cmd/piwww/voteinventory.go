@@ -8,12 +8,12 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// VoteInventoryCmd retrieves the censorship record tokens of all public,
+// voteInventoryCmd retrieves the censorship record tokens of all public,
 // non-abandoned proposals in  inventory categorized by their vote status.
-type VoteInventoryCmd struct{}
+type voteInventoryCmd struct{}
 
 // Execute executes the vote inventory command.
-func (cmd *VoteInventoryCmd) Execute(args []string) error {
+func (cmd *voteInventoryCmd) Execute(args []string) error {
 	reply, err := client.VoteInventory()
 	if err != nil {
 		return err

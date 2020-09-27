@@ -4,10 +4,10 @@
 
 package shared
 
-import "github.com/decred/politeia/politeiawww/api/www/v1"
+import v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 
-// ChangeUsernameCmd changes the username for the logged in user.
-type ChangeUsernameCmd struct {
+// UserUsernameChangeCmd changes the username for the logged in user.
+type UserUsernameChangeCmd struct {
 	Args struct {
 		Password    string `positional-arg-name:"password"`    // User password
 		NewUsername string `positional-arg-name:"newusername"` // New username
@@ -15,7 +15,7 @@ type ChangeUsernameCmd struct {
 }
 
 // Execute executes the change username command.
-func (cmd *ChangeUsernameCmd) Execute(args []string) error {
+func (cmd *UserUsernameChangeCmd) Execute(args []string) error {
 	cu := &v1.ChangeUsername{
 		Password:    DigestSHA3(cmd.Args.Password),
 		NewUsername: cmd.Args.NewUsername,
@@ -37,21 +37,12 @@ func (cmd *ChangeUsernameCmd) Execute(args []string) error {
 	return PrintJSON(cur)
 }
 
-// ChangeUsernameHelpMsg is the output of the help command when
-// 'changeusername' is specified.
-var ChangeUsernameHelpMsg = `changeusername "password" "newusername" 
+// UserUsernameChangeHelpMsg is the output of the help command when
+// 'userusernamechange' is specified.
+var UserUsernameChangeHelpMsg = `userusernamechange "password" "newusername" 
 
 Change the username for the currently logged in user.
 
 Arguments:
 1. password      (string, required)   Current password 
-2. newusername   (string, required)   New username  
-
-Request:
-{
-  "password":      (string)  Current password 
-  "newusername":   (string)  New username
-}
-
-Response:
-{}`
+2. newusername   (string, required)   New username`

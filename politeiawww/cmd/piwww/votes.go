@@ -11,16 +11,16 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// VotesCmd retrieves vote details for a proposal, tallies the votes,
+// votesCmd retrieves vote details for a proposal, tallies the votes,
 // and displays the result.
-type VotesCmd struct {
+type votesCmd struct {
 	Args struct {
 		Token string `positional-arg-name:"token"` // Censorship token
 	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the tally command.
-func (cmd *VotesCmd) Execute(args []string) error {
+func (cmd *votesCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 
 	// Prep request payload
@@ -57,7 +57,7 @@ func (cmd *VotesCmd) Execute(args []string) error {
 	return shared.PrintJSON(vrr)
 }
 
-// votesHelpMsg is the output for the help command when 'tally' is specified.
+// votesHelpMsg is the output for the help command when 'votes' is specified.
 const votesHelpMsg = `votes "token"
 
 Fetch the vote details for a proposal.

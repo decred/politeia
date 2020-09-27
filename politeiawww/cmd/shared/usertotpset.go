@@ -10,15 +10,15 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// SetTOTPCmd sets the TOTP key for the logged in user.
-type SetTOTPCmd struct {
+// UserTOTPSetCmd sets the TOTP key for the logged in user.
+type UserTOTPSetCmd struct {
 	Args struct {
 		Code string `positional-arg-name:"code"`
 	} `positional-args:"true"`
 }
 
 // Execute executes the set totp command.
-func (cmd *SetTOTPCmd) Execute(args []string) error {
+func (cmd *UserTOTPSetCmd) Execute(args []string) error {
 	// Setup new user request
 	st := &v1.SetTOTP{
 		Code: cmd.Args.Code,

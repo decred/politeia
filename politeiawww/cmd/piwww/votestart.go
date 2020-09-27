@@ -15,12 +15,12 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// VoteStartCmd starts the voting period on the specified proposal.
+// voteStartCmd starts the voting period on the specified proposal.
 //
 // The QuorumPercentage and PassPercentage are strings and not uint32 so that a
 // value of 0 can be passed in and not be overwritten by the defaults. This is
 // sometimes desirable when testing.
-type VoteStartCmd struct {
+type voteStartCmd struct {
 	Args struct {
 		Token            string `positional-arg-name:"token" required:"true"`
 		Duration         uint32 `positional-arg-name:"duration"`
@@ -30,7 +30,7 @@ type VoteStartCmd struct {
 }
 
 // Execute executes the start vote command.
-func (cmd *VoteStartCmd) Execute(args []string) error {
+func (cmd *voteStartCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound

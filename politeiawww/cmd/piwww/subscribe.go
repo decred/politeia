@@ -20,13 +20,13 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-// SubscribeCmd opens a websocket connect to politeiawww.
-type SubscribeCmd struct {
+// subscribeCmd opens a websocket connect to politeiawww.
+type subscribeCmd struct {
 	Close bool `long:"close" optional:"true"` // Do not keep connetion alive
 }
 
 // Execute executes the subscribe command.
-func (cmd *SubscribeCmd) Execute(args []string) error {
+func (cmd *subscribeCmd) Execute(args []string) error {
 	// Parse args
 	route := v1.RouteUnauthenticatedWebSocket
 	subscribe := make([]string, 0, len(args))
@@ -119,9 +119,4 @@ Flags:
 	--close	  (bool, optional)   Do not keep the websocket connection alive
 
 Supported commands:
-	- ping (does not require authentication)
-
-Request:
-{
-}
-`
+	- ping (does not require authentication)`

@@ -8,16 +8,16 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// VoteDetailsCmd fetches the vote parameters and vote options from the
+// voteDetailsCmd fetches the vote parameters and vote options from the
 // politeiawww v2 VoteDetails routes.
-type VoteDetailsCmd struct {
+type voteDetailsCmd struct {
 	Args struct {
 		Token string `positional-arg-name:"token"` // Proposal token
 	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the vote details command.
-func (cmd *VoteDetailsCmd) Execute(args []string) error {
+func (cmd *voteDetailsCmd) Execute(args []string) error {
 	vdr, err := client.VoteDetailsV2(cmd.Args.Token)
 	if err != nil {
 		return err

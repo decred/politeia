@@ -9,19 +9,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// EditUserCmd edits the preferences of the logged in user.
-type EditUserCmd struct {
+// userEditCmd edits the preferences of the logged in user.
+type userEditCmd struct {
 	Args struct {
 		NotifType string `long:"emailnotifications"` // Email notification bit field
 	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the edit user command.
-func (cmd *EditUserCmd) Execute(args []string) error {
+func (cmd *userEditCmd) Execute(args []string) error {
 	emailNotifs := map[string]v1.EmailNotificationT{
 		"userproposalchange":        v1.NotificationEmailMyProposalStatusChange,
 		"userproposalvotingstarted": v1.NotificationEmailMyProposalVoteStarted,
@@ -83,9 +83,9 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 	return shared.PrintJSON(eur)
 }
 
-// editUserHelpMsg is the output of the help command when 'edituser' is
+// userEditHelpMsg is the output of the help command when 'edituser' is
 // specified.
-const editUserHelpMsg = `edituser "emailnotifications"
+const userEditHelpMsg = `useredit "emailnotifications"
 
 Edit user settings for the logged in user.
  
@@ -102,12 +102,4 @@ Valid options are:
 32.  newproposal                Notify when proposal is submitted (admin only)
 64.  userauthorizedvote         Notify when user authorizes vote (admin only)
 128. commentonproposal          Notify when comment is made on my proposal
-256. commentoncomment           Notify when comment is made on my comment
-
-Request:
-{
-  "emailnotifications":  (uint64)  Bit field
-}
-
-Response:
-{}`
+256. commentoncomment           Notify when comment is made on my comment`

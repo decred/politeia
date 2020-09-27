@@ -14,8 +14,8 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// CommentCensorCmd censors a proposal comment.
-type CommentCensorCmd struct {
+// commentCensorCmd censors a proposal comment.
+type commentCensorCmd struct {
 	Args struct {
 		Token     string `positional-arg-name:"token"`     // Censorship token
 		CommentID string `positional-arg-name:"commentID"` // Comment ID
@@ -28,7 +28,7 @@ type CommentCensorCmd struct {
 }
 
 // Execute executes the censor comment command.
-func (cmd *CommentCensorCmd) Execute(args []string) error {
+func (cmd *commentCensorCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	commentID := cmd.Args.CommentID
 	reason := cmd.Args.Reason

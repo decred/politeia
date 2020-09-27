@@ -19,8 +19,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// VoteBallotCmd casts a votes ballot for the specified proposal.
-type VoteBallotCmd struct {
+// voteBallotCmd casts a votes ballot for the specified proposal.
+type voteBallotCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token"`  // Censorship token
 		VoteID string `positional-arg-name:"voteid"` // Vote choice ID
@@ -28,7 +28,7 @@ type VoteBallotCmd struct {
 }
 
 // Execute executes the vote ballot command.
-func (cmd *VoteBallotCmd) Execute(args []string) error {
+func (cmd *voteBallotCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	voteID := cmd.Args.VoteID
 

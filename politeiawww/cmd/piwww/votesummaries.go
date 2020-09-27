@@ -9,11 +9,11 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// VoteSummariesCmd retrieves a set of proposal vote summaries.
-type VoteSummariesCmd struct{}
+// voteSummariesCmd retrieves a set of proposal vote summaries.
+type voteSummariesCmd struct{}
 
 // Execute executes the batch vote summaries command.
-func (cmd *VoteSummariesCmd) Execute(args []string) error {
+func (cmd *voteSummariesCmd) Execute(args []string) error {
 	bpr, err := client.VoteSummaries(&pi.VoteSummaries{
 		Tokens: args,
 	})

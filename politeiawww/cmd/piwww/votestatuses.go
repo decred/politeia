@@ -6,11 +6,11 @@ package main
 
 import "github.com/decred/politeia/politeiawww/cmd/shared"
 
-// VoteStatusesCmd retreives the vote status of all public proposals.
-type VoteStatusesCmd struct{}
+// voteStatusesCmd retreives the vote status of all public proposals.
+type voteStatusesCmd struct{}
 
 // Execute executes the vote statuses command.
-func (cmd *VoteStatusesCmd) Execute(args []string) error {
+func (cmd *voteStatusesCmd) Execute(args []string) error {
 	avsr, err := client.GetAllVoteStatus()
 	if err != nil {
 		return err
@@ -33,29 +33,4 @@ Proposal vote status codes:
 '4' - Proposal vote has been finished
 '5' - Proposal doesn't exist
 
-Arguments: None
-
-Response:
-{
-  "votestatus": [
-    {
-      "token":              (string)  Public key of user that submitted proposal
-      "status":             (int)     Vote status code
-      "totalvotes":         (uint64)  Total number of votes on proposal
-      "optionsresult": [
-        {
-         "option": {
-            "id":           (string)  Unique word identifying vote (e.g. 'yes')
-            "description":  (string)  Longer description of the vote
-            "bits":         (uint64)  Bits used for this option
-          },
-          "votesreceived":  (uint64)  Number of votes received
-        },
-      ],
-      "endheight":          (string)  String encoded final block height of the vote
-      "numofeligiblevotes": (int)     Total number of eligible votes
-      "quorumpercentage":   (uint32)  Percent of eligible votes required for quorum
-      "passpercentage":     (uint32)  Percent of total votes required to pass
-    }
-  ]
-}`
+Arguments: None`

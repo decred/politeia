@@ -16,13 +16,13 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// VoteStartRunoffCmd starts the voting period on all public submissions to a
+// voteStartRunoffCmd starts the voting period on all public submissions to a
 // request for proposals (RFP).
 //
 // The QuorumPercentage and PassPercentage are strings and not uint32 so that a
 // value of 0 can be passed in and not be overwritten by the defaults. This is
 // sometimes desirable when testing.
-type VoteStartRunoffCmd struct {
+type voteStartRunoffCmd struct {
 	Args struct {
 		TokenRFP         string `positional-arg-name:"token" required:"true"` // RFP censorship token
 		Duration         uint32 `positional-arg-name:"duration"`              // Duration in blocks
@@ -32,7 +32,7 @@ type VoteStartRunoffCmd struct {
 }
 
 // Execute executes the StartVoteRunoff command.
-func (cmd *VoteStartRunoffCmd) Execute(args []string) error {
+func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound

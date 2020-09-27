@@ -45,62 +45,69 @@ type piwww struct {
 	Config shared.Config
 
 	// Proposal commands
-	ProposalNew       ProposalNewCmd       `command:"proposalnew"`
-	ProposalEdit      ProposalEditCmd      `command:"proposaledit"`
-	ProposalSetStatus ProposalSetStatusCmd `command:"proposalsetstatus"`
-	Proposals         ProposalsCmd         `command:"proposals"`
-	ProposalInventory ProposalInventoryCmd `command:"proposalinventory"`
+	ProposalNew       proposalNewCmd       `command:"proposalnew"`
+	ProposalEdit      proposalEditCmd      `command:"proposaledit"`
+	ProposalSetStatus proposalSetStatusCmd `command:"proposalsetstatus"`
+	Proposals         proposalsCmd         `command:"proposals"`
+	ProposalInventory proposalInventoryCmd `command:"proposalinventory"`
 
 	// Comments commands
-	CommentNew    CommentNewCmd    `command:"commentnew" description:"(user) create a new comment"`
-	CommentVote   CommentVoteCmd   `command:"commentvote" description:"(user) upvote/downvote a comment"`
-	CommentCensor CommentCensorCmd `command:"commentcensor" description:"(admin) censor a comment"`
-	Comments      CommentsCmd      `command:"comments" description:"(public) get the comments for a proposal"`
-	CommentVotes  CommentVotesCmd  `command:"commentvotes" description:"(user) get comment upvotes/downvotes for a proposal from the provided user"`
+	CommentNew    commentNewCmd    `command:"commentnew" description:"(user) create a new comment"`
+	CommentVote   commentVoteCmd   `command:"commentvote" description:"(user) upvote/downvote a comment"`
+	CommentCensor commentCensorCmd `command:"commentcensor" description:"(admin) censor a comment"`
+	Comments      commentsCmd      `command:"comments" description:"(public) get the comments for a proposal"`
+	CommentVotes  commentVotesCmd  `command:"commentvotes" description:"(user) get comment upvotes/downvotes for a proposal from the provided user"`
 
 	// Vote commands
-	VoteAuthorize   VoteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
-	VoteStart       VoteStartCmd       `command:"votestart" description:"(admin) start the voting period on a proposal"`
-	VoteStartRunoff VoteStartRunoffCmd `command:"votestartrunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
-	VoteBallot      VoteBallotCmd      `command:"voteballot" description:"(public) cast ballot of votes for a proposal"`
-	Votes           VotesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
-	VoteResults     VoteResultsCmd     `command:"voteresults" description:"(public) get vote results for a proposal"`
-	VoteSummaries   VoteSummariesCmd   `command:"votesummaries" description:"(public) retrieve the vote summary for a set of proposals"`
-	VoteInventory   VoteInventoryCmd   `command:"voteinventory" description:"(public) retrieve the tokens of all public, non-abandoned proposal separated by vote status"`
+	VoteAuthorize   voteAuthorizeCmd   `command:"voteauthorize" description:"(user) authorize a proposal vote (must be proposal author)"`
+	VoteStart       voteStartCmd       `command:"votestart" description:"(admin) start the voting period on a proposal"`
+	VoteStartRunoff voteStartRunoffCmd `command:"votestartrunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
+	VoteBallot      voteBallotCmd      `command:"voteballot" description:"(public) cast ballot of votes for a proposal"`
+	Votes           votesCmd           `command:"votes" description:"(public) get the vote tally for a proposal"`
+	VoteResults     voteResultsCmd     `command:"voteresults" description:"(public) get vote results for a proposal"`
+	VoteSummaries   voteSummariesCmd   `command:"votesummaries" description:"(public) retrieve the vote summary for a set of proposals"`
+	VoteInventory   voteInventoryCmd   `command:"voteinventory" description:"(public) retrieve the tokens of all public, non-abandoned proposal separated by vote status"`
+	// XXX www vote routes
+	VoteDetails  voteDetailsCmd  `command:"votedetails" description:"(public) get the details for a proposal vote"`
+	VoteStatus   voteStatusCmd   `command:"votestatus" description:"(public) get the vote status of a proposal"`
+	VoteStatuses voteStatusesCmd `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
 
-	// Commands
-	ChangePassword     shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
-	ChangeUsername     shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
-	EditUser           EditUserCmd              `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
-	Help               HelpCmd                  `command:"help" description:"         print a detailed help message for a specific command"`
-	Login              shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
-	Logout             shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
-	ManageUser         shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
-	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
-	NewUser            NewUserCmd               `command:"newuser" description:"(public) create a new user"`
-	Policy             PolicyCmd                `command:"policy" description:"(public) get the server policy"`
-	ProposalPaywall    ProposalPaywallCmd       `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
-	RescanUserPayments RescanUserPaymentsCmd    `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
-	ResendVerification ResendVerificationCmd    `command:"resendverification" description:"(public) resend the user verification email"`
-	ResetPassword      shared.ResetPasswordCmd  `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
-	Secret             shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
-	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
-	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
-	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
-	TestRun            TestRunCmd               `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
-	UpdateUserKey      shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
-	UserDetails        UserDetailsCmd           `command:"userdetails" description:"(public) get the details of a user profile"`
-	UserPendingPayment UserPendingPaymentCmd    `command:"userpendingpayment" description:"(user)   get details for a pending payment for the logged in user"`
-	UserProposals      UserProposalsCmd         `command:"userproposals" description:"(public) get all proposals submitted by a specific user"`
-	Users              shared.UsersCmd          `command:"users" description:"(public) get a list of users"`
-	VerifyUserEmail    VerifyUserEmailCmd       `command:"verifyuseremail" description:"(public) verify a user's email address"`
-	VerifyUserPayment  VerifyUserPaymentCmd     `command:"verifyuserpayment" description:"(user)   check if the logged in user has paid their user registration fee"`
-	VerifyTOTP         shared.VerifyTOTPCmd     `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
-	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
-	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
-	VoteDetails        VoteDetailsCmd           `command:"votedetails" description:"(public) get the details for a proposal vote"`
-	VoteStatus         VoteStatusCmd            `command:"votestatus" description:"(public) get the vote status of a proposal"`
-	VoteStatuses       VoteStatusesCmd          `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
+	// User commands
+	UserNew                userNewCmd                   `command:"usernew" description:"(public) create a new user"`
+	UserEdit               userEditCmd                  `command:"useredit" description:"(user) edit the preferences of the logged in user"`
+	UserDetails            userDetailsCmd               `command:"userdetails" description:"(public) get the details of a user profile"`
+	UserPaymentsRescan     userPaymentsRescanCmd        `command:"userpaymentsrescan" description:"(admin) rescan a user's payments to check for missed payments"`
+	UserPendingPayment     userPendingPaymentCmd        `command:"userpendingpayment" description:"(user) get details for a pending payment for the logged in user"`
+	UserEmailVerify        userEmailVerifyCmd           `command:"useremailverify" description:"(public) verify a user's email address"`
+	UserPaymentVerify      userPaymentVerifyCmd         `command:"userpaymentverify" description:"(user) check if the logged in user has paid their user registration fee"`
+	UserVerificationResend userVerificationResendCmd    `command:"userverificationresend" description:"(public) resend the user verification email"`
+	UserManage             shared.UserManageCmd         `command:"usermanage" description:"(admin) edit certain properties of the specified user"`
+	UserKeyUpdate          shared.UserKeyUpdateCmd      `command:"userkeyupdate" description:"(user) generate a new identity for the logged in user"`
+	UserUsernameChange     shared.UserUsernameChangeCmd `command:"userusernamechange" description:"(user) change the username for the logged in user"`
+	UserPasswordChange     shared.UserPasswordChangeCmd `command:"userpasswordchange" description:"(user) change the password for the logged in user"`
+	UserPasswordReset      shared.UserPasswordResetCmd  `command:"userpasswordreset" description:"(public) reset the password for a user that is not logged in"`
+	UserTOTPSet            shared.UserTOTPSetCmd        `command:"usertotpset" description:"(user) set the key for TOTP"`
+	UserTOTPVerify         shared.UserTOTPVerifyCmd     `command:"usertotpverify" description:"(user) verify the set code for TOTP"`
+	Users                  shared.UsersCmd              `command:"users" description:"(public) get a list of users"`
+
+	// XXX will be factored to a user route
+	ProposalPaywall proposalPaywallCmd `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
+
+	// Basic commands
+	Login   shared.LoginCmd   `command:"login" description:"(public) login to Politeia"`
+	Logout  shared.LogoutCmd  `command:"logout" description:"(public) logout of Politeia"`
+	Me      shared.MeCmd      `command:"me" description:"(user) get user details for the logged in user"`
+	Secret  shared.SecretCmd  `command:"secret" description:"(user) ping politeiawww"`
+	Version shared.VersionCmd `command:"version" description:"(public) get server info and CSRF token"`
+	Policy  policyCmd         `command:"policy" description:"(public) get the server policy"`
+	Help    helpCmd           `command:"help" description:" print a detailed help message for a specific command"`
+
+	// Websocket commands
+	Subscribe subscribeCmd `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
+
+	// Dev commands
+	TestRun      testRunCmd      `command:"testrun" description:"(dev) run a series of tests on the politeiawww routes"`
+	SendFaucetTx sendFaucetTxCmd `command:"sendfaucettx" description:"(dev) send a DCR transaction using the Decred testnet faucet"`
 }
 
 // signedMerkleRoot calculates the merkle root of the passed in list of files

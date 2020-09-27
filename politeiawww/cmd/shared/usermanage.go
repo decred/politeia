@@ -11,9 +11,9 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// ManageUserCmd allows an admin to edit certain properties of the specified
+// UserManageCmd allows an admin to edit certain properties of the specified
 // user.
-type ManageUserCmd struct {
+type UserManageCmd struct {
 	Args struct {
 		UserID string `positional-arg-name:"userid"` // User ID
 		Action string `positional-arg-name:"action"` // Edit user action
@@ -22,7 +22,7 @@ type ManageUserCmd struct {
 }
 
 // Execute executes the manage user command.
-func (cmd *ManageUserCmd) Execute(args []string) error {
+func (cmd *UserManageCmd) Execute(args []string) error {
 	ManageActions := map[string]v1.UserManageActionT{
 		"expirenewuser":       v1.UserManageExpireNewUserVerification,
 		"expireupdatekey":     v1.UserManageExpireUpdateKeyVerification,
@@ -77,9 +77,9 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	return PrintJSON(mur)
 }
 
-// ManageUserHelpMsg is the output of the help command when 'edituser' is
+// UserManageHelpMsg is the output of the help command when 'edituser' is
 // specified.
-const ManageUserHelpMsg = `manageuser "userid" "action" "reason"
+const UserManageHelpMsg = `usermanage "userid" "action" "reason"
 
 Edit the details for the given user id. Requires admin privileges.
 
@@ -95,14 +95,4 @@ Valid actions are:
 4. clearpaywall            Clears user registration paywall
 5. unlocks                 Unlocks user account from failed logins
 6. deactivates             Deactivates user account
-7. reactivate              Reactivates user account
-
-Request:
-{
-  "userid":  (string)    User id
-  "action":  (string)    Edit user action
-  "reason":  (string)    Reason for action
-}
-
-Response:
-{}`
+7. reactivate              Reactivates user account`

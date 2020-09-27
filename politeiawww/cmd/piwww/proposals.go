@@ -12,8 +12,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// ProposalsCmd retrieves the proposal records of the requested tokens and versions.
-type ProposalsCmd struct {
+// proposalsCmd retrieves the proposal records of the requested tokens and versions.
+type proposalsCmd struct {
 	Args struct {
 		Proposals []string `positional-arg-name:"proposals" required:"true"`
 	} `positional-args:"true" optional:"true"`
@@ -26,7 +26,7 @@ type ProposalsCmd struct {
 }
 
 // Execute executes the proposals command.
-func (cmd *ProposalsCmd) Execute(args []string) error {
+func (cmd *proposalsCmd) Execute(args []string) error {
 	proposals := cmd.Args.Proposals
 
 	// Set state to get unvetted or vetted proposals. Defaults
