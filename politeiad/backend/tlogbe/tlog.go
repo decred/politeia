@@ -595,7 +595,7 @@ func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
 	}
 	var l *trillian.LogLeaf
 	for _, v := range leaves {
-		if leafIsFreezeRecord(l) {
+		if leafIsFreezeRecord(v) {
 			l = v
 			break
 		}
@@ -1108,6 +1108,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 	if err == errRecordNotFound {
 		// No record versions exist yet. This is fine. The version and
 		// iteration will be incremented to 1.
+		oldIdx = &recordIndex{}
 	} else if err != nil {
 		return fmt.Errorf("recordIndexLatest: %v", err)
 	}

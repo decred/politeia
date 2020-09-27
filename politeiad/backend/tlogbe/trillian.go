@@ -391,6 +391,7 @@ func (t *trillianClient) leavesByRange(treeID int64, startIndex, count int64) ([
 	if err != nil {
 		return nil, err
 	}
+
 	return glbrr.Leaves, nil
 }
 
@@ -406,6 +407,10 @@ func (t *trillianClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	if lr.TreeSize == 0 {
 		return []*trillian.LogLeaf{}, nil
 	}
+
+	// Default gprc max message size is 4MB (4194304 bytes). We need to
+	// increase this when fetching all leaves.
+	// maxMsgSize := grpc.MaxCallSendMsgSize(6000000)
 
 	// Get all leaves
 	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))
@@ -474,9 +479,14 @@ func newTrillianClient(host, keyFile string) (*trillianClient, error) {
 		log.Infof("Trillian private key created: %v", keyFile)
 	}
 
+	// Default gprc max message size is ~4MB (4194304 bytes). This is
+	// not large enough for trees with tens of thousands of leaves.
+	// Increase it to 20MB.
+	maxMsgSize := grpc.WithMaxMsgSize(20000000)
+
 	// Setup trillian connection
 	// TODO should this be WithInsecure?
-	g, err := grpc.Dial(host, grpc.WithInsecure())
+	g, err := grpc.Dial(host, grpc.WithInsecure(), maxMsgSize)
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial: %v", err)
 	}

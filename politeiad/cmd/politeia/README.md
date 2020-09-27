@@ -27,24 +27,25 @@ $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new 'metad
 Record submitted
   Censorship record:
     Merkle   : 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2
-    Token    : 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+    Token    : 07ca1d1b5f7ca84f0000
     Signature: 28c75019fb15af4e81ee1607deff58a8a82896d6bb1af4e813c5c996069ad7872505e4f25e067e8f310af82981aca1b02050ee23029f6d1e87b8ea8f0b3bcd08
 ```
 
 ## Get unvetted record
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 07ca1d1b5f7ca84f0000
+
 Unvetted record:
   Status     : censored
   Timestamp  : 2017-12-14 17:08:33 +0000 UTC
   Censorship record:
     Merkle   : 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2
-    Token    : 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f
+    Token    : 07ca1d1b5f7ca84f0000
    Signature: 5c28d2a93ff9cfe35e8a6b465ae06fa596b08bfe7b980ff9dbe68877e7d860010ec3c4fd8c8b739dc4ceeda3a2381899c7741896323856f0f267abf9a40b8003
   Metadata   : [{2 {"foo":"bar"}} {12 "zap"}]
   File (00)  :
-    Name     : a
+    Name     : filename.txt
     MIME     : text/plain; charset=utf-8
     Digest   : 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2
 ```
