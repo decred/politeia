@@ -64,9 +64,11 @@ func (g *github) Update(org string, repos []string, start, end int64) {
 		for _, pr := range prs {
 			// check to see if last updated time was before the given start date
 			if parseTime(pr.MergedAt).Before(time.Unix(start, 0)) {
+				log.Infof("Skipping PR %v/%v/%v since %v before %v", org, repo, pr.Number, pr.MergedAt, time.Unix(start, 0))
 				continue
 			}
 			if parseTime(pr.MergedAt).After(time.Unix(end, 0)) {
+				log.Infof("Skipping PR %v/%v/%v since %v after %v", org, repo, pr.Number, pr.MergedAt, time.Unix(end, 0))
 				continue
 			}
 			err := g.updatePullRequest(org, repo, pr, start)
@@ -83,7 +85,7 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	if err != nil {
 		return err
 	}
-
+	log.Info("Updating %v/%v/%v ", org, repoName, pr.Number)
 	dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, repoName,
 		org)
 	if err != nil {
@@ -93,7 +95,14 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
 	if err == database.ErrNoPullRequestFound {
 		log.Infof("New PR %d", pr.Number)
-		reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number)
+
+		err = g.codedb.NewPullRequest(dbPullRequest)
+		if err != nil {
+			log.Errorf("error adding new pull request: %v", err)
+			return err
+		}
+
+		reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number, dbPullRequest.URL)
 		if err != nil {
 			return err
 		}
@@ -113,8 +122,15 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 		// Only update if dbPR is found and pr.Updated is more recent than what
 		// is currently stored.
 		log.Infof("Update PR %d", pr.Number)
+
+		err = g.codedb.UpdatePullRequest(dbPullRequest)
+		if err != nil {
+			log.Errorf("error adding new pull request: %v", err)
+			return err
+		}
+
 		reviews, err := g.fetchPullRequestReviews(org,
-			repoName, pr.Number)
+			repoName, pr.Number, dbPullRequest.URL)
 		if err != nil {
 			return err
 		}
@@ -129,14 +145,14 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	return nil
 }
 
-func (g *github) fetchPullRequestReviews(org, repoName string, prNum int) ([]database.PullRequestReview, error) {
+func (g *github) fetchPullRequestReviews(org, repoName string, prNum int, url string) ([]database.PullRequestReview, error) {
 	prReviews, err := g.tc.FetchPullRequestReviews(org, repoName,
 		prNum)
 	if err != nil {
 		return nil, err
 	}
 
-	reviews := convertAPIReviewsToDbReviews(prReviews, repoName, prNum)
+	reviews := convertAPIReviewsToDbReviews(prReviews, repoName, prNum, url)
 	return reviews, nil
 }
 func yearMonth(t time.Time) string {

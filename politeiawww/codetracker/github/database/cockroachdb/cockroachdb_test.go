@@ -580,7 +580,7 @@ func TestReviewsByUserDates(t *testing.T) {
 	  reviews.repo,
 	  reviews.number,
 	  pullrequests.additions,
-	  pullrequests.deletions,
+	  pullrequests.deletions
     FROM reviews
     INNER JOIN pullrequests
 	  ON pullrequests.url = reviews.pull_request_url

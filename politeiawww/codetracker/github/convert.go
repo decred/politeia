@@ -45,12 +45,13 @@ func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repoName, org 
 	return dbPR, nil
 }
 
-func convertAPIReviewsToDbReviews(apiReviews []api.PullRequestReview, repo string, prNumber int) []database.PullRequestReview {
+func convertAPIReviewsToDbReviews(apiReviews []api.PullRequestReview, repo string, prNumber int, url string) []database.PullRequestReview {
 	dbReviews := make([]database.PullRequestReview, 0, len(apiReviews))
 	for _, review := range apiReviews {
 		dbReview := convertAPIReviewToDbReview(review)
 		dbReview.Repo = repo
 		dbReview.Number = prNumber
+		dbReview.PullRequestURL = url
 		dbReviews = append(dbReviews, dbReview)
 	}
 	return dbReviews

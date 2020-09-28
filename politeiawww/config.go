@@ -91,7 +91,7 @@ var (
 	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
 
 	// Default end date to stop pull code statistics if none specified.
-	defaultCodeStatEnd = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
+	defaultCodeStatEnd = time.Now() // Use today as the default end code stat date
 
 	// Check to make sure code stat start time is sane 2 years from today.
 	codeStatCheck = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 52 * 2) // 2 years in minutes 60min * 24h * 7days * 52weeks * 2years
