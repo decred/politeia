@@ -357,6 +357,7 @@ type Inventory struct {
 	IncludeFiles bool `json:"includefiles"` // Include files in records
 	// XXX add VettedStart and BranchesStart
 	VettedCount   uint `json:"vettedcount"`   // Last N vetted records
+	VettedPage    uint `json:"vettedpage"`    // Page for vetted records
 	BranchesCount uint `json:"branchescount"` // Last N branches (censored, new etc)
 	AllVersions   bool `json:"allversions"`   // Return all versions of the proposals
 }
