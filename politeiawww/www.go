@@ -569,6 +569,7 @@ func _main() error {
 			dbInvs := make([]database.Invoice, 0, 2048)
 			dbDCCs := make([]database.DCC, 0, 2048)
 			for {
+				log.Infof("requesting record inventory page %v of count %v", page, count)
 				// Request full record inventory from backend
 				challenge, err := util.Random(pd.ChallengeSize)
 				if err != nil {
