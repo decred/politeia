@@ -635,7 +635,7 @@ func _main() error {
 				}
 				page += 1
 			}
-			fmt.Println(len(dbInvs), len(dbDCCs))
+
 			// Build the cache
 			err = p.cmsDB.Build(dbInvs, dbDCCs)
 			if err != nil {
