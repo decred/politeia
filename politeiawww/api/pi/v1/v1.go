@@ -375,7 +375,12 @@ type ProposalRequest struct {
 }
 
 // Proposals retrieves the ProposalRecord for each of the provided proposal
-// requests. Unvetted proposal files are only returned to admins.
+// requests. Unvetted proposals are stripped of their user defined proposal
+// files and metadata when being returned to non-admins.
+//
+// IncludeFiles specifies whether the proposal files should be returned. The
+// user defined metadata will still be returned even when IncludeFiles is set
+// to false.
 type Proposals struct {
 	State        PropStateT        `json:"state"`
 	Requests     []ProposalRequest `json:"requests"`

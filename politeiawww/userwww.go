@@ -577,30 +577,6 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, mur)
 }
 
-// handleUserCommentsLikes returns the user votes on comments of a given proposal.
-func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserCommentsLikes")
-
-	pathParams := mux.Vars(r)
-	token := pathParams["token"]
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserCommentsLikes: getSessionUser %v", err)
-		return
-	}
-
-	uclr, err := p.processUserCommentsLikes(user, token)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserCommentsLikes: processUserCommentsLikes %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, uclr)
-}
-
 // handleUserRegistrationPayment checks whether the provided transaction
 // is on the blockchain and meets the requirements to consider the user
 // registration fee as paid.
@@ -858,9 +834,6 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteEditUser, p.handleEditUser,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserCommentsLikes, p.handleUserCommentsLikes,
-		permissionLogin) // XXX comments need to become a setting
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserRegistrationPayment, p.handleUserRegistrationPayment,
 		permissionLogin)

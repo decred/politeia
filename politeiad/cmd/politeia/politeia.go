@@ -23,7 +23,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/util"
@@ -1270,28 +1270,30 @@ func _main() error {
 		// Select action
 		if i == 0 {
 			switch a {
-			case "new":
-				return newRecord()
 			case "identity":
 				return getIdentity()
-			case "plugin":
-				return plugin()
-			case "plugininventory":
-				return getPluginInventory()
-			case "inventory":
-				return inventory()
-			case "getunvetted":
-				return getUnvetted()
-			case "getvetted":
-				return getVetted()
-			case "setunvettedstatus":
-				return setUnvettedStatus()
+			case "new":
+				return newRecord()
 			case "updateunvetted":
 				return updateRecord(false)
+			// TODO case "updateunvettedmd"
+			case "setunvettedstatus":
+				return setUnvettedStatus()
+			case "getunvetted":
+				return getUnvetted()
 			case "updatevetted":
 				return updateRecord(true)
 			case "updatevettedmd":
 				return updateVettedMetadata()
+			// TODO case "setvettedstatus":
+			case "getvetted":
+				return getVetted()
+			case "inventory":
+				return inventory()
+			case "plugin":
+				return plugin()
+			case "plugininventory":
+				return getPluginInventory()
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}

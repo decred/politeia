@@ -542,6 +542,10 @@ func (p *politeiawww) proposalRecordLatest(state pi.PropStateT, token string) (*
 //
 // TODO politeiad needs batched calls for retrieving unvetted and vetted
 // records. This call should have an includeFiles option.
+// TODO this presents a challenge because the proposal Metadata still needs to
+// be returned even if the proposal Files are not returned, which means that we
+// will always need to fetch the record from politeiad with the files attached
+// since the proposal Metadata is saved to politeiad as a politeiad File.
 func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalRequest, includeFiles bool) (map[string]pi.ProposalRecord, error) {
 	// Get politeiad records
 	props := make([]pi.ProposalRecord, 0, len(reqs))
@@ -571,10 +575,10 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 				v.Token, err)
 		}
 
-		// Remove files if specified
+		// Remove files if specified. The Metadata objects will still be
+		// returned.
 		if !includeFiles {
 			pr.Files = []pi.File{}
-			pr.Metadata = []pi.Metadata{}
 		}
 
 		props = append(props, *pr)
@@ -1417,20 +1421,52 @@ func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, pssr)
 }
 
+func (p *politeiawww) handleProposals(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposals")
+
+	var ps pi.Proposals
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ps); err != nil {
+		respondWithPiError(w, r, "handleProposals: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInputInvalid,
+			})
+		return
+	}
+
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
+	user, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		respondWithPiError(w, r,
+			"handleProposals: getSessionUser: %v", err)
+		return
+	}
+
+	isAdmin := user != nil && user.Admin
+	ppi, err := p.processProposals(ps, isAdmin)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleProposals: processProposals: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ppi)
+}
+
 func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalInventory")
 
-	// Get data from session user. This is a public route, so we can
-	// ignore the session not found error. This is done to strip
-	// non-admin users from unvetted record tokens.
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
 	user, err := p.getSessionUser(w, r)
 	if err != nil && err != errSessionNotFound {
 		respondWithPiError(w, r,
 			"handleProposalInventory: getSessionUser: %v", err)
 		return
 	}
-	isAdmin := user != nil && user.Admin
 
+	isAdmin := user != nil && user.Admin
 	ppi, err := p.processProposalInventory(isAdmin)
 	if err != nil {
 		respondWithPiError(w, r,
@@ -2342,61 +2378,63 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 }
 
 func (p *politeiawww) setPiRoutes() {
-	// Public routes
-	p.addRoute(http.MethodGet, pi.APIRoute,
-		pi.RouteProposalInventory, p.handleProposalInventory,
-		permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteComments, p.handleComments, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteAuthorize, p.handleVoteAuthorize, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteStart, p.handleVoteStart, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteStartRunoff, p.handleVoteStartRunoff, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteBallot, p.handleVoteBallot, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVotes, p.handleVotes, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteResults, p.handleVoteResults, permissionPublic)
-
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteSummaries, p.handleVoteSummaries, permissionPublic)
-
-	p.addRoute(http.MethodGet, pi.APIRoute,
-		pi.RouteVoteInventory, p.handleVoteInventory, permissionPublic)
-
-	// Logged in routes
+	// Proposal routes
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalNew, p.handleProposalNew,
 		permissionLogin)
-
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalEdit, p.handleProposalEdit,
 		permissionLogin)
-
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalSetStatus, p.handleProposalSetStatus,
 		permissionLogin)
-
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteCommentNew, p.handleCommentNew, permissionLogin)
-
+		pi.RouteProposals, p.handleProposals,
+		permissionPublic)
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteCommentVote, p.handleCommentVote, permissionLogin)
+		pi.RouteProposalInventory, p.handleProposalInventory,
+		permissionPublic)
 
+	// Comment routes
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteCommentVotes, p.handleCommentVotes, permissionLogin)
+		pi.RouteCommentNew, p.handleCommentNew,
+		permissionLogin)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentVote, p.handleCommentVote,
+		permissionLogin)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentCensor, p.handleCommentCensor,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteComments, p.handleComments,
+		permissionPublic)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteCommentVotes, p.handleCommentVotes,
+		permissionLogin)
 
-	// Admin routes
+	// Vote routes
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteCommentCensor, p.handleCommentCensor, permissionAdmin)
+		pi.RouteVoteAuthorize, p.handleVoteAuthorize,
+		permissionLogin)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteStart, p.handleVoteStart,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteStartRunoff, p.handleVoteStartRunoff,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteBallot, p.handleVoteBallot,
+		permissionPublic)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVotes, p.handleVotes,
+		permissionPublic)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteResults, p.handleVoteResults,
+		permissionPublic)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteSummaries, p.handleVoteSummaries,
+		permissionPublic)
+	p.addRoute(http.MethodPost, pi.APIRoute,
+		pi.RouteVoteInventory, p.handleVoteInventory,
+		permissionPublic)
 }

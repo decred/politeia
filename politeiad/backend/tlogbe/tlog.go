@@ -1451,7 +1451,7 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	}
 
 	return &backend.Record{
-		Version:        strconv.FormatUint(uint64(version), 10),
+		Version:        strconv.FormatUint(uint64(index.Version), 10),
 		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 		Files:          files,

@@ -895,31 +895,6 @@ func (c *Client) ProposalDetails(token string, pd *www.ProposalsDetails) (*www.P
 	return &pr, nil
 }
 
-// UserProposals retrieves the proposals that have been submitted by the
-// specified user.
-func (c *Client) UserProposals(up *www.UserProposals) (*www.UserProposalsReply, error) {
-	responseBody, err := c.makeRequest(http.MethodGet,
-		www.PoliteiaWWWAPIRoute, www.RouteUserProposals, up)
-	if err != nil {
-		return nil, err
-	}
-
-	var upr www.UserProposalsReply
-	err = json.Unmarshal(responseBody, &upr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal UserProposalsReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(upr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &upr, nil
-}
-
 // UserInvoices retrieves the proposals that have been submitted by the
 // specified user.
 func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, error) {
