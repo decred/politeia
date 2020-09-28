@@ -716,38 +716,14 @@ func cmdVerifyIdentities() error {
 	return nil
 }
 
-func levelResetTOTP(email string) error {
-	b, err := ldb.Get([]byte(email), nil)
-	if err != nil {
-		return fmt.Errorf("user email '%v' not found", email)
+func cmdResetTOTP() error {
+	args := flag.Args()
+	if len(args) != 1 {
+		return fmt.Errorf("invalid number of arguments; want <username>, got %v",
+			args)
 	}
 
-	u, err := user.DecodeUser(b)
-	if err != nil {
-		return err
-	}
-
-	u.TOTPLastUpdated = nil
-	u.TOTPSecret = ""
-	u.TOTPType = 0
-	u.TOTPVerified = false
-
-	b, err = user.EncodeUser(*u)
-	if err != nil {
-		return err
-	}
-
-	err = ldb.Put([]byte(email), b, nil)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("User with email '%v' totp reset\n", email)
-
-	return nil
-}
-
-func cockroachResetTOTP(username string) error {
+	username := args[0]
 	u, err := userDB.UserGetByUsername(username)
 	if err != nil {
 		return err
@@ -764,23 +740,6 @@ func cockroachResetTOTP(username string) error {
 	}
 
 	fmt.Printf("User with username '%v' reset totp\n", username)
-
-	return nil
-}
-
-func cmdResetTOTP() error {
-	args := flag.Args()
-	if len(args) != 1 {
-		return fmt.Errorf("invalid number of arguments; want <username>, got %v",
-			args)
-	}
-
-	switch {
-	case *level:
-		return levelResetTOTP(args[0])
-	case *cockroach:
-		return cockroachResetTOTP(args[0])
-	}
 
 	return nil
 }
