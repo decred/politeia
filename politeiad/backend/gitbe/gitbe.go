@@ -2696,7 +2696,7 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 // Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
 func (g *gitBackEnd) Inventory(vettedCount, vettedPage, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
-	log.Tracef("Inventory: %v %v %v", vettedCount, vettedPage, branchCount, includeFiles)
+	log.Tracef("Inventory: %v %v %v %v", vettedCount, vettedPage, branchCount, includeFiles)
 
 	// Lock filesystem
 	g.Lock()
