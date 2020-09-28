@@ -91,7 +91,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
 	// Run until start date is after end date, it's incremented by a month
 	// a the end of the loop.
-	for startDate.Before(endDate) {
+	for startDate.Before(endDate) || startDate.Equal(endDate) {
 		month := startDate.Month()
 		year := startDate.Year()
 		cu := user.CMSCodeStatsByUserMonthYear{
@@ -141,7 +141,7 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		return fmt.Errorf("code tracker not running")
 	}
 
-	p.tracker.Update(org, repos, start, end)
+	//p.tracker.Update(org, repos, start, end)
 
 	// Go fetch all Development contractors to update their stats
 	cu := user.CMSUsersByDomain{
