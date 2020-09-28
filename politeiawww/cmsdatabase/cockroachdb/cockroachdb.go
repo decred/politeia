@@ -782,7 +782,6 @@ func (c *cockroachdb) build(invoices []Invoice, dccs []DCC) error {
 	}
 
 	for _, i := range invoices {
-		fmt.Println(i.Version, i.Token)
 		err := c.recordsdb.Create(&i).Error
 		if err != nil {
 			return fmt.Errorf("create invoice: %v", err)
