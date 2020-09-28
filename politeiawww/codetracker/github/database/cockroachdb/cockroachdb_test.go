@@ -62,8 +62,9 @@ func TestNewPullRequests(t *testing.T) {
 
 	// Queries
 	sqlInsertPullRequests := `INSERT INTO "pullrequests" ` +
-		`("repo","organization","url","number","author","updated_at","closed_at",` +
-		`"merged_at","merged","state","additions","deletions","merged_by") ` +
+		`("repo","organization","url","number","author","updated_at",` +
+		`closed_at","merged_at","merged","state","additions","deletions",` +
+		`"merged_by") ` +
 		`VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ` +
 		`RETURNING "pullrequests"."url"`
 

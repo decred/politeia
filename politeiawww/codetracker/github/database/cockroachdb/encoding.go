@@ -8,7 +8,8 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
 )
 
-// EncodePullRequestReview encodes a database.PullRequestReview into a cockroachdb PullRequestReview.
+// EncodePullRequestReview encodes a database.PullRequestReview into a
+// cockroachdb PullRequestReview.
 func EncodePullRequestReview(dbPullRequestReview *database.PullRequestReview) PullRequestReview {
 	prReview := PullRequestReview{}
 	prReview.Author = dbPullRequestReview.Author
@@ -23,7 +24,8 @@ func EncodePullRequestReview(dbPullRequestReview *database.PullRequestReview) Pu
 	return prReview
 }
 
-// DecodePullRequestReview decodes a cockroachdb PullRequestReview into a generic database.PullRequestReview
+// DecodePullRequestReview decodes a cockroachdb PullRequestReview into a
+// generic database.PullRequestReview
 func DecodePullRequestReview(prReview *PullRequestReview) database.PullRequestReview {
 	dbPullRequestReview := database.PullRequestReview{}
 	dbPullRequestReview.PullRequestURL = prReview.PullRequestURL
@@ -38,7 +40,8 @@ func DecodePullRequestReview(prReview *PullRequestReview) database.PullRequestRe
 	return dbPullRequestReview
 }
 
-// EncodePullRequest encodes a database.PullRequest into a cockroachdb PullRequest.
+// EncodePullRequest encodes a database.PullRequest into a cockroachdb
+// PullRequest.
 func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
 	pr := PullRequest{}
 	pr.URL = dbPullRequest.URL
@@ -58,7 +61,8 @@ func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
 	return pr
 }
 
-// DecodePullRequest decodes a cockroachdb PullRequest into a generic database.PullRequest
+// DecodePullRequest decodes a cockroachdb PullRequest into a generic
+// database.PullRequest
 func DecodePullRequest(pr *PullRequest) *database.PullRequest {
 	dbPullRequest := &database.PullRequest{}
 	dbPullRequest.URL = pr.URL

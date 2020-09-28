@@ -64,11 +64,9 @@ func (g *github) Update(org string, repos []string, start, end int64) {
 		for _, pr := range prs {
 			// check to see if last updated time was before the given start date
 			if parseTime(pr.MergedAt).Before(time.Unix(start, 0)) {
-				log.Infof("Skipping PR %v/%v/%v since %v before %v", org, repo, pr.Number, pr.MergedAt, time.Unix(start, 0))
 				continue
 			}
 			if parseTime(pr.MergedAt).After(time.Unix(end, 0)) {
-				log.Infof("Skipping PR %v/%v/%v since %v after %v", org, repo, pr.Number, pr.MergedAt, time.Unix(end, 0))
 				continue
 			}
 			err := g.updatePullRequest(org, repo, pr, start)
@@ -102,7 +100,8 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 			return err
 		}
 
-		reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number, dbPullRequest.URL)
+		reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number,
+			dbPullRequest.URL)
 		if err != nil {
 			return err
 		}
