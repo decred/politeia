@@ -28,7 +28,7 @@ type paywallPoolMember struct {
 const (
 	// paywallExpiryDuration is the amount of time the server will watch a paywall address
 	// for transactions. It gets reset when the user logs in or makes a call to
-	// RouteVerifyUserPayment.
+	// RouteUserRegistrationPayment.
 	paywallExpiryDuration = time.Hour * 24
 
 	// paywallCheckGap is the amount of time the server sleeps after polling for

@@ -457,41 +457,6 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleVerifyUserPayment checks whether the provided transaction
-// is on the blockchain and meets the requirements to consider the user
-// registration fee as paid.
-func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVerifyUserPayment")
-
-	// Get the verify user payment tx command.
-	var vupt www.VerifyUserPayment
-	err := util.ParseGetParams(r, &vupt)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVerifyUserPayment: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyUserPayment: getSessionUser %v", err)
-		return
-	}
-
-	vuptr, err := p.processVerifyUserPayment(user, vupt)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyUserPayment: processVerifyUserPayment %v",
-			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vuptr)
-}
-
 // handleEditUser handles editing a user's preferences.
 func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
@@ -581,32 +546,6 @@ func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, cur)
 }
 
-// handleUserPaymentsRescan allows an admin to rescan a user's paywall address
-// to check for any payments that may have been missed by paywall polling.
-func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserPaymentsRescan")
-
-	var upr www.UserPaymentsRescan
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&upr); err != nil {
-		RespondWithError(w, r, 0, "handleUserPaymentsRescan: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processUserPaymentsRescan(upr)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserPaymentsRescan: processUserPaymentsRescan:  %v",
-			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // handleManageUser handles editing a user's details.
 func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageUser")
@@ -662,6 +601,75 @@ func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, uclr)
 }
 
+// handleUserRegistrationPayment checks whether the provided transaction
+// is on the blockchain and meets the requirements to consider the user
+// registration fee as paid.
+func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserRegistrationPayment")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserRegistrationPayment: getSessionUser %v", err)
+		return
+	}
+
+	vuptr, err := p.processUserRegistrationPayment(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserRegistrationPayment: processUserRegistrationPayment %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vuptr)
+}
+
+// handleUserProposalPaywall returns paywall details that allows the user to
+// purchase proposal credits.
+func (p *politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalPaywall")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywall: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUserProposalPaywall(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywall: processUserProposalPaywall  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUserProposalPaywallTx returns the payment details for a pending
+// proposal paywall payment.
+func (p *politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalPaywallTx")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywallTx: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUserProposalPaywallTx(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywallTx: "+
+				"processUserProposalPaywallTx %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleUserProposalCredits returns the spent and unspent proposal credits for
 // the logged in user.
 func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
@@ -678,6 +686,32 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalCredits: processUserProposalCredits  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUserPaymentsRescan allows an admin to rescan a user's paywall address
+// to check for any payments that may have been missed by paywall polling.
+func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserPaymentsRescan")
+
+	var upr www.UserPaymentsRescan
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&upr); err != nil {
+		RespondWithError(w, r, 0, "handleUserPaymentsRescan: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processUserPaymentsRescan(upr)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserPaymentsRescan: processUserPaymentsRescan:  %v",
+			err)
 		return
 	}
 
@@ -821,15 +855,21 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteChangePassword, p.handleChangePassword,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyUserPayment, p.handleVerifyUserPayment,
-		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteEditUser, p.handleEditUser,
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserCommentsLikes, p.handleUserCommentsLikes,
 		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserRegistrationPayment, p.handleUserRegistrationPayment,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalPaywall, p.handleUserProposalPaywall,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalPaywallTx, p.handleUserProposalPaywallTx,
+		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserProposalCredits, p.handleUserProposalCredits,
 		permissionLogin)

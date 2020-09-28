@@ -344,51 +344,6 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleProposalPaywallDetails returns paywall details that allows the user to
-// purchase proposal credits.
-func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalPaywallDetails")
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalPaywallDetails: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processProposalPaywallDetails(user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalPaywallDetails: processProposalPaywallDetails  %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleProposalPaywallPayment returns the payment details for a pending
-// proposal paywall payment.
-func (p *politeiawww) handleProposalPaywallPayment(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalPaywallPayment")
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalPaywallPayment: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processProposalPaywallPayment(user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalPaywallPayment: "+
-				"processProposalPaywallPayment %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // websocketPing is used to verify that websockets are operational.
 func (p *politeiawww) websocketPing(id string) {
 	log.Tracef("websocketPing %v", id)
@@ -665,14 +620,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteBatchVoteSummary, p.handleBatchVoteSummary,
 		permissionPublic)
-
-	// Routes that require being logged in.
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteProposalPaywallDetails, p.handleProposalPaywallDetails,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteProposalPaywallPayment, p.handleProposalPaywallPayment,
-		permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.PoliteiaWWWAPIRoute,

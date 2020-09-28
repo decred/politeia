@@ -41,9 +41,6 @@ const (
 	RouteChangePassword           = "/user/password/change"
 	RouteResetPassword            = "/user/password/reset"
 	RouteVerifyResetPassword      = "/user/password/reset/verify"
-	RouteUserProposalCredits      = "/user/proposals/credits"
-	RouteVerifyUserPayment        = "/user/verifypayment"
-	RouteUserPaymentsRescan       = "/user/payments/rescan"
 	RouteManageUser               = "/user/manage"
 	RouteEditUser                 = "/user/edit"
 	RouteSetTOTP                  = "/user/totp"
@@ -52,17 +49,12 @@ const (
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
 
-	// TODO the user payment routes are a mess. The route naming
-	// convention should be updated to be the following.
-	// RouteUserRegistrationPayment = "/user/payments/registration"
-	// RouteUserProposalPaywall     = "/user/payments/paywall"
-	// RouteUserProposalPaywallTx   = "/user/payments/paywalltx"
-	// RouteUserProposalCredits     = "/user/payments/credits"
-	// RouteUserPaymentsRescan      = "/user/payments/rescan"
-
-	// TODO these routes should be user routes
-	RouteProposalPaywallDetails = "/proposals/paywall"
-	RouteProposalPaywallPayment = "/proposals/paywallpayment"
+	// User payments routes
+	RouteUserRegistrationPayment = "/user/payments/registration"
+	RouteUserProposalPaywall     = "/user/payments/paywall"
+	RouteUserProposalPaywallTx   = "/user/payments/paywalltx"
+	RouteUserProposalCredits     = "/user/payments/credits"
+	RouteUserPaymentsRescan      = "/user/payments/rescan"
 
 	// The following routes WILL BE DEPRECATED in the near future and
 	// should not be used. The pi v1 API should be used instead.
@@ -703,33 +695,6 @@ type VerifyResetPassword struct {
 // command.
 type VerifyResetPasswordReply struct{}
 
-// UserProposalCredits is used to request a list of all the user's unspent
-// proposal credits and a list of all of the user's spent proposal credits.
-// A spent credit means that the credit was used to submit a proposal.  Spent
-// credits have a proposal censorship token associated with them to signify
-// that they have been spent.
-type UserProposalCredits struct{}
-
-// UserProposalCredits is used to reply to the UserProposalCredits command.
-type UserProposalCreditsReply struct {
-	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals (credit price in atoms)
-	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals (credit price in atoms)
-}
-
-// UserPaymentsRescan allows an admin to rescan a user's paywall address to
-// check for any payments that may have been missed by paywall polling. Any
-// proposal credits that are created as a result of the rescan are returned in
-// the UserPaymentsRescanReply. This call isn't RESTful, but a PUT request is
-// used since it's idempotent.
-type UserPaymentsRescan struct {
-	UserID string `json:"userid"` // ID of user to rescan
-}
-
-// UserPaymentsRescanReply is used to reply to the UserPaymentsRescan command.
-type UserPaymentsRescanReply struct {
-	NewCredits []ProposalCredit `json:"newcredits"` // Credits that were created by the rescan
-}
-
 // UserProposals is used to request a list of proposals that the
 // user has submitted. This command optionally takes either a Before
 // or After parameter, which specify a proposal's censorship token.
@@ -748,19 +713,6 @@ type UserProposals struct {
 type UserProposalsReply struct {
 	Proposals      []ProposalRecord `json:"proposals"`      // user proposals
 	NumOfProposals int              `json:"numofproposals"` // number of proposals submitted by the user
-}
-
-// VerifyUserPayment is used to request the server to check for the
-// provided transaction on the Decred blockchain and verify that it
-// satisfies the requirements for a user to pay his registration fee.
-type VerifyUserPayment struct {
-}
-
-type VerifyUserPaymentReply struct {
-	HasPaid            bool   `json:"haspaid"`
-	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
-	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
-	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
 // Users is used to request a list of users given a filter.
@@ -820,28 +772,72 @@ type LogoutReply struct{}
 // for this endpoint.
 type Me struct{}
 
-// ProposalPaywallDetails is used to request proposal paywall details from the
-// server that the user needs in order to purchase paywall credits.
-type ProposalPaywallDetails struct{}
+// UserRegistrationPayment is used to request the server to check for the
+// provided transaction on the Decred blockchain and verify that it
+// satisfies the requirements for a user to pay his registration fee.
+type UserRegistrationPayment struct{}
 
-// ProposalPaywallDetailsReply is used to reply to the ProposalPaywallDetails
+// UserRegistrationPaymentReply is used to reply to the UserRegistrationPayment
 // command.
-type ProposalPaywallDetailsReply struct {
+type UserRegistrationPaymentReply struct {
+	HasPaid            bool   `json:"haspaid"`
+	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
+	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
+	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+}
+
+// UserProposalPaywall is used to request proposal paywall details from the
+// server that the user needs in order to purchase paywall credits.
+type UserProposalPaywall struct{}
+
+// UserProposalPaywallReply is used to reply to the ProposalPaywallDetails
+// command.
+type UserProposalPaywallReply struct {
 	CreditPrice        uint64 `json:"creditprice"`        // Cost per proposal credit in atoms
 	PaywallAddress     string `json:"paywalladdress"`     // Proposal paywall address
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
-// ProposalPaywallPayment is used to request payment details for a pending
+// UserProposalPaywallTx is used to request payment details for a pending
 // proposal paywall payment.
-type ProposalPaywallPayment struct{}
+type UserProposalPaywallTx struct{}
 
-// ProposalPaywallPaymentReply is used to reply to the ProposalPaywallPayment
+// UserProposalPaywallTxReply is used to reply to the ProposalPaywallPayment
 // command.
-type ProposalPaywallPaymentReply struct {
+type UserProposalPaywallTxReply struct {
 	TxID          string `json:"txid"`          // Transaction ID
 	TxAmount      uint64 `json:"amount"`        // Transaction amount in atoms
 	Confirmations uint64 `json:"confirmations"` // Number of block confirmations
+}
+
+// UserProposalCredits is used to request a list of all the user's unspent
+// proposal credits and a list of all of the user's spent proposal credits.
+// A spent credit means that the credit was used to submit a proposal.  Spent
+// credits have a proposal censorship token associated with them to signify
+// that they have been spent.
+type UserProposalCredits struct{}
+
+// UserProposalCreditsReply is used to reply to the UserProposalCredits command.
+// It contains unspent credits that the user purchased but did not yet use, and
+// the credits the user already spent to submit proposals.
+type UserProposalCreditsReply struct {
+	UnspentCredits []ProposalCredit `json:"unspentcredits"`
+	SpentCredits   []ProposalCredit `json:"spentcredits"`
+}
+
+// UserPaymentsRescan allows an admin to rescan a user's paywall address to
+// check for any payments that may have been missed by paywall polling. Any
+// proposal credits that are created as a result of the rescan are returned in
+// the UserPaymentsRescanReply. This call isn't RESTful, but a PUT request is
+// used since it's idempotent.
+type UserPaymentsRescan struct {
+	UserID string `json:"userid"` // ID of user to rescan
+}
+
+// UserPaymentsRescanReply is used to reply to the UserPaymentsRescan command.
+// Returns the credits that were created by the rescan.
+type UserPaymentsRescanReply struct {
+	NewCredits []ProposalCredit `json:"newcredits"`
 }
 
 // NewProposal attempts to submit a new proposal.

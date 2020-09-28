@@ -1597,25 +1597,6 @@ func convertProposalCreditFromUserDB(credit user.ProposalCredit) www.ProposalCre
 	}
 }
 
-// processUserProposalCredits returns a list of the user's unspent proposal
-// credits and a list of the user's spent proposal credits.
-func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
-	// Convert from database proposal credits to www proposal credits.
-	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
-	for i, credit := range u.UnspentProposalCredits {
-		upc[i] = convertProposalCreditFromUserDB(credit)
-	}
-	spc := make([]www.ProposalCredit, len(u.SpentProposalCredits))
-	for i, credit := range u.SpentProposalCredits {
-		spc[i] = convertProposalCreditFromUserDB(credit)
-	}
-
-	return &www.UserProposalCreditsReply{
-		UnspentCredits: upc,
-		SpentCredits:   spc,
-	}, nil
-}
-
 // _logAdminAction logs a string to the admin log file.
 //
 // This function must be called WITH the mutex held.
@@ -1852,6 +1833,135 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 	}, nil
 }
 
+// processUserRegistrationPayment verifies that the provided transaction
+// meets the minimum requirements to mark the user as paid, and then does
+// that in the user database.
+func (p *politeiawww) processUserRegistrationPayment(u *user.User) (*www.UserRegistrationPaymentReply, error) {
+	var reply www.UserRegistrationPaymentReply
+	if p.userHasPaid(*u) {
+		reply.HasPaid = true
+		return &reply, nil
+	}
+
+	if paywallHasExpired(u.NewUserPaywallPollExpiry) {
+		err := p.GenerateNewUserPaywall(u)
+		if err != nil {
+			return nil, err
+		}
+		reply.PaywallAddress = u.NewUserPaywallAddress
+		reply.PaywallAmount = u.NewUserPaywallAmount
+		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
+		return &reply, nil
+	}
+
+	tx, _, err := util.FetchTxWithBlockExplorers(u.NewUserPaywallAddress,
+		u.NewUserPaywallAmount, u.NewUserPaywallTxNotBefore,
+		p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
+	if err != nil {
+		return nil, err
+	}
+
+	if tx != "" {
+		reply.HasPaid = true
+
+		err = p.updateUserAsPaid(u, tx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// TODO: Add the user to the in-memory pool.
+	}
+
+	return &reply, nil
+}
+
+// processUserProposalPaywall returns a proposal paywall that enables the
+// the user to purchase proposal credits. The user can only have one paywall
+// active at a time.  If no paywall currently exists, a new one is created and
+// the user is added to the paywall pool.
+func (p *politeiawww) processUserProposalPaywall(u *user.User) (*www.UserProposalPaywallReply, error) {
+	log.Tracef("processUserProposalPaywall")
+
+	// Ensure paywall is enabled
+	if !p.paywallIsEnabled() {
+		return &www.UserProposalPaywallReply{}, nil
+	}
+
+	// Proposal paywalls cannot be generated until the user has paid their
+	// user registration fee.
+	if !p.userHasPaid(*u) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
+
+	var pp *user.ProposalPaywall
+	if p.userHasValidProposalPaywall(u) {
+		// Don't create a new paywall if a valid one already exists.
+		pp = p.mostRecentProposalPaywall(u)
+	} else {
+		// Create a new paywall.
+		var err error
+		pp, err = p.generateProposalPaywall(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &www.UserProposalPaywallReply{
+		CreditPrice:        pp.CreditPrice,
+		PaywallAddress:     pp.Address,
+		PaywallTxNotBefore: pp.TxNotBefore,
+	}, nil
+}
+
+// processUserProposalPaywallTx checks if the user has a pending paywall
+// payment and returns the payment details if one is found.
+func (p *politeiawww) processUserProposalPaywallTx(u *user.User) (*www.UserProposalPaywallTxReply, error) {
+	log.Tracef("processUserProposalPaywallTx")
+
+	var (
+		txID          string
+		txAmount      uint64
+		confirmations uint64
+	)
+
+	p.RLock()
+	defer p.RUnlock()
+
+	poolMember, ok := p.userPaywallPool[u.ID]
+	if ok {
+		txID = poolMember.txID
+		txAmount = poolMember.txAmount
+		confirmations = poolMember.txConfirmations
+	}
+
+	return &www.UserProposalPaywallTxReply{
+		TxID:          txID,
+		TxAmount:      txAmount,
+		Confirmations: confirmations,
+	}, nil
+}
+
+// processUserProposalCredits returns a list of the user's unspent proposal
+// credits and a list of the user's spent proposal credits.
+func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
+	// Convert from database proposal credits to www proposal credits.
+	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
+	for i, credit := range u.UnspentProposalCredits {
+		upc[i] = convertProposalCreditFromUserDB(credit)
+	}
+	spc := make([]www.ProposalCredit, len(u.SpentProposalCredits))
+	for i, credit := range u.SpentProposalCredits {
+		spc[i] = convertProposalCreditFromUserDB(credit)
+	}
+
+	return &www.UserProposalCreditsReply{
+		UnspentCredits: upc,
+		SpentCredits:   spc,
+	}, nil
+}
+
 // processUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
 func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
@@ -1993,48 +2103,6 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 	return &www.UserPaymentsRescanReply{
 		NewCredits: newCreditsWWW,
 	}, nil
-}
-
-// processVerifyUserPayment verifies that the provided transaction
-// meets the minimum requirements to mark the user as paid, and then does
-// that in the user database.
-func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
-	var reply www.VerifyUserPaymentReply
-	if p.userHasPaid(*u) {
-		reply.HasPaid = true
-		return &reply, nil
-	}
-
-	if paywallHasExpired(u.NewUserPaywallPollExpiry) {
-		err := p.GenerateNewUserPaywall(u)
-		if err != nil {
-			return nil, err
-		}
-		reply.PaywallAddress = u.NewUserPaywallAddress
-		reply.PaywallAmount = u.NewUserPaywallAmount
-		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
-		return &reply, nil
-	}
-
-	tx, _, err := util.FetchTxWithBlockExplorers(u.NewUserPaywallAddress,
-		u.NewUserPaywallAmount, u.NewUserPaywallTxNotBefore,
-		p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
-	if err != nil {
-		return nil, err
-	}
-
-	if tx != "" {
-		reply.HasPaid = true
-
-		err = p.updateUserAsPaid(u, tx)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// TODO: Add the user to the in-memory pool.
-	}
-
-	return &reply, nil
 }
 
 // removeUsersFromPool removes the provided user IDs from the the poll pool.
@@ -2187,7 +2255,7 @@ func (p *politeiawww) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember)
 
 		if p.userHasPaid(*u) {
 			// The user could have been marked as paid by
-			// RouteVerifyUserPayment, so just remove him from the
+			// RouteUserRegistrationPayment, so just remove him from the
 			// in-memory pool.
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user already paid")

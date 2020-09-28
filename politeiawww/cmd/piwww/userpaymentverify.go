@@ -12,7 +12,7 @@ type userPaymentVerifyCmd struct{}
 
 // Execute executes the verify user payment command.
 func (cmd *userPaymentVerifyCmd) Execute(args []string) error {
-	vupr, err := client.VerifyUserPayment()
+	vupr, err := client.UserPaymentVerify()
 	if err != nil {
 		return err
 	}

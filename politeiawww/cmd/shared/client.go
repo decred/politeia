@@ -677,14 +677,14 @@ func (c *Client) VerifyResetPassword(vrp www.VerifyResetPassword) (*www.VerifyRe
 
 // ProposalPaywallDetails retrieves proposal credit paywall information for the
 // logged in user.
-func (c *Client) ProposalPaywallDetails() (*www.ProposalPaywallDetailsReply, error) {
+func (c *Client) ProposalPaywallDetails() (*www.UserProposalPaywallReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteProposalPaywallDetails, nil)
+		www.RouteUserProposalPaywall, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var ppdr www.ProposalPaywallDetailsReply
+	var ppdr www.UserProposalPaywallReply
 	err = json.Unmarshal(responseBody, &ppdr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalPaywalDetailsReply: %v", err)
@@ -1454,29 +1454,29 @@ func (c *Client) VoteStartRunoff(vsr pi.VoteStartRunoff) (*pi.VoteStartRunoffRep
 	return &vsrr, nil
 }
 
-// VerifyUserPayment checks whether the logged in user has paid their user
+// UserPaymentVerify checks whether the logged in user has paid their user
 // registration fee.
-func (c *Client) VerifyUserPayment() (*www.VerifyUserPaymentReply, error) {
+func (c *Client) UserPaymentVerify() (*www.UserRegistrationPaymentReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyUserPayment, nil)
+		www.RouteUserRegistrationPayment, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var vupr www.VerifyUserPaymentReply
-	err = json.Unmarshal(responseBody, &vupr)
+	var urpr www.UserRegistrationPaymentReply
+	err = json.Unmarshal(responseBody, &urpr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal VerifyUserPaymentReply: %v", err)
+		return nil, fmt.Errorf("unmarshal UserRegistrationPaymentReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(vupr)
+		err := prettyPrintJSON(urpr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &vupr, nil
+	return &urpr, nil
 }
 
 // VoteResults retrieves the vote results for the specified proposal.
@@ -1826,27 +1826,27 @@ func (c *Client) VerifyUpdateUserKey(vuuk *www.VerifyUpdateUserKey) (*www.Verify
 
 // ProposalPaywallPayment retrieves payment details of any pending proposal
 // credit payment from the logged in user.
-func (c *Client) ProposalPaywallPayment() (*www.ProposalPaywallPaymentReply, error) {
+func (c *Client) ProposalPaywallPayment() (*www.UserProposalPaywallTxReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteProposalPaywallPayment, nil)
+		www.RouteUserProposalPaywallTx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var pppr www.ProposalPaywallPaymentReply
-	err = json.Unmarshal(responseBody, &pppr)
+	var upptxr www.UserProposalPaywallTxReply
+	err = json.Unmarshal(responseBody, &upptxr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalPaywallPaymentReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(pppr)
+		err := prettyPrintJSON(upptxr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &pppr, nil
+	return &upptxr, nil
 }
 
 // UserPaymentsRescan scans the specified user's paywall address and makes sure
