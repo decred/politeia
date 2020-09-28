@@ -331,7 +331,7 @@ func createMockedStats(username string) []user.CodeStats {
 func convertExpectedResults(codeStats []user.CodeStats, start, end time.Time) *cms.UserCodeStatsReply {
 	reply := &cms.UserCodeStatsReply{}
 	rangeCodeStats := make([]user.CodeStats, 0, 6)
-	for start.Before(end) {
+	for start.After(end) {
 		for _, codeStat := range codeStats {
 			if codeStat.Month == int(start.Month()) &&
 				codeStat.Year == start.Year() {

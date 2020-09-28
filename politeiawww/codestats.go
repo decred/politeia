@@ -33,7 +33,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	if ucs.EndTime == 0 {
 		// If endtime is unset just use start time plus a minute, this will
 		// cause it to reply with just the month of the start time.
-		endDate = startDate.Add(time.Minute)
+		endDate = startDate
 	} else {
 		endDate = time.Unix(ucs.EndTime, 0).UTC()
 	}
@@ -91,7 +91,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
 	// Run until start date is after end date, it's incremented by a month
 	// a the end of the loop.
-	for startDate.Before(endDate) || startDate.Equal(endDate) {
+	for startDate.After(endDate) {
 		month := startDate.Month()
 		year := startDate.Year()
 		cu := user.CMSCodeStatsByUserMonthYear{
