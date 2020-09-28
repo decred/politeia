@@ -161,35 +161,6 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 	return convertMatchingReviewsToDatabaseReviews(matching), nil
 }
 
-// Return all users that have any merged PRs in the provided range.
-func (c *cockroachdb) AllUsersByDates(start, end int64) ([]string, error) {
-	log.Debugf("AllUsersByDates: %v %v", time.Unix(start, 0),
-		time.Unix(end, 0))
-
-	type Users struct {
-		User string
-	}
-	// Get all PRs from a user between the given dates.
-	usernames := make([]Users, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Table(tableNamePullRequest).
-		Where("DISTINCT AND "+
-			"merged_at BETWEEN ? AND ?",
-			start,
-			end).
-		Find(&usernames).
-		Error
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, 0, len(usernames))
-	for _, vv := range usernames {
-		names = append(names, vv.User)
-	}
-	return names, nil
-}
-
 // Create new review.
 //
 // NewPullRequestReview satisfies the database interface.

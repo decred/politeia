@@ -43,9 +43,6 @@ type Database interface {
 	// username and is in between the start and end dates (in Unix).
 	PullRequestsByUserDates(username string, start int64, end int64) ([]*PullRequest, error)
 
-	// Returns all users that have submitted a PR between the given dates.
-	AllUsersByDates(start int64, end int64) ([]string, error)
-
 	// NewPullRequestReview creates a new entry for a pull request review.
 	NewPullRequestReview(*PullRequestReview) error
 

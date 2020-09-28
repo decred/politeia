@@ -364,72 +364,15 @@ func TestPullRequestByURL(t *testing.T) {
 	}
 }
 
-/*
 func TestPullRequestsByUserDates(t *testing.T) {
-	cdb, mock, close := setupTestDB(t)
-	defer close()
-	// Execute method
-	_, err := cdb.PullRequestsByUserDates("username", 10, 10)
-	if err != nil {
-		t.Errorf("PullRequestByUserDates unwanted error: %s", err)
-	}
-	// Make sure expectations were met
-	err = mock.ExpectationsWereMet()
-	if err != nil {
-		t.Errorf("unfulfilled expectations: %s", err)
-	}
-}
-*/
-func TestReviewsByUserDates(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
 	now := time.Now()
-	authorStakey := "stakey"
-
 	prURLFirst := "https://github.com/decred/github/pull/1"
 	prURLSecond := "https://github.com/decred/github/pull/2"
 	prURLThird := "https://github.com/decred/github/pull/3"
 
-	reviewFirst := &database.PullRequestReview{
-		ID:             434234234,
-		Repo:           "github",
-		PullRequestURL: prURLFirst,
-		Number:         1,
-		Author:         authorStakey,
-		SubmittedAt:    now.Unix(),
-		State:          "APPROVED",
-		Additions:      11,
-		Deletions:      11,
-		CommitID:       "abcd1234",
-	}
-
-	reviewSecond := &database.PullRequestReview{
-		ID:             434234235,
-		Repo:           "github",
-		PullRequestURL: prURLSecond,
-		Number:         2,
-		Author:         authorStakey,
-		SubmittedAt:    now.Add(-1 * time.Hour).Unix(),
-		State:          "APPROVED",
-		Additions:      22,
-		Deletions:      22,
-		CommitID:       "abcd1236",
-	}
-	/*
-		reviewThird := &database.PullRequestReview{
-			ID:             434234234,
-			Repo:           "github",
-			PullRequestURL: prURLThird,
-			Number:         3,
-			Author:         authorTicket,
-			SubmittedAt:    now.Unix(),
-			State:          "APPROVED",
-			Additions:      33,
-			Deletions:      33,
-			CommitID:       "abcd1238",
-		}
-	*/
 	prFirst := &database.PullRequest{
 		Repo:         "github",
 		Organization: "decred",
@@ -450,7 +393,7 @@ func TestReviewsByUserDates(t *testing.T) {
 		Repo:         "github",
 		Organization: "decred",
 		URL:          prURLSecond,
-		Number:       1,
+		Number:       2,
 		User:         "stakey_author",
 		UpdatedAt:    now.Unix(),
 		ClosedAt:     now.Unix(),
@@ -466,7 +409,7 @@ func TestReviewsByUserDates(t *testing.T) {
 		Repo:         "github",
 		Organization: "decred",
 		URL:          prURLThird,
-		Number:       1,
+		Number:       3,
 		User:         "stakey_author",
 		UpdatedAt:    now.Unix(),
 		ClosedAt:     now.Unix(),
@@ -536,7 +479,69 @@ func TestReviewsByUserDates(t *testing.T) {
 		prThird.Deletions,
 		prThird.MergedBy,
 	)
-	rows = sqlmock.NewRows([]string{
+
+	bothRangeStart := now.Add(-2 * time.Hour).Unix()
+	bothRangeEnd := now.Add(time.Minute).Unix()
+
+	// Query
+	sql := `
+	SELECT * ` +
+		`FROM "pullrequests" ` +
+		`WHERE (author = $1 AND merged_at BETWEEN $2 AND $3)`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(prFirst.User, bothRangeStart, bothRangeEnd).
+		WillReturnRows(rows)
+
+	// Execute method
+	_, err := cdb.PullRequestsByUserDates(prFirst.User, bothRangeStart,
+		bothRangeEnd)
+	if err != nil {
+		t.Errorf("ReviewsByUserDate unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestReviewsByUserDates(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	now := time.Now()
+	authorStakey := "stakey"
+
+	prURLFirst := "https://github.com/decred/github/pull/1"
+	prURLSecond := "https://github.com/decred/github/pull/2"
+
+	reviewFirst := &database.PullRequestReview{
+		ID:             434234234,
+		Repo:           "github",
+		PullRequestURL: prURLFirst,
+		Number:         1,
+		Author:         authorStakey,
+		SubmittedAt:    now.Unix(),
+		State:          "APPROVED",
+		Additions:      11,
+		Deletions:      11,
+		CommitID:       "abcd1234",
+	}
+
+	reviewSecond := &database.PullRequestReview{
+		ID:             434234235,
+		Repo:           "github",
+		PullRequestURL: prURLSecond,
+		Number:         2,
+		Author:         authorStakey,
+		SubmittedAt:    now.Add(-1 * time.Hour).Unix(),
+		State:          "APPROVED",
+		CommitID:       "abcd1236",
+	}
+
+	rows := sqlmock.NewRows([]string{
 		"pull_request_url",
 		"id",
 		"author",
@@ -605,20 +610,3 @@ func TestReviewsByUserDates(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
-
-/*
-func TestAllUsersByDates(t *testing.T) {
-	cdb, mock, close := setupTestDB(t)
-	defer close()
-	// Execute method
-	_, err := cdb.AllUsersByDates(10, 10)
-	if err != nil {
-		t.Errorf("AllUsersByDates unwanted error: %s", err)
-	}
-	// Make sure expectations were met
-	err = mock.ExpectationsWereMet()
-	if err != nil {
-		t.Errorf("unfulfilled expectations: %s", err)
-	}
-}
-*/
