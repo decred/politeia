@@ -1509,7 +1509,7 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 			break
 		}
 
-		invoiceUser, err := p.getCMSUserByIDRaw(u.ID.String())
+		invoiceUser, err := p.getCMSUserByIDRaw(v.UserID)
 		if err != nil {
 			return nil, err
 		}

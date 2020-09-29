@@ -1569,6 +1569,7 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 	inv.Input.ContractorLocation = ""
 	inv.Input.ContractorName = ""
 	inv.Input.ContractorRate = 0
+	inv.Input.PaymentAddress = ""
 
 	for i, li := range inv.Input.LineItems {
 		li.Expenses = 0
