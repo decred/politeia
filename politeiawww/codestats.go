@@ -141,7 +141,7 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		return fmt.Errorf("code tracker not running")
 	}
 
-	//p.tracker.Update(org, repos, start, end)
+	p.tracker.Update(org, repos, start, end)
 
 	// Go fetch all Development contractors to update their stats
 	cu := user.CMSUsersByDomain{
@@ -295,4 +295,29 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 	}
 
 	return nil
+}
+
+// Seconds Minutes Hours Days Months DayOfWeek
+const codeStatsSchedule = "0 0 0 0 * *" // Check at 12:00 AM on 1st day every month
+
+func (p *politeiawww) startCodeStatsCron() {
+	log.Infof("Starting cron for invoice email checking")
+	// Launch invoice notification cron job
+	err := p.cron.AddFunc(codeStatsSchedule, func() {
+		log.Infof("Running code stats cron")
+		// End time for codestats is when the cron starts.
+		end := time.Now()
+		// Start time is 1 month and 1 day prior to the current time.
+		start := time.Date(end.Year(), end.Month()-1, end.Day()-1, end.Hour(),
+			end.Minute(), end.Second(), 0, end.Location())
+		err := p.updateCodeStats(p.cfg.CodeStatOrganization,
+			p.cfg.CodeStatRepos, start.Unix(), end.Unix())
+		if err != nil {
+			log.Errorf("erroring updating code stats %v", err)
+		}
+
+	})
+	if err != nil {
+		log.Errorf("Error running codestats cron: %v", err)
+	}
 }

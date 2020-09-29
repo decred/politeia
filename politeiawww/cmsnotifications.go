@@ -81,5 +81,4 @@ func (p *politeiawww) checkInvoiceNotifications() {
 	if err != nil {
 		log.Errorf("Error running invoice notification cron: %v", err)
 	}
-	p.cron.Start()
 }

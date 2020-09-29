@@ -28,7 +28,6 @@ server side notifications.  It does not render HTML.
     - [`Vote Details`](#vote-details)
     - [`Active votes`](#active-votes)
     - [`Start vote`](#start-vote)
-    - [`Update codestats`](#update-codestats)
     - [`User code stats`](#user-code-stats)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
