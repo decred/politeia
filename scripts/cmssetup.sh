@@ -60,7 +60,8 @@ cockroach sql \
   --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
   ON DATABASE ${DB_TESTNET} TO  ${USER_POLITEIAWWW}"
 
-# Create the mainnet and testnet databases for the cms database.
+# Create the code tracker database that contains pullrequest and review
+# information from gihtub.
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "CREATE DATABASE IF NOT EXISTS ${GITHUB_TRACKER}"
