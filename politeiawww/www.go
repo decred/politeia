@@ -565,7 +565,7 @@ func _main() error {
 		if p.cfg.BuildCMSDB {
 			index := 0
 			// Do pagination since we can't handle the full payload
-			count := 25
+			count := 200
 			dbInvs := make([]database.Invoice, 0, 2048)
 			dbDCCs := make([]database.DCC, 0, 2048)
 			for {
