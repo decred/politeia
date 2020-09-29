@@ -640,74 +640,87 @@ func (p *politeiawww) setupCMS() error {
 
 	// Build the cms database
 	if p.cfg.BuildCMSDB {
-		// Request full record inventory from backend
-		challenge, err := util.Random(pd.ChallengeSize)
-		if err != nil {
-			return err
-		}
+		index := 0
+		// Do pagination since we can't handle the full payload
+		count := 200
+		dbInvs := make([]database.Invoice, 0, 2048)
+		dbDCCs := make([]database.DCC, 0, 2048)
+		for {
+			log.Infof("requesting record inventory index %v of count %v", index, count)
+			// Request full record inventory from backend
+			challenge, err := util.Random(pd.ChallengeSize)
+			if err != nil {
+				return err
+			}
 
-		pdCommand := pd.Inventory{
-			Challenge:    hex.EncodeToString(challenge),
-			IncludeFiles: true,
-			AllVersions:  true,
-		}
+			pdCommand := pd.Inventory{
+				Challenge:    hex.EncodeToString(challenge),
+				IncludeFiles: true,
+				AllVersions:  true,
+				VettedCount:  uint(count),
+				VettedStart:  uint(index),
+			}
 
-		responseBody, err := p.makeRequest(http.MethodPost,
-			pd.InventoryRoute, pdCommand)
-		if err != nil {
-			return err
-		}
+			responseBody, err := p.makeRequest(http.MethodPost,
+				pd.InventoryRoute, pdCommand)
+			if err != nil {
+				return err
+			}
 
-		var pdReply pd.InventoryReply
-		err = json.Unmarshal(responseBody, &pdReply)
-		if err != nil {
-			return fmt.Errorf("Could not unmarshal InventoryReply: %v",
-				err)
-		}
+			var pdReply pd.InventoryReply
+			err = json.Unmarshal(responseBody, &pdReply)
+			if err != nil {
+				return fmt.Errorf("Could not unmarshal InventoryReply: %v",
+					err)
+			}
 
-		// Verify the UpdateVettedMetadata challenge.
-		err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
-		if err != nil {
-			return err
-		}
+			// Verify the UpdateVettedMetadata challenge.
+			err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+			if err != nil {
+				return err
+			}
 
-		vetted := pdReply.Vetted
-		dbInvs := make([]database.Invoice, 0, len(vetted))
-		dbDCCs := make([]database.DCC, 0, len(vetted))
-		for _, r := range vetted {
-			for _, m := range r.Metadata {
-				switch m.ID {
-				case mdstream.IDInvoiceGeneral:
-					i, err := convertRecordToDatabaseInvoice(r)
-					if err != nil {
-						log.Errorf("convertRecordToDatabaseInvoice: %v", err)
-						break
+			vetted := pdReply.Vetted
+			for _, r := range vetted {
+				for _, m := range r.Metadata {
+					switch m.ID {
+					case mdstream.IDInvoiceGeneral:
+						i, err := convertRecordToDatabaseInvoice(r)
+						if err != nil {
+							log.Errorf("convertRecordToDatabaseInvoice: %v", err)
+							break
+						}
+						u, err := p.db.UserGetByPubKey(i.PublicKey)
+						if err != nil {
+							log.Errorf("usergetbypubkey: %v %v", err, i.PublicKey)
+							break
+						}
+						i.UserID = u.ID.String()
+						i.Username = u.Username
+						dbInvs = append(dbInvs, *i)
+					case mdstream.IDDCCGeneral:
+						d, err := convertRecordToDatabaseDCC(r)
+						if err != nil {
+							log.Errorf("convertRecordToDatabaseDCC: %v", err)
+							break
+						}
+						dbDCCs = append(dbDCCs, *d)
 					}
-					u, err := p.db.UserGetByPubKey(i.PublicKey)
-					if err != nil {
-						log.Errorf("usergetbypubkey: %v %v", err, i.PublicKey)
-						break
-					}
-					i.UserID = u.ID.String()
-					i.Username = u.Username
-					dbInvs = append(dbInvs, *i)
-				case mdstream.IDDCCGeneral:
-					d, err := convertRecordToDatabaseDCC(r)
-					if err != nil {
-						log.Errorf("convertRecordToDatabaseDCC: %v", err)
-						break
-					}
-					dbDCCs = append(dbDCCs, *d)
 				}
 			}
+			if len(vetted) < count {
+				break
+			}
+			index += count
 		}
 
-		// Build the cmsdb
+		// Build the cache
 		err = p.cmsDB.Build(dbInvs, dbDCCs)
 		if err != nil {
-			return fmt.Errorf("build cmsdb: %v", err)
+			return fmt.Errorf("build cache: %v", err)
 		}
 	}
+
 	// Register cms userdb plugin
 	plugin := user.Plugin{
 		ID:      user.CMSPluginID,

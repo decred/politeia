@@ -140,9 +140,46 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 				dbDCC.Status = s.NewStatus
 				dbDCC.StatusChangeReason = s.Reason
 			}
+		case mdstream.IDDCCSupportOpposition:
+			// Support and Opposition
+			so, err := mdstream.DecodeDCCSupportOpposition([]byte(m.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromRecord: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					p.CensorshipRecord.Token, err, m)
+				continue
+			}
+			supportPubkeys := make([]string, 0, len(so))
+			opposePubkeys := make([]string, 0, len(so))
+			// Tabulate all support and opposition
+			for _, s := range so {
+				if s.Vote == supportString {
+					supportPubkeys = append(supportPubkeys, s.PublicKey)
+				} else if s.Vote == opposeString {
+					opposePubkeys = append(opposePubkeys, s.PublicKey)
+				}
+			}
+			supports := ""
+			for i, support := range supportPubkeys {
+				if i != len(supportPubkeys)-1 {
+					supports += support + ", "
+				} else {
+					supports += support
+				}
+			}
+			dbDCC.SupportUserIDs = supports
+			opposes := ""
+			for i, oppose := range opposePubkeys {
+				if i != len(opposePubkeys)-1 {
+					opposes += oppose + ", "
+				} else {
+					opposes += oppose
+				}
+			}
+			dbDCC.OppositionUserIDs = opposes
 		default:
 			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
+			log.Errorf("convertRecordToDCC: invalid "+
 				"metadata stream ID %v token %v",
 				m.ID, p.CensorshipRecord.Token)
 		}

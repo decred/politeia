@@ -579,7 +579,7 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend for inventory
-	prs, brs, err := p.backend.Inventory(i.VettedCount, i.BranchesCount,
+	prs, brs, err := p.backend.Inventory(i.VettedCount, i.VettedStart, i.BranchesCount,
 		i.IncludeFiles, i.AllVersions)
 	if err != nil {
 		// Generic internal error.

@@ -212,7 +212,7 @@ type Backend interface {
 		[]MetadataStream) (*Record, error)
 
 	// Inventory retrieves various record records.
-	Inventory(uint, uint, bool, bool) ([]Record, []Record, error)
+	Inventory(uint, uint, uint, bool, bool) ([]Record, []Record, error)
 
 	// InventoryByStatus returns the record tokens of all records in the
 	// inventory catagorized by MDStatusT.
