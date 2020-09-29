@@ -557,7 +557,7 @@ func (p *politeiawww) setupPi() error {
 	// Setup routes
 	p.setPoliteiaWWWRoutes()
 	p.setUserWWWRoutes()
-	p.setPiRoutes()
+	p.setupPiRoutes()
 
 	// Verify paywall settings
 	switch {

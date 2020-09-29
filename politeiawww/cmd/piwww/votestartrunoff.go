@@ -24,8 +24,8 @@ import (
 // sometimes desirable when testing.
 type voteStartRunoffCmd struct {
 	Args struct {
-		TokenRFP         string `positional-arg-name:"token" required:"true"` // RFP censorship token
-		Duration         uint32 `positional-arg-name:"duration"`              // Duration in blocks
+		TokenRFP         string `positional-arg-name:"token" required:"true"`
+		Duration         uint32 `positional-arg-name:"duration"`
 		QuorumPercentage string `positional-arg-name:"quorumpercentage"`
 		PassPercentage   string `positional-arg-name:"passpercentage"`
 	} `positional-args:"true"`
@@ -144,9 +144,9 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 
 	// Prepare and send request
 	svr := pi.VoteStartRunoff{
-		Token:          cmd.Args.TokenRFP,
-		Authorizations: auths,
-		Starts:         starts,
+		Token:  cmd.Args.TokenRFP,
+		Auths:  auths,
+		Starts: starts,
 	}
 	err = shared.PrintJSON(svr)
 	if err != nil {

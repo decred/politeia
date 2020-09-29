@@ -5,6 +5,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/decred/politeia/decredplugin"
 )
 
@@ -22,7 +24,11 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 
 	// Execute plugin command
 	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdGetComments,
-		decredplugin.CmdGetComments, string(payload))
+		string(payload))
+	if err != nil {
+		return nil, fmt.Errorf("pluginCommand %v %v: %v",
+			decredplugin.ID, decredplugin.CmdGetComments, err)
+	}
 
 	// Receive plugin command reply
 	gcr, err := decredplugin.DecodeGetCommentsReply([]byte(reply))
@@ -33,22 +39,26 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 	return gcr.Comments, nil
 }
 
-func (p *politeiawww) decredBestBlock() (*decredplugin.BestBlockReply, error) {
+func (p *politeiawww) decredBestBlock() (uint32, error) {
 	// Setup plugin command
 	payload, err := decredplugin.EncodeBestBlock(decredplugin.BestBlock{})
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	// Execute plugin command
 	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdBestBlock,
-		decredplugin.CmdBestBlock, string(payload))
+		string(payload))
+	if err != nil {
+		return 0, fmt.Errorf("pluginCommand %v %v: %v",
+			decredplugin.ID, decredplugin.CmdBestBlock, err)
+	}
 
 	// Receive plugin command reply
 	bbr, err := decredplugin.DecodeBestBlockReply([]byte(reply))
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return bbr, nil
+	return bbr.Height, nil
 }

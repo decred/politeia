@@ -8,79 +8,30 @@ import (
 	piplugin "github.com/decred/politeia/plugins/pi"
 )
 
-// voteInventoryPi calls the pi plugin to retrieve the token inventory.
-func (p *politeiawww) voteInventoryPi(vi piplugin.VoteInventory) (*piplugin.VoteInventoryReply, error) {
-	// Prep plugin payload
-	payload, err := piplugin.EncodeVoteInventory(vi)
+// piProposals returns the pi plugin data for the provided proposals.
+func (p *politeiawww) piProposals(ps piplugin.Proposals) (*piplugin.ProposalsReply, error) {
+	b, err := piplugin.EncodeProposals(ps)
 	if err != nil {
 		return nil, err
 	}
-
-	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdVoteInventory, "",
-		string(payload))
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdProposals, string(b))
 	if err != nil {
 		return nil, err
 	}
-	vir, err := piplugin.DecodeVoteInventoryReply(([]byte(r)))
+	pr, err := piplugin.DecodeProposalsReply([]byte(r))
 	if err != nil {
 		return nil, err
 	}
-
-	return vir, nil
+	return pr, nil
 }
 
-// commentCensorPi calls the pi plugin to censor a given comment.
-func (p *politeiawww) commentCensorPi(cc piplugin.CommentCensor) (*piplugin.CommentCensorReply, error) {
-	// Prep plugin payload
-	payload, err := piplugin.EncodeCommentCensor(cc)
+// piCommentNew uses the pi plugin to submit a new comment.
+func (p *politeiawww) piCommentNew(cn piplugin.CommentNew) (*piplugin.CommentNewReply, error) {
+	b, err := piplugin.EncodeCommentNew(cn)
 	if err != nil {
 		return nil, err
 	}
-
-	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentCensor, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	ccr, err := piplugin.DecodeCommentCensorReply(([]byte(r)))
-	if err != nil {
-		return nil, err
-	}
-
-	return ccr, nil
-}
-
-// commentVotePi calls the pi plugin to vote on a comment.
-func (p *politeiawww) commentVotePi(cvp piplugin.CommentVote) (*piplugin.CommentVoteReply, error) {
-	// Prep comment vote payload
-	payload, err := piplugin.EncodeCommentVote(cvp)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentVote, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	cvr, err := piplugin.DecodeCommentVoteReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-
-	return cvr, nil
-}
-
-// commentNewPi calls the pi plugin to add new comment.
-func (p *politeiawww) commentNewPi(cnp piplugin.CommentNew) (*piplugin.CommentNewReply, error) {
-	// Prep new comment payload
-	payload, err := piplugin.EncodeCommentNew(cnp)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentNew, "",
-		string(payload))
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentNew, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +39,52 @@ func (p *politeiawww) commentNewPi(cnp piplugin.CommentNew) (*piplugin.CommentNe
 	if err != nil {
 		return nil, err
 	}
-
 	return cnr, nil
+}
+
+// piCommentVote uses the pi plugin to vote on a comment.
+func (p *politeiawww) piCommentVote(cvp piplugin.CommentVote) (*piplugin.CommentVoteReply, error) {
+	b, err := piplugin.EncodeCommentVote(cvp)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentVote, string(b))
+	if err != nil {
+		return nil, err
+	}
+	cvr, err := piplugin.DecodeCommentVoteReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+	return cvr, nil
+}
+
+// piCommentCensor uses the pi plugin to censor a proposal comment.
+func (p *politeiawww) piCommentCensor(cc piplugin.CommentCensor) (*piplugin.CommentCensorReply, error) {
+	b, err := piplugin.EncodeCommentCensor(cc)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdCommentCensor, string(b))
+	if err != nil {
+		return nil, err
+	}
+	ccr, err := piplugin.DecodeCommentCensorReply(([]byte(r)))
+	if err != nil {
+		return nil, err
+	}
+	return ccr, nil
+}
+
+// piVoteInventory returns the pi plugin vote inventory.
+func (p *politeiawww) piVoteInventory() (*piplugin.VoteInventoryReply, error) {
+	r, err := p.pluginCommand(piplugin.ID, piplugin.CmdVoteInventory, "")
+	if err != nil {
+		return nil, err
+	}
+	vir, err := piplugin.DecodeVoteInventoryReply(([]byte(r)))
+	if err != nil {
+		return nil, err
+	}
+	return vir, nil
 }

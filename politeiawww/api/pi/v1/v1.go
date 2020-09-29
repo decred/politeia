@@ -166,6 +166,7 @@ const (
 	ErrorStatusVotePageSizeExceeded
 
 	// Cast vote errors
+	// TODO these need human readable equivalents
 	VoteErrorInvalid             VoteErrorT = 0
 	VoteErrorInternalError       VoteErrorT = 1
 	VoteErrorTokenInvalid        VoteErrorT = 2
@@ -672,9 +673,9 @@ type VoteStartReply struct {
 // VoteStartRunoff starts a runoff vote between the provided submissions. Each
 // submission is required to have its own Authorize and Start.
 type VoteStartRunoff struct {
-	Token          string          `json:"token"` // RFP token
-	Authorizations []VoteAuthorize `json:"authorizations"`
-	Starts         []VoteStart     `json:"starts"`
+	Token  string          `json:"token"` // RFP token
+	Auths  []VoteAuthorize `json:"auths"`
+	Starts []VoteStart     `json:"starts"`
 }
 
 // VoteStartRunoffReply is the reply to the VoteStartRunoff command.

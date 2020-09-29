@@ -470,7 +470,7 @@ func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 
 // pluginCommand fires a plugin command on politeiad and returns the reply
 // payload.
-func (p *politeiawww) pluginCommand(pluginID, cmd, cmdID, payload string) (string, error) {
+func (p *politeiawww) pluginCommand(pluginID, cmd, payload string) (string, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -480,7 +480,7 @@ func (p *politeiawww) pluginCommand(pluginID, cmd, cmdID, payload string) (strin
 		Challenge: hex.EncodeToString(challenge),
 		ID:        pluginID,
 		Command:   cmd,
-		CommandID: cmdID,
+		CommandID: "",
 		Payload:   payload,
 	}
 

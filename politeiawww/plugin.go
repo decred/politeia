@@ -11,10 +11,11 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 )
 
-// pluginSetting is a structure that holds key/value pairs of a plugin setting.
+// pluginSetting is a structure that holds the key-value pairs of a plugin
+// setting.
 type pluginSetting struct {
-	Key   string // Name of setting
-	Value string // Value of setting
+	Key   string
+	Value string
 }
 
 // plugin describes a plugin and its settings.
@@ -41,17 +42,6 @@ func convertPluginFromPD(p pd.Plugin) plugin {
 		Version:  p.Version,
 		Settings: ps,
 	}
-}
-
-// getBestBlock fetches and returns the best block from politeiad using the
-// decred plugin bestblock command.
-func (p *politeiawww) getBestBlock() (uint64, error) {
-	bb, err := p.decredBestBlock()
-	if err != nil {
-		return 0, err
-	}
-
-	return uint64(bb.Height), nil
 }
 
 // getPluginInventory returns the politeiad plugin inventory. If a politeiad

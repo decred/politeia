@@ -545,8 +545,8 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 	// generates the token locally to make setting up tests easier.
 	// The censorship record signature is left intentionally blank.
 	return www.ProposalRecord{
-		Name:                name,
-		State:               convertPropStatusToState(s),
+		Name: name,
+		// State:               convertPropStatusToState(s),
 		Status:              s,
 		Timestamp:           time.Now().Unix(),
 		UserId:              u.ID.String(),

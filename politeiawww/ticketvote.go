@@ -6,78 +6,15 @@ package main
 
 import (
 	ticketvote "github.com/decred/politeia/plugins/ticketvote"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-func (p *politeiawww) voteBallot(vb ticketvote.Ballot) (*ticketvote.BallotReply, error) {
-	// Prep plugin command
-	payload, err := ticketvote.EncodeBallot(vb)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	vbr, err := ticketvote.DecodeBallotReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-
-	return vbr, nil
-}
-
-func (p *politeiawww) voteStartRunoff(vsr ticketvote.StartRunoff) (*ticketvote.StartRunoffReply, error) {
-	// Prep plugin command
-	payload, err := ticketvote.EncodeStartRunoff(vsr)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStartRunoff, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	vsrr, err := ticketvote.DecodeStartRunoffReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-
-	return vsrr, nil
-}
-
-func (p *politeiawww) voteStart(vs ticketvote.Start) (*ticketvote.StartReply, error) {
-	// Prep plugin command
-	payload, err := ticketvote.EncodeStart(vs)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStart, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	vsr, err := ticketvote.DecodeStartReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-
-	return vsr, nil
-}
-
+// voteAuthorize uses the ticketvote plugin to authorize a vote.
 func (p *politeiawww) voteAuthorize(a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
-	// Prep plugin command
-	payload, err := ticketvote.EncodeAuthorize(a)
+	b, err := ticketvote.EncodeAuthorize(a)
 	if err != nil {
 		return nil, err
 	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdAuthorize, "",
-		string(payload))
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdAuthorize, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -85,112 +22,117 @@ func (p *politeiawww) voteAuthorize(a ticketvote.Authorize) (*ticketvote.Authori
 	if err != nil {
 		return nil, err
 	}
-
 	return va, nil
 }
 
-// voteDetails calls the ticketvote plugin command to get vote details.
-func (p *politeiawww) voteDetails(tokens []string) (*ticketvote.DetailsReply, error) {
-	// Prep vote details payload
-	vdp := ticketvote.Details{
-		Tokens: tokens,
-	}
-	payload, err := ticketvote.EncodeDetails(vdp)
+// voteStart uses the ticketvote plugin to start a vote.
+func (p *politeiawww) voteStart(s ticketvote.Start) (*ticketvote.StartReply, error) {
+	b, err := ticketvote.EncodeStart(s)
 	if err != nil {
 		return nil, err
 	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdDetails, "",
-		string(payload))
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStart, string(b))
 	if err != nil {
 		return nil, err
 	}
-	vd, err := ticketvote.DecodeDetailsReply([]byte(r))
+	sr, err := ticketvote.DecodeStartReply([]byte(r))
 	if err != nil {
 		return nil, err
 	}
-
-	return vd, nil
+	return sr, nil
 }
 
-// castVotes calls the ticketvote plugin to retrieve cast votes.
+// voteStartRunoff uses the ticketvote plugin to start a runoff vote.
+func (p *politeiawww) voteStartRunoff(sr ticketvote.StartRunoff) (*ticketvote.StartRunoffReply, error) {
+	b, err := ticketvote.EncodeStartRunoff(sr)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStartRunoff,
+		string(b))
+	if err != nil {
+		return nil, err
+	}
+	srr, err := ticketvote.DecodeStartRunoffReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+	return srr, nil
+}
+
+// voteBallot uses the ticketvote plugin to cast a ballot of votes.
+func (p *politeiawww) voteBallot(tb ticketvote.Ballot) (*ticketvote.BallotReply, error) {
+	b, err := ticketvote.EncodeBallot(tb)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot, string(b))
+	if err != nil {
+		return nil, err
+	}
+	br, err := ticketvote.DecodeBallotReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+	return br, nil
+}
+
+// voteDetails uses the ticketvote plugin to fetch the details of a vote.
+func (p *politeiawww) voteDetails(tokens []string) (*ticketvote.DetailsReply, error) {
+	d := ticketvote.Details{
+		Tokens: tokens,
+	}
+	b, err := ticketvote.EncodeDetails(d)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdDetails, string(b))
+	if err != nil {
+		return nil, err
+	}
+	dr, err := ticketvote.DecodeDetailsReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+	return dr, nil
+}
+
+// castVotes uses the ticketvote plugin to fetch cast votes for a record.
 func (p *politeiawww) castVotes(token string) (*ticketvote.CastVotesReply, error) {
-	// Prep cast votes payload
-	csp := ticketvote.CastVotes{
+	cv := ticketvote.CastVotes{
 		Token: token,
 	}
-	payload, err := ticketvote.EncodeCastVotes(csp)
+	b, err := ticketvote.EncodeCastVotes(cv)
 	if err != nil {
 		return nil, err
 	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, "",
-		string(payload))
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, string(b))
 	if err != nil {
 		return nil, err
 	}
-	cv, err := ticketvote.DecodeCastVotesReply([]byte(r))
+	cvr, err := ticketvote.DecodeCastVotesReply([]byte(r))
 	if err != nil {
 		return nil, err
 	}
-
-	return cv, nil
+	return cvr, nil
 }
 
-// ballot calls the ticketvote plugin to cast a ballot of votes.
-func (p *politeiawww) ballot(ballot *www.Ballot) (*ticketvote.BallotReply, error) {
-	// Prep plugin command
-	var bp ticketvote.Ballot
-
-	// Transale votes
-	votes := make([]ticketvote.CastVote, 0, len(ballot.Votes))
-	for _, vote := range ballot.Votes {
-		votes = append(votes, ticketvote.CastVote{
-			Token:     vote.Ticket,
-			Ticket:    vote.Ticket,
-			VoteBit:   vote.VoteBit,
-			Signature: vote.Signature,
-		})
-	}
-	bp.Votes = votes
-	payload, err := ticketvote.EncodeBallot(bp)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot, "",
-		string(payload))
-	if err != nil {
-		return nil, err
-	}
-	b, err := ticketvote.DecodeBallotReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// summaries calls the ticketvote plugin to get vote summary information.
+// voteSummaries uses the ticketvote plugin to fetch vote summaries.
 func (p *politeiawww) voteSummaries(tokens []string) (*ticketvote.SummariesReply, error) {
-	// Prep plugin command
-	smp := ticketvote.Summaries{
+	s := ticketvote.Summaries{
 		Tokens: tokens,
 	}
-	payload, err := ticketvote.EncodeSummaries(smp)
+	b, err := ticketvote.EncodeSummaries(s)
 	if err != nil {
 		return nil, err
 	}
-
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdSummaries, "",
-		string(payload))
+	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdSummaries, string(b))
 	if err != nil {
 		return nil, err
 	}
-	sm, err := ticketvote.DecodeSummariesReply([]byte(r))
+	sr, err := ticketvote.DecodeSummariesReply([]byte(r))
 	if err != nil {
 		return nil, err
 	}
-
-	return sm, nil
+	return sr, nil
 }

@@ -22,7 +22,8 @@ the string is record metadata. Arguments that are not classified as metadata
 are assumed to be file paths.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new 'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' ~/index.md
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new \ 
+  'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' ~/index.md
 00: 4bde9f923b61e26147c79500e6d6dfa27291559a74cd878c29a7f96984dd48bb index.md text/plain; charset=utf-8
 Record submitted
   Censorship record:

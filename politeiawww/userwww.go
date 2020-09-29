@@ -16,9 +16,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// handleNewUser handles the incoming new user command. It verifies that the new user
-// doesn't already exist, and then creates a new user in the db and generates a random
-// code used for verification. The code is intended to be sent to the specified email.
+// handleNewUser handles the incoming new user command. It verifies that the
+// new user doesn't already exist, and then creates a new user in the db and
+// generates a random code used for verification. The code is intended to be
+// sent to the specified email.
 func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
@@ -42,9 +43,10 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleVerifyNewUser handles the incoming new user verify command. It verifies
-// that the user with the provided email has a verification token that matches
-// the provided token and that the verification token has not yet expired.
+// handleVerifyNewUser handles the incoming new user verify command. It
+// verifies that the user with the provided email has a verification token that
+// matches the provided token and that the verification token has not yet
+// expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyNewUser")
 

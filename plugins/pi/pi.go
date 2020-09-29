@@ -15,7 +15,7 @@ import (
 type PropStateT int
 type PropStatusT int
 type ErrorStatusT int
-type VoteT int
+type CommentVoteT int
 
 const (
 	ID      = "pi"
@@ -55,9 +55,9 @@ const (
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
 
 	// Comment vote types
-	VoteInvalid  VoteT = 0
-	VoteDownvote VoteT = -1
-	VoteUpvote   VoteT = 1
+	VoteInvalid  CommentVoteT = 0
+	VoteDownvote CommentVoteT = -1
+	VoteUpvote   CommentVoteT = 1
 
 	// User error status codes
 	// TODO number error codes and add human readable error messages
@@ -371,13 +371,13 @@ func DecodeCommentCensorReply(payload []byte) (*CommentCensorReply, error) {
 //
 // Signature is the client signature of the State+Token+CommentID+Vote.
 type CommentVote struct {
-	UserID    string     `json:"userid"`    // Unique user ID
-	State     PropStateT `json:"state"`     // Record state
-	Token     string     `json:"token"`     // Record token
-	CommentID uint32     `json:"commentid"` // Comment ID
-	Vote      VoteT      `json:"vote"`      // Upvote or downvote
-	PublicKey string     `json:"publickey"` // Public key used for signature
-	Signature string     `json:"signature"` // Client signature
+	UserID    string       `json:"userid"`    // Unique user ID
+	State     PropStateT   `json:"state"`     // Record state
+	Token     string       `json:"token"`     // Record token
+	CommentID uint32       `json:"commentid"` // Comment ID
+	Vote      CommentVoteT `json:"vote"`      // Upvote or downvote
+	PublicKey string       `json:"publickey"` // Public key used for signature
+	Signature string       `json:"signature"` // Client signature
 }
 
 // EncodeCommentVote encodes a CommentVote into a JSON byte slice.
