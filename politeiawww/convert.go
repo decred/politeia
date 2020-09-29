@@ -1070,7 +1070,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Payments = payment
 		default:
 			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
+			log.Errorf("convertRecordToInvoiceDB: invalid "+
 				"metadata stream ID %v token %v",
 				m.ID, p.CensorshipRecord.Token)
 		}
@@ -1257,91 +1257,46 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 				dbDCC.Status = s.NewStatus
 				dbDCC.StatusChangeReason = s.Reason
 			}
+		case mdstream.IDDCCSupportOpposition:
+			// Support and Opposition
+			so, err := mdstream.DecodeDCCSupportOpposition([]byte(m.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromRecord: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					p.CensorshipRecord.Token, err, m)
+				continue
+			}
+			supportPubkeys := make([]string, 0, len(so))
+			opposePubkeys := make([]string, 0, len(so))
+			// Tabulate all support and opposition
+			for _, s := range so {
+				if s.Vote == supportString {
+					supportPubkeys = append(supportPubkeys, s.PublicKey)
+				} else if s.Vote == opposeString {
+					opposePubkeys = append(opposePubkeys, s.PublicKey)
+				}
+			}
+			supports := ""
+			for i, support := range supportPubkeys {
+				if i != len(supportPubkeys)-1 {
+					supports += support + ", "
+				} else {
+					supports += support
+				}
+			}
+			dbDCC.SupportUserIDs = supports
+			opposes := ""
+			for i, oppose := range opposePubkeys {
+				if i != len(opposePubkeys)-1 {
+					opposes += oppose + ", "
+				} else {
+					opposes += oppose
+				}
+			}
+			dbDCC.OppositionUserIDs = opposes
 		default:
 			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
-				"metadata stream ID %v token %v",
-				m.ID, p.CensorshipRecord.Token)
-		}
-	}
-
-	return &dbDCC, nil
-}
-
-func convertCacheToDatabaseDCC(p cache.Record) (*cmsdatabase.DCC, error) {
-	dbDCC := cmsdatabase.DCC{
-		Token:           p.CensorshipRecord.Token,
-		ServerSignature: p.CensorshipRecord.Signature,
-	}
-
-	fs := make([]www.File, 0, len(p.Files))
-	for _, v := range p.Files {
-		f := www.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		}
-		fs = append(fs, f)
-	}
-	dbDCC.Files = fs
-
-	// Decode invoice file
-	for _, v := range p.Files {
-		if v.Name == dccFile {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-
-			var dcc cms.DCCInput
-			err = json.Unmarshal(b, &dcc)
-			if err != nil {
-				return nil, fmt.Errorf("could not decode DCC input data: token '%v': %v",
-					p.CensorshipRecord.Token, err)
-			}
-			dbDCC.Type = dcc.Type
-			dbDCC.NomineeUserID = dcc.NomineeUserID
-			dbDCC.SponsorStatement = dcc.SponsorStatement
-			dbDCC.Domain = dcc.Domain
-			dbDCC.ContractorType = dcc.ContractorType
-		}
-	}
-
-	for _, m := range p.Metadata {
-		switch m.ID {
-		case mdstream.IDRecordStatusChange:
-			// Ignore initial stream change since it's just the automatic change from
-			// unvetted to vetted
-			continue
-		case mdstream.IDDCCGeneral:
-			var mdGeneral mdstream.DCCGeneral
-			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					p.Metadata, p.CensorshipRecord.Token, err)
-			}
-
-			dbDCC.Timestamp = mdGeneral.Timestamp
-			dbDCC.PublicKey = mdGeneral.PublicKey
-			dbDCC.UserSignature = mdGeneral.Signature
-
-		case mdstream.IDDCCStatusChange:
-			sc, err := mdstream.DecodeDCCStatusChange([]byte(m.Payload))
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					m, p.CensorshipRecord.Token, err)
-			}
-
-			// We don't need all of the status changes.
-			// Just the most recent one.
-			for _, s := range sc {
-				dbDCC.Status = s.NewStatus
-				dbDCC.StatusChangeReason = s.Reason
-			}
-		default:
-			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
+			log.Errorf("convertRecordToDCC: invalid "+
 				"metadata stream ID %v token %v",
 				m.ID, p.CensorshipRecord.Token)
 		}

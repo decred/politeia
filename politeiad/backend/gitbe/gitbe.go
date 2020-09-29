@@ -2695,8 +2695,8 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 
 // Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
-func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
-	log.Tracef("Inventory: %v %v %v", vettedCount, branchCount, includeFiles)
+func (g *gitBackEnd) Inventory(vettedCount, vettedStart, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
+	log.Tracef("Inventory: %v %v %v %v", vettedCount, vettedStart, branchCount, includeFiles)
 
 	// Lock filesystem
 	g.Lock()
@@ -2712,14 +2712,24 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allV
 		return nil, nil, err
 	}
 
-	// Strip non record directories
-	pr := make([]backend.Record, 0, len(files))
+	fileNames := make([]string, 0, len(files))
 	for _, v := range files {
-		id := v.Name()
-		if !util.IsDigest(id) {
+		if !util.IsDigest(v.Name()) {
 			continue
 		}
+		fileNames = append(fileNames, v.Name())
+	}
+	if vettedCount != 0 {
+		pageEnd := vettedStart + vettedCount
+		if pageEnd > uint(len(fileNames)) {
+			pageEnd = uint(len(fileNames))
+		}
+		fileNames = fileNames[vettedStart:pageEnd]
+	}
 
+	// Strip non record directories
+	pr := make([]backend.Record, 0, len(fileNames))
+	for _, id := range fileNames {
 		ids, err := hex.DecodeString(id)
 		if err != nil {
 			return nil, nil, err
@@ -2745,7 +2755,6 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allV
 			}
 		}
 	}
-
 	// Walk Branches on unvetted
 	branches, err := g.gitBranches(g.unvetted)
 	if err != nil {

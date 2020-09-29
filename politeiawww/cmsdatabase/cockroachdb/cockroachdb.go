@@ -784,7 +784,6 @@ func (c *cockroachdb) build(invoices []Invoice, dccs []DCC) error {
 	for _, i := range invoices {
 		err := c.recordsdb.Create(&i).Error
 		if err != nil {
-			log.Debugf("create invoice failed on '%v'", i)
 			return fmt.Errorf("create invoice: %v", err)
 		}
 	}
@@ -792,7 +791,6 @@ func (c *cockroachdb) build(invoices []Invoice, dccs []DCC) error {
 	for _, d := range dccs {
 		err := c.recordsdb.Create(&d).Error
 		if err != nil {
-			log.Debugf("create dcc failed on '%v'", d)
 			return fmt.Errorf("create dcc: %v", err)
 		}
 	}
