@@ -2695,8 +2695,8 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 
 // Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
-func (g *gitBackEnd) Inventory(vettedCount, vettedPage, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
-	log.Tracef("Inventory: %v %v %v %v", vettedCount, vettedPage, branchCount, includeFiles)
+func (g *gitBackEnd) Inventory(vettedCount, vettedStart, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
+	log.Tracef("Inventory: %v %v %v %v", vettedCount, vettedStart, branchCount, includeFiles)
 
 	// Lock filesystem
 	g.Lock()
@@ -2746,12 +2746,11 @@ func (g *gitBackEnd) Inventory(vettedCount, vettedPage, branchCount uint, includ
 		}
 	}
 	if vettedCount != 0 {
-		pageStart := int(vettedCount * vettedPage)
-		pageEnd := pageStart + int(vettedCount)
-		if pageEnd > len(pr) {
-			pageEnd = len(pr)
+		pageEnd := vettedStart + vettedCount
+		if pageEnd > uint(len(pr)) {
+			pageEnd = uint(len(pr))
 		}
-		pr = pr[pageStart:pageEnd]
+		pr = pr[vettedStart:pageEnd]
 	}
 	// Walk Branches on unvetted
 	branches, err := g.gitBranches(g.unvetted)

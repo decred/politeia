@@ -563,13 +563,13 @@ func _main() error {
 
 		// Build the cms database
 		if p.cfg.BuildCMSDB {
-			page := 0
+			index := 0
 			// Do pagination since we can't handle the full payload
 			count := 25
 			dbInvs := make([]database.Invoice, 0, 2048)
 			dbDCCs := make([]database.DCC, 0, 2048)
 			for {
-				log.Infof("requesting record inventory page %v of count %v", page, count)
+				log.Infof("requesting record inventory index %v of count %v", index, count)
 				// Request full record inventory from backend
 				challenge, err := util.Random(pd.ChallengeSize)
 				if err != nil {
@@ -581,7 +581,7 @@ func _main() error {
 					IncludeFiles: true,
 					AllVersions:  true,
 					VettedCount:  uint(count),
-					VettedPage:   uint(page),
+					VettedStart:  uint(index),
 				}
 
 				responseBody, err := p.makeRequest(http.MethodPost,
@@ -634,7 +634,7 @@ func _main() error {
 				if len(vetted) < count {
 					break
 				}
-				page += 1
+				index += count
 			}
 
 			// Build the cache
