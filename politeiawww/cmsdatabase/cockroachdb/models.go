@@ -122,21 +122,22 @@ func (Payments) TableName() string {
 // DCC contains all the information about a given DCC proposal.
 type DCC struct {
 	Token              string `gorm:"primary_key"`
-	SponsorUserID      string
-	NomineeUserID      string
-	Type               int
-	Status             int
-	StatusChangeReason string
-	Timestamp          int64
-	PublicKey          string
-	UserSignature      string
-	ServerSignature    string
-	SponsorStatement   string
-	Domain             int
-	ContractorType     int
+	SponsorUserID      string `gorm:"not null"`
+	NomineeUserID      string `gorm:"not null"`
+	Type               int    `gorm:"not null"`
+	Status             int    `gorm:"not null"`
+	StatusChangeReason string `gorm:"not null"`
+	TimeSubmitted      int64  `gorm:"not null"`
+	TimeReviewed       int64  `gorm:"not null"`
+	PublicKey          string `gorm:"not null"`
+	UserSignature      string `gorm:"not null"`
+	ServerSignature    string `gorm:"not null"`
+	SponsorStatement   string `gorm:"not null"`
+	Domain             int    `gorm:"not null"`
+	ContractorType     int    `gorm:"not null"`
 
-	SupportUserIDs    string
-	OppositionUserIDs string
+	SupportUserIDs    string `gorm:"not null"`
+	OppositionUserIDs string `gorm:"not null"`
 }
 
 // TableName returns the table name of the DCC table.
