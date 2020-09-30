@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -235,7 +236,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	// Ensure proposal exists and is public
 	pr, err := p.getProp(nc.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -354,7 +355,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 
 	ir, err := p.getInvoice(nc.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
@@ -508,7 +509,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	// Ensure proposal exists and is public
 	pr, err := p.getProp(lc.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -541,7 +542,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	// Ensure comment exists and has not been censored.
 	c, err := p.decredCommentGetByID(lc.Token, lc.CommentID)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusCommentNotFound,
 			}

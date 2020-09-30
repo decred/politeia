@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -279,7 +279,7 @@ func (p *TestPoliteiad) handleSetUnvettedStatus(w http.ResponseWriter, r *http.R
 	// Lookup record
 	rc, err := p.record(t.Token)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			respondWithUserError(w, v1.ErrorStatusRecordFound, nil)
 			return
 		}
@@ -380,7 +380,7 @@ func (p *TestPoliteiad) handleSetVettedStatus(w http.ResponseWriter, r *http.Req
 	// Lookup record
 	rc, err := p.record(t.Token)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			respondWithUserError(w, v1.ErrorStatusRecordFound, nil)
 			return
 		}

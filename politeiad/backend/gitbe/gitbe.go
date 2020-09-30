@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -767,7 +767,7 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 	// Fill out unvetted digests
 	digests, messages, _, err := g.deltaCommits(path, last.Last)
 	if err != nil {
-		if err == errNothingToDo {
+		if errors.Is(err, errNothingToDo) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("could not determine delta %v: %v",
@@ -849,7 +849,7 @@ func (g *gitBackEnd) anchorAllRepos() error {
 	log.Infof("Anchoring %v", g.vetted)
 	mr, err := g.anchorRepo(g.vetted)
 	if err != nil {
-		if err == errNothingToDo {
+		if errors.Is(err, errNothingToDo) {
 			log.Infof("Anchoring %v: nothing to do", g.vetted)
 			return nil
 		}
@@ -1616,7 +1616,7 @@ func (g *gitBackEnd) wouldChange(id string, mdAppend []backend.MetadataStream, m
 
 	var rv bool
 	err = g._updateRecord(false, id, mdAppend, mdOverwrite, fa, filesDel)
-	if err == backend.ErrChangesRecord {
+	if errors.Is(err, backend.ErrChangesRecord) {
 		rv = true
 	}
 	return rv, g.gitUnwindBranch(g.unvetted, idTmp)
@@ -1634,8 +1634,8 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 	allMD := append(mdAppend, mdOverwrite...)
 	fa, err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
+		var e backend.ContentVerificationError
+		if !errors.As(err, &e) {
 			return nil, err
 		}
 		// Allow ErrorStatusEmpty
@@ -1906,8 +1906,8 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	allMD := append(mdAppend, mdOverwrite...)
 	_, err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
+		var e backend.ContentVerificationError
+		if !errors.As(err, &e) {
 			return err
 		}
 		// Allow ErrorStatusEmpty

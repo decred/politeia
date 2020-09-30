@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package shared
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -121,8 +122,8 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	cfgParser := flags.NewParser(&cfg, flags.Default)
 	err = flags.NewIniParser(cfgParser).ParseFile(cfgFile)
 	if err != nil {
-		_, ok := err.(*os.PathError)
-		if ok {
+		var e *os.PathError
+		if errors.As(err, &e) {
 			fmt.Printf("Warning: no config file found at %v\n", cfgFile)
 		} else {
 			return nil, fmt.Errorf("parsing config file: %v", err)

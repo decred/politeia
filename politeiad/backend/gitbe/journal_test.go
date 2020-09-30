@@ -1,10 +1,11 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package gitbe
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,7 +31,7 @@ func testExact(j *Journal, filename string, count int) error {
 			}
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			if i > count {
 				return fmt.Errorf("ran too many times")
 			}
@@ -97,7 +98,7 @@ func TestJournalDoubleOpen(t *testing.T) {
 	}
 
 	err = j.Open(filename)
-	if err != ErrBusy {
+	if !errors.Is(err, ErrBusy) {
 		t.Fatal(err)
 	}
 
@@ -129,7 +130,7 @@ func TestJournalDoubleClose(t *testing.T) {
 	}
 
 	err = j.Close(filename)
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Fatal(err)
 	}
 
@@ -230,7 +231,7 @@ func TestJournalConcurrentSame(t *testing.T) {
 			delete(check, i)
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			if i > count {
 				t.Fatalf("ran too many times")
 			}
@@ -288,7 +289,7 @@ func TestJournalCopy(t *testing.T) {
 	// Copy journal fail 2
 	destination = filepath.Join(dir, "d", "..", "file1") // Try to overwrite same file
 	err = j.Copy(filename, destination)
-	if err != ErrSameFile {
+	if !errors.Is(err, ErrSameFile) {
 		t.Fatalf("Expected ErrSameFile")
 	}
 

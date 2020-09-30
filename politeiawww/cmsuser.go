@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -167,7 +168,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	// Check that the user already exists.
 	existingUser, err := p.userByEmail(u.Email)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("RegisterUser failure for %v: user not found",
 				u.Email)
 			return nil, www.UserError{

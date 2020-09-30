@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -234,7 +235,7 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 
 	monthAvg, err := p.cmsDB.ExchangeRate(int(ier.Month), int(ier.Year))
 	if err != nil {
-		if err == database.ErrExchangeRateNotFound {
+		if errors.Is(err, database.ErrExchangeRateNotFound) {
 			monthAvgRaw, err := p.getMonthAverage(time.Month(ier.Month), int(ier.Year))
 			if err != nil {
 				log.Errorf("processInvoiceExchangeRate: getMonthAverage: %v", err)

@@ -1,10 +1,11 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -105,7 +106,8 @@ func (c *ctx) retryLoop() {
 		b := v1.Ballot{Votes: []v1.CastVote{e.vote}}
 		log.Debugf("retryLoop: sendVote %v", ticket)
 		br, err := c.sendVote(&b)
-		if serr, ok := err.(ErrRetry); ok {
+		var serr ErrRetry
+		if errors.As(err, &serr) {
 			// Push to back retry later
 			fmt.Printf("Retry vote rescheduled: %v\n",
 				e.vote.Ticket)

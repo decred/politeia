@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -307,7 +308,7 @@ func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
 	for {
 		var action gitbe.JournalAction
 		err = d.Decode(&action)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return fmt.Errorf("journal action: %v", err)
@@ -497,7 +498,7 @@ func cmdMigrate() error {
 		paywallIndex = u.PaywallAddressIndex
 		switch err {
 		case nil:
-			for err != user.ErrUserNotFound {
+			for !errors.Is(err, user.ErrUserNotFound) {
 				// Username is a duplicate. Allow for the username to be
 				// updated here. The migration will fail if the username
 				// is not unique.
