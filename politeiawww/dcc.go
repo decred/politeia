@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -410,7 +411,7 @@ func convertPiFilesFromWWW(files []www.File) []pi.File {
 	return f
 }
 
-func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCReply, error) {
+func (p *politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.User) (*cms.NewDCCReply, error) {
 	reply := &cms.NewDCCReply{}
 
 	err := p.validateDCC(nd, u)
@@ -477,7 +478,7 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 	}
 
 	// Send the newrecord politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.NewRecordRoute, n)
 	if err != nil {
 		return nil, err
@@ -533,7 +534,7 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 	}
 
 	// Send SetUnvettedStatus request to politeiad
-	responseBody, err = p.makeRequest(http.MethodPost,
+	responseBody, err = p.makeRequest(ctx, http.MethodPost,
 		pd.SetUnvettedStatusRoute, sus)
 	if err != nil {
 		return nil, err
@@ -811,14 +812,14 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	return &i, nil
 }
 
-func (p *politeiawww) processDCCDetails(gd cms.DCCDetails) (*cms.DCCDetailsReply, error) {
+func (p *politeiawww) processDCCDetails(ctx context.Context, gd cms.DCCDetails) (*cms.DCCDetailsReply, error) {
 	log.Tracef("processDCCDetails: %v", gd.Token)
-	vdr, err := p.cmsVoteDetails(gd.Token)
+	vdr, err := p.cmsVoteDetails(ctx, gd.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	vsr, err := p.cmsVoteSummary(gd.Token)
+	vsr, err := p.cmsVoteSummary(ctx, gd.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -884,7 +885,7 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 	}, nil
 }
 
-func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
+func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
 	log.Tracef("processSupportOpposeDCC: %v %v", sd.Token, u.ID)
 
 	// The submitted Vote in the request must either be "aye" or "nay"
@@ -976,7 +977,7 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
@@ -1032,7 +1033,7 @@ func validateNewComment(c www.NewComment) error {
 
 // processNewCommentDCC sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+func (p *politeiawww) processNewCommentDCC(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewCommentDCC: %v %v", nc.Token, u.ID)
 
 	// Validate comment
@@ -1106,7 +1107,7 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	}
 
 	// Send polieiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -1131,7 +1132,7 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	}
 
 	// Get comment
-	comments, err := p.getDCCComments(nc.Token)
+	comments, err := p.getDCCComments(ctx, nc.Token)
 	if err != nil {
 		return nil, fmt.Errorf("getComments: %v", err)
 	}
@@ -1151,11 +1152,11 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 // processDCCComments returns all comments for a given dcc. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) processDCCComments(token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *politeiawww) processDCCComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("processDCCComment: %v", token)
 
 	// Fetch dcc comments from cache
-	c, err := p.getDCCComments(token)
+	c, err := p.getDCCComments(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -1181,10 +1182,10 @@ func (p *politeiawww) processDCCComments(token string, u *user.User) (*www.GetCo
 	}, nil
 }
 
-func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
+func (p *politeiawww) getDCCComments(ctx context.Context, token string) ([]www.Comment, error) {
 	log.Tracef("getDCCComments: %v", token)
 
-	dc, err := p.decredGetComments(token)
+	dc, err := p.decredGetComments(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComments: %v", err)
 	}
@@ -1208,7 +1209,7 @@ func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
+func (p *politeiawww) processSetDCCStatus(ctx context.Context, sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
 	log.Tracef("processSetDCCStatus: %v", u.PublicKey())
 
 	// Ensure the provided public key is the user's active key.
@@ -1241,14 +1242,14 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 	}
 
 	// Validate vote status
-	vsr, err := p.cmsVoteSummary(sds.Token)
+	vsr, err := p.cmsVoteSummary(ctx, sds.Token)
 	if err != nil {
 		return nil, err
 	}
 
 	// Only allow voting on All Vote DCC proposals
 	// Get vote summary to check vote status
-	bb, err := p.decredBestBlock()
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1296,7 +1297,7 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
@@ -1384,10 +1385,10 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 	return false
 }
 
-func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.CastVoteReply, error) {
+func (p *politeiawww) processCastVoteDCC(ctx context.Context, cv cms.CastVote, u *user.User) (*cms.CastVoteReply, error) {
 	log.Tracef("processCastVoteDCC: %v", u.PublicKey())
 
-	vdr, err := p.cmsVoteDetails(cv.Token)
+	vdr, err := p.cmsVoteDetails(ctx, cv.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1410,7 +1411,7 @@ func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.Ca
 	// Only allow voting on All Vote DCC proposals
 	// Get vote summary to check vote status
 
-	bb, err := p.decredBestBlock()
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1440,7 +1441,7 @@ func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.Ca
 		Payload:   string(payload),
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -1468,11 +1469,11 @@ func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.Ca
 	return convertCastVoteReplyToCMS(pluginCastVoteReply), nil
 }
 
-func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply, error) {
+func (p *politeiawww) processVoteDetailsDCC(ctx context.Context, token string) (*cms.VoteDetailsReply, error) {
 	log.Tracef("processVoteDetailsDCC: %v", token)
 
 	// Validate vote status
-	dvdr, err := p.cmsVoteDetails(token)
+	dvdr, err := p.cmsVoteDetails(ctx, token)
 	if err != nil {
 		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
@@ -1498,7 +1499,7 @@ func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply
 
 // cmsVoteDetails sends the cms plugin votedetails command to the gitbe
 // and returns the vote details for the passed in proposal.
-func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply, error) {
+func (p *politeiawww) cmsVoteDetails(ctx context.Context, token string) (*cmsplugin.VoteDetailsReply, error) {
 	// Setup plugin command
 	vd := cmsplugin.VoteDetails{
 		Token: token,
@@ -1517,7 +1518,7 @@ func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply,
 		Command:   cmsplugin.CmdVoteDetails,
 		Payload:   string(payload),
 	}
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -1544,7 +1545,7 @@ func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply,
 
 // cmsVoteSummary provides the current tally of a given DCC proposal based on
 // the provided token.
-func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply, error) {
+func (p *politeiawww) cmsVoteSummary(ctx context.Context, token string) (*cmsplugin.VoteSummaryReply, error) {
 	// Setup plugin command
 	vs := cmsplugin.VoteSummary{
 		Token: token,
@@ -1563,7 +1564,7 @@ func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply,
 		Command:   cmsplugin.CmdVoteSummary,
 		Payload:   string(payload),
 	}
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -1588,7 +1589,7 @@ func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply,
 	return vsr, nil
 }
 
-func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
+func (p *politeiawww) processActiveVoteDCC(ctx context.Context) (*cms.ActiveVoteReply, error) {
 	log.Tracef("processActiveVoteDCC")
 
 	// Request full record inventory from backend
@@ -1603,7 +1604,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 		AllVersions:  true,
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.InventoryRoute, pdCommand)
 	if err != nil {
 		return nil, err
@@ -1623,7 +1624,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 	}
 	vetted := pdReply.Vetted
 
-	bb, err := p.decredBestBlock()
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1633,7 +1634,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 		for _, m := range r.Metadata {
 			switch m.ID {
 			case mdstream.IDDCCGeneral:
-				vs, err := p.cmsVoteSummary(r.CensorshipRecord.Token)
+				vs, err := p.cmsVoteSummary(ctx, r.CensorshipRecord.Token)
 				if err != nil {
 					log.Errorf("processActiveVotes: error pull cmsVoteSummary "+
 						"%v %v", r.CensorshipRecord.Token, err)
@@ -1655,7 +1656,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 	vt := make([]cms.VoteTuple, 0, len(dccs))
 	for _, v := range dccs {
 		// Get vote details from gitbe
-		vdr, err := p.cmsVoteDetails(v.CensorshipRecord.Token)
+		vdr, err := p.cmsVoteDetails(ctx, v.CensorshipRecord.Token)
 		if err != nil {
 			return nil, fmt.Errorf("decredVoteDetails %v: %v",
 				v.CensorshipRecord.Token, err)
@@ -1740,7 +1741,7 @@ func (p *politeiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error)
 
 // processStartVoteV2 starts the voting period on a proposal using the provided
 // v2 StartVote.
-func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.StartVoteReply, error) {
+func (p *politeiawww) processStartVoteDCC(ctx context.Context, sv cms.StartVote, u *user.User) (*cms.StartVoteReply, error) {
 	log.Tracef("processStartVoteDCC %v", sv.Vote.Token)
 
 	// Sanity check
@@ -1836,7 +1837,7 @@ func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.
 	}
 
 	// Validate vote status
-	vsr, err := p.cmsVoteSummary(sv.Vote.Token)
+	vsr, err := p.cmsVoteSummary(ctx, sv.Vote.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1844,7 +1845,7 @@ func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.
 	// Only allow voting on All Vote DCC proposals
 	// Get vote summary to check vote status
 
-	bb, err := p.decredBestBlock()
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1883,7 +1884,7 @@ func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.
 		CommandID: cmsplugin.CmdStartVote + " " + sv.Vote.Token,
 		Payload:   string(payload),
 	}
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err

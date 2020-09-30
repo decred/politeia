@@ -6,6 +6,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
@@ -661,7 +662,8 @@ func (p *politeiawww) setupCMS() error {
 				VettedStart:  uint(index),
 			}
 
-			responseBody, err := p.makeRequest(http.MethodPost,
+			ctx := context.Background()
+			responseBody, err := p.makeRequest(ctx, http.MethodPost,
 				pd.InventoryRoute, pdCommand)
 			if err != nil {
 				return err

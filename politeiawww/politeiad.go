@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -38,7 +39,7 @@ func (e pdError) Error() string {
 // makeRequest makes a politeiad http request to the method and route provided,
 // serializing the provided object as the request body. A pdError is returned
 // if politeiad does not respond with a 200.
-func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([]byte, error) {
+func (p *politeiawww) makeRequest(ctx context.Context, method string, route string, v interface{}) ([]byte, error) {
 	var (
 		reqBody []byte
 		err     error
@@ -54,7 +55,8 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 
 	log.Debugf("%v %v", method, fullRoute)
 
-	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, method,
+		fullRoute, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,9 @@ func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.NewRecordRoute, nr)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost, pd.NewRecordRoute, nr)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +139,9 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, route, ur)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost, route, ur)
 	if err != nil {
 		return nil, nil
 	}
@@ -183,7 +189,9 @@ func (p *politeiawww) updateUnvettedMetadata(token string, mdAppend, mdOverwrite
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost,
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateUnvettedMetadataRoute, uum)
 	if err != nil {
 		return nil
@@ -220,7 +228,9 @@ func (p *politeiawww) updateVettedMetadata(token string, mdAppend, mdOverwrite [
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost,
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, uvm)
 	if err != nil {
 		return nil
@@ -258,8 +268,10 @@ func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, m
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.SetUnvettedStatusRoute,
-		sus)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.SetUnvettedStatusRoute, sus)
 	if err != nil {
 		return nil, err
 	}
@@ -296,8 +308,10 @@ func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdA
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.SetVettedStatusRoute,
-		svs)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.SetVettedStatusRoute, svs)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +346,9 @@ func (p *politeiawww) getUnvetted(token, version string) (*pd.Record, error) {
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.GetUnvettedRoute, gu)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost, pd.GetUnvettedRoute, gu)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +389,10 @@ func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.GetVettedRoute, gu)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.GetVettedRoute, gu)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +432,10 @@ func (p *politeiawww) inventoryByStatus() (*pd.InventoryByStatusReply, error) {
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.InventoryByStatusRoute, ibs)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.InventoryByStatusRoute, ibs)
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +469,10 @@ func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.PluginInventoryRoute, pi)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.PluginInventoryRoute, pi)
 	if err != nil {
 		return nil, err
 	}
@@ -485,7 +510,10 @@ func (p *politeiawww) pluginCommand(pluginID, cmd, payload string) (string, erro
 	}
 
 	// Send request
-	resBody, err := p.makeRequest(http.MethodPost, pd.PluginCommandRoute, pc)
+	// TODO FIXME
+	ctx := context.Background()
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return "", err
 	}

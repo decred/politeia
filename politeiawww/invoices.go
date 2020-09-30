@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -596,7 +597,7 @@ func validateContact(contact string) error {
 }
 
 // processNewInvoice tries to submit a new invoice to politeiad.
-func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
+func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
 	cmsUser, err := p.getCMSUserByIDRaw(u.ID.String())
@@ -694,7 +695,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Send the newrecord politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.NewRecordRoute, n)
 	if err != nil {
 		return nil, err
@@ -751,7 +752,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Send SetUnvettedStatus request to politeiad
-	responseBody, err = p.makeRequest(http.MethodPost,
+	responseBody, err = p.makeRequest(ctx, http.MethodPost,
 		pd.SetUnvettedStatusRoute, sus)
 	if err != nil {
 		return nil, err
@@ -1209,7 +1210,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 }
 
 // processSetInvoiceStatus updates the status of the specified invoice.
-func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
+func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
 	log.Tracef("processSetInvoiceStatus")
 
 	invRec, err := p.getInvoice(sis.Token)
@@ -1275,7 +1276,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -1398,7 +1399,7 @@ func statusInSlice(arr []cms.InvoiceStatusT, status cms.InvoiceStatusT) bool {
 }
 
 // processEditInvoice attempts to edit a proposal on politeiad.
-func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
+func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
 	log.Tracef("processEditInvoice %v", ei.Token)
 
 	invRec, err := p.getInvoice(ei.Token)
@@ -1528,7 +1529,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedRoute, e)
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pd.UpdateVettedRoute, e)
 	if err != nil {
 		return nil, err
 	}
@@ -1574,7 +1575,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	var updateMetaReply pd.UpdateVettedMetadataReply
-	responseBody, err = p.makeRequest(http.MethodPost,
+	responseBody, err = p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
@@ -1913,7 +1914,7 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 
 // processNewCommentInvoice sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
 
 	ir, err := p.getInvoice(nc.Token)
@@ -1982,7 +1983,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	}
 
 	// Send polieiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -2007,7 +2008,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	}
 
 	// Get comment
-	comments, err := p.getInvoiceComments(nc.Token)
+	comments, err := p.getInvoiceComments(ctx, nc.Token)
 	if err != nil {
 		return nil, fmt.Errorf("getComment: %v", err)
 	}
@@ -2040,7 +2041,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 // processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *politeiawww) processInvoiceComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("ProcessCommentGet: %v", token)
 
 	ir, err := p.getInvoice(token)
@@ -2063,7 +2064,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	}
 
 	// Fetch proposal comments from cache
-	c, err := p.getInvoiceComments(token)
+	c, err := p.getInvoiceComments(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -2089,10 +2090,10 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	}, nil
 }
 
-func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
+func (p *politeiawww) getInvoiceComments(ctx context.Context, token string) ([]www.Comment, error) {
 	log.Tracef("getInvoiceComments: %v", token)
 
-	dc, err := p.decredGetComments(token)
+	dc, err := p.decredGetComments(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComments: %v", err)
 	}
@@ -2118,7 +2119,7 @@ func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
 
 // processPayInvoices looks for all approved invoices and then goes about
 // changing their statuses' to paid.
-func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, error) {
+func (p *politeiawww) processPayInvoices(ctx context.Context, u *user.User) (*cms.PayInvoicesReply, error) {
 	log.Tracef("processPayInvoices")
 
 	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
@@ -2156,7 +2157,7 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 			},
 		}
 
-		responseBody, err := p.makeRequest(http.MethodPost,
+		responseBody, err := p.makeRequest(ctx, http.MethodPost,
 			pd.UpdateVettedMetadataRoute, pdCommand)
 		if err != nil {
 			return nil, err

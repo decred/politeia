@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/decred/politeia/util"
@@ -31,8 +32,8 @@ func (cmd *sendFaucetTxCmd) Execute(args []string) error {
 			dcr, address)
 	}
 
-	txID, err := util.PayWithTestnetFaucet(cfg.FaucetHost, address, atoms,
-		cmd.Args.OverrideToken)
+	txID, err := util.PayWithTestnetFaucet(context.Background(),
+		cfg.FaucetHost, address, atoms, cmd.Args.OverrideToken)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -51,8 +52,12 @@ func (p *politeiawww) getPluginInventory() ([]plugin, error) {
 		maxRetries    = 1000
 		sleepInterval = 5 * time.Second
 		plugins       = make([]plugin, 0, 16)
+		ctx           = context.Background()
 	)
 	for retries := 0; !done; retries++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		if retries == maxRetries {
 			return nil, fmt.Errorf("max retries exceeded")
 		}

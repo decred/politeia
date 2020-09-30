@@ -593,7 +593,7 @@ func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *ht
 		return
 	}
 
-	vuptr, err := p.processUserRegistrationPayment(user)
+	vuptr, err := p.processUserRegistrationPayment(r.Context(), user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserRegistrationPayment: processUserRegistrationPayment %v",
@@ -686,7 +686,7 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	reply, err := p.processUserPaymentsRescan(upr)
+	reply, err := p.processUserPaymentsRescan(r.Context(), upr)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserPaymentsRescan: processUserPaymentsRescan:  %v",

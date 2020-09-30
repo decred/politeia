@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/decred/politeia/decredplugin"
@@ -12,7 +13,7 @@ import (
 
 // decredGetComments sends the decred plugin getcomments command to the cache
 // and returns all of the comments for the passed in proposal token.
-func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, error) {
+func (p *politeiawww) decredGetComments(ctx context.Context, token string) ([]decredplugin.Comment, error) {
 	// Setup plugin command
 	gc := decredplugin.GetComments{
 		Token: token,
@@ -23,6 +24,8 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 	}
 
 	// Execute plugin command
+	// TODO FIXME
+	_ = ctx
 	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdGetComments,
 		string(payload))
 	if err != nil {
@@ -39,7 +42,7 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 	return gcr.Comments, nil
 }
 
-func (p *politeiawww) decredBestBlock() (uint32, error) {
+func (p *politeiawww) decredBestBlock(ctx context.Context) (uint32, error) {
 	// Setup plugin command
 	payload, err := decredplugin.EncodeBestBlock(decredplugin.BestBlock{})
 	if err != nil {
@@ -47,6 +50,8 @@ func (p *politeiawww) decredBestBlock() (uint32, error) {
 	}
 
 	// Execute plugin command
+	// TODO FIXME
+	_ = ctx
 	reply, err := p.pluginCommand(decredplugin.ID, decredplugin.CmdBestBlock,
 		string(payload))
 	if err != nil {

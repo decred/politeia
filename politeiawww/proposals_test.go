@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"reflect"
@@ -2443,9 +2444,10 @@ func TestProcessAuthorizeVote(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			reply, err := p.processAuthorizeVote(v.av, v.user)
+			reply, err := p.processAuthorizeVote(ctx, v.av, v.user)
 			got := errToStr(err)
 			want := errToStr(v.wantErr)
 
@@ -2793,9 +2795,10 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := p.processStartVoteRunoffV2(test.sv, test.user)
+			_, err := p.processStartVoteRunoffV2(ctx, test.sv, test.user)
 			got := errToStr(err)
 			want := errToStr(test.want)
 			if got != want {
