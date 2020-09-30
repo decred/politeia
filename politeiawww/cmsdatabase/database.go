@@ -166,7 +166,8 @@ type DCC struct {
 	Status             cms.DCCStatusT
 	Files              []www.File
 	StatusChangeReason string
-	Timestamp          int64
+	TimeSubmitted      int64
+	TimeReviewed       int64
 	PublicKey          string
 	UserSignature      string
 	ServerSignature    string
