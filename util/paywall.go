@@ -85,8 +85,8 @@ type TxDetails struct {
 	InputAddresses []string /// An array of all addresses from previous outputs
 }
 
-func makeRequest(url string, timeout time.Duration) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func makeRequest(ctx context.Context, url string, timeout time.Duration) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create request: %v", err)
 	}
@@ -148,8 +148,8 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 	return ((whole * 1e8) + fraction), nil
 }
 
-func fetchTxWithBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
-	responseBody, err := makeRequest(url, dcrdataTimeout)
+func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
+	responseBody, err := makeRequest(ctx, url, dcrdataTimeout)
 	if err != nil {
 		return "", 0, err
 	}
@@ -225,7 +225,7 @@ func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (s
 }
 
 // PayWithTestnetFaucet makes a request to the testnet faucet.
-func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overridetoken string) (string, error) {
+func PayWithTestnetFaucet(ctx context.Context, faucetURL string, address string, amount uint64, overridetoken string) (string, error) {
 	dcraddress, err := dcrutil.DecodeAddress(address)
 	if err != nil {
 		return "", fmt.Errorf("address is invalid: %v", err)
@@ -244,7 +244,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 	form.Add("amount", dcramount)
 	form.Add("overridetoken", overridetoken)
 
-	req, err := http.NewRequest("POST", faucetURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, faucetURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", err
 	}
@@ -252,7 +252,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	// limit the time we take
-	ctx, cancel := context.WithTimeout(context.Background(),
+	ctx, cancel := context.WithTimeout(ctx,
 		faucetTimeout)
 	// it is good practice to use the cancellation function even with a timeout
 	defer cancel()
@@ -301,7 +301,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 // FetchTxWithBlockExplorers uses public block explorers to look for a
 // transaction for the given address that equals or exceeds the given amount,
 // occurs after the txnotbefore time and has the minimum number of confirmations.
-func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64, dcrdataURL string) (string, uint64, error) {
+func FetchTxWithBlockExplorers(ctx context.Context, address string, amount uint64, txnotbefore int64, minConfirmations uint64, dcrdataURL string) (string, uint64, error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)
@@ -315,7 +315,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	explorerURL := dcrdataURL + "/raw"
 
 	// Fetch transaction from dcrdata
-	txID, amount, err := fetchTxWithBE(explorerURL, address, amount,
+	txID, amount, err := fetchTxWithBE(ctx, explorerURL, address, amount,
 		txnotbefore, minConfirmations)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to fetch from dcrdata: %v", err)
@@ -324,8 +324,8 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	return txID, amount, nil
 }
 
-func fetchTxsWithBE(url string) ([]BETransaction, error) {
-	responseBody, err := makeRequest(url, dcrdataTimeout)
+func fetchTxsWithBE(ctx context.Context, url string) ([]BETransaction, error) {
+	responseBody, err := makeRequest(ctx, url, dcrdataTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +370,7 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 
 // FetchTxsForAddress fetches the transactions that have been sent to the
 // provided wallet address from the dcrdata block explorer
-func FetchTxsForAddress(address string, dcrdataURL string) ([]TxDetails, error) {
+func FetchTxsForAddress(ctx context.Context, address string, dcrdataURL string) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
@@ -383,7 +383,7 @@ func FetchTxsForAddress(address string, dcrdataURL string) ([]TxDetails, error) 
 	explorerURL := dcrdataURL + "/raw"
 
 	// Fetch using dcrdata block explorer
-	dcrdataTxs, err := fetchTxsWithBE(explorerURL)
+	dcrdataTxs, err := fetchTxsWithBE(ctx, explorerURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
@@ -401,7 +401,7 @@ func FetchTxsForAddress(address string, dcrdataURL string) ([]TxDetails, error) 
 
 // FetchTxsForAddressNotBefore fetches all transactions for a wallet address
 // that occurred after the passed in notBefore timestamp.
-func FetchTxsForAddressNotBefore(address string, notBefore int64, dcrdataURL string) ([]TxDetails, error) {
+func FetchTxsForAddressNotBefore(ctx context.Context, address string, notBefore int64, dcrdataURL string) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
@@ -423,7 +423,7 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64, dcrdataURL str
 		// Fetch a page of user payment txs
 		url := dcrdataURL + "/count/" + strconv.Itoa(count) +
 			"/skip/" + strconv.Itoa(skip) + "/raw"
-		dcrdataTxs, err := fetchTxsWithBE(url)
+		dcrdataTxs, err := fetchTxsWithBE(ctx, url)
 		if err != nil {
 			return nil, fmt.Errorf("fetchDcrdataAddress: %v", err)
 		}
@@ -466,7 +466,7 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64, dcrdataURL str
 }
 
 // FetchTx fetches a given transaction based on the provided txid.
-func FetchTx(address, txid, dcrdataURL string) (*TxDetails, error) {
+func FetchTx(ctx context.Context, address, txid, dcrdataURL string) (*TxDetails, error) {
 	// Get block explorer URLs
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
@@ -480,7 +480,7 @@ func FetchTx(address, txid, dcrdataURL string) (*TxDetails, error) {
 
 	log.Printf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
 	// Try the primary (dcrdata)
-	primaryTxs, err := fetchTxsWithBE(primaryURL)
+	primaryTxs, err := fetchTxsWithBE(ctx, primaryURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}

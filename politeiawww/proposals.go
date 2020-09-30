@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -236,7 +237,7 @@ func (p *politeiawww) linkByValidate(linkBy int64) error {
 // that is applicable to both new proposals and proposal edits. Additional
 // validation is done in processNewProposal and processEditProposal that is
 // specific to that action only.
-func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
+func (p *politeiawww) validateProposalMetadata(ctx context.Context, pm www.ProposalMetadata) error {
 	// Validate Name
 	if !isValidProposalName(pm.Name) {
 		return www.UserError{
@@ -268,11 +269,11 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 		if err != nil {
 			return err
 		}
-		bb, err := p.getBestBlock()
+		bb, err := p.getBestBlock(ctx)
 		if err != nil {
 			return err
 		}
-		vs, err := p.voteSummaryGet(pm.LinkTo, bb)
+		vs, err := p.voteSummaryGet(ctx, pm.LinkTo, bb)
 		if err != nil {
 			return err
 		}
@@ -314,7 +315,7 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 // validateProposal ensures that the given new proposal meets the api policy
 // requirements. If a proposal data file exists (currently optional) then it is
 // parsed and a ProposalMetadata is returned.
-func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
+func (p *politeiawww) validateProposal(ctx context.Context, np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
 	if len(np.Files) == 0 {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
@@ -537,7 +538,7 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	}
 
 	// Validate ProposalMetadata
-	err := p.validateProposalMetadata(*pm)
+	err := p.validateProposalMetadata(ctx, *pm)
 	if err != nil {
 		return nil, err
 	}
@@ -1010,7 +1011,7 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 // proposal record was found.
 //
 // This function must be called WITHOUT read/write lock held.
-func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+func (p *politeiawww) voteSummariesGet(ctx context.Context, tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
 	voteSummaries := make(map[string]www.VoteSummary)
 	tokensToLookup := make([]string, 0, len(tokens))
 
@@ -1046,7 +1047,7 @@ func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[s
 			if errors.Is(err, cache.ErrRecordNotFound) {
 				// There are missing entries in the VoteResults
 				// cache table. Load them.
-				_, err := p.decredLoadVoteResults(bestBlock)
+				_, err := p.decredLoadVoteResults(ctx, bestBlock)
 				if err != nil {
 					return nil, err
 				}
@@ -1118,8 +1119,8 @@ func (p *politeiawww) voteSummarySet(token string, voteSummary www.VoteSummary) 
 // correspond to a proposal.
 //
 // This function must be called WITHOUT the read/write lock held.
-func (p *politeiawww) voteSummaryGet(token string, bestBlock uint64) (*www.VoteSummary, error) {
-	s, err := p.voteSummariesGet([]string{token}, bestBlock)
+func (p *politeiawww) voteSummaryGet(ctx context.Context, token string, bestBlock uint64) (*www.VoteSummary, error) {
+	s, err := p.voteSummariesGet(ctx, []string{token}, bestBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -1131,7 +1132,7 @@ func (p *politeiawww) voteSummaryGet(token string, bestBlock uint64) (*www.VoteS
 }
 
 // processNewProposal tries to submit a new proposal to politeiad.
-func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
+func (p *politeiawww) processNewProposal(ctx context.Context, np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
 	log.Tracef("processNewProposal")
 
 	// Pay up sucker!
@@ -1147,7 +1148,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		}
 	}
 
-	pm, err := p.validateProposal(np, user)
+	pm, err := p.validateProposal(ctx, np, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1219,7 +1220,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}
 
 	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.NewRecordRoute, n)
 	if err != nil {
 		return nil, err
@@ -1321,7 +1322,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 
 // processBatchVoteSummary returns the vote summaries for the provided list
 // of proposals.
-func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+func (p *politeiawww) processBatchVoteSummary(ctx context.Context, batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary")
 
 	if len(batchVoteSummary.Tokens) > www.ProposalListPageSize {
@@ -1338,12 +1339,12 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 		}
 	}
 
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	summaries, err := p.voteSummariesGet(batchVoteSummary.Tokens, bb)
+	summaries, err := p.voteSummariesGet(ctx, batchVoteSummary.Tokens, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -1473,7 +1474,7 @@ func verifyStatusChange(current, next www.PropStatusT) error {
 }
 
 // processSetProposalStatus changes the status of an existing proposal.
-func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
+func (p *politeiawww) processSetProposalStatus(ctx context.Context, sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
 	log.Tracef("processSetProposalStatus %v", sps.Token)
 
 	// Make sure token is valid and not a prefix
@@ -1580,7 +1581,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 
 		// Send unvetted status change request
-		responseBody, err := p.makeRequest(http.MethodPost,
+		responseBody, err := p.makeRequest(ctx, http.MethodPost,
 			pd.SetUnvettedStatusRoute, sus)
 		if err != nil {
 			return nil, err
@@ -1598,11 +1599,11 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		// Vetted status change
 
 		// Ensure voting has not been started or authorized yet
-		bb, err := p.getBestBlock()
+		bb, err := p.getBestBlock(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("getBestBlock: %v", err)
 		}
-		vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
+		vs, err := p.voteSummaryGet(ctx, pr.CensorshipRecord.Token, bb)
 		if err != nil {
 			return nil, err
 		}
@@ -1633,7 +1634,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 
 		// Send vetted status change request
-		responseBody, err := p.makeRequest(http.MethodPost,
+		responseBody, err := p.makeRequest(ctx, http.MethodPost,
 			pd.SetVettedStatusRoute, svs)
 		if err != nil {
 			return nil, err
@@ -1700,7 +1701,7 @@ func filesToDel(filesOld []www.File, filesNew []www.File) []string {
 }
 
 // processEditProposal attempts to edit a proposal on politeiad.
-func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
+func (p *politeiawww) processEditProposal(ctx context.Context, ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
 
 	// Make sure token is valid and not a prefix
@@ -1737,11 +1738,11 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 
 	// Validate proposal vote status
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vs, err := p.voteSummaryGet(ep.Token, bb)
+	vs, err := p.voteSummaryGet(ctx, ep.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -1763,7 +1764,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		Signature: ep.Signature,
 	}
 
-	pm, err := p.validateProposal(np, u)
+	pm, err := p.validateProposal(ctx, np, u)
 	if err != nil {
 		return nil, err
 	}
@@ -1845,7 +1846,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 
 	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost, pdRoute, e)
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pdRoute, e)
 	if err != nil {
 		return nil, err
 	}
@@ -2027,7 +2028,7 @@ func (p *politeiawww) getVoteStatusReply(token string) (*www.VoteStatusReply, bo
 	return &voteStatusReply, true
 }
 
-func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
+func (p *politeiawww) voteStatusReply(ctx context.Context, token string, bestBlock uint64) (*www.VoteStatusReply, error) {
 	cachedVsr, ok := p.getVoteStatusReply(token)
 
 	if ok {
@@ -2037,7 +2038,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 
 	// Vote status wasn't in the memory cache
 	// so fetch it from the cache database.
-	vs, err := p.voteSummaryGet(token, bestBlock)
+	vs, err := p.voteSummaryGet(ctx, token, bestBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -2073,7 +2074,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 }
 
 // processVoteStatus returns the vote status for a given proposal
-func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, error) {
+func (p *politeiawww) processVoteStatus(ctx context.Context, token string) (*www.VoteStatusReply, error) {
 	log.Tracef("ProcessProposalVotingStatus: %v", token)
 
 	// Make sure token is valid and not a prefix
@@ -2102,13 +2103,13 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 	}
 
 	// Get best block
-	bestBlock, err := p.getBestBlock()
+	bestBlock, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bestBlock: %v", err)
 	}
 
 	// Get vote status
-	vsr, err := p.voteStatusReply(token, bestBlock)
+	vsr, err := p.voteStatusReply(ctx, token, bestBlock)
 	if err != nil {
 		return nil, fmt.Errorf("voteStatusReply: %v", err)
 	}
@@ -2117,12 +2118,12 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 }
 
 // processGetAllVoteStatus returns the vote status of all public proposals.
-func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
+func (p *politeiawww) processGetAllVoteStatus(ctx context.Context) (*www.GetAllVoteStatusReply, error) {
 	log.Tracef("processGetAllVoteStatus")
 
 	// We need to determine best block height here in order
 	// to set the voting status
-	bestBlock, err := p.getBestBlock()
+	bestBlock, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bestBlock: %v", err)
 	}
@@ -2142,7 +2143,7 @@ func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 		}
 
 		// Get vote status for proposal
-		vs, err := p.voteStatusReply(v.CensorshipRecord.Token, bestBlock)
+		vs, err := p.voteStatusReply(ctx, v.CensorshipRecord.Token, bestBlock)
 		if err != nil {
 			return nil, fmt.Errorf("voteStatusReply: %v", err)
 		}
@@ -2155,15 +2156,15 @@ func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 	}, nil
 }
 
-func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
+func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
 	log.Tracef("processActiveVote")
 
 	// Fetch proposals that are actively being voted on
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
-	tir, err := p.tokenInventory(bb, false)
+	tir, err := p.tokenInventory(ctx, bb, false)
 	if err != nil {
 		return nil, err
 	}
@@ -2303,7 +2304,7 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 }
 
 // processCastVotes handles the www.Ballot call
-func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, error) {
+func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
 	challenge, err := util.Random(pd.ChallengeSize)
@@ -2333,7 +2334,7 @@ func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, er
 		Payload:   string(payload),
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -2538,7 +2539,7 @@ func validateAuthorizeVoteRunoff(av www.AuthorizeVote, u user.User, pr www.Propo
 
 // processAuthorizeVote sends the authorizevote command to decred plugin to
 // indicate that a proposal has been finalized and is ready to be voted on.
-func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
+func (p *politeiawww) processAuthorizeVote(ctx context.Context, av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
 	log.Tracef("processAuthorizeVote %v", av.Token)
 
 	// Make sure token is valid and not a prefix
@@ -2559,11 +2560,11 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		}
 		return nil, err
 	}
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vs, err := p.voteSummaryGet(av.Token, bb)
+	vs, err := p.voteSummaryGet(ctx, av.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2593,7 +2594,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}
 
 	// Send authorizevote plugin request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -2853,7 +2854,7 @@ func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalReco
 // processStartVoteV2 starts the voting period on a proposal using the provided
 // v2 StartVote. Proposals that are RFP submissions cannot use this route. They
 // must sue the StartVoteRunoff route.
-func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2.StartVoteReply, error) {
+func (p *politeiawww) processStartVoteV2(ctx context.Context, sv www2.StartVote, u *user.User) (*www2.StartVoteReply, error) {
 	log.Tracef("processStartVoteV2 %v", sv.Vote.Token)
 
 	// Sanity check
@@ -2877,11 +2878,11 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		}
 		return nil, err
 	}
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vs, err := p.voteSummaryGet(sv.Vote.Token, bb)
+	vs, err := p.voteSummaryGet(ctx, sv.Vote.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2909,7 +2910,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
 		Payload:   string(payload),
 	}
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -2983,7 +2984,7 @@ func voteIsApproved(vs www.VoteSummary) bool {
 // non-abandoned RFP submissions for the provided RFP token. If politeiad fails
 // to start the voting period on any of the RFP submissions, all work is
 // unwound and an error is returned.
-func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.User) (*www2.StartVoteRunoffReply, error) {
+func (p *politeiawww) processStartVoteRunoffV2(ctx context.Context, sv www2.StartVoteRunoff, u *user.User) (*www2.StartVoteRunoffReply, error) {
 	log.Tracef("processStartVoteRunoffV2 %v", sv.Token)
 
 	// Sanity check
@@ -2991,7 +2992,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		return nil, fmt.Errorf("user is not an admin")
 	}
 
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -3055,7 +3056,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 			}
 			return nil, err
 		}
-		vs, err := p.voteSummaryGet(token, bb)
+		vs, err := p.voteSummaryGet(ctx, token, bb)
 		if err != nil {
 			return nil, err
 		}
@@ -3193,7 +3194,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	}
 
 	// Send plugin command
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -3242,7 +3243,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 // load it before retrying the token inventory call. Since politeiawww only has
 // read access to the cache, loading the VoteResults table requires using a
 // politeiad decredplugin command.
-func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.TokenInventoryReply, error) {
+func (p *politeiawww) tokenInventory(ctx context.Context, bestBlock uint64, isAdmin bool) (*www.TokenInventoryReply, error) {
 	var done bool
 	var r www.TokenInventoryReply
 	for retries := 0; !done && retries <= 1; retries++ {
@@ -3254,7 +3255,7 @@ func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.Token
 			if errors.Is(err, cache.ErrRecordNotFound) {
 				// There are missing entries in the vote
 				// results cache table. Load them.
-				_, err := p.decredLoadVoteResults(bestBlock)
+				_, err := p.decredLoadVoteResults(ctx, bestBlock)
 				if err != nil {
 					return nil, err
 				}
@@ -3274,15 +3275,15 @@ func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.Token
 
 // processTokenInventory returns the tokens of all proposals in the inventory,
 // categorized by stage of the voting process.
-func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
+func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.tokenInventory(bb, isAdmin)
+	return p.tokenInventory(ctx, bb, isAdmin)
 }
 
 // processVoteDetailsV2 returns the vote details for the given proposal token.
@@ -3342,12 +3343,12 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 
 // initLoadVoteResults is used to send the LoadVoteResults decred plugin command
 // to the cache on www startup.
-func (p *politeiawww) initVoteResults() error {
-	bb, err := p.getBestBlock()
+func (p *politeiawww) initVoteResults(ctx context.Context) error {
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = p.decredLoadVoteResults(bb)
+	_, err = p.decredLoadVoteResults(ctx, bb)
 	if err != nil {
 		return err
 	}

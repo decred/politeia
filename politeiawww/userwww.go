@@ -500,7 +500,7 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	vuptr, err := p.processVerifyUserPayment(user, vupt)
+	vuptr, err := p.processVerifyUserPayment(r.Context(), user, vupt)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyUserPayment: processVerifyUserPayment %v",
@@ -615,7 +615,7 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	reply, err := p.processUserPaymentsRescan(upr)
+	reply, err := p.processUserPaymentsRescan(r.Context(), upr)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserPaymentsRescan: processUserPaymentsRescan:  %v",

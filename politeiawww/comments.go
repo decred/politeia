@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -195,7 +196,7 @@ func validateComment(c www.NewComment) error {
 
 // processNewComment sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+func (p *politeiawww) processNewComment(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
 
 	// Make sure token is valid and not a prefix
@@ -252,11 +253,11 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Ensure proposal voting has not ended
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	vs, err := p.voteSummaryGet(nc.Token, bb)
+	vs, err := p.voteSummaryGet(ctx, nc.Token, bb)
 	if err != nil {
 		return nil, fmt.Errorf("voteSummaryGet: %v", err)
 	}
@@ -303,7 +304,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Send polieiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -350,7 +351,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 
 // processNewCommentInvoice sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
 
 	ir, err := p.getInvoice(nc.Token)
@@ -419,7 +420,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	}
 
 	// Send polieiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -474,7 +475,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 }
 
 // processLikeComment processes an upvote/downvote on a comment.
-func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
+func (p *politeiawww) processLikeComment(ctx context.Context, lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
 	log.Debugf("processLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
 
 	// Make sure token is valid and not a prefix
@@ -524,11 +525,11 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Ensure proposal voting has not ended
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
+	vs, err := p.voteSummaryGet(ctx, pr.CensorshipRecord.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +589,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Send plugin command to politeiad
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -631,7 +632,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 
 // processCensorComment sends a censor comment decred plugin command to
 // politeiad then returns the censor comment receipt.
-func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
+func (p *politeiawww) processCensorComment(ctx context.Context, cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
 	log.Tracef("processCensorComment: %v: %v", cc.Token, cc.CommentID)
 
 	// Make sure token is valid and not a prefix
@@ -675,11 +676,11 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Ensure proposal voting has not ended
-	bb, err := p.getBestBlock()
+	bb, err := p.getBestBlock(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	vs, err := p.voteSummaryGet(cc.Token, bb)
+	vs, err := p.voteSummaryGet(ctx, cc.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -711,7 +712,7 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Send plugin request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err

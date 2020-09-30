@@ -7,6 +7,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
@@ -212,7 +213,7 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 // serializing the provided object as the request body.
 //
 // XXX doesn't belong in this file but stuff it here for now.
-func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([]byte, error) {
+func (p *politeiawww) makeRequest(ctx context.Context, method string, route string, v interface{}) ([]byte, error) {
 	var (
 		requestBody []byte
 		err         error
@@ -233,7 +234,7 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 		}
 	}
 
-	req, err := http.NewRequest(method, fullRoute,
+	req, err := http.NewRequestWithContext(ctx, method, fullRoute,
 		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -391,7 +392,8 @@ func _main() error {
 	}
 
 	// Get plugins from politeiad
-	p.plugins, err = p.getPluginInventory()
+	ctx := context.Background()
+	p.plugins, err = p.getPluginInventory(ctx)
 	if err != nil {
 		return fmt.Errorf("getPluginInventory: %v", err)
 	}
@@ -440,7 +442,7 @@ func _main() error {
 
 	// Setup the code that checks for paywall payments.
 	if p.cfg.Mode == "piwww" {
-		err = p.initPaywallChecker()
+		err = p.initPaywallChecker(ctx)
 		if err != nil {
 			return err
 		}
@@ -519,12 +521,12 @@ func _main() error {
 		// be made during client initialization and reconnection attempts
 		// are required.
 		go func() {
-			p.setupWSDcrdataPi()
+			p.setupWSDcrdataPi(ctx)
 		}()
 
 		// Setup VoteResults cache table
 		log.Infof("Loading vote results cache table")
-		err = p.initVoteResults()
+		err = p.initVoteResults(ctx)
 		if err != nil {
 			return err
 		}
@@ -585,7 +587,7 @@ func _main() error {
 					VettedStart:  uint(index),
 				}
 
-				responseBody, err := p.makeRequest(http.MethodPost,
+				responseBody, err := p.makeRequest(ctx, http.MethodPost,
 					pd.InventoryRoute, pdCommand)
 				if err != nil {
 					return err
@@ -664,7 +666,7 @@ func _main() error {
 		// be made during client initialization and reconnection attempts
 		// are required.
 		go func() {
-			p.setupCMSAddressWatcher()
+			p.setupCMSAddressWatcher(ctx)
 		}()
 
 	default:

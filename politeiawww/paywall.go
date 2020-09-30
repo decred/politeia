@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -58,7 +59,7 @@ func (p *politeiawww) paywallIsEnabled() bool {
 // paywall pool have received a payment.  If so, proposal credits are created
 // for the user, the user database is updated, and the user is removed from
 // the paywall pool.
-func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
+func (p *politeiawww) checkForProposalPayments(ctx context.Context, pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
 	var userIDsToRemove []uuid.UUID
 
 	// In theory poolMember could be raced during this call. In practice
@@ -96,7 +97,7 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 			continue
 		}
 
-		tx, err := p.verifyProposalPayment(u)
+		tx, err := p.verifyProposalPayment(ctx, u)
 		if err != nil {
 			if errors.Is(err, user.ErrShutdown) {
 				// The database is shutdown, so stop the thread.
@@ -132,21 +133,21 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 	return true, userIDsToRemove
 }
 
-func (p *politeiawww) checkForPayments() {
+func (p *politeiawww) checkForPayments(ctx context.Context) {
 	for {
 		// Removing pool members from the pool while in the middle of
 		// polling can cause a race to occur in checkForProposalPayments.
 		userPaywallsToCheck := p.createUserPaywallPoolCopy()
 
 		// Check new user payments.
-		shouldContinue, userIDsToRemove := p.checkForUserPayments(userPaywallsToCheck)
+		shouldContinue, userIDsToRemove := p.checkForUserPayments(ctx, userPaywallsToCheck)
 		if !shouldContinue {
 			return
 		}
 		p.removeUsersFromPool(userIDsToRemove, paywallTypeUser)
 
 		// Check proposal payments.
-		shouldContinue, userIDsToRemove = p.checkForProposalPayments(userPaywallsToCheck)
+		shouldContinue, userIDsToRemove = p.checkForProposalPayments(ctx, userPaywallsToCheck)
 		if !shouldContinue {
 			return
 		}
@@ -206,7 +207,7 @@ func (p *politeiawww) generateProposalPaywall(u *user.User) (*user.ProposalPaywa
 // verifyPropoposalPayment checks whether a payment has been sent to the
 // user's proposal paywall address. Proposal credits are created and added to
 // the user's account if the payment meets the minimum requirements.
-func (p *politeiawww) verifyProposalPayment(u *user.User) (*util.TxDetails, error) {
+func (p *politeiawww) verifyProposalPayment(ctx context.Context, u *user.User) (*util.TxDetails, error) {
 	paywall := p.mostRecentProposalPaywall(u)
 
 	// If a TxID exists, the payment has already been verified.
@@ -215,7 +216,7 @@ func (p *politeiawww) verifyProposalPayment(u *user.User) (*util.TxDetails, erro
 	}
 
 	// Fetch txs sent to paywall address
-	txs, err := util.FetchTxsForAddress(paywall.Address, p.dcrdataHostHTTP())
+	txs, err := util.FetchTxsForAddress(ctx, paywall.Address, p.dcrdataHostHTTP())
 	if err != nil {
 		return nil, fmt.Errorf("FetchTxsForAddress %v: %v",
 			paywall.Address, err)

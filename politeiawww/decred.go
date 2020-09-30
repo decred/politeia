@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -336,7 +337,7 @@ func (p *politeiawww) decredTokenInventory(bestBlock uint64, includeUnvetted boo
 }
 
 // decredLoadVoteResults sends the loadvotesummaries command to politeiad.
-func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.LoadVoteResultsReply, error) {
+func (p *politeiawww) decredLoadVoteResults(ctx context.Context, bestBlock uint64) (*decredplugin.LoadVoteResultsReply, error) {
 	// Setup plugin command
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -360,7 +361,7 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 	}
 
 	// Send plugin command to politeiad
-	respBody, err := p.makeRequest(http.MethodPost,
+	respBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err

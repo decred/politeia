@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -265,7 +266,7 @@ func validateContact(contact string) error {
 }
 
 // processNewInvoice tries to submit a new invoice to politeiad.
-func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
+func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
 	cmsUser, err := p.getCMSUserByIDRaw(u.ID.String())
@@ -363,7 +364,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Send the newrecord politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.NewRecordRoute, n)
 	if err != nil {
 		return nil, err
@@ -420,7 +421,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Send SetUnvettedStatus request to politeiad
-	responseBody, err = p.makeRequest(http.MethodPost,
+	responseBody, err = p.makeRequest(ctx, http.MethodPost,
 		pd.SetUnvettedStatusRoute, sus)
 	if err != nil {
 		return nil, err
@@ -861,7 +862,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 }
 
 // processSetInvoiceStatus updates the status of the specified invoice.
-func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
+func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
 	log.Tracef("processSetInvoiceStatus")
 
 	invRec, err := p.getInvoice(sis.Token)
@@ -927,7 +928,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -1048,7 +1049,7 @@ func statusInSlice(arr []cms.InvoiceStatusT, status cms.InvoiceStatusT) bool {
 }
 
 // processEditInvoice attempts to edit a proposal on politeiad.
-func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
+func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
 	log.Tracef("processEditInvoice %v", ei.Token)
 
 	invRec, err := p.getInvoice(ei.Token)
@@ -1178,7 +1179,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	// Send politeiad request
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedRoute, e)
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pd.UpdateVettedRoute, e)
 	if err != nil {
 		return nil, err
 	}
@@ -1224,7 +1225,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	var updateMetaReply pd.UpdateVettedMetadataReply
-	responseBody, err = p.makeRequest(http.MethodPost,
+	responseBody, err = p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
@@ -1642,7 +1643,7 @@ func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
 
 // processPayInvoices looks for all approved invoices and then goes about
 // changing their statuses' to paid.
-func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, error) {
+func (p *politeiawww) processPayInvoices(ctx context.Context, u *user.User) (*cms.PayInvoicesReply, error) {
 	log.Tracef("processPayInvoices")
 
 	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
@@ -1680,7 +1681,7 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 			},
 		}
 
-		responseBody, err := p.makeRequest(http.MethodPost,
+		responseBody, err := p.makeRequest(ctx, http.MethodPost,
 			pd.UpdateVettedMetadataRoute, pdCommand)
 		if err != nil {
 			return nil, err
