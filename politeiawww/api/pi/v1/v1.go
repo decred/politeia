@@ -23,6 +23,9 @@ type VoteErrorT int
 // TODO the proposals route should allow filtering by user ID. Actually, this
 // is going to have to wait until after the intial release. This is non-trivial
 // to accomplish and is outside the scope of the core functionality.
+// TODO show the difference between unvetted censored and vetted censored
+// in the proposal inventory route since fetching them requires specifying
+// the state.
 
 const (
 	APIVersion = 1

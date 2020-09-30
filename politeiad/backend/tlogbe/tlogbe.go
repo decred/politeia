@@ -48,25 +48,27 @@ const (
 var (
 	_ backend.Backend = (*tlogBackend)(nil)
 
-	// statusChanges contains the allowed record status change
-	// transitions. If statusChanges[currentStatus][newStatus] exists
-	// then the status change is allowed.
+	// statusChanges contains the allowed record status changes. If
+	// statusChanges[currentStatus][newStatus] exists then the status
+	// change is allowed.
+	//
+	// Note, the tlog backend does not make use of the status
+	// MDStatusIterationUnvetted. The original purpose of this status
+	// was to show when an unvetted record had been altered since
+	// unvetted records were not versioned in the git backend. The tlog
+	// backend versions unvetted records and thus does not need to use
+	// this additional status.
 	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
 		// Unvetted status changes
 		backend.MDStatusUnvetted: map[backend.MDStatusT]struct{}{
-			backend.MDStatusIterationUnvetted: struct{}{},
-			backend.MDStatusVetted:            struct{}{},
-			backend.MDStatusCensored:          struct{}{},
-		},
-		backend.MDStatusIterationUnvetted: map[backend.MDStatusT]struct{}{
 			backend.MDStatusVetted:   struct{}{},
 			backend.MDStatusCensored: struct{}{},
 		},
 
 		// Vetted status changes
 		backend.MDStatusVetted: map[backend.MDStatusT]struct{}{
-			backend.MDStatusArchived: struct{}{},
 			backend.MDStatusCensored: struct{}{},
+			backend.MDStatusArchived: struct{}{},
 		},
 
 		// Statuses that do not allow any further transitions
@@ -143,11 +145,11 @@ func (t *tlogBackend) prefixAdd(fullToken []byte) {
 	log.Debugf("Token prefix cached: %v", prefix)
 }
 
-func (t *tlogBackend) vettedTreeIDGet(token string) (int64, bool) {
+func (t *tlogBackend) vettedTreeID(token []byte) (int64, bool) {
 	t.RLock()
 	defer t.RUnlock()
 
-	treeID, ok := t.vettedTreeIDs[token]
+	treeID, ok := t.vettedTreeIDs[hex.EncodeToString(token)]
 	return treeID, ok
 }
 
@@ -167,7 +169,7 @@ func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 	// Check if the token is in the vetted cache. The vetted cache is
 	// lazy loaded if the token is not present then we need to check
 	// manually.
-	treeID, ok := t.vettedTreeIDGet(hex.EncodeToString(token))
+	treeID, ok := t.vettedTreeID(token)
 	if ok {
 		return treeID, true
 	}
@@ -640,6 +642,11 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		}
 	}
 
+	// Verify record exists and is unvetted
+	if !t.UnvettedExists(token) {
+		return nil, backend.ErrRecordNotFound
+	}
+
 	// Apply the record changes and save the new version. The lock
 	// needs to be held for the remainder of the function.
 	t.unvetted.Lock()
@@ -652,9 +659,6 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	treeID := treeIDFromToken(token)
 	r, err := t.unvetted.recordLatest(treeID)
 	if err != nil {
-		if err == errRecordNotFound {
-			return nil, backend.ErrRecordNotFound
-		}
 		return nil, fmt.Errorf("recordLatest: %v", err)
 	}
 
@@ -664,7 +668,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 
 	// Create record metadata
 	recordMD, err := recordMetadataNew(token, files,
-		backend.MDStatusIterationUnvetted, r.RecordMetadata.Iteration+1)
+		backend.MDStatusUnvetted, r.RecordMetadata.Iteration+1)
 	if err != nil {
 		return nil, err
 	}
@@ -701,13 +705,6 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		log.Errorf("UpdateUnvettedRecord %x: pluginHook editRecordPost: %v",
 			token, err)
-	}
-
-	// Update inventory cache. The inventory will only need to be
-	// updated if there was a status transition.
-	if r.RecordMetadata.Status != recordMD.Status {
-		// Status was changed
-		t.inventoryUpdate(recordMD.Token, r.RecordMetadata.Status, recordMD.Status)
 	}
 
 	// Return updated record
@@ -841,6 +838,11 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 		}
 	}
 
+	// Verify record exists and is unvetted
+	if !t.UnvettedExists(token) {
+		return backend.ErrRecordNotFound
+	}
+
 	// Pull the existing record and apply the metadata updates. The
 	// unvetted lock must be held for the remainder of this function.
 	t.unvetted.Lock()
@@ -853,9 +855,6 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	treeID := treeIDFromToken(token)
 	r, err := t.unvetted.recordLatest(treeID)
 	if err != nil {
-		if err == errRecordNotFound {
-			return backend.ErrRecordNotFound
-		}
 		return fmt.Errorf("recordLatest: %v", err)
 	}
 
@@ -991,7 +990,7 @@ func (t *tlogBackend) UnvettedExists(token []byte) bool {
 
 	// If the token is in the vetted cache then we know this is not an
 	// unvetted record without having to make any network requests.
-	_, ok := t.vettedTreeIDGet(hex.EncodeToString(token))
+	_, ok := t.vettedTreeID(token)
 	if ok {
 		return false
 	}
@@ -1040,12 +1039,15 @@ func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record
 		v = uint32(u)
 	}
 
+	// Verify record exists and is unvetted
+	if !t.UnvettedExists(token) {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	// Get unvetted record
 	r, err := t.unvetted.record(treeID, v)
 	if err != nil {
-		if err == errRecordNotFound {
-			err = backend.ErrRecordNotFound
-		}
-		return nil, err
+		return nil, fmt.Errorf("unvetted record: %v", err)
 	}
 
 	return r, nil
@@ -1160,24 +1162,14 @@ func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, me
 	return nil
 }
 
-// This function must be called WITH the unvetted lock held.
-func (t *tlogBackend) unvettedArchive(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	// Freeze the tree. Nothing else needs to be done for an archived
-	// record.
-	treeID := treeIDFromToken(token)
-	err := t.unvetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Unvetted record %x frozen", token)
-
-	return nil
-}
-
 func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetUnvettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
+
+	// Verify record exists and is unvetted
+	if !t.UnvettedExists(token) {
+		return nil, backend.ErrRecordNotFound
+	}
 
 	// The existing record must be pulled and updated. The unvetted
 	// lock must be held for the rest of this function.
@@ -1194,12 +1186,12 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 		return nil, fmt.Errorf("recordLatest: %v", err)
 	}
 	rm := r.RecordMetadata
-	oldStatus := rm.Status
+	currStatus := rm.Status
 
 	// Validate status change
-	if !statusChangeIsAllowed(oldStatus, status) {
+	if !statusChangeIsAllowed(currStatus, status) {
 		return nil, backend.StateTransitionError{
-			From: oldStatus,
+			From: currStatus,
 			To:   status,
 		}
 	}
@@ -1240,11 +1232,6 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 		if err != nil {
 			return nil, fmt.Errorf("unvettedCensor: %v", err)
 		}
-	case backend.MDStatusArchived:
-		err := t.unvettedArchive(token, rm, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("unvettedArchive: %v", err)
-		}
 	default:
 		return nil, fmt.Errorf("unknown status: %v (%v)",
 			backend.MDStatus[status], status)
@@ -1258,10 +1245,10 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Update inventory cache
-	t.inventoryUpdate(rm.Token, oldStatus, status)
+	t.inventoryUpdate(rm.Token, currStatus, status)
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
-		token, backend.MDStatus[oldStatus], oldStatus,
+		token, backend.MDStatus[currStatus], currStatus,
 		backend.MDStatus[status], status)
 
 	// Return the updated record

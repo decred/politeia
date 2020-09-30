@@ -6,6 +6,7 @@ The retrieved identity is used to verify replies from politeiad.
 
 ```
 $ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
+
 Key        : 8f627e9da14322626d7e81d789f7fcafd25f62235a95377f39cbc7293c4944ad
 Fingerprint: j2J+naFDImJtfoHXiff8r9JfYiNalTd/OcvHKTxJRK0=
 
@@ -101,14 +102,14 @@ Set record status:
 ## Get vetted record
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 0e4a82a370228b710000
 
 Vetted record:
   Status     : public
   Timestamp  : 2017-12-14 17:06:21 +0000 UTC
   Censorship record:
     Merkle   : 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7
-    Token    : 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+    Token    : 0e4a82a370228b710000
     Signature: 25483966ec6e8df90398c197e3bdb74fe5356df0c96927d771b06e83a7fb29e069751118f4496e42d02a63feb74d67b777c69bb8f356aeafca873325aaf8010f
   Metadata   : [{2 {"12foo":"12bar"}} {12 {"moo":"lala"}{"foo":"bar"}}]
   File (00)  :

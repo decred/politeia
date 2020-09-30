@@ -103,14 +103,14 @@ type tlog struct {
 // 1. Record content blobs are saved to the kv store.
 //
 // 2. The kv store keys are stuffed into the LogLeaf.ExtraData field and the
-//    log leaves are appended onto the trillian tree.
+//    leaves are appended onto the trillian tree.
 //
-// 3. If there failures in steps 1 or 2 for any of the blobs then the update
-//    will exit without completing. No unwinding is performed. Blobs will be
-//    left in the kv store as orphaned blobs. The trillian tree is append only
-//    so once a leaf is appended, it is there permanently. If steps 1 and 2 are
-//    successful then a recordIndex will be created, saved to the kv store, and
-//    appended onto the trillian tree.
+// 3. If there are failures in steps 1 or 2 for any of the blobs then the
+//    update will exit without completing. No unwinding is performed. Blobs
+//    will be left in the kv store as orphaned blobs. The trillian tree is
+//    append only so once a leaf is appended, it's there permanently. If steps
+//    1 and 2 are successful then a recordIndex will be created, saved to the
+//    kv store, and appended onto the trillian tree.
 //
 // Appending a recordIndex onto the trillian tree is the last operation that
 // occurs during a record update. If a recordIndex exists in the tree then the
@@ -483,13 +483,12 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	// Increment the iteration
 	idx.Iteration = oldIdx.Iteration + 1
 
-	// Sanity check. The record index should be fully populated at this
-	// point.
+	// Sanity check
 	switch {
 	case idx.Version != oldIdx.Version:
 		return fmt.Errorf("invalid index version: got %v, want %v",
 			idx.Version, oldIdx.Version)
-	case idx.Version != oldIdx.Iteration+1:
+	case idx.Iteration != oldIdx.Iteration+1:
 		return fmt.Errorf("invalid index iteration: got %v, want %v",
 			idx.Iteration, oldIdx.Iteration+1)
 	case idx.RecordMetadata == nil:
@@ -502,7 +501,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 			len(idx.Files), len(oldIdx.Files))
 	}
 
-	// Blobify the record index and freeze record
+	// Blobify the record index
 	blobs := make([][]byte, 0, 2)
 	be, err := convertBlobEntryFromRecordIndex(*idx)
 	if err != nil {
@@ -518,6 +517,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 	blobs = append(blobs, b)
 
+	// Blobify the freeze record
 	be, err = convertBlobEntryFromFreezeRecord(fr)
 	if err != nil {
 		return err
@@ -532,7 +532,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 	blobs = append(blobs, b)
 
-	// Save record index and freeze record blobs to the store
+	// Save blobs to the kv store
 	keys, err := t.store.Put(blobs)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
