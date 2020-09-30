@@ -1466,7 +1466,7 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 			}
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -1784,7 +1784,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	// submissions.
 	pm, err := g.vettedProposalMetadata(token)
 	switch {
-	case err == errProposalMetadataNotFound:
+	case errors.Is(err, errProposalMetadataNotFound):
 		// Proposal is not an RFP submission. This is ok.
 	case err != nil:
 		// All other errors
@@ -2010,7 +2010,7 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	// Verify this proposal is indeed an RFP
 	pm, err := g.vettedProposalMetadata(sv.Token)
 	switch {
-	case err == errProposalMetadataNotFound:
+	case errors.Is(err, errProposalMetadataNotFound):
 		// No ProposalMetadata. This is not an RFP.
 		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
 	case err != nil:
@@ -2374,7 +2374,7 @@ func (g *gitBackEnd) replayBallot(token string) error {
 			}
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return err
@@ -2573,11 +2573,12 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		// Ensure that the votebits are correct
 		err = g.validateVoteBit(v.Token, v.VoteBit)
 		if err != nil {
-			if e, ok := err.(invalidVoteBitError); ok {
+			var ierr invalidVoteBitError
+			if errors.As(err, &ierr) {
 				es := decredplugin.ErrorStatusInvalidVoteBit
 				br.Receipts[k].ErrorStatus = es
 				br.Receipts[k].Error = fmt.Sprintf("%v: %v",
-					decredplugin.ErrorStatus[es], e.err.Error())
+					decredplugin.ErrorStatus[es], ierr.err.Error())
 				continue
 			}
 			t := time.Now().Unix()
@@ -2742,7 +2743,7 @@ func (g *gitBackEnd) tallyVotes(token string) ([]decredplugin.CastVote, error) {
 			}
 			return nil
 		})
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err

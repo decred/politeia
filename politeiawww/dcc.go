@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -494,7 +495,7 @@ func (p *politeiawww) processDCCDetails(ctx context.Context, gd cms.DCCDetails) 
 
 	dcc, err := p.getDCC(gd.Token)
 	if err != nil {
-		if err == cmsdatabase.ErrDCCNotFound {
+		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -573,7 +574,7 @@ func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.Suppor
 
 	dcc, err := p.getDCC(sd.Token)
 	if err != nil {
-		if err == cmsdatabase.ErrDCCNotFound {
+		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -720,7 +721,7 @@ func (p *politeiawww) processNewCommentDCC(ctx context.Context, nc www.NewCommen
 
 	dcc, err := p.getDCC(nc.Token)
 	if err != nil {
-		if err == cmsdatabase.ErrDCCNotFound {
+		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -871,7 +872,7 @@ func (p *politeiawww) processSetDCCStatus(ctx context.Context, sds cms.SetDCCSta
 
 	dcc, err := p.getDCC(sds.Token)
 	if err != nil {
-		if err == cmsdatabase.ErrDCCNotFound {
+		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -1118,7 +1119,7 @@ func (p *politeiawww) processVoteDetailsDCC(ctx context.Context, token string) (
 	// Validate vote status
 	dvdr, err := p.cmsVoteDetails(ctx, token)
 	if err != nil {
-		if err == cmsdatabase.ErrDCCNotFound {
+		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
@@ -1465,7 +1466,7 @@ func (p *politeiawww) processStartVoteDCC(ctx context.Context, sv cms.StartVote,
 	// Validate proposal version and status
 	pr, err := p.getDCC(sv.Vote.Token)
 	if err != nil {
-		if err == cmsdatabase.ErrDCCNotFound {
+		if errors.Is(err, cmsdatabase.ErrDCCNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}

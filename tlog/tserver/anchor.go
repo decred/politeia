@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -338,9 +339,10 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 
 		vr, err := util.Verify("tserver", t.cfg.DcrtimeHost, waitFor)
 		if err != nil {
-			if _, ok := err.(util.ErrNotAnchored); ok {
+			var uErr util.ErrNotAnchored
+			if errors.As(err, &uErr) {
 				// Anchor not dropped, try again
-				log.Tracef("anchorRecords: try %v %v", try, err)
+				log.Tracef("anchorRecords: try %v %v", try, uErr)
 				continue
 			}
 			log.Errorf("waitForAnchor: %v", err)

@@ -13,6 +13,7 @@ import (
 	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -550,7 +551,7 @@ func _main() error {
 		net := filepath.Base(p.cfg.DataDir)
 		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
 			p.cfg.DBCert, p.cfg.DBKey)
-		if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
+		if errors.Is(err, database.ErrNoVersionRecord) || errors.Is(err, database.ErrWrongVersion) {
 			// The cmsdb version record was either not found or
 			// is the wrong version which means that the cmsdb
 			// needs to be built/rebuilt.

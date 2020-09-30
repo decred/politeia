@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -312,7 +313,8 @@ func loadConfig() (*config, []string, error) {
 	preParser := newConfigParser(&preCfg, &serviceOpts, flags.HelpFlag)
 	_, err := preParser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+		var e *flags.Error
+		if errors.As(err, &e) && e.Type == flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(0)
 		}
@@ -379,7 +381,8 @@ func loadConfig() (*config, []string, error) {
 	if !(preCfg.SimNet) || cfg.ConfigFile != defaultConfigFile {
 		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
 		if err != nil {
-			if _, ok := err.(*os.PathError); !ok {
+			var e *os.PathError
+			if !errors.As(err, &e) {
 				fmt.Fprintf(os.Stderr, "Error parsing config "+
 					"file: %v\n", err)
 				fmt.Fprintln(os.Stderr, usageMessage)
@@ -392,7 +395,8 @@ func loadConfig() (*config, []string, error) {
 	// Parse command line options again to ensure they take precedence.
 	remainingArgs, err := parser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
+		var e *flags.Error
+		if !errors.As(err, &e) || e.Type != flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, usageMessage)
 		}
 		return nil, nil, err
@@ -405,7 +409,8 @@ func loadConfig() (*config, []string, error) {
 		// Show a nicer error message if it's because a symlink is
 		// linked to a directory that does not exist (probably because
 		// it's not mounted).
-		if e, ok := err.(*os.PathError); ok && os.IsExist(err) {
+		var e *os.PathError
+		if errors.As(err, &e) && os.IsExist(err) {
 			if link, lerr := os.Readlink(e.Path); lerr == nil {
 				str := "is symlink %s -> %s mounted?"
 				err = fmt.Errorf(str, e.Path, link)

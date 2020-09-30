@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -323,7 +324,8 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 	rm, err := p.backend.New(md, files)
 	if err != nil {
 		// Check for content error.
-		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+		var contentErr backend.ContentVerificationError
+		if errors.As(err, &contentErr) {
 			log.Errorf("%v New record content error: %v",
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
@@ -417,28 +419,29 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 			convertFrontendFiles(t.FilesAdd), t.FilesDel)
 	}
 	if err != nil {
-		if err == backend.ErrRecordFound {
+		if errors.Is(err, backend.ErrRecordFound) {
 			log.Errorf("%v update %v record found: %x",
 				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
 			return
 		}
-		if err == backend.ErrRecordNotFound {
+		if errors.Is(err, backend.ErrRecordNotFound) {
 			log.Errorf("%v update %v record not found: %x",
 				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
 			return
 		}
-		if err == backend.ErrNoChanges {
+		if errors.Is(err, backend.ErrNoChanges) {
 			log.Errorf("%v update %v record no changes: %x",
 				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
 		}
 		// Check for content error.
-		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+		var contentErr backend.ContentVerificationError
+		if errors.As(err, &contentErr) {
 			log.Errorf("%v update %v record content error: %v",
 				remoteAddr(r), cmd, contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
@@ -552,7 +555,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetUnvetted(token)
-	if err == backend.ErrRecordNotFound {
+	if errors.Is(err, backend.ErrRecordNotFound) {
 		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get unvetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
@@ -616,7 +619,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetVetted(token, t.Version)
-	if err == backend.ErrRecordNotFound {
+	if errors.Is(err, backend.ErrRecordNotFound) {
 		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get vetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
@@ -754,14 +757,15 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
 		// Check for specific errors
-		if err == backend.ErrRecordNotFound {
+		if errors.Is(err, backend.ErrRecordNotFound) {
 			log.Errorf("%v updateStatus record not "+
 				"found: %x", remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
 			return
 		}
-		if _, ok := err.(backend.StateTransitionError); ok {
+		var serr backend.StateTransitionError
+		if errors.As(err, &serr) {
 			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
@@ -825,14 +829,15 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
 		// Check for specific errors
-		if err == backend.ErrRecordNotFound {
+		if errors.Is(err, backend.ErrRecordNotFound) {
 			log.Errorf("%v updateUnvettedStatus record not "+
 				"found: %x", remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
 			return
 		}
-		if _, ok := err.(backend.StateTransitionError); ok {
+		var serr backend.StateTransitionError
+		if errors.As(err, &serr) {
 			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
@@ -907,14 +912,15 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 		convertFrontendMetadataStream(t.MDAppend),
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
-		if err == backend.ErrNoChanges {
+		if errors.Is(err, backend.ErrNoChanges) {
 			log.Errorf("%v update vetted metadata no changes: %x",
 				remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
 		}
 		// Check for content error.
-		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+		var contentErr backend.ContentVerificationError
+		if errors.As(err, &contentErr) {
 			log.Errorf("%v update vetted metadata content error: %v",
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
@@ -1371,7 +1377,7 @@ func _main() error {
 		net := filepath.Base(p.cfg.DataDir)
 		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
 			net, p.cfg.CacheRootCert, p.cfg.CacheCert, p.cfg.CacheKey)
-		if err == cache.ErrNoVersionRecord || err == cache.ErrWrongVersion {
+		if errors.Is(err, cache.ErrNoVersionRecord) || errors.Is(err, cache.ErrWrongVersion) {
 			// The cache version record was either not found or
 			// is the wrong version which means that the cache
 			// needs to be built/rebuilt.
@@ -1442,7 +1448,7 @@ func _main() error {
 			// Register plugin with the cache
 			cp := convertBackendPluginToCache(v)
 			err := p.cache.RegisterPlugin(cp)
-			if err == cache.ErrNoVersionRecord || err == cache.ErrWrongVersion {
+			if errors.Is(err, cache.ErrNoVersionRecord) || errors.Is(err, cache.ErrWrongVersion) {
 				// The cache plugin version record was either not found
 				// or it is the wrong version which means that the cache
 				// needs to be built/rebuilt.

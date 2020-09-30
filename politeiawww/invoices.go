@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -886,7 +887,7 @@ func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetIn
 
 	dbInvoice, err := p.cmsDB.InvoiceByToken(sis.Token)
 	if err != nil {
-		if err == database.ErrInvoiceNotFound {
+		if errors.Is(err, database.ErrInvoiceNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
@@ -1569,7 +1570,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 
 	ir, err := p.getInvoice(token)
 	if err != nil {
-		if err == database.ErrInvoiceNotFound {
+		if errors.Is(err, database.ErrInvoiceNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}

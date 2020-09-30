@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -145,7 +146,7 @@ func (p *politeiawww) restartCMSAddressesWatching(ctx context.Context) error {
 	for _, invoice := range approvedInvoices {
 		_, err := p.cmsDB.PaymentsByAddress(invoice.PaymentAddress)
 		if err != nil {
-			if err == database.ErrInvoiceNotFound {
+			if errors.Is(err, database.ErrInvoiceNotFound) {
 				payout, err := calculatePayout(invoice)
 				if err != nil {
 					return err
@@ -378,7 +379,7 @@ func (p *politeiawww) updateInvoicePayment(ctx context.Context, payment *databas
 func (p *politeiawww) invoiceStatusPaid(ctx context.Context, token string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -330,7 +331,7 @@ func (p *politeiawww) userByIDStr(userIDStr string) (*user.User, error) {
 
 	usr, err := p.db.UserGetById(userID)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
 			}
@@ -419,7 +420,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		// Ensure public key is unique
 		usr, err := p.db.UserGetByPubKey(nu.PublicKey)
 		if err != nil {
-			if err == user.ErrUserNotFound {
+			if errors.Is(err, user.ErrUserNotFound) {
 				// Pubkey is unique, but is not the same pubkey that
 				// the user originally signed up with. This is fine.
 				// The user's identity just needs to be updated.
@@ -749,7 +750,7 @@ func (p *politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 	// Check that the user already exists.
 	u, err := p.userByEmail(usr.Email)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("VerifyNewUser failure for %v: user not found",
 				usr.Email)
 			return nil, www.UserError{
@@ -844,7 +845,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	// Get user from db.
 	u, err := p.userByEmail(rv.Email)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("ResendVerification failure for %v: user not found",
 				rv.Email)
 			return nil, www.UserError{
@@ -1098,7 +1099,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 	// Get user record
 	u, err := p.userByEmail(l.Email)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("login: user not found for email '%v'",
 				l.Email)
 			err = www.UserError{
@@ -1234,7 +1235,7 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 	// Lookup user
 	u, err := p.db.UserGetByUsername(l.Username)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
 			}
@@ -1414,7 +1415,7 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 	// Lookup user
 	u, err := p.db.UserGetByUsername(rp.Username)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
 			}
@@ -1524,7 +1525,7 @@ func (p *politeiawww) processVerifyResetPassword(vrp www.VerifyResetPassword) (*
 	// Lookup user
 	u, err := p.db.UserGetByUsername(vrp.Username)
 	if err != nil {
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
 			}
@@ -1786,7 +1787,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 
 		u, err = p.db.UserGetByPubKey(pubkeyQuery)
 		if err != nil {
-			if err == user.ErrUserNotFound {
+			if errors.Is(err, user.ErrUserNotFound) {
 				// Pubkey searches require an exact match. If no
 				// match was found, we can go ahead and return.
 				return &www.UsersReply{}, nil
@@ -1861,7 +1862,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 			if err != nil {
 				// ErrUserNotFound is ok. Empty search results
 				// will be returned.
-				if err != user.ErrUserNotFound {
+				if !errors.Is(err, user.ErrUserNotFound) {
 					return nil, err
 				}
 			}
@@ -2205,7 +2206,7 @@ func (p *politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UU
 	for userID, poolMember := range pool {
 		u, err := p.db.UserGetById(userID)
 		if err != nil {
-			if err == user.ErrShutdown {
+			if errors.Is(err, user.ErrShutdown) {
 				// The database is shutdown, so stop the
 				// thread.
 				return false, nil
@@ -2250,7 +2251,7 @@ func (p *politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UU
 			// Update the user in the database.
 			err = p.updateUserAsPaid(u, tx)
 			if err != nil {
-				if err == user.ErrShutdown {
+				if errors.Is(err, user.ErrShutdown) {
 					// The database is shutdown, so stop
 					// the thread.
 					return false, nil
