@@ -1240,7 +1240,7 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 					p.Metadata, p.CensorshipRecord.Token, err)
 			}
 
-			dbDCC.Timestamp = mdGeneral.Timestamp
+			dbDCC.TimeSubmitted = mdGeneral.Timestamp
 			dbDCC.PublicKey = mdGeneral.PublicKey
 			dbDCC.UserSignature = mdGeneral.Signature
 
@@ -1256,6 +1256,7 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			for _, s := range sc {
 				dbDCC.Status = s.NewStatus
 				dbDCC.StatusChangeReason = s.Reason
+				dbDCC.TimeReviewed = s.Timestamp
 			}
 		case mdstream.IDDCCSupportOpposition:
 			// Support and Opposition
@@ -1294,6 +1295,9 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 				}
 			}
 			dbDCC.OppositionUserIDs = opposes
+		case cmsplugin.MDStreamVoteBits:
+		case cmsplugin.MDStreamVoteSnapshot:
+			// Voting information available but not currently used in the database
 		default:
 			// Log error but proceed
 			log.Errorf("convertRecordToDCC: invalid "+
@@ -1315,7 +1319,8 @@ func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	dccRecord.DCC.ContractorType = dbDCC.ContractorType
 	dccRecord.Status = dbDCC.Status
 	dccRecord.StatusChangeReason = dbDCC.StatusChangeReason
-	dccRecord.Timestamp = dbDCC.Timestamp
+	dccRecord.TimeSubmitted = dbDCC.TimeSubmitted
+	dccRecord.TimeReviewed = dbDCC.TimeReviewed
 	dccRecord.CensorshipRecord = www.CensorshipRecord{
 		Token: dbDCC.Token,
 	}
@@ -1323,9 +1328,17 @@ func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	dccRecord.Signature = dbDCC.ServerSignature
 	dccRecord.SponsorUserID = dbDCC.SponsorUserID
 	supportUserIDs := strings.Split(dbDCC.SupportUserIDs, ",")
-	dccRecord.SupportUserIDs = supportUserIDs
+	cleanedSupport := make([]string, 0, len(supportUserIDs))
+	for _, support := range supportUserIDs {
+		cleanedSupport = append(cleanedSupport, strings.TrimSpace(support))
+	}
+	dccRecord.SupportUserIDs = cleanedSupport
 	oppositionUserIDs := strings.Split(dbDCC.OppositionUserIDs, ",")
-	dccRecord.OppositionUserIDs = oppositionUserIDs
+	cleanedOpposed := make([]string, 0, len(oppositionUserIDs))
+	for _, oppose := range oppositionUserIDs {
+		cleanedOpposed = append(cleanedOpposed, strings.TrimSpace(oppose))
+	}
+	dccRecord.OppositionUserIDs = cleanedOpposed
 
 	return dccRecord
 }
@@ -1340,7 +1353,8 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 	dbDCC.ContractorType = dccRecord.DCC.ContractorType
 	dbDCC.Status = dccRecord.Status
 	dbDCC.StatusChangeReason = dccRecord.StatusChangeReason
-	dbDCC.Timestamp = dccRecord.Timestamp
+	dbDCC.TimeSubmitted = dccRecord.TimeSubmitted
+	dbDCC.TimeReviewed = dccRecord.TimeReviewed
 	dbDCC.Token = dccRecord.CensorshipRecord.Token
 	dbDCC.PublicKey = dccRecord.PublicKey
 	dbDCC.ServerSignature = dccRecord.Signature
