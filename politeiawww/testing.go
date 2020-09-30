@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -698,7 +698,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	p := politeiawww{
 		cfg:             cfg,
 		db:              db,
-		params:          &chaincfg.TestNet3Params,
+		params:          chaincfg.TestNet3Params(),
 		router:          mux.NewRouter(),
 		sessions:        newSessionStore(db, sessionMaxAge, cookieKey),
 		smtp:            smtp,
@@ -803,7 +803,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 	p := politeiawww{
 		cfg:             cfg,
 		db:              db,
-		params:          &chaincfg.TestNet3Params,
+		params:          chaincfg.TestNet3Params(),
 		router:          mux.NewRouter(),
 		sessions:        newSessionStore(db, sessionMaxAge, cookieKey),
 		smtp:            smtp,

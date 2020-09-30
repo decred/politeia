@@ -217,7 +217,7 @@ func (p *politeiawww) verifyProposalPayment(ctx context.Context, u *user.User) (
 	}
 
 	// Fetch txs sent to paywall address
-	txs, err := util.FetchTxsForAddress(ctx, paywall.Address, p.dcrdataHostHTTP())
+	txs, err := util.FetchTxsForAddress(ctx, p.params, paywall.Address, p.dcrdataHostHTTP())
 	if err != nil {
 		return nil, fmt.Errorf("FetchTxsForAddress %v: %v",
 			paywall.Address, err)

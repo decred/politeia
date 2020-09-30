@@ -1768,9 +1768,10 @@ func (p *politeiawww) processUserRegistrationPayment(ctx context.Context, u *use
 		return &reply, nil
 	}
 
-	tx, _, err := util.FetchTxWithBlockExplorers(ctx, u.NewUserPaywallAddress,
-		u.NewUserPaywallAmount, u.NewUserPaywallTxNotBefore,
-		p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
+	tx, _, err := util.FetchTxWithBlockExplorers(ctx, p.params,
+		u.NewUserPaywallAddress, u.NewUserPaywallAmount,
+		u.NewUserPaywallTxNotBefore, p.cfg.MinConfirmationsRequired,
+		p.dcrdataHostHTTP())
 	if err != nil {
 		return nil, err
 	}
@@ -1891,7 +1892,7 @@ func (p *politeiawww) processUserPaymentsRescan(ctx context.Context, upr www.Use
 	}
 
 	// Fetch user payments
-	payments, err := util.FetchTxsForAddressNotBefore(ctx, u.NewUserPaywallAddress,
+	payments, err := util.FetchTxsForAddressNotBefore(ctx, p.params, u.NewUserPaywallAddress,
 		u.NewUserPaywallTxNotBefore, p.dcrdataHostHTTP())
 	if err != nil {
 		return nil, fmt.Errorf("FetchTxsForAddressNotBefore: %v", err)
@@ -2182,7 +2183,7 @@ func (p *politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UU
 			continue
 		}
 
-		tx, _, err := util.FetchTxWithBlockExplorers(ctx, poolMember.address,
+		tx, _, err := util.FetchTxWithBlockExplorers(ctx, p.params, poolMember.address,
 			poolMember.amount, poolMember.txNotBefore,
 			p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
 		if err != nil {

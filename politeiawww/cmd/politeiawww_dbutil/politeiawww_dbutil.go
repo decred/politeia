@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -746,9 +746,9 @@ func _main() error {
 	*encryptionKey = util.CleanAndExpandPath(*encryptionKey)
 
 	if *testnet {
-		network = chaincfg.TestNet3Params.Name
+		network = chaincfg.TestNet3Params().Name
 	} else {
-		network = chaincfg.MainNetParams.Name
+		network = chaincfg.MainNetParams().Name
 	}
 	// Validate database selection
 	if *level && *cockroach {

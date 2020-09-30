@@ -11,8 +11,8 @@ import (
 	"os"
 	"strconv"
 
+	"decred.org/dcrwallet/rpc/walletrpc"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/util"

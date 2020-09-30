@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrd/hdkeychain"
+	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 
@@ -825,14 +825,10 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("[ERR]: Paywall amount needs to be "+
 				"higher than %v", dust)
 		}
-		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
+		_, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub, activeNetParams.Params)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error processing extended public key: %v",
 				err)
-		}
-		if !paywallKey.IsForNet(activeNetParams.Params) {
-			return nil, nil, fmt.Errorf("paywall extended public key is for the " +
-				"wrong network")
 		}
 	}
 

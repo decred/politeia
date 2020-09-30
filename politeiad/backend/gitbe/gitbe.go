@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/cmsplugin"
