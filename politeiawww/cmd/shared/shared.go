@@ -13,11 +13,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agl/ed25519"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/sha3"
 )
 

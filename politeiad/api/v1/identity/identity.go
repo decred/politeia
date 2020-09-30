@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/agl/ed25519"
+	"golang.org/x/crypto/ed25519"
 )
 
 var (
@@ -97,8 +97,10 @@ func (fi *FullIdentity) Save(filename string) error {
 }
 
 func (fi *FullIdentity) SignMessage(message []byte) [SignatureSize]byte {
-	signature := ed25519.Sign(&fi.PrivateKey, message)
-	return *signature
+	var signature [SignatureSize]byte
+	copy(signature[:], ed25519.Sign(fi.PrivateKey[:], message))
+
+	return signature
 }
 
 func UnmarshalPublicIdentity(data []byte) (*PublicIdentity, error) {
@@ -134,7 +136,7 @@ func LoadPublicIdentity(filename string) (*PublicIdentity, error) {
 }
 
 func (p PublicIdentity) VerifyMessage(msg []byte, sig [SignatureSize]byte) bool {
-	return ed25519.Verify(&p.Key, msg, &sig)
+	return ed25519.Verify(p.Key[:], msg, sig[:])
 }
 
 func (p PublicIdentity) String() string {
