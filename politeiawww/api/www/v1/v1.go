@@ -1408,12 +1408,12 @@ type VerifyTOTP struct {
 type VerifyTOTPReply struct {
 }
 
-// MessageProposer is a request that allows administrators to 'ping' or
-// message a proposer in lieu of simply authorizing or censoring a proposal.
-type MessageProposer struct {
+// MessageUser is a request that allows an administrator to send a message
+// to another user (typically in the case of proposer needing to fix something).
+type MessageUser struct {
 	UserID  string `json:"token"`   // UserID of the message recipient.
-	Message string `json:"message"` // The message that will be delivered to the proposer.
+	Message string `json:"message"` // The message that will be delivered to the user.
 }
 
-// MessageProposerReply will return an empty reply if successful.
-type MessageProposerReply struct{}
+// MessageUserReply will return an empty reply if successful.
+type MessageUserReply struct{}

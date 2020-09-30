@@ -3353,7 +3353,7 @@ func (p *politeiawww) initVoteResults() error {
 	return nil
 }
 
-func (p *politeiawww) processMessageProposer(mp www.MessageProposer, u *user.User) (*www.MessageProposerReply, error) {
+func (p *politeiawww) processMessageProposer(mp www.MessageUser, u *user.User) (*www.MessageUserReply, error) {
 	// Sanity check that only administrators are allowed to message proposers.
 	if !u.Admin {
 		return nil, www.UserError{
@@ -3368,22 +3368,27 @@ func (p *politeiawww) processMessageProposer(mp www.MessageProposer, u *user.Use
 		}
 	}
 
-	proposerUser, err := p.db.UserGetById(recipientID)
+	recipientUser, err := p.db.UserGetById(recipientID)
 	if err != nil {
+		if err == user.ErrUserNotFound {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
+			}
+		}
 		return nil, err
 	}
 
-	if proposerUser.Email == "" {
+	if recipientUser.Email == "" {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserEmailNotEnabled,
 		}
 	}
-	err = p.emailMessageProposer(proposerUser.Email, mp.Message, u.Username)
+	err = p.emailMessageUser(recipientUser.Email, mp.Message, u.Username)
 	if err != nil {
-		log.Errorf("processMessageProposer failed: %v %v %v",
-			proposerUser.Email, u.Email, err)
+		log.Errorf("processMessageUser failed: %v %v %v",
+			recipientUser.Email, u.Email, err)
 		return nil, err
 	}
 
-	return &www.MessageProposerReply{}, nil
+	return &www.MessageUserReply{}, nil
 }

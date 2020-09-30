@@ -57,8 +57,8 @@ var (
 		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
 	templateCommentReplyOnComment = template.Must(
 		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
-	templateMessageProposer = template.Must(
-		template.New("message_proposer_template").Parse(templateMessageProposerRaw))
+	templateMessageUser = template.Must(
+		template.New("message_proposer_template").Parse(templateMessageUserRaw))
 )
 
 // wsContext is the websocket context. If uuid == "" then it is an
@@ -1320,7 +1320,7 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleMessageProposer(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleMessageProposer")
 
-	var mp www.MessageProposer
+	var mp www.MessageUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mp); err != nil {
 		RespondWithError(w, r, 0, "handleMessageProposer: unmarshal",

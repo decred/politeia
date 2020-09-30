@@ -107,7 +107,7 @@ type newDCCSupportOpposeTemplateData struct {
 	Link string
 }
 
-type messageProposerTemplateData struct {
+type messageUserTemplateData struct {
 	Message       string
 	AdminUsername string
 }
@@ -299,7 +299,7 @@ Regards,
 Contractor Management System
 `
 
-const templateMessageProposerRaw = `
+const templateMessageUserRaw = `
 You have received a message from administrator {{.AdminUsername}}:
 
 {{.Message}}

@@ -2717,9 +2717,9 @@ Reply:
 {}
 ```
 
-### `Message Proposer`
+### `Message User`
 
-Send a message or an alert to review their proposal from an administrator.
+Send a message or an alert to a user from an administrator.
 
 Note: This call requires admin privileges.
 
@@ -2729,8 +2729,8 @@ Note: This call requires admin privileges.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
+| userid | string | The userid of the intended recipient of the message. | Yes |
 | message | string | Message from administrator. | No |
-| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
 
 **Results:**
 
@@ -2740,8 +2740,10 @@ Note: This call requires admin privileges.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
 - [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
+- [`ErrorStatusUserEmailNotEnabled`](#ErrorStatusUserEmailNotEnabled)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 
 **Example**
 ### `Error codes`
@@ -2751,7 +2753,7 @@ Request:
 ```json
 {
   "message": "Please authorize your proposal for voting or abandon!",
-  "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf"
+  "userid": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf"
 }
 ```
 
