@@ -80,6 +80,7 @@ var (
 	migrate          = flag.Bool("migrate", false, "")
 	createKey        = flag.Bool("createkey", false, "")
 	verifyIdentities = flag.Bool("verifyidentities", false, "")
+	resetTotp        = flag.Bool("resettotp", false, "")
 
 	network string // Mainnet or testnet3
 	// XXX ldb should be abstracted away. dbutil commands should use
@@ -150,11 +151,17 @@ const usageMsg = `politeiawww_dbutil usage:
           Required DB flag : None
           Args             : None
 
-     -verifyidentities
+    -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
           Required DB flag : -cockroachdb
-          Args             : <username>
+
+    -resettotp
+          Reset a user's totp settings in case they are locked out and 
+          confirm identity. 
+          Required DB flag : -leveldb or -cockroachdb
+          LevelDB args     : <email>
+          CockroachDB args : <username>
 `
 
 func cmdDump() error {
@@ -700,6 +707,34 @@ func cmdVerifyIdentities() error {
 	return nil
 }
 
+func cmdResetTOTP() error {
+	args := flag.Args()
+	if len(args) != 1 {
+		return fmt.Errorf("invalid number of arguments; want <username>, got %v",
+			args)
+	}
+
+	username := args[0]
+	u, err := userDB.UserGetByUsername(username)
+	if err != nil {
+		return err
+	}
+
+	u.TOTPLastUpdated = nil
+	u.TOTPSecret = ""
+	u.TOTPType = 0
+	u.TOTPVerified = false
+
+	err = userDB.UserUpdate(*u)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("User with username '%v' reset totp\n", username)
+
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -721,7 +756,7 @@ func _main() error {
 	}
 
 	switch {
-	case *addCredits || *setAdmin || *stubUsers:
+	case *addCredits || *setAdmin || *stubUsers || *resetTotp:
 		// These commands must be run with -cockroachdb or -leveldb
 		if !*level && !*cockroach {
 			return fmt.Errorf("missing database flag; must use " +
@@ -799,6 +834,8 @@ func _main() error {
 		return cmdCreateKey()
 	case *verifyIdentities:
 		return cmdVerifyIdentities()
+	case *resetTotp:
+		return cmdResetTOTP()
 	default:
 		fmt.Printf("invalid command\n")
 		flag.Usage()
