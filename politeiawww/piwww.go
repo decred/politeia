@@ -33,6 +33,8 @@ import (
 // or the pi api spec?
 
 // TODO politeiad needs to return the plugin with the error.
+// TODO ensure plugins can't write data using short proposal token.
+// TODO move proposal validation to pi plugin
 
 const (
 	// MIME types
@@ -382,18 +384,22 @@ func convertCommentVoteFromPlugin(v comments.VoteT) pi.CommentVoteT {
 	return pi.CommentVoteInvalid
 }
 
-func convertCommentVoteDetailsFromPlugin(cv comments.CommentVote) pi.CommentVoteDetails {
-	return pi.CommentVoteDetails{
-		UserID:    cv.UserID,
-		State:     convertPropStateFromComments(cv.State),
-		Token:     cv.Token,
-		CommentID: cv.CommentID,
-		Vote:      convertCommentVoteFromPlugin(cv.Vote),
-		PublicKey: cv.PublicKey,
-		Signature: cv.Signature,
-		Timestamp: cv.Timestamp,
-		Receipt:   cv.Receipt,
+func convertCommentVoteDetailsFromPlugin(cv []comments.CommentVote) []pi.CommentVoteDetails {
+	c := make([]pi.CommentVoteDetails, 0, len(cv))
+	for _, v := range cv {
+		c = append(c, pi.CommentVoteDetails{
+			UserID:    v.UserID,
+			State:     convertPropStateFromComments(v.State),
+			Token:     v.Token,
+			CommentID: v.CommentID,
+			Vote:      convertCommentVoteFromPlugin(v.Vote),
+			PublicKey: v.PublicKey,
+			Signature: v.Signature,
+			Timestamp: v.Timestamp,
+			Receipt:   v.Receipt,
+		})
 	}
+	return c
 }
 
 func convertCommentVoteFromPi(v pi.CommentVoteT) piplugin.CommentVoteT {
@@ -1397,6 +1403,11 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr user.User) (*pi.ProposalSetStatusReply, error) {
 	log.Tracef("processProposalSetStatus: %v %v", pss.Token, pss.Status)
 
+	// Sanity check
+	if !usr.Admin {
+		return nil, fmt.Errorf("not an admin")
+	}
+
 	// Verify token
 	if !tokenIsFullLength(pss.Token) {
 		return nil, pi.UserErrorReply{
@@ -1653,7 +1664,7 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 
 	// Sanity check
 	if !usr.Admin {
-		return nil, fmt.Errorf("user not admin")
+		return nil, fmt.Errorf("not an admin")
 	}
 
 	// Verify user signed with their active identity
@@ -1687,6 +1698,7 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) {
 	log.Tracef("processComments: %v", c.Token)
 
+	// Send plugin command
 	reply, err := p.commentsAll(comments.GetAll{
 		State: convertCommentsStateFromPi(c.State),
 		Token: c.Token,
@@ -1695,7 +1707,7 @@ func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) 
 		return nil, err
 	}
 
-	// Compile comments. Comments contain user data that needs to be
+	// Prepare reply. Comments contain user data that needs to be
 	// pulled from the user database.
 	cs := make([]pi.Comment, 0, len(reply.Comments))
 	for _, cm := range reply.Comments {
@@ -1725,7 +1737,6 @@ func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) 
 func (p *politeiawww) processCommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
 	log.Tracef("processCommentVotes: %v %v", cv.Token, cv.UserID)
 
-	// Send plugin command
 	v := comments.Votes{
 		State:  convertCommentsStateFromPi(cv.State),
 		Token:  cv.Token,
@@ -1736,13 +1747,8 @@ func (p *politeiawww) processCommentVotes(cv pi.CommentVotes) (*pi.CommentVotesR
 		return nil, err
 	}
 
-	votes := make([]pi.CommentVoteDetails, 0, len(cvr.Votes))
-	for _, v := range cvr.Votes {
-		votes = append(votes, convertCommentVoteDetailsFromPlugin(v))
-	}
-
 	return &pi.CommentVotesReply{
-		Votes: votes,
+		Votes: convertCommentVoteDetailsFromPlugin(cvr.Votes),
 	}, nil
 }
 
@@ -2181,9 +2187,9 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCommentVotes")
 
-	var cvs pi.CommentVotes
+	var cv pi.CommentVotes
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cvs); err != nil {
+	if err := decoder.Decode(&cv); err != nil {
 		respondWithPiError(w, r, "handleCommentVotes: unmarshal",
 			pi.UserErrorReply{
 				ErrorCode: pi.ErrorStatusInputInvalid,
@@ -2191,13 +2197,13 @@ func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cvsr, err := p.processCommentVotes(cvs)
+	cvr, err := p.processCommentVotes(cv)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVotes: processCommentVotes: %v", err)
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, cvsr)
+	util.RespondWithJSON(w, http.StatusOK, cvr)
 }
 
 func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request) {
@@ -2405,7 +2411,7 @@ func (p *politeiawww) setupPiRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalSetStatus, p.handleProposalSetStatus,
-		permissionLogin)
+		permissionAdmin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposals, p.handleProposals,
 		permissionPublic)
@@ -2428,7 +2434,7 @@ func (p *politeiawww) setupPiRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteCommentVotes, p.handleCommentVotes,
-		permissionLogin)
+		permissionPublic)
 
 	// Vote routes
 	p.addRoute(http.MethodPost, pi.APIRoute,

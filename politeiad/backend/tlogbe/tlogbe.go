@@ -247,13 +247,16 @@ func (t *tlogBackend) inventoryUpdate(token string, currStatus, newStatus backen
 
 	// Find the index of the token in its current status list
 	var idx int
+	var found bool
 	for k, v := range t.inventory[currStatus] {
 		if v == token {
 			// Token found
 			idx = k
+			found = true
+			break
 		}
 	}
-	if idx == 0 {
+	if !found {
 		// Token was never found. This should not happen.
 		e := fmt.Sprintf("inventoryUpdate: token not found: %v %v %v",
 			token, currStatus, newStatus)
@@ -521,7 +524,7 @@ func metadataStreamsUpdate(mdCurr, mdAppend, mdOverwrite []backend.MetadataStrea
 	}
 
 	// Convert metadata back to a slice
-	metadata := make([]backend.MetadataStream, len(md))
+	metadata := make([]backend.MetadataStream, 0, len(md))
 	for _, v := range md {
 		metadata = append(metadata, v)
 	}
@@ -537,6 +540,20 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 
 	// Validate record contents
 	err := verifyContent(metadata, files, []string{})
+	if err != nil {
+		return nil, err
+	}
+
+	// Call pre plugin hooks
+	hnr := hookNewRecord{
+		Metadata: metadata,
+		Files:    files,
+	}
+	b, err := encodeHookNewRecord(hnr)
+	if err != nil {
+		return nil, err
+	}
+	err = t.pluginHook(hookNewRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -573,21 +590,6 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 		return nil, err
 	}
 
-	// Call pre plugin hooks
-	hnr := hookNewRecord{
-		RecordMetadata: *rm,
-		Metadata:       metadata,
-		Files:          files,
-	}
-	b, err := encodeHookNewRecord(hnr)
-	if err != nil {
-		return nil, err
-	}
-	err = t.pluginHook(hookNewRecordPre, string(b))
-	if err != nil {
-		return nil, err
-	}
-
 	// Save the record
 	err = t.unvetted.recordSave(treeID, *rm, metadata, files)
 	if err != nil {
@@ -595,9 +597,18 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Call post plugin hooks
+	hnr = hookNewRecord{
+		Metadata:       metadata,
+		Files:          files,
+		RecordMetadata: rm,
+	}
+	b, err = encodeHookNewRecord(hnr)
+	if err != nil {
+		return nil, err
+	}
 	err = t.pluginHook(hookNewRecordPost, string(b))
 	if err != nil {
-		log.Errorf("New: pluginHook %v: %v", hooks[hookNewRecordPost], err)
+		log.Errorf("New %x: pluginHook newRecordPost: %v", token, err)
 	}
 
 	// Update the inventory cache
@@ -688,15 +699,15 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	// Call post plugin hooks
 	err = t.pluginHook(hookEditRecordPost, string(b))
 	if err != nil {
-		log.Errorf("pluginHook %v: %v", hooks[hookEditRecordPost], err)
+		log.Errorf("UpdateUnvettedRecord %x: pluginHook editRecordPost: %v",
+			token, err)
 	}
 
 	// Update inventory cache. The inventory will only need to be
 	// updated if there was a status transition.
 	if r.RecordMetadata.Status != recordMD.Status {
 		// Status was changed
-		t.inventoryUpdate(recordMD.Token, r.RecordMetadata.Status,
-			recordMD.Status)
+		t.inventoryUpdate(recordMD.Token, r.RecordMetadata.Status, recordMD.Status)
 	}
 
 	// Return updated record
@@ -793,7 +804,8 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	// Call post plugin hooks
 	err = t.pluginHook(hookEditRecordPost, string(b))
 	if err != nil {
-		log.Errorf("pluginHook %v: %v", hooks[hookEditRecordPost], err)
+		log.Errorf("UpdateVettedRecord %x: pluginHook editRecordPost: %v",
+			token, err)
 	}
 
 	// Return updated record
@@ -847,13 +859,38 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 		return fmt.Errorf("recordLatest: %v", err)
 	}
 
+	// Call pre plugin hooks
+	hem := hookEditMetadata{
+		Current:     *r,
+		MDAppend:    mdAppend,
+		MDOverwrite: mdOverwrite,
+	}
+	b, err := encodeHookEditMetadata(hem)
+	if err != nil {
+		return err
+	}
+	err = t.pluginHook(hookEditMetadataPre, string(b))
+	if err != nil {
+		return err
+	}
+
 	// Apply changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
 	err = t.unvetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
 	if err != nil {
+		if err == errNoMetadataChanges {
+			return backend.ErrNoChanges
+		}
 		return err
+	}
+
+	// Call post plugin hooks
+	err = t.pluginHook(hookEditMetadataPost, string(b))
+	if err != nil {
+		log.Errorf("UpdateUnvettedMetadata %x: pluginHook editMetadataPost: %v",
+			token, err)
 	}
 
 	return nil
@@ -908,13 +945,38 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 		return fmt.Errorf("recordLatest: %v", err)
 	}
 
+	// Call pre plugin hooks
+	hem := hookEditMetadata{
+		Current:     *r,
+		MDAppend:    mdAppend,
+		MDOverwrite: mdOverwrite,
+	}
+	b, err := encodeHookEditMetadata(hem)
+	if err != nil {
+		return err
+	}
+	err = t.pluginHook(hookEditMetadataPre, string(b))
+	if err != nil {
+		return err
+	}
+
 	// Apply changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
 	err = t.vetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
 	if err != nil {
+		if err == errNoMetadataChanges {
+			return backend.ErrNoChanges
+		}
 		return err
+	}
+
+	// Call post plugin hooks
+	err = t.pluginHook(hookEditMetadataPost, string(b))
+	if err != nil {
+		log.Errorf("UpdateVettedMetadata %x: pluginHook editMetadataPost: %v",
+			token, err)
 	}
 
 	return nil
@@ -1191,8 +1253,8 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	// Call post plugin hooks
 	err = t.pluginHook(hookSetRecordStatusPost, string(b))
 	if err != nil {
-		log.Errorf("SetUnvettedStatus: pluginHook %v: %v",
-			hooks[hookSetRecordStatusPost], err)
+		log.Errorf("SetUnvettedStatus %x: pluginHook setRecordStatusPost: %v",
+			token, err)
 	}
 
 	// Update inventory cache
@@ -1316,8 +1378,8 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	// Call post plugin hooks
 	err = t.pluginHook(hookSetRecordStatusPost, string(b))
 	if err != nil {
-		log.Errorf("SetVettedStatus: pluginHook %v: %v",
-			hooks[hookSetRecordStatusPost], err)
+		log.Errorf("SetVettedStatus %x: pluginHook setRecordStatusPost: %v",
+			token, err)
 	}
 
 	// Update inventory cache
@@ -1342,9 +1404,8 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 // records individually.
 //
 // This function satisfies the Backend interface.
-func (t *tlogBackend) Inventory(vettedCount uint, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
-	log.Tracef("Inventory: %v %v", includeFiles, allVersions)
-
+func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
+	log.Tracef("Inventory")
 	return nil, nil, fmt.Errorf("not implemented")
 }
 

@@ -884,7 +884,7 @@ func _main() error {
 		userEmails:   make(map[string]uuid.UUID),
 	}
 
-	// Get plugins from politeiad
+	// Setup politeiad plugins
 	p.plugins, err = p.getPluginInventory()
 	if err != nil {
 		return fmt.Errorf("getPluginInventory: %v", err)

@@ -22,8 +22,9 @@ the string is record metadata. Arguments that are not classified as metadata
 are assumed to be file paths.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new \ 
-  'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' ~/index.md
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new \
+  'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' index.md
+
 00: 4bde9f923b61e26147c79500e6d6dfa27291559a74cd878c29a7f96984dd48bb index.md text/plain; charset=utf-8
 Record submitted
   Censorship record:
@@ -36,6 +37,7 @@ Record submitted
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 0e4a82a370228b710000
+
 Unvetted record:
   Status     : not reviewed
   Timestamp  : 2020-09-28 14:20:14 +0000 UTC
@@ -54,21 +56,25 @@ Unvetted record:
 
 ## Update an unvetted record
 
-Files can be updated using the arguments:
-- `add:[filepath]`
-- `del:[filename]`
+Metadata can be updated using the arguments:  
+`'appendmetadata[ID]:[metadataJSON]'`  
+`'overwritemetadata[ID]:[metadataJSON]'`  
 
-Metadata can be updated using the arguments:
-- `'appendmetadata[ID]:[metadataJSON]'`
-- `'overwritemetadata[ID]:[metadataJSON]'`
+Files can be updated using the arguments:  
+`add:[filepath]`  
+`del:[filename]`  
+
+The token is specified using the argument:  
+`token:[token]`
 
 Metadata provided using the `overwritemetadata` argument does not have to
-already exist. The token argument should be prefixed with `token:`.
+already exist.
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvetted \
   'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
-  del:index.md add:~/updated.md token:0e4a82a370228b710000
+  del:index.md add:updated.md token:0e4a82a370228b710000
+
 Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Files add         : 00: 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7 b text/plain; charset=utf-8
   Files delete      : a
@@ -86,7 +92,8 @@ statuses:
 Note `token:` is not prefixed to the token in this command.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus publish 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4               
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus publish 0e4a82a370228b710000
+
 Set record status:
   Status   : public
 ```
@@ -95,6 +102,7 @@ Set record status:
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+
 Vetted record:
   Status     : public
   Timestamp  : 2017-12-14 17:06:21 +0000 UTC
@@ -113,6 +121,7 @@ Vetted record:
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+
 Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Files add         : 00: 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7 b text/plain; charset=utf-8
   Files delete      : a
@@ -126,6 +135,7 @@ Censor a record (and zap metadata stream 12):
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus censor 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f 'overwritemetadata12:"zap"'
+
 Set record status:
   Status   : censored
 ```
@@ -134,6 +144,7 @@ Set record status:
 
 ```
 politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory 1 1
+
 Vetted record:
   Status     : public
   Timestamp  : 2017-12-14 17:06:21 +0000 UTC

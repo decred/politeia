@@ -41,9 +41,14 @@ var (
 
 // hookNewRecord is the payload for the new record hooks.
 type hookNewRecord struct {
-	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-	Metadata       []backend.MetadataStream `json:"metadata"`
-	Files          []backend.File           `json:"files"`
+	Metadata []backend.MetadataStream `json:"metadata"`
+	Files    []backend.File           `json:"files"`
+
+	// RecordMetadata will only be present on the post new record hook.
+	// This is because the record metadata requires the creation of a
+	// trillian tree and the pre new record hook should execute before
+	// any politeiad state is changed in case of validation errors.
+	RecordMetadata *backend.RecordMetadata `json:"recordmetadata"`
 }
 
 func encodeHookNewRecord(hnr hookNewRecord) ([]byte, error) {
@@ -83,6 +88,29 @@ func decodeHookEditRecord(payload []byte) (*hookEditRecord, error) {
 		return nil, err
 	}
 	return &her, nil
+}
+
+// hookEditMetadata is the payload for the edit metadata hooks.
+type hookEditMetadata struct {
+	// Current record
+	Current backend.Record `json:"record"`
+
+	// Updated fields
+	MDAppend    []backend.MetadataStream `json:"mdappend"`
+	MDOverwrite []backend.MetadataStream `json:"mdoverwrite"`
+}
+
+func encodeHookEditMetadata(hem hookEditMetadata) ([]byte, error) {
+	return json.Marshal(hem)
+}
+
+func decodeHookEditMetadata(payload []byte) (*hookEditMetadata, error) {
+	var hem hookEditMetadata
+	err := json.Unmarshal(payload, &hem)
+	if err != nil {
+		return nil, err
+	}
+	return &hem, nil
 }
 
 // hookSetRecordStatus is the payload for the set record status hooks.

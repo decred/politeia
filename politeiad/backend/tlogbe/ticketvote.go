@@ -58,7 +58,9 @@ var (
 )
 
 // TODO holding the lock before verifying the token can allow the mutexes to
-// be spammed. Create an infinite amount of them with invalid tokens.
+// be spammed. Create an infinite amount of them with invalid tokens. The fix
+// is to add an exists() method onto the tlogClient and have the mutexes
+// function ensure a token is valid before holding the lock on it.
 
 // ticketVotePlugin satisfies the pluginClient interface.
 type ticketVotePlugin struct {

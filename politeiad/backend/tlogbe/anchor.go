@@ -7,6 +7,7 @@ package tlogbe
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -104,6 +105,12 @@ func (t *tlog) anchorSave(a anchor) error {
 
 	return nil
 }
+
+var (
+	// errAnchorNotFound is emitted when a anchor is not found when
+	// requesting the anchor record from a tree.
+	errAnchorNotFound = errors.New("anchor not found")
+)
 
 // anchorLatest returns the most recent anchor for the provided tree. A
 // errAnchorNotFound is returned if no anchor is found for the provided tree.

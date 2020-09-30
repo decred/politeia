@@ -25,17 +25,13 @@ type plugin struct {
 	Settings []pluginSetting // Settings
 }
 
-func convertPluginSettingFromPD(ps pd.PluginSetting) pluginSetting {
-	return pluginSetting{
-		Key:   ps.Key,
-		Value: ps.Value,
-	}
-}
-
 func convertPluginFromPD(p pd.Plugin) plugin {
 	ps := make([]pluginSetting, 0, len(p.Settings))
 	for _, v := range p.Settings {
-		ps = append(ps, convertPluginSettingFromPD(v))
+		ps = append(ps, pluginSetting{
+			Key:   v.Key,
+			Value: v.Value,
+		})
 	}
 	return plugin{
 		ID:       p.ID,

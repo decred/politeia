@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -74,10 +75,6 @@ var (
 	// errTreeIsFrozen is emitted when a frozen tree is attempted to be
 	// altered.
 	errTreeIsFrozen = errors.New("tree is frozen")
-
-	// errAnchorNotFound is emitted when a anchor is not found in a
-	// tree.
-	errAnchorNotFound = errors.New("anchor not found")
 )
 
 // We do not unwind.
@@ -98,14 +95,27 @@ type tlog struct {
 
 // recordIndex contains the merkle leaf hashes of all the record content for a
 // specific record version and iteration. The record index can be used to
-// lookup the trillian log leaves for the record content. The ExtraData field
-// of each log leaf contains the key-value store key for the record content
-// data blob.
+// lookup the trillian log leaves for the record content and the log leaves can
+// be used to lookup the kv store blobs.
 //
-// Appending the record index leaf to the trillian tree is the last operation
-// that occurs when updating a record, so if a record index leaf exists then
-// the record update is considered valid and you can be sure that the data
-// blobs were successfully saved to the key-value store.
+// A record is updated in three steps:
+//
+// 1. Record content blobs are saved to the kv store.
+//
+// 2. The kv store keys are stuffed into the LogLeaf.ExtraData field and the
+//    log leaves are appended onto the trillian tree.
+//
+// 3. If there failures in steps 1 or 2 for any of the blobs then the update
+//    will exit without completing. No unwinding is performed. Blobs will be
+//    left in the kv store as orphaned blobs. The trillian tree is append only
+//    so once a leaf is appended, it is there permanently. If steps 1 and 2 are
+//    successful then a recordIndex will be created, saved to the kv store, and
+//    appended onto the trillian tree.
+//
+// Appending a recordIndex onto the trillian tree is the last operation that
+// occurs during a record update. If a recordIndex exists in the tree then the
+// update is considered successful. Any record content leaves that are not part
+// of a recordIndex are considered to be orphaned and can be disregarded.
 type recordIndex struct {
 	// Version represents the version of the record. The version is
 	// only incremented when the record files are updated.
@@ -127,6 +137,11 @@ type recordIndex struct {
 	RecordMetadata []byte            `json:"recordmetadata"`
 	Metadata       map[uint64][]byte `json:"metadata"` // [metadataID]merkle
 	Files          map[string][]byte `json:"files"`    // [filename]merkle
+}
+
+// TODO add comment explaining what a freeze record is
+type freezeRecord struct {
+	TreeID int64 `json:"treeid,omitempty"`
 }
 
 func treeIDFromToken(token []byte) int64 {
@@ -421,10 +436,6 @@ func (t *tlog) treeExists(treeID int64) bool {
 	return false
 }
 
-type freezeRecord struct {
-	TreeID int64 `json:"treeid,omitempty"`
-}
-
 // treeFreeze updates the status of a record and freezes the trillian tree as a
 // result of a record status change. Once a freeze record has been appended
 // onto the tree the tlog backend considers the tree to be frozen. The only
@@ -442,13 +453,8 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Prepare kv store blobs for metadata
-	args := recordBlobsPrepareArgs{
-		encryptionKey: t.encryptionKey,
-		leaves:        leavesAll,
-		recordMD:      rm,
-		metadata:      metadata,
-	}
-	rbpr, err := recordBlobsPrepare(args)
+	rbpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
+		[]backend.File{}, t.encryptionKey)
 	if err != nil {
 		return err
 	}
@@ -660,10 +666,10 @@ func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 	if err != nil {
 		return err
 	}
-	prefixedKey := []byte(keyPrefixRecordIndex + keys[0])
-	queued, _, err := t.trillian.leavesAppend(treeID, []*trillian.LogLeaf{
-		logLeafNew(h, prefixedKey),
-	})
+	leaves := []*trillian.LogLeaf{
+		logLeafNew(h, []byte(keyPrefixRecordIndex+keys[0])),
+	}
+	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if len(queued) != 1 {
 		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
 			len(queued))
@@ -769,6 +775,12 @@ func (t *tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) 
 		indexes = append(indexes, *ri)
 	}
 
+	// Sort indexes by iteration, smallest to largets. The leaves
+	// ordering was not preserved in the returned blobs map.
+	sort.SliceStable(indexes, func(i, j int) bool {
+		return indexes[i].Iteration < indexes[j].Iteration
+	})
+
 	// Sanity check. Index iterations should start with 1 and be
 	// sequential. Index versions should start with 1 and also be
 	// sequential, but duplicate versions can exist as long as the
@@ -799,27 +811,36 @@ type recordHashes struct {
 	files          map[string]string // [hash]filename
 }
 
-type recordBlobsPrepareArgs struct {
-	encryptionKey *encryptionKey
-	leaves        []*trillian.LogLeaf
-	recordMD      backend.RecordMetadata
-	metadata      []backend.MetadataStream
-	files         []backend.File
-}
-
 type recordBlobsPrepareReply struct {
-	recordIndex  recordIndex
+	// recordIndex is the index for the record content. It is created
+	// during the blobs prepare step so that it can be populated with
+	// the merkle leaf hashes of duplicate data, i.e. data that remains
+	// unchanged between two versions of a record. It will be fully
+	// populated once the unique blobs haves been saved to the kv store
+	// and appended onto the trillian tree.
+	recordIndex recordIndex
+
+	// recordHashes contains a mapping of the record content hashes to
+	// the record content type. This is used to populate the record
+	// index once the leaves have been appended onto the trillian tree.
 	recordHashes recordHashes
 
-	// blobs and hashes MUST share the same ordering
+	// blobs contains the blobified record content that needs to be
+	// saved to the kv store. Hashes contains the hashes of the record
+	// content prior to being blobified.
+	//
+	// blobs and hashes MUST share the same ordering.
 	blobs  [][]byte
 	hashes [][]byte
 }
 
+// recordBlobsPrepare prepares the provided record content to be saved to
+// the blob kv store and appended onto a trillian tree.
+//
 // TODO test this function
-func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, error) {
-	// Ensure tree is not frozen
-	if treeIsFrozen(args.leaves) {
+func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File, encryptionKey *encryptionKey) (*recordBlobsPrepareReply, error) {
+	// Verify tree state
+	if treeIsFrozen(leavesAll) {
 		return nil, errTreeIsFrozen
 	}
 
@@ -832,15 +853,15 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 
 	// Compute record content hashes
 	rhashes := recordHashes{
-		metadata: make(map[string]uint64, len(args.metadata)),
-		files:    make(map[string]string, len(args.files)),
+		metadata: make(map[string]uint64, len(metadata)),
+		files:    make(map[string]string, len(files)),
 	}
-	b, err := json.Marshal(args.recordMD)
+	b, err := json.Marshal(recordMD)
 	if err != nil {
 		return nil, err
 	}
 	rhashes.recordMetadata = hex.EncodeToString(util.Digest(b))
-	for _, v := range args.metadata {
+	for _, v := range metadata {
 		b, err := json.Marshal(v)
 		if err != nil {
 			return nil, err
@@ -848,7 +869,7 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 		h := hex.EncodeToString(util.Digest(b))
 		rhashes.metadata[h] = v.ID
 	}
-	for _, v := range args.files {
+	for _, v := range files {
 		b, err := json.Marshal(v)
 		if err != nil {
 			return nil, err
@@ -860,17 +881,17 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 	// Compare leaf data to record content hashes to find duplicates
 	var (
 		// Dups tracks duplicates so we know which blobs should be
-		// skipped when saving the blob to the store.
+		// skipped when blobifying record content.
 		dups = make(map[string]struct{}, 64)
 
 		// Any duplicates that are found are added to the record index
 		// since we already have the leaf data for them.
 		index = recordIndex{
-			Metadata: make(map[uint64][]byte, len(args.metadata)),
-			Files:    make(map[string][]byte, len(args.files)),
+			Metadata: make(map[uint64][]byte, len(metadata)),
+			Files:    make(map[string][]byte, len(files)),
 		}
 	)
-	for _, v := range args.leaves {
+	for _, v := range leavesAll {
 		h := hex.EncodeToString(v.LeafValue)
 
 		// Check record metadata
@@ -900,10 +921,12 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 	// Prepare kv store blobs. The hashes of the record content are
 	// also aggregated and will be used to create the log leaves that
 	// are appended to the trillian tree.
-	l := len(args.metadata) + len(args.files) + 1
+	l := len(metadata) + len(files) + 1
 	hashes := make([][]byte, 0, l)
 	blobs := make([][]byte, 0, l)
-	be, err := convertBlobEntryFromRecordMetadata(args.recordMD)
+
+	// Prepare record metadata blob
+	be, err := convertBlobEntryFromRecordMetadata(recordMD)
 	if err != nil {
 		return nil, err
 	}
@@ -922,7 +945,8 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 		blobs = append(blobs, b)
 	}
 
-	for _, v := range args.metadata {
+	// Prepare metadata blobs
+	for _, v := range metadata {
 		be, err := convertBlobEntryFromMetadataStream(v)
 		if err != nil {
 			return nil, err
@@ -943,7 +967,8 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 		}
 	}
 
-	for _, v := range args.files {
+	// Prepare file blobs
+	for _, v := range files {
 		be, err := convertBlobEntryFromFile(v)
 		if err != nil {
 			return nil, err
@@ -957,8 +982,8 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 			return nil, err
 		}
 		// Encypt file blobs if encryption key has been set
-		if args.encryptionKey != nil {
-			b, err = args.encryptionKey.encrypt(0, b)
+		if encryptionKey != nil {
+			b, err = encryptionKey.encrypt(0, b)
 			if err != nil {
 				return nil, err
 			}
@@ -979,7 +1004,12 @@ func recordBlobsPrepare(args recordBlobsPrepareArgs) (*recordBlobsPrepareReply, 
 	}, nil
 }
 
+// recordBlobsSave saves the provided blobs to the kv store, appends a leaf
+// to the trillian tree for each blob, then updates the record index with the
+// trillian leaf information and returns it.
 func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*recordIndex, error) {
+	log.Tracef("recordBlobsSave: %v", treeID)
+
 	var (
 		index   = rbpr.recordIndex
 		rhashes = rbpr.recordHashes
@@ -1058,11 +1088,14 @@ func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 	return &index, nil
 }
 
-// We do not unwind.
+// recordSave saves the provided record to tlog, creating a new version of the
+// record. Once the record contents have been successfully saved to tlog, a
+// recordIndex is created for this version of the record and saved to tlog as
+// well.
 func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("tlog recordSave: %v", treeID)
 
-	// Ensure tree exists
+	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
 	}
@@ -1073,26 +1106,69 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
 
-	// Ensure tree is not frozen
+	// Verify tree state
 	if treeIsFrozen(leavesAll) {
 		return errTreeIsFrozen
 	}
 
-	// Prepare kv store blobs
-	args := recordBlobsPrepareArgs{
-		encryptionKey: t.encryptionKey,
-		leaves:        leavesAll,
-		recordMD:      rm,
-		metadata:      metadata,
-		files:         files,
+	// Get the existing record index
+	currIdx, err := t.recordIndexLatest(leavesAll)
+	if err == errRecordNotFound {
+		// No record versions exist yet. This is ok.
+		currIdx = &recordIndex{
+			Metadata: make(map[uint64][]byte),
+			Files:    make(map[string][]byte),
+		}
+	} else if err != nil {
+		return fmt.Errorf("recordIndexLatest: %v", err)
 	}
-	rbpr, err := recordBlobsPrepare(args)
+
+	// Prepare kv store blobs
+	rbpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
+		files, t.encryptionKey)
 	if err != nil {
 		return err
 	}
 
-	// Ensure file changes are being made
-	if len(rbpr.recordIndex.Files) == len(files) {
+	// Verify file changes are being made.
+	var fileChanges bool
+	for _, v := range files {
+		// Duplicate blobs have already been added to the new record
+		// index by the recordBlobsPrepare function. If a file is in the
+		// new record index it means that the file has existed in one of
+		// the previous versions of the record.
+		newMerkle, ok := rbpr.recordIndex.Files[v.Name]
+		if !ok {
+			// File does not exist in the index. It is new.
+			fileChanges = true
+			break
+		}
+
+		// We now know the file has existed in a previous version of the
+		// record, but it may not have be the most recent version. If the
+		// file is not part of the current record index then it means
+		// there are file changes between the current version and new
+		// version.
+		currMerkle, ok := currIdx.Files[v.Name]
+		if !ok {
+			// File is not part of the current version.
+			fileChanges = true
+			break
+		}
+
+		// We now know that the new file has existed in some previous
+		// version of the record and the there is a file in the current
+		// version of the record that has the same filename as the new
+		// file. Check if the merkles match. If the merkles are different
+		// then it means the files are different, they just use the same
+		// filename.
+		if !bytes.Equal(newMerkle, currMerkle) {
+			// Files share the same name but have different content.
+			fileChanges = true
+			break
+		}
+	}
+	if !fileChanges {
 		return errNoFileChanges
 	}
 
@@ -1102,28 +1178,18 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return fmt.Errorf("blobsSave: %v", err)
 	}
 
-	// Get the existing record index and use it to bump the version and
-	// iteration of the new record index.
-	oldIdx, err := t.recordIndexLatest(leavesAll)
-	if err == errRecordNotFound {
-		// No record versions exist yet. This is fine. The version and
-		// iteration will be incremented to 1.
-		oldIdx = &recordIndex{}
-	} else if err != nil {
-		return fmt.Errorf("recordIndexLatest: %v", err)
-	}
-	idx.Version = oldIdx.Version + 1
-	idx.Iteration = oldIdx.Iteration + 1
+	// Bump the index version and iteration
+	idx.Version = currIdx.Version + 1
+	idx.Iteration = currIdx.Iteration + 1
 
-	// Sanity check. The record index should be fully populated at this
-	// point.
+	// Sanity checks
 	switch {
-	case idx.Version != oldIdx.Version+1:
+	case idx.Version != currIdx.Version+1:
 		return fmt.Errorf("invalid index version: got %v, want %v",
-			idx.Version, oldIdx.Version+1)
-	case idx.Iteration != oldIdx.Iteration+1:
+			idx.Version, currIdx.Version+1)
+	case idx.Iteration != currIdx.Iteration+1:
 		return fmt.Errorf("invalid index iteration: got %v, want %v",
-			idx.Iteration, oldIdx.Iteration+1)
+			idx.Iteration, currIdx.Iteration+1)
 	case idx.RecordMetadata == nil:
 		return fmt.Errorf("invalid index record metadata")
 	case len(idx.Metadata) != len(metadata):
@@ -1146,7 +1212,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	log.Tracef("tlog recordMetadataUpdate: %v", treeID)
 
-	// Ensure tree exists
+	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
 	}
@@ -1157,24 +1223,19 @@ func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, met
 		return fmt.Errorf("leavesAll: %v", err)
 	}
 
-	// Ensure tree is not frozen
+	// Verify tree state
 	if treeIsFrozen(leavesAll) {
 		return errTreeIsFrozen
 	}
 
 	// Prepare kv store blobs
-	args := recordBlobsPrepareArgs{
-		encryptionKey: t.encryptionKey,
-		leaves:        leavesAll,
-		recordMD:      rm,
-		metadata:      metadata,
-	}
-	bpr, err := recordBlobsPrepare(args)
+	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
+		[]backend.File{}, t.encryptionKey)
 	if err != nil {
 		return err
 	}
 
-	// Ensure metadata has been changed
+	// Verify changes are being made
 	if len(bpr.blobs) == 0 {
 		return errNoMetadataChanges
 	}
@@ -1231,7 +1292,7 @@ func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, met
 func (t *tlog) recordDel(treeID int64) error {
 	log.Tracef("tlog recordDel: %v", treeID)
 
-	// Ensure tree exists
+	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
 	}
@@ -1287,7 +1348,7 @@ func (t *tlog) recordDel(treeID int64) error {
 func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	log.Tracef("tlog record: %v %v", treeID, version)
 
-	// Ensure tree exists
+	// Verify tree exists
 	if !t.treeExists(treeID) {
 		return nil, errRecordNotFound
 	}
@@ -1552,7 +1613,7 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 	log.Tracef("tlog blobsDel: %v", treeID)
 
-	// Ensure tree exists. We allow blobs to be deleted from both
+	// Verify tree exists. We allow blobs to be deleted from both
 	// frozen and non frozen trees.
 	if !t.treeExists(treeID) {
 		return errRecordNotFound
