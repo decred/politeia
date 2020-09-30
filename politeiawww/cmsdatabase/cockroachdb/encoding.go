@@ -269,6 +269,7 @@ func convertMatchingLineItemToInvoices(matching []MatchingLineItems) []database.
 			Expenses:       vv.Expenses,
 			ProposalURL:    vv.ProposalURL,
 			ContractorRate: vv.SubRate,
+			SubUserID:      vv.SubUser,
 		}
 		inv := database.Invoice{
 			PublicKey:      vv.PublicKey,
