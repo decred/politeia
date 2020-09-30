@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -121,7 +122,7 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) (*uuid.UUID, error) {
 	}
 	err := tx.Find(&kv).Error
 	if err != nil {
-		if err != gorm.ErrRecordNotFound {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("find paywall index: %v", err)
 		}
 	} else {
@@ -193,7 +194,7 @@ func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 		Find(&u).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = user.ErrUserNotFound
 		}
 		return nil, err
@@ -227,7 +228,7 @@ func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 		Find(&u).
 		Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = user.ErrUserNotFound
 		}
 		return nil, err
@@ -263,7 +264,7 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
           WHERE identities.public_key = ?`
 	err := c.userDB.Raw(q, pubKey).Scan(&u).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = user.ErrUserNotFound
 		}
 		return nil, err
@@ -494,7 +495,7 @@ func (c *cockroachdb) SessionGetByID(sid string) (*user.Session, error) {
 	}
 	err := c.userDB.Find(&s).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = user.ErrSessionNotFound
 		}
 		return nil, err
@@ -788,7 +789,7 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	}
 	err := tx.Find(&kv).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			b := make([]byte, 8)
 			binary.LittleEndian.PutUint32(b, databaseVersion)
 			kv.Value = b

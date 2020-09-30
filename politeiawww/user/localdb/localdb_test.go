@@ -6,6 +6,7 @@ package localdb
 
 import (
 	"encoding/base32"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -125,7 +126,7 @@ func TestSessionGetByID(t *testing.T) {
 
 	// Get session that does not exist
 	_, err = db.SessionGetByID(uuid.New().String())
-	if err != user.ErrSessionNotFound {
+	if !errors.Is(err, user.ErrSessionNotFound) {
 		t.Errorf("got error '%v', want '%v'", err, user.ErrSessionNotFound)
 	}
 }
@@ -166,7 +167,7 @@ func TestSessionDeleteByID(t *testing.T) {
 
 	// Verify session was deleted
 	_, err = db.SessionGetByID(s1.ID)
-	if err != user.ErrSessionNotFound {
+	if !errors.Is(err, user.ErrSessionNotFound) {
 		t.Errorf("error got '%v', want '%v'", err, user.ErrSessionNotFound)
 	}
 

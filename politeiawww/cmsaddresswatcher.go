@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -144,7 +144,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 	for _, invoice := range approvedInvoices {
 		_, err := p.cmsDB.PaymentsByAddress(invoice.PaymentAddress)
 		if err != nil {
-			if err == database.ErrInvoiceNotFound {
+			if errors.Is(err, database.ErrInvoiceNotFound) {
 				payout, err := calculatePayout(invoice)
 				if err != nil {
 					return err
@@ -377,7 +377,7 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 func (p *politeiawww) invoiceStatusPaid(token string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
-		if err == cmsdatabase.ErrInvoiceNotFound {
+		if errors.Is(err, database.ErrInvoiceNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}

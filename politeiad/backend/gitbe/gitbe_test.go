@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -411,7 +412,7 @@ func TestFilePathVersion(t *testing.T) {
 
 	t.Logf("dir: %v", dir)
 	d, err := _joinLatest(dir)
-	if err != backend.ErrRecordNotFound {
+	if !errors.Is(err, backend.ErrRecordNotFound) {
 		t.Fatal(err)
 	}
 	if d != "" {

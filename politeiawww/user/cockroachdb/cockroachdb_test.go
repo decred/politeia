@@ -8,6 +8,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"testing"
@@ -207,7 +208,8 @@ func TestUserNew(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err.Error() != fmt.Errorf("create user: %v", expectedError).Error() {
+	wantErr := fmt.Errorf("create user: %v", expectedError)
+	if err.Error() != wantErr.Error() {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -312,7 +314,7 @@ func TestUserGetByUsername(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != expectedError {
+	if !errors.Is(err, expectedError) {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -379,7 +381,7 @@ func TestUserGetById(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != expectedError {
+	if !errors.Is(err, expectedError) {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -450,7 +452,7 @@ func TestUserGetByPubKey(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != expectedError {
+	if !errors.Is(err, expectedError) {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -524,7 +526,7 @@ func TestUsersGetByPubKey(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != expectedError {
+	if !errors.Is(err, expectedError) {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -597,7 +599,7 @@ func TestAllUsers(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != expectedError {
+	if !errors.Is(err, expectedError) {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -752,7 +754,7 @@ func TestSessionGetByID(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != expectedError {
+	if !errors.Is(err, expectedError) {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
 	}
 
@@ -821,7 +823,7 @@ func TestSessionDeleteByID(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != errDelete {
+	if !errors.Is(err, errDelete) {
 		t.Errorf("expecting error %s but got %s", errDelete, err)
 	}
 
@@ -889,7 +891,7 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 	}
 
 	// Make sure we got the expected error
-	if err != errDelete {
+	if !errors.Is(err, errDelete) {
 		t.Errorf("expecting error %s but got %s", errDelete, err)
 	}
 

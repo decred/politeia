@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -89,8 +90,8 @@ func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Re
 
 	rvr, err := p.processResendVerification(&rv)
 	if err != nil {
-		usrErr, ok := err.(www.UserError)
-		if ok {
+		var usrErr www.UserError
+		if errors.As(err, &usrErr) {
 			switch usrErr.ErrorCode {
 			case www.ErrorStatusUserNotFound, www.ErrorStatusEmailAlreadyVerified,
 				www.ErrorStatusVerificationTokenUnexpired:
@@ -259,7 +260,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 
 	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	if err != nil && !errors.Is(err, errSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleUserDetails: getSessionUser %v", err)
 		return
@@ -506,7 +507,7 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 
 	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	if err != nil && !errors.Is(err, errSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleUsers: getSessionUser %v", err)
 		return

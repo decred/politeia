@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -72,7 +73,7 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 
 	// Check if the session cookie already exists
 	c, err := r.Cookie(name)
-	if err == http.ErrNoCookie {
+	if errors.Is(err, http.ErrNoCookie) {
 		log.Debugf("Session cookie not found; returning new session")
 		return session, nil
 	} else if err != nil {

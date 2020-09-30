@@ -881,7 +881,7 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	// Validate vote status
 	dvdr, err := p.decredVoteDetails(token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}

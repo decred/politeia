@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -44,8 +45,8 @@ func errToStr(e error) string {
 		return "nil"
 	}
 
-	userErr, ok := e.(www.UserError)
-	if ok {
+	var userErr www.UserError
+	if errors.As(e, &userErr) {
 		return www.ErrorStatus[userErr.ErrorCode]
 	}
 

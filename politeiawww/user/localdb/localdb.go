@@ -2,6 +2,7 @@ package localdb
 
 import (
 	"encoding/binary"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -78,7 +79,7 @@ func (l *localdb) UserNew(u user.User) error {
 	var lastPaywallIndex uint64
 	b, err := l.userdb.Get([]byte(LastPaywallAddressIndex), nil)
 	if err != nil {
-		if err != leveldb.ErrNotFound {
+		if !errors.Is(err, leveldb.ErrNotFound) {
 			return err
 		}
 	} else {
@@ -119,7 +120,7 @@ func (l *localdb) UserGet(email string) (*user.User, error) {
 	}
 
 	payload, err := l.userdb.Get([]byte(strings.ToLower(email)), nil)
-	if err == leveldb.ErrNotFound {
+	if errors.Is(err, leveldb.ErrNotFound) {
 		return nil, user.ErrUserNotFound
 	} else if err != nil {
 		return nil, err
@@ -466,7 +467,7 @@ func (l *localdb) SessionGetByID(sid string) (*user.Session, error) {
 	}
 
 	payload, err := l.userdb.Get([]byte(sessionPrefix+sid), nil)
-	if err == leveldb.ErrNotFound {
+	if errors.Is(err, leveldb.ErrNotFound) {
 		return nil, user.ErrSessionNotFound
 	} else if err != nil {
 		return nil, err

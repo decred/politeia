@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -96,7 +97,7 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != errSessionNotFound {
+		if !errors.Is(err, errSessionNotFound) {
 			RespondWithError(w, r, 0,
 				"handleInvoiceDetails: getSessionUser %v", err)
 			return
@@ -338,7 +339,7 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != errSessionNotFound {
+		if !errors.Is(err, errSessionNotFound) {
 			RespondWithError(w, r, 0,
 				"handleInvoiceComments: getSessionUser %v", err)
 			return
@@ -703,7 +704,7 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != errSessionNotFound {
+		if !errors.Is(err, errSessionNotFound) {
 			RespondWithError(w, r, 0,
 				"handleDCCComments: getSessionUser %v", err)
 			return

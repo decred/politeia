@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -190,7 +191,7 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 
 	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	if err != nil && !errors.Is(err, errSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleTokenInventory: getSessionUser %v", err)
 		return
@@ -555,7 +556,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
 	id, err := p.getSessionUserID(w, r)
-	if err != nil && err != errSessionNotFound {
+	if err != nil && !errors.Is(err, errSessionNotFound) {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
