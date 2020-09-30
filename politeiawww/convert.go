@@ -944,6 +944,7 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 			Expenses:     v.Expenses,
 			// If subrate is populated, use the existing contractor rate field.
 			ContractorRate: v.SubRate,
+			SubUserID:      v.SubUserID,
 		})
 	}
 	return dl
