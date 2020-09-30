@@ -355,8 +355,9 @@ type Inventory struct {
 	Challenge string `json:"challenge"` // Random challenge
 	// XXX add IncludeMD
 	IncludeFiles bool `json:"includefiles"` // Include files in records
-	// XXX add VettedStart and BranchesStart
+	// XXX add BranchesStart
 	VettedCount   uint `json:"vettedcount"`   // Last N vetted records
+	VettedStart   uint `json:"vettedstart"`   // Index to begin vetted records count
 	BranchesCount uint `json:"branchescount"` // Last N branches (censored, new etc)
 	AllVersions   bool `json:"allversions"`   // Return all versions of the proposals
 }

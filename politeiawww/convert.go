@@ -944,6 +944,7 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 			Expenses:     v.Expenses,
 			// If subrate is populated, use the existing contractor rate field.
 			ContractorRate: v.SubRate,
+			SubUserID:      v.SubUserID,
 		})
 	}
 	return dl
@@ -1070,7 +1071,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Payments = payment
 		default:
 			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
+			log.Errorf("convertRecordToInvoiceDB: invalid "+
 				"metadata stream ID %v token %v",
 				m.ID, p.CensorshipRecord.Token)
 		}
@@ -1240,7 +1241,7 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 					p.Metadata, p.CensorshipRecord.Token, err)
 			}
 
-			dbDCC.Timestamp = mdGeneral.Timestamp
+			dbDCC.TimeSubmitted = mdGeneral.Timestamp
 			dbDCC.PublicKey = mdGeneral.PublicKey
 			dbDCC.UserSignature = mdGeneral.Signature
 
@@ -1256,92 +1257,51 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			for _, s := range sc {
 				dbDCC.Status = s.NewStatus
 				dbDCC.StatusChangeReason = s.Reason
+				dbDCC.TimeReviewed = s.Timestamp
 			}
+		case mdstream.IDDCCSupportOpposition:
+			// Support and Opposition
+			so, err := mdstream.DecodeDCCSupportOpposition([]byte(m.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromRecord: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					p.CensorshipRecord.Token, err, m)
+				continue
+			}
+			supportPubkeys := make([]string, 0, len(so))
+			opposePubkeys := make([]string, 0, len(so))
+			// Tabulate all support and opposition
+			for _, s := range so {
+				if s.Vote == supportString {
+					supportPubkeys = append(supportPubkeys, s.PublicKey)
+				} else if s.Vote == opposeString {
+					opposePubkeys = append(opposePubkeys, s.PublicKey)
+				}
+			}
+			supports := ""
+			for i, support := range supportPubkeys {
+				if i != len(supportPubkeys)-1 {
+					supports += support + ", "
+				} else {
+					supports += support
+				}
+			}
+			dbDCC.SupportUserIDs = supports
+			opposes := ""
+			for i, oppose := range opposePubkeys {
+				if i != len(opposePubkeys)-1 {
+					opposes += oppose + ", "
+				} else {
+					opposes += oppose
+				}
+			}
+			dbDCC.OppositionUserIDs = opposes
+		case cmsplugin.MDStreamVoteBits:
+		case cmsplugin.MDStreamVoteSnapshot:
+			// Voting information available but not currently used in the database
 		default:
 			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
-				"metadata stream ID %v token %v",
-				m.ID, p.CensorshipRecord.Token)
-		}
-	}
-
-	return &dbDCC, nil
-}
-
-func convertCacheToDatabaseDCC(p cache.Record) (*cmsdatabase.DCC, error) {
-	dbDCC := cmsdatabase.DCC{
-		Token:           p.CensorshipRecord.Token,
-		ServerSignature: p.CensorshipRecord.Signature,
-	}
-
-	fs := make([]www.File, 0, len(p.Files))
-	for _, v := range p.Files {
-		f := www.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		}
-		fs = append(fs, f)
-	}
-	dbDCC.Files = fs
-
-	// Decode invoice file
-	for _, v := range p.Files {
-		if v.Name == dccFile {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-
-			var dcc cms.DCCInput
-			err = json.Unmarshal(b, &dcc)
-			if err != nil {
-				return nil, fmt.Errorf("could not decode DCC input data: token '%v': %v",
-					p.CensorshipRecord.Token, err)
-			}
-			dbDCC.Type = dcc.Type
-			dbDCC.NomineeUserID = dcc.NomineeUserID
-			dbDCC.SponsorStatement = dcc.SponsorStatement
-			dbDCC.Domain = dcc.Domain
-			dbDCC.ContractorType = dcc.ContractorType
-		}
-	}
-
-	for _, m := range p.Metadata {
-		switch m.ID {
-		case mdstream.IDRecordStatusChange:
-			// Ignore initial stream change since it's just the automatic change from
-			// unvetted to vetted
-			continue
-		case mdstream.IDDCCGeneral:
-			var mdGeneral mdstream.DCCGeneral
-			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					p.Metadata, p.CensorshipRecord.Token, err)
-			}
-
-			dbDCC.Timestamp = mdGeneral.Timestamp
-			dbDCC.PublicKey = mdGeneral.PublicKey
-			dbDCC.UserSignature = mdGeneral.Signature
-
-		case mdstream.IDDCCStatusChange:
-			sc, err := mdstream.DecodeDCCStatusChange([]byte(m.Payload))
-			if err != nil {
-				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
-					m, p.CensorshipRecord.Token, err)
-			}
-
-			// We don't need all of the status changes.
-			// Just the most recent one.
-			for _, s := range sc {
-				dbDCC.Status = s.NewStatus
-				dbDCC.StatusChangeReason = s.Reason
-			}
-		default:
-			// Log error but proceed
-			log.Errorf("initializeInventory: invalid "+
+			log.Errorf("convertRecordToDCC: invalid "+
 				"metadata stream ID %v token %v",
 				m.ID, p.CensorshipRecord.Token)
 		}
@@ -1360,7 +1320,8 @@ func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	dccRecord.DCC.ContractorType = dbDCC.ContractorType
 	dccRecord.Status = dbDCC.Status
 	dccRecord.StatusChangeReason = dbDCC.StatusChangeReason
-	dccRecord.Timestamp = dbDCC.Timestamp
+	dccRecord.TimeSubmitted = dbDCC.TimeSubmitted
+	dccRecord.TimeReviewed = dbDCC.TimeReviewed
 	dccRecord.CensorshipRecord = www.CensorshipRecord{
 		Token: dbDCC.Token,
 	}
@@ -1368,9 +1329,17 @@ func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	dccRecord.Signature = dbDCC.ServerSignature
 	dccRecord.SponsorUserID = dbDCC.SponsorUserID
 	supportUserIDs := strings.Split(dbDCC.SupportUserIDs, ",")
-	dccRecord.SupportUserIDs = supportUserIDs
+	cleanedSupport := make([]string, 0, len(supportUserIDs))
+	for _, support := range supportUserIDs {
+		cleanedSupport = append(cleanedSupport, strings.TrimSpace(support))
+	}
+	dccRecord.SupportUserIDs = cleanedSupport
 	oppositionUserIDs := strings.Split(dbDCC.OppositionUserIDs, ",")
-	dccRecord.OppositionUserIDs = oppositionUserIDs
+	cleanedOpposed := make([]string, 0, len(oppositionUserIDs))
+	for _, oppose := range oppositionUserIDs {
+		cleanedOpposed = append(cleanedOpposed, strings.TrimSpace(oppose))
+	}
+	dccRecord.OppositionUserIDs = cleanedOpposed
 
 	return dccRecord
 }
@@ -1385,7 +1354,8 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 	dbDCC.ContractorType = dccRecord.DCC.ContractorType
 	dbDCC.Status = dccRecord.Status
 	dbDCC.StatusChangeReason = dccRecord.StatusChangeReason
-	dbDCC.Timestamp = dccRecord.Timestamp
+	dbDCC.TimeSubmitted = dccRecord.TimeSubmitted
+	dbDCC.TimeReviewed = dccRecord.TimeReviewed
 	dbDCC.Token = dccRecord.CensorshipRecord.Token
 	dbDCC.PublicKey = dccRecord.PublicKey
 	dbDCC.ServerSignature = dccRecord.Signature
@@ -1569,6 +1539,7 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 	inv.Input.ContractorLocation = ""
 	inv.Input.ContractorName = ""
 	inv.Input.ContractorRate = 0
+	inv.Input.PaymentAddress = ""
 
 	for i, li := range inv.Input.LineItems {
 		li.Expenses = 0

@@ -217,7 +217,8 @@ func encodeDCC(dbDCC *database.DCC) *DCC {
 		Type:               int(dbDCC.Type),
 		Status:             int(dbDCC.Status),
 		StatusChangeReason: dbDCC.StatusChangeReason,
-		Timestamp:          dbDCC.Timestamp,
+		TimeSubmitted:      dbDCC.TimeSubmitted,
+		TimeReviewed:       dbDCC.TimeReviewed,
 		PublicKey:          dbDCC.PublicKey,
 		UserSignature:      dbDCC.UserSignature,
 		ServerSignature:    dbDCC.ServerSignature,
@@ -239,7 +240,8 @@ func decodeDCC(dcc *DCC) *database.DCC {
 		Type:               cms.DCCTypeT(dcc.Type),
 		Status:             cms.DCCStatusT(dcc.Status),
 		StatusChangeReason: dcc.StatusChangeReason,
-		Timestamp:          dcc.Timestamp,
+		TimeSubmitted:      dcc.TimeSubmitted,
+		TimeReviewed:       dcc.TimeReviewed,
 		PublicKey:          dcc.PublicKey,
 		UserSignature:      dcc.UserSignature,
 		ServerSignature:    dcc.ServerSignature,
@@ -267,6 +269,7 @@ func convertMatchingLineItemToInvoices(matching []MatchingLineItems) []database.
 			Expenses:       vv.Expenses,
 			ProposalURL:    vv.ProposalURL,
 			ContractorRate: vv.SubRate,
+			SubUserID:      vv.SubUser,
 		}
 		inv := database.Invoice{
 			PublicKey:      vv.PublicKey,
