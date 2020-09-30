@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/go-socks/socks"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"

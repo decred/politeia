@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -562,13 +562,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 			}
 
 			// Validate Payment Address
-			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
+			_, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress), p.params)
 			if err != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
-				}
-			}
-			if !addr.IsForNet(activeNetParams.Params) {
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
 				}

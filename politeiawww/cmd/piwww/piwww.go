@@ -16,7 +16,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"

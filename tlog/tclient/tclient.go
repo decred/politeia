@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	dcrtime "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/tlog/api/v1"

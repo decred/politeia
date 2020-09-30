@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"

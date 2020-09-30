@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v3"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/cmsplugin"
@@ -3035,10 +3035,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		// Setup decred plugin settings
 		var voteDurationMin, voteDurationMax string
 		switch anp.Name {
-		case chaincfg.MainNetParams.Name:
+		case chaincfg.MainNetParams().Name:
 			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
 			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
-		case chaincfg.TestNet3Params.Name:
+		case chaincfg.TestNet3Params().Name:
 			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
 			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
 		default:

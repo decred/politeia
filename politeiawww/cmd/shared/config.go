@@ -17,7 +17,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"

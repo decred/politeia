@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/hdkeychain"
+	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -74,7 +74,7 @@ func (u *user) paymentAddress() (string, error) {
 		u.AddressIndex = u.AddressIndex % hdkeychain.HardenedKeyStart
 	}
 
-	return util.DerivePaywallAddress(&chaincfg.TestNet3Params,
+	return util.DerivePaywallAddress(chaincfg.TestNet3Params(),
 		xpub, u.AddressIndex)
 }
 

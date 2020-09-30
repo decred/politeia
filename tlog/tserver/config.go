@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v3"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
