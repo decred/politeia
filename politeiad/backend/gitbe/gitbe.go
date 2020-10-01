@@ -3038,7 +3038,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	// Register all plugins
 	g.plugins = []backend.Plugin{
 		getDecredPlugin(dcrdataHost),
-		getCMSPlugin(anp.Name != chaincfg.MainNetParams.Name),
+		getCMSPlugin(anp.Name != chaincfg.MainNetParams().Name),
 	}
 
 	// Setup cms plugin
@@ -3048,10 +3048,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	// Setup decred plugin
 	var voteDurationMin, voteDurationMax string
 	switch anp.Name {
-	case chaincfg.MainNetParams.Name:
+	case chaincfg.MainNetParams().Name:
 		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
 		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
-	case chaincfg.TestNet3Params.Name:
+	case chaincfg.TestNet3Params().Name:
 		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
 		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
 	default:

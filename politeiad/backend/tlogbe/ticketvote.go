@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/politeia/plugins/dcrdata"
 	"github.com/decred/politeia/plugins/ticketvote"
@@ -808,7 +808,7 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 // from: github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
 func (p *ticketVotePlugin) voteMessageVerify(address, message, signature string) (bool, error) {
 	// Decode the provided address.
-	addr, err := dcrutil.DecodeAddress(address)
+	addr, err := dcrutil.DecodeAddress(address, p.activeNetParams)
 	if err != nil {
 		return false, fmt.Errorf("Could not decode address: %v",
 			err)
@@ -832,7 +832,7 @@ func (p *ticketVotePlugin) voteMessageVerify(address, message, signature string)
 	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
 	wire.WriteVarString(&buf, 0, message)
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := secp256k1.RecoverCompact(sig,
+	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
 		expectedMessageHash)
 	if err != nil {
 		// Mirror Bitcoin Core behavior, which treats error in
@@ -856,7 +856,7 @@ func (p *ticketVotePlugin) voteMessageVerify(address, message, signature string)
 	}
 
 	// Return boolean if addresses match.
-	return a.EncodeAddress() == address, nil
+	return a.Address() == address, nil
 }
 
 func (p *ticketVotePlugin) castVoteSignatureVerify(cv ticketvote.CastVote, addr string) error {

@@ -295,7 +295,6 @@ github.com/decred/dcrdata/txhelpers/v4 v4.0.1 h1:jNPPSP5HzE4cfddj5zIJhrIEus/Tvd2
 github.com/decred/dcrdata/txhelpers/v4 v4.0.1/go.mod h1:cUJbgsIzzI42llHDS0nkPlG49vPJ0cW6IZGbfu5sFrA=
 github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e h1:sNDR7vx6gaA3WD+WoEofTvtdjfwHAiogtjB3kt8iFco=
 github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e/go.mod h1:IyZnyBE3E6RBFsEjwEs21FrO/UsrLrL15hUnpZZQxpU=
-github.com/decred/dcrtime v0.0.0-20200912200806-b1e4dbc46be9 h1:/S6B5sB2MxhtYcy+bdXOqja9/tSeXX7n7OrtbaI4pjk=
 github.com/decred/dcrtime/api/v2 v2.0.0-20200912200806-b1e4dbc46be9 h1:LtZvUp0JwILQNi+fJbutWGm4v2Ia+Vje83pO3D8c9VA=
 github.com/decred/dcrtime/api/v2 v2.0.0-20200912200806-b1e4dbc46be9/go.mod h1:JdIX208vnNj4TdU6hDRaN+ccxmxp1I1R6sWGZNK1BAQ=
 github.com/decred/dcrwallet v1.2.2 h1:NdI13wxP+OsWKXPqjWQQ9VSGAl4VoSLBfAunzFreeJg=

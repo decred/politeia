@@ -27,7 +27,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/politeiawww/user"
@@ -372,18 +371,6 @@ func cmdStubUsers() error {
 				if err != nil {
 					return err
 				}
-			case proposalMDFilename:
-				b, err := ioutil.ReadFile(path)
-				if err != nil {
-					return err
-				}
-
-				var md mdstream.ProposalGeneralV2
-				err = json.Unmarshal(b, &md)
-				if err != nil {
-					return fmt.Errorf("proposal md: %v", err)
-				}
-				pubkeys[md.PublicKey] = struct{}{}
 			}
 
 			return nil
