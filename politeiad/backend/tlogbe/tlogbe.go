@@ -142,7 +142,7 @@ func (t *tlogBackend) prefixAdd(fullToken []byte) {
 	prefix := tokenPrefix(fullToken)
 	t.prefixes[prefix] = fullToken
 
-	log.Debugf("Token prefix cached: %v", prefix)
+	log.Debugf("Add token prefix: %v", prefix)
 }
 
 func (t *tlogBackend) vettedTreeID(token []byte) (int64, bool) {
@@ -159,7 +159,7 @@ func (t *tlogBackend) vettedTreeIDAdd(token string, treeID int64) {
 
 	t.vettedTreeIDs[token] = treeID
 
-	log.Debugf("Vetted tree ID cached: %v %v", token, treeID)
+	log.Debugf("Add vetted tree ID: %v %v", token, treeID)
 }
 
 // vettedTreeIDFromToken returns the vetted tree ID that corresponds to the
@@ -240,7 +240,7 @@ func (t *tlogBackend) inventoryAdd(token string, s backend.MDStatusT) {
 
 	t.inventory[s] = append([]string{token}, t.inventory[s]...)
 
-	log.Debugf("Inventory cache added: %v %v", token, backend.MDStatus[s])
+	log.Debugf("Add to inventory: %v %v", token, backend.MDStatus[s])
 }
 
 func (t *tlogBackend) inventoryUpdate(token string, currStatus, newStatus backend.MDStatusT) {
@@ -272,7 +272,7 @@ func (t *tlogBackend) inventoryUpdate(token string, currStatus, newStatus backen
 	// Prepend token to new status
 	t.inventory[newStatus] = append([]string{token}, t.inventory[newStatus]...)
 
-	log.Debugf("Inventory cache updated: %v %v to %v",
+	log.Debugf("Update inventory: %v %v to %v",
 		token, backend.MDStatus[currStatus], backend.MDStatus[newStatus])
 }
 
@@ -877,7 +877,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
-	err = t.unvetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+	err = t.unvetted.recordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
 		if err == errNoMetadataChanges {
 			return backend.ErrNoChanges
@@ -963,7 +963,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
-	err = t.vetted.recordMetadataUpdate(treeID, r.RecordMetadata, metadata)
+	err = t.vetted.recordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
 		if err == errNoMetadataChanges {
 			return backend.ErrNoChanges
@@ -1149,7 +1149,7 @@ func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, me
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
 
-	log.Debugf("Unvetted record %x frozen", token)
+	log.Debugf("Unvetted record frozen %v", token)
 
 	// Delete all record files
 	err = t.unvetted.recordDel(treeID)
@@ -1157,7 +1157,7 @@ func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, me
 		return fmt.Errorf("recordDel %v: %v", treeID, err)
 	}
 
-	log.Debug("Unvetted record %x files deleted", token)
+	log.Debugf("Unvetted record files deleted %v", token)
 
 	return nil
 }
@@ -1548,7 +1548,7 @@ func (t *tlogBackend) setup() error {
 	for _, v := range trees {
 		token := tokenFromTreeID(v.TreeId)
 
-		log.Debugf("Building cache: %v %x", v.TreeId, token)
+		log.Debugf("Building memory caches for %x", token)
 
 		// Add tree to prefixes cache
 		t.prefixAdd(token)

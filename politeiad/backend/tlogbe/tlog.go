@@ -75,6 +75,10 @@ var (
 	// errTreeIsFrozen is emitted when a frozen tree is attempted to be
 	// altered.
 	errTreeIsFrozen = errors.New("tree is frozen")
+
+	// errTreeIsNotFrozen is emitted when a tree is expected to be
+	// frozen but is actually not frozen.
+	errTreeIsNotFrozen = errors.New("tree is not frozen")
 )
 
 // We do not unwind.
@@ -126,8 +130,14 @@ type recordIndex struct {
 	// file changes that bump the version as well metadata stream and
 	// record metadata changes that don't bump the version.
 	//
-	// Note this is not the same as the RecordMetadata iteration field,
-	// which does not get incremented on metadata updates.
+	// Note, this field is not the same as the backend RecordMetadata
+	// iteration field, which does not get incremented on metadata
+	// updates.
+	//
+	// TODO maybe it should be the same. The original iteration field
+	// was to track unvetted changes in gitbe since unvetted gitbe
+	// records are not versioned. tlogbe unvetted records are versioned
+	// so the original use for the iteration field isn't needed anymore.
 	Iteration uint32 `json:"iteration"`
 
 	// The following fields contain the merkle leaf hashes of the
@@ -453,19 +463,19 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Prepare kv store blobs for metadata
-	rbpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
+	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
 		[]backend.File{}, t.encryptionKey)
 	if err != nil {
 		return err
 	}
 
 	// Ensure metadata has been changed
-	if len(rbpr.blobs) == 0 {
+	if len(bpr.blobs) == 0 {
 		return errNoMetadataChanges
 	}
 
 	// Save metadata blobs
-	idx, err := t.recordBlobsSave(treeID, *rbpr)
+	idx, err := t.recordBlobsSave(treeID, *bpr)
 	if err != nil {
 		return fmt.Errorf("blobsSave: %v", err)
 	}
@@ -1089,9 +1099,9 @@ func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 }
 
 // recordSave saves the provided record to tlog, creating a new version of the
-// record. Once the record contents have been successfully saved to tlog, a
-// recordIndex is created for this version of the record and saved to tlog as
-// well.
+// record (the record iteration also gets incremented on new versions). Once
+// the record contents have been successfully saved to tlog, a recordIndex is
+// created for this version of the record and saved to tlog as well.
 func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("tlog recordSave: %v", treeID)
 
@@ -1124,7 +1134,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Prepare kv store blobs
-	rbpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
+	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
 		files, t.encryptionKey)
 	if err != nil {
 		return err
@@ -1137,7 +1147,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		// index by the recordBlobsPrepare function. If a file is in the
 		// new record index it means that the file has existed in one of
 		// the previous versions of the record.
-		newMerkle, ok := rbpr.recordIndex.Files[v.Name]
+		newMerkle, ok := bpr.recordIndex.Files[v.Name]
 		if !ok {
 			// File does not exist in the index. It is new.
 			fileChanges = true
@@ -1173,7 +1183,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Save blobs
-	idx, err := t.recordBlobsSave(treeID, *rbpr)
+	idx, err := t.recordBlobsSave(treeID, *bpr)
 	if err != nil {
 		return fmt.Errorf("blobsSave: %v", err)
 	}
@@ -1209,8 +1219,12 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 	return nil
 }
 
-func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	log.Tracef("tlog recordMetadataUpdate: %v", treeID)
+// recordMetadataSave saves the provided metadata to tlog, creating a new
+// iteration of the record while keeping the record version the same. Once the
+// metadata has been successfully saved to tlog, a recordIndex is created for
+// this iteration of the record and saved to tlog as well.
+func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	log.Tracef("tlog recordMetadataSave: %v", treeID)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1235,8 +1249,12 @@ func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, met
 		return err
 	}
 
-	// Verify changes are being made
-	if len(bpr.blobs) == 0 {
+	// Verify changes are being made. The record index returned from
+	// recordBlobsPrepare() will contain duplicate blobs, i.e. metadata
+	// blobs that already existed prior to this update. If the record
+	// index already contains all of the metadata blobs it means that
+	// no metadata changes are being made.
+	if len(metadata) == len(bpr.recordIndex.Metadata) {
 		return errNoMetadataChanges
 	}
 
@@ -1259,13 +1277,12 @@ func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, met
 	// Increment the iteration
 	idx.Iteration = oldIdx.Iteration + 1
 
-	// Sanity check. The record index should be fully populated at this
-	// point.
+	// Sanity check
 	switch {
 	case idx.Version != oldIdx.Version:
 		return fmt.Errorf("invalid index version: got %v, want %v",
 			idx.Version, oldIdx.Version)
-	case idx.Version != oldIdx.Iteration+1:
+	case idx.Iteration != oldIdx.Iteration+1:
 		return fmt.Errorf("invalid index iteration: got %v, want %v",
 			idx.Iteration, oldIdx.Iteration+1)
 	case idx.RecordMetadata == nil:
@@ -1287,8 +1304,10 @@ func (t *tlog) recordMetadataUpdate(treeID int64, rm backend.RecordMetadata, met
 	return nil
 }
 
-// recordDel walks the provided tree and deletes all blobs in the store that
-// correspond to record files. This is done for all versions of the record.
+// recordDel walks the provided tree and deletes all file blobs in the store
+// that correspond to record files. This is done for all versions and all
+// iterations of the record. Record metadata and metadata stream blobs are not
+// deleted.
 func (t *tlog) recordDel(treeID int64) error {
 	log.Tracef("tlog recordDel: %v", treeID)
 
@@ -1305,8 +1324,8 @@ func (t *tlog) recordDel(treeID int64) error {
 
 	// Ensure tree is frozen. Deleting files from the store is only
 	// allowed on frozen trees.
-	if treeIsFrozen(leaves) {
-		return errTreeIsFrozen
+	if !treeIsFrozen(leaves) {
+		return errTreeIsNotFrozen
 	}
 
 	// Retrieve all the record indexes
@@ -1403,16 +1422,12 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
-	if len(blobs) != len(keys) {
-		// One or more blobs were not found
-		missing := make([]string, 0, len(keys))
-		for _, v := range keys {
-			_, ok := blobs[v]
-			if !ok {
-				missing = append(missing, v)
-			}
-		}
-		return nil, fmt.Errorf("blobs not found: %v", missing)
+	if len(keys) != len(blobs) {
+		// One or more blobs were not found. This is allowed since the
+		// blobs for a censored record will not exist, but the record
+		// metadata and metadata streams should still be returned.
+		log.Tracef("Blobs not found %v: want %v, got %v",
+			treeID, len(keys), len(blobs))
 	}
 
 	// Decode blobs
@@ -1506,9 +1521,6 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	case len(metadata) != len(index.Metadata):
 		return nil, fmt.Errorf("invalid number of metadata; got %v, want %v",
 			len(metadata), len(index.Metadata))
-	case len(files) != len(index.Files):
-		return nil, fmt.Errorf("invalid number of files; got %v, want %v",
-			len(files), len(index.Files))
 	}
 
 	return &backend.Record{
@@ -1531,6 +1543,8 @@ func (t *tlog) recordProof(treeID int64, version uint32) {}
 // blobsSave saves the provided blobs to the key-value store then appends them
 // onto the trillian tree. Note, hashes contains the hashes of the data encoded
 // in the blobs. The hashes must share the same ordering as the blobs.
+//
+// This function satisfies the tlogClient interface.
 func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
 	log.Tracef("tlog blobsSave: %v %v %v", treeID, keyPrefix, encrypt)
 
@@ -1609,7 +1623,11 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 	return merkles, nil
 }
 
-// del deletes the blobs that correspond to the provided merkle leaf hashes.
+// del deletes the blobs in the kv store that correspond to the provided merkle
+// leaf hashes. The kv store keys in store in the ExtraData field of the leaves
+// specified by the provided merkle leaf hashes.
+//
+// This function satisfies the tlogClient interface.
 func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 	log.Tracef("tlog blobsDel: %v", treeID)
 
@@ -1661,6 +1679,8 @@ func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 // If a blob does not exist it will not be included in the returned map. It is
 // the responsibility of the caller to check that a blob is returned for each
 // of the provided merkle hashes.
+//
+// This function satisfies the tlogClient interface.
 func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
 	log.Tracef("tlog blobsByMerkle: %v", treeID)
 
@@ -1749,7 +1769,7 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
 //
-// This function satisfies the backendClient interface.
+// This function satisfies the tlogClient interface.
 func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
 	log.Tracef("tlog blobsByKeyPrefix: %v %v", treeID, keyPrefix)
 
@@ -1816,15 +1836,9 @@ func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error
 
 // TODO run fsck episodically
 func (t *tlog) fsck() {
-	/*
-		// Freeze any trees with a freeze record
-		_, err = t.trillian.treeFreeze(treeID)
-		if err != nil {
-			return fmt.Errorf("treeFreeze: %v", err)
-		}
-	*/
-
-	// Failed censor
+	// Set tree status to frozen for any trees with a freeze record.
+	// Failed censor. Ensure all blobs have been deleted from all
+	// record versions of a censored record.
 }
 
 func (t *tlog) close() {

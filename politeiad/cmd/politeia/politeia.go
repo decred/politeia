@@ -342,91 +342,6 @@ func getPluginInventory() error {
 	return nil
 }
 
-func remoteInventory() (*v1.InventoryReply, error) {
-	challenge, err := util.Random(v1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	b, err := json.Marshal(v1.Inventory{
-		Challenge: hex.EncodeToString(challenge),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if *printJson {
-		fmt.Println(string(b))
-	}
-
-	c, err := util.NewClient(verify, *rpccert)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest("POST", *rpchost+v1.InventoryRoute,
-		bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(*rpcuser, *rpcpass)
-	r, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-	if r.StatusCode != http.StatusOK {
-		e, err := getErrorFromResponse(r)
-		if err != nil {
-			return nil, fmt.Errorf("%v", r.Status)
-		}
-		return nil, fmt.Errorf("%v: %v", r.Status, e)
-	}
-
-	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
-
-	var ir v1.InventoryReply
-	err = json.Unmarshal(bodyBytes, &ir)
-	if err != nil {
-		return nil, fmt.Errorf("Could node unmarshal "+
-			"InventoryReply: %v", err)
-	}
-
-	// Fetch remote identity
-	id, err := identity.LoadPublicIdentity(*identityFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	err = util.VerifyChallenge(id, challenge, ir.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ir, nil
-}
-
-func inventory() error {
-	flags := flag.Args()[1:] // Chop off action.
-	if len(flags) < 2 {
-		return fmt.Errorf("vetted and branches counts expected")
-	}
-
-	i, err := remoteInventory()
-	if err != nil {
-		return err
-	}
-
-	if !*printJson {
-		for _, v := range i.Vetted {
-			printRecord("Vetted record", v)
-		}
-		for _, v := range i.Branches {
-			printRecord("Unvetted record", v)
-		}
-	}
-
-	return nil
-}
-
 func getFile(filename string) (*v1.File, *[sha256.Size]byte, error) {
 	var err error
 
@@ -964,29 +879,32 @@ func getUnvetted() error {
 		return err
 	}
 
-	// Verify status
-	if reply.Record.Status == v1.RecordStatusInvalid ||
-		reply.Record.Status == v1.RecordStatusNotFound {
-		// Pretty print record
+	switch reply.Record.Status {
+	case v1.RecordStatusInvalid, v1.RecordStatusNotFound:
 		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
 		fmt.Printf("Record       : %v\n", flags[0])
 		fmt.Printf("  Status     : %v\n", status)
-		return nil
+	case v1.RecordStatusCensored:
+		// Censored records will not contain any file so the verification
+		// is skipped.
+		if !*printJson {
+			printRecord("Unvetted record", reply.Record)
+		}
+	default:
+		// Verify content
+		err = v1.Verify(*id, reply.Record.CensorshipRecord,
+			reply.Record.Files)
+		if err != nil {
+			return err
+		}
+		if !*printJson {
+			printRecord("Unvetted record", reply.Record)
+		}
 	}
 
-	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
-		reply.Record.Files)
-	if err != nil {
-		return err
-	}
-
-	if !*printJson {
-		printRecord("Unvetted record", reply.Record)
-	}
 	return nil
 }
 
@@ -1065,29 +983,32 @@ func getVetted() error {
 		return err
 	}
 
-	// Verify status
-	if reply.Record.Status == v1.RecordStatusInvalid ||
-		reply.Record.Status == v1.RecordStatusNotFound {
-		// Pretty print record
+	switch reply.Record.Status {
+	case v1.RecordStatusInvalid, v1.RecordStatusNotFound:
 		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
-		fmt.Printf("Record     : %v\n", flags[0])
-		fmt.Printf("  Status   : %v\n", status)
-		return nil
+		fmt.Printf("Record       : %v\n", flags[0])
+		fmt.Printf("  Status     : %v\n", status)
+	case v1.RecordStatusCensored:
+		// Censored records will not contain any file so the verification
+		// is skipped.
+		if !*printJson {
+			printRecord("Vetted record", reply.Record)
+		}
+	default:
+		// Verify content
+		err = v1.Verify(*id, reply.Record.CensorshipRecord,
+			reply.Record.Files)
+		if err != nil {
+			return err
+		}
+		if !*printJson {
+			printRecord("Vetted record", reply.Record)
+		}
 	}
 
-	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
-		reply.Record.Files)
-	if err != nil {
-		return err
-	}
-
-	if !*printJson {
-		printRecord("Vetted record", reply.Record)
-	}
 	return nil
 }
 
@@ -1288,8 +1209,6 @@ func _main() error {
 			// TODO case "setvettedstatus":
 			case "getvetted":
 				return getVetted()
-			case "inventory":
-				return inventory()
 			case "plugin":
 				return plugin()
 			case "plugininventory":

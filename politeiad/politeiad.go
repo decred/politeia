@@ -263,7 +263,7 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v newRecord: invalid challenge", remoteAddr(r))
+		log.Infof("%v newRecord: invalid challenge", remoteAddr(r))
 		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
@@ -277,7 +277,7 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 		// Check for content error.
 		var contentErr backend.ContentVerificationError
 		if errors.As(err, &contentErr) {
-			log.Errorf("%v New record content error: %v",
+			log.Infof("%v New record content error: %v",
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
@@ -337,7 +337,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v update %v record: invalid challenge",
+		log.Infof("%v update %v record: invalid challenge",
 			remoteAddr(r), cmd)
 		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
@@ -368,21 +368,21 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	}
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordFound) {
-			log.Errorf("%v update %v record found: %x",
+			log.Infof("%v update %v record found: %x",
 				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
 			return
 		}
 		if errors.Is(err, backend.ErrRecordNotFound) {
-			log.Errorf("%v update %v record not found: %x",
+			log.Infof("%v update %v record not found: %x",
 				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
 			return
 		}
 		if errors.Is(err, backend.ErrNoChanges) {
-			log.Errorf("%v update %v record no changes: %x",
+			log.Infof("%v update %v record no changes: %x",
 				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
@@ -390,7 +390,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		// Check for content error.
 		var contentErr backend.ContentVerificationError
 		if errors.As(err, &contentErr) {
-			log.Errorf("%v update %v record content error: %v",
+			log.Infof("%v update %v record content error: %v",
 				remoteAddr(r), cmd, contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
@@ -462,19 +462,30 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetUnvetted(token, t.Version)
-	if errors.Is(err, backend.ErrRecordNotFound) {
+	switch {
+	case errors.Is(err, backend.ErrRecordNotFound):
+		// Record not found
 		reply.Record.Status = v1.RecordStatusNotFound
-		log.Errorf("Get unvetted record %v: token %v not found",
+		log.Infof("Get unvetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
-	} else if err != nil {
-		// Generic internal error.
+
+	case err != nil:
+		// Generic internal error
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get unvetted record error code %v: %v",
 			remoteAddr(r), errorCode, err)
-
 		p.respondWithServerError(w, errorCode)
 		return
-	} else {
+
+	case bpr.RecordMetadata.Status == backend.MDStatusCensored:
+		// Record has been censored. The default case will verify the
+		// record before sending it off. This will fail for censored
+		// records since the files will not exist, they've been deleted,
+		// so skip the verification step.
+		reply.Record = p.convertBackendRecord(*bpr)
+		log.Infof("Get unvetted record %v: token %v", remoteAddr(r), t.Token)
+
+	default:
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
@@ -486,13 +497,11 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("%v Get unvetted record CORRUPTION "+
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
-
 			p.respondWithServerError(w, errorCode)
 			return
 		}
 
-		log.Infof("Get unvetted record %v: token %v", remoteAddr(r),
-			t.Token)
+		log.Infof("Get unvetted record %v: token %v", remoteAddr(r), t.Token)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -526,19 +535,30 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetVetted(token, t.Version)
-	if errors.Is(err, backend.ErrRecordNotFound) {
+	switch {
+	case errors.Is(err, backend.ErrRecordNotFound):
+		// Record not found
 		reply.Record.Status = v1.RecordStatusNotFound
-		log.Errorf("Get vetted record %v: token %v not found",
+		log.Infof("Get vetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
-	} else if err != nil {
-		// Generic internal error.
+
+	case err != nil:
+		// Generic internal error
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get vetted record error code %v: %v",
 			remoteAddr(r), errorCode, err)
-
 		p.respondWithServerError(w, errorCode)
 		return
-	} else {
+
+	case bpr.RecordMetadata.Status == backend.MDStatusCensored:
+		// Record has been censored. The default case will verify the
+		// record before sending it off. This will fail for censored
+		// records since the files will not exist, they've been deleted,
+		// so skip the verification step.
+		reply.Record = p.convertBackendRecord(*bpr)
+		log.Infof("Get vetted record %v: token %v", remoteAddr(r), t.Token)
+
+	default:
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
@@ -550,12 +570,11 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("%v Get vetted record CORRUPTION "+
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
-
 			p.respondWithServerError(w, errorCode)
 			return
 		}
-		log.Infof("Get vetted record %v: token %v", remoteAddr(r),
-			t.Token)
+
+		log.Infof("Get vetted record %v: token %v", remoteAddr(r), t.Token)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -660,7 +679,7 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
 		if !ok || !p.check(user, pass) {
-			log.Errorf("%v Unauthorized access for: %v",
+			log.Infof("%v Unauthorized access for: %v",
 				remoteAddr(r), user)
 			w.Header().Set("WWW-Authenticate",
 				`Basic realm="Politeiad"`)
@@ -704,7 +723,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check for specific errors
 		if errors.Is(err, backend.ErrRecordNotFound) {
-			log.Errorf("%v updateStatus record not "+
+			log.Infof("%v updateStatus record not "+
 				"found: %x", remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
@@ -712,7 +731,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		var serr backend.StateTransitionError
 		if errors.As(err, &serr) {
-			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
+			log.Infof("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
@@ -777,7 +796,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check for specific errors
 		if errors.Is(err, backend.ErrRecordNotFound) {
-			log.Errorf("%v updateUnvettedStatus record not "+
+			log.Infof("%v updateUnvettedStatus record not "+
 				"found: %x", remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
 				nil)
@@ -785,7 +804,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		var serr backend.StateTransitionError
 		if errors.As(err, &serr) {
-			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
+			log.Infof("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
@@ -850,7 +869,7 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
 		if errors.Is(err, backend.ErrNoChanges) {
-			log.Errorf("%v update vetted metadata no changes: %x",
+			log.Infof("%v update vetted metadata no changes: %x",
 				remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
@@ -858,7 +877,7 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 		// Check for content error.
 		var contentErr backend.ContentVerificationError
 		if errors.As(err, &contentErr) {
-			log.Errorf("%v update vetted metadata content error: %v",
+			log.Infof("%v update vetted metadata content error: %v",
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
@@ -920,14 +939,14 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		// Reply with error if there were no changes
 		if err == backend.ErrNoChanges {
-			log.Errorf("%v update unvetted metadata no changes: %x",
+			log.Infof("%v update unvetted metadata no changes: %x",
 				remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
 		}
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
-			log.Errorf("%v update unvetted metadata content error: %v",
+			log.Infof("%v update unvetted metadata content error: %v",
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)

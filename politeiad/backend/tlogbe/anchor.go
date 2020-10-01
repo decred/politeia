@@ -302,7 +302,7 @@ func (t *tlog) anchor() {
 	var exitErr error // Set on exit if there is an error
 	defer func() {
 		if exitErr != nil {
-			log.Errorf("anchorTrees: %v", exitErr)
+			log.Errorf("anchor %v: %v", t.id, exitErr)
 		}
 	}()
 
