@@ -75,7 +75,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve record "+
 		"<id>\n")
 	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
-		"status <publish|censor> <id> [actionmdid:metadata]...\n")
+		"status <censored|public|archived> <id>"+
+		"[actionmdid:metadata]...\n")
 	fmt.Fprintf(os.Stderr, "  updateunvetted    - Update unvetted record "+
 		"[actionmdid:metadata]... <actionfile:filename>... "+
 		"token:<token>\n")
@@ -86,6 +87,9 @@ func usage() {
 		"token:<token>\n")
 	fmt.Fprintf(os.Stderr, "  updatevettedmd    - Update vetted record "+
 		"metadata [actionmdid:metadata]... token:<token>\n")
+	fmt.Fprintf(os.Stderr, "  setvettedstatus   - Set vetted record "+
+		"status <censored|archived> <id>"+
+		"[actionmdid:metadata]...\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, " metadata<id> is the word metadata followed "+
 		"by digits. Example with 2 metadata records "+
@@ -1130,10 +1134,12 @@ func getVetted() error {
 
 func convertStatus(s string) (v1.RecordStatusT, error) {
 	switch s {
-	case "censor":
+	case "censored":
 		return v1.RecordStatusCensored, nil
-	case "publish":
+	case "public":
 		return v1.RecordStatusPublic, nil
+	case "archived":
+		return v1.RecordStatusArchived, nil
 	}
 
 	return v1.RecordStatusInvalid, fmt.Errorf("invalid status")
@@ -1263,7 +1269,139 @@ func setUnvettedStatus() error {
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
-		fmt.Printf("Set record status:\n")
+		fmt.Printf("Set unvetted record status:\n")
+		fmt.Printf("  Status   : %v\n", status)
+	}
+
+	return nil
+}
+
+func setVettedStatus() error {
+	flags := flag.Args()[1:]
+
+	// Make sure we have the status and the censorship token
+	if len(flags) < 2 {
+		return fmt.Errorf("must at least provide status and " +
+			"censorship token")
+	}
+
+	// Validate status
+	status, err := convertStatus(flags[0])
+	if err != nil {
+		return err
+	}
+
+	// Validate censorship token
+	_, err = util.ConvertStringToken(flags[1])
+	if err != nil {
+		return err
+	}
+
+	// Create command
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	sus := v1.SetVettedStatus{
+		Challenge: hex.EncodeToString(challenge),
+		Status:    status,
+		Token:     flags[1],
+	}
+
+	// Optional metadata updates
+	for _, md := range flags[2:] {
+		switch {
+		case regexAppendMD.MatchString(md):
+			s := regexAppendMD.FindString(md)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			sus.MDAppend = append(sus.MDAppend, v1.MetadataStream{
+				ID:      i,
+				Payload: md[len(s):],
+			})
+
+		case regexOverwriteMD.MatchString(md):
+			s := regexOverwriteMD.FindString(md)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			sus.MDOverwrite = append(sus.MDOverwrite, v1.MetadataStream{
+				ID:      i,
+				Payload: md[len(s):],
+			})
+		default:
+			return fmt.Errorf("invalid metadata action %v", md)
+		}
+	}
+
+	// Convert command object to JSON
+	b, err := json.Marshal(sus)
+	if err != nil {
+		return err
+	}
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	// Make request
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.SetVettedStatusRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	// Verify status code response
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return fmt.Errorf("%v", r.Status)
+		}
+		return fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	// Prepare reply
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+	var reply v1.SetVettedStatusReply
+	err = json.Unmarshal(bodyBytes, &reply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal "+
+			"SetVettedStatusReply: %v", err)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return err
+	}
+
+	// Verify challenge.
+	err = util.VerifyChallenge(id, challenge, reply.Response)
+	if err != nil {
+		return err
+	}
+
+	if !*printJson {
+		// Pretty print record
+		status, ok := v1.RecordStatus[sus.Status]
+		if !ok {
+			status = v1.RecordStatus[v1.RecordStatusInvalid]
+		}
+		fmt.Printf("Set vetted record status:\n")
 		fmt.Printf("  Status   : %v\n", status)
 	}
 
@@ -1323,7 +1461,8 @@ func _main() error {
 				return updateRecord(true)
 			case "updatevettedmd":
 				return updateVettedMetadata()
-			// TODO case "setvettedstatus":
+			case "setvettedstatus":
+				return setVettedStatus()
 			case "getvetted":
 				return getVetted()
 			case "plugin":
