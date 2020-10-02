@@ -17,9 +17,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/decred/politeia/plugins/comments"
 	"github.com/decred/politeia/plugins/pi"
 	"github.com/decred/politeia/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/util"
 )
 
 const (
@@ -104,8 +106,10 @@ func (p *piPlugin) linkedFromLocked(token string) (*linkedFrom, error) {
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
-			// File does't exist
-			return nil, errRecordNotFound
+			// File does't exist. Return an empty linked from list.
+			return &linkedFrom{
+				Tokens: make(map[string]struct{}, 0),
+			}, nil
 		}
 	}
 
@@ -132,11 +136,6 @@ func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
 	// Get existing linked from list
 	lf, err := p.linkedFromLocked(parentToken)
 	if err == errRecordNotFound {
-		// List doesn't exist. Create a new one.
-		lf = &linkedFrom{
-			Tokens: make(map[string]struct{}, 0),
-		}
-	} else if err != nil {
 		return fmt.Errorf("linkedFromLocked %v: %v", parentToken, err)
 	}
 
@@ -185,25 +184,102 @@ func (p *piPlugin) linkedFromDel(parentToken, childToken string) error {
 }
 
 func (p *piPlugin) cmdProposals(payload string) (string, error) {
-	// TODO
+	ps, err := pi.DecodeProposals([]byte(payload))
+	if err != nil {
+		return "", err
+	}
 
-	/*
-		// Just because a cached linked from doesn't exist doesn't
-		// mean the token isn't valid. We need to check if the token
-		// corresponds to a real proposal.
-		proposals := make(map[string]pi.ProposalData, len(ps.Tokens))
-		for _, v := range ps.Tokens {
-			lf, err := p.linkedFrom(v)
-			if err != nil {
-				if err == errRecordNotFound {
-					continue
-				}
-				return "", fmt.Errorf("linkedFrom %v: %v", v, err)
-			}
+	// Setup the returned map with entries for all tokens that
+	// correspond to records.
+	var existsFn func([]byte) bool
+	switch ps.State {
+	case pi.PropStateUnvetted:
+		existsFn = p.backend.UnvettedExists
+	case pi.PropStateVetted:
+		existsFn = p.backend.VettedExists
+	default:
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
 		}
-	*/
+	}
 
-	return "", nil
+	// map[token]ProposalPluginData
+	proposals := make(map[string]pi.ProposalPluginData, len(ps.Tokens))
+	for _, v := range ps.Tokens {
+		token, err := util.ConvertStringToken(v)
+		if err != nil {
+			// Not a valid token
+			continue
+		}
+		ok := existsFn(token)
+		if !ok {
+			// Record doesn't exists
+			continue
+		}
+
+		// Record exists. Include it in the reply.
+		proposals[v] = pi.ProposalPluginData{}
+	}
+
+	// Get linked from list for each proposal
+	for k, v := range proposals {
+		lf, err := p.linkedFrom(k)
+		if err != nil {
+			return "", fmt.Errorf("linkedFrom %v: %v", k, err)
+		}
+
+		// Convert map to a slice
+		linkedFrom := make([]string, 0, len(lf.Tokens))
+		for token := range lf.Tokens {
+			linkedFrom = append(linkedFrom, token)
+		}
+
+		v.LinkedFrom = linkedFrom
+		proposals[k] = v
+	}
+
+	// Get comments count for each proposal
+	for k, v := range proposals {
+		// Prepare plugin command
+		c := comments.Count{
+			State: comments.StateT(ps.State),
+			Token: k,
+		}
+		b, err := comments.EncodeCount(c)
+		if err != nil {
+			return "", err
+		}
+
+		// Send plugin command
+		reply, err := p.backend.Plugin(comments.ID,
+			comments.CmdCount, "", string(b))
+		if err != nil {
+			return "", fmt.Errorf("backend Plugin %v %v: %v",
+				comments.ID, comments.CmdCount, err)
+		}
+
+		// Decode reply
+		cr, err := comments.DecodeCountReply([]byte(reply))
+		if err != nil {
+			return "", err
+		}
+
+		// Update proposal plugin data
+		v.Comments = cr.Count
+		proposals[k] = v
+	}
+
+	// Prepare reply
+	pr := pi.ProposalsReply{
+		Proposals: proposals,
+	}
+	reply, err := pi.EncodeProposalsReply(pr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
 }
 
 func (p *piPlugin) cmdCommentNew(payload string) (string, error) {

@@ -160,8 +160,8 @@ func treeIDFromToken(token []byte) int64 {
 
 func tokenFromTreeID(treeID int64) []byte {
 	b := make([]byte, binary.MaxVarintLen64)
-	// Converting between int64 and uint64 doesn't change the sign bit,
-	// only the way it's interpreted.
+	// Converting between int64 and uint64 doesn't change
+	// the sign bit, only the way it's interpreted.
 	binary.LittleEndian.PutUint64(b, uint64(treeID))
 	return b
 }

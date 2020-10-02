@@ -218,14 +218,17 @@ func (cmd *proposalEditCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Verify proposal censorship record
+	// TODO add this back in. The www verify functions were moved to
+	// the cmswww batchproposals command since piwww no longer uses the
+	// www types. Create a verifyProposal function for the pi api
+	// proposal.
 	/*
-		// TODO
+		// Verify proposal
 		vr, err := client.Version()
 		if err != nil {
 			return err
 		}
-		err = shared.VerifyProposal(per.Proposal, vr.PubKey)
+		err = verifyProposal(per.Proposal, vr.PubKey)
 		if err != nil {
 			return fmt.Errorf("unable to verify proposal %v: %v",
 				per.Proposal.CensorshipRecord.Token, err)
@@ -247,7 +250,7 @@ Arguments:
 
 Flags:
   --vetted   (bool, optional)    Comment on vetted record.
-  --unvetted (bool, optional)    Comment on unvetted reocrd.
+  --unvetted (bool, optional)    Comment on unvetted record.
   --random   (bool, optional)    Generate a random proposal name & files to
                                  submit. If this flag is used then the markdown
                                  file argument is no longer required and any 

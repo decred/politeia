@@ -31,10 +31,10 @@ import (
 
 // TODO use pi policies. Should the policies be defined in the pi plugin
 // or the pi api spec?
-
-// TODO politeiad needs to return the plugin with the error.
 // TODO ensure plugins can't write data using short proposal token.
 // TODO move proposal validation to pi plugin
+// TODO politeiad needs batched calls for retrieving unvetted and vetted
+// records.
 
 const (
 	// MIME types
@@ -54,6 +54,10 @@ var (
 		pi.PropStatusCensored:  struct{}{},
 		pi.PropStatusAbandoned: struct{}{},
 	}
+
+	// errProposalNotFound is emitted when a proposal is not found in
+	// politeiad for a specified token and version.
+	errProposalNotFound = errors.New("proposal not found")
 )
 
 // tokenIsValid returns whether the provided string is a valid politeiad
@@ -710,71 +714,10 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 	return 7776000 // 3 months in seconds
 }
 
-// proposalRecord returns the proposal record for the provided token and
-// version.
-func (p *politeiawww) proposalRecord(state pi.PropStateT, token, version string) (*pi.ProposalRecord, error) {
-	// Get politeiad record
-	var r *pd.Record
-	var err error
-	switch state {
-	case pi.PropStateUnvetted:
-		r, err = p.getUnvetted(token, version)
-		if err != nil {
-			return nil, err
-		}
-	case pi.PropStateVetted:
-		r, err = p.getVetted(token, version)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unknown state %v", state)
-	}
-
-	pr, err := convertProposalRecordFromPD(*r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get proposal plugin data
-	ps := piplugin.Proposals{
-		State:  convertPropStateFromPi(state),
-		Tokens: []string{token},
-	}
-	psr, err := p.piProposals(ps)
-	if err != nil {
-		return nil, err
-	}
-	d, ok := psr.Proposals[token]
-	if !ok {
-		return nil, fmt.Errorf("proposal plugin data not found %v", token)
-	}
-	pr.Comments = d.Comments
-	pr.LinkedFrom = d.LinkedFrom
-
-	// Get user data
-	u, err := p.db.UserGetByPubKey(pr.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-	pr.UserID = u.ID.String()
-	pr.Username = u.Username
-
-	return pr, nil
-}
-
-// proposalRecordLatest returns the latest version of the proposal record for
-// the provided token.
-func (p *politeiawww) proposalRecordLatest(state pi.PropStateT, token string) (*pi.ProposalRecord, error) {
-	return p.proposalRecord(state, token, "")
-}
-
 // proposalRecords returns the ProposalRecord for each of the provided proposal
 // requests. If a token does not correspond to an actual proposal then it will
 // not be included in the returned map.
 //
-// TODO politeiad needs batched calls for retrieving unvetted and vetted
-// records. This call should have an includeFiles option.
 // TODO this presents a challenge because the proposal Metadata still needs to
 // be returned even if the proposal Files are not returned, which means that we
 // will always need to fetch the record from politeiad with the files attached
@@ -802,6 +745,11 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 			return nil, fmt.Errorf("unknown state %v", state)
 		}
 
+		if r.Status == pd.RecordStatusNotFound {
+			// Record wasn't found. Don't include token in the results.
+			continue
+		}
+
 		pr, err := convertProposalRecordFromPD(*r)
 		if err != nil {
 			return nil, fmt.Errorf("convertProposalRecordFromPD %v: %v",
@@ -817,10 +765,15 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 		props = append(props, *pr)
 	}
 
+	// Verify we've got some results
+	if len(props) == 0 {
+		return map[string]pi.ProposalRecord{}, nil
+	}
+
 	// Get proposal plugin data
-	tokens := make([]string, 0, len(reqs))
-	for _, v := range reqs {
-		tokens = append(tokens, v.Token)
+	tokens := make([]string, 0, len(props))
+	for _, v := range props {
+		tokens = append(tokens, v.CensorshipRecord.Token)
 	}
 	ps := piplugin.Proposals{
 		State:  convertPropStateFromPi(state),
@@ -867,6 +820,34 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 	}
 
 	return proposals, nil
+}
+
+// proposalRecord returns the proposal record for the provided token and
+// version. A blank version will return the most recent version. A
+// errProposalNotFound error will be returned if a proposal is not found for
+// the provided token/version combination.
+func (p *politeiawww) proposalRecord(state pi.PropStateT, token, version string) (*pi.ProposalRecord, error) {
+	prs, err := p.proposalRecords(state, []pi.ProposalRequest{
+		{
+			Token:   token,
+			Version: version,
+		},
+	}, true)
+	if err != nil {
+		return nil, err
+	}
+	pr, ok := prs[token]
+	if !ok {
+		return nil, errProposalNotFound
+	}
+	return &pr, nil
+}
+
+// proposalRecordLatest returns the latest version of the proposal record for
+// the provided token. A errProposalNotFound error will be returned if a
+// proposal is not found for the provided token.
+func (p *politeiawww) proposalRecordLatest(state pi.PropStateT, token string) (*pi.ProposalRecord, error) {
+	return p.proposalRecord(state, token, "")
 }
 
 func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {

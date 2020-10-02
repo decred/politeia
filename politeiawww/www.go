@@ -399,8 +399,9 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 
 	// Error is a politeiawww server error. Log it and return a 500.
 	t := time.Now().Unix()
+	e := fmt.Sprintf(format, err)
 	log.Errorf("%v %v %v %v Internal error %v: %v",
-		remoteAddr(r), r.Method, r.URL, r.Proto, t, format)
+		remoteAddr(r), r.Method, r.URL, r.Proto, t, e)
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,

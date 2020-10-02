@@ -25,6 +25,18 @@ func (cmd *helpCmd) Execute(args []string) error {
 	}
 
 	switch cmd.Args.Topic {
+	// Server commands
+	case "version":
+		fmt.Printf("%s\n", shared.VersionHelpMsg)
+	case "policy":
+		fmt.Printf("%s\n", policyHelpMsg)
+	case "login":
+		fmt.Printf("%s\n", shared.LoginHelpMsg)
+	case "logout":
+		fmt.Printf("%s\n", shared.LogoutHelpMsg)
+	case "me":
+		fmt.Printf("%s\n", shared.MeHelpMsg)
+
 	// Proposal commands
 	case "proposalnew":
 		fmt.Printf("%s\n", proposalNewHelpMsg)
@@ -67,20 +79,7 @@ func (cmd *helpCmd) Execute(args []string) error {
 	case "voteinventory":
 		fmt.Printf("%s\n", voteInventoryHelpMsg)
 
-	case "votedetails":
-		fmt.Printf("%s\n", voteDetailsHelpMsg)
-	case "votestatus":
-		fmt.Printf("%s\n", voteStatusHelpMsg)
-	case "votestatuses":
-		fmt.Printf("%s\n", voteStatusesHelpMsg)
-
-	// Server commands
-	case "version":
-		fmt.Printf("%s\n", shared.VersionHelpMsg)
-	case "policy":
-		fmt.Printf("%s\n", policyHelpMsg)
-
-	// User commands
+		// User commands
 	case "usernew":
 		fmt.Printf("%s\n", userNewHelpMsg)
 	case "useredit":
@@ -112,14 +111,6 @@ func (cmd *helpCmd) Execute(args []string) error {
 
 	case "proposalpaywall":
 		fmt.Printf("%s\n", proposalPaywallHelpMsg)
-
-	// Basic commands
-	case "login":
-		fmt.Printf("%s\n", shared.LoginHelpMsg)
-	case "logout":
-		fmt.Printf("%s\n", shared.LogoutHelpMsg)
-	case "me":
-		fmt.Printf("%s\n", shared.MeHelpMsg)
 
 	// Websocket commands
 	case "subscribe":

@@ -407,8 +407,8 @@ type UserErrorReply struct {
 	ErrorContext []string     `json:"errorcontext,omitempty"` // Additional error information
 }
 
-// UserErrorReply returns details about a plugin error that occurred while
-// trying to execute a command due to bad input from the client.
+// PluginUserErrorReply returns details about a plugin error that occurred
+// while trying to execute a command due to bad input from the client.
 type PluginUserErrorReply struct {
 	Plugin       string   `json:"plugin"`
 	ErrorCode    int      `json:"errorcode"`

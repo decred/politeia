@@ -6,7 +6,6 @@ package shared
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,8 +13,6 @@ import (
 	"os"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/sha3"
@@ -62,49 +59,6 @@ func PrintJSON(body interface{}) error {
 	return nil
 }
 
-// ValidateDigests receives a list of files and metadata to verify their
-// digests. It compares digests that came with the file/md with digests
-// calculated from their respective payloads.
-func ValidateDigests(files []v1.File, md []v1.Metadata) error {
-	// Validate file digests
-	for _, f := range files {
-		b, err := base64.StdEncoding.DecodeString(f.Payload)
-		if err != nil {
-			return fmt.Errorf("file: %v decode payload err %v",
-				f.Name, err)
-		}
-		digest := util.Digest(b)
-		d, ok := util.ConvertDigest(f.Digest)
-		if !ok {
-			return fmt.Errorf("file: %v invalid digest %v",
-				f.Name, f.Digest)
-		}
-		if !bytes.Equal(digest, d[:]) {
-			return fmt.Errorf("file: %v digests do not match",
-				f.Name)
-		}
-	}
-	// Validate metadata digests
-	for _, v := range md {
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			return fmt.Errorf("metadata: %v decode payload err %v",
-				v.Hint, err)
-		}
-		digest := util.Digest(b)
-		d, ok := util.ConvertDigest(v.Digest)
-		if !ok {
-			return fmt.Errorf("metadata: %v invalid digest %v",
-				v.Hint, v.Digest)
-		}
-		if !bytes.Equal(digest, d[:]) {
-			return fmt.Errorf("metadata: %v digests do not match metadata",
-				v.Hint)
-		}
-	}
-	return nil
-}
-
 // DigestSHA3 returns the hex encoded SHA3-256 of a string.
 func DigestSHA3(s string) string {
 	h := sha3.New256()
@@ -140,53 +94,4 @@ func SetConfig(config *Config) {
 // SetClient sets the global client variable.
 func SetClient(c *Client) {
 	client = c
-}
-
-// VerifyProposal verifies a proposal's merkle root, author signature, and
-// censorship record.
-func VerifyProposal(p v1.ProposalRecord, serverPubKey string) error {
-	if len(p.Files) > 0 {
-		// Verify digests
-		err := ValidateDigests(p.Files, p.Metadata)
-		if err != nil {
-			return err
-		}
-		// Verify merkle root
-		mr, err := wwwutil.MerkleRootWWW(p.Files, p.Metadata)
-		if err != nil {
-			return err
-		}
-		if mr != p.CensorshipRecord.Merkle {
-			return fmt.Errorf("merkle roots do not match")
-		}
-	}
-
-	// Verify proposal signature
-	pid, err := util.IdentityFromString(p.PublicKey)
-	if err != nil {
-		return err
-	}
-	sig, err := util.ConvertSignature(p.Signature)
-	if err != nil {
-		return err
-	}
-	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
-		return fmt.Errorf("could not verify proposal signature")
-	}
-
-	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
-	if err != nil {
-		return err
-	}
-	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
-	if err != nil {
-		return err
-	}
-	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
-	if !id.VerifyMessage(msg, s) {
-		return fmt.Errorf("could not verify censorship record signature")
-	}
-
-	return nil
 }

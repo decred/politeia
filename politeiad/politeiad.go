@@ -1264,7 +1264,7 @@ func _main() error {
 
 	// Setup plugins
 	// TODO fix this
-	// loadedCfg.Plugins = []string{"comments", "dcrdata", "pi", "ticketvote"}
+	loadedCfg.Plugins = []string{"comments", "dcrdata", "pi", "ticketvote"}
 	if len(loadedCfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,

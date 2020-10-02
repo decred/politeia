@@ -12,7 +12,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// proposalsCmd retrieves the proposal records of the requested tokens and versions.
+// proposalsCmd retrieves the proposal records of the requested tokens and
+// versions.
 type proposalsCmd struct {
 	Args struct {
 		Proposals []string `positional-arg-name:"proposals" required:"true"`
@@ -61,19 +62,30 @@ func (cmd *proposalsCmd) Execute(args []string) error {
 		requests = append(requests, r)
 	}
 
-	// Setup and send request
-	props := pi.Proposals{
+	// Setup request
+	p := pi.Proposals{
 		State:        state,
 		Requests:     requests,
 		IncludeFiles: cmd.IncludeFiles,
 	}
 
-	reply, err := client.Proposals(props)
+	// Send request
+	err := shared.PrintJSON(p)
+	if err != nil {
+		return err
+	}
+	reply, err := client.Proposals(p)
+	if err != nil {
+		return err
+	}
+	err = shared.PrintJSON(reply)
 	if err != nil {
 		return err
 	}
 
-	return shared.PrintJSON(reply)
+	// TODO verify proposals
+
+	return nil
 }
 
 // proposalsHelpMsg is the output of the help command.
@@ -84,14 +96,17 @@ is set by providing the censorship record token and the desired version,
 comma-separated. Providing only the token will default to the latest proposal
 version.
 
+This command defaults to fetching vetted proposals unless the --unvetted flag
+is used.
+
 Arguments:
 1. proposals ([]string, required) Proposals request
 
 Flags:
- --unvetted     (bool, optional) Request for unvetted proposals instead of
-                                 vetted ones.
+ --unvetted     (bool, optional) Request is for unvetted proposals instead of
+																 vetted ones (default: false).
  --includefiles (bool, optional) Include proposal files in the returned
-                                 proposal records.
+																 proposal records (default: false).
 
 Example:
  piwww proposals <token,version> <token,version> ...

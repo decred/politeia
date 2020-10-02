@@ -21,8 +21,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// TODO replace www policies with pi policies
-
 // proposalNewCmd submits a new proposal.
 type proposalNewCmd struct {
 	Args struct {

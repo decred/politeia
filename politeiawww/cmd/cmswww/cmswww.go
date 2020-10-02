@@ -20,7 +20,6 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -119,7 +118,7 @@ func signedMerkleRoot(files []pi.File, md []pi.Metadata, id *identity.FullIdenti
 	if len(files) == 0 {
 		return "", fmt.Errorf("no proposal files found")
 	}
-	mr, err := wwwutil.MerkleRootWWW(files, md)
+	mr, err := merkleRoot(files, md)
 	if err != nil {
 		return "", err
 	}
@@ -132,12 +131,12 @@ func signedMerkleRoot(files []pi.File, md []pi.Metadata, id *identity.FullIdenti
 func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 	if len(p.Files) > 0 {
 		// Verify file digests
-		err := shared.ValidateDigests(p.Files, nil)
+		err := validateDigests(p.Files, nil)
 		if err != nil {
 			return err
 		}
 		// Verify merkle root
-		mr, err := wwwutil.MerkleRootWWW(p.Files, nil)
+		mr, err := merkleRoot(p.Files, nil)
 		if err != nil {
 			return err
 		}
@@ -296,12 +295,12 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 	files := make([]pi.File, 0, 1)
 	files = append(files, p.File)
 	// Verify digests
-	err := shared.ValidateDigests(files, nil)
+	err := validateDigests(files, nil)
 	if err != nil {
 		return err
 	}
 	// Verify merkel root
-	mr, err := wwwutil.MerkleRootWWW(files, nil)
+	mr, err := merkleRoot(files, nil)
 	if err != nil {
 		return err
 	}

@@ -143,7 +143,7 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost, route, ur)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	// Receive reply
