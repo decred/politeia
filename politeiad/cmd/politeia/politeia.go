@@ -68,8 +68,8 @@ func usage() {
 		"identity\n")
 	fmt.Fprintf(os.Stderr, "  plugins           - Retrieve plugin "+
 		"inventory\n")
-	fmt.Fprintf(os.Stderr, "  inventory         - Inventory records "+
-		"<vetted count> <branches count>\n")
+	fmt.Fprintf(os.Stderr, "  inventory         - Inventory records by "+
+		"status\n")
 	fmt.Fprintf(os.Stderr, "  new               - Create new record "+
 		"[metadata<id>]... <filename>...\n")
 	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve record "+
@@ -375,6 +375,82 @@ func getFile(filename string) (*v1.File, *[sha256.Size]byte, error) {
 	copy(digest32[:], digest)
 
 	return file, &digest32, nil
+}
+
+func recordInventory() error {
+	// Prepare request
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	ibs, err := json.Marshal(v1.InventoryByStatus{
+		Challenge: hex.EncodeToString(challenge),
+	})
+	if err != nil {
+		return err
+	}
+
+	if *printJson {
+		fmt.Println(string(ibs))
+	}
+
+	// Make request
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.InventoryByStatusRoute,
+		bytes.NewReader(ibs))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	// Verify status code response
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return fmt.Errorf("%v", r.Status)
+		}
+		return fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var ibsr v1.InventoryByStatusReply
+	err = json.Unmarshal(bodyBytes, &ibsr)
+	if err != nil {
+		return fmt.Errorf("Could node unmarshal "+
+			"InventoryByStatusReply: %v", err)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(id, challenge, ibsr.Response)
+	if err != nil {
+		return err
+	}
+
+	// Print response to user
+	fmt.Printf("Inventory by status:\n")
+	fmt.Printf("  Unvetted         : %v\n", ibsr.Unvetted)
+	fmt.Printf("  IterationUnvetted: %v\n", ibsr.IterationUnvetted)
+	fmt.Printf("  Vetted           : %v\n", ibsr.Vetted)
+	fmt.Printf("  Censored         : %v\n", ibsr.Censored)
+	fmt.Printf("  Archived         : %v\n", ibsr.Archived)
+
+	return nil
 }
 
 func newRecord() error {
@@ -1469,6 +1545,8 @@ func _main() error {
 				return plugin()
 			case "plugininventory":
 				return getPluginInventory()
+			case "inventory":
+				return recordInventory()
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}

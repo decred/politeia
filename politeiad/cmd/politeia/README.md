@@ -11,7 +11,8 @@ Available commands:
 `updatevettedmd`  
 `getvetted`  
 `plugin`  
-`plugininventory`  
+`plugininventory`
+`inventory`
 
 ## Obtain politeiad identity
 
@@ -208,25 +209,6 @@ Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 
 ## Set vetted status
 
-Metadata can be updated using the arguments:  
-`'appendmetadata[ID]:[metadataJSON]'`  
-`'overwritemetadata[ID]:[metadataJSON]'`  
-
-The token is specified using the argument:  
-`token:[token]`
-
-Metadata provided using the `overwritemetadata` argument does not have to
-already exist.
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevettedmd \
-  'appendmetadata12:{"foo":"bar"}' token:9dfe084fccb7f27c0000  
-
-Update vetted metadata: 9dfe084fccb7f27c0000
-  Metadata append   : 12
-```
-
-## Set vetted status
-
 You can update the status of a vetted record using one of the following
 statuses:
 - `censored` - keep the record unvetted and mark as censored.
@@ -238,5 +220,21 @@ validation is done in the backend.
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setvettedstatus censored 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4 'overwritemetadata12:"zap"'           
 Set record status:
-  Status: censor
+  Status: censored
+```
+
+## Inventory by status
+
+The `inventory` command retrieves the censorship record tokens from all records,
+separated by their status.
+
+```
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory
+
+Inventory by status:
+  Unvetted         : [tokens...]
+  IterationUnvetted: [tokens...]
+  Vetted           : [tokens...]
+  Censored         : [tokens...]
+  Archived         : [tokens...]
 ```
