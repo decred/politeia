@@ -98,6 +98,26 @@ Update record: 9dfe084fccb7f27c0000
 
 ## Update unvetted metadata only
 
+Metadata can be updated using the arguments:  
+`'appendmetadata[ID]:[metadataJSON]'`  
+`'overwritemetadata[ID]:[metadataJSON]'`  
+
+The token is specified using the argument:  
+`token:[token]`
+
+Metadata provided using the `overwritemetadata` argument does not have to
+already exist.
+
+```
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvettedmd \
+  'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
+  token:0e4a82a370228b710000
+
+Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+  Metadata overwrite: 2
+  Metadata append   : 12
+```
+
 ## Set unvetted status
 
 You can update the status of an unvetted record using one of the following
@@ -163,6 +183,28 @@ Update record: 9dfe084fccb7f27c0000
 ```
 
 ## Update vetted metadata only
+
+Metadata can be updated using the arguments:  
+`'appendmetadata[ID]:[metadataJSON]'`  
+`'overwritemetadata[ID]:[metadataJSON]'`  
+
+The token is specified using the argument:  
+`token:[token]`
+
+Metadata provided using the `overwritemetadata` argument does not have to
+already exist.
+
+```
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevettedmd \
+  'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
+  token:0e4a82a370228b710000
+
+Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+  Metadata overwrite: 2
+  Metadata append   : 12
+```
+
+## Set vetted status
 
 Metadata can be updated using the arguments:  
 `'appendmetadata[ID]:[metadataJSON]'`  

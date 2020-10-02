@@ -79,6 +79,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  updateunvetted    - Update unvetted record "+
 		"[actionmdid:metadata]... <actionfile:filename>... "+
 		"token:<token>\n")
+	fmt.Fprintf(os.Stderr, "  updateunvettedmd  - Update unvetted record "+
+		"metadata [actionmdid:metadata]... token:<token>\n")
 	fmt.Fprintf(os.Stderr, "  updatevetted      - Update vetted record "+
 		"[actionmdid:metadata]... <actionfile:filename>... "+
 		"token:<token>\n")
@@ -512,6 +514,57 @@ func newRecord() error {
 	return nil
 }
 
+func validateMetadataFlags(flags []string) ([]v1.MetadataStream, []v1.MetadataStream, string, error) {
+	var mdAppend []v1.MetadataStream
+	var mdOverwrite []v1.MetadataStream
+	var token string
+	var tokenCount uint
+	for _, v := range flags {
+		switch {
+		case regexAppendMD.MatchString(v):
+			s := regexAppendMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return nil, nil, "", err
+			}
+			mdAppend = append(mdAppend, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexOverwriteMD.MatchString(v):
+			s := regexOverwriteMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return nil, nil, "", err
+			}
+			mdOverwrite = append(mdOverwrite, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexToken.MatchString(v):
+			if tokenCount != 0 {
+				return nil, nil, "", fmt.Errorf("only 1 token allowed")
+			}
+			s := regexToken.FindString(v)
+			token = v[len(s):]
+			tokenCount++
+
+		default:
+			return nil, nil, "", fmt.Errorf("invalid action %v", v)
+		}
+	}
+
+	if tokenCount != 1 {
+		return nil, nil, "", fmt.Errorf("must provide token")
+	}
+
+	return mdAppend, mdOverwrite, token, nil
+}
+
 func updateVettedMetadata() error {
 	flags := flag.Args()[1:] // Chop off action.
 
@@ -525,49 +578,15 @@ func updateVettedMetadata() error {
 	}
 
 	// Fish out metadata records and filenames
-	var tokenCount uint
-	for _, v := range flags {
-		switch {
-		case regexAppendMD.MatchString(v):
-			s := regexAppendMD.FindString(v)
-			i, err := strconv.ParseUint(regexMDID.FindString(s),
-				10, 64)
-			if err != nil {
-				return err
-			}
-			n.MDAppend = append(n.MDAppend, v1.MetadataStream{
-				ID:      i,
-				Payload: v[len(s):],
-			})
-
-		case regexOverwriteMD.MatchString(v):
-			s := regexOverwriteMD.FindString(v)
-			i, err := strconv.ParseUint(regexMDID.FindString(s),
-				10, 64)
-			if err != nil {
-				return err
-			}
-			n.MDOverwrite = append(n.MDOverwrite, v1.MetadataStream{
-				ID:      i,
-				Payload: v[len(s):],
-			})
-
-		case regexToken.MatchString(v):
-			if tokenCount != 0 {
-				return fmt.Errorf("only 1 token allowed")
-			}
-			s := regexToken.FindString(v)
-			n.Token = v[len(s):]
-			tokenCount++
-
-		default:
-			return fmt.Errorf("invalid action %v", v)
-		}
+	mdAppend, mdOverwrite, token, err := validateMetadataFlags(flags)
+	if err != nil {
+		return err
 	}
 
-	if tokenCount != 1 {
-		return fmt.Errorf("must provide token")
-	}
+	// Set request fields
+	n.MDAppend = mdAppend
+	n.MDOverwrite = mdOverwrite
+	n.Token = token
 
 	// Fetch remote identity
 	id, err := identity.LoadPublicIdentity(*identityFilename)
@@ -579,7 +598,7 @@ func updateVettedMetadata() error {
 	if *verbose {
 		fmt.Printf("Update vetted metadata: %v\n", n.Token)
 		if len(n.MDOverwrite) > 0 {
-			s := "  Metadata overwrite: "
+			s := "Metadata overwrite: "
 			for _, v := range n.MDOverwrite {
 				fmt.Printf("%s%v", s, v.ID)
 				s = ", "
@@ -587,7 +606,7 @@ func updateVettedMetadata() error {
 			fmt.Printf("\n")
 		}
 		if len(n.MDAppend) > 0 {
-			s := "  Metadata append   : "
+			s := "Metadata append: "
 			for _, v := range n.MDAppend {
 				fmt.Printf("%s%v", s, v.ID)
 				s = ", "
@@ -639,6 +658,103 @@ func updateVettedMetadata() error {
 	}
 
 	// Verify challenge.
+	return util.VerifyChallenge(id, challenge, reply.Response)
+}
+
+func updateUnvettedMetadata() error {
+	flags := flag.Args()[1:]
+
+	// Create new command
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	uum := v1.UpdateUnvettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Fish out metadata records and filenames from flags
+	mdAppend, mdOverwrite, token, err := validateMetadataFlags(flags)
+	if err != nil {
+		return err
+	}
+
+	// Set request fields
+	uum.MDAppend = mdAppend
+	uum.MDOverwrite = mdOverwrite
+	uum.Token = token
+
+	// Prety print
+	if *verbose {
+		fmt.Printf("Update unvetted metadata: %v\n", uum.Token)
+		if len(uum.MDOverwrite) > 0 {
+			s := "Metadata overwrite: "
+			for _, v := range uum.MDOverwrite {
+				fmt.Printf("%s%v", s, v.ID)
+				s = ", "
+			}
+			fmt.Printf("\n")
+		}
+		if len(uum.MDAppend) > 0 {
+			s := "Metadata append: "
+			for _, v := range uum.MDAppend {
+				fmt.Printf("%s%v", s, v.ID)
+				s = ", "
+			}
+			fmt.Printf("\n")
+		}
+	}
+
+	// Convert request object to JSON
+	b, err := json.Marshal(uum)
+	if err != nil {
+		return err
+	}
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	// Make request
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.UpdateUnvettedMetadataRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	// Verify status code response
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return fmt.Errorf("%v", r.Status)
+		}
+		return fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return err
+	}
+
+	// Prepare reply
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+	var reply v1.UpdateUnvettedMetadataReply
+	err = json.Unmarshal(bodyBytes, &reply)
+	if err != nil {
+		return fmt.Errorf("Could node unmarshal UpdateReply: %v", err)
+	}
+
+	// Verify challenge
 	return util.VerifyChallenge(id, challenge, reply.Response)
 }
 
@@ -1197,7 +1313,8 @@ func _main() error {
 				return newRecord()
 			case "updateunvetted":
 				return updateRecord(false)
-			// TODO case "updateunvettedmd"
+			case "updateunvettedmd":
+				return updateUnvettedMetadata()
 			case "setunvettedstatus":
 				return setUnvettedStatus()
 			case "getunvetted":
