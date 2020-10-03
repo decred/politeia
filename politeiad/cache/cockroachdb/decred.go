@@ -81,6 +81,10 @@ func (d *decred) bestBlockGet() (uint64, error) {
 	}
 	err := d.recordsdb.Find(&kv).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// A cached best block doesn't exist yet. This is ok.
+			return 0, nil
+		}
 		return 0, fmt.Errorf("bestBlockGetError: %v", err)
 	}
 	return binary.LittleEndian.Uint64(kv.Value), nil
