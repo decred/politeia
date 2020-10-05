@@ -17,9 +17,9 @@ import (
 // commentCensorCmd censors a proposal comment.
 type commentCensorCmd struct {
 	Args struct {
-		Token     string `positional-arg-name:"token"`     // Censorship token
-		CommentID string `positional-arg-name:"commentID"` // Comment ID
-		Reason    string `positional-arg-name:"reason"`    // Reason for censoring
+		Token     string `positional-arg-name:"token"`
+		CommentID string `positional-arg-name:"commentid"`
+		Reason    string `positional-arg-name:"reason"`
 	} `positional-args:"true" required:"true"`
 
 	// CLI flags
@@ -29,9 +29,18 @@ type commentCensorCmd struct {
 
 // Execute executes the censor comment command.
 func (cmd *commentCensorCmd) Execute(args []string) error {
+	// Unpack args
 	token := cmd.Args.Token
-	commentID := cmd.Args.CommentID
 	reason := cmd.Args.Reason
+	commentID, err := strconv.ParseUint(cmd.Args.CommentID, 10, 32)
+	if err != nil {
+		return fmt.Errorf("ParseUint(%v): %v", cmd.Args.CommentID, err)
+	}
+
+	// Verify user identity
+	if cfg.Identity == nil {
+		return shared.ErrUserIdentityNotFound
+	}
 
 	// Verify state
 	var state pi.PropStateT
@@ -46,72 +55,64 @@ func (cmd *commentCensorCmd) Execute(args []string) error {
 		return fmt.Errorf("must specify either --vetted or unvetted")
 	}
 
-	// Check for user identity
-	if cfg.Identity == nil {
-		return shared.ErrUserIdentityNotFound
-	}
+	// Sign comment data
+	msg := strconv.Itoa(int(state)) + token + cmd.Args.CommentID + reason
+	b := cfg.Identity.SignMessage([]byte(msg))
+	signature := hex.EncodeToString(b[:])
 
-	// Get server public key
-	vr, err := client.Version()
-	if err != nil {
-		return err
-	}
-
-	// Setup comment censor request
-	s := cfg.Identity.SignMessage([]byte(string(state) + token + commentID + reason))
-	signature := hex.EncodeToString(s[:])
-	// Parse provided comment id
-	ciUint, err := strconv.ParseUint(commentID, 10, 32)
-	if err != nil {
-		return err
-	}
+	// Setup request
 	cc := pi.CommentCensor{
 		Token:     token,
 		State:     state,
-		CommentID: uint32(ciUint),
+		CommentID: uint32(commentID),
 		Reason:    reason,
 		Signature: signature,
-		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		PublicKey: cfg.Identity.Public.String(),
 	}
 
-	// Print request details
+	// Send request. The request and response details are printed to
+	// the console.
 	err = shared.PrintJSON(cc)
 	if err != nil {
 		return err
 	}
-
-	// Send request
 	ccr, err := client.CommentCensor(cc)
 	if err != nil {
 		return err
 	}
+	err = shared.PrintJSON(ccr)
+	if err != nil {
+		return err
+	}
 
-	// Validate censor comment receipt
+	// Verify receipt
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
 	serverID, err := util.IdentityFromString(vr.PubKey)
 	if err != nil {
 		return err
 	}
-	receiptB, err := util.ConvertSignature(ccr.Receipt)
+	receiptb, err := util.ConvertSignature(ccr.Receipt)
 	if err != nil {
 		return err
 	}
-	if !serverID.VerifyMessage([]byte(signature), receiptB) {
-		return fmt.Errorf("could not verify receipt signature")
+	if !serverID.VerifyMessage([]byte(signature), receiptb) {
+		return fmt.Errorf("could not verify receipt")
 	}
 
-	// Print response details
-	return shared.PrintJSON(ccr)
+	return nil
 }
 
-// commentCensorHelpMsg is the output of the help command when 'commentcensor'
-// is specified.
+// commentCensorHelpMsg is the help command message.
 const commentCensorHelpMsg = `commentcensor "token" "commentID" "reason"
 
 Censor a user comment. Requires admin privileges.
 
 Arguments:
 1. token       (string, required)   Proposal censorship token
-2. commentID   (string, required)   Id of the comment
+2. commentid   (string, required)   ID of the comment
 3. reason      (string, required)   Reason for censoring the comment
 
 Flags:

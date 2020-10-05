@@ -11,14 +11,15 @@ import (
 
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/decred/politeia/util"
 )
 
 // commentNewCmd submits a new proposal comment.
 type commentNewCmd struct {
 	Args struct {
-		Token    string `positional-arg-name:"token" required:"true"`   // Censorship token
-		Comment  string `positional-arg-name:"comment" required:"true"` // Comment text
-		ParentID string `positional-arg-name:"parentID"`                // Comment parent ID
+		Token    string `positional-arg-name:"token" required:"true"`
+		Comment  string `positional-arg-name:"comment" required:"true"`
+		ParentID string `positional-arg-name:"parentid"`
 	} `positional-args:"true"`
 
 	// CLI flags
@@ -27,72 +28,93 @@ type commentNewCmd struct {
 }
 
 // Execute executes the new comment command.
-func (cmd *commentNewCmd) Execute(args []string) error {
-	token := cmd.Args.Token
-	comment := cmd.Args.Comment
-	parentID := cmd.Args.ParentID
-
-	// Verify state
-	var state pi.PropStateT
-	switch {
-	case cmd.Vetted && cmd.Unvetted:
-		return fmt.Errorf("cannot use --vetted and --unvetted simultaneously")
-	case cmd.Unvetted:
-		state = pi.PropStateUnvetted
-	case cmd.Vetted:
-		state = pi.PropStateVetted
-	default:
-		return fmt.Errorf("must specify either --vetted or unvetted")
+func (c *commentNewCmd) Execute(args []string) error {
+	// Unpack args
+	token := c.Args.Token
+	comment := c.Args.Comment
+	parentID, err := strconv.ParseUint(c.Args.ParentID, 10, 32)
+	if err != nil {
+		return fmt.Errorf("ParseUint(%v): %v", c.Args.ParentID, err)
 	}
 
-	// Check for user identity
+	// Verify identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Setup new comment request
-	sig := cfg.Identity.SignMessage([]byte(string(state) + token + parentID +
-		comment))
-	// Parse provided parent id
-	piUint, err := strconv.ParseUint(parentID, 10, 32)
-	if err != nil {
-		return err
+	// Verify state
+	var state pi.PropStateT
+	switch {
+	case c.Vetted && c.Unvetted:
+		return fmt.Errorf("cannot use --vetted and --unvetted simultaneously")
+	case c.Unvetted:
+		state = pi.PropStateUnvetted
+	case c.Vetted:
+		state = pi.PropStateVetted
+	default:
+		return fmt.Errorf("must specify either --vetted or --unvetted")
 	}
+
+	// Sign comment data
+	msg := strconv.Itoa(int(state)) + token + c.Args.ParentID + comment
+	b := cfg.Identity.SignMessage([]byte(msg))
+	signature := hex.EncodeToString(b[:])
+
+	// Setup request
 	cn := pi.CommentNew{
 		Token:     token,
 		State:     state,
-		ParentID:  uint32(piUint),
+		ParentID:  uint32(parentID),
 		Comment:   comment,
-		Signature: hex.EncodeToString(sig[:]),
-		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: signature,
+		PublicKey: cfg.Identity.Public.String(),
 	}
 
-	// Print request details
+	// Send request. The request and response details are printed to
+	// the console.
 	err = shared.PrintJSON(cn)
 	if err != nil {
 		return err
 	}
-
-	// Send request
 	ncr, err := client.CommentNew(cn)
 	if err != nil {
 		return err
 	}
+	err = shared.PrintJSON(ncr)
+	if err != nil {
+		return err
+	}
 
-	// Print response details
-	return shared.PrintJSON(ncr)
+	// Verify receipt
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
+	serverID, err := util.IdentityFromString(vr.PubKey)
+	if err != nil {
+		return err
+	}
+	receiptb, err := util.ConvertSignature(ncr.Receipt)
+	if err != nil {
+		return err
+	}
+	if !serverID.VerifyMessage([]byte(signature), receiptb) {
+		return fmt.Errorf("could not verify receipt")
+	}
+
+	return nil
 }
 
-// commentNewHelpMsg is the output of the help command when 'commentnew' is
-// specified.
-const commentNewHelpMsg = `commentnew "token" "comment"
+// commentNewHelpMsg is the help command message.
+const commentNewHelpMsg = `commentnew "token" "comment" "parentid"
 
-Comment on proposal as logged in user. 
+Comment on proposal as the logged in user. 
 
 Arguments:
-1. token       (string, required)   Proposal censorship token
-2. comment     (string, required)   Comment
-3. parentID    (string, required if replying to comment)  Id of commment
+1. token       (string, required)  Proposal censorship token
+2. comment     (string, required)  Comment
+3. parentid    (string, optional)  ID of parent commment. Including a parent ID
+                                   indicates that the comment is a reply.
 
 Flags:
   --vetted     (bool, optional)    Comment on vetted record.
