@@ -2124,7 +2124,7 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 // processProposalInvoiceApprove appends a proposal owners approval onto the
 // invoice records metadata which will allow admins to determine if an invoice
 // is fully approved.
-func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove, u *user.User) (*cms.ProposalOwnerApproveReply, error) {
+func (p *politeiawww) processProposalInvoiceApprove(ctx context.Context, poa cms.ProposalOwnerApprove, u *user.User) (*cms.ProposalOwnerApproveReply, error) {
 	invRec, err := p.getInvoice(poa.Token)
 	if err != nil {
 		return nil, err
@@ -2197,7 +2197,7 @@ func (p *politeiawww) processProposalInvoiceApprove(poa cms.ProposalOwnerApprove
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
 	}

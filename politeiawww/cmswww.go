@@ -1146,7 +1146,7 @@ func (p *politeiawww) handleProposalInvoiceApprove(w http.ResponseWriter, r *htt
 		return
 	}
 
-	poar, err := p.processProposalInvoiceApprove(poa, user)
+	poar, err := p.processProposalInvoiceApprove(r.Context(), poa, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalInvoiceApprove: processStartVoteDCC %v", err)
