@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	v4 "github.com/decred/dcrdata/api/types/v4"
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
@@ -24,6 +25,10 @@ import (
 )
 
 const (
+	// Plugin settings
+	pluginSettingHostHTTP = "hosthttp"
+	pluginSettingHostWS   = "hostws"
+
 	// Dcrdata routes
 	routeBestBlock    = "/api/block/best"
 	routeBlockDetails = "/api/block/{height}"
@@ -430,15 +435,6 @@ func (p *dcrdataPlugin) websocketSetup() {
 func (p *dcrdataPlugin) setup() error {
 	log.Tracef("dcrdata setup")
 
-	// Setup websocket client
-	ws, err := wsdcrdata.New(p.hostWS)
-	if err != nil {
-		// Continue even if a websocket connection was not able to be
-		// made. Reconnection attempts will be made in the plugin setup.
-		log.Errorf("wsdcrdata New: %v", err)
-	}
-	p.ws = ws
-
 	// Setup dcrdata websocket subscriptions and monitoring. This is
 	// done in a go routine so setup will continue in the event that
 	// a dcrdata websocket connection was not able to be made during
@@ -487,18 +483,54 @@ func (p *dcrdataPlugin) fsck() error {
 }
 
 func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) {
-	// TODO these should be passed in as plugin settings
-	dcrdataHostHTTP := "https://dcrdata.decred.org"
-	dcrdataHostWS := "wss://dcrdata.decred.org/ps"
+	spew.Dump(settings)
+	// Unpack plugin settings
+	var (
+		hostHTTP string
+		hostWS   string
+	)
+	for _, v := range settings {
+		switch v.Key {
+		case pluginSettingDataDir:
+			// The data dir plugin setting is provided to all plugins. The
+			// dcrdata plugin does not need it. Ignore it.
+		case pluginSettingHostHTTP:
+			hostHTTP = v.Value
+		case pluginSettingHostWS:
+			hostWS = v.Value
+		default:
+			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
+		}
+	}
 
+	// Set optional plugin settings to default values if a value was
+	// not specified.
+	if hostHTTP == "" {
+		hostHTTP = dcrdata.DefaultHostHTTP
+	}
+	if hostWS == "" {
+		hostWS = dcrdata.DefaultHostWS
+	}
+
+	// Setup http client
+	log.Infof("Dcrdata HTTP host: %v", hostHTTP)
 	client, err := util.NewClient(false, "")
 	if err != nil {
 		return nil, err
 	}
 
+	// Setup websocket client
+	ws, err := wsdcrdata.New(hostWS)
+	if err != nil {
+		// Continue even if a websocket connection was not able to be
+		// made. Reconnection attempts will be made in the plugin setup.
+		log.Errorf("wsdcrdata New: %v", err)
+	}
+
 	return &dcrdataPlugin{
-		hostHTTP: dcrdataHostHTTP,
-		hostWS:   dcrdataHostWS,
+		hostHTTP: hostHTTP,
+		hostWS:   hostWS,
 		client:   client,
+		ws:       ws,
 	}, nil
 }

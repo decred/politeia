@@ -33,8 +33,9 @@ import (
 )
 
 const (
-	// ticketVoteDirname is the ticket vote data directory name.
-	ticketVoteDirname = "ticketvote"
+	// Plugin setting IDs
+	pluginSettingVoteDurationMin = "votedurationmin"
+	pluginSettingVoteDurationMax = "votedurationmax"
 
 	// Filenames of cached data saved to the plugin data dir. Brackets
 	// are used to indicate a variable that should be replaced in the
@@ -69,10 +70,14 @@ type ticketVotePlugin struct {
 	tlog    tlogClient
 
 	// Plugin settings
-	id              *identity.FullIdentity
 	activeNetParams *chaincfg.Params
 	voteDurationMin uint32 // In blocks
 	voteDurationMax uint32 // In blocks
+
+	// identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	identity *identity.FullIdentity
 
 	// dataDir is the ticket vote plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
@@ -966,7 +971,7 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 	}
 
 	// Prepare authorize vote
-	receipt := p.id.SignMessage([]byte(a.Signature))
+	receipt := p.identity.SignMessage([]byte(a.Signature))
 	auth := ticketvote.AuthorizeDetails{
 		Token:     a.Token,
 		Version:   a.Version,
@@ -1470,7 +1475,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		}
 
 		// Save cast vote
-		receipt := p.id.SignMessage([]byte(v.Signature))
+		receipt := p.identity.SignMessage([]byte(v.Signature))
 		cv := ticketvote.CastVoteDetails{
 			Token:     v.Token,
 			Ticket:    v.Ticket,
@@ -1963,30 +1968,80 @@ func (p *ticketVotePlugin) fsck() error {
 	return nil
 }
 
-func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) *ticketVotePlugin {
+func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
+	// Unpack plugin settings
 	var (
-		// TODO these should be passed in as plugin settings
 		dataDir         string
-		id              = &identity.FullIdentity{}
-		activeNetParams = &chaincfg.Params{}
 		voteDurationMin uint32
 		voteDurationMax uint32
 	)
-
-	/*
-		switch activeNetParams.Name {
-		case chaincfg.MainNetParams.Name:
-		case chaincfg.TestNet3Params.Name:
+	for _, v := range settings {
+		switch v.Key {
+		case pluginSettingDataDir:
+			dataDir = v.Value
+		case pluginSettingVoteDurationMin:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+					v.Key, v.Value, err)
+			}
+			voteDurationMin = uint32(u)
+		case pluginSettingVoteDurationMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+					v.Key, v.Value, err)
+			}
+			voteDurationMax = uint32(u)
+		default:
+			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
 		}
-	*/
+	}
+
+	// Verify required plugin settings
+	switch {
+	case dataDir == "":
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pluginSettingDataDir)
+	}
+
+	// Set optional plugin settings to default values if a value was
+	// not specified.
+	if voteDurationMin == 0 {
+		switch activeNetParams.Name {
+		case chaincfg.MainNetParams().Name:
+			voteDurationMin = ticketvote.DefaultMainNetVoteDurationMin
+		case chaincfg.TestNet3Params().Name:
+			voteDurationMin = ticketvote.DefaultTestNetVoteDurationMin
+		case chaincfg.SimNetParams().Name:
+			voteDurationMin = ticketvote.DefaultSimNetVoteDurationMin
+		}
+	}
+	if voteDurationMax == 0 {
+		switch activeNetParams.Name {
+		case chaincfg.MainNetParams().Name:
+			voteDurationMax = ticketvote.DefaultMainNetVoteDurationMax
+		case chaincfg.TestNet3Params().Name:
+			voteDurationMax = ticketvote.DefaultTestNetVoteDurationMax
+		case chaincfg.SimNetParams().Name:
+			voteDurationMax = ticketvote.DefaultSimNetVoteDurationMax
+		}
+	}
+
+	// Create the plugin data directory
+	dataDir = filepath.Join(dataDir, ticketvote.ID)
+	err := os.MkdirAll(dataDir, 0700)
+	if err != nil {
+		return nil, err
+	}
 
 	return &ticketVotePlugin{
-		dataDir:         filepath.Join(dataDir, ticketVoteDirname),
+		dataDir:         dataDir,
 		backend:         backend,
 		tlog:            tlog,
-		id:              id,
+		identity:        id,
 		activeNetParams: activeNetParams,
 		voteDurationMin: voteDurationMin,
 		voteDurationMax: voteDurationMax,
-	}
+	}, nil
 }

@@ -10,6 +10,7 @@ import (
 	"regexp"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
 var (
@@ -158,6 +159,11 @@ type Plugin struct {
 	ID       string          // Identifier
 	Version  string          // Version
 	Settings []PluginSetting // Settings
+
+	// Identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	Identity *identity.FullIdentity
 }
 
 // InventoryByStatus contains the record tokens of all records in the inventory

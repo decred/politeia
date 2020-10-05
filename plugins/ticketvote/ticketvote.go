@@ -34,6 +34,14 @@ const (
 	CmdInventory   = "inventory"   // Get inventory grouped by vote status
 	CmdProofs      = "proofs"      // Get inclusion proofs
 
+	// Default plugin settings
+	DefaultMainNetVoteDurationMin = 2016
+	DefaultMainNetVoteDurationMax = 4032
+	DefaultTestNetVoteDurationMin = 0
+	DefaultTestNetVoteDurationMax = 4032
+	DefaultSimNetVoteDurationMin  = 0
+	DefaultSimNetVoteDurationMax  = 4032
+
 	// TODO implement PolicyVotesPageSize
 	// PolicyVotesPageSize is the maximum number of results that can be
 	// returned from any of the batched vote commands.
@@ -70,13 +78,6 @@ const (
 	// requirements but still be rejected if it does not have the most
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
-
-	// Vote duration requirements in blocks
-	// TODO these are not used anywhere
-	VoteDurationMinMainnet = 2016
-	VoteDurationMaxMainnet = 4032
-	VoteDurationMinTestnet = 0
-	VoteDurationMaxTestnet = 4032
 
 	// Vote option IDs
 	VoteOptionIDApprove = "yes"

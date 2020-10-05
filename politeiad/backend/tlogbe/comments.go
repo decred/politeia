@@ -54,7 +54,6 @@ var (
 // commentsPlugin satisfies the pluginClient interface.
 type commentsPlugin struct {
 	sync.Mutex
-	id      *identity.FullIdentity
 	backend backend.Backend
 	tlog    tlogClient
 
@@ -62,6 +61,11 @@ type commentsPlugin struct {
 	// that is stored here is cached data that can be re-created at any
 	// time by walking the trillian trees.
 	dataDir string
+
+	// identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	identity *identity.FullIdentity
 
 	// Mutexes contains a mutex for each record. The mutexes are lazy
 	// loaded.
@@ -812,7 +816,7 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	}
 
 	// Setup comment
-	receipt := p.id.SignMessage([]byte(n.Signature))
+	receipt := p.identity.SignMessage([]byte(n.Signature))
 	ca := comments.CommentAdd{
 		UserID:    n.UserID,
 		State:     n.State,
@@ -972,7 +976,7 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	}
 
 	// Create a new comment version
-	receipt := p.id.SignMessage([]byte(e.Signature))
+	receipt := p.identity.SignMessage([]byte(e.Signature))
 	ca := comments.CommentAdd{
 		UserID:    e.UserID,
 		Token:     e.Token,
@@ -1087,7 +1091,7 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	}
 
 	// Prepare comment delete
-	receipt := p.id.SignMessage([]byte(d.Signature))
+	receipt := p.identity.SignMessage([]byte(d.Signature))
 	cd := comments.CommentDel{
 		Token:     d.Token,
 		CommentID: d.CommentID,
@@ -1252,7 +1256,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	}
 
 	// Prepare comment vote
-	receipt := p.id.SignMessage([]byte(v.Signature))
+	receipt := p.identity.SignMessage([]byte(v.Signature))
 	cv := comments.CommentVote{
 		UserID:    v.UserID,
 		Token:     v.Token,
@@ -1751,16 +1755,39 @@ func (p *commentsPlugin) setup() error {
 }
 
 // newCommentsPlugin returns a new comments plugin.
-func newCommentsPlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) *commentsPlugin {
-	// TODO these should be passed in as plugin settings
-	id := &identity.FullIdentity{}
-	dataDir := ""
+func newCommentsPlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting, id *identity.FullIdentity) (*commentsPlugin, error) {
+	// Unpack plugin settings
+	var (
+		dataDir string
+	)
+	for _, v := range settings {
+		switch v.Key {
+		case pluginSettingDataDir:
+			dataDir = v.Value
+		default:
+			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
+		}
+	}
+
+	// Verify plugin settings
+	switch {
+	case dataDir == "":
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pluginSettingDataDir)
+	}
+
+	// Create the plugin data directory
+	dataDir = filepath.Join(dataDir, comments.ID)
+	err := os.MkdirAll(dataDir, 0700)
+	if err != nil {
+		return nil, err
+	}
 
 	return &commentsPlugin{
-		id:      id,
-		backend: backend,
-		tlog:    tlog,
-		dataDir: dataDir,
-		mutexes: make(map[string]*sync.Mutex),
-	}
+		backend:  backend,
+		tlog:     tlog,
+		identity: id,
+		dataDir:  dataDir,
+		mutexes:  make(map[string]*sync.Mutex),
+	}, nil
 }

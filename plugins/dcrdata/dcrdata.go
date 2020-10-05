@@ -24,6 +24,10 @@ const (
 	CmdTicketPool   = "ticketpool"   // Get ticket pool
 	CmdTxsTrimmed   = "txstrimmed"   // Get trimmed transactions
 
+	// Default plugin settings
+	DefaultHostHTTP = "https://dcrdata.decred.org"
+	DefaultHostWS   = "wss://dcrdata.decred.org/ps"
+
 	// Dcrdata connection statuses.
 	//
 	// Some commands will return cached results with the connection

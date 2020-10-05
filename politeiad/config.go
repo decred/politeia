@@ -96,7 +96,8 @@ type config struct {
 	TrillianKeyUnvetted  string   `long:"trilliankeyunvetted"`
 	TrillianKeyVetted    string   `long:"trilliankeyvetted"`
 	EncryptionKey        string   `long:"encryptionkey"`
-	Plugins              []string `long:"plugins"`
+	Plugins              []string `long:"plugin"`
+	PluginSettings       []string `long:"pluginsetting"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service

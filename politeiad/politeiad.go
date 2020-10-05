@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -1188,8 +1189,8 @@ func _main() error {
 		}
 		p.backend = b
 	case backendTlog:
-		b, err := tlogbe.New(loadedCfg.HomeDir, loadedCfg.DataDir,
-			loadedCfg.DcrtimeHost, loadedCfg.EncryptionKey,
+		b, err := tlogbe.New(activeNetParams.Params, loadedCfg.HomeDir,
+			loadedCfg.DataDir, loadedCfg.DcrtimeHost, loadedCfg.EncryptionKey,
 			loadedCfg.TrillianHostUnvetted, loadedCfg.TrillianKeyUnvetted,
 			loadedCfg.TrillianHostVetted, loadedCfg.TrillianKeyVetted)
 		if err != nil {
@@ -1234,37 +1235,8 @@ func _main() error {
 	p.addRoute(http.MethodPost, v1.UpdateUnvettedMetadataRoute,
 		p.updateUnvettedMetadata, permissionAuth)
 
+	// TODO document plugins and plugin settings in README
 	// Setup plugins
-	/*
-		plugins, err := p.backend.GetPlugins()
-		if err != nil {
-			return err
-		}
-		if len(plugins) > 0 {
-			// Set plugin routes. Requires auth.
-			p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
-				permissionAuth)
-			p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
-				permissionAuth)
-
-			for _, v := range plugins {
-				// make sure we only have lowercase names
-				if backend.PluginRE.FindString(v.ID) != v.ID {
-					return fmt.Errorf("invalid plugin id: %v", v.ID)
-				}
-				if _, found := p.plugins[v.ID]; found {
-					return fmt.Errorf("duplicate plugin: %v", v.ID)
-				}
-				p.plugins[v.ID] = convertBackendPlugin(v)
-
-				log.Infof("Registered plugin: %v", v.ID)
-			}
-		}
-	*/
-
-	// Setup plugins
-	// TODO fix this
-	loadedCfg.Plugins = []string{"comments", "dcrdata", "pi", "ticketvote"}
 	if len(loadedCfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
@@ -1272,33 +1244,70 @@ func _main() error {
 		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
 			permissionAuth)
 
+		// Parse plugin settings
+		// map[pluginID][]backend.PluginSetting
+		settings := make(map[string][]backend.PluginSetting)
+		for _, v := range loadedCfg.PluginSettings {
+			// Plugin setting will be in format: pluginID,key,value
+			s := strings.Split(v, ",")
+			if len(s) != 3 {
+				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
+					"should be 'pluginID,key,value'", s)
+			}
+			pluginID := s[0]
+			ps, ok := settings[pluginID]
+			if !ok {
+				ps = make([]backend.PluginSetting, 0, 16)
+			}
+			ps = append(ps, backend.PluginSetting{
+				Key:   s[1],
+				Value: s[2],
+			})
+
+			settings[pluginID] = ps
+		}
+
 		// Register plugins
 		for _, v := range loadedCfg.Plugins {
+			// Verify plugin ID is lowercase
+			if backend.PluginRE.FindString(v) != v {
+				return fmt.Errorf("invalid plugin id: %v", v)
+			}
+
+			// Get plugin settings
+			ps, ok := settings[v]
+			if !ok {
+				ps = make([]backend.PluginSetting, 0)
+			}
+
+			// Setup plugin
 			var plugin backend.Plugin
 			switch v {
 			case comments.ID:
 				plugin = backend.Plugin{
 					ID:       comments.ID,
 					Version:  comments.Version,
-					Settings: make([]backend.PluginSetting, 0),
+					Settings: ps,
+					Identity: p.identity,
 				}
 			case dcrdata.ID:
 				plugin = backend.Plugin{
 					ID:       dcrdata.ID,
 					Version:  dcrdata.Version,
-					Settings: make([]backend.PluginSetting, 0),
+					Settings: ps,
 				}
 			case pi.ID:
 				plugin = backend.Plugin{
 					ID:       pi.ID,
 					Version:  pi.Version,
-					Settings: make([]backend.PluginSetting, 0),
+					Settings: ps,
 				}
 			case ticketvote.ID:
 				plugin = backend.Plugin{
 					ID:       ticketvote.ID,
 					Version:  ticketvote.Version,
-					Settings: make([]backend.PluginSetting, 0),
+					Settings: ps,
+					Identity: p.identity,
 				}
 			case decredplugin.ID:
 				// TODO plugin setup for cms
@@ -1314,7 +1323,7 @@ func _main() error {
 				return fmt.Errorf("RegisterPlugin %v: %v", v, err)
 			}
 
-			// Add to politeiad context
+			// Add plugin to politeiad context
 			p.plugins[plugin.ID] = convertBackendPlugin(plugin)
 
 			log.Infof("Registered plugin: %v", v)
