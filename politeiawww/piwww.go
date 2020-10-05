@@ -1289,7 +1289,11 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	// Get the current proposal
 	curr, err := p.proposalRecordLatest(pe.State, pe.Token)
 	if err != nil {
-		// TODO pi.ErrorStatusPropNotFound
+		if err == errProposalNotFound {
+			return nil, pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusPropNotFound,
+			}
+		}
 		return nil, err
 	}
 

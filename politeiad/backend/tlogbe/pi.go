@@ -440,39 +440,6 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 		}
 	}
 
-	// Verify vote status
-	token := er.RecordMetadata.Token
-	s := ticketvote.Summaries{
-		Tokens: []string{token},
-	}
-	b, err := ticketvote.EncodeSummaries(s)
-	if err != nil {
-		return err
-	}
-	reply, err := p.backend.Plugin(ticketvote.ID,
-		ticketvote.CmdSummaries, "", string(b))
-	if err != nil {
-		return fmt.Errorf("ticketvote Summaries: %v", err)
-	}
-	sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
-	if err != nil {
-		return err
-	}
-	summary, ok := sr.Summaries[token]
-	if !ok {
-		return fmt.Errorf("ticketvote summmary not found")
-	}
-	if summary.Status != ticketvote.VoteStatusUnauthorized {
-		e := fmt.Sprintf("vote status got %v, want %v",
-			ticketvote.VoteStatus[summary.Status],
-			ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
-		return backend.PluginUserError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
-			ErrorContext: []string{e},
-		}
-	}
-
 	// Verify that the linkto has not changed. This only applies to
 	// public proposal. Unvetted proposals are allowed to change their
 	// linkto.
@@ -490,6 +457,41 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 				PluginID:     pi.ID,
 				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
 				ErrorContext: []string{"linkto cannot change on public proposal"},
+			}
+		}
+	}
+
+	// Verify vote status. This is only required for public proposals.
+	if status == pi.PropStatusPublic {
+		token := er.RecordMetadata.Token
+		s := ticketvote.Summaries{
+			Tokens: []string{token},
+		}
+		b, err := ticketvote.EncodeSummaries(s)
+		if err != nil {
+			return err
+		}
+		reply, err := p.backend.Plugin(ticketvote.ID,
+			ticketvote.CmdSummaries, "", string(b))
+		if err != nil {
+			return fmt.Errorf("ticketvote Summaries: %v", err)
+		}
+		sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
+		if err != nil {
+			return err
+		}
+		summary, ok := sr.Summaries[token]
+		if !ok {
+			return fmt.Errorf("ticketvote summmary not found")
+		}
+		if summary.Status != ticketvote.VoteStatusUnauthorized {
+			e := fmt.Sprintf("vote status got %v, want %v",
+				ticketvote.VoteStatus[summary.Status],
+				ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
+			return backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+				ErrorContext: []string{e},
 			}
 		}
 	}

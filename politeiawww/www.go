@@ -168,6 +168,12 @@ func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
 
 func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
+	case pd.ErrorStatusInvalidRequestPayload:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
+	case pd.ErrorStatusInvalidChallenge:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
 	case pd.ErrorStatusInvalidFilename:
 		return pi.ErrorStatusFileNameInvalid
 	case pd.ErrorStatusInvalidFileDigest:
@@ -180,12 +186,8 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 		return pi.ErrorStatusFileMIMEInvalid
 	case pd.ErrorStatusInvalidRecordStatusTransition:
 		return pi.ErrorStatusPropStatusChangeInvalid
-	case pd.ErrorStatusInvalidRequestPayload:
-		// Intentionally omitted because this indicates a politeiawww
-		// server error so a ErrorStatusInvalid should be returned.
-	case pd.ErrorStatusInvalidChallenge:
-		// Intentionally omitted because this indicates a politeiawww
-		// server error so a ErrorStatusInvalid should be returned.
+	case pd.ErrorStatusNoChanges:
+		return pi.ErrorStatusNoPropChanges
 	}
 	return pi.ErrorStatusInvalid
 }

@@ -488,7 +488,7 @@ func (p *dcrdataPlugin) fsck() error {
 
 func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) {
 	// TODO these should be passed in as plugin settings
-	dcrdataHostHTTP := "https://dcrdata.decred.org/"
+	dcrdataHostHTTP := "https://dcrdata.decred.org"
 	dcrdataHostWS := "wss://dcrdata.decred.org/ps"
 
 	client, err := util.NewClient(false, "")

@@ -154,6 +154,7 @@ const (
 	ErrorStatusPropStatusChangeInvalid
 	ErrorStatusPropStatusChangeReasonInvalid
 	ErrorStatusPropPageSizeExceeded
+	ErrorStatusNoPropChanges
 
 	// Comment errors
 	ErrorStatusCommentTextInvalid

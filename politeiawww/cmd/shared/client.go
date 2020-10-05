@@ -145,16 +145,22 @@ func (c *Client) makeRequest(method, routeVersion, route string, body interface{
 		var ue www.UserError
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil && ue.ErrorCode != 0 {
-			var e error
-			if len(ue.ErrorContext) == 0 {
-				// Error format when an ErrorContext is not included
-				e = fmt.Errorf("%v, %v", r.StatusCode, userErrorStatus(ue.ErrorCode))
-			} else {
-				// Error format when an ErrorContext is included
-				e = fmt.Errorf("%v, %v: %v", r.StatusCode,
-					userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
-			}
-			return nil, e
+			// TODO the user error should be returned in full and the
+			// calling function should print the error message. The reason
+			// is because only the calling function knows what API was used
+			// and thus what error message to print.
+			/*
+				var e error
+				if len(ue.ErrorContext) == 0 {
+					// Error format when an ErrorContext is not included
+					e = fmt.Errorf("%v, %v", r.StatusCode, userErrorStatus(ue.ErrorCode))
+				} else {
+					// Error format when an ErrorContext is included
+					e = fmt.Errorf("%v, %v: %v", r.StatusCode,
+						userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
+				}
+			*/
+			return nil, ue
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)

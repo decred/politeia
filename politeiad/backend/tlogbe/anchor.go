@@ -29,7 +29,7 @@ const (
 	// currently drops an anchor on the hour mark so we submit new
 	// anchors a few minutes prior to that.
 	// Seconds Minutes Hours Days Months DayOfWeek
-	anchorSchedule = "0 56 * * * *" // At 56 minutes every hour
+	anchorSchedule = "0 56 * * * *" // At minute 56 of every hour
 
 	// anchorID is included in the timestamp and verify requests as a
 	// unique identifier.
