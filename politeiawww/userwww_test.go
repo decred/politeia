@@ -32,8 +32,7 @@ func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
 		t.Fatalf("%v", err)
 	}
 
-	return httptest.NewRequest(http.MethodPost, route,
-		bytes.NewReader(b))
+	return httptest.NewRequest(http.MethodPost, route, bytes.NewReader(b))
 }
 
 // addSessionToReq initializes a user session and adds a session cookie to the
@@ -151,8 +150,7 @@ func TestHandleNewUser(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -200,8 +198,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 		got := errToStr(ue)
 		want := www.ErrorStatus[www.ErrorStatusInvalidInput]
 		if got != want {
-			t.Errorf("got error %v, want %v",
-				got, want)
+			t.Errorf("got error %v, want %v", got, want)
 		}
 	})
 
@@ -212,19 +209,23 @@ func TestHandleVerifyNewUser(t *testing.T) {
 		wantStatus int
 		wantError  error
 	}{
-		{"processVerifyNewUser error",
+		{
+			"processVerifyNewUser error",
 			www.VerifyNewUser{}, http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
-			}},
-
-		{"success",
+			},
+		},
+		{
+			"success",
 			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: token,
 				Signature:         sig,
 			},
-			http.StatusOK, nil},
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -266,8 +267,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -300,31 +300,41 @@ func TestHandleResendVerification(t *testing.T) {
 		wantStatus int
 		wantError  error
 	}{
-		{"invalid request body", "", http.StatusBadRequest,
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"user not found",
+			},
+		},
+		{
+			"user not found",
 			www.ResendVerification{
 				Email:     "",
 				PublicKey: usrPubkey,
 			},
-			http.StatusOK, nil},
-
-		{"user already verified",
+			http.StatusOK,
+			nil,
+		},
+		{
+			"user already verified",
 			www.ResendVerification{
 				Email: usrVerified.Email,
 			},
-			http.StatusOK, nil},
-
-		{"verification already resent",
+			http.StatusOK,
+			nil,
+		},
+		{
+			"verification already resent",
 			www.ResendVerification{
 				Email: usrResent.Email,
 			},
-			http.StatusOK, nil},
-
-		{"processResendVerification error",
+			http.StatusOK,
+			nil,
+		},
+		{
+			"processResendVerification error",
 			www.ResendVerification{
 				Email:     usr.Email,
 				PublicKey: "abc",
@@ -332,14 +342,17 @@ func TestHandleResendVerification(t *testing.T) {
 			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPublicKey,
-			}},
-
-		{"success",
+			},
+		},
+		{
+			"success",
 			www.ResendVerification{
 				Email:     usr.Email,
 				PublicKey: usrPubkey,
 			},
-			http.StatusOK, nil},
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -372,8 +385,7 @@ func TestHandleResendVerification(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -514,130 +526,11 @@ func TestHandleLogin(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
 }
-
-/*
-XXX these tests are for the login implementation that uses username instead of
-email. They are being commented out until we switch the login credentials back
-to username.
-https://github.com/decred/politeia/issues/860#issuecomment-520871500
-
-func TestHandleLogin(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
-	defer cleanup()
-
-	// Create a user to test against. newUser() sets the
-	// password to be the same as the username.
-	u, _ := newUser(t, p, true, false)
-	password := u.Username
-	expectedReply, err := p.createLoginReply(u, u.LastLoginTime)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedReply.SessionMaxAge = sessionMaxAge
-
-	// Setup tests
-	var tests = []struct {
-		name       string
-		reqBody    interface{}
-		wantStatus int
-		wantReply  *www.LoginReply
-		wantError  error
-	}{
-		{
-			"invalid request body",
-			"",
-			http.StatusBadRequest,
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			},
-		},
-		{
-			"processLogin error",
-			www.Login{},
-			http.StatusUnauthorized,
-			nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusUserNotFound,
-			},
-		},
-		{
-			"success",
-			www.Login{
-				Username: u.Username,
-				Password: password,
-			},
-			http.StatusOK,
-			expectedReply,
-			nil,
-		},
-	}
-
-	// Run tests
-	for _, v := range tests {
-		t.Run(v.name, func(t *testing.T) {
-			// Setup request
-			r := newPostReq(t, www.RouteLogin, v.reqBody)
-			w := httptest.NewRecorder()
-
-			// Run test case
-			p.handleLogin(w, r)
-			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
-
-			// Validate response
-			if res.StatusCode != v.wantStatus {
-				t.Errorf("got status code %v, want %v",
-					res.StatusCode, v.wantStatus)
-			}
-
-			if res.StatusCode == http.StatusOK {
-				// A user session should have been
-				// created if login was successful.
-				_, err := p.getSessionUser(w, r)
-				if err != nil {
-					t.Errorf("session not created")
-				}
-
-				// Check response body
-				var lr www.LoginReply
-				err = json.Unmarshal(body, &lr)
-				if err != nil {
-					t.Errorf("unmarshal LoginReply: %v", err)
-				}
-
-				diff := deep.Equal(lr, *v.wantReply)
-				if diff != nil {
-					t.Errorf("LoginReply got/want diff:\n%v",
-						spew.Sdump(diff))
-				}
-
-				// Test case passes; next case
-				return
-			}
-
-			var ue www.UserError
-			err := json.Unmarshal(body, &ue)
-			if err != nil {
-				t.Errorf("unmarshal UserError: %v", err)
-			}
-
-			got := errToStr(ue)
-			want := errToStr(v.wantError)
-			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
-			}
-		})
-	}
-}
-*/
 
 func TestHandleChangePassword(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
@@ -659,12 +552,16 @@ func TestHandleChangePassword(t *testing.T) {
 		// We can assume that the request contains a valid
 		// user session.
 
-		{"invalid request body", "", http.StatusBadRequest,
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"processChangePassword error",
+			},
+		},
+		{
+			"processChangePassword error",
 			www.ChangePassword{
 				CurrentPassword: "",
 				NewPassword:     newPass,
@@ -672,14 +569,17 @@ func TestHandleChangePassword(t *testing.T) {
 			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPassword,
-			}},
-
-		{"success",
+			},
+		},
+		{
+			"success",
 			www.ChangePassword{
 				CurrentPassword: currPass,
 				NewPassword:     newPass,
 			},
-			http.StatusOK, nil},
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -716,8 +616,7 @@ func TestHandleChangePassword(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -807,8 +706,7 @@ func TestHandleResetPassword(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -928,23 +826,31 @@ func TestHandleChangeUsername(t *testing.T) {
 		// We can assume that the request contains a valid
 		// user session.
 
-		{"invalid request body", "", http.StatusBadRequest,
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"processChangeUsername error", www.ChangeUsername{},
+			},
+		},
+		{
+			"processChangeUsername error",
+			www.ChangeUsername{},
 			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPassword,
-			}},
-
-		{"success",
+			},
+		},
+		{
+			"success",
 			www.ChangeUsername{
 				Password:    pass,
 				NewUsername: usr.Username + "aaa",
 			},
-			http.StatusOK, nil},
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -981,8 +887,7 @@ func TestHandleChangeUsername(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -1007,20 +912,36 @@ func TestHandleUserDetails(t *testing.T) {
 		// be caught by the router. A correct length UUID with an
 		// invalid format will not be caught by the router and needs
 		// to be tested for.
-		{"invalid uuid format", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		{
+			"invalid uuid format",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			false, http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"process user details error", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+			},
+		},
+		{
+			"process user details error",
+			"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			false, http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
-			}},
-
-		{"logged in user success", usr.ID.String(), true, http.StatusOK, nil},
-		{"public user success", usr.ID.String(), false, http.StatusOK, nil},
+			},
+		},
+		{
+			"logged in user success",
+			usr.ID.String(),
+			true,
+			http.StatusOK,
+			nil,
+		},
+		{
+			"public user success",
+			usr.ID.String(),
+			false,
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -1067,8 +988,7 @@ func TestHandleUserDetails(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -1091,16 +1011,22 @@ func TestHandleEditUser(t *testing.T) {
 		// We can assume that the request contains a valid
 		// admin session.
 
-		{"invalid request body", "", http.StatusBadRequest,
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"success",
+			},
+		},
+		{
+			"success",
 			www.EditUser{
 				EmailNotifications: &notif,
 			},
-			http.StatusOK, nil},
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -1137,8 +1063,7 @@ func TestHandleEditUser(t *testing.T) {
 			got := errToStr(ue)
 			want := errToStr(v.wantError)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}

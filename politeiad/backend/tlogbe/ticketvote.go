@@ -1022,7 +1022,7 @@ func voteBitVerify(options []ticketvote.VoteOption, mask, bit uint64) error {
 		}
 	}
 
-	return fmt.Errorf("bit 0x%x not found in vote options")
+	return fmt.Errorf("bit 0x%x not found in vote options", bit)
 }
 
 // TODO test this function

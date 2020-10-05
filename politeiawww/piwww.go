@@ -2385,8 +2385,8 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, vir)
 }
 
-// setupPiRoutes sets up the pi API routes.
-func (p *politeiawww) setupPiRoutes() {
+// setPiRoutes sets the pi API routes.
+func (p *politeiawww) setPiRoutes() {
 	// Proposal routes
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalNew, p.handleProposalNew,
