@@ -394,7 +394,7 @@ func convertCommentVoteFromBlobEntry(be store.BlobEntry) (*comments.CommentVote,
 }
 
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
-	// Score needs to be filled in seperately
+	// Score needs to be filled in separately
 	return comments.Comment{
 		UserID:    ca.UserID,
 		Token:     ca.Token,
@@ -413,7 +413,7 @@ func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
 }
 
 func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
-	// Score needs to be filled in seperately
+	// Score needs to be filled in separately
 	return comments.Comment{
 		UserID:    cd.UserID,
 		Token:     cd.Token,
@@ -1286,7 +1286,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		votes = make([]voteIndex, 0, 1)
 	}
 	votes = append(votes, voteIndex{
-		Vote:   comments.VoteT(cv.Vote),
+		Vote:   cv.Vote,
 		Merkle: merkle,
 	})
 	cidx.Votes[cv.UserID] = votes
@@ -1673,7 +1673,7 @@ func calcVoteScore(cidx commentIndex, cv comments.CommentVote) int64 {
 	// upvotes a comment that they have already upvoted, the resulting
 	// vote score is 0 due to the second upvote removing the original
 	// upvote.
-	voteNew := comments.VoteT(cv.Vote)
+	voteNew := cv.Vote
 	switch {
 	case votePrev == 0:
 		// No previous vote. Add the new vote to the score.

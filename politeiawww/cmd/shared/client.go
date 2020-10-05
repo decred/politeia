@@ -1068,7 +1068,7 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 }
 
 // VoteInventory retrieves the tokens of all proposals in the inventory
-// catagorized by their vote status.
+// categorized by their vote status.
 func (c *Client) VoteInventory() (*pi.VoteInventoryReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, pi.APIRoute,
 		pi.RouteVoteInventory, nil)

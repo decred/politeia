@@ -66,20 +66,20 @@ var (
 	// this additional status.
 	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
 		// Unvetted status changes
-		backend.MDStatusUnvetted: map[backend.MDStatusT]struct{}{
-			backend.MDStatusVetted:   struct{}{},
-			backend.MDStatusCensored: struct{}{},
+		backend.MDStatusUnvetted: {
+			backend.MDStatusVetted:   {},
+			backend.MDStatusCensored: {},
 		},
 
 		// Vetted status changes
-		backend.MDStatusVetted: map[backend.MDStatusT]struct{}{
-			backend.MDStatusCensored: struct{}{},
-			backend.MDStatusArchived: struct{}{},
+		backend.MDStatusVetted: {
+			backend.MDStatusCensored: {},
+			backend.MDStatusArchived: {},
 		},
 
 		// Statuses that do not allow any further transitions
-		backend.MDStatusCensored: map[backend.MDStatusT]struct{}{},
-		backend.MDStatusArchived: map[backend.MDStatusT]struct{}{},
+		backend.MDStatusCensored: {},
+		backend.MDStatusArchived: {},
 	}
 )
 
@@ -232,9 +232,7 @@ func (t *tlogBackend) inventoryGet() map[backend.MDStatusT][]string {
 	inv := make(map[backend.MDStatusT][]string, len(t.inventory))
 	for status, tokens := range t.inventory {
 		tokensCopy := make([]string, len(tokens))
-		for k, v := range tokens {
-			tokensCopy[k] = v
-		}
+		copy(tokensCopy, tokens)
 		inv[status] = tokensCopy
 	}
 
@@ -494,9 +492,7 @@ func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backen
 	}
 
 	// Apply adds
-	for _, v := range filesAdd {
-		f = append(f, v)
-	}
+	f = append(f, filesAdd...)
 
 	return f
 }
@@ -1392,10 +1388,10 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	return r, nil
 }
 
-// Inventory is not currenctly implemented in tlogbe. If the caller which to
-// pull records from the inventory then they should use the InventoryByStatus
-// call to get the tokens of all records in the inventory and pull the required
-// records individually.
+// Inventory is not implemented in tlogbe. If the caller which to pull records
+// from the inventory then they should use the InventoryByStatus call to get
+// the tokens of all records in the inventory and pull the required records
+// individually.
 //
 // This function satisfies the Backend interface.
 func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
@@ -1404,7 +1400,7 @@ func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, in
 }
 
 // InventoryByStatus returns the record tokens of all records in the inventory
-// catagorized by MDStatusT.
+// categorized by MDStatusT.
 //
 // This function satisfies the Backend interface.
 func (t *tlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {

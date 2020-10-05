@@ -439,11 +439,7 @@ func (t *tlog) treeExists(treeID int64) bool {
 	log.Tracef("tlog treeExists: %v", treeID)
 
 	_, err := t.trillian.tree(treeID)
-	if err == nil {
-		return true
-	}
-
-	return false
+	return err == nil
 }
 
 // treeFreeze updates the status of a record and freezes the trillian tree as a
@@ -558,6 +554,9 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 		logLeafNew(freezeRecordHash, []byte(keyPrefixFreezeRecord+keys[1])),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
+	if err != nil {
+		return fmt.Errorf("leavesAppend: %v", err)
+	}
 	if len(queued) != 2 {
 		return fmt.Errorf("wrong number of queud leaves: got %v, want 2",
 			len(queued))
@@ -680,6 +679,9 @@ func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 		logLeafNew(h, []byte(keyPrefixRecordIndex+keys[0])),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
+	if err != nil {
+		return fmt.Errorf("leavesAppend: %v", err)
+	}
 	if len(queued) != 1 {
 		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
 			len(queued))

@@ -32,7 +32,7 @@ const (
 	//
 	// Some commands will return cached results with the connection
 	// status when dcrdata cannot be reached. It is the callers
-	// responsibilty to determine the correct course of action when
+	// responsibility to determine the correct course of action when
 	// dcrdata cannot be reached.
 	StatusInvalid      StatusT = 0
 	StatusConnected    StatusT = 1

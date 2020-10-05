@@ -51,8 +51,8 @@ var (
 	// statusReasonRequired contains the list of proposal statuses that
 	// require an accompanying reason to be given for the status change.
 	statusReasonRequired = map[pi.PropStatusT]struct{}{
-		pi.PropStatusCensored:  struct{}{},
-		pi.PropStatusAbandoned: struct{}{},
+		pi.PropStatusCensored:  {},
+		pi.PropStatusAbandoned: {},
 	}
 
 	// errProposalNotFound is emitted when a proposal is not found in
@@ -67,6 +67,7 @@ var (
 // Short tokens should only be used when retrieving data. Data that is written
 // to disk should always reference the full length token.
 func tokenIsValid(token string) bool {
+	// Verify token size
 	switch {
 	case len(token) == pd.TokenPrefixLength:
 		// Token is a short proposal token
@@ -76,12 +77,10 @@ func tokenIsValid(token string) bool {
 		// Unknown token size
 		return false
 	}
+
+	// Verify token is valid hex
 	_, err := hex.DecodeString(token)
-	if err != nil {
-		// Token is not valid hex
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // tokenIsFullLength returns whether the provided string a is valid, full

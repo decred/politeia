@@ -21,8 +21,9 @@ type VoteErrorT int
 // downvotes instead of just a overall vote score.
 // TODO the plugin policies should be returned in a route
 // TODO the proposals route should allow filtering by user ID. Actually, this
-// is going to have to wait until after the intial release. This is non-trivial
-// to accomplish and is outside the scope of the core functionality.
+// is going to have to wait until after the initial release. This is
+// non-trivial to accomplish and is outside the scope of the core
+// functionality.
 // TODO show the difference between unvetted censored and vetted censored
 // in the proposal inventory route since fetching them requires specifying
 // the state.
@@ -399,7 +400,7 @@ type ProposalsReply struct {
 }
 
 // ProposalInventory retrieves the tokens of all proposals in the inventory,
-// catagorized by proposal status and ordered by timestamp of the status change
+// categorized by proposal status and ordered by timestamp of the status change
 // from newest to oldest.
 type ProposalInventory struct{}
 
@@ -703,7 +704,7 @@ type CastVoteReply struct {
 	Ticket  string `json:"ticket"`  // Ticket ID
 	Receipt string `json:"receipt"` // Server signature of client signature
 
-	// The follwing fields will only be present if an error occured
+	// The follwing fields will only be present if an error occurred
 	// while attempting to cast the vote.
 	ErrorCode    VoteErrorT `json:"errorcode,omitempty"`
 	ErrorContext string     `json:"errorcontext,omitempty"`
@@ -774,7 +775,7 @@ type VoteSummariesReply struct {
 }
 
 // VoteInventory retrieves the tokens of all public, non-abandoned proposals
-// catagorized by their vote status.
+// categorized by their vote status.
 type VoteInventory struct{}
 
 // VoteInventoryReply in the reply to the VoteInventory command.

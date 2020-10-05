@@ -108,7 +108,7 @@ func (p *piPlugin) linkedFromLocked(token string) (*linkedFrom, error) {
 		if errors.As(err, &e) && !os.IsExist(err) {
 			// File does't exist. Return an empty linked from list.
 			return &linkedFrom{
-				Tokens: make(map[string]struct{}, 0),
+				Tokens: make(map[string]struct{}),
 			}, nil
 		}
 	}

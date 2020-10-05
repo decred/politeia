@@ -1804,7 +1804,7 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 
 // UpdateUnvettedMetadata is not implemented.
 //
-// This function satsifies the Backend interface.
+// This function satisfies the Backend interface.
 func (g *gitBackEnd) UpdateUnvettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
 	return fmt.Errorf("not implemented")
 }
@@ -2792,7 +2792,7 @@ func (g *gitBackEnd) Inventory(vettedCount, vettedStart, branchCount uint, inclu
 
 // InventoryByStatus is not implemented.
 //
-// This function satsifies the Backend interface.
+// This function satisfies the Backend interface.
 func (g *gitBackEnd) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	return nil, fmt.Errorf("not implemented")
 }

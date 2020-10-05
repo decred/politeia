@@ -387,7 +387,7 @@ type CastVoteReply struct {
 	Ticket  string `json:"ticket"`  // Ticket ID
 	Receipt string `json:"receipt"` // Server signature of client signature
 
-	// The follwing fields will only be present if an error occured
+	// The follwing fields will only be present if an error occurred
 	// while attempting to cast the vote.
 	ErrorCode    VoteErrorT `json:"errorcode,omitempty"`
 	ErrorContext string     `json:"errorcontext,omitempty"`
@@ -603,7 +603,7 @@ func DecodeSummariesReply(payload []byte) (*SummariesReply, error) {
 }
 
 // Inventory requests the tokens of all public, non-abandoned records
-// catagorized by vote status.
+// categorized by vote status.
 type Inventory struct{}
 
 // EncodeInventory encodes a Inventory into a JSON byte slice.
@@ -622,7 +622,7 @@ func DecodeInventory(payload []byte) (*Inventory, error) {
 }
 
 // InventoryReply is the reply to the Inventory command. It contains the tokens
-// of all public, non-abandoned records catagorized by vote status.
+// of all public, non-abandoned records categorized by vote status.
 // TODO
 // Sorted by timestamp in descending order:
 // Unauthorized, Authorized

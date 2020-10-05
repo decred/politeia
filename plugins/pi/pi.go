@@ -76,16 +76,16 @@ var (
 	// transitions. If StatusChanges[currentStatus][newStatus] exists
 	// then the status change is allowed.
 	StatusChanges = map[PropStatusT]map[PropStatusT]struct{}{
-		PropStatusUnvetted: map[PropStatusT]struct{}{
-			PropStatusPublic:   struct{}{},
-			PropStatusCensored: struct{}{},
+		PropStatusUnvetted: {
+			PropStatusPublic:   {},
+			PropStatusCensored: {},
 		},
-		PropStatusPublic: map[PropStatusT]struct{}{
-			PropStatusAbandoned: struct{}{},
-			PropStatusCensored:  struct{}{},
+		PropStatusPublic: {
+			PropStatusAbandoned: {},
+			PropStatusCensored:  {},
 		},
-		PropStatusCensored:  map[PropStatusT]struct{}{},
-		PropStatusAbandoned: map[PropStatusT]struct{}{},
+		PropStatusCensored:  {},
+		PropStatusAbandoned: {},
 	}
 
 	// ErrorStatus contains human readable user error statuses.
@@ -419,9 +419,9 @@ func DecodeCommentVoteReply(payload []byte) (*CommentVoteReply, error) {
 }
 
 // VoteInventory requests the tokens of all proposals in the inventory
-// catagorized by their vote status. This call relies on the ticketvote
+// categorized by their vote status. This call relies on the ticketvote
 // Inventory call, but breaks the Finished vote status out into Approved and
-// Rejected catagories. This functionality is specific to pi.
+// Rejected categories. This functionality is specific to pi.
 type VoteInventory struct{}
 
 // EncodeVoteInventory encodes a VoteInventory into a JSON byte slice.

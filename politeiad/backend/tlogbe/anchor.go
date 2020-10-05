@@ -21,7 +21,7 @@ import (
 
 // TODO handle reorgs. A anchor record may become invalid in the case of a
 // reorg. We don't create the anchor record until the anchor tx has 6
-// confirmations so the probability of this occuring on mainnet is low, but it
+// confirmations so the probability of this occurring on mainnet is low, but it
 // still needs to be handled.
 
 const (
@@ -85,6 +85,9 @@ func (t *tlog) anchorSave(a anchor) error {
 	queued, _, err := t.trillian.leavesAppend(a.TreeID, []*trillian.LogLeaf{
 		logLeafNew(h, prefixedKey),
 	})
+	if err != nil {
+		return fmt.Errorf("leavesAppend: %v", err)
+	}
 	if len(queued) != 1 {
 		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
 			len(queued))
@@ -201,7 +204,7 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 	// 6 confirmations.
 	var (
 		// The max retry period is set to 180 minutes to ensure that
-		// enough time is given for the anchor transaction to recieve 6
+		// enough time is given for the anchor transaction to receive 6
 		// confirmations. This is based on the fact that each block has
 		// a 99.75% chance of being mined within 30 minutes.
 		//

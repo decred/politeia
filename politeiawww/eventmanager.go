@@ -143,12 +143,7 @@ func (p *politeiawww) setupEventListenersCMS() {
 // notificationIsSet returns whether the provided user has the provided
 // notification bit set.
 func notificationIsSet(emailNotifications uint64, n www.EmailNotificationT) bool {
-	if emailNotifications&uint64(n) == 0 {
-		// Notification bit not set
-		return false
-	}
-	// Notification bit is set
-	return true
+	return emailNotifications&uint64(n) != 0
 }
 
 // userNotificationEnabled returns whether the user should receive the provided
@@ -243,6 +238,10 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
+		if err != nil {
+			log.Errorf("handleEventProposalEdited: AllUsers: %v", err)
+			continue
+		}
 
 		err = p.emailProposalEdited(d.name, d.username,
 			d.token, d.version, emails)
@@ -326,6 +325,10 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
+		if err != nil {
+			log.Errorf("handleEventProposalStatusChange: AllUsers: %v", err)
+			continue
+		}
 
 		// Email users
 		err = p.emailProposalStatusChange(d, proposalName, emails)
@@ -485,6 +488,10 @@ func (p *politeiawww) handleEventProposalVoteAuthorized(ch chan interface{}) {
 			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
+		if err != nil {
+			log.Errorf("handleEventProposalVoteAuthorized: AllUsers: %v", err)
+			continue
+		}
 
 		// Send notification email
 		err = p.emailProposalVoteAuthorized(d.token, d.name, d.username, emails)
@@ -541,6 +548,9 @@ func (p *politeiawww) handleEventProposalVoteStarted(ch chan interface{}) {
 			// Add user to notification list
 			emails = append(emails, u.Email)
 		})
+		if err != nil {
+			log.Errorf("handleEventProposalVoteStarted: AllUsers: %v", err)
+		}
 
 		// Email users
 		err = p.emailProposalVoteStarted(d.token, d.name, emails)
@@ -611,7 +621,7 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
-			// Check circunstances where we don't notify
+			// Check circumstances where we don't notify
 			switch {
 			case !u.Admin:
 				// Only notify admin users
@@ -623,6 +633,9 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 
 			emails = append(emails, u.Email)
 		})
+		if err != nil {
+			log.Errorf("handleEventDCCNew: AllUsers: %v", err)
+		}
 
 		err = p.emailDCCSubmitted(d.token, emails)
 		if err != nil {
@@ -647,7 +660,7 @@ func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 
 		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
-			// Check circunstances where we don't notify
+			// Check circumstances where we don't notify
 			switch {
 			case !u.Admin:
 				// Only notify admin users
@@ -659,6 +672,9 @@ func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 
 			emails = append(emails, u.Email)
 		})
+		if err != nil {
+			log.Errorf("handleEventDCCSupportOppose: AllUsers: %v", err)
+		}
 
 		err = p.emailDCCSupportOppose(d.token, emails)
 		if err != nil {

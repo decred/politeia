@@ -11,11 +11,11 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// votesCmd retrieves vote details for a proposal, tallies the votes,
-// and displays the result.
+// votesCmd retrieves vote details for a proposal, tallies the votes, and
+// displays the result.
 type votesCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token"` // Censorship token
+		Token string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
@@ -34,7 +34,7 @@ func (cmd *votesCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Get vote detials for proposal
+	// Get vote details for proposal
 	vrr, err := client.Votes(v)
 	if err != nil {
 		return fmt.Errorf("ProposalVotes: %v", err)

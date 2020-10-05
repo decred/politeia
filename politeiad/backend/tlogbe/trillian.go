@@ -352,7 +352,7 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 		// appended. Leaves that were not successfully appended will be
 		// returned without an inclusion proof and the caller can decide
 		// what to do. Note this includes leaves that were not appended
-		// becuase they were a duplicate.
+		// because they were a duplicate.
 		c := codes.Code(v.GetStatus().GetCode())
 		if c == codes.OK {
 			// Verify that the merkle leaf hash is using the expected

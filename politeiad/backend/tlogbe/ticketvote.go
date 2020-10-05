@@ -85,7 +85,7 @@ type ticketVotePlugin struct {
 	// record vote has ended.
 	dataDir string
 
-	// inv contains the record inventory catagorized by vote status.
+	// inv contains the record inventory categorized by vote status.
 	// The inventory will only contain public, non-abandoned records.
 	// This cache is built on startup.
 	inv inventory
@@ -682,7 +682,7 @@ func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
 type commitmentAddr struct {
 	ticket string // Ticket hash
 	addr   string // Commitment address
-	err    error  // Error if one occured
+	err    error  // Error if one occurred
 }
 
 func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmentAddr, error) {
@@ -1014,7 +1014,7 @@ func voteBitVerify(options []ticketvote.VoteOption, mask, bit uint64) error {
 		return fmt.Errorf("invalid mask 0x%x bit 0x%x", mask, bit)
 	}
 
-	// Verify bit is inlcuded in vote options
+	// Verify bit is included in vote options
 	for _, v := range options {
 		if v.Bit == bit {
 			// Bit matches one of the options. We're done.
