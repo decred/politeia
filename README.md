@@ -297,7 +297,7 @@ At this point, you can:
 
 * Follow the instructions at [decred/politeiagui](https://github.com/decred/politeiagui)
 to setup Politeia and access it through the UI.
-* Use the [politeiawwwcli](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawwwcli) tool to interact with politeiawww.
+* Use the [politeiawww](https://github.com/decred/politeia/tree/master/politeiawww/cmd/) tools to interact with politeiawww.
 * Use the [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) tool to interact directly with politeiad.
 * Use any other tools or clients that are listed above.
 
