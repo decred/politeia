@@ -62,17 +62,13 @@ type piwww struct {
 	UserDetails            userDetailsCmd               `command:"userdetails"`
 	Users                  shared.UsersCmd              `command:"users"`
 
-	// TODO some of the proposal commands use both the --unvetted and
-	// --vetted flags. Let make them all use only the --unvetted flag.
-	// If --unvetted is not included then its assumed to be a vetted
-	// request.
 	// TODO replace www policies with pi policies
 	// Proposal commands
 	ProposalNew       proposalNewCmd       `command:"proposalnew"`
 	ProposalEdit      proposalEditCmd      `command:"proposaledit"`
 	ProposalStatusSet proposalStatusSetCmd `command:"proposalstatusset"`
 	Proposals         proposalsCmd         `command:"proposals"`
-	ProposalInventory proposalInventoryCmd `command:"proposalinventory"`
+	ProposalInventory proposalInventoryCmd `command:"proposalinv"`
 
 	// Comments commands
 	CommentNew    commentNewCmd    `command:"commentnew"`
@@ -89,7 +85,7 @@ type piwww struct {
 	Votes           votesCmd           `command:"votes"`
 	VoteResults     voteResultsCmd     `command:"voteresults"`
 	VoteSummaries   voteSummariesCmd   `command:"votesummaries"`
-	VoteInventory   voteInventoryCmd   `command:"voteinventory"`
+	VoteInventory   voteInventoryCmd   `command:"voteinv"`
 
 	// Websocket commands
 	Subscribe subscribeCmd `command:"subscribe"`
@@ -141,9 +137,9 @@ User commands
 Proposal commands
   proposalnew            (user)   Submit a new proposal
   proposaledit           (user)   Edit an existing proposal
-  proposalsetstatus      (admin)  Set the status of a proposal
+  proposalstatusset      (admin)  Set the status of a proposal
   proposals              (public) Get proposals
-  proposalinventory      (public) Get proposals inventory by proposal status
+  proposalinv            (public) Get proposal inventory by proposal status
 
 Comment commands
   commentnew             (user)   Submit a new comment
@@ -160,7 +156,7 @@ Vote commands
   votes                  (public) Get vote details
   voteresults            (public) Get full vote results
   votesummaries          (public) Get vote summaries
-  voteinventory          (public) Get proposal inventory by vote status
+  voteinv                (public) Get proposal inventory by vote status
 
 Websocket commands
   subscribe              (public) Subscribe/unsubscribe to websocket event

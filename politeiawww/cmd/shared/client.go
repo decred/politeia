@@ -805,7 +805,7 @@ func (c *Client) Proposals(p pi.Proposals) (*pi.ProposalsReply, error) {
 // ProposalInventory retrieves the censorship tokens of all proposals,
 // separated by their status.
 func (c *Client) ProposalInventory() (*pi.ProposalInventoryReply, error) {
-	respondeBody, err := c.makeRequest(http.MethodGet, pi.APIRoute,
+	respondeBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalInventory, nil)
 	if err != nil {
 		return nil, err
@@ -1070,7 +1070,7 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 // VoteInventory retrieves the tokens of all proposals in the inventory
 // categorized by their vote status.
 func (c *Client) VoteInventory() (*pi.VoteInventoryReply, error) {
-	responseBody, err := c.makeRequest(http.MethodGet, pi.APIRoute,
+	responseBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteInventory, nil)
 	if err != nil {
 		return nil, err

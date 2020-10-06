@@ -35,9 +35,9 @@ var (
 	// expected.
 	ErrChangesRecord = errors.New("changes record")
 
-	// ErrRecordArchived is returned when an update was attempted on a
-	// archived record.
-	ErrRecordArchived = errors.New("record is archived")
+	// ErrRecordLocked is returned when a record status is one that
+	// does not allow any further changes.
+	ErrRecordLocked = errors.New("record is locked")
 
 	// ErrJournalsNotReplayed is returned when the journals have not
 	// been replayed and the subsequent code expect it to be replayed.

@@ -1880,7 +1880,7 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 		return err
 	}
 	if md.Status == backend.MDStatusArchived {
-		return backend.ErrRecordArchived
+		return backend.ErrRecordLocked
 	}
 
 	log.Debugf("updating vetted metadata %x", token)
@@ -2014,7 +2014,7 @@ func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp strin
 			return err
 		}
 		if md.Status == backend.MDStatusArchived {
-			return backend.ErrRecordArchived
+			return backend.ErrRecordLocked
 		}
 	}
 
@@ -2608,7 +2608,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 		return nil, err
 	}
 	if md.Status == backend.MDStatusArchived {
-		return nil, backend.ErrRecordArchived
+		return nil, backend.ErrRecordLocked
 	}
 
 	// Load record

@@ -22,10 +22,9 @@ func (cmd *voteInventoryCmd) Execute(args []string) error {
 	return shared.PrintJSON(reply)
 }
 
-// voteInventoryHelpMsg is the output of the help command when
-// 'voteinventory' is specified.
-const voteInventoryHelpMsg = `voteinventory
+// voteInventoryHelpMsg is the command help message.
+const voteInventoryHelpMsg = `voteinv
 
-Fetch the censorship record tokens for all proposals, separated by their
+Fetch the censorship record tokens for all proposals, categorized by their
 vote status. The unvetted tokens are only returned if the logged in user is an
 admin.`

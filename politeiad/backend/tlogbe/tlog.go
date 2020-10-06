@@ -806,9 +806,12 @@ func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMe
 		return nil, errTreeIsFrozen
 	}
 
-	// Verify there are no duplicate mdstream IDs
+	// Verify there are no duplicate or empty mdstream IDs
 	mdstreamIDs := make(map[uint64]struct{}, len(metadata))
 	for _, v := range metadata {
+		if v.ID == 0 {
+			return nil, fmt.Errorf("invalid metadata stream ID 0")
+		}
 		_, ok := mdstreamIDs[v.ID]
 		if ok {
 			return nil, fmt.Errorf("duplicate metadata stream ID: %v", v.ID)
@@ -816,9 +819,12 @@ func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMe
 		mdstreamIDs[v.ID] = struct{}{}
 	}
 
-	// Verify there are no duplicate filenames
+	// Verify there are no duplicate or empty filenames
 	filenames := make(map[string]struct{}, len(files))
 	for _, v := range files {
+		if v.Name == "" {
+			return nil, fmt.Errorf("empty filename")
+		}
 		_, ok := filenames[v.Name]
 		if ok {
 			return nil, fmt.Errorf("duplicate filename found: %v", v.Name)

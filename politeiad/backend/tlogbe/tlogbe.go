@@ -507,10 +507,10 @@ func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backen
 }
 
 // TODO test this function
-func metadataStreamsUpdate(mdCurr, mdAppend, mdOverwrite []backend.MetadataStream) []backend.MetadataStream {
-	// Convert existing metadata to map
-	md := make(map[uint64]backend.MetadataStream, len(mdCurr)+len(mdAppend))
-	for _, v := range mdCurr {
+func metadataStreamsUpdate(curr, mdAppend, mdOverwrite []backend.MetadataStream) []backend.MetadataStream {
+	// Put current metadata into a map
+	md := make(map[uint64]backend.MetadataStream, len(curr))
+	for _, v := range curr {
 		md[v.ID] = v
 	}
 
@@ -528,6 +528,7 @@ func metadataStreamsUpdate(mdCurr, mdAppend, mdOverwrite []backend.MetadataStrea
 			// No existing metadata. Use append data as full metadata
 			// stream.
 			md[v.ID] = v
+			continue
 		}
 
 		// Metadata exists. Append to it.
@@ -706,7 +707,10 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	// Save record
 	err = t.unvetted.recordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
-		if err == errNoFileChanges {
+		switch err {
+		case errTreeIsFrozen:
+			return nil, backend.ErrRecordLocked
+		case errNoFileChanges:
 			return nil, backend.ErrNoChanges
 		}
 		return nil, fmt.Errorf("recordSave: %v", err)
@@ -804,7 +808,10 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	// Save record
 	err = t.vetted.recordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
-		if err == errNoFileChanges {
+		switch err {
+		case errTreeIsFrozen:
+			return nil, backend.ErrRecordLocked
+		case errNoFileChanges:
 			return nil, backend.ErrNoChanges
 		}
 		return nil, fmt.Errorf("recordSave: %v", err)
@@ -891,7 +898,10 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	// Update metadata
 	err = t.unvetted.recordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
-		if err == errNoMetadataChanges {
+		switch err {
+		case errTreeIsFrozen:
+			return backend.ErrRecordLocked
+		case errNoMetadataChanges:
 			return backend.ErrNoChanges
 		}
 		return err
@@ -977,10 +987,13 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	// Update metadata
 	err = t.vetted.recordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
-		if err == errNoMetadataChanges {
+		switch err {
+		case errTreeIsFrozen:
+			return backend.ErrRecordLocked
+		case errNoMetadataChanges:
 			return backend.ErrNoChanges
 		}
-		return err
+		return fmt.Errorf("recordMetadataSave: %v", err)
 	}
 
 	// Call post plugin hooks
