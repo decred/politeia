@@ -91,7 +91,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	allRepoStats := make([]cms.CodeStats, 0, 1048)
 	// Run until start date is after end date, it's incremented by a month
 	// a the end of the loop.
-	for startDate.After(endDate) {
+	for !startDate.After(endDate) {
 		month := startDate.Month()
 		year := startDate.Year()
 		cu := user.CMSCodeStatsByUserMonthYear{
@@ -298,10 +298,10 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 }
 
 // Seconds Minutes Hours Days Months DayOfWeek
-const codeStatsSchedule = "0 0 0 0 * *" // Check at 12:00 AM on 1st day every month
+const codeStatsSchedule = "0 0 1 * *" // Check at 12:00 AM on 1st day every month
 
 func (p *politeiawww) startCodeStatsCron() {
-	log.Infof("Starting cron for invoice email checking")
+	log.Infof("Starting cron for code stats update")
 	// Launch invoice notification cron job
 	err := p.cron.AddFunc(codeStatsSchedule, func() {
 		log.Infof("Running code stats cron")

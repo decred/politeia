@@ -83,7 +83,7 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	if err != nil {
 		return err
 	}
-	log.Info("Updating %v/%v/%v ", org, repoName, pr.Number)
+	log.Infof("Updating %v/%v/%v ", org, repoName, pr.Number)
 	dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, repoName,
 		org)
 	if err != nil {
