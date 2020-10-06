@@ -94,6 +94,8 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", userEmailVerifyHelpMsg)
 	case "userpaymentverify":
 		fmt.Printf("%s\n", userPaymentVerifyHelpMsg)
+	case "userproposalpaywall":
+		fmt.Printf("%s\n", userProposalPaywallHelpMsg)
 	case "usermanage":
 		fmt.Printf("%s\n", shared.UserManageHelpMsg)
 	case "userkeyupdate":
@@ -108,9 +110,6 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", shared.UserPasswordResetHelpMsg)
 	case "users":
 		fmt.Printf("%s\n", shared.UsersHelpMsg)
-
-	case "proposalpaywall":
-		fmt.Printf("%s\n", proposalPaywallHelpMsg)
 
 	// Websocket commands
 	case "subscribe":

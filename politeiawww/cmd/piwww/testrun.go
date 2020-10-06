@@ -244,7 +244,7 @@ func (cmd *testRunCmd) Execute(args []string) error {
 
 		// Purchase proposal credits
 		fmt.Printf("  Proposal paywall details\n")
-		ppdr, err := client.ProposalPaywallDetails()
+		ppdr, err := client.UserProposalPaywall()
 		if err != nil {
 			return err
 		}

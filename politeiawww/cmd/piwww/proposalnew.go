@@ -178,26 +178,23 @@ func (cmd *proposalNewCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Verify the censorship record
-	/*
-		// TODO implement this using pi types
-		vr, err := client.Version()
-		if err != nil {
-			return err
-		}
-		pr := v1.ProposalRecord{
-			Files:            np.Files,
-			Metadata:         np.Metadata,
-			PublicKey:        np.PublicKey,
-			Signature:        np.Signature,
-			CensorshipRecord: npr.CensorshipRecord,
-		}
-		err = shared.VerifyProposal(pr, vr.PubKey)
-		if err != nil {
-			return fmt.Errorf("unable to verify proposal %v: %v",
-				pr.CensorshipRecord.Token, err)
-		}
-	*/
+	// Verify proposal
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
+	pr := pi.ProposalRecord{
+		Files:            pn.Files,
+		Metadata:         pn.Metadata,
+		PublicKey:        pn.PublicKey,
+		Signature:        pn.Signature,
+		CensorshipRecord: pnr.CensorshipRecord,
+	}
+	err = verifyProposal(pr, vr.PubKey)
+	if err != nil {
+		return fmt.Errorf("unable to verify proposal %v: %v",
+			pr.CensorshipRecord.Token, err)
+	}
 
 	return nil
 }

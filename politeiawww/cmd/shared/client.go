@@ -681,9 +681,9 @@ func (c *Client) VerifyResetPassword(vrp www.VerifyResetPassword) (*www.VerifyRe
 	return &reply, nil
 }
 
-// ProposalPaywallDetails retrieves proposal credit paywall information for the
+// UserProposalPaywall retrieves proposal credit paywall information for the
 // logged in user.
-func (c *Client) ProposalPaywallDetails() (*www.UserProposalPaywallReply, error) {
+func (c *Client) UserProposalPaywall() (*www.UserProposalPaywallReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserProposalPaywall, nil)
 	if err != nil {

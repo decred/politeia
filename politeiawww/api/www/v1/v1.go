@@ -788,7 +788,7 @@ type UserRegistrationPaymentReply struct {
 // server that the user needs in order to purchase paywall credits.
 type UserProposalPaywall struct{}
 
-// UserProposalPaywallReply is used to reply to the ProposalPaywallDetails
+// UserProposalPaywallReply is used to reply to the UserProposalPaywall
 // command.
 type UserProposalPaywallReply struct {
 	CreditPrice        uint64 `json:"creditprice"`        // Cost per proposal credit in atoms

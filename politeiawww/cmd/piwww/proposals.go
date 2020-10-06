@@ -83,7 +83,18 @@ func (cmd *proposalsCmd) Execute(args []string) error {
 		return err
 	}
 
-	// TODO verify proposals
+	// Verify proposals
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
+	for _, p := range reply.Proposals {
+		err = verifyProposal(p, vr.PubKey)
+		if err != nil {
+			return fmt.Errorf("unable to verify proposal %v: %v",
+				p.CensorshipRecord.Token, err)
+		}
+	}
 
 	return nil
 }

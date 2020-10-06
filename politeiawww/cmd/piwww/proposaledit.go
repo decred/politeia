@@ -214,22 +214,23 @@ func (cmd *proposalEditCmd) Execute(args []string) error {
 		return err
 	}
 
-	// TODO add this back in. The www verify functions were moved to
-	// the cmswww batchproposals command since piwww no longer uses the
-	// www types. Create a verifyProposal function for the pi api
-	// proposal.
-	/*
-		// Verify proposal
-		vr, err := client.Version()
-		if err != nil {
-			return err
-		}
-		err = verifyProposal(per.Proposal, vr.PubKey)
-		if err != nil {
-			return fmt.Errorf("unable to verify proposal %v: %v",
-				per.Proposal.CensorshipRecord.Token, err)
-		}
-	*/
+	// Verify proposal
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
+	pr := pi.ProposalRecord{
+		Files:            pe.Files,
+		Metadata:         pe.Metadata,
+		PublicKey:        pe.PublicKey,
+		Signature:        pe.Signature,
+		CensorshipRecord: per.CensorshipRecord,
+	}
+	err = verifyProposal(pr, vr.PubKey)
+	if err != nil {
+		return fmt.Errorf("unable to verify proposal %v: %v",
+			pr.CensorshipRecord.Token, err)
+	}
 
 	return nil
 }
