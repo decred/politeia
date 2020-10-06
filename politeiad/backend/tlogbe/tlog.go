@@ -1194,11 +1194,10 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 // metadataSave saves the provided metadata to the kv store and trillian tree.
 // The record index for this iteration of the record is returned. This is step
 // one of a two step process. The record update will not be considered
-// succesful until the returned record index is also saved to the kv store
-// and trillian tree. This code has been pulled out so that it can be called
-// during normal metadata updates as well as when an update requires a freeze
-// record to be saved along with the record index, such as when a record is
-// censored.
+// successful until the returned record index is also saved to the kv store and
+// trillian tree. This code has been pulled out so that it can be called during
+// normal metadata updates as well as when an update requires a freeze record
+// to be saved along with the record index, such as when a record is censored.
 func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) (*recordIndex, error) {
 	// Verify tree exists
 	if !t.treeExists(treeID) {
