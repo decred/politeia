@@ -20,7 +20,7 @@ type proposalStatusSetCmd struct {
 		Status string `positional-arg-name:"status" required:"true"`
 		Reason string `positional-arg-name:"reason"`
 	} `positional-args:"true"`
-	Vetted   bool `long:"vetted" optional:"true"`
+
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
@@ -32,17 +32,14 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 		"abandoned": pi.PropStatusAbandoned,
 	}
 
-	// Verify state
+	// Verify state. Defaults to vetted if the --unvetted flag
+	// is not used.
 	var state pi.PropStateT
 	switch {
-	case cmd.Vetted && cmd.Unvetted:
-		return fmt.Errorf("cannot use --vetted and --unvetted simultaneously")
 	case cmd.Unvetted:
 		state = pi.PropStateUnvetted
-	case cmd.Vetted:
-		state = pi.PropStateVetted
 	default:
-		return fmt.Errorf("must specify either --vetted or unvetted")
+		state = pi.PropStateVetted
 	}
 
 	// Validate user identity
@@ -109,7 +106,9 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 // proposalSetStatusHelpMsg is the output of the help command.
 const proposalSetStatusHelpMsg = `proposalsetstatus "token" "status" "reason"
 
-Set the status of a proposal. Requires admin privileges.
+Set the status of a proposal. This command assumes the proposal is a vetted
+record. If the proposal is unvetted, the --unvetted flag must be used. Requires
+admin priviledges.
 
 Valid statuses:
   public
@@ -122,6 +121,5 @@ Arguments:
 3. message (string, optional)    Status change message
 
 Flags:
-  --vetted   (bool, optional)    Set status of a vetted record.
-  --unvetted (bool, optional)    Set status of an unvetted reocrd.
+  --unvetted (bool, optional)    Set status of an unvetted record.
 `

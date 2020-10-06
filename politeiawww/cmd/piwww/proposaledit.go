@@ -30,7 +30,6 @@ type proposalEditCmd struct {
 	} `positional-args:"true" optional:"true"`
 
 	// CLI flags
-	Vetted   bool   `long:"vetted" optional:"true"`
 	Unvetted bool   `long:"unvetted" optional:"true"`
 	Name     string `long:"name" optional:"true"`
 	LinkTo   string `long:"linkto" optional:"true"`
@@ -71,17 +70,14 @@ func (cmd *proposalEditCmd) Execute(args []string) error {
 			"--random generates a random name and random proposal data")
 	}
 
-	// Verify state
+	// Verify state. Defaults to vetted if the --unvetted flag
+	// is not used.
 	var state pi.PropStateT
 	switch {
-	case cmd.Vetted && cmd.Unvetted:
-		return fmt.Errorf("cannot use --vetted and --unvetted simultaneously")
 	case cmd.Unvetted:
 		state = pi.PropStateUnvetted
-	case cmd.Vetted:
-		state = pi.PropStateVetted
 	default:
-		return fmt.Errorf("must specify either --vetted or unvetted")
+		state = pi.PropStateVetted
 	}
 
 	// Check for user identity. A user identity is required to sign
@@ -241,7 +237,9 @@ func (cmd *proposalEditCmd) Execute(args []string) error {
 // proposalEditHelpMsg is the output of the help command.
 const proposalEditHelpMsg = `editproposal [flags] "token" "indexfile" "attachments" 
 
-Edit a proposal.
+Edit a proposal. This command assumes the proposal is a vetted record. If
+the proposal is unvetted, the --unvetted flag must be used. Requires admin
+priviledges.
 
 Arguments:
 1. token         (string, required) Proposal censorship token
@@ -249,7 +247,6 @@ Arguments:
 3. attachments   (string, optional) Attachment files
 
 Flags:
-  --vetted   (bool, optional)    Comment on vetted record.
   --unvetted (bool, optional)    Comment on unvetted record.
   --random   (bool, optional)    Generate a random proposal name & files to
                                  submit. If this flag is used then the markdown

@@ -23,7 +23,6 @@ type commentNewCmd struct {
 	} `positional-args:"true"`
 
 	// CLI flags
-	Vetted   bool `long:"vetted" optional:"true"`
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
@@ -42,17 +41,14 @@ func (c *commentNewCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Verify state
+	// Verify state. Defaults to vetted if the --unvetted flag
+	// is not used.
 	var state pi.PropStateT
 	switch {
-	case c.Vetted && c.Unvetted:
-		return fmt.Errorf("cannot use --vetted and --unvetted simultaneously")
 	case c.Unvetted:
 		state = pi.PropStateUnvetted
-	case c.Vetted:
-		state = pi.PropStateVetted
 	default:
-		return fmt.Errorf("must specify either --vetted or --unvetted")
+		state = pi.PropStateVetted
 	}
 
 	// Sign comment data
@@ -108,7 +104,9 @@ func (c *commentNewCmd) Execute(args []string) error {
 // commentNewHelpMsg is the help command message.
 const commentNewHelpMsg = `commentnew "token" "comment" "parentid"
 
-Comment on proposal as the logged in user. 
+Comment on a record as logged in user. This command assumes the record is a
+vetted record. If the record is unvetted, the --unvetted flag must be used.
+Requires admin priviledges.
 
 Arguments:
 1. token       (string, required)  Proposal censorship token
@@ -117,6 +115,5 @@ Arguments:
                                    indicates that the comment is a reply.
 
 Flags:
-  --vetted     (bool, optional)    Comment on vetted record.
-  --unvetted   (bool, optional)    Comment on unvetted reocrd.
+  --unvetted   (bool, optional)    Comment on unvetted record.
 `
