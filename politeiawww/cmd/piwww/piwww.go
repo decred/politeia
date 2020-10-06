@@ -7,7 +7,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 
 	flags "github.com/jessevdk/go-flags"
@@ -33,11 +32,6 @@ var (
 )
 
 type piwww struct {
-	// XXX the config does not need to be a part of this struct, but
-	// is included so that the config cli flags print as part of the
-	// piwww help message. This is handled by go-flags.
-	Config shared.Config
-
 	// Basic commands
 	Help helpCmd `command:"help"`
 
@@ -49,6 +43,24 @@ type piwww struct {
 	Logout  shared.LogoutCmd  `command:"logout"`
 	Me      shared.MeCmd      `command:"me"`
 
+	// User commands
+	UserNew                userNewCmd                   `command:"usernew"`
+	UserEdit               userEditCmd                  `command:"useredit"`
+	UserManage             shared.UserManageCmd         `command:"usermanage"`
+	UserEmailVerify        userEmailVerifyCmd           `command:"useremailverify"`
+	UserVerificationResend userVerificationResendCmd    `command:"userverificationresend"`
+	UserPasswordReset      shared.UserPasswordResetCmd  `command:"userpasswordreset"`
+	UserPasswordChange     shared.UserPasswordChangeCmd `command:"userpasswordchange"`
+	UserUsernameChange     shared.UserUsernameChangeCmd `command:"userusernamechange"`
+	UserKeyUpdate          shared.UserKeyUpdateCmd      `command:"userkeyupdate"`
+	UserTOTPSet            shared.UserTOTPSetCmd        `command:"usertotpset"`
+	UserTOTPVerify         shared.UserTOTPVerifyCmd     `command:"usertotpverify"`
+	UserPaymentVerify      userPaymentVerifyCmd         `command:"userpaymentverify"`
+	UserPaymentsRescan     userPaymentsRescanCmd        `command:"userpaymentsrescan"`
+	UserPendingPayment     userPendingPaymentCmd        `command:"userpendingpayment"`
+	UserDetails            userDetailsCmd               `command:"userdetails"`
+	Users                  shared.UsersCmd              `command:"users"`
+
 	// TODO some of the proposal commands use both the --unvetted and
 	// --vetted flags. Let make them all use only the --unvetted flag.
 	// If --unvetted is not included then its assumed to be a vetted
@@ -57,7 +69,7 @@ type piwww struct {
 	// Proposal commands
 	ProposalNew       proposalNewCmd       `command:"proposalnew"`
 	ProposalEdit      proposalEditCmd      `command:"proposaledit"`
-	ProposalSetStatus proposalSetStatusCmd `command:"proposalsetstatus"`
+	ProposalStatusSet proposalStatusSetCmd `command:"proposalstatusset"`
 	Proposals         proposalsCmd         `command:"proposals"`
 	ProposalInventory proposalInventoryCmd `command:"proposalinventory"`
 
@@ -78,24 +90,6 @@ type piwww struct {
 	VoteSummaries   voteSummariesCmd   `command:"votesummaries"`
 	VoteInventory   voteInventoryCmd   `command:"voteinventory"`
 
-	// User commands
-	UserNew                userNewCmd                   `command:"usernew"`
-	UserEdit               userEditCmd                  `command:"useredit"`
-	UserDetails            userDetailsCmd               `command:"userdetails"`
-	UserPaymentsRescan     userPaymentsRescanCmd        `command:"userpaymentsrescan"`
-	UserPendingPayment     userPendingPaymentCmd        `command:"userpendingpayment"`
-	UserEmailVerify        userEmailVerifyCmd           `command:"useremailverify"`
-	UserPaymentVerify      userPaymentVerifyCmd         `command:"userpaymentverify"`
-	UserVerificationResend userVerificationResendCmd    `command:"userverificationresend"`
-	UserManage             shared.UserManageCmd         `command:"usermanage"`
-	UserKeyUpdate          shared.UserKeyUpdateCmd      `command:"userkeyupdate"`
-	UserUsernameChange     shared.UserUsernameChangeCmd `command:"userusernamechange"`
-	UserPasswordChange     shared.UserPasswordChangeCmd `command:"userpasswordchange"`
-	UserPasswordReset      shared.UserPasswordResetCmd  `command:"userpasswordreset"`
-	UserTOTPSet            shared.UserTOTPSetCmd        `command:"usertotpset"`
-	UserTOTPVerify         shared.UserTOTPVerifyCmd     `command:"usertotpverify"`
-	Users                  shared.UsersCmd              `command:"users"`
-
 	// TODO rename to reflect that its a users route
 	ProposalPaywall proposalPaywallCmd `command:"proposalpaywall"`
 
@@ -106,6 +100,77 @@ type piwww struct {
 	TestRun      testRunCmd      `command:"testrun"`
 	SendFaucetTx sendFaucetTxCmd `command:"sendfaucettx"`
 }
+
+// TODO add proposalpaywall to this once the command is updated
+const helpMsg = `Application Options:
+      --appdata=    Path to application home directory
+      --host=       politeiawww host
+  -j, --json        Print raw JSON output
+      --version     Display version information and exit
+      --skipverify  Skip verifying the server's certifcate chain and host name
+  -v, --verbose     Print verbose output
+      --silent      Suppress all output
+
+Help commands
+  help                   Print detailed help message for a command
+
+Basic commands
+  version                (public) Get politeiawww server version
+  policy                 (public) Get politeiawww server policy
+  secret                 (public) Ping the server
+  login                  (public) Login to politeiawww
+  logout                 (user)   Logout from politeiawww
+  me                     (user)   Get details of the logged in user
+
+User commands
+  usernew                (public) Create a new user
+  useredit               (user)   Edit the logged in user
+  usermanage             (admin)  Edit a user as an admin
+  useremailverify        (public) Verify email address
+  userverificationresend (public) Resend verification email
+  userpasswordreset      (public) Reset password 
+  userpasswordchange     (user)   Change password
+  userusernamechange     (user)   Change username
+  userkeyupdate          (user)   Update user key (i.e. identity)
+  usertotpset            (user)   Set a TOTP method
+  usertotpverify         (user)   Verify a TOTP method
+  userpaymentverify      (user)   Verify registration payment
+  userpaymentsrescan     (user)   Rescan all user payments
+  userpendingpayment     (user)   Get pending user payments
+  userdetails            (public) Get user details
+  users                  (public) Get users
+
+Proposal commands
+  proposalnew            (user)   Submit a new proposal
+  proposaledit           (user)   Edit an existing proposal
+  proposalsetstatus      (admin)  Set the status of a proposal
+  proposals              (public) Get proposals
+  proposalinventory      (public) Get proposals inventory by proposal status
+
+Comment commands
+  commentnew             (user)   Submit a new comment
+  commentvote            (user)   Upvote/downvote a comment
+  commentcensor          (admin)  Censor a comment
+  comments               (public) Get comments
+  commentvotes           (public) Get comment votes
+
+Vote commands
+  voteauthorize          (user)   Authorize a proposal vote
+  votestart              (admin)  Start a proposal vote
+  votestartrunoff        (admin)  Start a runoff vote
+  voteballot             (public) Cast a ballot of votes
+  votes                  (public) Get vote details
+  voteresults            (public) Get full vote results
+  votesummaries          (public) Get vote summaries
+  voteinventory          (public) Get proposal inventory by vote status
+
+Websocket commands
+  subscribe              (public) Subscribe/unsubscribe to websocket event
+
+Dev commands
+  sendfaucettx           Send a dcr faucet tx
+  testrun                Execute a test run of pi routes
+`
 
 func _main() error {
 	// Load config. The config variable is a CLI global variable.
@@ -126,31 +191,34 @@ func _main() error {
 	shared.SetConfig(cfg)
 	shared.SetClient(client)
 
+	// Check for a help flag. This is done separately so that we can
+	// print our own custom help message
+	var opts flags.Options = flags.HelpFlag | flags.IgnoreUnknown |
+		flags.PassDoubleDash
+	parser := flags.NewParser(&struct{}{}, opts)
+	_, err = parser.Parse()
+	if err != nil {
+		var flagsErr *flags.Error
+		if errors.As(err, &flagsErr) && flagsErr.Type == flags.ErrHelp {
+			fmt.Printf("%v\n", helpMsg)
+			return nil
+		}
+		return fmt.Errorf("parse help flags: %v", err)
+	}
+
 	// Get politeiawww CSRF token
 	if cfg.CSRF == "" {
 		_, err := client.Version()
 		if err != nil {
-			var e *url.Error
-			if !errors.As(err, &e) {
-				// A url error likely means that politeiawww is not
-				// running. The user may just be trying to print the
-				// help message so only return an error if its not
-				// a url error.
-				return fmt.Errorf("Version: %v", err)
-			}
+			return fmt.Errorf("Version: %v", err)
 		}
 	}
 
 	// Parse subcommand and execute
-	var cli piwww
-	var parser = flags.NewParser(&cli, flags.Default)
-	if _, err := parser.Parse(); err != nil {
-		var flagsErr *flags.Error
-		if errors.As(err, &flagsErr) && flagsErr.Type == flags.ErrHelp {
-			os.Exit(0)
-		} else {
-			os.Exit(1)
-		}
+	parser = flags.NewParser(&piwww{}, flags.Default)
+	_, err = parser.Parse()
+	if err != nil {
+		os.Exit(1)
 	}
 
 	return nil

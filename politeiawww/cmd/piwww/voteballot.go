@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// voteBallotCmd casts a votes ballot for the specified proposal.
+// voteBallotCmd casts a ballot of votes for the specified proposal.
 type voteBallotCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token"`  // Censorship token
@@ -215,11 +215,11 @@ func (cmd *voteBallotCmd) Execute(args []string) error {
 	return nil
 }
 
-// voteBallotHelpMsg is the output of the help command when 'voteballot'
-// is specified.
+// voteBallotHelpMsg is the help command message.
 const voteBallotHelpMsg = `voteballot "token" "voteid"
 
-Cast ticket votes for a proposal.
+Cast ticket votes for a proposal. This command will only work when on testnet
+and when running dcrwallet locally on the default port.
 
 Arguments:
 1. token       (string, optional)   Proposal censorship token

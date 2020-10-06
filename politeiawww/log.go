@@ -45,7 +45,7 @@ var (
 	logRotator *rotator.Rotator
 
 	log          = backendLog.Logger("PWWW")
-	userdbLog    = backendLog.Logger("USDB")
+	userdbLog    = backendLog.Logger("USER")
 	cmsdbLog     = backendLog.Logger("CMDB")
 	wsdcrdataLog = backendLog.Logger("WSDD")
 )
@@ -61,7 +61,7 @@ func init() {
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"PWWW": log,
-	"USDB": userdbLog,
+	"USER": userdbLog,
 	"CMDB": cmsdbLog,
 	"WSDD": wsdcrdataLog,
 }

@@ -13,8 +13,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// proposalSetStatusCmd sets the status of a proposal.
-type proposalSetStatusCmd struct {
+// proposalStatusSetCmd sets the status of a proposal.
+type proposalStatusSetCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token" required:"true"`
 		Status string `positional-arg-name:"status" required:"true"`
@@ -25,7 +25,7 @@ type proposalSetStatusCmd struct {
 }
 
 // Execute executes the set proposal status command.
-func (cmd *proposalSetStatusCmd) Execute(args []string) error {
+func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	propStatus := map[string]pi.PropStatusT{
 		"public":    pi.PropStatusPublic,
 		"censored":  pi.PropStatusCensored,

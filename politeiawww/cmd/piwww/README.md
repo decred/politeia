@@ -8,8 +8,7 @@ flag.
 
     $ piwww -h 
 
-You can view details about a specific command, including required arguments,
-by using the help command.
+You can view details about a specific command by using the help command.
 
     $ piwww help <command>
 
@@ -65,7 +64,7 @@ skipverify=true
 
 ### Create a new user
 
-    $ piwww newuser email@example.com username password --verify --paywall
+    $ piwww usernew email@example.com username password --verify --paywall
 
 `--verify` and `--paywall` are options that can be used when running
 politeiawww on testnet to make the user registration process quicker.
@@ -104,7 +103,7 @@ get a `resource temporarily unavailable` error if you don't.**
 When submitting a proposal, you can either specify a markdown file or you can
 use the `--random` flag to have piwww generate a random proposal for you.
 
-    $ piwww newproposal --random
+    $ piwww proposalnew --random
     {
       "files": [
         {
@@ -119,11 +118,14 @@ use the `--random` flag to have piwww generate a random proposal for you.
     }
     {
       "censorshiprecord": {
-        "token": "299d6defa32b77f0a5534168256c6712a02c0de8037747ac213f650065529043",
+        "token": "2c5d74209f37ca370000",
         "merkle": "362ca2a93194ebee058640f36b0ba74955760cd495f2626d740334de2cbb2a8d",
         "signature": "729269ef6bb45003a4728c40ff5c7f1ecbc44bfcff459d43274155e42e971a0ef8830e692eb833b049df5460edd850c77f21353fe24fd43a454388b7b89d7e00"
       }
     }
+
+Proposals are identified by their censorship record token in all other
+commands.
 
 The proposal must first be vetted by an admin before it is publicily viewable. 
 Proposals are identified by their censorship record token, which can be found
@@ -131,7 +133,7 @@ in the output of the `newproposal` command.
 
 ### Make a proposal public (admin privileges required)
 
-    $ politeiawwwcli setproposalstatus [censorshipRecordToken] public
+    $ piwww proposalstatusset [token] public
 
 Now that the proposal has been vetted and is publicly available, you can
 comment on the proposal or authorize the voting period to start.
@@ -141,14 +143,14 @@ comment on the proposal or authorize the voting period to start.
 Before an admin can start the voting period on a proposal the author must
 authorize the vote.
 
-    $ politeiawwwcli authorizevote [censorhipRecordToken]
+    $ piwww voteauthorize [token]
 
 ### Start a proposal vote (admin privileges required)
 
 Once a proposal vote has been authorized by the author, an admin can start the
 voting period.
 
-    $ politeiawwwcli startvote [censorhipRecordToken]
+    $ piwww votestart [token]
 
 ### Voting on a proposal - politeiavoter
 
@@ -158,51 +160,8 @@ tool.
 
 ### Voting on a proposal - piwww
 
-You can also vote on proposals using `piww`, but it only works on testnet and
-you have to be running your dcrwallet locally using the default port.  If you
-are doing these things, then you can use the `inventory`, `vote`, and `tally`
-commands.
+You can also vote on proposals using the `piww` command `voteballot`. This
+casts a ballot of votes.  This will only work on testnet and if you are running
+your dcrwallet locally using the default port.
 
-`inventory` will fetch all of the active proposal votes and print the details
-for the proposal votes in which you have eligible tickets.
-
-    $ piwww inventory
-    Token: ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899
-      Proposal        : This is the proposal title
-      Eligible tickets: 3
-      Start block     : 30938
-      End block       : 32954
-      Mask            : 3
-      Vote Option:
-        ID                   : no
-        Description          : Don't approve proposal
-        Bits                 : 1
-      Vote Option:
-        ID                   : yes
-        Description          : Approve proposal
-        Bits                 : 2
-        To choose this option: politeiawwwcli vote ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899 yes
-
-`vote` will cast votes using your eligible tickets.  You'll be asked to enter
-your wallet password.
-
-    $ piwww vote ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899 yes
-    Enter the private passphrase of your wallet:
-    Votes succeeded: 3
-    Votes failed   : 0
-
-`tally` will return the current voting resuts the for passed in proposal.
-
-    $ piwww tally ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899
-    Vote Option:
-      ID                   : no
-      Description          : Don't approve proposal
-      Bits                 : 1
-      Votes received       : 0
-      Percentage           : 0%
-    Vote Option:
-      ID                   : yes
-      Description          : Approve proposal
-      Bits                 : 2
-      Votes received       : 3
-      Percentage           : 100%
+    $ piwww voteballot [token] [voteID]

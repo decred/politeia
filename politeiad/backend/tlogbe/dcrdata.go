@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	v4 "github.com/decred/dcrdata/api/types/v4"
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
@@ -483,7 +482,6 @@ func (p *dcrdataPlugin) fsck() error {
 }
 
 func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) {
-	spew.Dump(settings)
 	// Unpack plugin settings
 	var (
 		hostHTTP string
