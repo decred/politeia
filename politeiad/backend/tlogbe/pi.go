@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/politeia/plugins/comments"
-	"github.com/decred/politeia/plugins/pi"
-	"github.com/decred/politeia/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/plugins/comments"
+	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 )
 

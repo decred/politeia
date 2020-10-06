@@ -5,7 +5,7 @@
 package main
 
 import (
-	ticketvote "github.com/decred/politeia/plugins/ticketvote"
+	ticketvote "github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
 // voteAuthorize uses the ticketvote plugin to authorize a vote.

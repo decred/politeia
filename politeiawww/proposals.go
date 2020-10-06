@@ -9,8 +9,8 @@ import (
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
-	piplugin "github.com/decred/politeia/plugins/pi"
-	ticketvote "github.com/decred/politeia/plugins/ticketvote"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	ticketvote "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"

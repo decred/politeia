@@ -17,8 +17,8 @@ import (
 	v4 "github.com/decred/dcrdata/api/types/v4"
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
-	"github.com/decred/politeia/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
 )

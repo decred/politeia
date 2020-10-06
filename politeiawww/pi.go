@@ -5,7 +5,7 @@
 package main
 
 import (
-	piplugin "github.com/decred/politeia/plugins/pi"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 )
 
 // piProposals returns the pi plugin data for the provided proposals.

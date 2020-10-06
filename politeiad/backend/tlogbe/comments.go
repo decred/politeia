@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/politeia/plugins/comments"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 )
 

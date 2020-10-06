@@ -25,10 +25,10 @@ import (
 	"time"
 
 	"github.com/decred/politeia/mdstream"
-	"github.com/decred/politeia/plugins/comments"
-	piplugin "github.com/decred/politeia/plugins/pi"
-	"github.com/decred/politeia/plugins/ticketvote"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/plugins/comments"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"

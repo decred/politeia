@@ -20,14 +20,13 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/plugins/comments"
-	"github.com/decred/politeia/plugins/dcrdata"
-	"github.com/decred/politeia/plugins/pi"
-	"github.com/decred/politeia/plugins/ticketvote"
-	pd "github.com/decred/politeia/politeiad/api/v1"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/plugins/comments"
+	"github.com/decred/politeia/politeiad/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
@@ -124,7 +123,7 @@ type plugin struct {
 }
 
 func tokenPrefix(token []byte) string {
-	return hex.EncodeToString(token)[:pd.TokenPrefixLength]
+	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
 }
 
 func (t *tlogBackend) isShutdown() bool {
@@ -650,7 +649,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// added. This can happen when files are being deleted without
 		// any new files being added.
-		if e.ErrorCode != pd.ErrorStatusEmpty {
+		if e.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
 		}
 	}
@@ -748,7 +747,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// added. This can happen when files are being deleted without
 		// any new files being added.
-		if e.ErrorCode != pd.ErrorStatusEmpty {
+		if e.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
 		}
 	}
@@ -847,13 +846,13 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// being added. This is expected since this is a metadata only
 		// update.
-		if e.ErrorCode != pd.ErrorStatusEmpty {
+		if e.ErrorCode != v1.ErrorStatusEmpty {
 			return err
 		}
 	}
 	if len(mdAppend) == 0 && len(mdOverwrite) == 0 {
 		return backend.ContentVerificationError{
-			ErrorCode: pd.ErrorStatusNoChanges,
+			ErrorCode: v1.ErrorStatusNoChanges,
 		}
 	}
 
@@ -933,13 +932,13 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// being added. This is expected since this is a metadata only
 		// update.
-		if e.ErrorCode != pd.ErrorStatusEmpty {
+		if e.ErrorCode != v1.ErrorStatusEmpty {
 			return err
 		}
 	}
 	if len(mdAppend) == 0 && len(mdOverwrite) == 0 {
 		return backend.ContentVerificationError{
-			ErrorCode: pd.ErrorStatusNoChanges,
+			ErrorCode: v1.ErrorStatusNoChanges,
 		}
 	}
 

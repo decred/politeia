@@ -5,7 +5,7 @@
 package main
 
 import (
-	"github.com/decred/politeia/plugins/comments"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 )
 
 // commentsAll returns all comments for the provided record.
