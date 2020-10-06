@@ -310,9 +310,6 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		return err
 	}
 
-	// TODO verify ProposalMetadata signature. This is already done in
-	// www but we should do it here anyway since its plugin data.
-
 	// Decode ProposalMetadata
 	var pm *pi.ProposalMetadata
 	for _, v := range nr.Files {
@@ -431,18 +428,10 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	// TODO verify files were changed. Before adding this, verify that
 	// politeiad will also error if no files were changed.
 
-	// Verify proposal status
-	status := convertPropStatusFromMDStatus(er.Current.RecordMetadata.Status)
-	if status != pi.PropStatusUnvetted && status != pi.PropStatusPublic {
-		return backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropStatusInvalid),
-		}
-	}
-
 	// Verify that the linkto has not changed. This only applies to
 	// public proposal. Unvetted proposals are allowed to change their
 	// linkto.
+	status := convertPropStatusFromMDStatus(er.Current.RecordMetadata.Status)
 	if status == pi.PropStatusPublic {
 		pmCurr, err := proposalMetadataFromFiles(er.Current.Files)
 		if err != nil {
@@ -460,6 +449,8 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			}
 		}
 	}
+
+	// TODO verify linkto is allowed
 
 	// Verify vote status. This is only required for public proposals.
 	if status == pi.PropStatusPublic {

@@ -64,7 +64,6 @@ const (
 	ErrorStatusInvalid ErrorStatusT = iota
 	ErrorStatusPropStateInvalid
 	ErrorStatusPropVersionInvalid
-	ErrorStatusPropStatusInvalid
 	ErrorStatusPropStatusChangeInvalid
 	ErrorStatusPropLinkToInvalid
 	ErrorStatusVoteStatusInvalid
@@ -92,7 +91,6 @@ var (
 	ErrorStatus = map[ErrorStatusT]string{
 		ErrorStatusInvalid:           "error status invalid",
 		ErrorStatusPropLinkToInvalid: "proposal link to invalid",
-		ErrorStatusPropStatusInvalid: "proposal status invalid",
 		ErrorStatusVoteStatusInvalid: "vote status invalid",
 	}
 )

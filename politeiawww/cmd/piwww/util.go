@@ -88,6 +88,7 @@ func decodeProposalMetadata(metadata []pi.Metadata) (*pi.ProposalMetadata, error
 			if err != nil {
 				return nil, err
 			}
+			pm = &pi.ProposalMetadata{}
 			err = json.Unmarshal(b, pm)
 			if err != nil {
 				return nil, err

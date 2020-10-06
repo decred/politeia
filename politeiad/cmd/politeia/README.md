@@ -114,7 +114,7 @@ $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunve
   'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
   token:0e4a82a370228b710000
 
-Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+Update record: 0e4a82a370228b710000
   Metadata overwrite: 2
   Metadata append   : 12
 ```
@@ -202,7 +202,7 @@ $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevett
   'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
   token:0e4a82a370228b710000
 
-Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+Update record: 0e4a82a370228b710000
   Metadata overwrite: 2
   Metadata append   : 12
 ```
@@ -218,15 +218,15 @@ Note `token:` is not prefixed to the token in this command. Status change
 validation is done in the backend.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setvettedstatus censored 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4 'overwritemetadata12:"zap"'           
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setvettedstatus censored 0e4a82a370228b710000 'overwritemetadata12:"zap"'
 Set record status:
   Status: censored
 ```
 
-## Inventory by status
+## Inventory
 
 The `inventory` command retrieves the censorship record tokens from all records,
-separated by their status.
+categorized by their record status.
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory

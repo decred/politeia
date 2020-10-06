@@ -478,21 +478,30 @@ func recordMetadataNew(token []byte, files []backend.File, status backend.MDStat
 
 // TODO test this function
 func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backend.File {
-	// Apply deletes
-	del := make(map[string]struct{}, len(filesDel))
-	for _, fn := range filesDel {
-		del[fn] = struct{}{}
-	}
-	f := make([]backend.File, 0, len(filesCurr)+len(filesAdd))
+	// Put current files into a map
+	curr := make(map[string]backend.File, len(filesCurr)) // [filename]File
 	for _, v := range filesCurr {
-		if _, ok := del[v.Name]; ok {
-			continue
+		curr[v.Name] = v
+	}
+
+	// Apply deletes
+	for _, fn := range filesDel {
+		_, ok := curr[fn]
+		if ok {
+			delete(curr, fn)
 		}
-		f = append(f, v)
 	}
 
 	// Apply adds
-	f = append(f, filesAdd...)
+	for _, v := range filesAdd {
+		curr[v.Name] = v
+	}
+
+	// Convert back to a slice
+	f := make([]backend.File, 0, len(curr))
+	for _, v := range curr {
+		f = append(f, v)
+	}
 
 	return f
 }
@@ -1123,7 +1132,8 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 		return fmt.Errorf("vetted recordSave: %v", err)
 	}
 
-	log.Debugf("Unvetted record %x copied to vetted", token)
+	log.Debugf("Unvetted record %x copied to vetted tree %v",
+		token, vettedTreeID)
 
 	// Freeze the unvetted tree
 	fr := freezeRecord{
@@ -1135,7 +1145,7 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
 
-	log.Debugf("Unvetted record %x frozen", token)
+	log.Debugf("Unvetted record frozen %x", token)
 
 	// Update the vetted cache
 	t.vettedTreeIDAdd(hex.EncodeToString(token), vettedTreeID)
@@ -1266,17 +1276,24 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 // This function must be called WITH the vetted lock held.
 func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree
-	treeID := treeIDFromToken(token)
+	treeID, ok := t.vettedTreeID(token)
+	if !ok {
+		return fmt.Errorf("vetted record not found")
+	}
 	err := t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
 	if err != nil {
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
+
+	log.Debugf("Vetted record frozen %v", token)
 
 	// Delete all record files
 	err = t.vetted.recordDel(treeID)
 	if err != nil {
 		return fmt.Errorf("recordDel %v: %v", treeID, err)
 	}
+
+	log.Debugf("Vetted record files deleted %v", token)
 
 	return nil
 }
@@ -1285,8 +1302,18 @@ func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, meta
 func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree. Nothing else needs to be done for an archived
 	// record.
-	treeID := treeIDFromToken(token)
-	return t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	treeID, ok := t.vettedTreeID(token)
+	if !ok {
+		return fmt.Errorf("vetted record not found")
+	}
+	err := t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	if err != nil {
+		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+	}
+
+	log.Debugf("Vetted record frozen %v", token)
+
+	return nil
 }
 
 // This function satisfies the Backend interface.

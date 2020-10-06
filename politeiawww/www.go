@@ -12,6 +12,7 @@ import (
 	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -57,6 +58,12 @@ const (
 
 func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 	switch e {
+	case pd.ErrorStatusInvalidRequestPayload:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
+	case pd.ErrorStatusInvalidChallenge:
+		// Intentionally omitted because this indicates a politeiawww
+		// server error so a ErrorStatusInvalid should be returned.
 	case pd.ErrorStatusInvalidFilename:
 		return www.ErrorStatusInvalidFilename
 	case pd.ErrorStatusInvalidFileDigest:
@@ -69,12 +76,8 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 		return www.ErrorStatusUnsupportedMIMEType
 	case pd.ErrorStatusInvalidRecordStatusTransition:
 		return www.ErrorStatusInvalidPropStatusTransition
-	case pd.ErrorStatusInvalidRequestPayload:
-		// Intentionally omitted because this indicates a politeiawww
-		// server error so a ErrorStatusInvalid should be returned.
-	case pd.ErrorStatusInvalidChallenge:
-		// Intentionally omitted because this indicates a politeiawww
-		// server error so a ErrorStatusInvalid should be returned.
+	case pd.ErrorStatusRecordNotFound:
+		return www.ErrorStatusProposalNotFound
 	}
 	return www.ErrorStatusInvalid
 }
@@ -83,8 +86,6 @@ func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) www.ErrorStatusT
 	switch e {
 	case piplugin.ErrorStatusPropLinkToInvalid:
 		return www.ErrorStatusInvalidLinkTo
-	case piplugin.ErrorStatusPropStatusInvalid:
-		return www.ErrorStatusWrongStatus
 	case piplugin.ErrorStatusVoteStatusInvalid:
 		return www.ErrorStatusWrongVoteStatus
 	}
@@ -188,6 +189,8 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 		return pi.ErrorStatusPropStatusChangeInvalid
 	case pd.ErrorStatusNoChanges:
 		return pi.ErrorStatusNoPropChanges
+	case pd.ErrorStatusRecordNotFound:
+		return pi.ErrorStatusPropNotFound
 	}
 	return pi.ErrorStatusInvalid
 }
@@ -196,8 +199,6 @@ func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
 	case piplugin.ErrorStatusPropLinkToInvalid:
 		return pi.ErrorStatusPropLinkToInvalid
-	case piplugin.ErrorStatusPropStatusInvalid:
-		return pi.ErrorStatusPropStatusInvalid
 	case piplugin.ErrorStatusVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
 	}
@@ -325,7 +326,8 @@ func getIdentity(rpcHost, rpcCert, rpcIdentityFile, interactive string) error {
 // files a complaint.
 func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	// Check for pi user error
-	if ue, ok := err.(pi.UserErrorReply); ok {
+	var ue pi.UserErrorReply
+	if errors.As(err, &ue) {
 		// Error is a pi user error. Log it and return a 400.
 		if len(ue.ErrorContext) == 0 {
 			log.Infof("Pi user error: %v %v %v",
@@ -347,7 +349,8 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 	}
 
 	// Check for politeiad error
-	if pdErr, ok := err.(pdError); ok {
+	var pdErr pdError
+	if errors.As(err, &pdErr) {
 		var (
 			pluginID   = pdErr.ErrorReply.PluginID
 			errCode    = pdErr.ErrorReply.ErrorCode

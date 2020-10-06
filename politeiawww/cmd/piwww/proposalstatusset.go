@@ -16,9 +16,10 @@ import (
 // proposalStatusSetCmd sets the status of a proposal.
 type proposalStatusSetCmd struct {
 	Args struct {
-		Token  string `positional-arg-name:"token" required:"true"`
-		Status string `positional-arg-name:"status" required:"true"`
-		Reason string `positional-arg-name:"reason"`
+		Token   string `positional-arg-name:"token" required:"true"`
+		Status  string `positional-arg-name:"status" required:"true"`
+		Reason  string `positional-arg-name:"reason"`
+		Version string `positional-arg-name:"version"`
 	} `positional-args:"true"`
 
 	Unvetted bool `long:"unvetted" optional:"true"`
@@ -58,27 +59,30 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 		// Human readable status code found
 		status = s
 	} else {
-		return fmt.Errorf("Invalid proposal status '%v'. Valid statuses are:\n"+
-			"  public      make a proposal public\n"+
-			"  censored    censor a proposal\n"+
-			"  abandoned   declare a public proposal abandoned",
-			cmd.Args.Status)
+		return fmt.Errorf("Invalid proposal status '%v'\n %v",
+			cmd.Args.Status, proposalStatusSetHelpMsg)
 	}
 
-	// Get the proposal. The latest proposal version number is needed
-	// for the set status request.
-	pr, err := proposalRecordLatest(state, cmd.Args.Token)
-	if err != nil {
-		return err
+	// Verify version
+	var version string
+	if cmd.Args.Version != "" {
+		version = cmd.Args.Version
+	} else {
+		// Get the version manually
+		pr, err := proposalRecordLatest(state, cmd.Args.Token)
+		if err != nil {
+			return err
+		}
+		version = pr.Version
 	}
 
 	// Setup request
-	msg := cmd.Args.Token + pr.Version + cmd.Args.Status + cmd.Args.Reason
+	msg := cmd.Args.Token + version + strconv.Itoa(int(status)) + cmd.Args.Reason
 	sig := cfg.Identity.SignMessage([]byte(msg))
-	pss := pi.ProposalSetStatus{
+	pss := pi.ProposalStatusSet{
 		Token:     cmd.Args.Token,
 		State:     state,
-		Version:   pr.Version,
+		Version:   version,
 		Status:    status,
 		Reason:    cmd.Args.Reason,
 		Signature: hex.EncodeToString(sig[:]),
@@ -91,7 +95,7 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	pssr, err := client.ProposalSetStatus(pss)
+	pssr, err := client.ProposalStatusSet(pss)
 	if err != nil {
 		return err
 	}
@@ -103,8 +107,8 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	return nil
 }
 
-// proposalSetStatusHelpMsg is the output of the help command.
-const proposalSetStatusHelpMsg = `proposalsetstatus "token" "status" "reason"
+// proposalStatusSetHelpMsg is the output of the help command.
+const proposalStatusSetHelpMsg = `proposalstatusset "token" "status" "reason"
 
 Set the status of a proposal. This command assumes the proposal is a vetted
 record. If the proposal is unvetted, the --unvetted flag must be used. Requires
@@ -116,9 +120,11 @@ Valid statuses:
   abandoned
 
 Arguments:
-1. token   (string, required)    Proposal censorship token
-2. status  (string, required)    New status
-3. message (string, optional)    Status change message
+1. token   (string, required)  Proposal censorship token
+2. status  (string, required)  New status
+3. message (string, optional)  Status change message
+4. version (string, optional)  Proposal version. This will be fetched manually
+                               if one is not provided.
 
 Flags:
   --unvetted (bool, optional)    Set status of an unvetted record.

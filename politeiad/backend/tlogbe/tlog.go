@@ -452,59 +452,10 @@ func (t *tlog) treeExists(treeID int64) bool {
 func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, fr freezeRecord) error {
 	log.Tracef("tlog treeFreeze: %v")
 
-	// Get tree leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Prepare kv store blobs for metadata
-	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
-		[]backend.File{}, t.encryptionKey)
+	// Save metadata
+	idx, err := t.metadataSave(treeID, rm, metadata)
 	if err != nil {
 		return err
-	}
-
-	// Ensure metadata has been changed
-	if len(bpr.blobs) == 0 {
-		return errNoMetadataChanges
-	}
-
-	// Save metadata blobs
-	idx, err := t.recordBlobsSave(treeID, *bpr)
-	if err != nil {
-		return fmt.Errorf("blobsSave: %v", err)
-	}
-
-	// Get the existing record index and add the unchanged fields to
-	// the new record index. The version and files will remain the
-	// same.
-	oldIdx, err := t.recordIndexLatest(leavesAll)
-	if err != nil {
-		return fmt.Errorf("recordIndexLatest: %v", err)
-	}
-	idx.Version = oldIdx.Version
-	idx.Files = oldIdx.Files
-
-	// Increment the iteration
-	idx.Iteration = oldIdx.Iteration + 1
-
-	// Sanity check
-	switch {
-	case idx.Version != oldIdx.Version:
-		return fmt.Errorf("invalid index version: got %v, want %v",
-			idx.Version, oldIdx.Version)
-	case idx.Iteration != oldIdx.Iteration+1:
-		return fmt.Errorf("invalid index iteration: got %v, want %v",
-			idx.Iteration, oldIdx.Iteration+1)
-	case idx.RecordMetadata == nil:
-		return fmt.Errorf("invalid index record metadata")
-	case len(idx.Metadata) != len(metadata):
-		return fmt.Errorf("invalid index metadata: got %v, want %v",
-			len(idx.Metadata), len(metadata))
-	case len(idx.Files) != len(oldIdx.Files):
-		return fmt.Errorf("invalid index files: got %v, want %v",
-			len(idx.Files), len(oldIdx.Files))
 	}
 
 	// Blobify the record index
@@ -544,8 +495,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return fmt.Errorf("store Put: %v", err)
 	}
 	if len(keys) != 2 {
-		return fmt.Errorf("wrong number of keys: got %v, want 1",
-			len(keys))
+		return fmt.Errorf("wrong number of keys: got %v, want 1", len(keys))
 	}
 
 	// Append record index and freeze record leaves to trillian tree
@@ -856,6 +806,26 @@ func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMe
 		return nil, errTreeIsFrozen
 	}
 
+	// Verify there are no duplicate mdstream IDs
+	mdstreamIDs := make(map[uint64]struct{}, len(metadata))
+	for _, v := range metadata {
+		_, ok := mdstreamIDs[v.ID]
+		if ok {
+			return nil, fmt.Errorf("duplicate metadata stream ID: %v", v.ID)
+		}
+		mdstreamIDs[v.ID] = struct{}{}
+	}
+
+	// Verify there are no duplicate filenames
+	filenames := make(map[string]struct{}, len(files))
+	for _, v := range files {
+		_, ok := filenames[v.Name]
+		if ok {
+			return nil, fmt.Errorf("duplicate filename found: %v", v.Name)
+		}
+		filenames[v.Name] = struct{}{}
+	}
+
 	// Check if any of the content already exists. Different record
 	// versions that reference the same data is fine, but this data
 	// should not be saved to the store again. We can find duplicates
@@ -865,8 +835,8 @@ func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMe
 
 	// Compute record content hashes
 	rhashes := recordHashes{
-		metadata: make(map[string]uint64, len(metadata)),
-		files:    make(map[string]string, len(files)),
+		metadata: make(map[string]uint64, len(metadata)), // [hash]metadataID
+		files:    make(map[string]string, len(files)),    // [hash]filename
 	}
 	b, err := json.Marshal(recordMD)
 	if err != nil {
@@ -1221,49 +1191,47 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 	return nil
 }
 
-// recordMetadataSave saves the provided metadata to tlog, creating a new
-// iteration of the record while keeping the record version the same. Once the
-// metadata has been successfully saved to tlog, a recordIndex is created for
-// this iteration of the record and saved to tlog as well.
-func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	log.Tracef("tlog recordMetadataSave: %v", treeID)
-
+// metadataSave saves the provided metadata to the kv store and trillian tree.
+// The record index for this iteration of the record is returned. This is step
+// one of a two step process. The record update will not be considered
+// succesful until the returned record index is also saved to the kv store
+// and trillian tree. This code has been pulled out so that it can be called
+// during normal metadata updates as well as when an update requires a freeze
+// record to be saved along with the record index, such as when a record is
+// censored.
+func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) (*recordIndex, error) {
 	// Verify tree exists
 	if !t.treeExists(treeID) {
-		return errRecordNotFound
+		return nil, errRecordNotFound
 	}
 
 	// Get tree leaves
 	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
-		return fmt.Errorf("leavesAll: %v", err)
+		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
 
 	// Verify tree state
 	if treeIsFrozen(leavesAll) {
-		return errTreeIsFrozen
+		return nil, errTreeIsFrozen
 	}
 
 	// Prepare kv store blobs
 	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
 		[]backend.File{}, t.encryptionKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Verify changes are being made. The record index returned from
-	// recordBlobsPrepare() will contain duplicate blobs, i.e. metadata
-	// blobs that already existed prior to this update. If the record
-	// index already contains all of the metadata blobs it means that
-	// no metadata changes are being made.
-	if len(metadata) == len(bpr.recordIndex.Metadata) {
-		return errNoMetadataChanges
+	// Verify at least one new blob is being saved to the kv store
+	if len(bpr.blobs) == 0 {
+		return nil, errNoMetadataChanges
 	}
 
 	// Save the blobs
 	idx, err := t.recordBlobsSave(treeID, *bpr)
 	if err != nil {
-		return fmt.Errorf("blobsSave: %v", err)
+		return nil, fmt.Errorf("blobsSave: %v", err)
 	}
 
 	// Get the existing record index and add the unchanged fields to
@@ -1271,7 +1239,7 @@ func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metad
 	// same.
 	oldIdx, err := t.recordIndexLatest(leavesAll)
 	if err != nil {
-		return fmt.Errorf("recordIndexLatest: %v", err)
+		return nil, fmt.Errorf("recordIndexLatest: %v", err)
 	}
 	idx.Version = oldIdx.Version
 	idx.Files = oldIdx.Files
@@ -1282,19 +1250,35 @@ func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metad
 	// Sanity check
 	switch {
 	case idx.Version != oldIdx.Version:
-		return fmt.Errorf("invalid index version: got %v, want %v",
+		return nil, fmt.Errorf("invalid index version: got %v, want %v",
 			idx.Version, oldIdx.Version)
 	case idx.Iteration != oldIdx.Iteration+1:
-		return fmt.Errorf("invalid index iteration: got %v, want %v",
+		return nil, fmt.Errorf("invalid index iteration: got %v, want %v",
 			idx.Iteration, oldIdx.Iteration+1)
 	case idx.RecordMetadata == nil:
-		return fmt.Errorf("invalid index record metadata")
+		return nil, fmt.Errorf("invalid index record metadata")
 	case len(idx.Metadata) != len(metadata):
-		return fmt.Errorf("invalid index metadata: got %v, want %v",
+		return nil, fmt.Errorf("invalid index metadata: got %v, want %v",
 			len(idx.Metadata), len(metadata))
 	case len(idx.Files) != len(oldIdx.Files):
-		return fmt.Errorf("invalid index files: got %v, want %v",
+		return nil, fmt.Errorf("invalid index files: got %v, want %v",
 			len(idx.Files), len(oldIdx.Files))
+	}
+
+	return idx, nil
+}
+
+// recordMetadataSave saves the provided metadata to tlog, creating a new
+// iteration of the record while keeping the record version the same. Once the
+// metadata has been successfully saved to tlog, a recordIndex is created for
+// this iteration of the record and saved to tlog as well.
+func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	log.Tracef("tlog recordMetadataSave: %v", treeID)
+
+	// Save metadata
+	idx, err := t.metadataSave(treeID, rm, metadata)
+	if err != nil {
+		return err
 	}
 
 	// Save record index

@@ -57,8 +57,7 @@ func VerifySignature(signature, pubKey, msg string) error {
 	}
 	if !pk.VerifyMessage([]byte(msg), sig) {
 		return SignatureError{
-			ErrorCode:    ErrorStatusSignatureInvalid,
-			ErrorContext: []string{err.Error()},
+			ErrorCode: ErrorStatusSignatureInvalid,
 		}
 	}
 	return nil

@@ -378,8 +378,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			log.Infof("%v update %v record not found: %x",
 				remoteAddr(r), cmd, token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
+			p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
 			return
 		}
 		if errors.Is(err, backend.ErrNoChanges) {
@@ -466,9 +465,10 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, backend.ErrRecordNotFound):
 		// Record not found
-		reply.Record.Status = v1.RecordStatusNotFound
 		log.Infof("Get unvetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
+		p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
+		return
 
 	case err != nil:
 		// Generic internal error
@@ -539,9 +539,10 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, backend.ErrRecordNotFound):
 		// Record not found
-		reply.Record.Status = v1.RecordStatusNotFound
 		log.Infof("Get vetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
+		p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
+		return
 
 	case err != nil:
 		// Generic internal error
@@ -726,8 +727,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			log.Infof("%v updateStatus record not "+
 				"found: %x", remoteAddr(r), token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
+			p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
 			return
 		}
 		var serr backend.StateTransitionError
@@ -799,8 +799,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			log.Infof("%v updateUnvettedStatus record not "+
 				"found: %x", remoteAddr(r), token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
+			p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
 			return
 		}
 		var serr backend.StateTransitionError

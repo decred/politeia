@@ -60,7 +60,7 @@ host=https://127.0.0.1:4443
 skipverify=true
 ```
 
-## Usage
+## Example Usage
 
 ### Create a new user
 
@@ -165,3 +165,9 @@ casts a ballot of votes.  This will only work on testnet and if you are running
 your dcrwallet locally using the default port.
 
     $ piwww voteballot [token] [voteID]
+
+## Reference implementation
+
+The piwww `testrun` command runs a series of tests on all of the politeiawww pi
+API routes.  This command can be used as a reference implementation for the pi
+API.

@@ -63,6 +63,9 @@ var (
 // is to add an exists() method onto the tlogClient and have the mutexes
 // function ensure a token is valid before holding the lock on it.
 
+// TODO the bottleneck for casting a large ballot of votes is waiting for the
+// log signer. Break the cast votes up and send them concurrently.
+
 // ticketVotePlugin satisfies the pluginClient interface.
 type ticketVotePlugin struct {
 	sync.Mutex

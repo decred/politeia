@@ -65,10 +65,11 @@ const (
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 	ErrorStatusRecordFound                   ErrorStatusT = 15
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
+	ErrorStatusRecordNotFound                ErrorStatusT = 17
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
-	RecordStatusNotFound          RecordStatusT = 1 // Record not found
+	RecordStatusNotFound          RecordStatusT = 1 // Record not found (deprecated)
 	RecordStatusNotReviewed       RecordStatusT = 2 // Record has not been reviewed
 	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible

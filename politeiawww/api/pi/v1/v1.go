@@ -37,7 +37,7 @@ const (
 	// Proposal routes
 	RouteProposalNew       = "/proposal/new"
 	RouteProposalEdit      = "/proposal/edit"
-	RouteProposalSetStatus = "/proposal/setstatus"
+	RouteProposalStatusSet = "/proposal/setstatus"
 	RouteProposals         = "/proposals"
 	RouteProposalInventory = "/proposals/inventory"
 
@@ -188,7 +188,59 @@ var (
 	// ErrorStatus contains human readable error messages.
 	// TODO fill in error status messages
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid: "error status invalid",
+		ErrorStatusInvalid:      "error status invalid",
+		ErrorStatusInputInvalid: "input invalid",
+
+		// User errors
+		ErrorStatusUserRegistrationNotPaid: "user registration not paid",
+		ErrorStatusUserBalanceInsufficient: "user balance insufficient",
+		ErrorStatusUserIsNotAuthor:         "user is not author",
+		ErrorStatusUserIsNotAdmin:          "user is not author",
+
+		// Signature errors
+		ErrorStatusPublicKeyInvalid: "public key invalid",
+		ErrorStatusSignatureInvalid: "signature invalid",
+
+		// Proposal errors
+		ErrorStatusFileCountInvalid:              "file count invalid",
+		ErrorStatusFileNameInvalid:               "file name invalid",
+		ErrorStatusFileMIMEInvalid:               "file mime invalid",
+		ErrorStatusFileDigestInvalid:             "file digest invalid",
+		ErrorStatusFilePayloadInvalid:            "file payload invalid",
+		ErrorStatusIndexFileNameInvalid:          "index filename invalid",
+		ErrorStatusIndexFileCountInvalid:         "index file count invalid",
+		ErrorStatusIndexFileSizeInvalid:          "index file size invalid",
+		ErrorStatusTextFileCountInvalid:          "text file count invalid",
+		ErrorStatusImageFileCountInvalid:         "file count invalid",
+		ErrorStatusImageFileSizeInvalid:          "file size invalid",
+		ErrorStatusMetadataCountInvalid:          "metadata count invalid",
+		ErrorStatusMetadataDigestInvalid:         "metadata digest invalid",
+		ErrorStatusMetadataPayloadInvalid:        "metadata pyaload invalid",
+		ErrorStatusPropMetadataNotFound:          "proposal metadata not found",
+		ErrorStatusPropNameInvalid:               "proposal name invalid",
+		ErrorStatusPropLinkToInvalid:             "proposal link to invalid",
+		ErrorStatusPropLinkByInvalid:             "proposal link by invalid",
+		ErrorStatusPropTokenInvalid:              "proposal token invalid",
+		ErrorStatusPropNotFound:                  "proposal not found",
+		ErrorStatusPropStateInvalid:              "proposal state invalid",
+		ErrorStatusPropStatusInvalid:             "proposal status invalid",
+		ErrorStatusPropStatusChangeInvalid:       "proposal status change invalid",
+		ErrorStatusPropStatusChangeReasonInvalid: "proposal status reason invalid",
+		ErrorStatusPropPageSizeExceeded:          "proposal page size exceeded",
+		ErrorStatusNoPropChanges:                 "no proposal changes",
+
+		// Comment errors
+		ErrorStatusCommentTextInvalid:     "comment text invalid",
+		ErrorStatusCommentParentIDInvalid: "comment parent ID invalid",
+		ErrorStatusCommentVoteInvalid:     "comment vote invalid",
+		ErrorStatusCommentNotFound:        "comment not found",
+		ErrorStatusCommentVoteChangesMax:  "comment vote changes exceeded max",
+
+		// Vote errors
+		ErrorStatusVoteStatusInvalid:    "vote status invalid",
+		ErrorStatusVoteParamsInvalid:    "vote params invalid",
+		ErrorStatusBallotInvalid:        "ballot invalid",
+		ErrorStatusVotePageSizeExceeded: "vote page size exceeded",
 	}
 )
 
@@ -353,11 +405,11 @@ type ProposalEditReply struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// ProposalSetStatus sets the status of a proposal. Some status changes require
+// ProposalStatusSet sets the status of a proposal. Some status changes require
 // a reason to be included.
 //
 // Signature is the client signature of the Token+Version+Status+Reason.
-type ProposalSetStatus struct {
+type ProposalStatusSet struct {
 	Token     string      `json:"token"`            // Censorship token
 	State     PropStateT  `json:"state"`            // Proposal state
 	Version   string      `json:"version"`          // Proposal version
@@ -367,8 +419,8 @@ type ProposalSetStatus struct {
 	Signature string      `json:"signature"`        // Client signature
 }
 
-// ProposalSetStatusReply is the reply to the ProposalSetStatus command.
-type ProposalSetStatusReply struct {
+// ProposalStatusSetReply is the reply to the ProposalStatusSet command.
+type ProposalStatusSetReply struct {
 	Timestamp int64 `json:"timestamp"`
 }
 

@@ -732,13 +732,13 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 			// Unvetted politeiad record
 			r, err = p.getUnvetted(v.Token, v.Version)
 			if err != nil {
-				return nil, fmt.Errorf("getUnvetted %v: %v", v.Token, err)
+				return nil, err
 			}
 		case pi.PropStateVetted:
 			// Vetted politeiad record
 			r, err = p.getVetted(v.Token, v.Version)
 			if err != nil {
-				return nil, fmt.Errorf("getVetted %v: %v", v.Token, err)
+				return nil, err
 			}
 		default:
 			return nil, fmt.Errorf("unknown state %v", state)
@@ -751,8 +751,7 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 
 		pr, err := convertProposalRecordFromPD(*r)
 		if err != nil {
-			return nil, fmt.Errorf("convertProposalRecordFromPD %v: %v",
-				v.Token, err)
+			return nil, err
 		}
 
 		// Remove files if specified. The Metadata objects will still be
@@ -1168,9 +1167,8 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	}
 
 	// Setup politeiad files. The Metadata objects are converted to
-	// politeiad files instead of metadata streams since they contain
-	// user defined data that needs to be included in the merkle root
-	// that politeiad signs.
+	// politeiad files since they contain user defined data that needs
+	// to be included in the merkle root that politeiad signs.
 	files := convertFilesFromPi(pn.Files)
 	for _, v := range pn.Metadata {
 		switch v.Hint {
@@ -1304,16 +1302,25 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 		}
 	}
 
-	// Verification that requires retrieving the existing proposal is
-	// done in the politeiad pi plugin hook. This includes:
-	// -Verify proposal status
-	// -Verify vote status
+	// Verify proposal status
+	switch curr.Status {
+	case pi.PropStatusUnvetted, pi.PropStatusPublic:
+		// Allowed; continue
+	default:
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusPropStatusInvalid,
+		}
+	}
+
+	// Verification that requires plugin data or querying additional
+	// proposal data is done in the politeiad pi plugin hook. This
+	// includes:
 	// -Verify linkto
+	// -Verify vote status
 
 	// Setup politeiad files. The Metadata objects are converted to
-	// politeiad files instead of metadata streams since they contain
-	// user defined data that needs to be included in the merkle root
-	// that politeiad signs.
+	// politeiad files since they contain user defined data that needs
+	// to be included in the merkle root that politeiad signs.
 	filesAdd := convertFilesFromPi(pe.Files)
 	for _, v := range pe.Metadata {
 		switch v.Hint {
@@ -1379,13 +1386,14 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	}
 
 	return &pi.ProposalEditReply{
+		Version:          r.Version,
 		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
 		Timestamp:        timestamp,
 	}, nil
 }
 
-func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr user.User) (*pi.ProposalSetStatusReply, error) {
-	log.Tracef("processProposalSetStatus: %v %v", pss.Token, pss.Status)
+func (p *politeiawww) processProposalStatusSet(pss pi.ProposalStatusSet, usr user.User) (*pi.ProposalStatusSetReply, error) {
+	log.Tracef("processProposalStatusSet: %v %v", pss.Token, pss.Status)
 
 	// Sanity check
 	if !usr.Admin {
@@ -1444,8 +1452,8 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	// done in politeiad. This includes:
 	// -Verify proposal exists (politeiad)
 	// -Verify proposal state is correct (politeiad)
-	// -Verify version is the latest version (politeiad pi plugin)
-	// -Verify status change is allowed (politeiad pi plugin)
+	// -Verify version is the latest version (pi plugin)
+	// -Verify status change is allowed (pi plugin)
 
 	// Setup metadata
 	timestamp := time.Now().Unix()
@@ -1471,8 +1479,6 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 	mdOverwrite := []pd.MetadataStream{}
 
 	// Send politeiad request
-	// TODO verify proposal not found error is returned when wrong
-	// token or state is used
 	var r *pd.Record
 	status := convertRecordStatusFromPropStatus(pss.Status)
 	switch pss.State {
@@ -1498,7 +1504,7 @@ func (p *politeiawww) processProposalSetStatus(pss pi.ProposalSetStatus, usr use
 			adminID: usr.ID.String(),
 		})
 
-	return &pi.ProposalSetStatusReply{
+	return &pi.ProposalStatusSetReply{
 		Timestamp: timestamp,
 	}, nil
 }
@@ -1973,13 +1979,13 @@ func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, per)
 }
 
-func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalSetStatus")
+func (p *politeiawww) handleProposalStatusSet(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalStatusSet")
 
-	var pss pi.ProposalSetStatus
+	var pss pi.ProposalStatusSet
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&pss); err != nil {
-		respondWithPiError(w, r, "handleProposalSetStatus: unmarshal",
+		respondWithPiError(w, r, "handleProposalStatusSet: unmarshal",
 			pi.UserErrorReply{
 				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
@@ -1989,14 +1995,14 @@ func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Req
 	usr, err := p.getSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalSetStatus: getSessionUser: %v", err)
+			"handleProposalStatusSet: getSessionUser: %v", err)
 		return
 	}
 
-	pssr, err := p.processProposalSetStatus(pss, *usr)
+	pssr, err := p.processProposalStatusSet(pss, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalSetStatus: processProposalSetStatus: %v", err)
+			"handleProposalStatusSet: processProposalStatusSet: %v", err)
 		return
 	}
 
@@ -2394,7 +2400,7 @@ func (p *politeiawww) setPiRoutes() {
 		pi.RouteProposalEdit, p.handleProposalEdit,
 		permissionLogin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteProposalSetStatus, p.handleProposalSetStatus,
+		pi.RouteProposalStatusSet, p.handleProposalStatusSet,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposals, p.handleProposals,
