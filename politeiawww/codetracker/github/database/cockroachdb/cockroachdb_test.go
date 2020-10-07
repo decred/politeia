@@ -507,6 +507,89 @@ func TestPullRequestsByUserDates(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+func TestReviewByID(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	now := time.Now()
+	authorStakey := "stakey"
+
+	prURLFirst := "https://github.com/decred/github/pull/1"
+
+	reviewFirst := &database.PullRequestReview{
+		ID:             434234234,
+		Repo:           "github",
+		PullRequestURL: prURLFirst,
+		Number:         1,
+		Author:         authorStakey,
+		SubmittedAt:    now.Unix(),
+		State:          "APPROVED",
+		Additions:      11,
+		Deletions:      11,
+		CommitID:       "abcd1234",
+	}
+
+	rows := sqlmock.NewRows([]string{
+		"pull_request_url",
+		"id",
+		"author",
+		"state",
+		"submitted_at",
+		"commit_id",
+		"repo",
+		"number",
+	}).AddRow(
+		reviewFirst.PullRequestURL,
+		reviewFirst.ID,
+		reviewFirst.Author,
+		reviewFirst.State,
+		reviewFirst.SubmittedAt,
+		reviewFirst.CommitID,
+		reviewFirst.Repo,
+		reviewFirst.Number,
+	)
+
+	idNotFound := int64(123456)
+	// Query
+	sql := `SELECT * FROM "reviews" WHERE "reviews"."id" = $1`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(reviewFirst.ID).
+		WillReturnRows(rows)
+
+	// Execute method
+	_, err := cdb.ReviewByID(reviewFirst.ID)
+	if err != nil {
+		t.Errorf("PullRequestByURL unwanted error: %s", err)
+	}
+
+	expectedError := database.ErrNoPullRequestReviewFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(idNotFound).
+		WillReturnError(expectedError)
+
+	foundPr, err := cdb.ReviewByID(idNotFound)
+	if err == nil {
+		t.Errorf("expecting error but there was none")
+	}
+
+	if foundPr != nil {
+		t.Errorf("expecting nil pr to be returned, but got non-nil pr")
+	}
+
+	// Make sure we got the expected error
+	if err != expectedError {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
 
 func TestReviewsByUserDates(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)

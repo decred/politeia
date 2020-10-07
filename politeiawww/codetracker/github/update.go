@@ -63,10 +63,10 @@ func (g *github) Update(org string, repos []string, start, end int64) {
 
 		for _, pr := range prs {
 			// check to see if last updated time was before the given start date
-			if parseTime(pr.MergedAt).Before(time.Unix(start, 0)) {
+			if parseTime(pr.UpdatedAt).Before(time.Unix(start, 0)) {
 				continue
 			}
-			if parseTime(pr.MergedAt).After(time.Unix(end, 0)) {
+			if parseTime(pr.UpdatedAt).After(time.Unix(end, 0)) {
 				continue
 			}
 			err := g.updatePullRequest(org, repo, pr, start)
@@ -79,69 +79,69 @@ func (g *github) Update(org string, repos []string, start, end int64) {
 }
 
 func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, start int64) error {
-	apiPR, err := g.tc.FetchPullRequest(org, repoName, pr.Number)
-	if err != nil {
-		return err
-	}
 	log.Infof("Updating %v/%v/%v ", org, repoName, pr.Number)
-	dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, repoName,
-		org)
+	apiPullRequest, err := g.fetchPullRequest(org, repoName, pr.Number)
 	if err != nil {
-		log.Errorf("error converting api PR to database: %v", err)
 		return err
 	}
-	dbPR, err := g.codedb.PullRequestByURL(dbPullRequest.URL)
+	dbPR, err := g.codedb.PullRequestByURL(apiPullRequest.URL)
 	if err == database.ErrNoPullRequestFound {
-		log.Infof("New PR %d", pr.Number)
-
-		err = g.codedb.NewPullRequest(dbPullRequest)
+		// Add a new entry since there is nothing there now.
+		err = g.codedb.NewPullRequest(apiPullRequest)
 		if err != nil {
 			log.Errorf("error adding new pull request: %v", err)
 			return err
 		}
+	} else {
+		log.Errorf("error finding PR in db", err)
+		return err
+	}
 
-		reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number,
-			dbPullRequest.URL)
+	// Only add a new entry into the database if the updated time from the api,
+	// is after the updated time in the db.  This should weed out re-adding
+	// PRs that were previously merged.
+	if time.Unix(apiPullRequest.UpdatedAt, 0).After(time.Unix(dbPR.UpdatedAt, 0)) {
+		err = g.codedb.NewPullRequest(apiPullRequest)
 		if err != nil {
+			log.Errorf("error adding new pull request: %v", err)
 			return err
 		}
-		for _, review := range reviews {
+	}
+
+	reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number,
+		apiPullRequest.URL)
+	if err != nil {
+		return err
+	}
+	for _, review := range reviews {
+		_, err := g.codedb.ReviewByID(review.ID)
+		if err == database.ErrNoPullRequestReviewFound {
+			// Add a new entry since there is nothing there now.
 			err = g.codedb.NewPullRequestReview(&review)
 			if err != nil {
 				log.Errorf("error adding new pull request review: %v", err)
 				continue
 			}
-		}
-		return nil
-	} else if err != nil {
-		log.Errorf("error locating pull request: %v", err)
-		return err
-	} else if dbPR != nil &&
-		time.Unix(dbPR.UpdatedAt, 0).After(parseTime(pr.UpdatedAt)) {
-		// Only update if dbPR is found and pr.Updated is more recent than what
-		// is currently stored.
-		log.Infof("Update PR %d", pr.Number)
-
-		err = g.codedb.UpdatePullRequest(dbPullRequest)
-		if err != nil {
-			log.Errorf("error adding new pull request: %v", err)
+		} else {
+			log.Errorf("error finding Pull Request Review in db", err)
 			return err
-		}
-
-		reviews, err := g.fetchPullRequestReviews(org,
-			repoName, pr.Number, dbPullRequest.URL)
-		if err != nil {
-			return err
-		}
-		for _, review := range reviews {
-			err = g.codedb.UpdatePullRequestReview(&review)
-			if err != nil {
-				log.Errorf("error updating new pull request review: %v", err)
-				continue
-			}
 		}
 	}
 	return nil
+}
+
+func (g *github) fetchPullRequest(org, repoName string, prNum int) (*database.PullRequest, error) {
+	apiPR, err := g.tc.FetchPullRequest(org, repoName, prNum)
+	if err != nil {
+		return nil, err
+	}
+	dbPullRequest, err := convertAPIPullRequestToDbPullRequest(apiPR, repoName,
+		org)
+	if err != nil {
+		log.Errorf("error converting api PR to database: %v", err)
+		return nil, err
+	}
+	return dbPullRequest, nil
 }
 
 func (g *github) fetchPullRequestReviews(org, repoName string, prNum int, url string) ([]database.PullRequestReview, error) {

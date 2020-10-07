@@ -203,6 +203,25 @@ func createGHTables(tx *gorm.DB) error {
 
 }
 
+// ReviewByID returns a review given the provided id.
+func (c *cockroachdb) ReviewByID(id int64) (*database.PullRequestReview, error) {
+	log.Debugf("ReviewByID: %v", id)
+
+	review := PullRequestReview{
+		ID: id,
+	}
+	err := c.recordsdb.
+		Find(&review).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrNoPullRequestReviewFound
+		}
+		return nil, err
+	}
+
+	return DecodePullRequestReview(&review), nil
+}
+
 // Setup calls the tables creation function to ensure the database is prepared
 // for use.
 func (c *cockroachdb) Setup() error {

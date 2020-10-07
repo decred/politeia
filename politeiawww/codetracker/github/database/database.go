@@ -15,6 +15,8 @@ var (
 	// ErrNoPullRequestFound is emitted when no pull request matches.
 	ErrNoPullRequestFound = errors.New("no pull request found")
 
+	// ErrNoPullRequestReviewFound is emitted when no review matches.
+	ErrNoPullRequestReviewFound = errors.New("no pull request review found")
 	// ErrWrongVersion is emitted when the version record does not
 	// match the implementation version.
 	ErrWrongVersion = errors.New("wrong version")
@@ -49,6 +51,9 @@ type Database interface {
 	// UpdatePullRequestReview updates an exisiting entry for a pull request
 	// review.
 	UpdatePullRequestReview(*PullRequestReview) error
+
+	// ReviewByID returns a pull request review with a matching ID.
+	ReviewByID(id int64) (*PullRequestReview, error)
 
 	// ReviewsByUserDates retrusn all reviews from the given user between
 	// the dates provided.
