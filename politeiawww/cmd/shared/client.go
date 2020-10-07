@@ -1435,9 +1435,9 @@ func (c *Client) VoteStartRunoff(vsr pi.VoteStartRunoff) (*pi.VoteStartRunoffRep
 	return &vsrr, nil
 }
 
-// UserPaymentVerify checks whether the logged in user has paid their user
+// UserRegistrationPayment checks whether the logged in user has paid their user
 // registration fee.
-func (c *Client) UserPaymentVerify() (*www.UserRegistrationPaymentReply, error) {
+func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserRegistrationPayment, nil)
 	if err != nil {
@@ -1805,9 +1805,9 @@ func (c *Client) VerifyUpdateUserKey(vuuk *www.VerifyUpdateUserKey) (*www.Verify
 	return &vuukr, nil
 }
 
-// ProposalPaywallPayment retrieves payment details of any pending proposal
+// UserProposalPaywallTx retrieves payment details of any pending proposal
 // credit payment from the logged in user.
-func (c *Client) ProposalPaywallPayment() (*www.UserProposalPaywallTxReply, error) {
+func (c *Client) UserProposalPaywallTx() (*www.UserProposalPaywallTxReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserProposalPaywallTx, nil)
 	if err != nil {

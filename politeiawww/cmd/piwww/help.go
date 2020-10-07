@@ -79,23 +79,25 @@ func (cmd *helpCmd) Execute(args []string) error {
 	case "voteinventory":
 		fmt.Printf("%s\n", voteInventoryHelpMsg)
 
-		// User commands
+	// User commands
 	case "usernew":
 		fmt.Printf("%s\n", userNewHelpMsg)
 	case "useredit":
 		fmt.Printf("%s\n", userEditHelpMsg)
 	case "userdetails":
 		fmt.Printf("%s\n", userDetailsHelpMsg)
-	case "userpaymentsrescan":
-		fmt.Printf("%s\n", userPaymentsRescanHelpMsg)
-	case "userpendingpayment":
-		fmt.Printf("%s\n", userPendingPaymentHelpMsg)
 	case "useremailverify":
 		fmt.Printf("%s\n", userEmailVerifyHelpMsg)
-	case "userpaymentverify":
-		fmt.Printf("%s\n", userPaymentVerifyHelpMsg)
+	case "userregistrationpayment":
+		fmt.Printf("%s\n", userRegistrationPaymentHelpMsg)
 	case "userproposalpaywall":
 		fmt.Printf("%s\n", userProposalPaywallHelpMsg)
+	case "userproposalpaywalltx":
+		fmt.Printf("%s\n", userProposalPaywallTxHelpMsg)
+	case "userproposalcredits":
+		fmt.Printf("%s\n", userProposalCreditsHelpMsg)
+	case "userpaymentsrescan":
+		fmt.Printf("%s\n", userPaymentsRescanHelpMsg)
 	case "usermanage":
 		fmt.Printf("%s\n", shared.UserManageHelpMsg)
 	case "userkeyupdate":

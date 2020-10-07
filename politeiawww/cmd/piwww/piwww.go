@@ -44,23 +44,24 @@ type piwww struct {
 	Me      shared.MeCmd      `command:"me"`
 
 	// User commands
-	UserNew                userNewCmd                   `command:"usernew"`
-	UserEdit               userEditCmd                  `command:"useredit"`
-	UserManage             shared.UserManageCmd         `command:"usermanage"`
-	UserEmailVerify        userEmailVerifyCmd           `command:"useremailverify"`
-	UserVerificationResend userVerificationResendCmd    `command:"userverificationresend"`
-	UserPasswordReset      shared.UserPasswordResetCmd  `command:"userpasswordreset"`
-	UserPasswordChange     shared.UserPasswordChangeCmd `command:"userpasswordchange"`
-	UserUsernameChange     shared.UserUsernameChangeCmd `command:"userusernamechange"`
-	UserKeyUpdate          shared.UserKeyUpdateCmd      `command:"userkeyupdate"`
-	UserTOTPSet            shared.UserTOTPSetCmd        `command:"usertotpset"`
-	UserTOTPVerify         shared.UserTOTPVerifyCmd     `command:"usertotpverify"`
-	UserProposalPaywall    userProposalPaywallCmd       `command:"userproposalpaywall"`
-	UserPaymentVerify      userPaymentVerifyCmd         `command:"userpaymentverify"`
-	UserPaymentsRescan     userPaymentsRescanCmd        `command:"userpaymentsrescan"`
-	UserPendingPayment     userPendingPaymentCmd        `command:"userpendingpayment"`
-	UserDetails            userDetailsCmd               `command:"userdetails"`
-	Users                  shared.UsersCmd              `command:"users"`
+	UserNew                 userNewCmd                   `command:"usernew"`
+	UserEdit                userEditCmd                  `command:"useredit"`
+	UserManage              shared.UserManageCmd         `command:"usermanage"`
+	UserEmailVerify         userEmailVerifyCmd           `command:"useremailverify"`
+	UserVerificationResend  userVerificationResendCmd    `command:"userverificationresend"`
+	UserPasswordReset       shared.UserPasswordResetCmd  `command:"userpasswordreset"`
+	UserPasswordChange      shared.UserPasswordChangeCmd `command:"userpasswordchange"`
+	UserUsernameChange      shared.UserUsernameChangeCmd `command:"userusernamechange"`
+	UserKeyUpdate           shared.UserKeyUpdateCmd      `command:"userkeyupdate"`
+	UserTOTPSet             shared.UserTOTPSetCmd        `command:"usertotpset"`
+	UserTOTPVerify          shared.UserTOTPVerifyCmd     `command:"usertotpverify"`
+	UserRegistrationPayment userRegistrationPaymentCmd   `command:"userregistrationpayment"`
+	UserProposalPaywall     userProposalPaywallCmd       `command:"userproposalpaywall"`
+	UserProposalPaywallTx   userProposalPaywallTxCmd     `command:"userproposalpaywalltx"`
+	UserProposalCredits     userProposalCreditsCmd       `command:"userproposalcredits"`
+	UserPaymentsRescan      userPaymentsRescanCmd        `command:"userpaymentsrescan"`
+	UserDetails             userDetailsCmd               `command:"userdetails"`
+	Users                   shared.UsersCmd              `command:"users"`
 
 	// TODO replace www policies with pi policies
 	// Proposal commands
@@ -117,22 +118,24 @@ Basic commands
   me                     (user)   Get details of the logged in user
 
 User commands
-  usernew                (public) Create a new user
-  useredit               (user)   Edit the logged in user
-  usermanage             (admin)  Edit a user as an admin
-  useremailverify        (public) Verify email address
-  userverificationresend (public) Resend verification email
-  userpasswordreset      (public) Reset password 
-  userpasswordchange     (user)   Change password
-  userusernamechange     (user)   Change username
-  userkeyupdate          (user)   Update user key (i.e. identity)
-  usertotpset            (user)   Set a TOTP method
-  usertotpverify         (user)   Verify a TOTP method
-  userpaymentverify      (user)   Verify registration payment
-  userpaymentsrescan     (user)   Rescan all user payments
-  userpendingpayment     (user)   Get pending user payments
-  userdetails            (public) Get user details
-  users                  (public) Get users
+  usernew                 (public) Create a new user
+  useredit                (user)   Edit the logged in user
+  usermanage              (admin)  Edit a user as an admin
+  useremailverify         (public) Verify email address
+  userverificationresend  (public) Resend verification email
+  userpasswordreset       (public) Reset password 
+  userpasswordchange      (user)   Change password
+  userusernamechange      (user)   Change username
+  userkeyupdate           (user)   Update user key (i.e. identity)
+  usertotpset             (user)   Set a TOTP method
+  usertotpverify          (user)   Verify a TOTP method
+  userregistrationpayment (user)   Verify registration payment
+  userproposalpaywall     (user)   Get user paywall details
+  userproposalpaywalltx   (user)   Get pending user payments
+  userproposalcredits     (user)   Get user proposal credits
+  userpaymentsrescan      (user)   Rescan all user payments
+  userdetails             (public) Get user details
+  users                   (public) Get users
 
 Proposal commands
   proposalnew            (user)   Submit a new proposal
