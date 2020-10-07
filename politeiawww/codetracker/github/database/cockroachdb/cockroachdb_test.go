@@ -6,6 +6,7 @@ package cockroachdb
 
 import (
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -44,7 +45,10 @@ func TestNewPullRequests(t *testing.T) {
 
 	now := time.Now()
 	// Arguments
+	id := "https://github.com/decred/github/pull/1" +
+		strconv.Itoa(int(now.Unix()))
 	pr := &database.PullRequest{
+		ID:           id,
 		Repo:         "github",
 		Organization: "decred",
 		URL:          "https://github.com/decred/github/pull/1",
@@ -62,17 +66,18 @@ func TestNewPullRequests(t *testing.T) {
 
 	// Queries
 	sqlInsertPullRequests := `INSERT INTO "pullrequests" ` +
-		`("repo","organization","url","number","author","updated_at",` +
+		`("id","repo","organization","url","number","author","updated_at",` +
 		`"closed_at","merged_at","merged","state","additions","deletions",` +
 		`"merged_by") ` +
-		`VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ` +
-		`RETURNING "pullrequests"."url"`
+		`VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ` +
+		`RETURNING "pullrequests"."id"`
 
 	// Success Expectations
 	mock.ExpectBegin()
 	// Insert user to db
 	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertPullRequests)).
 		WithArgs(
+			pr.ID,
 			pr.Repo,
 			pr.Organization,
 			pr.URL,
@@ -86,7 +91,7 @@ func TestNewPullRequests(t *testing.T) {
 			pr.Additions,
 			pr.Deletions,
 			pr.MergedBy).
-		WillReturnRows(sqlmock.NewRows([]string{"url"}).AddRow(pr.URL))
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(pr.ID))
 	mock.ExpectCommit()
 
 	// Execute method
@@ -109,7 +114,10 @@ func TestUpdatePullRequests(t *testing.T) {
 
 	now := time.Now()
 	// Arguments
+	id := "https://github.com/decred/github/pull/1" +
+		strconv.Itoa(int(now.Unix()))
 	pr := &database.PullRequest{
+		ID:           id,
 		Repo:         "github",
 		Organization: "decred",
 		URL:          "https://github.com/decred/github/pull/1",
@@ -126,11 +134,11 @@ func TestUpdatePullRequests(t *testing.T) {
 	}
 	// Arguments
 	sqlUpdatePullRequests := `UPDATE "pullrequests" ` +
-		`SET "repo" = $1, "organization" = $2, "number" = $3, ` +
-		`"author" = $4, "updated_at" = $5, "closed_at" = $6, ` +
-		`"merged_at" = $7, "merged" = $8, "state" = $9, "additions" = $10, ` +
-		`"deletions" = $11, "merged_by" = $12 ` +
-		`WHERE "pullrequests"."url" = $13`
+		`SET "repo" = $1, "organization" = $2, "url" = $3, "number" = $4, ` +
+		`"author" = $5, "updated_at" = $6, "closed_at" = $7, ` +
+		`"merged_at" = $8, "merged" = $9, "state" = $10, "additions" = $11, ` +
+		`"deletions" = $12, "merged_by" = $13 ` +
+		`WHERE "pullrequests"."id" = $14`
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -138,6 +146,7 @@ func TestUpdatePullRequests(t *testing.T) {
 		WithArgs(
 			pr.Repo,
 			pr.Organization,
+			pr.URL,
 			pr.Number,
 			pr.User,
 			pr.UpdatedAt,
@@ -148,7 +157,7 @@ func TestUpdatePullRequests(t *testing.T) {
 			pr.Additions,
 			pr.Deletions,
 			pr.MergedBy,
-			pr.URL).
+			pr.ID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -268,16 +277,22 @@ func TestUpdatePullRequestsReview(t *testing.T) {
 	}
 }
 
-func TestPullRequestByURL(t *testing.T) {
+func TestPullRequestByID(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
 	// Arguments
 	now := time.Now()
+	url := "https://github.com/decred/pr/pull/1"
+
+	id := url +
+		strconv.Itoa(int(now.Unix()))
+	idNotFound := url + "123456"
 	pr := &database.PullRequest{
+		ID:           id,
 		Repo:         "github",
 		Organization: "decred",
-		URL:          "https://github.com/decred/github/pull/1",
+		URL:          url,
 		Number:       1,
 		User:         "stakey",
 		UpdatedAt:    now.Unix(),
@@ -290,12 +305,9 @@ func TestPullRequestByURL(t *testing.T) {
 		MergedBy:     "davec",
 	}
 
-	url := "https://github.com/decred/pr/pull/1"
-
-	urlNotFound := "https://github.com/decred/pr/pull/2"
-
 	// Mock rows data
 	rows := sqlmock.NewRows([]string{
+		"id",
 		"repo",
 		"organization",
 		"url",
@@ -310,6 +322,7 @@ func TestPullRequestByURL(t *testing.T) {
 		"deletions",
 		"merged_by",
 	}).AddRow(
+		pr.ID,
 		pr.Repo,
 		pr.Organization,
 		pr.URL,
@@ -326,25 +339,25 @@ func TestPullRequestByURL(t *testing.T) {
 	)
 
 	// Query
-	sql := `SELECT * FROM "pullrequests" WHERE "pullrequests"."url" = $1`
+	sql := `SELECT * FROM "pullrequests" WHERE "pullrequests"."id" = $1`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
-		WithArgs(url).
+		WithArgs(id).
 		WillReturnRows(rows)
 
 	// Execute method
-	_, err := cdb.PullRequestByURL(url)
+	_, err := cdb.PullRequestByID(id)
 	if err != nil {
 		t.Errorf("PullRequestByURL unwanted error: %s", err)
 	}
 
 	expectedError := database.ErrNoPullRequestFound
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
-		WithArgs(urlNotFound).
+		WithArgs(idNotFound).
 		WillReturnError(expectedError)
 
-	foundPr, err := cdb.PullRequestByURL(urlNotFound)
+	foundPr, err := cdb.PullRequestByID(idNotFound)
 	if err == nil {
 		t.Errorf("expecting error but there was none")
 	}

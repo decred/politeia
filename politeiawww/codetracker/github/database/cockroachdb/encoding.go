@@ -44,6 +44,7 @@ func DecodePullRequestReview(prReview *PullRequestReview) *database.PullRequestR
 // PullRequest.
 func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
 	pr := PullRequest{}
+	pr.ID = dbPullRequest.ID
 	pr.URL = dbPullRequest.URL
 	pr.Repo = dbPullRequest.Repo
 	pr.Organization = dbPullRequest.Organization
@@ -65,6 +66,7 @@ func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
 // database.PullRequest
 func DecodePullRequest(pr *PullRequest) *database.PullRequest {
 	dbPullRequest := &database.PullRequest{}
+	dbPullRequest.ID = pr.ID
 	dbPullRequest.URL = pr.URL
 	dbPullRequest.Repo = pr.Repo
 	dbPullRequest.Organization = pr.Organization

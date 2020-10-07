@@ -38,8 +38,8 @@ type Database interface {
 	// UpdatePullRequest updates an existing pull request row.
 	UpdatePullRequest(*PullRequest) error
 
-	// PullRequestByURL returns the pull request that matches the provided URL.
-	PullRequestByURL(url string) (*PullRequest, error)
+	// PullRequestByID returns the pull request that matches the provided id.
+	PullRequestByID(id string) (*PullRequest, error)
 
 	// PullRequestsByUserDates returns all pull requests that match the
 	// username and is in between the start and end dates (in Unix).
@@ -68,6 +68,7 @@ type Database interface {
 
 // PullRequest contains all information pertaining to a specific PR.
 type PullRequest struct {
+	ID           string
 	Repo         string
 	Organization string
 	User         string

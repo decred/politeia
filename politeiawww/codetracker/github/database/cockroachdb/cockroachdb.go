@@ -57,11 +57,11 @@ func (c *cockroachdb) UpdatePullRequest(dbPullRequest *database.PullRequest) err
 }
 
 // PullRequestByURL return a PullRequest by its URL.
-func (c *cockroachdb) PullRequestByURL(url string) (*database.PullRequest, error) {
-	log.Debugf("PullRequestByURL: %v", url)
+func (c *cockroachdb) PullRequestByID(id string) (*database.PullRequest, error) {
+	log.Debugf("PullRequestByID: %v", id)
 
 	pr := PullRequest{
-		URL: url,
+		ID: id,
 	}
 	err := c.recordsdb.
 		Find(&pr).Error

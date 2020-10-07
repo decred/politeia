@@ -24,9 +24,10 @@ func (Version) TableName() string {
 // PullRequest table has all of the information for a given PullRequest,
 // this also includes its commits and reviews.
 type PullRequest struct {
+	ID           string `gorm:"primary_key"`
 	Repo         string `gorm:"not null"`
 	Organization string `gorm:"not null"`
-	URL          string `gorm:"primary_key"`
+	URL          string `gorm:"not null"`
 	Number       int    `gorm:"not null"`
 	Author       string `gorm:"not null"`
 	UpdatedAt    int64  `gorm:"not null"`

@@ -19,6 +19,7 @@ func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repoName, org 
 	url := githubPullURL + "/" + org + "/" + repoName + "/pull/" +
 		strconv.Itoa(apiPR.Number)
 	dbPR := &database.PullRequest{
+		ID:           url + apiPR.UpdatedAt,
 		Repo:         repoName,
 		Organization: org,
 		User:         apiPR.User.Login,

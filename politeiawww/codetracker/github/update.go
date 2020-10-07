@@ -84,7 +84,7 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	if err != nil {
 		return err
 	}
-	dbPR, err := g.codedb.PullRequestByURL(apiPullRequest.URL)
+	_, err = g.codedb.PullRequestByID(apiPullRequest.ID)
 	if err == database.ErrNoPullRequestFound {
 		// Add a new entry since there is nothing there now.
 		err = g.codedb.NewPullRequest(apiPullRequest)
@@ -95,17 +95,6 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	} else {
 		log.Errorf("error finding PR in db", err)
 		return err
-	}
-
-	// Only add a new entry into the database if the updated time from the api,
-	// is after the updated time in the db.  This should weed out re-adding
-	// PRs that were previously merged.
-	if time.Unix(apiPullRequest.UpdatedAt, 0).After(time.Unix(dbPR.UpdatedAt, 0)) {
-		err = g.codedb.NewPullRequest(apiPullRequest)
-		if err != nil {
-			log.Errorf("error adding new pull request: %v", err)
-			return err
-		}
 	}
 
 	reviews, err := g.fetchPullRequestReviews(org, repoName, pr.Number,
