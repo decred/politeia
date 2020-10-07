@@ -52,19 +52,18 @@ const (
 	PolicyVoteChangesMax = 5
 
 	// Error status codes
-	ErrorStatusInvalid          ErrorStatusT = 0
-	ErrorStatusStateInvalid     ErrorStatusT = 1
-	ErrorStatusTokenInvalid     ErrorStatusT = 2
-	ErrorStatusPublicKeyInvalid ErrorStatusT = 3
-	ErrorStatusSignatureInvalid ErrorStatusT = 4
-	ErrorStatusCommentLengthMax ErrorStatusT = 5
-	ErrorStatusRecordNotFound   ErrorStatusT = 6
-	ErrorStatusCommentNotFound  ErrorStatusT = 7
-	ErrorStatusUserIDInvalid    ErrorStatusT = 8
-	ErrorStatusParentIDInvalid  ErrorStatusT = 9
-	ErrorStatusNoCommentChanges ErrorStatusT = 10
-	ErrorStatusVoteInvalid      ErrorStatusT = 11
-	ErrorStatusVoteChangesMax   ErrorStatusT = 12
+	ErrorStatusInvalid      ErrorStatusT = 0
+	ErrorStatusStateInvalid ErrorStatusT = iota
+	ErrorStatusTokenInvalid
+	ErrorStatusPublicKeyInvalid
+	ErrorStatusSignatureInvalid
+	ErrorStatusCommentTextInvalid
+	ErrorStatusRecordNotFound
+	ErrorStatusCommentNotFound
+	ErrorStatusUserUnauthorized
+	ErrorStatusParentIDInvalid
+	ErrorStatusVoteInvalid
+	ErrorStatusVoteChangesMax
 )
 
 var (
@@ -77,7 +76,6 @@ var (
 		ErrorStatusRecordNotFound:   "record not found",
 		ErrorStatusCommentNotFound:  "comment not found",
 		ErrorStatusParentIDInvalid:  "parent id invalid",
-		ErrorStatusNoCommentChanges: "comment did not change",
 		ErrorStatusVoteInvalid:      "invalid vote",
 		ErrorStatusVoteChangesMax:   "vote changes max exceeded",
 	}

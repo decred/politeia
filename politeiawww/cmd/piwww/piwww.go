@@ -53,13 +53,11 @@ type piwww struct {
 	UserPasswordChange      shared.UserPasswordChangeCmd `command:"userpasswordchange"`
 	UserUsernameChange      shared.UserUsernameChangeCmd `command:"userusernamechange"`
 	UserKeyUpdate           shared.UserKeyUpdateCmd      `command:"userkeyupdate"`
-	UserTOTPSet             shared.UserTOTPSetCmd        `command:"usertotpset"`
-	UserTOTPVerify          shared.UserTOTPVerifyCmd     `command:"usertotpverify"`
 	UserRegistrationPayment userRegistrationPaymentCmd   `command:"userregistrationpayment"`
+	UserPaymentsRescan      userPaymentsRescanCmd        `command:"userpaymentsrescan"`
 	UserProposalPaywall     userProposalPaywallCmd       `command:"userproposalpaywall"`
 	UserProposalPaywallTx   userProposalPaywallTxCmd     `command:"userproposalpaywalltx"`
 	UserProposalCredits     userProposalCreditsCmd       `command:"userproposalcredits"`
-	UserPaymentsRescan      userPaymentsRescanCmd        `command:"userpaymentsrescan"`
 	UserDetails             userDetailsCmd               `command:"userdetails"`
 	Users                   shared.UsersCmd              `command:"users"`
 
@@ -96,7 +94,6 @@ type piwww struct {
 	SendFaucetTx sendFaucetTxCmd `command:"sendfaucettx"`
 }
 
-// TODO add proposalpaywall to this once the command is updated
 const helpMsg = `Application Options:
       --appdata=    Path to application home directory
       --host=       politeiawww host
@@ -110,12 +107,12 @@ Help commands
   help                   Print detailed help message for a command
 
 Basic commands
-  version                (public) Get politeiawww server version
-  policy                 (public) Get politeiawww server policy
-  secret                 (public) Ping the server
-  login                  (public) Login to politeiawww
-  logout                 (user)   Logout from politeiawww
-  me                     (user)   Get details of the logged in user
+  version                 (public) Get politeiawww server version
+  policy                  (public) Get politeiawww server policy
+  secret                  (public) Ping the server
+  login                   (public) Login to politeiawww
+  logout                  (user)   Logout from politeiawww
+  me                      (user)   Get details of the logged in user
 
 User commands
   usernew                 (public) Create a new user
@@ -127,39 +124,37 @@ User commands
   userpasswordchange      (user)   Change password
   userusernamechange      (user)   Change username
   userkeyupdate           (user)   Update user key (i.e. identity)
-  usertotpset             (user)   Set a TOTP method
-  usertotpverify          (user)   Verify a TOTP method
   userregistrationpayment (user)   Verify registration payment
+  userpaymentsrescan      (user)   Rescan all user payments
   userproposalpaywall     (user)   Get user paywall details
   userproposalpaywalltx   (user)   Get pending user payments
   userproposalcredits     (user)   Get user proposal credits
-  userpaymentsrescan      (user)   Rescan all user payments
   userdetails             (public) Get user details
   users                   (public) Get users
 
 Proposal commands
-  proposalnew            (user)   Submit a new proposal
-  proposaledit           (user)   Edit an existing proposal
-  proposalstatusset      (admin)  Set the status of a proposal
-  proposals              (public) Get proposals
-  proposalinv            (public) Get proposal inventory by proposal status
+  proposalnew             (user)   Submit a new proposal
+  proposaledit            (user)   Edit an existing proposal
+  proposalstatusset       (admin)  Set the status of a proposal
+  proposals               (public) Get proposals
+  proposalinv             (public) Get proposal inventory by proposal status
 
 Comment commands
-  commentnew             (user)   Submit a new comment
-  commentvote            (user)   Upvote/downvote a comment
-  commentcensor          (admin)  Censor a comment
-  comments               (public) Get comments
-  commentvotes           (public) Get comment votes
+  commentnew              (user)   Submit a new comment
+  commentvote             (user)   Upvote/downvote a comment
+  commentcensor           (admin)  Censor a comment
+  comments                (public) Get comments
+  commentvotes            (public) Get comment votes
 
 Vote commands
-  voteauthorize          (user)   Authorize a proposal vote
-  votestart              (admin)  Start a proposal vote
-  votestartrunoff        (admin)  Start a runoff vote
-  voteballot             (public) Cast a ballot of votes
-  votes                  (public) Get vote details
-  voteresults            (public) Get full vote results
-  votesummaries          (public) Get vote summaries
-  voteinv                (public) Get proposal inventory by vote status
+  voteauthorize           (user)   Authorize a proposal vote
+  votestart               (admin)  Start a proposal vote
+  votestartrunoff         (admin)  Start a runoff vote
+  voteballot              (public) Cast a ballot of votes
+  votes                   (public) Get vote details
+  voteresults             (public) Get full vote results
+  votesummaries           (public) Get vote summaries
+  voteinv                 (public) Get proposal inventory by vote status
 
 Websocket commands
   subscribe              (public) Subscribe/unsubscribe to websocket event

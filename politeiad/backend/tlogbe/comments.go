@@ -27,6 +27,12 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// TODO holding the lock before verifying the token can allow the mutexes to
+// be spammed. Create an infinite amount of them with invalid tokens. The fix
+// is to check if the record exists in the mutexes function to ensure a token
+// is valid before holding the lock on it. This is where we can return a
+// record doesn't exist user error too.
+
 const (
 	// Blob entry data descriptors
 	dataDescriptorCommentAdd  = "commentadd"
@@ -764,12 +770,12 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	default:
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+			ErrorCode: int(comments.ErrorStatusStateInvalid),
 		}
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(n.Token)
+	token, err := util.ConvertStringToken(n.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -788,8 +794,9 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	// Verify comment
 	if len(n.Comment) > comments.PolicyCommentLengthMax {
 		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusCommentLengthMax),
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusCommentTextInvalid),
+			ErrorContext: []string{"exceeds max length"},
 		}
 	}
 
@@ -896,7 +903,7 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(e.Token)
+	token, err := util.ConvertStringToken(e.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -915,8 +922,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	// Verify comment
 	if len(e.Comment) > comments.PolicyCommentLengthMax {
 		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusCommentLengthMax),
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusCommentTextInvalid),
+			ErrorContext: []string{"exceeds max length"},
 		}
 	}
 
@@ -947,12 +955,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 
 	// Verify the user ID
 	if e.UserID != existing.UserID {
-		e := fmt.Sprintf("user id cannot change; got %v, want %v",
-			e.UserID, existing.UserID)
 		return "", backend.PluginUserError{
-			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusUserIDInvalid),
-			ErrorContext: []string{e},
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusUserUnauthorized),
 		}
 	}
 
@@ -970,8 +975,9 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	// Verify comment changes
 	if e.Comment == existing.Comment {
 		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusNoCommentChanges),
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorStatusCommentTextInvalid),
+			ErrorContext: []string{"comment did not change"},
 		}
 	}
 
@@ -1049,7 +1055,7 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(d.Token)
+	token, err := util.ConvertStringToken(d.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1093,6 +1099,7 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	// Prepare comment delete
 	receipt := p.identity.SignMessage([]byte(d.Signature))
 	cd := comments.CommentDel{
+		State:     d.State,
 		Token:     d.Token,
 		CommentID: d.CommentID,
 		Reason:    d.Reason,
@@ -1177,7 +1184,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(v.Token)
+	token, err := util.ConvertStringToken(v.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1338,7 +1345,7 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(g.Token)
+	token, err := util.ConvertStringToken(g.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1397,7 +1404,7 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(ga.Token)
+	token, err := util.ConvertStringToken(ga.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1473,7 +1480,7 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(gv.Token)
+	token, err := util.ConvertStringToken(gv.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1560,7 +1567,7 @@ func (p *commentsPlugin) cmdCount(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(c.Token)
+	token, err := util.ConvertStringToken(c.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1607,7 +1614,7 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := hex.DecodeString(v.Token)
+	token, err := util.ConvertStringToken(v.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,

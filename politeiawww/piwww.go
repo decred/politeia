@@ -32,7 +32,6 @@ import (
 // TODO use pi policies. Should the policies be defined in the pi plugin
 // or the pi api spec?
 // TODO ensure plugins can't write data using short proposal token.
-// TODO move proposal validation to pi plugin
 // TODO politeiad needs batched calls for retrieving unvetted and vetted
 // records.
 
@@ -368,7 +367,6 @@ func convertCommentFromPlugin(cm comments.Comment) pi.Comment {
 		PublicKey: cm.PublicKey,
 		Signature: cm.Signature,
 		CommentID: cm.CommentID,
-		Version:   cm.Version,
 		Timestamp: cm.Timestamp,
 		Receipt:   cm.Receipt,
 		Score:     cm.Score,
@@ -1298,7 +1296,8 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	// values so the user IDs must be compared directly.
 	if curr.UserID != usr.ID.String() {
 		return nil, pi.UserErrorReply{
-			ErrorCode: pi.ErrorStatusUserIsNotAuthor,
+			ErrorCode:    pi.ErrorStatusUnauthorized,
+			ErrorContext: []string{"user is not author"},
 		}
 	}
 
@@ -1429,7 +1428,8 @@ func (p *politeiawww) processProposalStatusSet(pss pi.ProposalStatusSet, usr use
 	// Verify user is an admin
 	if !usr.Admin {
 		return nil, pi.UserErrorReply{
-			ErrorCode: pi.ErrorStatusUserIsNotAdmin,
+			ErrorCode:    pi.ErrorStatusUnauthorized,
+			ErrorContext: []string{"user is not an admin"},
 		}
 	}
 
@@ -1574,6 +1574,27 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 		return nil, pi.UserErrorReply{
 			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
 			ErrorContext: []string{"not active identity"},
+		}
+	}
+
+	// Only admins and the proposal author are allowed to comment on
+	// unvetted proposals.
+	if cn.State == pi.PropStateUnvetted && !usr.Admin {
+		// Fetch the proposal so we can see who the author is
+		pr, err := p.proposalRecordLatest(cn.State, cn.Token)
+		if err != nil {
+			if err == errProposalNotFound {
+				return nil, pi.UserErrorReply{
+					ErrorCode: pi.ErrorStatusPropNotFound,
+				}
+			}
+			return nil, fmt.Errorf("proposalRecordLatest: %v", err)
+		}
+		if usr.ID.String() != pr.UserID {
+			return nil, pi.UserErrorReply{
+				ErrorCode:    pi.ErrorStatusUnauthorized,
+				ErrorContext: []string{"user is not author or admin"},
+			}
 		}
 	}
 
@@ -2112,12 +2133,14 @@ func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVote: getSessionUser: %v", err)
+		return
 	}
 
 	vcr, err := p.processCommentVote(cv, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVote: processCommentVote: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vcr)
@@ -2147,6 +2170,7 @@ func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentCensor: processCommentCensor: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, ccr)
@@ -2169,6 +2193,7 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVote: processComments: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, cr)
@@ -2191,6 +2216,7 @@ func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVotes: processCommentVotes: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, cvr)
@@ -2213,12 +2239,14 @@ func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteAuthorize: getSessionUser: %v", err)
+		return
 	}
 
 	vr, err := p.processVoteAuthorize(va, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteAuthorize: processVoteAuthorize: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
@@ -2241,12 +2269,14 @@ func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStart: getSessionUser: %v", err)
+		return
 	}
 
 	vsr, err := p.processVoteStart(vs, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStart: processVoteStart: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vsr)
@@ -2269,12 +2299,14 @@ func (p *politeiawww) handleVoteStartRunoff(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStartRunoff: getSessionUser: %v", err)
+		return
 	}
 
 	vsrr, err := p.processVoteStartRunoff(vsr, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStartRunoff: processVoteStartRunoff: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vsrr)
@@ -2297,6 +2329,7 @@ func (p *politeiawww) handleVoteBallot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteBallot: processVoteBallot: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vbr)
@@ -2319,6 +2352,7 @@ func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVotes: processVotes: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
@@ -2341,6 +2375,7 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteResults: prcoessVoteResults: %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
@@ -2363,6 +2398,7 @@ func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		respondWithPiError(w, r, "handleVoteSummaries: processVoteSummaries: %v",
 			err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vsr)
@@ -2385,6 +2421,7 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		respondWithPiError(w, r, "handleVoteInventory: processVoteInventory: %v",
 			err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vir)

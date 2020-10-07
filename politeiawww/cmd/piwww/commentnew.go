@@ -31,9 +31,16 @@ func (c *commentNewCmd) Execute(args []string) error {
 	// Unpack args
 	token := c.Args.Token
 	comment := c.Args.Comment
-	parentID, err := strconv.ParseUint(c.Args.ParentID, 10, 32)
-	if err != nil {
-		return fmt.Errorf("ParseUint(%v): %v", c.Args.ParentID, err)
+
+	var parentID uint64
+	var err error
+	if c.Args.ParentID == "" {
+		parentID = 0
+	} else {
+		parentID, err = strconv.ParseUint(c.Args.ParentID, 10, 32)
+		if err != nil {
+			return fmt.Errorf("ParseUint(%v): %v", c.Args.ParentID, err)
+		}
 	}
 
 	// Verify identity
@@ -52,7 +59,8 @@ func (c *commentNewCmd) Execute(args []string) error {
 	}
 
 	// Sign comment data
-	msg := strconv.Itoa(int(state)) + token + c.Args.ParentID + comment
+	msg := strconv.Itoa(int(state)) + token +
+		strconv.FormatUint(uint64(parentID), 10) + comment
 	b := cfg.Identity.SignMessage([]byte(msg))
 	signature := hex.EncodeToString(b[:])
 

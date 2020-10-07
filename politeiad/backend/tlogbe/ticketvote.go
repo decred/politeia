@@ -60,8 +60,8 @@ var (
 
 // TODO holding the lock before verifying the token can allow the mutexes to
 // be spammed. Create an infinite amount of them with invalid tokens. The fix
-// is to add an exists() method onto the tlogClient and have the mutexes
-// function ensure a token is valid before holding the lock on it.
+// is to check if the record exists in the mutexes function to ensure a token
+// is valid before holding the lock on it.
 
 // TODO the bottleneck for casting a large ballot of votes is waiting for the
 // log signer. Break the cast votes up and send them concurrently.

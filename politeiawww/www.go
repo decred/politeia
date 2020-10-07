@@ -96,23 +96,12 @@ func convertWWWErrorStatusFromComments(e comments.ErrorStatusT) www.ErrorStatusT
 	switch e {
 	case comments.ErrorStatusTokenInvalid:
 		return www.ErrorStatusInvalidCensorshipToken
-	case comments.ErrorStatusPublicKeyInvalid:
-		return www.ErrorStatusInvalidPublicKey
-	case comments.ErrorStatusSignatureInvalid:
-		return www.ErrorStatusInvalidSignature
 	case comments.ErrorStatusRecordNotFound:
 		return www.ErrorStatusProposalNotFound
 	case comments.ErrorStatusCommentNotFound:
 		return www.ErrorStatusCommentNotFound
 	case comments.ErrorStatusParentIDInvalid:
 		return www.ErrorStatusCommentNotFound
-	case comments.ErrorStatusNoCommentChanges:
-		// Intentionally omitted. The www API does not allow for comment
-		// changes.
-	case comments.ErrorStatusVoteInvalid:
-		return www.ErrorStatusInvalidLikeCommentAction
-	case comments.ErrorStatusVoteChangesMax:
-		return www.ErrorStatusInvalidLikeCommentAction
 	}
 	return www.ErrorStatusInvalid
 }
@@ -197,30 +186,48 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 
 func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
+	case piplugin.ErrorStatusPropStateInvalid:
+		return pi.ErrorStatusPropStateInvalid
+	case piplugin.ErrorStatusPropTokenInvalid:
+		return pi.ErrorStatusPropTokenInvalid
+	case piplugin.ErrorStatusPropNotFound:
+		return pi.ErrorStatusPropNotFound
+	case piplugin.ErrorStatusPropStatusInvalid:
+		return pi.ErrorStatusPropStatusInvalid
+	case piplugin.ErrorStatusPropVersionInvalid:
+		return pi.ErrorStatusPropVersionInvalid
+	case piplugin.ErrorStatusPropStatusChangeInvalid:
+		return pi.ErrorStatusPropStatusChangeInvalid
 	case piplugin.ErrorStatusPropLinkToInvalid:
 		return pi.ErrorStatusPropLinkToInvalid
 	case piplugin.ErrorStatusVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
+	case piplugin.ErrorStatusPageSizeExceeded:
+		return pi.ErrorStatusPageSizeExceeded
 	}
 	return pi.ErrorStatusInvalid
 }
 
 func convertPiErrorStatusFromComments(e comments.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
+	case comments.ErrorStatusStateInvalid:
+		return pi.ErrorStatusPropStateInvalid
 	case comments.ErrorStatusTokenInvalid:
 		return pi.ErrorStatusPropTokenInvalid
 	case comments.ErrorStatusPublicKeyInvalid:
 		return pi.ErrorStatusPublicKeyInvalid
 	case comments.ErrorStatusSignatureInvalid:
 		return pi.ErrorStatusSignatureInvalid
+	case comments.ErrorStatusCommentTextInvalid:
+		return pi.ErrorStatusCommentTextInvalid
 	case comments.ErrorStatusRecordNotFound:
 		return pi.ErrorStatusPropNotFound
 	case comments.ErrorStatusCommentNotFound:
 		return pi.ErrorStatusCommentNotFound
+	case comments.ErrorStatusUserUnauthorized:
+		return pi.ErrorStatusUnauthorized
 	case comments.ErrorStatusParentIDInvalid:
 		return pi.ErrorStatusCommentParentIDInvalid
-	case comments.ErrorStatusNoCommentChanges:
-		return pi.ErrorStatusCommentTextInvalid
 	case comments.ErrorStatusVoteInvalid:
 		return pi.ErrorStatusCommentVoteInvalid
 	case comments.ErrorStatusVoteChangesMax:
@@ -251,11 +258,11 @@ func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatu
 	return pi.ErrorStatusInvalid
 }
 
-// convertPiErrorStatus attempts to convert the provided politeiad plugin ID
-// and error code into a pi ErrorStatusT. If a plugin ID is provided the error
-// code is assumed to be a user error code from the specified plugin API.  If
-// no plugin ID is provided the error code is assumed to be a user error code
-// from the politeiad API.
+// convertPiErrorStatus attempts to convert the provided politeiad error code
+// into a pi ErrorStatusT. If a plugin ID is provided the error code is assumed
+// to be a user error code from the specified plugin API.  If no plugin ID is
+// provided the error code is assumed to be a user error code from the
+// politeiad API.
 func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
 	switch pluginID {
 	case "":
@@ -352,7 +359,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 	var pdErr pdError
 	if errors.As(err, &pdErr) {
 		var (
-			pluginID   = pdErr.ErrorReply.PluginID
+			pluginID   = pdErr.ErrorReply.Plugin
 			errCode    = pdErr.ErrorReply.ErrorCode
 			errContext = pdErr.ErrorReply.ErrorContext
 		)
@@ -471,7 +478,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	// Check for politeiad error
 	if pdError, ok := args[0].(pdError); ok {
 		var (
-			pluginID   = pdError.ErrorReply.PluginID
+			pluginID   = pdError.ErrorReply.Plugin
 			errCode    = pdError.ErrorReply.ErrorCode
 			errContext = pdError.ErrorReply.ErrorContext
 		)

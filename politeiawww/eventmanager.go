@@ -386,6 +386,7 @@ func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment) error {
 
 	// Get the parent comment
 	// TODO
+	return nil
 
 	// Lookup the parent comment author
 	var author *user.User

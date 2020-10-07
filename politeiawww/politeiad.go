@@ -21,7 +21,7 @@ import (
 type pdErrorReply struct {
 	ErrorCode    int
 	ErrorContext []string
-	PluginID     string
+	Plugin       string
 }
 
 // pdError represents a politeiad error.

@@ -20,13 +20,13 @@ type VoteErrorT int
 // TODO I screwed up comments. A comment should contain fields for upvotes and
 // downvotes instead of just a overall vote score.
 // TODO the plugin policies should be returned in a route
-// TODO the proposals route should allow filtering by user ID. Actually, this
-// is going to have to wait until after the initial release. This is
-// non-trivial to accomplish and is outside the scope of the core
-// functionality.
 // TODO show the difference between unvetted censored and vetted censored
 // in the proposal inventory route since fetching them requires specifying
 // the state.
+// TODO verify that all batched request have a page size limit
+// TODO make RouteVoteResults a batched route but that only currently allows
+// for 1 result to be returned so that we have the option to change this is
+// we want to.
 
 const (
 	APIVersion = 1
@@ -57,11 +57,6 @@ const (
 	RouteVoteResults     = "/votes/results"
 	RouteVoteSummaries   = "/votes/summaries"
 	RouteVoteInventory   = "/votes/inventory"
-
-	// TODO implement PolicyProposalPageSize
-	// PolicyProposalsPageSize is the maximum number of results that can
-	// be returned from any of the batched proposal commands.
-	PolicyProposalsPageSize = 10
 
 	// Proposal states. A proposal state can be either unvetted or
 	// vetted. The PropStatusT type further breaks down these two
@@ -115,22 +110,22 @@ const (
 	VoteTypeRunoff VoteT = 2
 
 	// Error status codes
-	ErrorStatusInvalid      ErrorStatusT = 0
-	ErrorStatusInputInvalid ErrorStatusT = 1
+	ErrorStatusInvalid          ErrorStatusT = 0
+	ErrorStatusInputInvalid     ErrorStatusT = 1
+	ErrorStatusPageSizeExceeded ErrorStatusT = 2
 
 	// User errors
-	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 2
-	ErrorStatusUserBalanceInsufficient ErrorStatusT = 3
-	ErrorStatusUserIsNotAuthor         ErrorStatusT = 4
-	ErrorStatusUserIsNotAdmin          ErrorStatusT = 5
+	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 100
+	ErrorStatusUserBalanceInsufficient ErrorStatusT = 101
+	ErrorStatusUnauthorized            ErrorStatusT = 102
 
 	// Signature errors
-	ErrorStatusPublicKeyInvalid ErrorStatusT = 100
-	ErrorStatusSignatureInvalid ErrorStatusT = 101
+	ErrorStatusPublicKeyInvalid ErrorStatusT = 200
+	ErrorStatusSignatureInvalid ErrorStatusT = 201
 
 	// Proposal errors
 	// TODO number error codes
-	ErrorStatusFileCountInvalid ErrorStatusT = 200
+	ErrorStatusFileCountInvalid ErrorStatusT = 300
 	ErrorStatusFileNameInvalid  ErrorStatusT = iota
 	ErrorStatusFileMIMEInvalid
 	ErrorStatusFileDigestInvalid
@@ -144,17 +139,17 @@ const (
 	ErrorStatusMetadataCountInvalid
 	ErrorStatusMetadataDigestInvalid
 	ErrorStatusMetadataPayloadInvalid
+	ErrorStatusPropNotFound
 	ErrorStatusPropMetadataNotFound
+	ErrorStatusPropTokenInvalid
+	ErrorStatusPropVersionInvalid
 	ErrorStatusPropNameInvalid
 	ErrorStatusPropLinkToInvalid
 	ErrorStatusPropLinkByInvalid
-	ErrorStatusPropTokenInvalid
-	ErrorStatusPropNotFound
 	ErrorStatusPropStateInvalid
 	ErrorStatusPropStatusInvalid
 	ErrorStatusPropStatusChangeInvalid
 	ErrorStatusPropStatusChangeReasonInvalid
-	ErrorStatusPropPageSizeExceeded
 	ErrorStatusNoPropChanges
 
 	// Comment errors
@@ -168,7 +163,6 @@ const (
 	ErrorStatusVoteStatusInvalid
 	ErrorStatusVoteParamsInvalid
 	ErrorStatusBallotInvalid
-	ErrorStatusVotePageSizeExceeded
 
 	// Cast vote errors
 	// TODO these need human readable equivalents
@@ -188,14 +182,14 @@ var (
 	// ErrorStatus contains human readable error messages.
 	// TODO fill in error status messages
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:      "error status invalid",
-		ErrorStatusInputInvalid: "input invalid",
+		ErrorStatusInvalid:          "error status invalid",
+		ErrorStatusInputInvalid:     "input invalid",
+		ErrorStatusPageSizeExceeded: "page size exceeded",
 
 		// User errors
 		ErrorStatusUserRegistrationNotPaid: "user registration not paid",
 		ErrorStatusUserBalanceInsufficient: "user balance insufficient",
-		ErrorStatusUserIsNotAuthor:         "user is not author",
-		ErrorStatusUserIsNotAdmin:          "user is not author",
+		ErrorStatusUnauthorized:            "user is unauthorized",
 
 		// Signature errors
 		ErrorStatusPublicKeyInvalid: "public key invalid",
@@ -226,7 +220,6 @@ var (
 		ErrorStatusPropStatusInvalid:             "proposal status invalid",
 		ErrorStatusPropStatusChangeInvalid:       "proposal status change invalid",
 		ErrorStatusPropStatusChangeReasonInvalid: "proposal status reason invalid",
-		ErrorStatusPropPageSizeExceeded:          "proposal page size exceeded",
 		ErrorStatusNoPropChanges:                 "no proposal changes",
 
 		// Comment errors
@@ -237,10 +230,9 @@ var (
 		ErrorStatusCommentVoteChangesMax:  "comment vote changes exceeded max",
 
 		// Vote errors
-		ErrorStatusVoteStatusInvalid:    "vote status invalid",
-		ErrorStatusVoteParamsInvalid:    "vote params invalid",
-		ErrorStatusBallotInvalid:        "ballot invalid",
-		ErrorStatusVotePageSizeExceeded: "vote page size exceeded",
+		ErrorStatusVoteStatusInvalid: "vote status invalid",
+		ErrorStatusVoteParamsInvalid: "vote params invalid",
+		ErrorStatusBallotInvalid:     "ballot invalid",
 	}
 )
 
@@ -480,7 +472,6 @@ type Comment struct {
 	PublicKey string     `json:"publickey"` // Public key used for Signature
 	Signature string     `json:"signature"` // Client signature
 	CommentID uint32     `json:"commentid"` // Comment ID
-	Version   uint32     `json:"version"`   // Comment version
 	Timestamp int64      `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string     `json:"receipt"`   // Server sig of client sig
 	Score     int64      `json:"score"`     // Vote score

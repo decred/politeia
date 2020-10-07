@@ -61,8 +61,11 @@ const (
 
 	// User error status codes
 	// TODO number error codes and add human readable error messages
-	ErrorStatusInvalid ErrorStatusT = iota
-	ErrorStatusPropStateInvalid
+	ErrorStatusInvalid          ErrorStatusT = 0
+	ErrorStatusPropStateInvalid ErrorStatusT = iota
+	ErrorStatusPropTokenInvalid
+	ErrorStatusPropNotFound
+	ErrorStatusPropStatusInvalid
 	ErrorStatusPropVersionInvalid
 	ErrorStatusPropStatusChangeInvalid
 	ErrorStatusPropLinkToInvalid
