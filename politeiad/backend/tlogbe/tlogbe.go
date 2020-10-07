@@ -1353,12 +1353,12 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 		return nil, fmt.Errorf("recordLatest: %v", err)
 	}
 	rm := r.RecordMetadata
-	oldStatus := rm.Status
+	currStatus := rm.Status
 
 	// Validate status change
 	if !statusChangeIsAllowed(rm.Status, status) {
 		return nil, backend.StateTransitionError{
-			From: oldStatus,
+			From: currStatus,
 			To:   status,
 		}
 	}
@@ -1412,10 +1412,10 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Update inventory cache
-	t.inventoryUpdate(rm.Token, oldStatus, status)
+	t.inventoryUpdate(rm.Token, currStatus, status)
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
-		token, backend.MDStatus[oldStatus], oldStatus,
+		token, backend.MDStatus[currStatus], currStatus,
 		backend.MDStatus[status], status)
 
 	// Return the updated record

@@ -1,8 +1,10 @@
-# Politeia
+politeia
+====
+
 [![Build Status](https://github.com/decred/politeia/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/politeia/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![Go Report Card](https://goreportcard.com/badge/github.com/decred/politeia)](https://goreportcard.com/report/github.com/decred/politeia)
 
-**Politeia is the Decred proposal system.**
 Politeia is a system for storing off-chain data that is both versioned and
 timestamped, essentially “git, a popular revision control system, plus
 timestamping”. Instead of attempting to store all the data related to Decred’s
@@ -15,13 +17,11 @@ The politeia stack is as follows:
 ~~~~~~~~ Internet ~~~~~~~~~
             |
 +-------------------------+
-|      politeia www       |
+|      politeiawww        |
 +-------------------------+
             |
 +-------------------------+
 |        politeiad        |
-+-------------------------+
-|       git backend       |
 +-------------------------+
             |
 ~~~~~~~~ Internet ~~~~~~~~~
@@ -30,30 +30,19 @@ The politeia stack is as follows:
 |        dcrtimed         |
 +-------------------------+
 ```
-## API Documentation
-
-### v1
-
-* [politeiawww API Specification v1](https://github.com/decred/politeia/blob/master/politeiawww/api/www/v1/api.md) - This document describes the REST API provided by a politeiawww server. The politeiawww server is the web server backend and it interacts with a JSON REST API. This document also describes websockets for server side notifications. It does not render HTML.
-
-### v2
-
-* [politeiawww API Specification v2](https://github.com/decred/politeia/blob/master/politeiawww/api/www/v2/api.md) - This document describes the v2 REST API provided by a politeiawww server. The politeiawww server is the web server backend that interacts with clients using a JSON REST API.
 
 ## Components
 
-### Core components
+Core software:
 
 * politeiad - Reference server daemon.
 * politeiawww - Web backend server; depends on politeiad.
 
 ### Tools and reference clients
 
-* [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) - Reference client application for politeiad.
-* [politeia_verify](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia_verify) - Reference verification tool.
-* [politeiawwwcli](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawwwcli) - Command-line tool for interacting with politeiawww.
-* [politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil) - Tool for debugging and creating admin users within the politeiawww database.
-* [politeiawww_dataload](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dataload) - Tool using politeiawwwcli to load a basic dataset into politeiawww.
+* [politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil) - Tool for updating the politeiawww user database manually.
+* [piwww](https://github.com/decred/politeia/tree/master/politeiawww/cmd/piwww) - Command-line tool for interacting with the politeiawww pi API.
+* [cmswww](https://github.com/decred/politeia/tree/master/politeiawww/cmd/cmswww) - Command-line tool for interacting with politeiawww cms API. 
 
 **Note:** politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
@@ -104,12 +93,6 @@ You can also use the following default configurations:
     rpcuser=user
     rpcpass=pass
     testnet=true
-    enablecache=true
-    cachehost=localhost:26257
-    cacherootcert="~/.cockroachdb/certs/clients/politeiad/ca.crt"
-    cachecert="~/.cockroachdb/certs/clients/politeiad/client.politeiad.crt"
-    cachekey="~/.cockroachdb/certs/clients/politeiad/client.politeiad.key"
-
 
 **politeiawww.conf**:
 
@@ -383,15 +366,6 @@ When using politeiawww_refclient, the `-use-paywall` flag is true by default. Wh
  * Stop politeiawww.
  * Set the user created in the first refclient execution as admin with politeiawww_dbutil.
  * Run refclient again with the `email` and `password` flags set to the user created in the first refclient execution.
-
-#### Rebuilding the Cache
-
-The cache will be built automatically on initial startup of politeiad and when
-the cache version has changed, but there may also be times during development
-that you want to force the cache to rebuild.  You can do this by using the
-`--buildcache` flag when starting `politeiad`.  This will drop all current
-tables from the cache, re-create the tables, then populate the cache with the
-data that is in the politeiad git repositories.
 
 #### Building with repository version
 
