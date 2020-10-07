@@ -92,7 +92,7 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 			log.Errorf("error adding new pull request: %v", err)
 			return err
 		}
-	} else {
+	} else if err != nil {
 		log.Errorf("error finding PR in db", err)
 		return err
 	}
@@ -111,7 +111,7 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 				log.Errorf("error adding new pull request review: %v", err)
 				continue
 			}
-		} else {
+		} else if err != nil {
 			log.Errorf("error finding Pull Request Review in db", err)
 			return err
 		}
