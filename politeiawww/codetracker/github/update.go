@@ -154,7 +154,11 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 		time.UTC).Unix()
 	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0,
 		time.UTC).Unix()
-	dbUserPRs, err := g.codedb.PullRequestsByUserDates(user, startDate, endDate)
+	dbMergedPRs, err := g.codedb.MergedPullRequestsByUserDates(user, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	dbUpdatedPRs, err := g.codedb.UpdatedPullRequestsByUserDates(user, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +166,7 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
-	userInfo := convertCodeStatsToUserInformation(dbUserPRs, dbReviews)
+	userInfo := convertCodeStatsToUserInformation(dbMergedPRs, dbUpdatedPRs, dbReviews)
 	userInfo.User = user
 	userInfo.Organization = org
 	return userInfo, nil

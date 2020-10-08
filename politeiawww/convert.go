@@ -1585,9 +1585,9 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 	return cmsCodeStats
 }
 
-func convertPRsToUserCodeStats(githubName string, year, month int, prs []codetracker.PullRequestInformation, reviews []codetracker.ReviewInformation) []user.CodeStats {
+func convertPRsToUserCodeStats(githubName string, year, month int, mergedPRs []codetracker.PullRequestInformation, updatedPRs []codetracker.PullRequestInformation, reviews []codetracker.ReviewInformation) []user.CodeStats {
 	repoStats := make([]user.CodeStats, 0, 1048) // PNOOMA
-	for _, pr := range prs {
+	for _, pr := range mergedPRs {
 		repoFound := false
 		for i, repoStat := range repoStats {
 			if repoStat.Repository == pr.Repository {

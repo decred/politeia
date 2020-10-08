@@ -283,7 +283,8 @@ func createMockedStats(username string) []user.CodeStats {
 	year := startingYear
 
 	for month := startingMonth; month < numberOfMonths+startingMonth; month++ {
-		prs := make([]codetracker.PullRequestInformation, 0, numberOfMonthPrs)
+		mergedPRs := make([]codetracker.PullRequestInformation, 0, numberOfMonthPrs)
+		updatePRs := make([]codetracker.PullRequestInformation, 0, numberOfMonthPrs)
 		for i := 1; i <= numberOfMonthPrs; i++ {
 			date := time.Date(startingYear, time.Month(month), i, 0, 0, 0, 0,
 				time.UTC)
@@ -292,7 +293,7 @@ func createMockedStats(username string) []user.CodeStats {
 				prNumber)
 			additions := rand.Intn(100)
 			deletions := rand.Intn(100)
-			prs = append(prs, codetracker.PullRequestInformation{
+			mergedPRs = append(mergedPRs, codetracker.PullRequestInformation{
 				Repository: fmt.Sprintf("%v", month),
 				URL:        url,
 				Number:     prNumber,
@@ -323,7 +324,7 @@ func createMockedStats(username string) []user.CodeStats {
 			})
 		}
 		codeStats = append(codeStats, convertPRsToUserCodeStats(username, year,
-			month, prs, reviews)...)
+			month, mergedPRs, updatePRs, reviews)...)
 	}
 	return codeStats
 }

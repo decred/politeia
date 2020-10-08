@@ -75,10 +75,10 @@ func (c *cockroachdb) PullRequestByID(id string) (*database.PullRequest, error) 
 	return DecodePullRequest(&pr), nil
 }
 
-// PullRequestsByUserDates takes a username, start and end date and returns
-// pull requeests that match those criteria.
-func (c *cockroachdb) PullRequestsByUserDates(username string, start, end int64) ([]*database.PullRequest, error) {
-	log.Debugf("PullRequestsByUserDates: %v %v", time.Unix(start, 0),
+// MergedPullRequestsByUserDates takes a username, start and end date and
+// returns merged pull requests that match those criteria.
+func (c *cockroachdb) MergedPullRequestsByUserDates(username string, start, end int64) ([]*database.PullRequest, error) {
+	log.Debugf("MergedPullRequestsByUserDates: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
 
 	// Get all PRs from a user between the given dates.
@@ -86,6 +86,32 @@ func (c *cockroachdb) PullRequestsByUserDates(username string, start, end int64)
 	err := c.recordsdb.
 		Where("author = ? AND "+
 			"merged_at BETWEEN ? AND ?",
+			username,
+			start,
+			end).
+		Find(&prs).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	dbPRs := make([]*database.PullRequest, 0, len(prs))
+	for _, vv := range prs {
+		dbPRs = append(dbPRs, DecodePullRequest(&vv))
+	}
+	return dbPRs, nil
+}
+
+// UpdatedPullRequestsByUserDates takes a username, start and end date and
+// returns updated pull requests that match those criteria.
+func (c *cockroachdb) UpdatedPullRequestsByUserDates(username string, start, end int64) ([]*database.PullRequest, error) {
+	log.Debugf("UpdatedPullRequestsByUserDates: %v %v", time.Unix(start, 0),
+		time.Unix(end, 0))
+
+	// Get all PRs from a user between the given dates.
+	prs := make([]PullRequest, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("author = ? AND "+
+			"updated_at BETWEEN ? AND ?",
 			username,
 			start,
 			end).

@@ -85,33 +85,34 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetr
 	return prInfo
 }
 
-func convertCodeStatsToUserInformation(prs []*database.PullRequest, reviews []database.PullRequestReview) *codetracker.UserInformationResult {
+func convertCodeStatsToUserInformation(mergedPRs []*database.PullRequest, updatedPRs []*database.PullRequest, reviews []database.PullRequestReview) *codetracker.UserInformationResult {
 	repoStats := make([]codetracker.RepositoryInformation, 0, 1048) // PNOOMA
 	userInfo := &codetracker.UserInformationResult{}
-	prInfo := make([]codetracker.PullRequestInformation, 0, len(prs))
+	mergedPRInfo := make([]codetracker.PullRequestInformation, 0, len(mergedPRs))
+	updatedPRInfo := make([]codetracker.PullRequestInformation, 0, len(updatedPRs))
 	reviewInfo := make([]codetracker.ReviewInformation, 0, len(reviews))
-	for _, pr := range prs {
+	for _, pr := range mergedPRs {
 		repoFound := false
 		for i, repoStat := range repoStats {
 			if repoStat.Repository == pr.Repo {
 				repoFound = true
 				repoStat.PRs = append(repoStat.PRs, pr.URL)
-				repoStat.MergeAdditions += int64(pr.Additions)
-				repoStat.MergeDeletions += int64(pr.Deletions)
+				repoStat.MergedAdditions += int64(pr.Additions)
+				repoStat.MergedDeletions += int64(pr.Deletions)
 				repoStats[i] = repoStat
 				break
 			}
 		}
 		if !repoFound {
 			repoStat := codetracker.RepositoryInformation{
-				PRs:            []string{pr.URL},
-				Repository:     pr.Repo,
-				MergeAdditions: int64(pr.Additions),
-				MergeDeletions: int64(pr.Deletions),
+				PRs:             []string{pr.URL},
+				Repository:      pr.Repo,
+				MergedAdditions: int64(pr.Additions),
+				MergedDeletions: int64(pr.Deletions),
 			}
 			repoStats = append(repoStats, repoStat)
 		}
-		prInfo = append(prInfo, codetracker.PullRequestInformation{
+		mergedPRInfo = append(mergedPRInfo, codetracker.PullRequestInformation{
 			Repository: pr.Repo,
 			URL:        pr.URL,
 			Number:     pr.Number,
@@ -152,7 +153,8 @@ func convertCodeStatsToUserInformation(prs []*database.PullRequest, reviews []da
 	}
 
 	userInfo.RepoDetails = repoStats
-	userInfo.PRs = prInfo
+	userInfo.MergedPRs = mergedPRInfo
+	userInfo.UpdatedPRs = updatedPRInfo
 	userInfo.Reviews = reviewInfo
 	return userInfo
 }

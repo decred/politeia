@@ -378,7 +378,7 @@ func TestPullRequestByID(t *testing.T) {
 	}
 }
 
-func TestPullRequestsByUserDates(t *testing.T) {
+func TestMergedPullRequestsByUserDates(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
@@ -509,10 +509,10 @@ func TestPullRequestsByUserDates(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Execute method
-	_, err := cdb.PullRequestsByUserDates(prFirst.User, bothRangeStart,
+	_, err := cdb.MergedPullRequestsByUserDates(prFirst.User, bothRangeStart,
 		bothRangeEnd)
 	if err != nil {
-		t.Errorf("ReviewsByUserDate unwanted error: %s", err)
+		t.Errorf("MergedPullRequestsByUserDates unwanted error: %s", err)
 	}
 	// Make sure expectations were met
 	err = mock.ExpectationsWereMet()
@@ -520,6 +520,150 @@ func TestPullRequestsByUserDates(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestUpatedPullRequestsByUserDates(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	now := time.Now()
+	prURLFirst := "https://github.com/decred/github/pull/1"
+	prURLSecond := "https://github.com/decred/github/pull/2"
+	prURLThird := "https://github.com/decred/github/pull/3"
+
+	prFirst := &database.PullRequest{
+		Repo:         "github",
+		Organization: "decred",
+		URL:          prURLFirst,
+		Number:       1,
+		User:         "stakey_author",
+		UpdatedAt:    now.Unix(),
+		ClosedAt:     now.Unix(),
+		MergedAt:     now.Unix(),
+		Merged:       false,
+		State:        "UPDATED",
+		Additions:    11,
+		Deletions:    11,
+		MergedBy:     "davec",
+	}
+
+	prSecond := &database.PullRequest{
+		Repo:         "github",
+		Organization: "decred",
+		URL:          prURLSecond,
+		Number:       2,
+		User:         "stakey_author",
+		UpdatedAt:    now.Unix(),
+		ClosedAt:     now.Unix(),
+		MergedAt:     now.Unix(),
+		Merged:       false,
+		State:        "UPDATED",
+		Additions:    22,
+		Deletions:    22,
+		MergedBy:     "davec",
+	}
+
+	prThird := &database.PullRequest{
+		Repo:         "github",
+		Organization: "decred",
+		URL:          prURLThird,
+		Number:       3,
+		User:         "stakey_author",
+		UpdatedAt:    now.Unix(),
+		ClosedAt:     now.Unix(),
+		MergedAt:     now.Unix(),
+		Merged:       false,
+		State:        "UPDATED",
+		Additions:    33,
+		Deletions:    33,
+		MergedBy:     "davec",
+	}
+
+	// Mock rows data
+	rows := sqlmock.NewRows([]string{
+		"repo",
+		"organization",
+		"url",
+		"number",
+		"author",
+		"updated_at",
+		"closed_at",
+		"merged_at",
+		"merged",
+		"state",
+		"additions",
+		"deletions",
+		"merged_by",
+	}).AddRow(
+		prFirst.Repo,
+		prFirst.Organization,
+		prFirst.URL,
+		prFirst.Number,
+		prFirst.User,
+		prFirst.UpdatedAt,
+		prFirst.ClosedAt,
+		prFirst.MergedAt,
+		prFirst.Merged,
+		prFirst.State,
+		prFirst.Additions,
+		prFirst.Deletions,
+		prFirst.MergedBy,
+	).AddRow(
+		prSecond.Repo,
+		prSecond.Organization,
+		prSecond.URL,
+		prSecond.Number,
+		prSecond.User,
+		prSecond.UpdatedAt,
+		prSecond.ClosedAt,
+		prSecond.MergedAt,
+		prSecond.Merged,
+		prSecond.State,
+		prSecond.Additions,
+		prSecond.Deletions,
+		prSecond.MergedBy,
+	).AddRow(
+		prThird.Repo,
+		prThird.Organization,
+		prThird.URL,
+		prThird.Number,
+		prThird.User,
+		prThird.UpdatedAt,
+		prThird.ClosedAt,
+		prThird.MergedAt,
+		prThird.Merged,
+		prThird.State,
+		prThird.Additions,
+		prThird.Deletions,
+		prThird.MergedBy,
+	)
+
+	bothRangeStart := now.Add(-2 * time.Hour).Unix()
+	bothRangeEnd := now.Add(time.Minute).Unix()
+
+	// Query
+	sql := `
+	SELECT * ` +
+		`FROM "pullrequests" ` +
+		`WHERE (author = $1 AND updated_at BETWEEN $2 AND $3)`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(prFirst.User, bothRangeStart, bothRangeEnd).
+		WillReturnRows(rows)
+
+	// Execute method
+	_, err := cdb.UpdatedPullRequestsByUserDates(prFirst.User, bothRangeStart,
+		bothRangeEnd)
+	if err != nil {
+		t.Errorf("UpdatedPullRequestsByUserDates unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
 func TestReviewByID(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
