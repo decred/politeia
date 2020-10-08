@@ -74,10 +74,11 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetr
 
 	for _, dbPR := range dbPRs {
 		pr := codetracker.PullRequestInformation{
+			URL:        dbPR.URL,
 			Repository: dbPR.Repo,
 			Additions:  int64(dbPR.Additions),
 			Deletions:  int64(dbPR.Deletions),
-			Date:       time.Unix(dbPR.MergedAt, 0).Format(time.RFC1123),
+			Date:       time.Unix(dbPR.UpdatedAt, 0).Format(time.RFC1123),
 			Number:     dbPR.Number,
 			State:      dbPR.State,
 		}

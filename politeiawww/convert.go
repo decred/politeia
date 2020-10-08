@@ -1570,15 +1570,17 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 			reviews = append(reviews, review)
 		}
 		cmsCodeStat := cms.CodeStats{
-			Month:           codeStat.Month,
-			Year:            codeStat.Year,
-			Repository:      codeStat.Repository,
-			PRs:             prs,
-			Reviews:         reviews,
-			MergedAdditions: codeStat.MergedAdditions,
-			MergedDeletions: codeStat.MergedDeletions,
-			ReviewAdditions: codeStat.ReviewAdditions,
-			ReviewDeletions: codeStat.ReviewDeletions,
+			Month:            codeStat.Month,
+			Year:             codeStat.Year,
+			Repository:       codeStat.Repository,
+			PRs:              prs,
+			Reviews:          reviews,
+			MergedAdditions:  codeStat.MergedAdditions,
+			MergedDeletions:  codeStat.MergedDeletions,
+			UpdatedAdditions: codeStat.UpdatedAdditions,
+			UpdatedDeletions: codeStat.UpdatedDeletions,
+			ReviewAdditions:  codeStat.ReviewAdditions,
+			ReviewDeletions:  codeStat.ReviewDeletions,
 		}
 		cmsCodeStats = append(cmsCodeStats, cmsCodeStat)
 	}
