@@ -397,17 +397,19 @@ func DecodeCMSUsersByProposalTokenReply(b []byte) (*CMSUsersByProposalTokenReply
 // CodeStats is contains the all the information about a given user's code
 // work underneath a given repository over a certain month/year.
 type CodeStats struct {
-	ID              string   // UserID + GithubName + Month + Year
-	Repository      string   // Repository
-	GitHubName      string   // GithubName
-	Month           int      // Month of code stats
-	Year            int      // Year of code stats
-	PRs             []string // String of all PR URLs separated by commas
-	Reviews         []string // String of all Reviewed PR URLS separated by commas
-	MergedAdditions int64    // Total merged code additions
-	MergedDeletions int64    // Total merged code deletions
-	ReviewAdditions int64    // Total reviewed code additions
-	ReviewDeletions int64    // Total reviewed code deletions
+	ID               string   // UserID + GithubName + Month + Year
+	Repository       string   // Repository
+	GitHubName       string   // GithubName
+	Month            int      // Month of code stats
+	Year             int      // Year of code stats
+	PRs              []string // String of all PR URLs separated by commas
+	Reviews          []string // String of all Reviewed PR URLS separated by commas
+	MergedAdditions  int64    // Total merged code additions
+	MergedDeletions  int64    // Total merged code deletions
+	UpdatedAdditions int64    // Total updated code additions
+	UpdatedDeletions int64    // Total updated code deletions
+	ReviewAdditions  int64    // Total reviewed code additions
+	ReviewDeletions  int64    // Total reviewed code deletions
 }
 
 // EncodeCodeStats encodes a CodeStats into a JSON byte slice.

@@ -42,6 +42,9 @@ func TestProcessUserCodeStats(t *testing.T) {
 	oneMonthExpectedReply := convertExpectedResults(mockedCodeStats,
 		oneMonthStartDate, oneMonthEndDate)
 
+	oneMonthExpectedNoEndReply := convertExpectedResults(mockedCodeStats,
+		oneMonthStartDate, oneMonthStartDate)
+
 	twoMonthStartDate := time.Date(startingYear, time.Month(startingMonth),
 		1, 0, 0, 0, 0, time.UTC)
 	twoMonthEndDate := time.Date(startingYear, time.Month(startingMonth+2),
@@ -214,7 +217,7 @@ func TestProcessUserCodeStats(t *testing.T) {
 			},
 			nil,
 			&admin.User,
-			oneMonthExpectedReply,
+			oneMonthExpectedNoEndReply,
 		},
 		{
 			"success two month range",
@@ -260,18 +263,6 @@ func TestProcessUserCodeStats(t *testing.T) {
 			}
 		})
 	}
-}
-
-type expectedCodeStats struct {
-	Repository      string
-	Month           int
-	Year            int
-	MergeAdditions  int
-	MergeDeletions  int
-	ReviewAdditions int
-	ReviewDeletions int
-	PRs             []string
-	Reviews         []string
 }
 
 // Creates a mocked set of code stats that will be updated to a test
@@ -332,15 +323,16 @@ func createMockedStats(username string) []user.CodeStats {
 func convertExpectedResults(codeStats []user.CodeStats, start, end time.Time) *cms.UserCodeStatsReply {
 	reply := &cms.UserCodeStatsReply{}
 	rangeCodeStats := make([]user.CodeStats, 0, 6)
-	for start.After(end) {
+	for !start.After(end) {
 		for _, codeStat := range codeStats {
 			if codeStat.Month == int(start.Month()) &&
 				codeStat.Year == start.Year() {
 				rangeCodeStats = append(rangeCodeStats, codeStat)
 			}
 		}
-		start = time.Date(start.Year(), start.Month()+1, start.Day(),
-			start.Hour(), 0, 0, 0, time.UTC)
+		start = time.Date(start.Year(), start.Month()+1,
+			start.Day(), start.Hour(), start.Minute(), 0, 0,
+			time.UTC)
 	}
 	reply.RepoStats = convertCodeStatsFromDatabase(rangeCodeStats)
 

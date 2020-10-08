@@ -31,6 +31,8 @@ func TestNewCodeStats(t *testing.T) {
 		"https://github.com/decred/review/pull/1"}
 	mergeAdditionsAug := 100
 	mergeDeletionsAug := 99
+	updatedAdditionsAug := 300
+	updatedDeletionsAug := 299
 	reviewAdditionsAug := 200
 	reviewDeletionsAug := 199
 
@@ -41,6 +43,8 @@ func TestNewCodeStats(t *testing.T) {
 		"https://github.com/decred/review/pull/4"}
 	mergeAdditionsSept := 100
 	mergeDeletionsSept := 99
+	updatedAdditionsSept := 300
+	updatedDeletionsSept := 299
 	reviewAdditionsSept := 200
 	reviewDeletionsSept := 199
 
@@ -50,30 +54,34 @@ func TestNewCodeStats(t *testing.T) {
 		strconv.Itoa(year))
 	codeStats := make([]user.CodeStats, 0, 2)
 	codeStats = append(codeStats, user.CodeStats{
-		GitHubName:      githubName,
-		Repository:      repo,
-		Month:           monthAug,
-		Year:            year,
-		PRs:             prsAug,
-		Reviews:         reviewsAug,
-		MergedAdditions: int64(mergeAdditionsAug),
-		MergedDeletions: int64(mergeDeletionsAug),
-		ReviewAdditions: int64(reviewAdditionsAug),
-		ReviewDeletions: int64(reviewDeletionsAug),
+		GitHubName:       githubName,
+		Repository:       repo,
+		Month:            monthAug,
+		Year:             year,
+		PRs:              prsAug,
+		Reviews:          reviewsAug,
+		MergedAdditions:  int64(mergeAdditionsAug),
+		MergedDeletions:  int64(mergeDeletionsAug),
+		UpdatedAdditions: int64(updatedAdditionsAug),
+		UpdatedDeletions: int64(updatedDeletionsAug),
+		ReviewAdditions:  int64(reviewAdditionsAug),
+		ReviewDeletions:  int64(reviewDeletionsAug),
 	})
 	septID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthSept),
 		strconv.Itoa(year))
 	codeStats = append(codeStats, user.CodeStats{
-		GitHubName:      githubName,
-		Repository:      repo,
-		Month:           monthSept,
-		Year:            year,
-		PRs:             prsSept,
-		Reviews:         reviewsSept,
-		MergedAdditions: int64(mergeAdditionsSept),
-		MergedDeletions: int64(mergeDeletionsSept),
-		ReviewAdditions: int64(reviewAdditionsSept),
-		ReviewDeletions: int64(reviewDeletionsSept),
+		GitHubName:       githubName,
+		Repository:       repo,
+		Month:            monthSept,
+		Year:             year,
+		PRs:              prsSept,
+		Reviews:          reviewsSept,
+		MergedAdditions:  int64(mergeAdditionsSept),
+		MergedDeletions:  int64(mergeDeletionsSept),
+		UpdatedAdditions: int64(updatedAdditionsSept),
+		UpdatedDeletions: int64(updatedDeletionsSept),
+		ReviewAdditions:  int64(reviewAdditionsSept),
+		ReviewDeletions:  int64(reviewDeletionsSept),
 	})
 	convertedCodeStatsAug := convertCodestatsToDatabase(codeStats[0])
 	convertedCodeStatsSept := convertCodestatsToDatabase(codeStats[1])
@@ -84,9 +92,10 @@ func TestNewCodeStats(t *testing.T) {
 	// Queries
 	sqlInsertCMSCodeStats := `INSERT INTO "cms_code_stats" ` +
 		`("id","git_hub_name","repository","month","year","p_rs","reviews",` +
-		`"merged_additions","merged_deletions","review_additions",` +
+		`"merged_additions","merged_deletions","updated_additions",` +
+		`"updated_deletions","review_additions",` +
 		`"review_deletions") VALUES ` +
-		`($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ` +
+		`($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ` +
 		`RETURNING "cms_code_stats"."id"`
 
 	// Success Expectations
@@ -103,6 +112,8 @@ func TestNewCodeStats(t *testing.T) {
 			convertedCodeStatsAug.Reviews,
 			convertedCodeStatsAug.MergedAdditions,
 			convertedCodeStatsAug.MergedDeletions,
+			convertedCodeStatsAug.UpdatedAdditions,
+			convertedCodeStatsAug.UpdatedDeletions,
 			convertedCodeStatsAug.ReviewAdditions,
 			convertedCodeStatsAug.ReviewDeletions).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(augID))
@@ -116,6 +127,8 @@ func TestNewCodeStats(t *testing.T) {
 			convertedCodeStatsSept.Reviews,
 			convertedCodeStatsSept.MergedAdditions,
 			convertedCodeStatsSept.MergedDeletions,
+			convertedCodeStatsSept.UpdatedAdditions,
+			convertedCodeStatsSept.UpdatedDeletions,
 			convertedCodeStatsSept.ReviewAdditions,
 			convertedCodeStatsSept.ReviewDeletions).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(septID))
@@ -145,6 +158,8 @@ func TestUpdateCodeStats(t *testing.T) {
 	monthAug := 8
 	mergeAdditionsAug := 100
 	mergeDeletionsAug := 99
+	updatedAdditionsAug := 300
+	updatedDeletionsAug := 299
 	reviewAdditionsAug := 200
 	reviewDeletionsAug := 199
 	year := 2020
@@ -154,16 +169,18 @@ func TestUpdateCodeStats(t *testing.T) {
 		"https://github.com/decred/review/pull/1"}
 	codeStats := make([]user.CodeStats, 0, 1)
 	codeStats = append(codeStats, user.CodeStats{
-		GitHubName:      githubName,
-		Repository:      repo,
-		Month:           monthAug,
-		Year:            year,
-		PRs:             prsAug,
-		Reviews:         reviewsAug,
-		MergedAdditions: int64(mergeAdditionsAug),
-		MergedDeletions: int64(mergeDeletionsAug),
-		ReviewAdditions: int64(reviewAdditionsAug),
-		ReviewDeletions: int64(reviewDeletionsAug),
+		GitHubName:       githubName,
+		Repository:       repo,
+		Month:            monthAug,
+		Year:             year,
+		PRs:              prsAug,
+		Reviews:          reviewsAug,
+		MergedAdditions:  int64(mergeAdditionsAug),
+		MergedDeletions:  int64(mergeDeletionsAug),
+		UpdatedAdditions: int64(updatedAdditionsAug),
+		UpdatedDeletions: int64(updatedDeletionsAug),
+		ReviewAdditions:  int64(reviewAdditionsAug),
+		ReviewDeletions:  int64(reviewDeletionsAug),
 	})
 	ucs := &user.UpdateCMSCodeStats{
 		UserCodeStats: codeStats,
@@ -171,12 +188,15 @@ func TestUpdateCodeStats(t *testing.T) {
 	convertCodeStats := convertCodestatsToDatabase(codeStats[0])
 	// Query
 	sqlUpdateCMSCodeStats := `UPDATE "cms_code_stats" ` +
-		`SET "git_hub_name" = $1, "repository" = $2, "month" = $3, "year" = $4, "p_rs" = $5, "reviews" = $6, "merged_additions" = $7, "merged_deletions" = $8, ` +
-		`"review_additions" = $9, "review_deletions" = $10 ` +
-		`WHERE "cms_code_stats"."id" = $11`
+		`SET "git_hub_name" = $1, "repository" = $2, "month" = $3, ` +
+		`"year" = $4, "p_rs" = $5, "reviews" = $6, "merged_additions" = $7, ` +
+		`"merged_deletions" = $8, "updated_additions" = $9, ` +
+		`"updated_deletions" = $10, "review_additions" = $11, ` +
+		`"review_deletions" = $12 ` +
+		`WHERE "cms_code_stats"."id" = $13`
 
-	augID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthAug),
-		strconv.Itoa(year))
+	augID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo,
+		strconv.Itoa(monthAug), strconv.Itoa(year))
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -190,6 +210,8 @@ func TestUpdateCodeStats(t *testing.T) {
 			convertCodeStats.Reviews,
 			convertCodeStats.MergedAdditions,
 			convertCodeStats.MergedDeletions,
+			convertCodeStats.UpdatedAdditions,
+			convertCodeStats.UpdatedDeletions,
 			convertCodeStats.ReviewAdditions,
 			convertCodeStats.ReviewDeletions,
 			augID).

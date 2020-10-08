@@ -110,17 +110,19 @@ func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 	id := fmt.Sprintf("%v-%v-%v-%v", cs.GitHubName, cs.Repository,
 		strconv.Itoa(cs.Month), strconv.Itoa(cs.Year))
 	return CMSCodeStats{
-		ID:              id,
-		GitHubName:      cs.GitHubName,
-		Repository:      cs.Repository,
-		Month:           cs.Month,
-		Year:            cs.Year,
-		PRs:             prs,
-		Reviews:         reviews,
-		MergedAdditions: cs.MergedAdditions,
-		MergedDeletions: cs.MergedDeletions,
-		ReviewAdditions: cs.ReviewAdditions,
-		ReviewDeletions: cs.ReviewDeletions,
+		ID:               id,
+		GitHubName:       cs.GitHubName,
+		Repository:       cs.Repository,
+		Month:            cs.Month,
+		Year:             cs.Year,
+		PRs:              prs,
+		Reviews:          reviews,
+		MergedAdditions:  cs.MergedAdditions,
+		MergedDeletions:  cs.MergedDeletions,
+		UpdatedAdditions: cs.UpdatedAdditions,
+		UpdatedDeletions: cs.UpdatedDeletions,
+		ReviewAdditions:  cs.ReviewAdditions,
+		ReviewDeletions:  cs.ReviewDeletions,
 	}
 }
 
@@ -128,16 +130,18 @@ func convertCodestatsFromDatabase(cs CMSCodeStats) user.CodeStats {
 	prs := strings.Split(cs.PRs, ",")
 	reviews := strings.Split(cs.Reviews, ",")
 	return user.CodeStats{
-		ID:              cs.ID,
-		GitHubName:      cs.GitHubName,
-		Repository:      cs.Repository,
-		Month:           cs.Month,
-		Year:            cs.Year,
-		PRs:             prs,
-		Reviews:         reviews,
-		MergedAdditions: cs.MergedAdditions,
-		MergedDeletions: cs.MergedDeletions,
-		ReviewAdditions: cs.ReviewAdditions,
-		ReviewDeletions: cs.ReviewDeletions,
+		ID:               cs.ID,
+		GitHubName:       cs.GitHubName,
+		Repository:       cs.Repository,
+		Month:            cs.Month,
+		Year:             cs.Year,
+		PRs:              prs,
+		Reviews:          reviews,
+		MergedAdditions:  cs.MergedAdditions,
+		MergedDeletions:  cs.MergedDeletions,
+		UpdatedAdditions: cs.UpdatedAdditions,
+		UpdatedDeletions: cs.UpdatedDeletions,
+		ReviewAdditions:  cs.ReviewAdditions,
+		ReviewDeletions:  cs.ReviewDeletions,
 	}
 }

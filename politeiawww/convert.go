@@ -1575,8 +1575,8 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 			Repository:      codeStat.Repository,
 			PRs:             prs,
 			Reviews:         reviews,
-			MergeAdditions:  codeStat.MergedAdditions,
-			MergeDeletions:  codeStat.MergedDeletions,
+			MergedAdditions: codeStat.MergedAdditions,
+			MergedDeletions: codeStat.MergedDeletions,
 			ReviewAdditions: codeStat.ReviewAdditions,
 			ReviewDeletions: codeStat.ReviewDeletions,
 		}

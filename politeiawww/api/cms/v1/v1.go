@@ -1067,13 +1067,15 @@ type UserCodeStatsReply struct {
 // CodeStats contains various pieces of information for user's code
 // contributions per repo over a period of time.
 type CodeStats struct {
-	Month           int      `json:"month"`
-	Year            int      `json:"year"`
-	Repository      string   `json:"repository"`
-	MergeAdditions  int64    `json:"mergeadditions"`
-	MergeDeletions  int64    `json:"mergedeletions"`
-	ReviewAdditions int64    `json:"reviewadditions"`
-	ReviewDeletions int64    `json:"reviewdeletions"`
-	PRs             []string `json:"prs"`
-	Reviews         []string `json:"reviews"`
+	Month            int      `json:"month"`
+	Year             int      `json:"year"`
+	Repository       string   `json:"repository"`
+	MergedAdditions  int64    `json:"mergedadditions"`
+	MergedDeletions  int64    `json:"mergeddeletions"`
+	UpdatedAdditions int64    `json:"updatedadditions"`
+	UpdatedDeletions int64    `json:"updateddeletions"`
+	ReviewAdditions  int64    `json:"reviewadditions"`
+	ReviewDeletions  int64    `json:"reviewdeletions"`
+	PRs              []string `json:"prs"`
+	Reviews          []string `json:"reviews"`
 }
