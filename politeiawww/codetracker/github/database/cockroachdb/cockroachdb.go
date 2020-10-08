@@ -107,22 +107,75 @@ func (c *cockroachdb) UpdatedPullRequestsByUserDates(username string, start, end
 	log.Debugf("UpdatedPullRequestsByUserDates: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
 
-	// Get all PRs from a user between the given dates.
-	prs := make([]PullRequest, 0, 1024) // PNOOMA
-	err := c.recordsdb.
-		Where("author = ? AND "+
-			"updated_at BETWEEN ? AND ?",
-			username,
-			start,
-			end).
-		Find(&prs).
-		Error
+	// Select the most recent pullrequests (by url) that match author and are
+	// between start and end.
+	query := `
+		SELECT * FROM pullrequests 
+		WHERE author = $1 AND updated_at IN 
+		(SELECT 
+			MAX(updated_at) 
+			FROM pullrequests 
+			WHERE updated_at BETWEEN $2 AND $3 
+			GROUP BY url
+		)
+		`
+	rows, err := c.recordsdb.Raw(query, username, start, end).Rows()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
+	prs := make([]PullRequest, 0, 1024) // PNOOMA
+	for rows.Next() {
+		var pr PullRequest
+		err := c.recordsdb.ScanRows(rows, &pr)
+		if err != nil {
+			return nil, err
+		}
+		prs = append(prs, pr)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 	dbPRs := make([]*database.PullRequest, 0, len(prs))
-	for _, vv := range prs {
-		dbPRs = append(dbPRs, DecodePullRequest(&vv))
+	// Now we need to see if there are any other hits in the DB so we can
+	// see if it was an update to an existing PR or if it is new.  If it is
+	// new then we just keep the current Additions/Deletions, If it is existing
+	// and no other updates from before start date then we just keep the
+	// Additions/Deletions. If if is existing and the it was before start, then
+	// take the difference between that last update before start and this most
+	// recent update in the current month.  The idea here is we want to capture
+	// the work completed in a given month.
+	for _, pr := range prs {
+		urlPRs := make([]PullRequest, 0, 1024) // PNOOMA
+		err := c.recordsdb.
+			Where("url = ?",
+				pr.URL).
+			Find(&urlPRs).
+			Error
+		if err != nil {
+			return nil, err
+		}
+		// There are existing PRs
+		if len(urlPRs) > 1 {
+			var lastUpdated *PullRequest
+			for _, urlPR := range urlPRs {
+				// Find the most recent PR returned that is before start
+				if urlPR.UpdatedAt < start &&
+					(lastUpdated == nil ||
+						urlPR.UpdatedAt > lastUpdated.UpdatedAt) {
+					lastUpdated = &urlPR
+				}
+			}
+			// lastUpdated was found to be before start and was the last updated
+			// so change the pr additions/deletions to the diff so they
+			// can be tabulated accurately.
+			if lastUpdated != nil {
+				pr.Additions = pr.Additions - lastUpdated.Additions
+				pr.Deletions = pr.Deletions - lastUpdated.Deletions
+			}
+		}
+		dbPRs = append(dbPRs, DecodePullRequest(&pr))
 	}
 	return dbPRs, nil
 }

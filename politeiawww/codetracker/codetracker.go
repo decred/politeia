@@ -21,25 +21,9 @@ type UserInformationResult struct {
 	Organization string                   `json:"organization"`
 	MergedPRs    []PullRequestInformation `json:"mergedprs"`
 	UpdatedPRs   []PullRequestInformation `json:"updatedprs"`
-	RepoDetails  []RepositoryInformation  `json:"repodetails"`
 	Reviews      []ReviewInformation      `json:"reviews"`
 	Year         int                      `json:"year"`
 	Month        int                      `json:"month"`
-}
-
-// RepositoryInformation contains all the information related to PRs, Reviews
-// and Commits for a given repository.  It uses basic counters to give
-// totals of merges, commits and pull requests for a given time frame.
-type RepositoryInformation struct {
-	PRs              []string `json:"prs"`
-	Reviews          []string `json:"reviews"`
-	Repository       string   `json:"repo"`
-	MergedAdditions  int64    `json:"mergeaddditions"`
-	MergedDeletions  int64    `json:"mergeddeletions"`
-	UpdatedAdditions int64    `json:"updatedadditions"`
-	UpdatedDeletions int64    `json:"updateddeletions"`
-	ReviewAdditions  int64    `json:"reviewadditions"`
-	ReviewDeletions  int64    `json:"reviewdeletions"`
 }
 
 // PullRequestInformation contains all the specific details of pull request.

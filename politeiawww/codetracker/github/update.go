@@ -166,7 +166,10 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
-	userInfo := convertCodeStatsToUserInformation(dbMergedPRs, dbUpdatedPRs, dbReviews)
+	userInfo := &codetracker.UserInformationResult{}
+	userInfo.MergedPRs = convertDBPullRequestsToPullRequests(dbMergedPRs)
+	userInfo.UpdatedPRs = convertDBPullRequestsToPullRequests(dbUpdatedPRs)
+	userInfo.Reviews = convertDBPullRequestReviewsToReviews(dbReviews)
 	userInfo.User = user
 	userInfo.Organization = org
 	return userInfo, nil

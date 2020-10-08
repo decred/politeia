@@ -1615,6 +1615,34 @@ func convertPRsToUserCodeStats(githubName string, year, month int, mergedPRs []c
 			repoStats = append(repoStats, repoStat)
 		}
 	}
+	for _, pr := range updatedPRs {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == pr.Repository {
+				repoFound = true
+				repoStat.PRs = append(repoStat.PRs, pr.URL)
+				repoStat.UpdatedAdditions += pr.Additions
+				repoStat.UpdatedDeletions += pr.Deletions
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, pr.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
+			repoStat := user.CodeStats{
+				ID:               id,
+				GitHubName:       githubName,
+				Month:            month,
+				Year:             year,
+				PRs:              []string{pr.URL},
+				Repository:       pr.Repository,
+				UpdatedAdditions: pr.Additions,
+				UpdatedDeletions: pr.Deletions,
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
 	for _, review := range reviews {
 		repoFound := false
 		for i, repoStat := range repoStats {

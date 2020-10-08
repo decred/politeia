@@ -79,80 +79,35 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetr
 			Deletions:  int64(dbPR.Deletions),
 			Date:       time.Unix(dbPR.MergedAt, 0).Format(time.RFC1123),
 			Number:     dbPR.Number,
+			State:      dbPR.State,
 		}
 		prInfo = append(prInfo, pr)
 	}
 	return prInfo
 }
 
+func convertDBPullRequestReviewsToReviews(dbReviews []database.PullRequestReview) []codetracker.ReviewInformation {
+	reviewInfo := make([]codetracker.ReviewInformation, 0, len(dbReviews))
+
+	for _, dbReview := range dbReviews {
+		review := codetracker.ReviewInformation{
+			URL:        dbReview.PullRequestURL,
+			State:      dbReview.State,
+			Number:     dbReview.Number,
+			Repository: dbReview.Repo,
+			Additions:  dbReview.Additions,
+			Deletions:  dbReview.Deletions,
+		}
+		reviewInfo = append(reviewInfo, review)
+	}
+	return reviewInfo
+}
 func convertCodeStatsToUserInformation(mergedPRs []*database.PullRequest, updatedPRs []*database.PullRequest, reviews []database.PullRequestReview) *codetracker.UserInformationResult {
-	repoStats := make([]codetracker.RepositoryInformation, 0, 1048) // PNOOMA
 	userInfo := &codetracker.UserInformationResult{}
-	mergedPRInfo := make([]codetracker.PullRequestInformation, 0, len(mergedPRs))
-	updatedPRInfo := make([]codetracker.PullRequestInformation, 0, len(updatedPRs))
-	reviewInfo := make([]codetracker.ReviewInformation, 0, len(reviews))
-	for _, pr := range mergedPRs {
-		repoFound := false
-		for i, repoStat := range repoStats {
-			if repoStat.Repository == pr.Repo {
-				repoFound = true
-				repoStat.PRs = append(repoStat.PRs, pr.URL)
-				repoStat.MergedAdditions += int64(pr.Additions)
-				repoStat.MergedDeletions += int64(pr.Deletions)
-				repoStats[i] = repoStat
-				break
-			}
-		}
-		if !repoFound {
-			repoStat := codetracker.RepositoryInformation{
-				PRs:             []string{pr.URL},
-				Repository:      pr.Repo,
-				MergedAdditions: int64(pr.Additions),
-				MergedDeletions: int64(pr.Deletions),
-			}
-			repoStats = append(repoStats, repoStat)
-		}
-		mergedPRInfo = append(mergedPRInfo, codetracker.PullRequestInformation{
-			Repository: pr.Repo,
-			URL:        pr.URL,
-			Number:     pr.Number,
-			Additions:  int64(pr.Additions),
-			Deletions:  int64(pr.Deletions),
-			Date:       time.Unix(pr.MergedAt, 0).String(),
-			State:      pr.State,
-		})
+	mergedPRInfo := convertDBPullRequestsToPullRequests(mergedPRs)
+	updatedPRInfo := convertDBPullRequestsToPullRequests(updatedPRs)
+	reviewInfo := convertDBPullRequestReviewsToReviews(reviews)
 
-	}
-	for _, review := range reviews {
-		repoFound := false
-		for i, repoStat := range repoStats {
-			if repoStat.Repository == review.Repo {
-				repoFound = true
-				repoStat.ReviewAdditions += int64(review.Additions)
-				repoStat.ReviewDeletions += int64(review.Deletions)
-				repoStats[i] = repoStat
-				break
-			}
-		}
-		if !repoFound {
-			repoStat := codetracker.RepositoryInformation{
-				Repository:      review.Repo,
-				ReviewAdditions: int64(review.Additions),
-				ReviewDeletions: int64(review.Deletions),
-			}
-			repoStats = append(repoStats, repoStat)
-		}
-		reviewInfo = append(reviewInfo, codetracker.ReviewInformation{
-			URL:        review.PullRequestURL,
-			State:      review.State,
-			Number:     review.Number,
-			Repository: review.Repo,
-			Additions:  review.Additions,
-			Deletions:  review.Deletions,
-		})
-	}
-
-	userInfo.RepoDetails = repoStats
 	userInfo.MergedPRs = mergedPRInfo
 	userInfo.UpdatedPRs = updatedPRInfo
 	userInfo.Reviews = reviewInfo
