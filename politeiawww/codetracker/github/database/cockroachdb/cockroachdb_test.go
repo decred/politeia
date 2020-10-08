@@ -521,7 +521,7 @@ func TestMergedPullRequestsByUserDates(t *testing.T) {
 	}
 }
 
-func TestUpatedPullRequestsByUserDates(t *testing.T) {
+func TestUpdatedPullRequestsByUserDates(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
@@ -642,9 +642,15 @@ func TestUpatedPullRequestsByUserDates(t *testing.T) {
 
 	// Query
 	sql := `
-	SELECT * ` +
-		`FROM "pullrequests" ` +
-		`WHERE (author = $1 AND updated_at BETWEEN $2 AND $3)`
+	SELECT * FROM pullrequests 
+	WHERE author = $1 AND updated_at IN 
+	(SELECT 
+		MAX(updated_at) 
+		FROM pullrequests 
+		WHERE updated_at BETWEEN $2 AND $3 
+		GROUP BY url
+	)
+	`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -656,6 +662,144 @@ func TestUpatedPullRequestsByUserDates(t *testing.T) {
 		bothRangeEnd)
 	if err != nil {
 		t.Errorf("UpdatedPullRequestsByUserDates unwanted error: %s", err)
+	}
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+func TestPullRequestsByURL(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	now := time.Now()
+	prURLFirst := "https://github.com/decred/github/pull/1"
+	prURLSecond := "https://github.com/decred/github/pull/2"
+	prURLThird := "https://github.com/decred/github/pull/3"
+
+	prFirst := &database.PullRequest{
+		Repo:         "github",
+		Organization: "decred",
+		URL:          prURLFirst,
+		Number:       1,
+		User:         "stakey_author",
+		UpdatedAt:    now.Unix(),
+		ClosedAt:     now.Unix(),
+		MergedAt:     now.Unix(),
+		Merged:       true,
+		State:        "MERGED",
+		Additions:    11,
+		Deletions:    11,
+		MergedBy:     "davec",
+	}
+
+	prSecond := &database.PullRequest{
+		Repo:         "github",
+		Organization: "decred",
+		URL:          prURLSecond,
+		Number:       2,
+		User:         "stakey_author",
+		UpdatedAt:    now.Unix(),
+		ClosedAt:     now.Unix(),
+		MergedAt:     now.Unix(),
+		Merged:       true,
+		State:        "MERGED",
+		Additions:    22,
+		Deletions:    22,
+		MergedBy:     "davec",
+	}
+
+	prThird := &database.PullRequest{
+		Repo:         "github",
+		Organization: "decred",
+		URL:          prURLThird,
+		Number:       3,
+		User:         "stakey_author",
+		UpdatedAt:    now.Unix(),
+		ClosedAt:     now.Unix(),
+		MergedAt:     now.Unix(),
+		Merged:       true,
+		State:        "MERGED",
+		Additions:    33,
+		Deletions:    33,
+		MergedBy:     "davec",
+	}
+
+	// Mock rows data
+	rows := sqlmock.NewRows([]string{
+		"repo",
+		"organization",
+		"url",
+		"number",
+		"author",
+		"updated_at",
+		"closed_at",
+		"merged_at",
+		"merged",
+		"state",
+		"additions",
+		"deletions",
+		"merged_by",
+	}).AddRow(
+		prFirst.Repo,
+		prFirst.Organization,
+		prFirst.URL,
+		prFirst.Number,
+		prFirst.User,
+		prFirst.UpdatedAt,
+		prFirst.ClosedAt,
+		prFirst.MergedAt,
+		prFirst.Merged,
+		prFirst.State,
+		prFirst.Additions,
+		prFirst.Deletions,
+		prFirst.MergedBy,
+	).AddRow(
+		prSecond.Repo,
+		prSecond.Organization,
+		prSecond.URL,
+		prSecond.Number,
+		prSecond.User,
+		prSecond.UpdatedAt,
+		prSecond.ClosedAt,
+		prSecond.MergedAt,
+		prSecond.Merged,
+		prSecond.State,
+		prSecond.Additions,
+		prSecond.Deletions,
+		prSecond.MergedBy,
+	).AddRow(
+		prThird.Repo,
+		prThird.Organization,
+		prThird.URL,
+		prThird.Number,
+		prThird.User,
+		prThird.UpdatedAt,
+		prThird.ClosedAt,
+		prThird.MergedAt,
+		prThird.Merged,
+		prThird.State,
+		prThird.Additions,
+		prThird.Deletions,
+		prThird.MergedBy,
+	)
+
+	// Query
+	sql := `
+	SELECT * ` +
+		`FROM "pullrequests" ` +
+		`WHERE (url = $1)`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(prFirst.URL).
+		WillReturnRows(rows)
+
+	// Execute method
+	_, err := cdb.PullRequestsByURL(prFirst.URL)
+	if err != nil {
+		t.Errorf("PullRequestsByURL unwanted error: %s", err)
 	}
 	// Make sure expectations were met
 	err = mock.ExpectationsWereMet()

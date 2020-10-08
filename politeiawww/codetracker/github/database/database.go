@@ -41,6 +41,9 @@ type Database interface {
 	// PullRequestByID returns the pull request that matches the provided id.
 	PullRequestByID(id string) (*PullRequest, error)
 
+	// PullRequestsByURL returns all pull request entries matching the url.
+	PullRequestsByURL(url string) ([]*PullRequest, error)
+
 	// MergedPullRequestsByUserDates returns all merged pull requests that match the
 	// username and is in between the start and end dates (in Unix).
 	MergedPullRequestsByUserDates(username string, start int64, end int64) ([]*PullRequest, error)

@@ -162,6 +162,43 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
+
+	// Now we need to see if there are any other hits in the DB so we can
+	// see if it was an update to an existing PR or if it is new.  If it is
+	// new then we just keep the current Additions/Deletions, If it is existing
+	// and no other updates from before start date then we just keep the
+	// Additions/Deletions. If if is existing and the it was before start, then
+	// take the difference between that last update before start and this most
+	// recent update in the current month.  The idea here is we want to capture
+	// the work completed in a given month.
+
+	for i, updatedPR := range dbUpdatedPRs {
+		urlPRs, err := g.codedb.PullRequestsByURL(updatedPR.URL)
+		if err != nil {
+			return nil, err
+		}
+		// There are existing PRs
+		if len(urlPRs) > 1 {
+			var lastUpdated *database.PullRequest
+			for _, urlPR := range urlPRs {
+				// Find the most recent PR returned that is before start
+				if urlPR.UpdatedAt < startDate &&
+					(lastUpdated == nil ||
+						urlPR.UpdatedAt > lastUpdated.UpdatedAt) {
+					lastUpdated = urlPR
+				}
+			}
+			// lastUpdated was found to be before start and was the last updated
+			// so change the pr additions/deletions to the diff so they
+			// can be tabulated accurately.
+			if lastUpdated != nil {
+				updatedPR.Additions = updatedPR.Additions - lastUpdated.Additions
+				updatedPR.Deletions = updatedPR.Deletions - lastUpdated.Deletions
+				dbUpdatedPRs[i] = updatedPR
+			}
+		}
+	}
+
 	dbReviews, err := g.codedb.ReviewsByUserDates(user, startDate, endDate)
 	if err != nil {
 		return nil, err
