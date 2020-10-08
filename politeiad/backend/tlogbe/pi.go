@@ -625,7 +625,8 @@ func (p *piPlugin) cmdCommentVote(payload string) (string, error) {
 		return "", err
 	}
 	cvr := pi.CommentVoteReply{
-		Score:     vr.Score,
+		Downvotes: vr.Downvotes,
+		Upvotes:   vr.Upvotes,
 		Timestamp: vr.Timestamp,
 		Receipt:   vr.Receipt,
 	}

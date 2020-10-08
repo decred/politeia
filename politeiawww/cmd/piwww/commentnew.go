@@ -60,7 +60,7 @@ func (c *commentNewCmd) Execute(args []string) error {
 
 	// Sign comment data
 	msg := strconv.Itoa(int(state)) + token +
-		strconv.FormatUint(uint64(parentID), 10) + comment
+		strconv.FormatUint(parentID, 10) + comment
 	b := cfg.Identity.SignMessage([]byte(msg))
 	signature := hex.EncodeToString(b[:])
 

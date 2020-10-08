@@ -356,22 +356,23 @@ func convertPropStateFromComments(s comments.StateT) pi.PropStateT {
 	return pi.PropStateInvalid
 }
 
-func convertCommentFromPlugin(cm comments.Comment) pi.Comment {
+func convertCommentFromPlugin(c comments.Comment) pi.Comment {
 	return pi.Comment{
-		UserID:    cm.UserID,
+		UserID:    c.UserID,
 		Username:  "", // Intentionally omitted, needs to be pulled from userdb
-		State:     convertPropStateFromComments(cm.State),
-		Token:     cm.Token,
-		ParentID:  cm.ParentID,
-		Comment:   cm.Comment,
-		PublicKey: cm.PublicKey,
-		Signature: cm.Signature,
-		CommentID: cm.CommentID,
-		Timestamp: cm.Timestamp,
-		Receipt:   cm.Receipt,
-		Score:     cm.Score,
-		Deleted:   cm.Deleted,
-		Reason:    cm.Reason,
+		State:     convertPropStateFromComments(c.State),
+		Token:     c.Token,
+		ParentID:  c.ParentID,
+		Comment:   c.Comment,
+		PublicKey: c.PublicKey,
+		Signature: c.Signature,
+		CommentID: c.CommentID,
+		Timestamp: c.Timestamp,
+		Receipt:   c.Receipt,
+
+		Upvotes:  c.Upvotes,
+		Censored: c.Deleted,
+		Reason:   c.Reason,
 	}
 }
 
@@ -1633,6 +1634,14 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.CommentVoteReply, error) {
 	log.Tracef("processCommentVote: %v %v %v", cv.Token, cv.CommentID, cv.Vote)
 
+	// Verify state
+	if cv.State != pi.PropStateVetted {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPropStateInvalid,
+			ErrorContext: []string{"proposal must be vetted"},
+		}
+	}
+
 	// Verify user has paid registration paywall
 	if !p.userHasPaid(usr) {
 		return nil, pi.UserErrorReply{
@@ -1664,7 +1673,8 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 	}
 
 	return &pi.CommentVoteReply{
-		Score:     cvr.Score,
+		Downvotes: cvr.Downvotes,
+		Upvotes:   cvr.Upvotes,
 		Timestamp: cvr.Timestamp,
 		Receipt:   cvr.Receipt,
 	}, nil
@@ -1706,8 +1716,44 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 	}, nil
 }
 
-func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) {
+func (p *politeiawww) processComments(c pi.Comments, usr *user.User) (*pi.CommentsReply, error) {
 	log.Tracef("processComments: %v", c.Token)
+
+	// Only admins and the proposal author are allowed to retrieve
+	// unvetted comments. This is a public route so a user might not
+	// exist.
+	if c.State == pi.PropStateUnvetted {
+		var isAllowed bool
+		switch {
+		case usr == nil:
+		// No logged in user. Unvetted not allowed.
+		case usr.Admin:
+			// User is an admin. Unvetted is allowed.
+			isAllowed = true
+		default:
+			// Logged in user is not an admin. Check if they are the
+			// proposal author.
+			pr, err := p.proposalRecordLatest(c.State, c.Token)
+			if err != nil {
+				if err == errProposalNotFound {
+					return nil, pi.UserErrorReply{
+						ErrorCode: pi.ErrorStatusPropNotFound,
+					}
+				}
+				return nil, fmt.Errorf("proposalRecordLatest: %v", err)
+			}
+			if usr.ID.String() == pr.UserID {
+				// User is the proposal author. Unvetted is allowed.
+				isAllowed = true
+			}
+		}
+		if !isAllowed {
+			return nil, pi.UserErrorReply{
+				ErrorCode:    pi.ErrorStatusUnauthorized,
+				ErrorContext: []string{"user is not author or admin"},
+			}
+		}
+	}
 
 	// Send plugin command
 	reply, err := p.commentsAll(comments.GetAll{
@@ -1748,6 +1794,15 @@ func (p *politeiawww) processComments(c pi.Comments) (*pi.CommentsReply, error) 
 func (p *politeiawww) processCommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
 	log.Tracef("processCommentVotes: %v %v", cv.Token, cv.UserID)
 
+	// Verify state
+	if cv.State != pi.PropStateVetted {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusPropStateInvalid,
+			ErrorContext: []string{"proposal must be vetted"},
+		}
+	}
+
+	// Send plugin command
 	v := comments.Votes{
 		State:  convertCommentsStateFromPi(cv.State),
 		Token:  cv.Token,
@@ -2189,7 +2244,16 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.processComments(c)
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
+	usr, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		respondWithPiError(w, r,
+			"handleProposalInventory: getSessionUser: %v", err)
+		return
+	}
+
+	cr, err := p.processComments(c, usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVote: processComments: %v", err)

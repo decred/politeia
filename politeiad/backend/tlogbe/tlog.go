@@ -425,7 +425,7 @@ func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
 }
 
 func (t *tlog) treeNew() (int64, error) {
-	log.Tracef("tlog treeNew")
+	log.Tracef("%v treeNew", t.id)
 
 	tree, _, err := t.trillian.treeNew()
 	if err != nil {
@@ -436,7 +436,7 @@ func (t *tlog) treeNew() (int64, error) {
 }
 
 func (t *tlog) treeExists(treeID int64) bool {
-	log.Tracef("tlog treeExists: %v", treeID)
+	log.Tracef("%v treeExists: %v", t.id, treeID)
 
 	_, err := t.trillian.tree(treeID)
 	return err == nil
@@ -450,7 +450,7 @@ func (t *tlog) treeExists(treeID int64) bool {
 // update the status of the tree to frozen in trillian, at which point trillian
 // will not allow any additional leaves to be appended onto the tree.
 func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, fr freezeRecord) error {
-	log.Tracef("tlog treeFreeze: %v")
+	log.Tracef("%v treeFreeze: %v", t.id, treeID)
 
 	// Save metadata
 	idx, err := t.metadataSave(treeID, rm, metadata)
@@ -528,7 +528,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 // freeze record returns the freeze record of the provided tree if one exists.
 // If one does not exists a errFreezeRecordNotFound error is returned.
 func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
-	log.Tracef("tlog freezeRecord: %v", treeID)
+	log.Tracef("%v freezeRecord: %v", t.id, treeID)
 
 	// Check if the tree contains a freeze record. The last two leaves
 	// are checked because the last leaf will be the final anchor drop,
@@ -550,7 +550,7 @@ func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
 		startIndex = 0
 		count = 1
 	default:
-		startIndex = int64(lr.TreeSize) - 1
+		startIndex = int64(lr.TreeSize) - 2
 		count = 2
 	}
 
@@ -996,7 +996,7 @@ func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMe
 // to the trillian tree for each blob, then updates the record index with the
 // trillian leaf information and returns it.
 func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*recordIndex, error) {
-	log.Tracef("recordBlobsSave: %v", treeID)
+	log.Tracef("recordBlobsSave: %v", t.id, treeID)
 
 	var (
 		index   = rbpr.recordIndex
@@ -1081,7 +1081,7 @@ func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 // the record contents have been successfully saved to tlog, a recordIndex is
 // created for this version of the record and saved to tlog as well.
 func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	log.Tracef("tlog recordSave: %v", treeID)
+	log.Tracef("%v recordSave: %v", t.id, treeID)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1278,7 +1278,7 @@ func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 // metadata has been successfully saved to tlog, a recordIndex is created for
 // this iteration of the record and saved to tlog as well.
 func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	log.Tracef("tlog recordMetadataSave: %v", treeID)
+	log.Tracef("%v recordMetadataSave: %v", t.id, treeID)
 
 	// Save metadata
 	idx, err := t.metadataSave(treeID, rm, metadata)
@@ -1300,7 +1300,7 @@ func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metad
 // iterations of the record. Record metadata and metadata stream blobs are not
 // deleted.
 func (t *tlog) recordDel(treeID int64) error {
-	log.Tracef("tlog recordDel: %v", treeID)
+	log.Tracef("%v recordDel: %v", t.id, treeID)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1356,7 +1356,7 @@ func (t *tlog) recordDel(treeID int64) error {
 }
 
 func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
-	log.Tracef("tlog record: %v %v", treeID, version)
+	log.Tracef("%v record: %v %v", t.id, treeID, version)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1523,7 +1523,7 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 }
 
 func (t *tlog) recordLatest(treeID int64) (*backend.Record, error) {
-	log.Tracef("tlog recordLatest: %v", treeID)
+	log.Tracef("%v recordLatest: %v", t.id, treeID)
 
 	return t.record(treeID, 0)
 }
@@ -1537,7 +1537,7 @@ func (t *tlog) recordProof(treeID int64, version uint32) {}
 //
 // This function satisfies the tlogClient interface.
 func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
-	log.Tracef("tlog blobsSave: %v %v %v", treeID, keyPrefix, encrypt)
+	log.Tracef("%v blobsSave: %v %v %v", t.id, treeID, keyPrefix, encrypt)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1620,7 +1620,7 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 //
 // This function satisfies the tlogClient interface.
 func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
-	log.Tracef("tlog blobsDel: %v", treeID)
+	log.Tracef("%v blobsDel: %v", t.id, treeID)
 
 	// Verify tree exists. We allow blobs to be deleted from both
 	// frozen and non frozen trees.
@@ -1673,7 +1673,7 @@ func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 //
 // This function satisfies the tlogClient interface.
 func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
-	log.Tracef("tlog blobsByMerkle: %v", treeID)
+	log.Tracef("%v blobsByMerkle: %v", t.id, treeID)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1762,7 +1762,7 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 //
 // This function satisfies the tlogClient interface.
 func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
-	log.Tracef("tlog blobsByKeyPrefix: %v %v", treeID, keyPrefix)
+	log.Tracef("%v blobsByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1833,7 +1833,7 @@ func (t *tlog) fsck() {
 }
 
 func (t *tlog) close() {
-	log.Tracef("tlog close: %v", t.id)
+	log.Tracef("%v close", t.id)
 
 	// Close connections
 	t.store.Close()

@@ -399,7 +399,8 @@ func DecodeCommentVote(payload []byte) (*CommentVote, error) {
 
 // CommentVoteReply is the reply to the CommentVote command.
 type CommentVoteReply struct {
-	Score     int64  `json:"score"`     // Overall comment vote score
+	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
+	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
 	Receipt   string `json:"receipt"`   // Server signature of client signature
 }

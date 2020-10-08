@@ -17,8 +17,6 @@ type VoteAuthActionT string
 type VoteT int
 type VoteErrorT int
 
-// TODO I screwed up comments. A comment should contain fields for upvotes and
-// downvotes instead of just a overall vote score.
 // TODO the plugin policies should be returned in a route
 // TODO show the difference between unvetted censored and vetted censored
 // in the proposal inventory route since fetching them requires specifying
@@ -474,12 +472,15 @@ type Comment struct {
 	CommentID uint32     `json:"commentid"` // Comment ID
 	Timestamp int64      `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string     `json:"receipt"`   // Server sig of client sig
-	Score     int64      `json:"score"`     // Vote score
-	Deleted   bool       `json:"deleted"`   // Comment has been deleted
-	Reason    string     `json:"reason"`    // Reason for deletion
+	Downvotes uint64     `json:"downvotes"` // Tolal downvotes
+	Upvotes   uint64     `json:"upvotes"`   // Total upvotes
+
+	Censored bool   `json:"censored,omitempty"` // Comment has been censored
+	Reason   string `json:"reason,omitempty"`   // Reason for censoring
 }
 
-// CommentNew creates a new comment.
+// CommentNew creates a new comment. Only the proposal author and admins can
+// comment on unvetted proposals. All users can comment on public proposals.
 //
 // The parent ID is used to reply to an existing comment. A parent ID of 0
 // indicates that the comment is a base level comment and not a reply commment.
@@ -527,7 +528,8 @@ type CommentCensorReply struct {
 	Receipt   string `json:"receipt"`
 }
 
-// CommentVote casts a comment vote (upvote or downvote).
+// CommentVote casts a comment vote (upvote or downvote). Only allowed on
+// vetted proposals.
 //
 // The effect of a new vote on a comment score depends on the previous vote
 // from that uuid. Example, a user upvotes a comment that they have already
@@ -549,12 +551,15 @@ type CommentVote struct {
 // Receipt is the server signature of the client signature. This is proof that
 // the server received and processed the CommentVote command.
 type CommentVoteReply struct {
-	Score     int64  `json:"score"` // Overall comment vote score
+	Downvotes uint64 `json:"downvotes"` // Total downvotes
+	Upvotes   uint64 `json:"upvotes"`   // Total upvotes
 	Timestamp int64  `json:"timestamp"`
 	Receipt   string `json:"receipt"`
 }
 
-// Comments returns all comments for a proposal.
+// Comments returns all comments for a proposal. Unvetted proposal comments
+// are only returned to the proposal author and admins. Retrieving proposal
+// comments on vetted proposals does not require a user to be logged in.
 type Comments struct {
 	State PropStateT `json:"state"`
 	Token string     `json:"token"`
@@ -580,7 +585,7 @@ type CommentVoteDetails struct {
 }
 
 // CommentVotes returns all comment votes that meet the provided filtering
-// criteria.
+// criteria. Comment votes are only allowed on vetted proposals.
 type CommentVotes struct {
 	State  PropStateT `json:"state"`
 	Token  string     `json:"token"`

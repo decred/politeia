@@ -52,7 +52,7 @@ func (c *commentVoteCmd) Execute(args []string) error {
 
 	// Sign vote choice
 	msg := strconv.Itoa(int(pi.PropStateVetted)) + token +
-		c.Args.CommentID + c.Args.Vote
+		c.Args.CommentID + strconv.FormatInt(int64(vote), 10)
 	b := cfg.Identity.SignMessage([]byte(msg))
 	signature := hex.EncodeToString(b[:])
 

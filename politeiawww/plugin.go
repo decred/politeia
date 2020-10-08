@@ -64,7 +64,8 @@ func (p *politeiawww) getPluginInventory() ([]plugin, error) {
 
 		pi, err := p.pluginInventory()
 		if err != nil {
-			log.Infof("cannot get politeiad plugin inventory: %v", err)
+			log.Infof("cannot get politeiad plugin inventory: %v: retry in %v",
+				err, sleepInterval)
 			time.Sleep(sleepInterval)
 			continue
 		}

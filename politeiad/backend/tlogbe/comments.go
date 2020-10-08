@@ -84,12 +84,11 @@ type voteIndex struct {
 }
 
 type commentIndex struct {
-	Adds  map[uint32][]byte `json:"adds"`  // [version]merkleHash
-	Del   []byte            `json:"del"`   // Merkle hash of delete record
-	Score int64             `json:"score"` // Vote score
+	Adds map[uint32][]byte `json:"adds"` // [version]merkleHash
+	Del  []byte            `json:"del"`  // Merkle hash of delete record
 
 	// Votes contains the vote history for each uuid that voted on the
-	// comment. This data is memoized because the effect of a new vote
+	// comment. This data is cached because the effect of a new vote
 	// on a comment depends on the previous vote from that uuid.
 	// Example, a user upvotes a comment that they have already
 	// upvoted, the resulting vote score is 0 due to the second upvote
@@ -400,9 +399,9 @@ func convertCommentVoteFromBlobEntry(be store.BlobEntry) (*comments.CommentVote,
 }
 
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
-	// Score needs to be filled in separately
 	return comments.Comment{
 		UserID:    ca.UserID,
+		State:     ca.State,
 		Token:     ca.Token,
 		ParentID:  ca.ParentID,
 		Comment:   ca.Comment,
@@ -412,7 +411,8 @@ func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
 		Version:   ca.Version,
 		Timestamp: ca.Timestamp,
 		Receipt:   ca.Receipt,
-		Score:     0,
+		Downvotes: 0, // Not part of commentAdd data
+		Upvotes:   0, // Not part of commentAdd data
 		Deleted:   false,
 		Reason:    "",
 	}
@@ -422,6 +422,7 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 	// Score needs to be filled in separately
 	return comments.Comment{
 		UserID:    cd.UserID,
+		State:     cd.State,
 		Token:     cd.Token,
 		ParentID:  cd.ParentID,
 		Comment:   "",
@@ -430,7 +431,8 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 		Version:   0,
 		Timestamp: cd.Timestamp,
 		Receipt:   "",
-		Score:     0,
+		Downvotes: 0,
+		Upvotes:   0,
 		Deleted:   true,
 		Reason:    cd.Reason,
 	}
@@ -743,7 +745,11 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 	cs := make(map[uint32]comments.Comment, len(commentIDs))
 	for _, v := range adds {
 		c := convertCommentFromCommentAdd(v)
-		c.Score = idx.Comments[c.CommentID].Score
+		cidx, ok := idx.Comments[c.CommentID]
+		if !ok {
+			return nil, fmt.Errorf("comment index not found %v", c.CommentID)
+		}
+		c.Downvotes, c.Upvotes = calcVoteScore(cidx)
 		cs[v.CommentID] = c
 	}
 	for _, v := range dels {
@@ -1163,6 +1169,57 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	return string(reply), nil
 }
 
+// calcVoteScore returns the vote score for the provided comment index. The
+// returned values are the downvotes and upvotes, respectively.
+func calcVoteScore(cidx commentIndex) (uint64, uint64) {
+	// Find the vote score by replaying all existing votes from all
+	// users. The net effect of a new vote on a comment score depends
+	// on the previous vote from that uuid. Example, a user upvotes a
+	// comment that they have already upvoted, the resulting vote score
+	// is 0 due to the second upvote removing the original upvote.
+	var upvotes uint64
+	var downvotes uint64
+	for _, votes := range cidx.Votes {
+		// Calculate the vote score that this user is contributing. This
+		// can only ever be -1, 0, or 1.
+		var score int64
+		for _, v := range votes {
+			vote := int64(v.Vote)
+			switch {
+			case score == 0:
+				// No previous vote. New vote becomes the score.
+				score = vote
+
+			case score == vote:
+				// New vote is the same as the previous vote. The vote gets
+				// removed from the score, making the score 0.
+				score = 0
+
+			case score != vote:
+				// New vote is different than the previous vote. New vote
+				// becomes the score.
+				score = vote
+			}
+		}
+
+		// Add the net result of all votes from this user to the totals.
+		switch score {
+		case 0:
+			// Nothing to do
+		case -1:
+			downvotes++
+		case 1:
+			upvotes++
+		default:
+			// Something went wrong
+			e := fmt.Errorf("unexpected vote score %v", score)
+			panic(e)
+		}
+	}
+
+	return downvotes, upvotes
+}
+
 func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	log.Tracef("comments cmdVote: %v", payload)
 
@@ -1265,6 +1322,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Prepare comment vote
 	receipt := p.identity.SignMessage([]byte(v.Signature))
 	cv := comments.CommentVote{
+		State:     v.State,
 		UserID:    v.UserID,
 		Token:     v.Token,
 		CommentID: v.CommentID,
@@ -1298,9 +1356,6 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	})
 	cidx.Votes[cv.UserID] = votes
 
-	// Update the comment vote score
-	cidx.Score = calcVoteScore(cidx, cv)
-
 	// Update the comments index
 	idx.Comments[cv.CommentID] = cidx
 
@@ -1310,11 +1365,15 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		return "", err
 	}
 
+	// Calculate the new vote scores
+	downvotes, upvotes := calcVoteScore(cidx)
+
 	// Prepare reply
 	vr := comments.VoteReply{
+		Downvotes: downvotes,
+		Upvotes:   upvotes,
 		Timestamp: cv.Timestamp,
 		Receipt:   cv.Receipt,
-		Score:     cidx.Score,
 	}
 	reply, err := comments.EncodeVoteReply(vr)
 	if err != nil {
@@ -1532,7 +1591,7 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 
 	// Convert to a comment
 	c := convertCommentFromCommentAdd(adds[0])
-	c.Score = cidx.Score
+	c.Downvotes, c.Upvotes = calcVoteScore(cidx)
 
 	// Prepare reply
 	gvr := comments.GetVersionReply{
@@ -1660,46 +1719,6 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	}
 
 	return string(reply), nil
-}
-
-// calcVoteScore returns the updated vote score after the provided CommentVote
-// has been added to it.
-func calcVoteScore(cidx commentIndex, cv comments.CommentVote) int64 {
-	// Get the previous vote that this uuid made
-	var votePrev comments.VoteT
-	votes, ok := cidx.Votes[cv.UserID]
-	if !ok && len(votes) != 0 {
-		votePrev = votes[len(votes)-1].Vote
-	}
-
-	// Get the existing score
-	score := cidx.Score
-
-	// Update vote score. The effect of a new vote on a comment score
-	// depends on the previous vote from that uuid. Example, a user
-	// upvotes a comment that they have already upvoted, the resulting
-	// vote score is 0 due to the second upvote removing the original
-	// upvote.
-	voteNew := cv.Vote
-	switch {
-	case votePrev == 0:
-		// No previous vote. Add the new vote to the score.
-		score += int64(voteNew)
-
-	case voteNew == votePrev:
-		// New vote is the same as the previous vote. Remove the previous
-		// vote from the score.
-		score -= int64(votePrev)
-
-	case voteNew != votePrev:
-		// New vote is different than the previous vote. Remove the
-		// previous vote from the score and add the new vote to the
-		// score.
-		score -= int64(votePrev)
-		score += int64(voteNew)
-	}
-
-	return score
 }
 
 // cmd executes a plugin command.

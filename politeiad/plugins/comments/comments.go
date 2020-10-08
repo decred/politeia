@@ -96,7 +96,8 @@ type Comment struct {
 	Version   uint32 `json:"version"`   // Comment version
 	Timestamp int64  `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string `json:"receipt"`   // Server signature of client signature
-	Score     int64  `json:"score"`     // Vote score
+	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
+	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
 	Deleted   bool   `json:"deleted"`   // Comment has been deleted
 	Reason    string `json:"reason"`    // Reason for deletion
 }
@@ -352,7 +353,8 @@ func DecodeVote(payload []byte) (*Vote, error) {
 
 // VoteReply is the reply to the Vote command.
 type VoteReply struct {
-	Score     int64  `json:"score"`     // Overall comment vote score
+	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
+	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
 	Receipt   string `json:"receipt"`   // Server signature of client signature
 }

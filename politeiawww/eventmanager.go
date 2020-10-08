@@ -388,32 +388,34 @@ func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment) error {
 	// TODO
 	return nil
 
-	// Lookup the parent comment author
-	var author *user.User
+	/*
+		// Lookup the parent comment author
+		var author *user.User
 
-	// Check if notification should be sent to author
-	switch {
-	case d.username == author.Username:
-		// Author commented on their own proposal
-		return nil
-	case !userNotificationEnabled(*author,
-		www.NotificationEmailCommentOnMyProposal):
-		// Author does not have notification bit set on
-		return nil
-	}
+		// Check if notification should be sent to author
+		switch {
+		case d.username == author.Username:
+			// Author commented on their own proposal
+			return nil
+		case !userNotificationEnabled(*author,
+			www.NotificationEmailCommentOnMyProposal):
+			// Author does not have notification bit set on
+			return nil
+		}
 
-	// Get proposal. We need this proposal name for the notification.
-	pr, err := p.proposalRecordLatest(d.state, d.token)
-	if err != nil {
-		return fmt.Errorf("proposalRecordLatest %v %v: %v",
-			d.state, d.token, err)
-	}
+		// Get proposal. We need this proposal name for the notification.
+		pr, err := p.proposalRecordLatest(d.state, d.token)
+		if err != nil {
+			return fmt.Errorf("proposalRecordLatest %v %v: %v",
+				d.state, d.token, err)
+		}
 
-	// Send notification eamil
-	commentID := strconv.FormatUint(uint64(d.commentID), 10)
+		// Send notification eamil
+		commentID := strconv.FormatUint(uint64(d.commentID), 10)
 
-	return p.emailProposalCommentReply(d.token, commentID, d.username,
-		proposalName(*pr), author.Email)
+		return p.emailProposalCommentReply(d.token, commentID, d.username,
+			proposalName(*pr), author.Email)
+	*/
 }
 
 type dataProposalComment struct {
