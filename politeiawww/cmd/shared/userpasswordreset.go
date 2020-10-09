@@ -66,7 +66,7 @@ func (cmd *UserPasswordResetCmd) Execute(args []string) error {
 		return nil
 	}
 
-	// Verify  reset password
+	// Verify reset password
 	vrp := www.VerifyResetPassword{
 		Username:          username,
 		VerificationToken: rpr.VerificationToken,

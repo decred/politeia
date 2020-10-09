@@ -10,14 +10,14 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// UserTOTPVerifyCmd sets the TOTP key for the logged in user.
+// UserTOTPVerifyCmd verifies the TOTP key for the logged in user.
 type UserTOTPVerifyCmd struct {
 	Args struct {
 		Code string `positional-arg-name:"code"`
 	} `positional-args:"true"`
 }
 
-// Execute executes the set totp command.
+// Execute executes the verify totp command.
 func (cmd *UserTOTPVerifyCmd) Execute(args []string) error {
 	// Setup new user request
 	st := &v1.VerifyTOTP{
