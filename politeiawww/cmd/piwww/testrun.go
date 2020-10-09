@@ -238,7 +238,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	nuc.Args.Email = email
 	nuc.Args.Username = username
 	nuc.Args.Password = password
-	err = nuc.Execute(ctx, nil)
+	err = nuc.Execute(nil)
 	if err != nil {
 		return err
 	}

@@ -5,11 +5,10 @@
 package main
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -28,7 +27,7 @@ type NewUserCmd struct {
 }
 
 // Execute executes the new user command.
-func (cmd *NewUserCmd) Execute(ctx context.Context, args []string) error {
+func (cmd *NewUserCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 	username := cmd.Args.Username
 	password := cmd.Args.Password
@@ -142,7 +141,7 @@ func (cmd *NewUserCmd) Execute(ctx context.Context, args []string) error {
 		faucet := SendFaucetTxCmd{}
 		faucet.Args.Address = lr.PaywallAddress
 		faucet.Args.Amount = lr.PaywallAmount
-		err = faucet.Execute(ctx, nil)
+		err = faucet.Execute(nil)
 		if err != nil {
 			return err
 		}
