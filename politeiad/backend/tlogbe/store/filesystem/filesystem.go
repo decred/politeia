@@ -5,6 +5,7 @@
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -118,7 +119,7 @@ func (f *fileSystem) Del(keys []string) error {
 	for _, v := range keys {
 		err := f.del(v)
 		if err != nil {
-			if err == store.ErrNotFound {
+			if errors.Is(err, store.ErrNotFound) {
 				// File does not exist. This is ok.
 				continue
 			}
@@ -158,7 +159,7 @@ func (f *fileSystem) Get(keys []string) (map[string][]byte, error) {
 	for _, v := range keys {
 		b, err := f.get(v)
 		if err != nil {
-			if err == store.ErrNotFound {
+			if errors.Is(err, store.ErrNotFound) {
 				// File does not exist. This is ok.
 				continue
 			}

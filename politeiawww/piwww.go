@@ -1286,7 +1286,7 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe pi.ProposalEdi
 	// Get the current proposal
 	curr, err := p.proposalRecordLatest(ctx, pe.State, pe.Token)
 	if err != nil {
-		if err == errProposalNotFound {
+		if errors.Is(err, errProposalNotFound) {
 			return nil, pi.UserErrorReply{
 				ErrorCode: pi.ErrorStatusPropNotFound,
 			}
@@ -1585,7 +1585,7 @@ func (p *politeiawww) processCommentNew(ctx context.Context, cn pi.CommentNew, u
 		// Fetch the proposal so we can see who the author is
 		pr, err := p.proposalRecordLatest(ctx, cn.State, cn.Token)
 		if err != nil {
-			if err == errProposalNotFound {
+			if errors.Is(err, errProposalNotFound) {
 				return nil, pi.UserErrorReply{
 					ErrorCode: pi.ErrorStatusPropNotFound,
 				}
@@ -1736,7 +1736,7 @@ func (p *politeiawww) processComments(ctx context.Context, c pi.Comments, usr *u
 			// proposal author.
 			pr, err := p.proposalRecordLatest(ctx, c.State, c.Token)
 			if err != nil {
-				if err == errProposalNotFound {
+				if errors.Is(err, errProposalNotFound) {
 					return nil, pi.UserErrorReply{
 						ErrorCode: pi.ErrorStatusPropNotFound,
 					}

@@ -193,7 +193,7 @@ func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 	// contains a pointer to a vetted tree.
 	fr, err := t.unvetted.freezeRecord(treeID)
 	if err != nil {
-		if err == errFreezeRecordNotFound {
+		if errors.Is(err, errFreezeRecordNotFound) {
 			// Unvetted tree exists and is not frozen. This is an unvetted
 			// record.
 			return 0, false
@@ -642,14 +642,14 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
+		var cverr backend.ContentVerificationError
+		if !errors.As(err, &cverr) {
 			return nil, err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// added. This can happen when files are being deleted without
 		// any new files being added.
-		if e.ErrorCode != v1.ErrorStatusEmpty {
+		if cverr.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
 		}
 	}
@@ -740,14 +740,14 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
+		var cverr backend.ContentVerificationError
+		if !errors.As(err, &cverr) {
 			return nil, err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// added. This can happen when files are being deleted without
 		// any new files being added.
-		if e.ErrorCode != v1.ErrorStatusEmpty {
+		if cverr.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
 		}
 	}
@@ -769,7 +769,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	// Get existing record
 	r, err := t.vetted.recordLatest(treeID)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return nil, backend.ErrRecordNotFound
 		}
 		return nil, fmt.Errorf("recordLatest: %v", err)
@@ -839,14 +839,14 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
+		var cverr backend.ContentVerificationError
+		if !errors.As(err, &cverr) {
 			return err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// being added. This is expected since this is a metadata only
 		// update.
-		if e.ErrorCode != v1.ErrorStatusEmpty {
+		if cverr.ErrorCode != v1.ErrorStatusEmpty {
 			return err
 		}
 	}
@@ -925,14 +925,14 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
+		var cverr backend.ContentVerificationError
+		if !errors.As(err, &cverr) {
 			return err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// being added. This is expected since this is a metadata only
 		// update.
-		if e.ErrorCode != v1.ErrorStatusEmpty {
+		if cverr.ErrorCode != v1.ErrorStatusEmpty {
 			return err
 		}
 	}
@@ -959,7 +959,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	// Get existing record
 	r, err := t.vetted.recordLatest(treeID)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return backend.ErrRecordNotFound
 		}
 		return fmt.Errorf("recordLatest: %v", err)
@@ -1103,7 +1103,7 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 
 	r, err := t.vetted.record(treeID, v)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			err = backend.ErrRecordNotFound
 		}
 		return nil, err
@@ -1639,7 +1639,7 @@ func (t *tlogBackend) setup() error {
 		if vettedTreeID != 0 {
 			r, err = t.GetVetted(token, "")
 			if err != nil {
-				if err == backend.ErrRecordNotFound {
+				if errors.Is(err, backend.ErrRecordNotFound) {
 					// A tree that was created but no record was appended onto
 					// it for whatever reason. This can happen if there is a
 					// network failure or internal server error.
@@ -1650,7 +1650,7 @@ func (t *tlogBackend) setup() error {
 		} else {
 			r, err = t.GetUnvetted(token, "")
 			if err != nil {
-				if err == backend.ErrRecordNotFound {
+				if errors.Is(err, backend.ErrRecordNotFound) {
 					// A tree that was created but no record was appended onto
 					// it for whatever reason. This can happen if there is a
 					// network failure or internal server error.

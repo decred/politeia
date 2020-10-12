@@ -431,7 +431,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	// Validate the vote authorization
 	pr, err := p.getProp(av.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -530,7 +530,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	}
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
@@ -681,7 +681,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 		pr, err := p.getProp(token)
 		if err != nil {
-			if err == cache.ErrRecordNotFound {
+			if errors.Is(err, cache.ErrRecordNotFound) {
 				err = www.UserError{
 					ErrorCode:    www.ErrorStatusProposalNotFound,
 					ErrorContext: []string{token},
@@ -711,9 +711,10 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		if err != nil {
 			// Attach the token to the error so the user knows which one
 			// failed.
-			if ue, ok := err.(*www.UserError); ok {
-				ue.ErrorContext = append(ue.ErrorContext, token)
-				err = ue
+			var uerr *www.UserError
+			if errors.As(err, &uerr) {
+				uerr.ErrorContext = append(uerr.ErrorContext, token)
+				err = uerr
 			}
 			return nil, err
 		}
@@ -724,9 +725,10 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		if err != nil {
 			// Attach the token to the error so the user knows which one
 			// failed.
-			if ue, ok := err.(*www.UserError); ok {
-				ue.ErrorContext = append(ue.ErrorContext, token)
-				err = ue
+			var uerr *www.UserError
+			if errors.As(err, &uerr) {
+				uerr.ErrorContext = append(uerr.ErrorContext, token)
+				err = uerr
 			}
 			return nil, err
 		}
@@ -735,7 +737,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	// Validate the RFP proposal
 	rfp, err := p.getProp(sv.Token)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
+		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
 				ErrorCode:    www.ErrorStatusProposalNotFound,
 				ErrorContext: []string{sv.Token},

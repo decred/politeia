@@ -1189,7 +1189,7 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 	version := strconv.FormatUint(uint64(s.Params.Version), 10)
 	_, err = p.backend.GetVetted(token, version)
 	if err != nil {
-		if err == backend.ErrRecordNotFound {
+		if errors.Is(err, backend.ErrRecordNotFound) {
 			e := fmt.Sprintf("version %v not found", version)
 			return "", backend.PluginUserError{
 				PluginID:     ticketvote.ID,
@@ -1536,7 +1536,7 @@ func (p *ticketVotePlugin) cmdDetails(payload string) (string, error) {
 		// Get authorize votes
 		auths, err := p.authorizes(token)
 		if err != nil {
-			if err == errRecordNotFound {
+			if errors.Is(err, errRecordNotFound) {
 				continue
 			}
 			return "", fmt.Errorf("authorizes: %v", err)
@@ -1607,7 +1607,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Check if the summary has been cached
 	s, err := p.cachedSummary(hex.EncodeToString(token))
 	switch {
-	case err == errRecordNotFound:
+	case errors.Is(err, errRecordNotFound):
 		// Cached summary not found
 	case err != nil:
 		// Some other error
@@ -1779,7 +1779,7 @@ func (p *ticketVotePlugin) cmdSummaries(payload string) (string, error) {
 		}
 		s, err := p.summary(token, bb)
 		if err != nil {
-			if err == errRecordNotFound {
+			if errors.Is(err, errRecordNotFound) {
 				// Record does not exist for token. Do not include this token
 				// in the reply.
 				continue

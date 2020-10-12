@@ -938,18 +938,19 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
 		// Reply with error if there were no changes
-		if err == backend.ErrNoChanges {
+		if errors.Is(err, backend.ErrNoChanges) {
 			log.Infof("%v update unvetted metadata no changes: %x",
 				remoteAddr(r), token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
 		}
 		// Check for content error.
-		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+		var cverr backend.ContentVerificationError
+		if errors.As(err, &cverr) {
 			log.Infof("%v update unvetted metadata content error: %v",
-				remoteAddr(r), contentErr)
-			p.respondWithUserError(w, contentErr.ErrorCode,
-				contentErr.ErrorContext)
+				remoteAddr(r), cverr)
+			p.respondWithUserError(w, cverr.ErrorCode,
+				cverr.ErrorContext)
 			return
 		}
 		// Check for plugin error

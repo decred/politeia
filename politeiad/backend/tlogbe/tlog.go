@@ -1101,7 +1101,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Get the existing record index
 	currIdx, err := t.recordIndexLatest(leavesAll)
-	if err == errRecordNotFound {
+	if errors.Is(err, errRecordNotFound) {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
 			Metadata: make(map[uint64][]byte),

@@ -1576,7 +1576,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		// TODO
 		pm, err := g.vettedProposalMetadata(token)
 		switch {
-		case err == errProposalMetadataNotFound:
+		case errors.Is(err, errProposalMetadataNotFound):
 			// Proposal is not an RFP submission. This is ok.
 		case err != nil:
 			// All other errors
@@ -1805,7 +1805,7 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		// Verify this proposal is indeed an RFP
 		pm, err := g.vettedProposalMetadata(sv.Token)
 		switch {
-		case err == errProposalMetadataNotFound:
+		case errors.Is(err, errProposalMetadataNotFound):
 			// No ProposalMetadata. This is not an RFP.
 			return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
 		case err != nil:

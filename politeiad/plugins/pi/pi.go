@@ -8,6 +8,7 @@ package pi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 )
@@ -194,7 +195,7 @@ func DecodeStatusChanges(payload []byte) ([]StatusChange, error) {
 	for {
 		var sc StatusChange
 		err := d.Decode(&sc)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, err

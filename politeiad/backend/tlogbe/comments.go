@@ -721,7 +721,7 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 	// Get comment add records
 	adds, err := p.commentAdds(s, token, merkleAdds)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("commentAdds: %v", err)
@@ -847,7 +847,7 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	// Save comment
 	merkleHash, err := p.commentAddSave(ca)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  comments.ID,
 				ErrorCode: int(comments.ErrorStatusRecordNotFound),
@@ -1005,7 +1005,7 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	// Save comment
 	merkle, err := p.commentAddSave(ca)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  comments.ID,
 				ErrorCode: int(comments.ErrorStatusRecordNotFound),
@@ -1120,7 +1120,7 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	// Save comment del
 	merkle, err := p.commentDelSave(cd)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  comments.ID,
 				ErrorCode: int(comments.ErrorStatusRecordNotFound),
@@ -1336,7 +1336,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Save comment vote
 	merkle, err := p.commentVoteSave(cv)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  comments.ID,
 				ErrorCode: int(comments.ErrorStatusRecordNotFound),
@@ -1421,7 +1421,7 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	// Get comments
 	cs, err := p.comments(g.State, token, *idx, g.CommentIDs)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  comments.ID,
 				ErrorCode: int(comments.ErrorStatusRecordNotFound),
@@ -1486,7 +1486,7 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	// Get comments
 	c, err := p.comments(ga.State, token, *idx, commentIDs)
 	if err != nil {
-		if err == errRecordNotFound {
+		if errors.Is(err, errRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  comments.ID,
 				ErrorCode: int(comments.ErrorStatusRecordNotFound),

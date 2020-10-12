@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -145,7 +146,7 @@ func verifyBatch(host, id string, digests []string) (*dcrtime.VerifyBatchReply, 
 		// Verify merkle path
 		root, err := merkle.VerifyAuthPath(&v.ChainInformation.MerklePath)
 		if err != nil {
-			if err == merkle.ErrEmpty {
+			if errors.Is(err, merkle.ErrEmpty) {
 				// A dcr transaction has not been sent yet so there is
 				// nothing to verify.
 				continue

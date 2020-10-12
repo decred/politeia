@@ -1914,7 +1914,7 @@ func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewCo
 
 	ir, err := p.getInvoice(nc.Token)
 	if err != nil {
-		if err == cmsdatabase.ErrInvoiceNotFound {
+		if errors.Is(err, cmsdatabase.ErrInvoiceNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}

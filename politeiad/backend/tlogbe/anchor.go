@@ -335,7 +335,7 @@ func (t *tlog) anchor() {
 		// Get latest anchor
 		a, err := t.anchorLatest(v.TreeId)
 		switch {
-		case err == errAnchorNotFound:
+		case errors.Is(err, errAnchorNotFound):
 			// Tree has not been anchored yet. Verify that the tree has
 			// leaves. A tree with no leaves does not need to be anchored.
 			leavesAll, err := t.trillian.leavesAll(v.TreeId)

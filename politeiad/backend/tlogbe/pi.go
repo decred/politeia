@@ -135,7 +135,7 @@ func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
 
 	// Get existing linked from list
 	lf, err := p.linkedFromLocked(parentToken)
-	if err == errRecordNotFound {
+	if errors.Is(err, errRecordNotFound) {
 		return fmt.Errorf("linkedFromLocked %v: %v", parentToken, err)
 	}
 
@@ -559,7 +559,7 @@ func (p *piPlugin) cmdCommentVote(payload string) (string, error) {
 		return "", fmt.Errorf("invalid state %v", cv.State)
 	}
 	if err != nil {
-		if err == backend.ErrRecordNotFound {
+		if errors.Is(err, backend.ErrRecordNotFound) {
 			return "", backend.PluginUserError{
 				PluginID:  pi.ID,
 				ErrorCode: int(pi.ErrorStatusPropNotFound),
@@ -690,7 +690,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		}
 		r, err := p.backend.GetVetted(tokenb, "")
 		if err != nil {
-			if err == backend.ErrRecordNotFound {
+			if errors.Is(err, backend.ErrRecordNotFound) {
 				return backend.PluginUserError{
 					PluginID:     pi.ID,
 					ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
