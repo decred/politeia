@@ -314,8 +314,13 @@ func createMockedStats(username string) []user.CodeStats {
 				State:      "APPROVED",
 			})
 		}
-		codeStats = append(codeStats, convertPRsToUserCodeStats(username, year,
-			month, mergedPRs, updatePRs, reviews)...)
+		userInfo := &codetracker.UserInformationResult{
+			Reviews:    reviews,
+			MergedPRs:  mergedPRs,
+			UpdatedPRs: updatePRs,
+		}
+		codeStats = append(codeStats, convertCodeTrackerToUserCodeStats(username, year,
+			month, userInfo)...)
 	}
 	return codeStats
 }

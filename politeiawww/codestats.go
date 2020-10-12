@@ -214,9 +214,8 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 			continue
 		}
 
-		codeStats := convertPRsToUserCodeStats(u.GitHubName, currentYear,
-			currentMonth, githubUserInfo.MergedPRs, githubUserInfo.UpdatedPRs,
-			githubUserInfo.Reviews)
+		codeStats := convertCodeTrackerToUserCodeStats(u.GitHubName, currentYear,
+			currentMonth, githubUserInfo)
 
 		if len(reply.UserCodeStats) > 0 {
 			log.Tracef("Checking update UserCodeStats: %v %v %v", u.GitHubName,

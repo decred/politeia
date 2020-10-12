@@ -402,14 +402,17 @@ type CodeStats struct {
 	GitHubName       string   // GithubName
 	Month            int      // Month of code stats
 	Year             int      // Year of code stats
-	PRs              []string // String of all PR URLs separated by commas
-	Reviews          []string // String of all Reviewed PR URLS separated by commas
+	PRs              []string // All PR URLs
+	Reviews          []string // All Reviewed PR URLS
+	Commits          []string // All of the commit URLS
 	MergedAdditions  int64    // Total merged code additions
 	MergedDeletions  int64    // Total merged code deletions
 	UpdatedAdditions int64    // Total updated code additions
 	UpdatedDeletions int64    // Total updated code deletions
 	ReviewAdditions  int64    // Total reviewed code additions
 	ReviewDeletions  int64    // Total reviewed code deletions
+	CommitAdditions  int64    // Total committed code additions
+	CommitDeletions  int64    // Total committed code deletions
 }
 
 // EncodeCodeStats encodes a CodeStats into a JSON byte slice.

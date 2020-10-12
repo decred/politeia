@@ -1581,13 +1581,19 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 			UpdatedDeletions: codeStat.UpdatedDeletions,
 			ReviewAdditions:  codeStat.ReviewAdditions,
 			ReviewDeletions:  codeStat.ReviewDeletions,
+			CommitAdditions:  codeStat.CommitAdditions,
+			CommitDeletions:  codeStat.CommitDeletions,
 		}
 		cmsCodeStats = append(cmsCodeStats, cmsCodeStat)
 	}
 	return cmsCodeStats
 }
 
-func convertPRsToUserCodeStats(githubName string, year, month int, mergedPRs []codetracker.PullRequestInformation, updatedPRs []codetracker.PullRequestInformation, reviews []codetracker.ReviewInformation) []user.CodeStats {
+func convertCodeTrackerToUserCodeStats(githubName string, year, month int, userInfo *codetracker.UserInformationResult) []user.CodeStats {
+	mergedPRs := userInfo.MergedPRs
+	updatedPRs := userInfo.UpdatedPRs
+	commits := userInfo.Commits
+	reviews := userInfo.Reviews
 	repoStats := make([]user.CodeStats, 0, 1048) // PNOOMA
 	for _, pr := range mergedPRs {
 		repoFound := false
@@ -1674,5 +1680,33 @@ func convertPRsToUserCodeStats(githubName string, year, month int, mergedPRs []c
 		}
 	}
 
+	for _, commit := range commits {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == commit.Repository {
+				repoFound = true
+				repoStat.CommitAdditions += int64(commit.Additions)
+				repoStat.CommitDeletions += int64(commit.Deletions)
+				repoStat.Commits = append(repoStat.Commits, commit.URL)
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, commit.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
+			repoStat := user.CodeStats{
+				ID:              id,
+				GitHubName:      githubName,
+				Month:           month,
+				Year:            year,
+				Repository:      commit.Repository,
+				CommitAdditions: int64(commit.Additions),
+				CommitDeletions: int64(commit.Deletions),
+				Commits:         []string{commit.URL},
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
 	return repoStats
 }

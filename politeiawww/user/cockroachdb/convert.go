@@ -93,6 +93,7 @@ func (c *cockroachdb) convertCMSUsersFromDatabase(cu []CMSUser) ([]user.CMSUser,
 func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 	prs := ""
 	reviews := ""
+	commits := ""
 	for i, pr := range cs.PRs {
 		if i < len(cs.PRs)-1 {
 			prs += pr + ","
@@ -107,6 +108,13 @@ func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 			reviews += review
 		}
 	}
+	for i, commit := range cs.Commits {
+		if i < len(cs.Commits)-1 {
+			reviews += commit + ","
+		} else {
+			reviews += commit
+		}
+	}
 	id := fmt.Sprintf("%v-%v-%v-%v", cs.GitHubName, cs.Repository,
 		strconv.Itoa(cs.Month), strconv.Itoa(cs.Year))
 	return CMSCodeStats{
@@ -117,18 +125,22 @@ func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 		Year:             cs.Year,
 		PRs:              prs,
 		Reviews:          reviews,
+		Commits:          commits,
 		MergedAdditions:  cs.MergedAdditions,
 		MergedDeletions:  cs.MergedDeletions,
 		UpdatedAdditions: cs.UpdatedAdditions,
 		UpdatedDeletions: cs.UpdatedDeletions,
 		ReviewAdditions:  cs.ReviewAdditions,
 		ReviewDeletions:  cs.ReviewDeletions,
+		CommitAdditons:   cs.CommitAdditions,
+		CommitDeletions:  cs.CommitDeletions,
 	}
 }
 
 func convertCodestatsFromDatabase(cs CMSCodeStats) user.CodeStats {
 	prs := strings.Split(cs.PRs, ",")
 	reviews := strings.Split(cs.Reviews, ",")
+	commits := strings.Split(cs.Commits, ",")
 	return user.CodeStats{
 		ID:               cs.ID,
 		GitHubName:       cs.GitHubName,
@@ -137,11 +149,14 @@ func convertCodestatsFromDatabase(cs CMSCodeStats) user.CodeStats {
 		Year:             cs.Year,
 		PRs:              prs,
 		Reviews:          reviews,
+		Commits:          commits,
 		MergedAdditions:  cs.MergedAdditions,
 		MergedDeletions:  cs.MergedDeletions,
 		UpdatedAdditions: cs.UpdatedAdditions,
 		UpdatedDeletions: cs.UpdatedDeletions,
 		ReviewAdditions:  cs.ReviewAdditions,
 		ReviewDeletions:  cs.ReviewDeletions,
+		CommitAdditions:  cs.CommitAdditons,
+		CommitDeletions:  cs.CommitDeletions,
 	}
 }

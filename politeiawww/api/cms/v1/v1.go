@@ -1076,6 +1076,9 @@ type CodeStats struct {
 	UpdatedDeletions int64    `json:"updateddeletions"`
 	ReviewAdditions  int64    `json:"reviewadditions"`
 	ReviewDeletions  int64    `json:"reviewdeletions"`
+	CommitAdditions  int64    `json:"commitadditions"`
+	CommitDeletions  int64    `json:"commitdeletions"`
 	PRs              []string `json:"prs"`
 	Reviews          []string `json:"reviews"`
+	Commits          []string `json:"commits"`
 }
