@@ -936,6 +936,65 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+func (p *politeiawww) handleInvoiceTokenInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInvoiceTokenInventory")
+
+	var iti cms.InvoiceTokenInventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&iti); err != nil {
+		RespondWithError(w, r, 0, "handleInvoiceTokenInventory: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleInvoiceTokenInventory: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processInvoiceTokenInventory(iti, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleInvoiceTokenInventory: processInvoiceTokenInventory: %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleBatchInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleBatchInvoices")
+
+	var bi cms.BatchInvoices
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bi); err != nil {
+		RespondWithError(w, r, 0, "handleBatchInvoices: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleBatchInvoices: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processBatchInvoices(bi, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleBatchInvoices: processBatchInvoices %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
@@ -1178,6 +1237,12 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteInvoiceTokenInventory, p.handleInvoiceTokenInventory,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteBatchInvoices, p.handleBatchInvoices,
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		www.RouteTokenInventory, p.handlePassThroughTokenInventory,

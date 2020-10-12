@@ -28,6 +28,9 @@ server side notifications.  It does not render HTML.
     - [`Vote Details`](#vote-details)
     - [`Active votes`](#active-votes)
     - [`Start vote`](#start-vote)
+    - [`Proposal owners`](#proposal-owners)
+    - [`Invoice token inventory`](#invoice-token-inventory)
+    - [`Batch invoices`](#batch-invoices)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
     - [Line item type codes](#line-item-type-codes)
@@ -1960,7 +1963,134 @@ Reply:
       ]
     }
   }
-    
+```
+
+### `Invoice token inventory`
+
+Returns the invoice tokens on the inventory separated by their invoice status.
+This is a login permissioned route. If this call is done by a admin, it will 
+return all found tokens. If it is done by a user, it will return the tokens for
+invoices in which he is the author.
+
+**Route:** `POST /v1/invoices/tokeninventory`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| timestampMax | int64 | Upper limit for a invoice's timestamp | |
+| timestampMin | int64 | Lower limit for a invoice's timestamp | |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| unreviewed | array of censhorship tokens | Tokens of invoices 
+with [unreviewed](#InvoiceStatusNew) status
+| updated | array of censhorship tokens | Tokens of invoices 
+with [updated](#InvoiceStatusUpdated) status
+| disputed | array of censhorship tokens | Tokens of invoices 
+with [disputed](#InvoiceStatusDisputed) status
+| approved | array of censhorship tokens | Tokens of invoices 
+with [approved](#InvoiceStatusApproved) status
+| paid | array of censhorship tokens | Tokens of invoices 
+with [paid](#InvoiceStatusPaid) status
+| rejected | array of censhorship tokens | Tokens of invoices 
+with [rejected](#InvoiceStatusRejected) status
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```json
+{
+  "timestampmax": "1588002461",
+}
+```
+
+Reply:
+
+```json
+{
+  "unreviewed": [],
+  "updated": [
+    "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527"
+  ],
+  "disputed": [
+    "e02378d40b8b9240a8ba1e53419577683f02e71edf1e4865fc54b5477b31c9c5"
+  ],
+  "approved": [],
+  "paid": [
+    "2d9a58e55d17cdce496c1c8e9780828e9fdb7a727962a6ca498c91d9ceca5ebb"
+  ],
+  "rejected": []
+}
+```
+
+### `Batch invoices`
+
+Returns a list of invoice records for the provided censorship tokens. 
+
+**Route:** `POST /invoices/batch`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| tokens | array of censhorship tokens | Tokens to fetch their corresponding invoice. | |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| invoices | array of invoice records | The list of invoices for the requested tokens. 
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+- [`ErrorStatusMaxInvoicesExceeded`](#ErrorStatusMaxInvoicesExceeded)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
+
+**Example**
+
+Request:
+
+```json
+{
+  "tokens": [
+    "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+  ]
+}
+```
+
+Reply:
+
+```json
+{
+  "invoices": [
+    {
+        "status": 4,
+        "month": 12,
+        "year": 2018,
+        "timestamp": 1508296860781,
+        "userid": "0",
+        "username": "foobar",
+        "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+        "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+        "version": "1",
+        "censorshiprecord": {
+          "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+          "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+          "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+        }
+    },
+  ]
+}
 ```
 
 ### Error codes
@@ -2015,6 +2145,10 @@ Reply:
 | <a name="ErrorStatusMissingSubUserIDLineItem">ErrorStatusMissingSubUserIDLineItem</a> | 1048 | Subcontractor ID cannot be blank |
 | <a name="ErrorStatusInvalidSubUserIDLineItem">ErrorStatusInvalidSubUserIDLineItem</a> | 1049 | An invalid subcontractor ID was attempted to be used. |
 | <a name="ErrorStatusInvalidSupervisorUser">ErrorStatusInvalidSupervisorUser</a> | 1050 | An invalid Supervisor User ID was attempted to be used. |
+| <a name="ErrorStatusMalformedDCC">ErrorStatusMalformedDCC</a> | 1051 | A malformed DCC was attempted to be used. |
+| <a name="ErrorStatusMaxInvoicesExceeded">ErrorStatusMaxInvoicesExceeded</a> | 1052 | Number of invoices requested exceeded the InvoiceListPageSize. |
+| <a name="ErrorStatusMalformedDCC">ErrorStatusMalformedDCC</a> | 1051 | A malformed DCC was attempted to be used. |
+| <a name="ErrorStatusMaxInvoicesExceeded">ErrorStatusMaxInvoicesExceeded</a> | 1052 | Number of invoices requested exceeded the InvoiceListPageSize. |
 
 ### Invoice status codes
 

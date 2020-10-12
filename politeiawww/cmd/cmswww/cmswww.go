@@ -57,6 +57,7 @@ type cmswww struct {
 	// Commands
 	ActiveVotes            ActiveVotesCmd            `command:"activevotes" description:"(user) get the dccs that are being voted on"`
 	BatchProposals         shared.BatchProposalsCmd  `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
+	BatchInvoices          BatchInvoicesCmd          `command:"batchinvoices" description:"(user/admin) get invoices by list of record tokens"`
 	CensorComment          shared.CensorCommentCmd   `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername         shared.ChangeUsernameCmd  `command:"changeusername" description:"(user)   change the username for the logged in user"`
@@ -108,6 +109,7 @@ type cmswww struct {
 	Version                shared.VersionCmd         `command:"version" description:"(public) get server info and CSRF token"`
 	VoteDCC                VoteDCCCmd                `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
 	VoteDetails            VoteDetailsCmd            `command:"votedetails" description:"(user) get the details for a dcc vote"`
+	InvoiceTokenInventory  InvoiceTokenInventoryCmd  `command:"invoicetokeninventory" description:"(user/admin) get list of invoice tokens by status"`
 }
 
 // verifyInvoice verifies a invoice's merkle root, author signature, and
