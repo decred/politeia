@@ -122,6 +122,8 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 		return err
 	}
 	for _, commit := range commits {
+		commit.Repo = repoName
+		commit.Organization = org
 		// Add a new entry since there is nothing there now.
 		err = g.codedb.NewCommit(commit)
 		if err != nil {

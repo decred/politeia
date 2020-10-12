@@ -169,9 +169,15 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		return err
 	}
 
-	currentMonth := int(time.Now().Month())
-	currentYear := time.Now().Year()
+	now := time.Now()
+	// Whenever this runs we want to calculate the stats for the previous month.
+	// For example if it runs on Nov 1st it will calculate stats for October.
+	// If it is started on Oct. 15th it will calculate stats for September.
+	lastMonth := time.Date(now.Year(), now.Month()-1, now.Day(), now.Hour(),
+		now.Minute(), 0, 0, now.Location())
 
+	currentMonth := int(lastMonth.Month())
+	currentYear := int(lastMonth.Year())
 	for _, u := range reply.Users {
 		if u.GitHubName == "" {
 			// Just move along since user has no github name set
