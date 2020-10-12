@@ -36,12 +36,13 @@ func (a *Client) FetchCommit(org, repo string, sha string) (*PullRequestCommit, 
 	return &commit, nil
 }
 
-// FetchPullRequestCommits requests all of the commits under a given pull
+// FetchPullRequestCommits requests all of the commit hashes under a given pull
 // request based on the organization, repo, and pull request number.
-func (a *Client) FetchPullRequestCommits(org, repo string, prNum int) ([]*PullRequestCommit, error) {
-	var totalPullRequestCommits []PullRequestCommit
+func (a *Client) FetchPullRequestCommitSHAs(org, repo string, prNum int) ([]string, error) {
+	totalPullRequestSHAs := make([]string, 0, 1048)
 	page := 1
 	for {
+		fmt.Println("requesting pr commtis", repo, page)
 		url := fmt.Sprintf(apiPullRequestCommitsURL, org, repo, prNum, page)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -62,20 +63,27 @@ func (a *Client) FetchPullRequestCommits(org, repo string, prNum int) ([]*PullRe
 		if len(pullRequestCommits) == 0 {
 			break
 		}
-
-		totalPullRequestCommits = append(totalPullRequestCommits, pullRequestCommits...)
+		prSHAs := make([]string, 0, len(pullRequestCommits))
+		for _, commit := range pullRequestCommits {
+			prSHAs = append(prSHAs, commit.SHA)
+		}
+		totalPullRequestSHAs = append(totalPullRequestSHAs, prSHAs...)
 		page++
 	}
+	return totalPullRequestSHAs, nil
+}
 
+// FetchPullRequestCommits returns a list of parsed commits based on org,
+// repo and a list of hashes provided in the arguments.
+func (a *Client) FetchPullRequestCommits(org, repo string, hashes []string) ([]*PullRequestCommit, error) {
 	var totalCommits []*PullRequestCommit
-	for _, prCommit := range totalPullRequestCommits {
-		commit, err := a.FetchCommit(org, repo, prCommit.SHA)
+	for _, sha := range hashes {
+		commit, err := a.FetchCommit(org, repo, sha)
 		if err != nil {
-			log.Errorf("unable to fetch commit %v %v %v", org, repo, prCommit.SHA)
+			log.Errorf("unable to fetch commit %v %v %v", org, repo, sha)
 			continue
 		}
 		totalCommits = append(totalCommits, commit)
 	}
 	return totalCommits, nil
-
 }

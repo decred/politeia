@@ -33,11 +33,13 @@ type CommitStats struct {
 }
 
 type PullRequestCommit struct {
-	SHA     string         `json:"sha"`
-	URL     string         `json:"url"`
-	Parents []CommitParent `json:"parents"`
-	Stats   CommitStats    `json:"stats"`
-	Commit  Commit         `json:"commit"`
+	SHA       string         `json:"sha"`
+	URL       string         `json:"url"`
+	Parents   []CommitParent `json:"parents"`
+	Stats     CommitStats    `json:"stats"`
+	Commit    Commit         `json:"commit"`
+	Author    User           `json:"author"`
+	Committer User           `json:"committer"`
 
 	// local change
 	Discarded bool `json:"discarded"`

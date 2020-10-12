@@ -115,22 +115,18 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 			return err
 		}
 	}
+
+	// This will fetch all commits not already in the DB.
 	commits, err := g.fetchPullRequestCommits(org, repoName, pr.Number)
 	if err != nil {
 		return err
 	}
 	for _, commit := range commits {
-		_, err := g.codedb.CommitBySHA(commit.SHA)
-		if err == database.ErrNoCommitFound {
-			// Add a new entry since there is nothing there now.
-			err = g.codedb.NewCommit(commit)
-			if err != nil {
-				log.Errorf("error adding new commit: %v", err)
-				continue
-			}
-		} else if err != nil {
-			log.Errorf("error finding Commit in db", err)
-			return err
+		// Add a new entry since there is nothing there now.
+		err = g.codedb.NewCommit(commit)
+		if err != nil {
+			log.Errorf("error adding new commit: %v %v", commit.SHA, err)
+			continue
 		}
 	}
 	return nil
@@ -161,11 +157,26 @@ func (g *github) fetchPullRequestReviews(org, repoName string, prNum int, url st
 }
 
 func (g *github) fetchPullRequestCommits(org, repoName string, prNum int) ([]*database.Commit, error) {
-	prCommits, err := g.tc.FetchPullRequestCommits(org, repoName, prNum)
+	hashes, err := g.tc.FetchPullRequestCommitSHAs(org, repoName, prNum)
 	if err != nil {
 		return nil, err
 	}
 
+	neededHashes := make([]string, 0, 1048) // PNOOMA
+	for _, sha := range hashes {
+		_, err := g.codedb.CommitBySHA(sha)
+		if err == database.ErrNoCommitFound {
+			neededHashes = append(neededHashes, sha)
+		} else if err != nil {
+			log.Errorf("error finding commit in db %v %v", sha, err)
+			continue
+		}
+	}
+
+	prCommits, err := g.tc.FetchPullRequestCommits(org, repoName, neededHashes)
+	if err != nil {
+		return nil, err
+	}
 	commits := convertAPICommitsToDbComits(prCommits, org, repoName)
 	return commits, nil
 }
@@ -185,7 +196,12 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
-
+	/*
+		dbCommits, err := g.codedb.CommitsByUserDates(user, startDate, endDate)
+		if err != nil {
+			return nil, err
+		}
+	*/
 	// Now we need to see if there are any other hits in the DB so we can
 	// see if it was an update to an existing PR or if it is new.  If it is
 	// new then we just keep the current Additions/Deletions, If it is existing
