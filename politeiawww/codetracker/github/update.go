@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/codetracker/github/api"
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
@@ -116,6 +117,11 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 			return err
 		}
 	}
+	commits, err := g.fetchPullRequestCommits(org, repoName, pr.Number)
+	if err != nil {
+		return err
+	}
+	spew.Dump(commits)
 	return nil
 }
 
@@ -134,8 +140,7 @@ func (g *github) fetchPullRequest(org, repoName string, prNum int) (*database.Pu
 }
 
 func (g *github) fetchPullRequestReviews(org, repoName string, prNum int, url string) ([]database.PullRequestReview, error) {
-	prReviews, err := g.tc.FetchPullRequestReviews(org, repoName,
-		prNum)
+	prReviews, err := g.tc.FetchPullRequestReviews(org, repoName, prNum)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +148,17 @@ func (g *github) fetchPullRequestReviews(org, repoName string, prNum int, url st
 	reviews := convertAPIReviewsToDbReviews(prReviews, repoName, prNum, url)
 	return reviews, nil
 }
+
+func (g *github) fetchPullRequestCommits(org, repoName string, prNum int) ([]*database.Commit, error) {
+	prCommits, err := g.tc.FetchPullRequestCommits(org, repoName, prNum)
+	if err != nil {
+		return nil, err
+	}
+
+	commits := convertAPICommitsToDbComits(prCommits, org, repoName)
+	return commits, nil
+}
+
 func yearMonth(t time.Time) string {
 	return fmt.Sprintf("%d%02d", t.Year(), t.Month())
 }

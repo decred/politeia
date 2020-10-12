@@ -4,6 +4,45 @@
 
 package api
 
+// Author has basic information about the creator of a commit.
+type Author struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Date  string `json:"date"`
+}
+
+// Commit holds basic information about a given commit, but no details
+// about the actual changes.
+type Commit struct {
+	Author    Author `json:"author"`
+	Committer Author `json:"committer"`
+	Message   string `json:"message"`
+}
+
+// CommitParent has information about a commit's parent commit.
+type CommitParent struct {
+	SHA string `json:"sha"`
+	URL string `json:"url"`
+}
+
+// CommitStats contains basic LOC information about a given commit.
+type CommitStats struct {
+	Additions int `json:"additions"`
+	Deletions int `json:"deletions"`
+	Total     int `json:"total"`
+}
+
+type PullRequestCommit struct {
+	SHA     string         `json:"sha"`
+	URL     string         `json:"url"`
+	Parents []CommitParent `json:"parents"`
+	Stats   CommitStats    `json:"stats"`
+	Commit  Commit         `json:"commit"`
+
+	// local change
+	Discarded bool `json:"discarded"`
+}
+
 // PullsRequest contains all high level information returned from the
 // PullsRequest request.
 type PullsRequest struct {

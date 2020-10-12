@@ -105,3 +105,17 @@ type PullRequestReview struct {
 	Additions      int
 	Deletions      int
 }
+
+type Commit struct {
+	SHA       string `json:"sha"`
+	Date      int64  `json:"date"`
+	Author    string `json:"author"`
+	Committer string `json:"committer"`
+	Message   string `json:"message"`
+	URL       string `json:"url"`
+	ParentSHA string `json:"parentsha"`
+	ParentURL string `json:"parenturl"`
+	Additons  int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	Rebase    bool   `json:"rebase"`
+}

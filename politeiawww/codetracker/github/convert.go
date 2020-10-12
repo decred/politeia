@@ -15,6 +15,31 @@ import (
 
 const githubPullURL = "https://github.com"
 
+func convertAPICommitsToDbComits(apiCommits []*api.PullRequestCommit, org, repoName string) []*database.Commit {
+	dbCommits := make([]*database.Commit, 0, len(apiCommits))
+	for _, commit := range apiCommits {
+		parentSHA := ""
+		parentURL := ""
+		if len(commit.Parents) > 0 {
+			parentSHA = commit.Parents[0].SHA
+			parentURL = commit.Parents[0].URL
+		}
+		dbCommit := &database.Commit{
+			SHA:       commit.SHA,
+			URL:       commit.URL,
+			Message:   commit.Commit.Message,
+			Author:    commit.Commit.Author.Name,
+			Committer: commit.Commit.Committer.Name,
+			Date:      parseTime(commit.Commit.Author.Date).Unix(),
+			Additons:  commit.Stats.Additions,
+			Deletions: commit.Stats.Deletions,
+			ParentSHA: parentSHA,
+			ParentURL: parentURL,
+		}
+		dbCommits = append(dbCommits, dbCommit)
+	}
+	return dbCommits
+}
 func convertAPIPullRequestToDbPullRequest(apiPR *api.PullRequest, repoName, org string) (*database.PullRequest, error) {
 	url := githubPullURL + "/" + org + "/" + repoName + "/pull/" +
 		strconv.Itoa(apiPR.Number)
