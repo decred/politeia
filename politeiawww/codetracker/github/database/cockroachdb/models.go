@@ -62,3 +62,24 @@ type PullRequestReview struct {
 func (PullRequestReview) TableName() string {
 	return tableNameReviews
 }
+
+type Commit struct {
+	SHA          string `gorm:"primary_key"`
+	Repo         string `gorm:"repo"`
+	Organization string `gorm:"organization"`
+	Date         int64  `gorm:"not null"`
+	Author       string `gorm:"not null"`
+	Committer    string `gorm:"not null"`
+	Message      string `gorm:"not null"`
+	URL          string `gorm:"not null"`
+	ParentSHA    string `gorm:"not null"`
+	ParentURL    string `gorm:"not null"`
+	Additons     int    `gorm:"not null"`
+	Deletions    int    `gorm:"not null"`
+	Rebase       bool   `gorm:"not null"`
+}
+
+// TableName returns the table name of the commits table.
+func (Commit) TableName() string {
+	return tableNameCommits
+}

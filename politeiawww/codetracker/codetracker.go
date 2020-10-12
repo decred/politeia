@@ -21,6 +21,7 @@ type UserInformationResult struct {
 	Organization string                   `json:"organization"`
 	MergedPRs    []PullRequestInformation `json:"mergedprs"`
 	UpdatedPRs   []PullRequestInformation `json:"updatedprs"`
+	Commits      []CommitInformation      `json:"commits"`
 	Reviews      []ReviewInformation      `json:"reviews"`
 	Year         int                      `json:"year"`
 	Month        int                      `json:"month"`
@@ -46,4 +47,14 @@ type ReviewInformation struct {
 	Deletions  int    `json:"deletions"`
 	Date       string `json:"date"`
 	State      string `json:"state"`
+}
+
+// CommitInformation contains all the details of a review of a pull request.
+type CommitInformation struct {
+	Repository string `json:"repo"`
+	URL        string `json:"url"`
+	SHA        string `json:"sha"`
+	Additions  int    `json:"additions"`
+	Deletions  int    `json:"deletions"`
+	Date       int64  `json:"date"`
 }

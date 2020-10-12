@@ -5,10 +5,8 @@
 package github
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/codetracker/github/api"
 	"github.com/decred/politeia/politeiawww/codetracker/github/database"
@@ -121,7 +119,20 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 	if err != nil {
 		return err
 	}
-	spew.Dump(commits)
+	for _, commit := range commits {
+		_, err := g.codedb.CommitBySHA(commit.SHA)
+		if err == database.ErrNoCommitFound {
+			// Add a new entry since there is nothing there now.
+			err = g.codedb.NewCommit(commit)
+			if err != nil {
+				log.Errorf("error adding new commit: %v", err)
+				continue
+			}
+		} else if err != nil {
+			log.Errorf("error finding Commit in db", err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -157,10 +168,6 @@ func (g *github) fetchPullRequestCommits(org, repoName string, prNum int) ([]*da
 
 	commits := convertAPICommitsToDbComits(prCommits, org, repoName)
 	return commits, nil
-}
-
-func yearMonth(t time.Time) string {
-	return fmt.Sprintf("%d%02d", t.Year(), t.Month())
 }
 
 // UserInfo provides the converted information from pull requests and

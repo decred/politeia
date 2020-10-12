@@ -258,6 +258,12 @@ func createGHTables(tx *gorm.DB) error {
 			return err
 		}
 	}
+	if !tx.HasTable(tableNameCommits) {
+		err := tx.CreateTable(&Commit{}).Error
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 
@@ -280,6 +286,35 @@ func (c *cockroachdb) ReviewByID(id int64) (*database.PullRequestReview, error) 
 	}
 
 	return DecodePullRequestReview(&review), nil
+}
+
+// Create new commit.
+//
+// NewCommit satisfies the database interface.
+func (c *cockroachdb) NewCommit(dbCommit *database.Commit) error {
+	commit := encodeCommit(dbCommit)
+
+	log.Debugf("NewCommit: %v", commit.SHA)
+	return c.recordsdb.Create(&commit).Error
+}
+
+// CommitBySHA returns a commit given the provided hash.
+func (c *cockroachdb) CommitBySHA(sha string) (*database.Commit, error) {
+	log.Debugf("CommitBySHA: %v", sha)
+
+	commit := Commit{
+		SHA: sha,
+	}
+	err := c.recordsdb.
+		Find(&commit).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrNoCommitFound
+		}
+		return nil, err
+	}
+
+	return decodeCommit(&commit), nil
 }
 
 // Setup calls the tables creation function to ensure the database is prepared

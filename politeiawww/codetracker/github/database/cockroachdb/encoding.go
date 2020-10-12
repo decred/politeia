@@ -101,3 +101,35 @@ func convertMatchingReviewsToDatabaseReviews(matching []MatchingReviews) []datab
 	}
 	return reviews
 }
+
+func encodeCommit(dbCommit *database.Commit) Commit {
+	commit := Commit{
+		SHA:       dbCommit.SHA,
+		URL:       dbCommit.URL,
+		Message:   dbCommit.Message,
+		Date:      dbCommit.Date,
+		Author:    dbCommit.Author,
+		Committer: dbCommit.Committer,
+		ParentSHA: dbCommit.ParentSHA,
+		ParentURL: dbCommit.ParentURL,
+		Additons:  dbCommit.Additons,
+		Deletions: dbCommit.Deletions,
+	}
+	return commit
+}
+
+func decodeCommit(commit *Commit) *database.Commit {
+	dbCommit := &database.Commit{
+		SHA:       commit.SHA,
+		URL:       commit.URL,
+		Message:   commit.Message,
+		Date:      commit.Date,
+		Author:    commit.Author,
+		Committer: commit.Committer,
+		ParentSHA: commit.ParentSHA,
+		ParentURL: commit.ParentURL,
+		Additons:  commit.Additons,
+		Deletions: commit.Deletions,
+	}
+	return dbCommit
+}

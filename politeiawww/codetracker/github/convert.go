@@ -25,16 +25,18 @@ func convertAPICommitsToDbComits(apiCommits []*api.PullRequestCommit, org, repoN
 			parentURL = commit.Parents[0].URL
 		}
 		dbCommit := &database.Commit{
-			SHA:       commit.SHA,
-			URL:       commit.URL,
-			Message:   commit.Commit.Message,
-			Author:    commit.Commit.Author.Name,
-			Committer: commit.Commit.Committer.Name,
-			Date:      parseTime(commit.Commit.Author.Date).Unix(),
-			Additons:  commit.Stats.Additions,
-			Deletions: commit.Stats.Deletions,
-			ParentSHA: parentSHA,
-			ParentURL: parentURL,
+			SHA:          commit.SHA,
+			URL:          commit.URL,
+			Message:      commit.Commit.Message,
+			Author:       commit.Commit.Author.Name,
+			Committer:    commit.Commit.Committer.Name,
+			Date:         parseTime(commit.Commit.Author.Date).Unix(),
+			Additons:     commit.Stats.Additions,
+			Deletions:    commit.Stats.Deletions,
+			ParentSHA:    parentSHA,
+			ParentURL:    parentURL,
+			Repo:         repoName,
+			Organization: org,
 		}
 		dbCommits = append(dbCommits, dbCommit)
 	}
@@ -128,14 +130,34 @@ func convertDBPullRequestReviewsToReviews(dbReviews []database.PullRequestReview
 	}
 	return reviewInfo
 }
-func convertCodeStatsToUserInformation(mergedPRs []*database.PullRequest, updatedPRs []*database.PullRequest, reviews []database.PullRequestReview) *codetracker.UserInformationResult {
+
+func convertDBCommitsToCommits(dbCommits []database.Commit) []codetracker.CommitInformation {
+	commitInfo := make([]codetracker.CommitInformation, 0, len(dbCommits))
+
+	for _, dbCommit := range dbCommits {
+		commit := codetracker.CommitInformation{
+			SHA:        dbCommit.SHA,
+			URL:        dbCommit.URL,
+			Repository: dbCommit.Repo,
+			Additions:  dbCommit.Additons,
+			Deletions:  dbCommit.Deletions,
+			Date:       dbCommit.Date,
+		}
+		commitInfo = append(commitInfo, commit)
+	}
+	return commitInfo
+}
+
+func convertCodeStatsToUserInformation(mergedPRs []*database.PullRequest, updatedPRs []*database.PullRequest, reviews []database.PullRequestReview, commits []database.Commit) *codetracker.UserInformationResult {
 	userInfo := &codetracker.UserInformationResult{}
 	mergedPRInfo := convertDBPullRequestsToPullRequests(mergedPRs)
 	updatedPRInfo := convertDBPullRequestsToPullRequests(updatedPRs)
 	reviewInfo := convertDBPullRequestReviewsToReviews(reviews)
+	commitInfo := convertDBCommitsToCommits(commits)
 
 	userInfo.MergedPRs = mergedPRInfo
 	userInfo.UpdatedPRs = updatedPRInfo
 	userInfo.Reviews = reviewInfo
+	userInfo.Commits = commitInfo
 	return userInfo
 }

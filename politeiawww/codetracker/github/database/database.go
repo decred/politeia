@@ -17,6 +17,10 @@ var (
 
 	// ErrNoPullRequestReviewFound is emitted when no review matches.
 	ErrNoPullRequestReviewFound = errors.New("no pull request review found")
+
+	// ErrNoCommitFound is emitted when no commit matches.
+	ErrNoCommitFound = errors.New("no commit found")
+
 	// ErrWrongVersion is emitted when the version record does not
 	// match the implementation version.
 	ErrWrongVersion = errors.New("wrong version")
@@ -61,6 +65,12 @@ type Database interface {
 
 	// ReviewByID returns a pull request review with a matching ID.
 	ReviewByID(id int64) (*PullRequestReview, error)
+
+	// NewCommit creates a new entry for a pull request commit.
+	NewCommit(*Commit) error
+
+	// CommitBySHA returns a commit that matches the SHA.
+	CommitBySHA(sha string) (*Commit, error)
 
 	// ReviewsByUserDates retrusn all reviews from the given user between
 	// the dates provided.
@@ -107,15 +117,17 @@ type PullRequestReview struct {
 }
 
 type Commit struct {
-	SHA       string `json:"sha"`
-	Date      int64  `json:"date"`
-	Author    string `json:"author"`
-	Committer string `json:"committer"`
-	Message   string `json:"message"`
-	URL       string `json:"url"`
-	ParentSHA string `json:"parentsha"`
-	ParentURL string `json:"parenturl"`
-	Additons  int    `json:"additions"`
-	Deletions int    `json:"deletions"`
-	Rebase    bool   `json:"rebase"`
+	SHA          string `json:"sha"`
+	Repo         string `json:"repo"`
+	Organization string `json:"organization"`
+	Date         int64  `json:"date"`
+	Author       string `json:"author"`
+	Committer    string `json:"committer"`
+	Message      string `json:"message"`
+	URL          string `json:"url"`
+	ParentSHA    string `json:"parentsha"`
+	ParentURL    string `json:"parenturl"`
+	Additons     int    `json:"additions"`
+	Deletions    int    `json:"deletions"`
+	Rebase       bool   `json:"rebase"`
 }
