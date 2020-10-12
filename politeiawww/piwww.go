@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -720,7 +721,7 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 // be returned even if the proposal Files are not returned, which means that we
 // will always need to fetch the record from politeiad with the files attached
 // since the proposal Metadata is saved to politeiad as a politeiad File.
-func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalRequest, includeFiles bool) (map[string]pi.ProposalRecord, error) {
+func (p *politeiawww) proposalRecords(ctx context.Context, state pi.PropStateT, reqs []pi.ProposalRequest, includeFiles bool) (map[string]pi.ProposalRecord, error) {
 	// Get politeiad records
 	props := make([]pi.ProposalRecord, 0, len(reqs))
 	for _, v := range reqs {
@@ -729,13 +730,13 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 		switch state {
 		case pi.PropStateUnvetted:
 			// Unvetted politeiad record
-			r, err = p.getUnvetted(v.Token, v.Version)
+			r, err = p.getUnvetted(ctx, v.Token, v.Version)
 			if err != nil {
 				return nil, err
 			}
 		case pi.PropStateVetted:
 			// Vetted politeiad record
-			r, err = p.getVetted(v.Token, v.Version)
+			r, err = p.getVetted(ctx, v.Token, v.Version)
 			if err != nil {
 				return nil, err
 			}
@@ -776,7 +777,7 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 		State:  convertPropStateFromPi(state),
 		Tokens: tokens,
 	}
-	psr, err := p.piProposals(ps)
+	psr, err := p.piProposals(ctx, ps)
 	if err != nil {
 		return nil, fmt.Errorf("proposalPluginData: %v", err)
 	}
@@ -823,8 +824,8 @@ func (p *politeiawww) proposalRecords(state pi.PropStateT, reqs []pi.ProposalReq
 // version. A blank version will return the most recent version. A
 // errProposalNotFound error will be returned if a proposal is not found for
 // the provided token/version combination.
-func (p *politeiawww) proposalRecord(state pi.PropStateT, token, version string) (*pi.ProposalRecord, error) {
-	prs, err := p.proposalRecords(state, []pi.ProposalRequest{
+func (p *politeiawww) proposalRecord(ctx context.Context, state pi.PropStateT, token, version string) (*pi.ProposalRecord, error) {
+	prs, err := p.proposalRecords(ctx, state, []pi.ProposalRequest{
 		{
 			Token:   token,
 			Version: version,
@@ -843,8 +844,8 @@ func (p *politeiawww) proposalRecord(state pi.PropStateT, token, version string)
 // proposalRecordLatest returns the latest version of the proposal record for
 // the provided token. A errProposalNotFound error will be returned if a
 // proposal is not found for the provided token.
-func (p *politeiawww) proposalRecordLatest(state pi.PropStateT, token string) (*pi.ProposalRecord, error) {
-	return p.proposalRecord(state, token, "")
+func (p *politeiawww) proposalRecordLatest(ctx context.Context, state pi.PropStateT, token string) (*pi.ProposalRecord, error) {
+	return p.proposalRecord(ctx, state, token, "")
 }
 
 func (p *politeiawww) verifyProposalMetadata(pm pi.ProposalMetadata) error {
@@ -1133,7 +1134,7 @@ func (p *politeiawww) verifyProposal(files []pi.File, metadata []pi.Metadata, pu
 	return &pm, nil
 }
 
-func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.ProposalNewReply, error) {
+func (p *politeiawww) processProposalNew(ctx context.Context, pn pi.ProposalNew, usr user.User) (*pi.ProposalNewReply, error) {
 	log.Tracef("processProposalNew: %v", usr.Username)
 
 	// Verify user has paid registration paywall
@@ -1196,7 +1197,7 @@ func (p *politeiawww) processProposalNew(pn pi.ProposalNew, usr user.User) (*pi.
 	}
 
 	// Send politeiad request
-	dcr, err := p.newRecord(metadata, files)
+	dcr, err := p.newRecord(ctx, metadata, files)
 	if err != nil {
 		return nil, err
 	}
@@ -1247,7 +1248,7 @@ func filesToDel(current []pi.File, updated []pi.File) []string {
 	return del
 }
 
-func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*pi.ProposalEditReply, error) {
+func (p *politeiawww) processProposalEdit(ctx context.Context, pe pi.ProposalEdit, usr user.User) (*pi.ProposalEditReply, error) {
 	log.Tracef("processProposalEdit: %v", pe.Token)
 
 	// Verify token
@@ -1283,7 +1284,7 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	}
 
 	// Get the current proposal
-	curr, err := p.proposalRecordLatest(pe.State, pe.Token)
+	curr, err := p.proposalRecordLatest(ctx, pe.State, pe.Token)
 	if err != nil {
 		if err == errProposalNotFound {
 			return nil, pi.UserErrorReply{
@@ -1356,13 +1357,13 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	var r *pd.Record
 	switch pe.State {
 	case pi.PropStateUnvetted:
-		r, err = p.updateUnvetted(pe.Token, mdAppend, mdOverwrite,
+		r, err = p.updateUnvetted(ctx, pe.Token, mdAppend, mdOverwrite,
 			filesAdd, filesDel)
 		if err != nil {
 			return nil, err
 		}
 	case pi.PropStateVetted:
-		r, err = p.updateVetted(pe.Token, mdAppend, mdOverwrite,
+		r, err = p.updateVetted(ctx, pe.Token, mdAppend, mdOverwrite,
 			filesAdd, filesDel)
 		if err != nil {
 			return nil, err
@@ -1392,7 +1393,7 @@ func (p *politeiawww) processProposalEdit(pe pi.ProposalEdit, usr user.User) (*p
 	}, nil
 }
 
-func (p *politeiawww) processProposalStatusSet(pss pi.ProposalStatusSet, usr user.User) (*pi.ProposalStatusSetReply, error) {
+func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.ProposalStatusSet, usr user.User) (*pi.ProposalStatusSetReply, error) {
 	log.Tracef("processProposalStatusSet: %v %v", pss.Token, pss.Status)
 
 	// Sanity check
@@ -1484,12 +1485,12 @@ func (p *politeiawww) processProposalStatusSet(pss pi.ProposalStatusSet, usr use
 	status := convertRecordStatusFromPropStatus(pss.Status)
 	switch pss.State {
 	case pi.PropStateUnvetted:
-		r, err = p.setUnvettedStatus(pss.Token, status, mdAppend, mdOverwrite)
+		r, err = p.setUnvettedStatus(ctx, pss.Token, status, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
 	case pi.PropStateVetted:
-		r, err = p.setVettedStatus(pss.Token, status, mdAppend, mdOverwrite)
+		r, err = p.setVettedStatus(ctx, pss.Token, status, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
@@ -1510,10 +1511,10 @@ func (p *politeiawww) processProposalStatusSet(pss pi.ProposalStatusSet, usr use
 	}, nil
 }
 
-func (p *politeiawww) processProposals(ps pi.Proposals, isAdmin bool) (*pi.ProposalsReply, error) {
+func (p *politeiawww) processProposals(ctx context.Context, ps pi.Proposals, isAdmin bool) (*pi.ProposalsReply, error) {
 	log.Tracef("processProposals: %v", ps.Requests)
 
-	props, err := p.proposalRecords(ps.State, ps.Requests, ps.IncludeFiles)
+	props, err := p.proposalRecords(ctx, ps.State, ps.Requests, ps.IncludeFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -1537,10 +1538,10 @@ func (p *politeiawww) processProposals(ps pi.Proposals, isAdmin bool) (*pi.Propo
 	}, nil
 }
 
-func (p *politeiawww) processProposalInventory(isAdmin bool) (*pi.ProposalInventoryReply, error) {
+func (p *politeiawww) processProposalInventory(ctx context.Context, isAdmin bool) (*pi.ProposalInventoryReply, error) {
 	log.Tracef("processProposalInventory")
 
-	ir, err := p.inventoryByStatus()
+	ir, err := p.inventoryByStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1560,7 +1561,7 @@ func (p *politeiawww) processProposalInventory(isAdmin bool) (*pi.ProposalInvent
 	return &reply, nil
 }
 
-func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.CommentNewReply, error) {
+func (p *politeiawww) processCommentNew(ctx context.Context, cn pi.CommentNew, usr user.User) (*pi.CommentNewReply, error) {
 	log.Tracef("processCommentNew: %v", usr.Username)
 
 	// Verify user has paid registration paywall
@@ -1582,7 +1583,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	// unvetted proposals.
 	if cn.State == pi.PropStateUnvetted && !usr.Admin {
 		// Fetch the proposal so we can see who the author is
-		pr, err := p.proposalRecordLatest(cn.State, cn.Token)
+		pr, err := p.proposalRecordLatest(ctx, cn.State, cn.Token)
 		if err != nil {
 			if err == errProposalNotFound {
 				return nil, pi.UserErrorReply{
@@ -1609,7 +1610,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 		PublicKey: cn.PublicKey,
 		Signature: cn.Signature,
 	}
-	cnr, err := p.piCommentNew(pcn)
+	cnr, err := p.piCommentNew(ctx, pcn)
 	if err != nil {
 		return nil, err
 	}
@@ -1631,7 +1632,7 @@ func (p *politeiawww) processCommentNew(cn pi.CommentNew, usr user.User) (*pi.Co
 	}, nil
 }
 
-func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.CommentVoteReply, error) {
+func (p *politeiawww) processCommentVote(ctx context.Context, cv pi.CommentVote, usr user.User) (*pi.CommentVoteReply, error) {
 	log.Tracef("processCommentVote: %v %v %v", cv.Token, cv.CommentID, cv.Vote)
 
 	// Verify state
@@ -1667,7 +1668,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 		PublicKey: cv.PublicKey,
 		Signature: cv.Signature,
 	}
-	cvr, err := p.piCommentVote(pcv)
+	cvr, err := p.piCommentVote(ctx, pcv)
 	if err != nil {
 		return nil, err
 	}
@@ -1680,7 +1681,7 @@ func (p *politeiawww) processCommentVote(cv pi.CommentVote, usr user.User) (*pi.
 	}, nil
 }
 
-func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (*pi.CommentCensorReply, error) {
+func (p *politeiawww) processCommentCensor(ctx context.Context, cc pi.CommentCensor, usr user.User) (*pi.CommentCensorReply, error) {
 	log.Tracef("processCommentCensor: %v %v", cc.Token, cc.CommentID)
 
 	// Sanity check
@@ -1705,7 +1706,7 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 		PublicKey: cc.PublicKey,
 		Signature: cc.Signature,
 	}
-	ccr, err := p.piCommentCensor(pcc)
+	ccr, err := p.piCommentCensor(ctx, pcc)
 	if err != nil {
 		return nil, err
 	}
@@ -1716,7 +1717,7 @@ func (p *politeiawww) processCommentCensor(cc pi.CommentCensor, usr user.User) (
 	}, nil
 }
 
-func (p *politeiawww) processComments(c pi.Comments, usr *user.User) (*pi.CommentsReply, error) {
+func (p *politeiawww) processComments(ctx context.Context, c pi.Comments, usr *user.User) (*pi.CommentsReply, error) {
 	log.Tracef("processComments: %v", c.Token)
 
 	// Only admins and the proposal author are allowed to retrieve
@@ -1733,7 +1734,7 @@ func (p *politeiawww) processComments(c pi.Comments, usr *user.User) (*pi.Commen
 		default:
 			// Logged in user is not an admin. Check if they are the
 			// proposal author.
-			pr, err := p.proposalRecordLatest(c.State, c.Token)
+			pr, err := p.proposalRecordLatest(ctx, c.State, c.Token)
 			if err != nil {
 				if err == errProposalNotFound {
 					return nil, pi.UserErrorReply{
@@ -1756,7 +1757,7 @@ func (p *politeiawww) processComments(c pi.Comments, usr *user.User) (*pi.Commen
 	}
 
 	// Send plugin command
-	reply, err := p.commentsAll(comments.GetAll{
+	reply, err := p.commentsAll(ctx, comments.GetAll{
 		State: convertCommentsStateFromPi(c.State),
 		Token: c.Token,
 	})
@@ -1791,7 +1792,7 @@ func (p *politeiawww) processComments(c pi.Comments, usr *user.User) (*pi.Commen
 	}, nil
 }
 
-func (p *politeiawww) processCommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
+func (p *politeiawww) processCommentVotes(ctx context.Context, cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
 	log.Tracef("processCommentVotes: %v %v", cv.Token, cv.UserID)
 
 	// Verify state
@@ -1808,7 +1809,7 @@ func (p *politeiawww) processCommentVotes(cv pi.CommentVotes) (*pi.CommentVotesR
 		Token:  cv.Token,
 		UserID: cv.UserID,
 	}
-	cvr, err := p.commentVotes(v)
+	cvr, err := p.commentVotes(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -1818,7 +1819,7 @@ func (p *politeiawww) processCommentVotes(cv pi.CommentVotes) (*pi.CommentVotesR
 	}, nil
 }
 
-func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize, usr user.User) (*pi.VoteAuthorizeReply, error) {
+func (p *politeiawww) processVoteAuthorize(ctx context.Context, va pi.VoteAuthorize, usr user.User) (*pi.VoteAuthorizeReply, error) {
 	log.Tracef("processVoteAuthorize: %v", va.Token)
 
 	// Verify user signed with their active identity
@@ -1830,7 +1831,7 @@ func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize, usr user.User) (
 	}
 
 	// Send plugin command
-	ar, err := p.voteAuthorize(convertVoteAuthorizeFromPi(va))
+	ar, err := p.voteAuthorize(ctx, convertVoteAuthorizeFromPi(va))
 	if err != nil {
 		return nil, err
 	}
@@ -1841,7 +1842,7 @@ func (p *politeiawww) processVoteAuthorize(va pi.VoteAuthorize, usr user.User) (
 	}, nil
 }
 
-func (p *politeiawww) processVoteStart(vs pi.VoteStart, usr user.User) (*pi.VoteStartReply, error) {
+func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr user.User) (*pi.VoteStartReply, error) {
 	log.Tracef("processVoteStart: %v", vs.Params.Token)
 
 	// Sanity check
@@ -1858,7 +1859,7 @@ func (p *politeiawww) processVoteStart(vs pi.VoteStart, usr user.User) (*pi.Vote
 	}
 
 	// Call the ticketvote plugin to start vote
-	reply, err := p.voteStart(convertVoteStartFromPi(vs))
+	reply, err := p.voteStart(ctx, convertVoteStartFromPi(vs))
 	if err != nil {
 		return nil, err
 	}
@@ -1871,7 +1872,7 @@ func (p *politeiawww) processVoteStart(vs pi.VoteStart, usr user.User) (*pi.Vote
 	}, nil
 }
 
-func (p *politeiawww) processVoteStartRunoff(vsr pi.VoteStartRunoff, usr user.User) (*pi.VoteStartRunoffReply, error) {
+func (p *politeiawww) processVoteStartRunoff(ctx context.Context, vsr pi.VoteStartRunoff, usr user.User) (*pi.VoteStartRunoffReply, error) {
 	log.Tracef("processVoteStartRunoff: %v", vsr.Token)
 
 	// Sanity check
@@ -1908,7 +1909,7 @@ func (p *politeiawww) processVoteStartRunoff(vsr pi.VoteStartRunoff, usr user.Us
 		Auths:  convertVoteAuthsFromPi(vsr.Auths),
 		Starts: convertVoteStartsFromPi(vsr.Starts),
 	}
-	srr, err := p.voteStartRunoff(tsr)
+	srr, err := p.voteStartRunoff(ctx, tsr)
 	if err != nil {
 		return nil, err
 	}
@@ -1921,13 +1922,13 @@ func (p *politeiawww) processVoteStartRunoff(vsr pi.VoteStartRunoff, usr user.Us
 	}, nil
 }
 
-func (p *politeiawww) processVoteBallot(vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
+func (p *politeiawww) processVoteBallot(ctx context.Context, vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
 	log.Tracef("processVoteBallot")
 
 	b := ticketvote.Ballot{
 		Votes: convertCastVotesFromPi(vb.Votes),
 	}
-	reply, err := p.voteBallot(b)
+	reply, err := p.voteBallot(ctx, b)
 	if err != nil {
 		return nil, err
 	}
@@ -1937,10 +1938,10 @@ func (p *politeiawww) processVoteBallot(vb pi.VoteBallot) (*pi.VoteBallotReply, 
 	}, nil
 }
 
-func (p *politeiawww) processVotes(v pi.Votes) (*pi.VotesReply, error) {
+func (p *politeiawww) processVotes(ctx context.Context, v pi.Votes) (*pi.VotesReply, error) {
 	log.Tracef("processVotes: %v", v.Tokens)
 
-	vd, err := p.voteDetails(v.Tokens)
+	vd, err := p.voteDetails(ctx, v.Tokens)
 	if err != nil {
 		return nil, err
 	}
@@ -1950,10 +1951,10 @@ func (p *politeiawww) processVotes(v pi.Votes) (*pi.VotesReply, error) {
 	}, nil
 }
 
-func (p *politeiawww) processVoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
+func (p *politeiawww) processVoteResults(ctx context.Context, vr pi.VoteResults) (*pi.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", vr.Token)
 
-	cvr, err := p.castVotes(vr.Token)
+	cvr, err := p.castVotes(ctx, vr.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1963,10 +1964,10 @@ func (p *politeiawww) processVoteResults(vr pi.VoteResults) (*pi.VoteResultsRepl
 	}, nil
 }
 
-func (p *politeiawww) processVoteSummaries(vs pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
+func (p *politeiawww) processVoteSummaries(ctx context.Context, vs pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
 	log.Tracef("processVoteSummaries: %v", vs.Tokens)
 
-	r, err := p.voteSummaries(vs.Tokens)
+	r, err := p.voteSummaries(ctx, vs.Tokens)
 	if err != nil {
 		return nil, err
 	}
@@ -1977,10 +1978,10 @@ func (p *politeiawww) processVoteSummaries(vs pi.VoteSummaries) (*pi.VoteSummari
 	}, nil
 }
 
-func (p *politeiawww) processVoteInventory() (*pi.VoteInventoryReply, error) {
+func (p *politeiawww) processVoteInventory(ctx context.Context) (*pi.VoteInventoryReply, error) {
 	log.Tracef("processVoteInventory")
 
-	r, err := p.piVoteInventory()
+	r, err := p.piVoteInventory(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2015,7 +2016,7 @@ func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	pnr, err := p.processProposalNew(pn, *user)
+	pnr, err := p.processProposalNew(r.Context(), pn, *user)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalNew: processProposalNew: %v", err)
@@ -2045,7 +2046,7 @@ func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	per, err := p.processProposalEdit(pe, *user)
+	per, err := p.processProposalEdit(r.Context(), pe, *user)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalEdit: processProposalEdit: %v", err)
@@ -2075,7 +2076,7 @@ func (p *politeiawww) handleProposalStatusSet(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	pssr, err := p.processProposalStatusSet(pss, *usr)
+	pssr, err := p.processProposalStatusSet(r.Context(), pss, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalStatusSet: processProposalStatusSet: %v", err)
@@ -2108,7 +2109,7 @@ func (p *politeiawww) handleProposals(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isAdmin := usr != nil && usr.Admin
-	ppi, err := p.processProposals(ps, isAdmin)
+	ppi, err := p.processProposals(r.Context(), ps, isAdmin)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposals: processProposals: %v", err)
@@ -2131,7 +2132,7 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 	}
 
 	isAdmin := usr != nil && usr.Admin
-	ppi, err := p.processProposalInventory(isAdmin)
+	ppi, err := p.processProposalInventory(r.Context(), isAdmin)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalInventory: processProposalInventory: %v", err)
@@ -2161,7 +2162,7 @@ func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cnr, err := p.processCommentNew(cn, *usr)
+	cnr, err := p.processCommentNew(r.Context(), cn, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentNew: processCommentNew: %v", err)
@@ -2191,7 +2192,7 @@ func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	vcr, err := p.processCommentVote(cv, *usr)
+	vcr, err := p.processCommentVote(r.Context(), cv, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVote: processCommentVote: %v", err)
@@ -2221,7 +2222,7 @@ func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ccr, err := p.processCommentCensor(cc, *usr)
+	ccr, err := p.processCommentCensor(r.Context(), cc, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentCensor: processCommentCensor: %v", err)
@@ -2253,7 +2254,7 @@ func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.processComments(c, usr)
+	cr, err := p.processComments(r.Context(), c, usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVote: processComments: %v", err)
@@ -2276,7 +2277,7 @@ func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cvr, err := p.processCommentVotes(cv)
+	cvr, err := p.processCommentVotes(r.Context(), cv)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleCommentVotes: processCommentVotes: %v", err)
@@ -2306,7 +2307,7 @@ func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	vr, err := p.processVoteAuthorize(va, *usr)
+	vr, err := p.processVoteAuthorize(r.Context(), va, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteAuthorize: processVoteAuthorize: %v", err)
@@ -2336,7 +2337,7 @@ func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vsr, err := p.processVoteStart(vs, *usr)
+	vsr, err := p.processVoteStart(r.Context(), vs, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStart: processVoteStart: %v", err)
@@ -2366,7 +2367,7 @@ func (p *politeiawww) handleVoteStartRunoff(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	vsrr, err := p.processVoteStartRunoff(vsr, *usr)
+	vsrr, err := p.processVoteStartRunoff(r.Context(), vsr, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStartRunoff: processVoteStartRunoff: %v", err)
@@ -2389,7 +2390,7 @@ func (p *politeiawww) handleVoteBallot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vbr, err := p.processVoteBallot(vb)
+	vbr, err := p.processVoteBallot(r.Context(), vb)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteBallot: processVoteBallot: %v", err)
@@ -2412,7 +2413,7 @@ func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vr, err := p.processVotes(v)
+	vr, err := p.processVotes(r.Context(), v)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVotes: processVotes: %v", err)
@@ -2435,7 +2436,7 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	vrr, err := p.processVoteResults(vr)
+	vrr, err := p.processVoteResults(r.Context(), vr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteResults: prcoessVoteResults: %v", err)
@@ -2458,7 +2459,7 @@ func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	vsr, err := p.processVoteSummaries(vs)
+	vsr, err := p.processVoteSummaries(r.Context(), vs)
 	if err != nil {
 		respondWithPiError(w, r, "handleVoteSummaries: processVoteSummaries: %v",
 			err)
@@ -2481,7 +2482,7 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	vir, err := p.processVoteInventory()
+	vir, err := p.processVoteInventory(r.Context())
 	if err != nil {
 		respondWithPiError(w, r, "handleVoteInventory: processVoteInventory: %v",
 			err)

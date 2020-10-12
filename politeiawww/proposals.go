@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"strconv"
 
@@ -180,10 +181,10 @@ func convertVoteErrorCodeToWWW(errcode ticketvote.VoteErrorT) decredplugin.Error
 	}
 }
 
-func (p *politeiawww) processProposalDetails(pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
+func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
-	pr, err := p.proposalRecord(pi.PropStateVetted, pd.Token, pd.Version)
+	pr, err := p.proposalRecord(ctx, pi.PropStateVetted, pd.Token, pd.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +198,7 @@ func (p *politeiawww) processProposalDetails(pd www.ProposalsDetails, u *user.Us
 	}, nil
 }
 
-func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
+func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
 	// Setup requests
@@ -209,7 +210,7 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User)
 	}
 
 	// Get proposals
-	props, err := p.proposalRecords(pi.PropStateVetted, prs, false)
+	props, err := p.proposalRecords(ctx, pi.PropStateVetted, prs, false)
 	if err != nil {
 		return nil, err
 	}
@@ -229,11 +230,11 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, u *user.User)
 	}, nil
 }
 
-func (p *politeiawww) processVoteResultsWWW(token string) (*www.VoteResultsReply, error) {
+func (p *politeiawww) processVoteResultsWWW(ctx context.Context, token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResultsWWW: %v", token)
 
 	// Get vote details
-	vd, err := p.voteDetails([]string{token})
+	vd, err := p.voteDetails(ctx, []string{token})
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +258,7 @@ func (p *politeiawww) processVoteResultsWWW(token string) (*www.VoteResultsReply
 	}
 
 	// Get cast votes
-	cv, err := p.castVotes(token)
+	cv, err := p.castVotes(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -296,11 +297,11 @@ func (p *politeiawww) processVoteResultsWWW(token string) (*www.VoteResultsReply
 	}, nil
 }
 
-func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
 	// Get vote summaries
-	sm, err := p.voteSummaries(bvs.Tokens)
+	sm, err := p.voteSummaries(ctx, bvs.Tokens)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +339,7 @@ func (p *politeiawww) processBatchVoteSummary(bvs www.BatchVoteSummary) (*www.Ba
 	}, nil
 }
 
-func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, error) {
+func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
 	// Prepare plugin command
@@ -360,7 +361,7 @@ func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, er
 	}
 
 	// Send plugin command
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot,
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdBallot,
 		string(payload))
 	if err != nil {
 		return nil, err
@@ -386,17 +387,17 @@ func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, er
 	}, nil
 }
 
-func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
+func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
 	// Get record inventory
-	ri, err := p.inventoryByStatus()
+	ri, err := p.inventoryByStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get vote inventory
-	vi, err := p.piVoteInventory()
+	vi, err := p.piVoteInventory(ctx)
 	if err != nil {
 		return nil, err
 	}

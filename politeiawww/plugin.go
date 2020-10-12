@@ -62,7 +62,7 @@ func (p *politeiawww) getPluginInventory() ([]plugin, error) {
 			return nil, fmt.Errorf("max retries exceeded")
 		}
 
-		pi, err := p.pluginInventory()
+		pi, err := p.pluginInventory(ctx)
 		if err != nil {
 			log.Infof("cannot get politeiad plugin inventory: %v: retry in %v",
 				err, sleepInterval)

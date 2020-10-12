@@ -198,7 +198,7 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 	}
 
 	isAdmin := user != nil && user.Admin
-	reply, err := p.processTokenInventory(isAdmin)
+	reply, err := p.processTokenInventory(r.Context(), isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleTokenInventory: processTokenInventory: %v", err)
@@ -235,7 +235,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	reply, err := p.processProposalDetails(pd, user)
+	reply, err := p.processProposalDetails(r.Context(), pd, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalDetails: processProposalDetails %v", err)
@@ -269,7 +269,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	reply, err := p.processBatchProposals(bp, user)
+	reply, err := p.processBatchProposals(r.Context(), bp, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleBatchProposals: processBatchProposals %v", err)
@@ -292,7 +292,7 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	avr, err := p.processCastVotes(&cv)
+	avr, err := p.processCastVotes(r.Context(), &cv)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCastVotes: processCastVotes %v", err)
@@ -309,7 +309,7 @@ func (p *politeiawww) handleVoteResultsWWW(w http.ResponseWriter, r *http.Reques
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
-	vrr, err := p.processVoteResultsWWW(token)
+	vrr, err := p.processVoteResultsWWW(r.Context(), token)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVoteResultsWWW: processVoteResultsWWW %v",
@@ -335,7 +335,7 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	reply, err := p.processBatchVoteSummary(bvs)
+	reply, err := p.processBatchVoteSummary(r.Context(), bvs)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleBatchVoteSummary: processBatchVoteSummary %v", err)

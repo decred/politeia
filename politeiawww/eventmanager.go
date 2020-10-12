@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -283,7 +284,7 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 
 		// Get the proposal author
 		state := convertPropStateFromPropStatus(d.status)
-		pr, err := p.proposalRecordLatest(state, d.token)
+		pr, err := p.proposalRecordLatest(context.Background(), state, d.token)
 		if err != nil {
 			log.Errorf("handleEventProposalStatusChange: proposalRecordLatest "+
 				"%v %v: %v", state, d.token, err)
@@ -379,7 +380,7 @@ func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment, proposa
 
 	// Lookup the parent comment author to check if they should receive
 	// a reply notification.
-	parentComment, err := p.commentsGet(comments.Get{
+	parentComment, err := p.commentsGet(context.Background(), comments.Get{
 		State:      convertCommentsStateFromPi(d.state),
 		Token:      d.token,
 		CommentIDs: []uint32{d.parentID},
@@ -431,7 +432,8 @@ func (p *politeiawww) handleEventProposalComment(ch chan interface{}) {
 
 		// Fetch the proposal record here to avoid calling this two times
 		// on the notify functions below
-		pr, err := p.proposalRecordLatest(d.state, d.token)
+		pr, err := p.proposalRecordLatest(context.Background(), d.state,
+			d.token)
 		if err != nil {
 			err = fmt.Errorf("proposalRecordLatest %v %v: %v",
 				d.state, d.token, err)

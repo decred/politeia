@@ -86,7 +86,7 @@ func (p *politeiawww) makeRequest(ctx context.Context, method string, route stri
 
 // newRecord creates a record in politeiad. This route returns the censorship
 // record from the new created record.
-func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (*pd.CensorshipRecord, error) {
+func (p *politeiawww) newRecord(ctx context.Context, metadata []pd.MetadataStream, files []pd.File) (*pd.CensorshipRecord, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -99,8 +99,6 @@ func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost, pd.NewRecordRoute, nr)
 	if err != nil {
 		return nil, err
@@ -124,7 +122,7 @@ func (p *politeiawww) newRecord(metadata []pd.MetadataStream, files []pd.File) (
 
 // updateRecord updates a record in politeiad. This can be used to update
 // unvetted or vetted records depending on the route that is provided.
-func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
+func (p *politeiawww) updateRecord(ctx context.Context, route, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -139,8 +137,6 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost, route, ur)
 	if err != nil {
 		return nil, err
@@ -163,19 +159,19 @@ func (p *politeiawww) updateRecord(route, token string, mdAppend, mdOverwrite []
 }
 
 // updateUnvetted updates an unvetted record in politeiad.
-func (p *politeiawww) updateUnvetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
-	return p.updateRecord(pd.UpdateUnvettedRoute, token,
+func (p *politeiawww) updateUnvetted(ctx context.Context, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
+	return p.updateRecord(ctx, pd.UpdateUnvettedRoute, token,
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
 
 // updateVetted updates a vetted record in politeiad.
-func (p *politeiawww) updateVetted(token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
-	return p.updateRecord(pd.UpdateVettedRoute, token,
+func (p *politeiawww) updateVetted(ctx context.Context, token string, mdAppend, mdOverwrite []pd.MetadataStream, filesAdd []pd.File, filesDel []string) (*pd.Record, error) {
+	return p.updateRecord(ctx, pd.UpdateVettedRoute, token,
 		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
 
 // updateUnvettedMetadata updates the metadata of a unvetted record in politeiad.
-func (p *politeiawww) updateUnvettedMetadata(token string, mdAppend, mdOverwrite []pd.MetadataStream) error {
+func (p *politeiawww) updateUnvettedMetadata(ctx context.Context, token string, mdAppend, mdOverwrite []pd.MetadataStream) error {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -189,8 +185,6 @@ func (p *politeiawww) updateUnvettedMetadata(token string, mdAppend, mdOverwrite
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateUnvettedMetadataRoute, uum)
 	if err != nil {
@@ -214,7 +208,7 @@ func (p *politeiawww) updateUnvettedMetadata(token string, mdAppend, mdOverwrite
 }
 
 // updateVettedMetadata updates the metadata of a vetted record in politeiad.
-func (p *politeiawww) updateVettedMetadata(token string, mdAppend, mdOverwrite []pd.MetadataStream) error {
+func (p *politeiawww) updateVettedMetadata(ctx context.Context, token string, mdAppend, mdOverwrite []pd.MetadataStream) error {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -228,8 +222,6 @@ func (p *politeiawww) updateVettedMetadata(token string, mdAppend, mdOverwrite [
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.UpdateVettedMetadataRoute, uvm)
 	if err != nil {
@@ -253,7 +245,7 @@ func (p *politeiawww) updateVettedMetadata(token string, mdAppend, mdOverwrite [
 }
 
 // setUnvettedStatus sets the status of a unvetted record in politeiad.
-func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) (*pd.Record, error) {
+func (p *politeiawww) setUnvettedStatus(ctx context.Context, token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -268,8 +260,6 @@ func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, m
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.SetUnvettedStatusRoute, sus)
 	if err != nil {
@@ -293,7 +283,7 @@ func (p *politeiawww) setUnvettedStatus(token string, status pd.RecordStatusT, m
 }
 
 // setVettedStatus sets the status of a vetted record in politeiad.
-func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) (*pd.Record, error) {
+func (p *politeiawww) setVettedStatus(ctx context.Context, token string, status pd.RecordStatusT, mdAppend, mdOverwrite []pd.MetadataStream) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -308,8 +298,6 @@ func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdA
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.SetVettedStatusRoute, svs)
 	if err != nil {
@@ -333,7 +321,7 @@ func (p *politeiawww) setVettedStatus(token string, status pd.RecordStatusT, mdA
 }
 
 // getUnvetted retrieves an unvetted record from politeiad.
-func (p *politeiawww) getUnvetted(token, version string) (*pd.Record, error) {
+func (p *politeiawww) getUnvetted(ctx context.Context, token, version string) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -346,8 +334,6 @@ func (p *politeiawww) getUnvetted(token, version string) (*pd.Record, error) {
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost, pd.GetUnvettedRoute, gu)
 	if err != nil {
 		return nil, err
@@ -371,12 +357,12 @@ func (p *politeiawww) getUnvetted(token, version string) (*pd.Record, error) {
 
 // getUnvettedLatest returns the latest version of the unvetted record for the
 // provided token.
-func (p *politeiawww) getUnvettedLatest(token string) (*pd.Record, error) {
-	return p.getUnvetted(token, "")
+func (p *politeiawww) getUnvettedLatest(ctx context.Context, token string) (*pd.Record, error) {
+	return p.getUnvetted(ctx, token, "")
 }
 
 // getVetted retrieves a vetted record from politeiad.
-func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
+func (p *politeiawww) getVetted(ctx context.Context, token, version string) (*pd.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -389,8 +375,6 @@ func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.GetVettedRoute, gu)
 	if err != nil {
@@ -415,13 +399,13 @@ func (p *politeiawww) getVetted(token, version string) (*pd.Record, error) {
 
 // getVettedLatest returns the latest version of the vetted record for the
 // provided token.
-func (p *politeiawww) getVettedLatest(token string) (*pd.Record, error) {
-	return p.getVetted(token, "")
+func (p *politeiawww) getVettedLatest(ctx context.Context, token string) (*pd.Record, error) {
+	return p.getVetted(ctx, token, "")
 }
 
 // pluginInventory requests the plugin inventory from politeiad and returns
 // inventoryByStatus retrieves the censorship record tokens filtered by status.
-func (p *politeiawww) inventoryByStatus() (*pd.InventoryByStatusReply, error) {
+func (p *politeiawww) inventoryByStatus(ctx context.Context) (*pd.InventoryByStatusReply, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -432,8 +416,6 @@ func (p *politeiawww) inventoryByStatus() (*pd.InventoryByStatusReply, error) {
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.InventoryByStatusRoute, ibs)
 	if err != nil {
@@ -458,7 +440,7 @@ func (p *politeiawww) inventoryByStatus() (*pd.InventoryByStatusReply, error) {
 
 // pluginInventory requests the plugin inventory from politeiad and returns
 // the available plugins slice.
-func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
+func (p *politeiawww) pluginInventory(ctx context.Context) ([]pd.Plugin, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -469,8 +451,6 @@ func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginInventoryRoute, pi)
 	if err != nil {
@@ -495,7 +475,7 @@ func (p *politeiawww) pluginInventory() ([]pd.Plugin, error) {
 
 // pluginCommand fires a plugin command on politeiad and returns the reply
 // payload.
-func (p *politeiawww) pluginCommand(pluginID, cmd, payload string) (string, error) {
+func (p *politeiawww) pluginCommand(ctx context.Context, pluginID, cmd, payload string) (string, error) {
 	// Setup request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -510,8 +490,6 @@ func (p *politeiawww) pluginCommand(pluginID, cmd, payload string) (string, erro
 	}
 
 	// Send request
-	// TODO FIXME
-	ctx := context.Background()
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {

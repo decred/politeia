@@ -5,16 +5,18 @@
 package main
 
 import (
+	"context"
+
 	ticketvote "github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
 // voteAuthorize uses the ticketvote plugin to authorize a vote.
-func (p *politeiawww) voteAuthorize(a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
+func (p *politeiawww) voteAuthorize(ctx context.Context, a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
 	b, err := ticketvote.EncodeAuthorize(a)
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdAuthorize, string(b))
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdAuthorize, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -26,12 +28,12 @@ func (p *politeiawww) voteAuthorize(a ticketvote.Authorize) (*ticketvote.Authori
 }
 
 // voteStart uses the ticketvote plugin to start a vote.
-func (p *politeiawww) voteStart(s ticketvote.Start) (*ticketvote.StartReply, error) {
+func (p *politeiawww) voteStart(ctx context.Context, s ticketvote.Start) (*ticketvote.StartReply, error) {
 	b, err := ticketvote.EncodeStart(s)
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStart, string(b))
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdStart, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -43,12 +45,12 @@ func (p *politeiawww) voteStart(s ticketvote.Start) (*ticketvote.StartReply, err
 }
 
 // voteStartRunoff uses the ticketvote plugin to start a runoff vote.
-func (p *politeiawww) voteStartRunoff(sr ticketvote.StartRunoff) (*ticketvote.StartRunoffReply, error) {
+func (p *politeiawww) voteStartRunoff(ctx context.Context, sr ticketvote.StartRunoff) (*ticketvote.StartRunoffReply, error) {
 	b, err := ticketvote.EncodeStartRunoff(sr)
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdStartRunoff,
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdStartRunoff,
 		string(b))
 	if err != nil {
 		return nil, err
@@ -61,12 +63,12 @@ func (p *politeiawww) voteStartRunoff(sr ticketvote.StartRunoff) (*ticketvote.St
 }
 
 // voteBallot uses the ticketvote plugin to cast a ballot of votes.
-func (p *politeiawww) voteBallot(tb ticketvote.Ballot) (*ticketvote.BallotReply, error) {
+func (p *politeiawww) voteBallot(ctx context.Context, tb ticketvote.Ballot) (*ticketvote.BallotReply, error) {
 	b, err := ticketvote.EncodeBallot(tb)
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdBallot, string(b))
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdBallot, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +80,7 @@ func (p *politeiawww) voteBallot(tb ticketvote.Ballot) (*ticketvote.BallotReply,
 }
 
 // voteDetails uses the ticketvote plugin to fetch the details of a vote.
-func (p *politeiawww) voteDetails(tokens []string) (*ticketvote.DetailsReply, error) {
+func (p *politeiawww) voteDetails(ctx context.Context, tokens []string) (*ticketvote.DetailsReply, error) {
 	d := ticketvote.Details{
 		Tokens: tokens,
 	}
@@ -86,7 +88,7 @@ func (p *politeiawww) voteDetails(tokens []string) (*ticketvote.DetailsReply, er
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdDetails, string(b))
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdDetails, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +100,7 @@ func (p *politeiawww) voteDetails(tokens []string) (*ticketvote.DetailsReply, er
 }
 
 // castVotes uses the ticketvote plugin to fetch cast votes for a record.
-func (p *politeiawww) castVotes(token string) (*ticketvote.CastVotesReply, error) {
+func (p *politeiawww) castVotes(ctx context.Context, token string) (*ticketvote.CastVotesReply, error) {
 	cv := ticketvote.CastVotes{
 		Token: token,
 	}
@@ -106,7 +108,7 @@ func (p *politeiawww) castVotes(token string) (*ticketvote.CastVotesReply, error
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdCastVotes, string(b))
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdCastVotes, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func (p *politeiawww) castVotes(token string) (*ticketvote.CastVotesReply, error
 }
 
 // voteSummaries uses the ticketvote plugin to fetch vote summaries.
-func (p *politeiawww) voteSummaries(tokens []string) (*ticketvote.SummariesReply, error) {
+func (p *politeiawww) voteSummaries(ctx context.Context, tokens []string) (*ticketvote.SummariesReply, error) {
 	s := ticketvote.Summaries{
 		Tokens: tokens,
 	}
@@ -126,7 +128,7 @@ func (p *politeiawww) voteSummaries(tokens []string) (*ticketvote.SummariesReply
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ticketvote.ID, ticketvote.CmdSummaries, string(b))
+	r, err := p.pluginCommand(ctx, ticketvote.ID, ticketvote.CmdSummaries, string(b))
 	if err != nil {
 		return nil, err
 	}
