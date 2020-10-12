@@ -74,51 +74,94 @@ func userPiErrorStatus(e pi.ErrorStatusT) string {
 	return ""
 }
 
-// wwwError unmarshals the response body from makeRequest, and parses
-// the error code and error context from the www api.
+// wwwError unmarshals the response body from makeRequest, and handles any
+// status code errors from the server. Parses the error code and error context
+// from the www api, in case of user error.
 func wwwError(body []byte, statusCode int) error {
-	var ue www.UserError
-	err := json.Unmarshal(body, &ue)
-	if err != nil {
-		return fmt.Errorf("unmarshal UserError: %v", err)
-	}
-	if ue.ErrorCode != 0 {
+	switch statusCode {
+	case http.StatusBadRequest:
+		// User Error
+		var ue www.UserError
+		err := json.Unmarshal(body, &ue)
+		if err != nil {
+			return fmt.Errorf("unmarshal UserError: %v", err)
+		}
+		if ue.ErrorCode != 0 {
+			var e error
+			errMsg := userWWWErrorStatus(ue.ErrorCode)
+			if len(ue.ErrorContext) == 0 {
+				// Error format when an ErrorContext is not included
+				e = fmt.Errorf("%v, %v", statusCode, errMsg)
+			} else {
+				// Error format when an ErrorContext is included
+				e = fmt.Errorf("%v, %v: %v", statusCode, errMsg,
+					strings.Join(ue.ErrorContext, ", "))
+			}
+			return e
+		}
+	case http.StatusInternalServerError:
+		// Server Error
+		var er www.ErrorReply
+		err := json.Unmarshal(body, &er)
+		if err != nil {
+			return fmt.Errorf("unmarshal Error: %v", err)
+		}
 		var e error
-		errMsg := userWWWErrorStatus(ue.ErrorCode)
-		if len(ue.ErrorContext) == 0 {
+		if len(er.ErrorContext) == 0 {
 			// Error format when an ErrorContext is not included
-			e = fmt.Errorf("%v, %v", statusCode, errMsg)
+			e = fmt.Errorf("ServerError timestamp: %v", er.ErrorCode)
 		} else {
 			// Error format when an ErrorContext is included
-			e = fmt.Errorf("%v, %v: %v", statusCode, errMsg,
-				strings.Join(ue.ErrorContext, ", "))
+			e = fmt.Errorf("ServerError timestamp: %v context: %v",
+				er.ErrorCode, er.ErrorContext)
 		}
 		return e
+	default:
+		// Default Status Code Error
+		return fmt.Errorf("%v", statusCode)
 	}
+
 	return nil
 }
 
-// piError unmarshals the response body from makeRequest, and parses
-// the error code and error context from the pi api.
+// piError unmarshals the response body from makeRequest, and handles any
+// status code errors from the server. Parses the error code and error context
+// from the pi api, in case of user error.
 func piError(body []byte, statusCode int) error {
-	var ue pi.UserErrorReply
-	err := json.Unmarshal(body, &ue)
-	if err != nil {
-		return fmt.Errorf("unmarshal UserError: %v", err)
-	}
-	if ue.ErrorCode != 0 {
-		var e error
-		errMsg := userPiErrorStatus(ue.ErrorCode)
-		if len(ue.ErrorContext) == 0 {
-			// Error format when an ErrorContext is not included
-			e = fmt.Errorf("%v, %v", statusCode, errMsg)
-		} else {
-			// Error format when an ErrorContext is included
-			e = fmt.Errorf("%v, %v: %v", statusCode, errMsg,
-				strings.Join(ue.ErrorContext, ", "))
+	switch statusCode {
+	case http.StatusBadRequest:
+		// User Error
+		var ue pi.UserErrorReply
+		err := json.Unmarshal(body, &ue)
+		if err != nil {
+			return fmt.Errorf("unmarshal UserError: %v", err)
 		}
-		return e
+		if ue.ErrorCode != 0 {
+			var e error
+			errMsg := userPiErrorStatus(ue.ErrorCode)
+			if len(ue.ErrorContext) == 0 {
+				// Error format when an ErrorContext is not included
+				e = fmt.Errorf("%v, %v", statusCode, errMsg)
+			} else {
+				// Error format when an ErrorContext is included
+				e = fmt.Errorf("%v, %v: %v", statusCode, errMsg,
+					strings.Join(ue.ErrorContext, ", "))
+			}
+			return e
+		}
+	case http.StatusInternalServerError:
+		// Server Error
+		var ser pi.ServerErrorReply
+		err := json.Unmarshal(body, &ser)
+		if err != nil {
+			return fmt.Errorf("unmarshal ServerError: %v", err)
+		}
+		return fmt.Errorf("ServerError timestamp: %v", ser.ErrorCode)
+	default:
+		// Return Status Code Error
+		return fmt.Errorf("%v", statusCode)
 	}
+
 	return nil
 }
 
@@ -438,10 +481,7 @@ func (c *Client) Policy() (*www.PolicyReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pr www.PolicyReply
@@ -469,10 +509,7 @@ func (c *Client) CMSPolicy() (*cms.PolicyReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pr cms.PolicyReply
@@ -500,10 +537,7 @@ func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply,
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var inur cms.InviteNewUserReply
@@ -531,10 +565,7 @@ func (c *Client) RegisterUser(ru *cms.RegisterUser) (*cms.RegisterUserReply, err
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var rur cms.RegisterUserReply
@@ -562,10 +593,7 @@ func (c *Client) NewUser(nu *www.NewUser) (*www.NewUserReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var nur www.NewUserReply
@@ -593,10 +621,7 @@ func (c *Client) VerifyNewUser(vnu *www.VerifyNewUser) (*www.VerifyNewUserReply,
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var vnur www.VerifyNewUserReply
@@ -624,10 +649,7 @@ func (c *Client) Me() (*www.LoginReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var lr www.LoginReply
@@ -655,10 +677,7 @@ func (c *Client) Secret() (*www.UserError, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ue www.UserError
@@ -686,10 +705,7 @@ func (c *Client) ChangeUsername(cu *www.ChangeUsername) (*www.ChangeUsernameRepl
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var cur www.ChangeUsernameReply
@@ -717,10 +733,7 @@ func (c *Client) ChangePassword(cp *www.ChangePassword) (*www.ChangePasswordRepl
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var cpr www.ChangePasswordReply
@@ -748,10 +761,7 @@ func (c *Client) ResetPassword(rp *www.ResetPassword) (*www.ResetPasswordReply, 
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var rpr www.ResetPasswordReply
@@ -779,10 +789,7 @@ func (c *Client) VerifyResetPassword(vrp www.VerifyResetPassword) (*www.VerifyRe
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var reply www.VerifyResetPasswordReply
@@ -811,10 +818,7 @@ func (c *Client) UserProposalPaywall() (*www.UserProposalPaywallReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ppdr www.UserProposalPaywallReply
@@ -842,10 +846,7 @@ func (c *Client) ProposalNew(pn pi.ProposalNew) (*pi.ProposalNewReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var pnr pi.ProposalNewReply
@@ -873,10 +874,7 @@ func (c *Client) ProposalEdit(pe pi.ProposalEdit) (*pi.ProposalEditReply, error)
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var per pi.ProposalEditReply
@@ -904,10 +902,7 @@ func (c *Client) ProposalStatusSet(pss pi.ProposalStatusSet) (*pi.ProposalStatus
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var pssr pi.ProposalStatusSetReply
@@ -935,10 +930,7 @@ func (c *Client) Proposals(p pi.Proposals) (*pi.ProposalsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var pr pi.ProposalsReply
@@ -967,10 +959,7 @@ func (c *Client) ProposalInventory() (*pi.ProposalInventoryReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var pir pi.ProposalInventoryReply
@@ -999,10 +988,7 @@ func (c *Client) NewInvoice(ni *cms.NewInvoice) (*cms.NewInvoiceReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var nir cms.NewInvoiceReply
@@ -1030,10 +1016,7 @@ func (c *Client) EditInvoice(ei *cms.EditInvoice) (*cms.EditInvoiceReply, error)
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var eir cms.EditInvoiceReply
@@ -1062,10 +1045,7 @@ func (c *Client) ProposalDetails(token string, pd *www.ProposalsDetails) (*www.P
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pr www.ProposalDetailsReply
@@ -1094,10 +1074,7 @@ func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, err
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var upr cms.UserInvoicesReply
@@ -1125,10 +1102,7 @@ func (c *Client) ProposalBilling(pb *cms.ProposalBilling) (*cms.ProposalBillingR
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pbr cms.ProposalBillingReply
@@ -1156,10 +1130,7 @@ func (c *Client) ProposalBillingDetails(pbd *cms.ProposalBillingDetails) (*cms.P
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pbdr cms.ProposalBillingDetailsReply
@@ -1187,10 +1158,7 @@ func (c *Client) ProposalBillingSummary(pbd *cms.ProposalBillingSummary) (*cms.P
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pbdr cms.ProposalBillingSummaryReply
@@ -1219,10 +1187,7 @@ func (c *Client) Invoices(ai *cms.Invoices) (*cms.InvoicesReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var air cms.InvoicesReply
@@ -1251,10 +1216,7 @@ func (c *Client) GeneratePayouts(gp *cms.GeneratePayouts) (*cms.GeneratePayoutsR
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var gpr cms.GeneratePayoutsReply
@@ -1284,10 +1246,7 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var pir cms.PayInvoicesReply
@@ -1309,10 +1268,7 @@ func (c *Client) VoteInventory() (*pi.VoteInventoryReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vir pi.VoteInventoryReply
@@ -1340,10 +1296,7 @@ func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsRepl
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var bpr www.BatchProposalsReply
@@ -1372,10 +1325,7 @@ func (c *Client) VoteSummaries(vs *pi.VoteSummaries) (*pi.VoteSummariesReply, er
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vsr pi.VoteSummariesReply
@@ -1403,10 +1353,7 @@ func (c *Client) GetAllVetted(gav *www.GetAllVetted) (*www.GetAllVettedReply, er
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var gavr www.GetAllVettedReply
@@ -1434,10 +1381,7 @@ func (c *Client) WWWNewComment(nc *www.NewComment) (*www.NewCommentReply, error)
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ncr www.NewCommentReply
@@ -1465,10 +1409,7 @@ func (c *Client) CommentNew(cn pi.CommentNew) (*pi.CommentNewReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var cnr pi.CommentNewReply
@@ -1497,10 +1438,7 @@ func (c *Client) CommentVote(cv pi.CommentVote) (*pi.CommentVoteReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var cvr pi.CommentVoteReply
@@ -1528,10 +1466,7 @@ func (c *Client) CommentCensor(cc pi.CommentCensor) (*pi.CommentCensorReply, err
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var ccr pi.CommentCensorReply
@@ -1559,10 +1494,7 @@ func (c *Client) Comments(cs pi.Comments) (*pi.CommentsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var cr pi.CommentsReply
@@ -1591,10 +1523,7 @@ func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error)
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var cvr pi.CommentVotesReply
@@ -1623,10 +1552,7 @@ func (c *Client) InvoiceComments(token string) (*www.GetCommentsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var gcr www.GetCommentsReply
@@ -1654,10 +1580,7 @@ func (c *Client) Votes(vs pi.Votes) (*pi.VotesReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vsr pi.VotesReply
@@ -1685,10 +1608,7 @@ func (c *Client) WWWCensorComment(cc *www.CensorComment) (*www.CensorCommentRepl
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ccr www.CensorCommentReply
@@ -1716,10 +1636,7 @@ func (c *Client) VoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vsr pi.VoteStartReply
@@ -1749,10 +1666,7 @@ func (c *Client) VoteStartRunoff(vsr pi.VoteStartRunoff) (*pi.VoteStartRunoffRep
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vsrr pi.VoteStartRunoffReply
@@ -1782,10 +1696,7 @@ func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, e
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var urpr www.UserRegistrationPaymentReply
@@ -1814,10 +1725,7 @@ func (c *Client) VoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vrr pi.VoteResultsReply
@@ -1847,10 +1755,7 @@ func (c *Client) VoteDetailsV2(token string) (*www2.VoteDetailsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var vdr www2.VoteDetailsReply
@@ -1882,10 +1787,7 @@ func (c *Client) UserDetails(userID string) (*www.UserDetailsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var udr www.UserDetailsReply
@@ -1914,10 +1816,7 @@ func (c *Client) Users(u *www.Users) (*www.UsersReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ur www.UsersReply
@@ -1946,10 +1845,7 @@ func (c *Client) CMSUsers(cu *cms.CMSUsers) (*cms.CMSUsersReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var cur cms.CMSUsersReply
@@ -1977,10 +1873,7 @@ func (c *Client) ManageUser(mu *www.ManageUser) (*www.ManageUserReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var mur www.ManageUserReply
@@ -2008,10 +1901,7 @@ func (c *Client) EditUser(eu *www.EditUser) (*www.EditUserReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var eur www.EditUserReply
@@ -2040,10 +1930,7 @@ func (c *Client) VoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, err
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vr pi.VoteAuthorizeReply
@@ -2072,10 +1959,7 @@ func (c *Client) VoteStatus(token string) (*www.VoteStatusReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var vsr www.VoteStatusReply
@@ -2103,10 +1987,7 @@ func (c *Client) GetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var avsr www.GetAllVoteStatusReply
@@ -2134,10 +2015,7 @@ func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var avr cms.ActiveVoteReply
@@ -2165,10 +2043,7 @@ func (c *Client) VoteBallot(vb *pi.VoteBallot) (*pi.VoteBallotReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = piError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, piError(respBody, statusCode)
 	}
 
 	var vbr pi.VoteBallotReply
@@ -2196,10 +2071,7 @@ func (c *Client) UpdateUserKey(uuk *www.UpdateUserKey) (*www.UpdateUserKeyReply,
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var uukr www.UpdateUserKeyReply
@@ -2227,10 +2099,7 @@ func (c *Client) VerifyUpdateUserKey(vuuk *www.VerifyUpdateUserKey) (*www.Verify
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var vuukr www.VerifyUpdateUserKeyReply
@@ -2259,10 +2128,7 @@ func (c *Client) UserProposalPaywallTx() (*www.UserProposalPaywallTxReply, error
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var upptxr www.UserProposalPaywallTxReply
@@ -2291,10 +2157,7 @@ func (c *Client) UserPaymentsRescan(upr *www.UserPaymentsRescan) (*www.UserPayme
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var uprr www.UserPaymentsRescanReply
@@ -2323,10 +2186,7 @@ func (c *Client) UserProposalCredits() (*www.UserProposalCreditsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var upcr www.UserProposalCreditsReply
@@ -2355,10 +2215,7 @@ func (c *Client) ResendVerification(rv www.ResendVerification) (*www.ResendVerif
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var rvr www.ResendVerificationReply
@@ -2387,10 +2244,7 @@ func (c *Client) InvoiceDetails(token string, id *cms.InvoiceDetails) (*cms.Invo
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var idr cms.InvoiceDetailsReply
@@ -2419,10 +2273,7 @@ func (c *Client) SetInvoiceStatus(sis *cms.SetInvoiceStatus) (*cms.SetInvoiceSta
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var sisr cms.SetInvoiceStatusReply
@@ -2451,10 +2302,7 @@ func (c *Client) TokenInventory() (*www.TokenInventoryReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var tir www.TokenInventoryReply
@@ -2482,10 +2330,7 @@ func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.Invoice
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ierr cms.InvoiceExchangeRateReply
@@ -2513,10 +2358,7 @@ func (c *Client) InvoicePayouts(lip *cms.InvoicePayouts) (*cms.InvoicePayoutsRep
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var lipr cms.InvoicePayoutsReply
@@ -2544,10 +2386,7 @@ func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var uir cms.UserDetailsReply
@@ -2575,10 +2414,7 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var eur cms.EditUserReply
@@ -2606,10 +2442,7 @@ func (c *Client) CMSManageUser(uui cms.CMSManageUser) (*cms.CMSManageUserReply, 
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var eur cms.CMSManageUserReply
@@ -2637,10 +2470,7 @@ func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ndr cms.NewDCCReply
@@ -2668,10 +2498,7 @@ func (c *Client) SupportOpposeDCC(sd cms.SupportOpposeDCC) (*cms.SupportOpposeDC
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var sdr cms.SupportOpposeDCCReply
@@ -2699,10 +2526,7 @@ func (c *Client) NewDCCComment(nc *www.NewComment) (*www.NewCommentReply, error)
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ncr www.NewCommentReply
@@ -2731,10 +2555,7 @@ func (c *Client) DCCComments(token string) (*www.GetCommentsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var gcr www.GetCommentsReply
@@ -2763,10 +2584,7 @@ func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var ddr cms.DCCDetailsReply
@@ -2795,10 +2613,7 @@ func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var gdr cms.GetDCCsReply
@@ -2827,10 +2642,7 @@ func (c *Client) SetDCCStatus(sd *cms.SetDCCStatus) (*cms.SetDCCStatusReply, err
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var sdr cms.SetDCCStatusReply
@@ -2858,10 +2670,7 @@ func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubCo
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var uscr cms.UserSubContractorsReply
@@ -2888,10 +2697,7 @@ func (c *Client) ProposalOwner(po *cms.ProposalOwner) (*cms.ProposalOwnerReply, 
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var por cms.ProposalOwnerReply
@@ -2919,10 +2725,7 @@ func (c *Client) CastVoteDCC(cv cms.CastVote) (*cms.CastVoteReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var cvr cms.CastVoteReply
@@ -2951,10 +2754,7 @@ func (c *Client) VoteDetailsDCC(cv cms.VoteDetails) (*cms.VoteDetailsReply, erro
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var vdr cms.VoteDetailsReply
@@ -2982,10 +2782,7 @@ func (c *Client) StartVoteDCC(sv cms.StartVote) (*cms.StartVoteReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var svr cms.StartVoteReply
@@ -3091,10 +2888,7 @@ func (c *Client) SetTOTP(st *www.SetTOTP) (*www.SetTOTPReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var str www.SetTOTPReply
@@ -3122,10 +2916,7 @@ func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
 	}
 
 	if statusCode != http.StatusOK {
-		err = wwwError(respBody, statusCode)
-		if err != nil {
-			return nil, err
-		}
+		return nil, wwwError(respBody, statusCode)
 	}
 
 	var vtr www.VerifyTOTPReply
