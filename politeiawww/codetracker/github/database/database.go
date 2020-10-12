@@ -66,15 +66,19 @@ type Database interface {
 	// ReviewByID returns a pull request review with a matching ID.
 	ReviewByID(id int64) (*PullRequestReview, error)
 
+	// ReviewsByUserDates retrusn all reviews from the given user between
+	// the dates provided.
+	ReviewsByUserDates(user string, start int64, end int64) ([]PullRequestReview, error)
+
 	// NewCommit creates a new entry for a pull request commit.
 	NewCommit(*Commit) error
 
 	// CommitBySHA returns a commit that matches the SHA.
 	CommitBySHA(sha string) (*Commit, error)
 
-	// ReviewsByUserDates retrusn all reviews from the given user between
-	// the dates provided.
-	ReviewsByUserDates(user string, start int64, end int64) ([]PullRequestReview, error)
+	// CommitsByUserDates returns all commits that match the
+	// username and is in between the start and end dates (in Unix).
+	CommitsByUserDates(username string, start int64, end int64) ([]Commit, error)
 
 	// Setup creates the database instance and prepares it for usage.
 	Setup() error

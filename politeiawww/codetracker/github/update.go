@@ -196,12 +196,11 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	if err != nil {
 		return nil, err
 	}
-	/*
-		dbCommits, err := g.codedb.CommitsByUserDates(user, startDate, endDate)
-		if err != nil {
-			return nil, err
-		}
-	*/
+	dbCommits, err := g.codedb.CommitsByUserDates(user, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
 	// Now we need to see if there are any other hits in the DB so we can
 	// see if it was an update to an existing PR or if it is new.  If it is
 	// new then we just keep the current Additions/Deletions, If it is existing
@@ -246,6 +245,7 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	userInfo.MergedPRs = convertDBPullRequestsToPullRequests(dbMergedPRs)
 	userInfo.UpdatedPRs = convertDBPullRequestsToPullRequests(dbUpdatedPRs)
 	userInfo.Reviews = convertDBPullRequestReviewsToReviews(dbReviews)
+	userInfo.Commits = convertDBCommitsToCommits(dbCommits)
 	userInfo.User = user
 	userInfo.Organization = org
 	return userInfo, nil

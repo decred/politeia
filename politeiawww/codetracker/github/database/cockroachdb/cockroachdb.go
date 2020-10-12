@@ -317,6 +317,32 @@ func (c *cockroachdb) CommitBySHA(sha string) (*database.Commit, error) {
 	return decodeCommit(&commit), nil
 }
 
+// CommitsByUserDates takes a username, start and end date and
+// returns commits that match those criteria.
+func (c *cockroachdb) CommitsByUserDates(username string, start, end int64) ([]database.Commit, error) {
+	log.Debugf("CommitsByUserDates: %v %v", time.Unix(start, 0),
+		time.Unix(end, 0))
+
+	// Get all commites from a user between the given dates.
+	commits := make([]Commit, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("author = ? AND "+
+			"date BETWEEN ? AND ?",
+			username,
+			start,
+			end).
+		Find(&commits).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	dbCommits := make([]database.Commit, 0, len(commits))
+	for _, vv := range commits {
+		dbCommits = append(dbCommits, *decodeCommit(&vv))
+	}
+	return dbCommits, nil
+}
+
 // Setup calls the tables creation function to ensure the database is prepared
 // for use.
 func (c *cockroachdb) Setup() error {

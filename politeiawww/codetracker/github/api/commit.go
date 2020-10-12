@@ -42,7 +42,6 @@ func (a *Client) FetchPullRequestCommitSHAs(org, repo string, prNum int) ([]stri
 	totalPullRequestSHAs := make([]string, 0, 1048)
 	page := 1
 	for {
-		fmt.Println("requesting pr commtis", repo, page)
 		url := fmt.Sprintf(apiPullRequestCommitsURL, org, repo, prNum, page)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
