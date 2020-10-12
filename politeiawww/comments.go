@@ -25,6 +25,23 @@ func (p *politeiawww) commentsAll(cp comments.GetAll) (*comments.GetAllReply, er
 	return cr, nil
 }
 
+// commentsGet returns the set of comments specified in the comment's id slice.
+func (p *politeiawww) commentsGet(cg comments.Get) (*comments.GetReply, error) {
+	b, err := comments.EncodeGet(cg)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(comments.ID, comments.CmdGet, string(b))
+	if err != nil {
+		return nil, err
+	}
+	cgr, err := comments.DecodeGetReply([]byte(r))
+	if err != nil {
+		return nil, err
+	}
+	return cgr, nil
+}
+
 // commentVotes returns the comment votes that meet the provided criteria.
 func (p *politeiawww) commentVotes(vs comments.Votes) (*comments.VotesReply, error) {
 	b, err := comments.EncodeVotes(vs)

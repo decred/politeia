@@ -24,9 +24,9 @@ const (
 	IdentityRoute               = "/v1/identity/"          // Retrieve identity
 	NewRecordRoute              = "/v1/newrecord/"         // New record
 	UpdateUnvettedRoute         = "/v1/updateunvetted/"    // Update unvetted record
+	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
 	UpdateVettedRoute           = "/v1/updatevetted/"      // Update vetted record
 	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"    // Update vetted metadata
-	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
 	GetUnvettedRoute            = "/v1/getunvetted/"       // Retrieve unvetted record
 	GetVettedRoute              = "/v1/getvetted/"         // Retrieve vetted record
 	InventoryByStatusRoute      = "/v1/inventorybystatus/" // Inventory record tokens by status
