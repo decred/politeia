@@ -73,8 +73,8 @@ func TestNewCodeStats(t *testing.T) {
 		CommitAdditions:  int64(commitAdditionsAug),
 		CommitDeletions:  int64(commitDeletionsAug),
 	})
-	septID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthSept),
-		strconv.Itoa(year))
+	septID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo,
+		strconv.Itoa(monthSept), strconv.Itoa(year))
 	codeStats = append(codeStats, user.CodeStats{
 		GitHubName:       githubName,
 		Repository:       repo,
@@ -317,7 +317,8 @@ func TestCodeStatsByUserMonthYear(t *testing.T) {
 	for _, codeStat := range cs {
 		// Make sure correct code stat was fetched
 		if codeStat.ID != augID {
-			t.Errorf("expecting user of id %s but received %s", codeStat.ID, augID)
+			t.Errorf("expecting user of id %s but received %s", codeStat.ID,
+				augID)
 		}
 	}
 	// Negative Expectations

@@ -120,6 +120,8 @@ type PullRequestReview struct {
 	Deletions      int
 }
 
+// Commit contains all the details about specific commits that have been
+// made underneath a pull request.
 type Commit struct {
 	SHA          string `json:"sha"`
 	Repo         string `json:"repo"`

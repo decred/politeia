@@ -190,11 +190,13 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 		time.UTC).Unix()
 	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0,
 		time.UTC).Unix()
-	dbMergedPRs, err := g.codedb.MergedPullRequestsByUserDates(user, startDate, endDate)
+	dbMergedPRs, err := g.codedb.MergedPullRequestsByUserDates(user, startDate,
+		endDate)
 	if err != nil {
 		return nil, err
 	}
-	dbUpdatedPRs, err := g.codedb.UpdatedPullRequestsByUserDates(user, startDate, endDate)
+	dbUpdatedPRs, err := g.codedb.UpdatedPullRequestsByUserDates(user,
+		startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -232,8 +234,10 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 			// so change the pr additions/deletions to the diff so they
 			// can be tabulated accurately.
 			if lastUpdated != nil {
-				updatedPR.Additions = updatedPR.Additions - lastUpdated.Additions
-				updatedPR.Deletions = updatedPR.Deletions - lastUpdated.Deletions
+				updatedPR.Additions = updatedPR.Additions -
+					lastUpdated.Additions
+				updatedPR.Deletions = updatedPR.Deletions -
+					lastUpdated.Deletions
 				dbUpdatedPRs[i] = updatedPR
 			}
 		}
