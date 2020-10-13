@@ -177,7 +177,8 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		now.Minute(), 0, 0, now.Location())
 
 	currentMonth := int(lastMonth.Month())
-	currentYear := int(lastMonth.Year())
+	currentYear := lastMonth.Year()
+
 	for _, u := range reply.Users {
 		if u.GitHubName == "" {
 			// Just move along since user has no github name set

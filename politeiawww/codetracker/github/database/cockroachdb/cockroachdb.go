@@ -323,7 +323,7 @@ func (c *cockroachdb) CommitsByUserDates(username string, start, end int64) ([]d
 	log.Debugf("CommitsByUserDates: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
 
-	// Get all commites from a user between the given dates.
+	// Get all commits from a user between the given dates.
 	commits := make([]Commit, 0, 1024) // PNOOMA
 	err := c.recordsdb.
 		Where("author = ? AND "+
