@@ -79,9 +79,15 @@ const (
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
 
-	// Vote option IDs
-	VoteOptionIDApprove = "yes"
-	VoteOptionIDReject  = "no"
+	// VoteOptionIDApprove is the vote option ID that indicates the vote
+	// should be approved. Votes that are an approve/reject vote are
+	// required to use this vote option ID.
+	VoteOptionIDApprove = "approve"
+
+	// VoteOptionIDReject is the vote option ID that indicates the vote
+	// should be not be approved. Votes that are an approve/reject vote
+	// are required to use this vote option ID.
+	VoteOptionIDReject = "reject"
 
 	// Vote error status codes. Vote errors are errors that occur while
 	// attempting to cast a vote. These errors are returned with the

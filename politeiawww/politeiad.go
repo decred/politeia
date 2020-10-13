@@ -368,7 +368,7 @@ func (p *politeiawww) getVetted(ctx context.Context, token, version string) (*pd
 	if err != nil {
 		return nil, err
 	}
-	gu := pd.GetVetted{
+	gv := pd.GetVetted{
 		Challenge: hex.EncodeToString(challenge),
 		Token:     token,
 		Version:   version,
@@ -376,7 +376,7 @@ func (p *politeiawww) getVetted(ctx context.Context, token, version string) (*pd
 
 	// Send request
 	resBody, err := p.makeRequest(ctx, http.MethodPost,
-		pd.GetVettedRoute, gu)
+		pd.GetVettedRoute, gv)
 	if err != nil {
 		return nil, err
 	}

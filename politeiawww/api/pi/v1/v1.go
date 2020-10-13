@@ -58,7 +58,9 @@ const (
 
 	// Proposal states. A proposal state can be either unvetted or
 	// vetted. The PropStatusT type further breaks down these two
-	// states into more granular statuses.
+	// states into more granular statuses. Unvetted proposal data is
+	// not made available to the public. Only admins and the proposal
+	// author are able to view unvetted proposals.
 	PropStateInvalid  PropStateT = 0
 	PropStateUnvetted PropStateT = 1
 	PropStateVetted   PropStateT = 2
@@ -106,6 +108,16 @@ const (
 	// requirements but still be rejected if it does not have the most
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
+
+	// VoteOptionIDApprove is the vote option ID that indicates the
+	// proposal should be approved. Proposal votes are required to use
+	// this vote option ID.
+	VoteOptionIDApprove = "approve"
+
+	// VoteOptionIDReject is the vote option ID that indicates the
+	// proposal should be rejected. Proposal votes are required to use
+	// this vote option ID.
+	VoteOptionIDReject = "reject"
 
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
@@ -284,17 +296,22 @@ const (
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission. It is attached to a proposal submission as a Metadata object.
+//
+// TODO should there be a Type field? The issue is that we currently assume
+// a proposal is an RFP submission if the LinkTo is set. This boxes us in and
+// prevents us from using LinkTo in the future without some additional field
+// like a Type field.
 type ProposalMetadata struct {
 	Name string `json:"name"` // Proposal name
-
-	// LinkTo specifies a public proposal token to link this proposal
-	// to. Ex, an RFP submission must link to the RFP proposal.
-	LinkTo string `json:"linkto,omitempty"`
 
 	// LinkBy is a UNIX timestamp that serves as a deadline for other
 	// proposals to link to this proposal. Ex, an RFP submission cannot
 	// link to an RFP proposal once the RFP's LinkBy deadline is past.
 	LinkBy int64 `json:"linkby,omitempty"`
+
+	// LinkTo specifies a public proposal token to link this proposal
+	// to. Ex, an RFP submission must link to the RFP proposal.
+	LinkTo string `json:"linkto,omitempty"`
 }
 
 // CensorshipRecord contains cryptographic proof that a proposal was accepted
@@ -350,7 +367,7 @@ type ProposalRecord struct {
 	LinkedFrom []string `json:"linkedfrom"`
 
 	// CensorshipRecord contains cryptographic proof that the proposal
-	// was received by the server.
+	// was received and processed by the server.
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
@@ -669,17 +686,27 @@ type VoteResult struct {
 
 // VoteSummary summarizes the vote params and results of a proposal vote.
 type VoteSummary struct {
-	Type             VoteT        `json:"type"`
-	Status           VoteStatusT  `json:"status"`
-	Duration         uint32       `json:"duration"`
-	StartBlockHeight uint32       `json:"startblockheight"`
-	StartBlockHash   string       `json:"startblockhash"`
-	EndBlockHeight   uint32       `json:"endblockheight"`
-	EligibleTickets  uint32       `json:"eligibletickets"`
-	QuorumPercentage uint32       `json:"quorumpercentage"`
-	PassPercentage   uint32       `json:"passpercentage"`
-	Results          []VoteResult `json:"results"`
-	Approved         bool         `json:"approved"`
+	Type             VoteT       `json:"type"`
+	Status           VoteStatusT `json:"status"`
+	Duration         uint32      `json:"duration"` // In blocks
+	StartBlockHeight uint32      `json:"startblockheight"`
+	StartBlockHash   string      `json:"startblockhash"`
+	EndBlockHeight   uint32      `json:"endblockheight"`
+
+	// EligibleTickets is the number of tickets that are eligible to
+	// cast a vote.
+	EligibleTickets uint32 `json:"eligibletickets"`
+
+	// QuorumPercentage is the percent of eligible tickets required to
+	// vote in order to have a quorum.
+	QuorumPercentage uint32 `json:"quorumpercentage"`
+
+	// PassPercentage is the percent of total votes required to approve
+	// the vote in order for the vote to pass.
+	PassPercentage uint32 `json:"passpercentage"`
+
+	Results  []VoteResult `json:"results"`
+	Approved bool         `json:"approved"` // Was the vote approved
 }
 
 // VoteAuthorize authorizes a proposal vote or revokes a previous vote

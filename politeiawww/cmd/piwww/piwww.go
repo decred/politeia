@@ -32,6 +32,8 @@ var (
 )
 
 type piwww struct {
+	Config shared.Config
+
 	// Basic commands
 	Help helpCmd `command:"help"`
 
@@ -104,7 +106,7 @@ const helpMsg = `Application Options:
       --silent      Suppress all output
 
 Help commands
-  help                   Print detailed help message for a command
+  help                    Print detailed help message for a command
 
 Basic commands
   version                 (public) Get politeiawww server version
@@ -157,11 +159,11 @@ Vote commands
   voteinv                 (public) Get proposal inventory by vote status
 
 Websocket commands
-  subscribe              (public) Subscribe/unsubscribe to websocket event
+  subscribe               (public) Subscribe/unsubscribe to websocket event
 
 Dev commands
-  sendfaucettx           Send a dcr faucet tx
-  testrun                Execute a test run of pi routes
+  sendfaucettx            Send a dcr faucet tx
+  testrun                 Execute a test run of pi routes
 `
 
 func _main() error {
@@ -207,7 +209,9 @@ func _main() error {
 	}
 
 	// Parse subcommand and execute
-	parser = flags.NewParser(&piwww{}, flags.Default)
+	parser = flags.NewParser(&piwww{
+		Config: *cfg,
+	}, flags.Default)
 	_, err = parser.Parse()
 	if err != nil {
 		os.Exit(1)

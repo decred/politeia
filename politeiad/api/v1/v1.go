@@ -66,6 +66,7 @@ const (
 	ErrorStatusRecordFound                   ErrorStatusT = 15
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
 	ErrorStatusRecordNotFound                ErrorStatusT = 17
+	ErrorStatusInvalidToken                  ErrorStatusT = 18
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status

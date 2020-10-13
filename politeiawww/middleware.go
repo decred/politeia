@@ -69,6 +69,7 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !isAdmin {
+			log.Debugf("%v user is not an admin", http.StatusForbidden)
 			util.RespondWithJSON(w, http.StatusForbidden, www.UserError{})
 			return
 		}

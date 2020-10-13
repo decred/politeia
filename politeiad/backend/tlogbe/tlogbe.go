@@ -642,14 +642,14 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
-		var cverr backend.ContentVerificationError
-		if !errors.As(err, &cverr) {
+		var cve backend.ContentVerificationError
+		if !errors.As(err, &cve) {
 			return nil, err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// added. This can happen when files are being deleted without
 		// any new files being added.
-		if cverr.ErrorCode != v1.ErrorStatusEmpty {
+		if cve.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
 		}
 	}
@@ -740,14 +740,14 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, filesAdd, filesDel)
 	if err != nil {
-		var cverr backend.ContentVerificationError
-		if !errors.As(err, &cverr) {
+		var cve backend.ContentVerificationError
+		if !errors.As(err, &cve) {
 			return nil, err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// added. This can happen when files are being deleted without
 		// any new files being added.
-		if cverr.ErrorCode != v1.ErrorStatusEmpty {
+		if cve.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
 		}
 	}
@@ -839,14 +839,14 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
-		var cverr backend.ContentVerificationError
-		if !errors.As(err, &cverr) {
+		var cve backend.ContentVerificationError
+		if !errors.As(err, &cve) {
 			return err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// being added. This is expected since this is a metadata only
 		// update.
-		if cverr.ErrorCode != v1.ErrorStatusEmpty {
+		if cve.ErrorCode != v1.ErrorStatusEmpty {
 			return err
 		}
 	}
@@ -925,14 +925,14 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	allMD := append(mdAppend, mdOverwrite...)
 	err := verifyContent(allMD, []backend.File{}, []string{})
 	if err != nil {
-		var cverr backend.ContentVerificationError
-		if !errors.As(err, &cverr) {
+		var cve backend.ContentVerificationError
+		if !errors.As(err, &cve) {
 			return err
 		}
 		// Allow ErrorStatusEmpty which indicates no new files are being
 		// being added. This is expected since this is a metadata only
 		// update.
-		if cverr.ErrorCode != v1.ErrorStatusEmpty {
+		if cve.ErrorCode != v1.ErrorStatusEmpty {
 			return err
 		}
 	}

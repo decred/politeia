@@ -1017,7 +1017,8 @@ func stringInSlice(arr []string, str string) bool {
 
 func validateNewComment(c www.NewComment) error {
 	// Validate token
-	if !tokenIsValid(c.Token) {
+	_, err := util.ConvertStringToken(c.Token)
+	if err != nil {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}

@@ -180,6 +180,8 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 		return pi.ErrorStatusNoPropChanges
 	case pd.ErrorStatusRecordNotFound:
 		return pi.ErrorStatusPropNotFound
+	case pd.ErrorStatusInvalidToken:
+		return pi.ErrorStatusPropTokenInvalid
 	}
 	return pi.ErrorStatusInvalid
 }

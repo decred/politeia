@@ -347,8 +347,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
-			nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 
@@ -456,7 +455,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 
@@ -530,7 +529,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 
@@ -713,7 +712,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 
@@ -785,7 +784,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 
@@ -857,7 +856,7 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 
@@ -926,7 +925,7 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
 		return
 	}
 

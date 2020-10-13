@@ -1918,7 +1918,7 @@ func (p *ticketVotePlugin) setup() error {
 	log.Tracef("ticketvote setup")
 
 	// TODO
-	// Ensure dcrdata plugin has been registered
+	// Verify dcrdata plugin has been registered
 	// Build votes cache
 	// Build inventory cache
 
@@ -2046,5 +2046,7 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 		activeNetParams: activeNetParams,
 		voteDurationMin: voteDurationMin,
 		voteDurationMax: voteDurationMax,
+		votes:           make(map[string]map[string]string),
+		mutexes:         make(map[string]*sync.Mutex),
 	}, nil
 }
