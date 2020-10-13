@@ -1557,6 +1557,7 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 	for _, codeStat := range userCodeStats {
 		prs := make([]string, 0, len(codeStat.PRs))
 		reviews := make([]string, 0, len(codeStat.Reviews))
+		commits := make([]string, 0, len(codeStat.Commits))
 		for _, pr := range codeStat.PRs {
 			if pr == "" {
 				continue
@@ -1569,12 +1570,19 @@ func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStat
 			}
 			reviews = append(reviews, review)
 		}
+		for _, commit := range codeStat.Commits {
+			if commit == "" {
+				continue
+			}
+			commits = append(commits, commit)
+		}
 		cmsCodeStat := cms.CodeStats{
 			Month:            codeStat.Month,
 			Year:             codeStat.Year,
 			Repository:       codeStat.Repository,
 			PRs:              prs,
 			Reviews:          reviews,
+			Commits:          commits,
 			MergedAdditions:  codeStat.MergedAdditions,
 			MergedDeletions:  codeStat.MergedDeletions,
 			UpdatedAdditions: codeStat.UpdatedAdditions,

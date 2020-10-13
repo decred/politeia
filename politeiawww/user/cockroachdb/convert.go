@@ -110,9 +110,9 @@ func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 	}
 	for i, commit := range cs.Commits {
 		if i < len(cs.Commits)-1 {
-			reviews += commit + ","
+			commits += commit + ","
 		} else {
-			reviews += commit
+			commits += commit
 		}
 	}
 	id := fmt.Sprintf("%v-%v-%v-%v", cs.GitHubName, cs.Repository,
