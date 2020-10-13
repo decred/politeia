@@ -32,6 +32,9 @@ import (
 // is to check if the record exists in the mutexes function to ensure a token
 // is valid before holding the lock on it. This is where we can return a
 // record doesn't exist user error too.
+// TODO prevent duplicate comments
+// TODO upvoting a comment twice in the same second causes a duplicate leaf
+// error which causes a 500. Solution: add the timestamp to the vote index.
 
 const (
 	// Blob entry data descriptors

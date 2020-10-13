@@ -370,10 +370,10 @@ func convertCommentFromPlugin(c comments.Comment) pi.Comment {
 		CommentID: c.CommentID,
 		Timestamp: c.Timestamp,
 		Receipt:   c.Receipt,
-
-		Upvotes:  c.Upvotes,
-		Censored: c.Deleted,
-		Reason:   c.Reason,
+		Downvotes: c.Downvotes,
+		Upvotes:   c.Upvotes,
+		Censored:  c.Deleted,
+		Reason:    c.Reason,
 	}
 }
 
