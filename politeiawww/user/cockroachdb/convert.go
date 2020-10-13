@@ -132,7 +132,7 @@ func convertCodestatsToDatabase(cs user.CodeStats) CMSCodeStats {
 		UpdatedDeletions: cs.UpdatedDeletions,
 		ReviewAdditions:  cs.ReviewAdditions,
 		ReviewDeletions:  cs.ReviewDeletions,
-		CommitAdditons:   cs.CommitAdditions,
+		CommitAdditions:  cs.CommitAdditions,
 		CommitDeletions:  cs.CommitDeletions,
 	}
 }
@@ -156,7 +156,7 @@ func convertCodestatsFromDatabase(cs CMSCodeStats) user.CodeStats {
 		UpdatedDeletions: cs.UpdatedDeletions,
 		ReviewAdditions:  cs.ReviewAdditions,
 		ReviewDeletions:  cs.ReviewDeletions,
-		CommitAdditions:  cs.CommitAdditons,
+		CommitAdditions:  cs.CommitAdditions,
 		CommitDeletions:  cs.CommitDeletions,
 	}
 }

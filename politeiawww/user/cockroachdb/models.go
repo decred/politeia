@@ -116,7 +116,7 @@ type CMSCodeStats struct {
 	UpdatedDeletions int64  `gorm:"not null"`    // Total updated code deletions
 	ReviewAdditions  int64  `gorm:"not null"`    // Total reviewed code additions
 	ReviewDeletions  int64  `gorm:"not null"`    // Total reviewed code deletions
-	CommitAdditons   int64  `gorm:"not null"`    // Total commit additions
+	CommitAdditions  int64  `gorm:"not null"`    // Total commit additions
 	CommitDeletions  int64  `gorm:"not null"`    // Total commit deletions
 }
 

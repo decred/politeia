@@ -48,6 +48,7 @@ github.com/dajohi/goemail v1.0.0/go.mod h1:YyX3pgj9VJX6VQYu8Cbs0GYHzgFUs8q0vX5pL
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dchest/blake256 v1.0.0 h1:6gUgI5MHdz9g0TdrgKqXsoDX+Zjxmm1Sc6OsoGru50I=
 github.com/dchest/blake256 v1.0.0/go.mod h1:xXNWCE1jsAP8DAjP+rKw2MbeqLczjI3TRx2VK+9OEYY=
 github.com/dchest/siphash v1.2.0/go.mod h1:q+IRvb2gOSrUnYoPqHiyHXS0FOBBOdl6tONBlVnOnt4=
 github.com/dchest/siphash v1.2.1 h1:4cLinnzVJDKxTCl9B01807Yiy+W7ZzVHj/KIroQRvT4=
@@ -200,6 +201,7 @@ github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.1-0.20200921185235-6d75c7ec1199
 github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.1-0.20200921185235-6d75c7ec1199/go.mod h1:c5S+PtQWNIA2aUakgrLhrlopkMadcOv51dWhCEdo49c=
 github.com/decred/dcrd/rpcclient v1.0.1 h1:mSkVtOQKXnMJ2P08xPFnD2J9w54+YFQuMeBd5tC9iBI=
 github.com/decred/dcrd/rpcclient v1.0.1/go.mod h1:tApXK3wwrAQtz7lcXeeqBwuktUZesvrFfvhAdedYqdM=
+github.com/decred/dcrd/rpcclient/v4 v4.0.0 h1:8C3lNs2mvfu9CDjFzz1BOiDDbWBG9aTH82PCiGMP3FE=
 github.com/decred/dcrd/rpcclient/v4 v4.0.0/go.mod h1:DNGwfiL5H+K/pk3hVB0z5ypRdiDXMssR+YEqDUEXCQo=
 github.com/decred/dcrd/rpcclient/v5 v5.0.0 h1:dQAPuZU9D+/CP8DcyVjtNxLjT4Ew+L6QhYd/MWhSFvw=
 github.com/decred/dcrd/rpcclient/v5 v5.0.0/go.mod h1:lg7e2kpulSpynHkS2JXJ+trQ4PWHaHLQcp/Q0eSIvBc=
@@ -223,6 +225,7 @@ github.com/decred/dcrd/wire v1.3.1-0.20200921173733-67245079e9fb/go.mod h1:WxC/0
 github.com/decred/dcrd/wire v1.3.1-0.20200921185235-6d75c7ec1199/go.mod h1:WxC/0K+cCAnBh+SKsRjIX9YPgvrjhmE+6pZlel1G7Ro=
 github.com/decred/dcrd/wire v1.4.0 h1:KmSo6eTQIvhXS0fLBQ/l7hG7QLcSJQKSwSyzSqJYDk0=
 github.com/decred/dcrd/wire v1.4.0/go.mod h1:WxC/0K+cCAnBh+SKsRjIX9YPgvrjhmE+6pZlel1G7Ro=
+github.com/decred/dcrdata/api/types/v4 v4.0.4 h1:carVwbL4dfzjTVuusfsiCOm4lU2fN9rNSexMq4giiK8=
 github.com/decred/dcrdata/api/types/v4 v4.0.4/go.mod h1:CCu2Itqv/K3lqFxqSYDC49XWu5OuZRvNFkPiFHb0tYU=
 github.com/decred/dcrdata/api/types/v5 v5.0.1 h1:7L1CAmv1jttCi4ogt+1iq/2PaI8GULm7TQO1GVPVwd4=
 github.com/decred/dcrdata/api/types/v5 v5.0.1/go.mod h1:HsXXD8HXaoH7tr1Du95rnw4gnxbOliR/YGbysAgQDPw=
@@ -250,6 +253,7 @@ github.com/decred/dcrdata/semver v1.0.0 h1:DBqYU/x+4LqHq/3r4xKdF6xG5ewktG2KDC+g/
 github.com/decred/dcrdata/semver v1.0.0/go.mod h1:z+nQqiAd9fYkHhBLbejysZ2FPHtgkrErWDgMf+JlZWE=
 github.com/decred/dcrdata/stakedb/v3 v3.1.1 h1:wxo5/94fHhptILeMrLk6IAf0cxdS/PBJ6WzXg046X1k=
 github.com/decred/dcrdata/stakedb/v3 v3.1.1/go.mod h1:cg2WqsYXIEJ9u4MnZBKrRWgmWV6nXn/04shdnMFYDr4=
+github.com/decred/dcrdata/txhelpers/v3 v3.0.4 h1:kjvzHU6Tf4//7FJVn+BuwGHskjjrRt4Ps88104Y1vbA=
 github.com/decred/dcrdata/txhelpers/v3 v3.0.4/go.mod h1:tKEDhoO+TbYrFrx+5qKZDxcla8ELQFYs4f5+8gL4cuY=
 github.com/decred/dcrdata/txhelpers/v4 v4.0.0/go.mod h1:cUJbgsIzzI42llHDS0nkPlG49vPJ0cW6IZGbfu5sFrA=
 github.com/decred/dcrdata/txhelpers/v4 v4.0.1 h1:jNPPSP5HzE4cfddj5zIJhrIEus/Tvd28Xvl/uVGjrMI=
@@ -304,6 +308,7 @@ github.com/go-logfmt/logfmt v0.3.0/go.mod h1:Qt1PoO58o5twSAckw1HlFXLmHsOX5/0LbT9
 github.com/go-logfmt/logfmt v0.4.0/go.mod h1:3RMwSq7FuexP4Kalkev3ejPJsZTpXXBr9+V4qmtdjCk=
 github.com/go-sql-driver/mysql v1.4.1/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
+github.com/go-test/deep v1.0.1 h1:UQhStjbkDClarlmv0am7OXXO4/GaPdCGiUiMTvi28sg=
 github.com/go-test/deep v1.0.1/go.mod h1:wGDj63lr65AM2AQyKZd/NYHGb0R+1RLqB8NKt3aSFNA=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/gogo/protobuf v1.3.0/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
@@ -393,6 +398,7 @@ github.com/onsi/ginkgo v1.8.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+W
 github.com/onsi/gomega v1.4.1/go.mod h1:C1qb7wdrVGGVU+Z6iS04AVkA3Q65CEZX59MT0QO5uiA=
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.5.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
+github.com/otiai10/copy v1.0.1 h1:gtBjD8aq4nychvRZ2CyJvFWAw0aja+VHazDdruZKGZA=
 github.com/otiai10/copy v1.0.1/go.mod h1:8bMCJrAqOtN/d9oyh5HR7HhLQMvcGMpGdwRDYsfOCHc=
 github.com/otiai10/curr v0.0.0-20150429015615-9b4961190c95/go.mod h1:9qAhocn7zKJG+0mI8eUu6xqkFDYS2kb2saOteoSB3cE=
 github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776/go.mod h1:3HNVkVOU7vZeFXocWuvtcS0XSFLcf2XUSDHkq9t1jU4=
@@ -426,6 +432,7 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
+github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636 h1:LlXBFcxziHIkc7jnbCmUCL5+ujGMky2aJsNvHqtt80Y=
 github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636/go.mod h1:LIpwO1yApZNrEQZdu5REqRtRrkaU+52ueA7WGT+CvSw=
 github.com/syndtr/goleveldb v1.0.0 h1:fBdIW9lB4Iz0n9khmH8w27SJ3QEJ7+IgjPEwGSZiFdE=
 github.com/syndtr/goleveldb v1.0.0/go.mod h1:ZVVdQEZoIme9iO1Ch2Jdy24qqXrMMOU6lpPAyBWyWuQ=

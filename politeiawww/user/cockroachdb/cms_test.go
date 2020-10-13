@@ -35,6 +35,8 @@ func TestNewCodeStats(t *testing.T) {
 	updatedDeletionsAug := 299
 	reviewAdditionsAug := 200
 	reviewDeletionsAug := 199
+	commitAdditionsAug := 200
+	commitDeletionsAug := 199
 
 	monthSept := 9
 	prsSept := []string{"https://github.com/decred/pr/pull/3",
@@ -47,6 +49,8 @@ func TestNewCodeStats(t *testing.T) {
 	updatedDeletionsSept := 299
 	reviewAdditionsSept := 200
 	reviewDeletionsSept := 199
+	commitAdditionsSept := 200
+	commitDeletionsSept := 199
 
 	year := 2020
 
@@ -66,6 +70,8 @@ func TestNewCodeStats(t *testing.T) {
 		UpdatedDeletions: int64(updatedDeletionsAug),
 		ReviewAdditions:  int64(reviewAdditionsAug),
 		ReviewDeletions:  int64(reviewDeletionsAug),
+		CommitAdditions:  int64(commitAdditionsAug),
+		CommitDeletions:  int64(commitDeletionsAug),
 	})
 	septID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo, strconv.Itoa(monthSept),
 		strconv.Itoa(year))
@@ -82,6 +88,8 @@ func TestNewCodeStats(t *testing.T) {
 		UpdatedDeletions: int64(updatedDeletionsSept),
 		ReviewAdditions:  int64(reviewAdditionsSept),
 		ReviewDeletions:  int64(reviewDeletionsSept),
+		CommitAdditions:  int64(commitAdditionsSept),
+		CommitDeletions:  int64(commitDeletionsSept),
 	})
 	convertedCodeStatsAug := convertCodestatsToDatabase(codeStats[0])
 	convertedCodeStatsSept := convertCodestatsToDatabase(codeStats[1])
@@ -92,10 +100,11 @@ func TestNewCodeStats(t *testing.T) {
 	// Queries
 	sqlInsertCMSCodeStats := `INSERT INTO "cms_code_stats" ` +
 		`("id","git_hub_name","repository","month","year","p_rs","reviews",` +
+		`"commits",` +
 		`"merged_additions","merged_deletions","updated_additions",` +
 		`"updated_deletions","review_additions",` +
-		`"review_deletions") VALUES ` +
-		`($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ` +
+		`"review_deletions","commit_additions","commit_deletions") VALUES ` +
+		`($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ` +
 		`RETURNING "cms_code_stats"."id"`
 
 	// Success Expectations
@@ -110,12 +119,15 @@ func TestNewCodeStats(t *testing.T) {
 			convertedCodeStatsAug.Year,
 			convertedCodeStatsAug.PRs,
 			convertedCodeStatsAug.Reviews,
+			convertedCodeStatsAug.Commits,
 			convertedCodeStatsAug.MergedAdditions,
 			convertedCodeStatsAug.MergedDeletions,
 			convertedCodeStatsAug.UpdatedAdditions,
 			convertedCodeStatsAug.UpdatedDeletions,
 			convertedCodeStatsAug.ReviewAdditions,
-			convertedCodeStatsAug.ReviewDeletions).
+			convertedCodeStatsAug.ReviewDeletions,
+			convertedCodeStatsAug.CommitAdditions,
+			convertedCodeStatsAug.CommitDeletions).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(augID))
 	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertCMSCodeStats)).
 		WithArgs(sqlmock.AnyArg(),
@@ -125,12 +137,15 @@ func TestNewCodeStats(t *testing.T) {
 			convertedCodeStatsSept.Year,
 			convertedCodeStatsSept.PRs,
 			convertedCodeStatsSept.Reviews,
+			convertedCodeStatsSept.Commits,
 			convertedCodeStatsSept.MergedAdditions,
 			convertedCodeStatsSept.MergedDeletions,
 			convertedCodeStatsSept.UpdatedAdditions,
 			convertedCodeStatsSept.UpdatedDeletions,
 			convertedCodeStatsSept.ReviewAdditions,
-			convertedCodeStatsSept.ReviewDeletions).
+			convertedCodeStatsSept.ReviewDeletions,
+			convertedCodeStatsSept.CommitAdditions,
+			convertedCodeStatsSept.CommitDeletions).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(septID))
 	mock.ExpectCommit()
 
@@ -162,6 +177,8 @@ func TestUpdateCodeStats(t *testing.T) {
 	updatedDeletionsAug := 299
 	reviewAdditionsAug := 200
 	reviewDeletionsAug := 199
+	commitAdditionsAug := 200
+	commitDeletionsAug := 199
 	year := 2020
 	prsAug := []string{"https://github.com/decred/pr/pull/1",
 		"https://github.com/decred/pr/pull/2"}
@@ -181,6 +198,8 @@ func TestUpdateCodeStats(t *testing.T) {
 		UpdatedDeletions: int64(updatedDeletionsAug),
 		ReviewAdditions:  int64(reviewAdditionsAug),
 		ReviewDeletions:  int64(reviewDeletionsAug),
+		CommitAdditions:  int64(commitAdditionsAug),
+		CommitDeletions:  int64(commitDeletionsAug),
 	})
 	ucs := &user.UpdateCMSCodeStats{
 		UserCodeStats: codeStats,
@@ -189,11 +208,13 @@ func TestUpdateCodeStats(t *testing.T) {
 	// Query
 	sqlUpdateCMSCodeStats := `UPDATE "cms_code_stats" ` +
 		`SET "git_hub_name" = $1, "repository" = $2, "month" = $3, ` +
-		`"year" = $4, "p_rs" = $5, "reviews" = $6, "merged_additions" = $7, ` +
-		`"merged_deletions" = $8, "updated_additions" = $9, ` +
-		`"updated_deletions" = $10, "review_additions" = $11, ` +
-		`"review_deletions" = $12 ` +
-		`WHERE "cms_code_stats"."id" = $13`
+		`"year" = $4, "p_rs" = $5, "reviews" = $6, "commits" = $7, ` +
+		`"merged_additions" = $8, ` +
+		`"merged_deletions" = $9, "updated_additions" = $10, ` +
+		`"updated_deletions" = $11, "review_additions" = $12, ` +
+		`"review_deletions" = $13, "commit_additions" = $14, ` +
+		`"commit_deletions" = $15 ` +
+		`WHERE "cms_code_stats"."id" = $16`
 
 	augID := fmt.Sprintf("%v-%v-%v-%v", githubName, repo,
 		strconv.Itoa(monthAug), strconv.Itoa(year))
@@ -208,12 +229,15 @@ func TestUpdateCodeStats(t *testing.T) {
 			convertCodeStats.Year,
 			convertCodeStats.PRs,
 			convertCodeStats.Reviews,
+			convertCodeStats.Commits,
 			convertCodeStats.MergedAdditions,
 			convertCodeStats.MergedDeletions,
 			convertCodeStats.UpdatedAdditions,
 			convertCodeStats.UpdatedDeletions,
 			convertCodeStats.ReviewAdditions,
 			convertCodeStats.ReviewDeletions,
+			convertCodeStats.CommitAdditions,
+			convertCodeStats.CommitDeletions,
 			augID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
