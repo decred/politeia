@@ -131,7 +131,7 @@ type Commit struct {
 	URL          string `json:"url"`
 	ParentSHA    string `json:"parentsha"`
 	ParentURL    string `json:"parenturl"`
-	Additons     int    `json:"additions"`
+	Additions    int    `json:"additions"`
 	Deletions    int    `json:"deletions"`
 	Rebase       bool   `json:"rebase"`
 }

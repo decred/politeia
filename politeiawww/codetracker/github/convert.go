@@ -31,7 +31,7 @@ func convertAPICommitsToDbComits(apiCommits []*api.PullRequestCommit, org, repoN
 			Author:       commit.Author.Login,
 			Committer:    commit.Committer.Login,
 			Date:         parseTime(commit.Commit.Author.Date).Unix(),
-			Additons:     commit.Stats.Additions,
+			Additions:    commit.Stats.Additions,
 			Deletions:    commit.Stats.Deletions,
 			ParentSHA:    parentSHA,
 			ParentURL:    parentURL,
@@ -139,7 +139,7 @@ func convertDBCommitsToCommits(dbCommits []database.Commit) []codetracker.Commit
 			SHA:        dbCommit.SHA,
 			URL:        dbCommit.URL,
 			Repository: dbCommit.Repo,
-			Additions:  dbCommit.Additons,
+			Additions:  dbCommit.Additions,
 			Deletions:  dbCommit.Deletions,
 			Date:       dbCommit.Date,
 		}

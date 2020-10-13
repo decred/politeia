@@ -995,3 +995,264 @@ func TestReviewsByUserDates(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestNewCommits(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	now := time.Now()
+	// Arguments
+	sha := "40deb80dea8c560dfc851a6c0fce6f29f8ecb57a"
+	url := "https://api.github.com/repos/decred/politeia/commits/40deb80dea8c560dfc851a6c0fce6f29f8ecb57a"
+	commit := &database.Commit{
+		SHA:          sha,
+		URL:          url,
+		Organization: "decred",
+		Repo:         "politeia",
+		Author:       "stakey",
+		Committer:    "stakey",
+		Date:         now.Unix(),
+		Message:      "This is a sweet commit!",
+		ParentSHA:    "8575154a09049b042634333ad39c3a710c309105",
+		ParentURL:    "https://api.github.com/repos/decred/politeia/commits/8575154a09049b042634333ad39c3a710c309105",
+		Additions:    100,
+		Deletions:    99,
+	}
+
+	// Queries
+	sqlInsertPullRequests := `INSERT INTO "commits" ` +
+		`("sha","repo","organization","date","author","committer","message",` +
+		`"url","parent_sha","parent_url","additions","deletions") ` +
+		`VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ` +
+		`RETURNING "commits"."sha"`
+
+	// Success Expectations
+	mock.ExpectBegin()
+	// Insert user to db
+	mock.ExpectQuery(regexp.QuoteMeta(sqlInsertPullRequests)).
+		WithArgs(
+			commit.SHA,
+			commit.Repo,
+			commit.Organization,
+			commit.Date,
+			commit.Author,
+			commit.Committer,
+			commit.Message,
+			commit.URL,
+			commit.ParentSHA,
+			commit.ParentURL,
+			commit.Additions,
+			commit.Deletions,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"sha"}).AddRow(commit.SHA))
+	mock.ExpectCommit()
+
+	// Execute method
+	err := cdb.NewCommit(commit)
+	if err != nil {
+		t.Errorf("UserNew unwanted error: %s", err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestCommitsByUserDates(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	now := time.Now()
+
+	commitFirst := &database.Commit{
+		SHA:          "5a673974e617fc2a5bc67878d8161c103583d968",
+		URL:          "https://api.github.com/repos/decred/politeia/commits/5a673974e617fc2a5bc67878d8161c103583d968",
+		Organization: "decred",
+		Repo:         "politeia",
+		Author:       "stakey",
+		Committer:    "stakey",
+		Date:         now.Unix(),
+		Message:      "This is a sweet commit! Again",
+		ParentSHA:    "8575154a09049b042634333ad39c3a710c309105",
+		ParentURL:    "https://api.github.com/repos/decred/politeia/commits/8575154a09049b042634333ad39c3a710c309105",
+		Additions:    100,
+		Deletions:    99,
+	}
+
+	commitSecond := &database.Commit{
+		SHA:          "8575154a09049b042634333ad39c3a710c309105",
+		URL:          "https://api.github.com/repos/decred/politeia/commits/8575154a09049b042634333ad39c3a710c309105",
+		Organization: "decred",
+		Repo:         "politeia",
+		Author:       "stakey",
+		Committer:    "stakey",
+		Date:         now.Unix(),
+		Message:      "This is a sweet commit!",
+		ParentSHA:    "883f75a641b969ce0e7313219efcc0c94f30fd01",
+		ParentURL:    "https://api.github.com/repos/decred/politeia/commits/883f75a641b969ce0e7313219efcc0c94f30fd01",
+		Additions:    100,
+		Deletions:    99,
+	}
+
+	rows := sqlmock.NewRows([]string{
+		"sha",
+		"repo",
+		"organization",
+		"date",
+		"author",
+		"committer",
+		"message",
+		"url",
+		"parent_sha",
+		"parent_url",
+		"additions",
+		"deletions",
+	}).AddRow(
+		commitFirst.SHA,
+		commitFirst.Repo,
+		commitFirst.Organization,
+		commitFirst.Date,
+		commitFirst.Author,
+		commitFirst.Committer,
+		commitFirst.Message,
+		commitFirst.URL,
+		commitFirst.ParentSHA,
+		commitFirst.ParentURL,
+		commitFirst.Additions,
+		commitFirst.Deletions,
+	).AddRow(
+		commitSecond.SHA,
+		commitSecond.Repo,
+		commitSecond.Organization,
+		commitSecond.Date,
+		commitSecond.Author,
+		commitSecond.Committer,
+		commitSecond.Message,
+		commitSecond.URL,
+		commitSecond.ParentSHA,
+		commitSecond.ParentURL,
+		commitSecond.Additions,
+		commitSecond.Deletions,
+	)
+
+	bothRangeStart := now.Add(-2 * time.Hour).Unix()
+	bothRangeEnd := now.Add(time.Minute).Unix()
+
+	// Query
+	sql := `
+    SELECT *
+    FROM "commits"
+    WHERE (author = $1 AND date BETWEEN $2 AND $3)`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(commitFirst.Author, bothRangeStart, bothRangeEnd).
+		WillReturnRows(rows)
+
+	// Execute method
+	_, err := cdb.CommitsByUserDates(commitFirst.Author, bothRangeStart,
+		bothRangeEnd)
+	if err != nil {
+		t.Errorf("ReviewsByUserDate unwanted error: %s", err)
+	}
+
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestCommitBySHA(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	now := time.Now()
+	commitFirst := &database.Commit{
+		SHA:          "5a673974e617fc2a5bc67878d8161c103583d968",
+		URL:          "https://api.github.com/repos/decred/politeia/commits/5a673974e617fc2a5bc67878d8161c103583d968",
+		Organization: "decred",
+		Repo:         "politeia",
+		Author:       "stakey",
+		Committer:    "stakey",
+		Date:         now.Unix(),
+		Message:      "This is a sweet commit! Again",
+		ParentSHA:    "8575154a09049b042634333ad39c3a710c309105",
+		ParentURL:    "https://api.github.com/repos/decred/politeia/commits/8575154a09049b042634333ad39c3a710c309105",
+		Additions:    100,
+		Deletions:    99,
+	}
+
+	rows := sqlmock.NewRows([]string{
+		"sha",
+		"repo",
+		"organization",
+		"date",
+		"author",
+		"committer",
+		"message",
+		"url",
+		"parent_sha",
+		"parent_url",
+		"additions",
+		"deletions",
+	}).AddRow(
+		commitFirst.SHA,
+		commitFirst.Repo,
+		commitFirst.Organization,
+		commitFirst.Date,
+		commitFirst.Author,
+		commitFirst.Committer,
+		commitFirst.Message,
+		commitFirst.URL,
+		commitFirst.ParentSHA,
+		commitFirst.ParentURL,
+		commitFirst.Additions,
+		commitFirst.Deletions,
+	)
+
+	shaNotFound := "8575154a09049b042634333ad39c3a710c309105"
+
+	// Query
+	sql := `SELECT * FROM "commits" WHERE "commits"."sha" = $1`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(commitFirst.SHA).
+		WillReturnRows(rows)
+
+	// Execute method
+	_, err := cdb.CommitBySHA(commitFirst.SHA)
+	if err != nil {
+		t.Errorf("PullRequestByURL unwanted error: %s", err)
+	}
+
+	expectedError := database.ErrNoCommitFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(shaNotFound).
+		WillReturnError(expectedError)
+
+	foundPr, err := cdb.CommitBySHA(shaNotFound)
+	if err == nil {
+		t.Errorf("expecting error but there was none")
+	}
+
+	if foundPr != nil {
+		t.Errorf("expecting nil pr to be returned, but got non-nil pr")
+	}
+
+	// Make sure we got the expected error
+	if err != expectedError {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}

@@ -74,9 +74,8 @@ type Commit struct {
 	URL          string `gorm:"not null"`
 	ParentSHA    string `gorm:"not null"`
 	ParentURL    string `gorm:"not null"`
-	Additons     int    `gorm:"not null"`
+	Additions    int    `gorm:"not null"`
 	Deletions    int    `gorm:"not null"`
-	Rebase       bool   `gorm:"not null"`
 }
 
 // TableName returns the table name of the commits table.

@@ -114,7 +114,7 @@ func encodeCommit(dbCommit *database.Commit) Commit {
 		Committer:    dbCommit.Committer,
 		ParentSHA:    dbCommit.ParentSHA,
 		ParentURL:    dbCommit.ParentURL,
-		Additons:     dbCommit.Additons,
+		Additions:    dbCommit.Additions,
 		Deletions:    dbCommit.Deletions,
 	}
 	return commit
@@ -132,7 +132,7 @@ func decodeCommit(commit *Commit) *database.Commit {
 		Committer:    commit.Committer,
 		ParentSHA:    commit.ParentSHA,
 		ParentURL:    commit.ParentURL,
-		Additons:     commit.Additons,
+		Additions:    commit.Additions,
 		Deletions:    commit.Deletions,
 	}
 	return dbCommit
