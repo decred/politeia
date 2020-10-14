@@ -672,6 +672,7 @@ func convertVoteSummaryFromPlugin(s ticketvote.Summary) pi.VoteSummary {
 		EndBlockHeight:   s.EndBlockHeight,
 		EligibleTickets:  s.EligibleTickets,
 		QuorumPercentage: s.QuorumPercentage,
+		PassPercentage:   s.PassPercentage,
 		Results:          results,
 		Approved:         s.Approved,
 	}

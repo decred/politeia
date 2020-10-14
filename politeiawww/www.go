@@ -250,6 +250,8 @@ func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatu
 		return pi.ErrorStatusPropNotFound
 	case ticketvote.ErrorStatusRecordStatusInvalid:
 		return pi.ErrorStatusPropStatusInvalid
+	case ticketvote.ErrorStatusAuthorizationInvalid:
+		return pi.ErrorStatusVoteAuthInvalid
 	case ticketvote.ErrorStatusVoteParamsInvalid:
 		return pi.ErrorStatusVoteParamsInvalid
 	case ticketvote.ErrorStatusVoteStatusInvalid:

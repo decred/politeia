@@ -1317,7 +1317,7 @@ func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsRepl
 
 // VoteSummaries retrieves a summary of the voting process for a set of
 // proposals.
-func (c *Client) VoteSummaries(vs *pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
+func (c *Client) VoteSummaries(vs pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
 		pi.RouteVoteSummaries, vs)
 	if err != nil {
@@ -1331,7 +1331,7 @@ func (c *Client) VoteSummaries(vs *pi.VoteSummaries) (*pi.VoteSummariesReply, er
 	var vsr pi.VoteSummariesReply
 	err = json.Unmarshal(respBody, &vsr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal BatchVoteSummary: %v", err)
+		return nil, err
 	}
 
 	if c.cfg.Verbose {

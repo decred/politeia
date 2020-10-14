@@ -160,7 +160,7 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 	// Print response details. Remove ticket snapshot from
 	// the response before printing so that the output is
 	// legible.
-	m := "removed by politeiawwwcli for readability"
+	m := "removed by piwww for readability"
 	svrr.EligibleTickets = []string{m}
 	err = shared.PrintJSON(svrr)
 	if err != nil {

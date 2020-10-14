@@ -5,63 +5,63 @@
 package main
 
 import (
-	"fmt"
-
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// votesCmd retrieves vote details for a proposal, tallies the votes, and
-// displays the result.
+// votesCmd retrieves vote details for the specified proposals.
 type votesCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token"`
+		Tokens []string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the tally command.
-func (cmd *votesCmd) Execute(args []string) error {
-	token := cmd.Args.Token
-
-	// Prep request payload
+// Execute executes the votes command.
+func (c *votesCmd) Execute(args []string) error {
+	// Setup request
 	v := pi.Votes{
-		Tokens: []string{token},
+		Tokens: c.Args.Tokens,
 	}
 
-	// Print request details
+	// Send request. The request and response details are printed to
+	// the console.
 	err := shared.PrintJSON(v)
 	if err != nil {
 		return err
 	}
-
-	// Get vote details for proposal
-	vrr, err := client.Votes(v)
+	vr, err := client.Votes(v)
 	if err != nil {
-		return fmt.Errorf("ProposalVotes: %v", err)
+		return err
 	}
-
-	// Remove eligible tickets snapshot from response
-	// so that the output is legible
-	var (
-		pv pi.ProposalVote
-		ok bool
-	)
-	if pv, ok = vrr.Votes[token]; ok && !cfg.RawJSON {
-		pv.Vote.EligibleTickets = []string{
-			"removed by politeiawwwcli for readability",
+	if !cfg.RawJSON {
+		// Remove the eligible ticket pool from the response for
+		// readability.
+		for k, v := range vr.Votes {
+			if v.Vote == nil {
+				continue
+			}
+			v.Vote.EligibleTickets = []string{
+				"removed by piwww for readability",
+			}
+			vr.Votes[k] = v
 		}
-		vrr.Votes[token] = pv
+	}
+	err = shared.PrintJSON(vr)
+	if err != nil {
+		return err
 	}
 
-	// Print response details
-	return shared.PrintJSON(vrr)
+	return nil
 }
 
-// votesHelpMsg is the output for the help command when 'votes' is specified.
-const votesHelpMsg = `votes "token"
+// votesHelpMsg is the help command message.
+const votesHelpMsg = `votes "tokens"
 
-Fetch the vote details for a proposal.
+Fetch the vote details for the provided proposal tokens.
 
 Arguments:
-1. token       (string, required)  Proposal censorship token
+1. tokens  (string, required)  Proposal censorship tokens
+
+Example usage:
+$ piwww votes cda97ace0a4765140000 71dd3a110500fb6a0000
 `

@@ -117,7 +117,8 @@ type PluginUserError struct {
 
 // Error satisfies the error interface.
 func (e PluginUserError) Error() string {
-	return fmt.Sprintf("plugin error code: %v", e.ErrorCode)
+	return fmt.Sprintf("plugin %v error code: %v %v",
+		e.PluginID, e.ErrorCode, e.ErrorContext)
 }
 
 // RecordMetadata is the metadata of a record.

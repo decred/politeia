@@ -25,6 +25,7 @@ type VoteErrorT int
 // TODO make RouteVoteResults a batched route but that only currently allows
 // for 1 result to be returned so that we have the option to change this is
 // we want to.
+// TODO should we add auths to the vote summary?
 
 const (
 	APIVersion = 1
@@ -170,6 +171,7 @@ const (
 	ErrorStatusCommentVoteChangesMax
 
 	// Vote errors
+	ErrorStatusVoteAuthInvalid
 	ErrorStatusVoteStatusInvalid
 	ErrorStatusVoteParamsInvalid
 	ErrorStatusBallotInvalid

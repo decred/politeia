@@ -70,7 +70,7 @@ type Config struct {
 // 	3) Load configuration file overwriting defaults with any specified options
 // 	4) Parse CLI options and overwrite/add any specified options
 //
-// The above results in politeiawwwcli functioning properly without any config
+// The above results in the cli functioning properly without any config
 // settings while still allowing the user to override settings with config
 // files and command line options. Command line options always take precedence.
 func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
@@ -186,8 +186,8 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 }
 
 // hostFilePath returns the host specific file path for the passed in file.
-// This means that the hostname is prepended to the filename.  politeiawwwcli
-// data is segmented by host so that we can interact with multiple hosts
+// This means that the hostname is prepended to the filename. cli data is
+// segmented by host so that we can interact with multiple hosts
 // simultaneously.
 func (cfg *Config) hostFilePath(filename string) (string, error) {
 	u, err := url.Parse(cfg.Host)

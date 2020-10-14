@@ -111,7 +111,7 @@ the admins.
 	* The StatusReply returns interesting statistics such as: number of
 	  proposals in memory, number of comments in memory etc.
 3. Add refclient unit tests that validate all 3 conditions.
-4. Add RPC to politeiawwwcli so that the status calls can be scripted.
+4. Add RPC to piwww so that the status calls can be scripted.
 ```
 
 ### Who
@@ -139,7 +139,7 @@ votes should be less than a week.
 2. 8 hours to add the call, determine what status to set when and figure out
    what statistics to return.
 3. 4 hours to add refclient validation tests.
-4. 2 hours to add RPC to politeiawwwcli
+4. 2 hours to add RPC to piwww
 
 In addition allow for 1 hour of overhead (going back and forth on slack/github
 etc). This will bring the grand total to 17 hours at a rate of $40/h. This
@@ -157,7 +157,7 @@ Week 1 deliverables
 Week 2 deliverables
 1. Implement RPC
 2. Implement validation tests
-3. Implement politeiawwwcli
+3. Implement piwww
 
 15 hours, to be completed on August 29 2018
 ```

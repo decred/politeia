@@ -66,6 +66,8 @@ var (
 // TODO the bottleneck for casting a large ballot of votes is waiting for the
 // log signer. Break the cast votes up and send them concurrently.
 
+// TODO should start and startrunoff be combined into a single command?
+
 // ticketVotePlugin satisfies the pluginClient interface.
 type ticketVotePlugin struct {
 	sync.Mutex
@@ -958,13 +960,16 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 				ErrorContext: []string{"no prev action; action must be authorize"},
 			}
 		}
-	case prevAction == ticketvote.ActionAuthorize:
+	case prevAction == ticketvote.ActionAuthorize &&
+		a.Action != ticketvote.ActionRevoke:
 		// Previous action was a authorize. This action must be revoke.
 		return "", backend.PluginUserError{
+			PluginID:     ticketvote.ID,
 			ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
 			ErrorContext: []string{"prev action was authorize"},
 		}
-	case prevAction == ticketvote.ActionRevoke:
+	case prevAction == ticketvote.ActionRevoke &&
+		a.Action != ticketvote.ActionAuthorize:
 		// Previous action was a revoke. This action must be authorize.
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
@@ -1672,7 +1677,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	for _, voteBit := range votes {
 		tally[voteBit]++
 	}
-	results := make([]ticketvote.Result, len(vd.Params.Options))
+	results := make([]ticketvote.Result, 0, len(vd.Params.Options))
 	for _, v := range vd.Params.Options {
 		bit := strconv.FormatUint(v.Bit, 16)
 		results = append(results, ticketvote.Result{

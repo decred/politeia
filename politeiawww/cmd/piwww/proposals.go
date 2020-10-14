@@ -27,14 +27,14 @@ type proposalsCmd struct {
 }
 
 // Execute executes the proposals command.
-func (cmd *proposalsCmd) Execute(args []string) error {
-	proposals := cmd.Args.Proposals
+func (c *proposalsCmd) Execute(args []string) error {
+	proposals := c.Args.Proposals
 
 	// Set state to get unvetted or vetted proposals. Defaults
 	// to vetted unless the unvetted flag is used.
 	var state pi.PropStateT
 	switch {
-	case cmd.Unvetted:
+	case c.Unvetted:
 		state = pi.PropStateUnvetted
 	default:
 		state = pi.PropStateVetted
@@ -66,7 +66,7 @@ func (cmd *proposalsCmd) Execute(args []string) error {
 	p := pi.Proposals{
 		State:        state,
 		Requests:     requests,
-		IncludeFiles: cmd.IncludeFiles,
+		IncludeFiles: c.IncludeFiles,
 	}
 
 	// Send request

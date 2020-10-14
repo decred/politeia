@@ -9,27 +9,43 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// voteSummariesCmd retrieves a set of proposal vote summaries.
-type voteSummariesCmd struct{}
+// voteSummariesCmd retrieves the vote summaries for the provided proposals.
+type voteSummariesCmd struct {
+	Args struct {
+		Tokens []string `positional-arg-name:"token"`
+	} `positional-args:"true" required:"true"`
+}
 
-// Execute executes the batch vote summaries command.
+// Execute executes the vote summaries command.
 func (cmd *voteSummariesCmd) Execute(args []string) error {
-	bpr, err := client.VoteSummaries(&pi.VoteSummaries{
-		Tokens: args,
-	})
+	// Setup request
+	vs := pi.VoteSummaries{
+		Tokens: cmd.Args.Tokens,
+	}
+
+	// Send request. The request and response details are printed to
+	// the console.
+	err := shared.PrintJSON(vs)
+	if err != nil {
+		return err
+	}
+	vsr, err := client.VoteSummaries(vs)
+	if err != nil {
+		return err
+	}
+	err = shared.PrintJSON(vsr)
 	if err != nil {
 		return err
 	}
 
-	return shared.PrintJSON(bpr)
+	return nil
 }
 
-// voteSummariesHelpMsg is the output for the help command when
-// 'votesummaries' is specified.
-const voteSummariesHelpMsg = `votesummaries
+// voteSummariesHelpMsg is the help command message.
+const voteSummariesHelpMsg = `votesummaries "tokens"
 
-Fetch a summary of the voting process for a list of proposals.
+Fetch the vote summaries for the provided proposal tokens.
 
-Example:
-votesummaries token1 token2
+Example usage:
+$ piww votesummaries cda97ace0a4765140000 71dd3a110500fb6a0000
 `

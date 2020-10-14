@@ -1037,9 +1037,9 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v %v: backend plugin failed with "+
-			"command:%v payload:%v err:%v", remoteAddr(r),
-			errorCode, pc.Command, pc.Payload, err)
+		log.Errorf("%v %v: backend plugin failed: pluginID:%v command:%v "+
+			"payload:%v err:%v", remoteAddr(r), errorCode, pc.ID, pc.Command,
+			pc.Payload, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
