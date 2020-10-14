@@ -1238,19 +1238,17 @@ func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice
 		return nil, err
 	}
 
-	// Remove all existing line items for that invoice.  They will all get added
-	// back on the update below.
-	err = p.cmsDB.RemoveInvoiceLineItems(invRec.CensorshipRecord.Token)
+	version, err := strconv.Atoi(invRec.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update the cmsdb
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
 		Files:            convertPropFilesFromWWW(ei.Files),
 		Metadata:         mds,
 		CensorshipRecord: convertInvoiceCensorFromWWW(invRec.CensorshipRecord),
-		Version:          invRec.Version,
+		// Increment the version
+		Version: strconv.Itoa(version + 1),
 	})
 	if err != nil {
 		return nil, err
@@ -1259,13 +1257,15 @@ func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice
 	dbInvoice.UserID = u.ID.String()
 	dbInvoice.Status = cms.InvoiceStatusUpdated
 
-	err = p.cmsDB.UpdateInvoice(dbInvoice)
+	// Since we want to retain all versions of an invoice, don't update,
+	// create a new entry.
+	err = p.cmsDB.NewInvoice(dbInvoice)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get updated invoice from the database
-	inv, err := p.getInvoice(dbInvoice.Token)
+	inv, err := p.getInvoiceVersion(dbInvoice.Token, dbInvoice.Version)
 	if err != nil {
 		log.Errorf("processEditInvoice: getInvoice %v: %v",
 			dbInvoice.Token, err)
