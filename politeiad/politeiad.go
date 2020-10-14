@@ -1253,14 +1253,18 @@ func _main() error {
 				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
 					"should be 'pluginID,key,value'", s)
 			}
-			pluginID := s[0]
+			var (
+				pluginID = s[0]
+				key      = s[1]
+				value    = s[2]
+			)
 			ps, ok := settings[pluginID]
 			if !ok {
 				ps = make([]backend.PluginSetting, 0, 16)
 			}
 			ps = append(ps, backend.PluginSetting{
-				Key:   s[1],
-				Value: s[2],
+				Key:   key,
+				Value: value,
 			})
 
 			settings[pluginID] = ps

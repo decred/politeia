@@ -8,8 +8,6 @@ package dcrdata
 
 import (
 	"encoding/json"
-
-	v4 "github.com/decred/dcrdata/api/types/v4"
 )
 
 type StatusT int
@@ -25,8 +23,10 @@ const (
 	CmdTxsTrimmed   = "txstrimmed"   // Get trimmed transactions
 
 	// Default plugin settings
-	DefaultHostHTTP = "https://dcrdata.decred.org"
-	DefaultHostWS   = "wss://dcrdata.decred.org/ps"
+	DefaultHostHTTPMainNet = "https://dcrdata.decred.org"
+	DefaultHostHTTPTestNet = "https://testnet.decred.org"
+	DefaultHostWSMainNet   = "wss://dcrdata.decred.org/ps"
+	DefaultHostWSTestNet   = "wss://testnet.decred.org/ps"
 
 	// Dcrdata connection statuses.
 	//
@@ -81,6 +81,30 @@ func DecodeBestBlockReply(payload []byte) (*BestBlockReply, error) {
 	return &bbr, nil
 }
 
+// TicketPoolInfo models data about ticket pool.
+type TicketPoolInfo struct {
+	Height  uint32   `json:"height"`
+	Size    uint32   `json:"size"`
+	Value   float64  `json:"value"`
+	ValAvg  float64  `json:"valavg"`
+	Winners []string `json:"winners"`
+}
+
+// BlockDataBasic models primary information about a block.
+type BlockDataBasic struct {
+	Height     uint32  `json:"height"`
+	Size       uint32  `json:"size"`
+	Hash       string  `json:"hash"`
+	Difficulty float64 `json:"diff"`
+	StakeDiff  float64 `json:"sdiff"`
+	Time       int64   `json:"time"` // UNIX timestamp
+	NumTx      uint32  `json:"txlength"`
+	MiningFee  *int64  `json:"fees,omitempty"`
+	TotalSent  *int64  `json:"total_sent,omitempty"`
+	// TicketPoolInfo may be nil for side chain blocks.
+	PoolInfo *TicketPoolInfo `json:"ticket_pool,omitempty"`
+}
+
 // BlockDetails fetched the block details for the provided block height.
 type BlockDetails struct {
 	Height uint32 `json:"height"`
@@ -103,7 +127,7 @@ func DecodeBlockDetails(payload []byte) (*BlockDetails, error) {
 
 // BlockDetailsReply is the reply to the block details command.
 type BlockDetailsReply struct {
-	Block v4.BlockDataBasic `json:"block"`
+	Block BlockDataBasic `json:"block"`
 }
 
 // EncodeBlockDetailsReply encodes an BlockDetailsReply into a JSON byte slice.
@@ -162,6 +186,65 @@ func DecodeTicketPoolReply(payload []byte) (*TicketPoolReply, error) {
 	return &tpr, nil
 }
 
+// ScriptSig models a signature script. It is defined separately since it only
+// applies to non-coinbase. Therefore the field in the Vin structure needs to
+// be a pointer.
+type ScriptSig struct {
+	Asm string `json:"asm"`
+	Hex string `json:"hex"`
+}
+
+// Vin models parts of the tx data. It is defined separately since
+// getrawtransaction, decoderawtransaction, and searchrawtransaction use the
+// same structure.
+type Vin struct {
+	Coinbase    string     `json:"coinbase"`
+	Stakebase   string     `json:"stakebase"`
+	Txid        string     `json:"txid"`
+	Vout        uint32     `json:"vout"`
+	Tree        int8       `json:"tree"`
+	Sequence    uint32     `json:"sequence"`
+	AmountIn    float64    `json:"amountin"`
+	BlockHeight uint32     `json:"blockheight"`
+	BlockIndex  uint32     `json:"blockindex"`
+	ScriptSig   *ScriptSig `json:"scriptSig"`
+}
+
+// ScriptPubKey is the script public key data.
+type ScriptPubKey struct {
+	Asm       string   `json:"asm"`
+	Hex       string   `json:"hex"`
+	ReqSigs   int32    `json:"reqSigs,omitempty"`
+	Type      string   `json:"type"`
+	Addresses []string `json:"addresses,omitempty"`
+	CommitAmt *float64 `json:"commitamt,omitempty"`
+}
+
+// TxInputID specifies a transaction input as hash:vin_index.
+type TxInputID struct {
+	Hash  string `json:"hash"`
+	Index uint32 `json:"vin_index"`
+}
+
+// Vout defines a transaction output.
+type Vout struct {
+	Value               float64      `json:"value"`
+	N                   uint32       `json:"n"`
+	Version             uint16       `json:"version"`
+	ScriptPubKeyDecoded ScriptPubKey `json:"scriptPubKey"`
+	Spend               *TxInputID   `json:"spend,omitempty"`
+}
+
+// TrimmedTx models data to resemble to result of the decoderawtransaction RPC.
+type TrimmedTx struct {
+	TxID     string `json:"txid"`
+	Version  int32  `json:"version"`
+	Locktime uint32 `json:"locktime"`
+	Expiry   uint32 `json:"expiry"`
+	Vin      []Vin  `json:"vin"`
+	Vout     []Vout `json:"vout"`
+}
+
 // TxsTrimmed requests the trimmed transaction information for the provided
 // transaction IDs.
 type TxsTrimmed struct {
@@ -185,7 +268,7 @@ func DecodeTxsTrimmed(payload []byte) (*TxsTrimmed, error) {
 
 // TxsTrimmedReply is the reply to the TxsTrimmed command.
 type TxsTrimmedReply struct {
-	Txs []v4.TrimmedTx `json:"txs"`
+	Txs []TrimmedTx `json:"txs"`
 }
 
 // EncodeTxsTrimmedReply encodes an TxsTrimmedReply into a JSON byte slice.

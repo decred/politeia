@@ -7,9 +7,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.15+incompatible // indirect
-	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dajohi/goemail v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200921185235-6d75c7ec1199
@@ -20,8 +18,10 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0
 	github.com/decred/dcrd/dcrutil/v3 v3.0.0
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.1-0.20200921185235-6d75c7ec1199
 	github.com/decred/dcrd/wire v1.4.0
 	github.com/decred/dcrdata/api/types/v4 v4.0.4
+	github.com/decred/dcrdata/api/types/v5 v5.0.1
 	github.com/decred/dcrdata/explorer/types/v2 v2.1.1
 	github.com/decred/dcrdata/pubsub/types/v3 v3.0.5
 	github.com/decred/dcrdata/pubsub/v4 v4.0.3-0.20191219212733-19f656d6d679
@@ -30,14 +30,10 @@ require (
 	github.com/decred/dcrtime/api/v2 v2.0.0-20200912200806-b1e4dbc46be9
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.1.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/go-test/deep v1.0.1
-	github.com/gogo/protobuf v1.3.0 // indirect
-	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/google/certificate-transparency-go v1.0.21 // indirect
-	github.com/google/trillian v1.2.1
+	github.com/google/trillian v1.3.11
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/csrf v1.6.2
 	github.com/gorilla/mux v1.7.3
@@ -45,13 +41,9 @@ require (
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.1
 	github.com/gorilla/websocket v1.4.2
-	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway v1.9.3 // indirect
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.1-0.20200711081900-c17162fe8fd7
 	github.com/jinzhu/gorm v1.9.10
-	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/jrick/logrotate v1.0.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/marcopeereboom/sbox v1.0.0
@@ -59,21 +51,12 @@ require (
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
-	github.com/prometheus/client_golang v1.1.0 // indirect
 	github.com/robfig/cron v1.2.0
-	github.com/soheilhy/cmux v0.1.4 // indirect
 	github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636
 	github.com/syndtr/goleveldb v1.0.0
-	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
-	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
-	go.opencensus.io v0.22.0 // indirect
-	go.uber.org/atomic v1.4.0 // indirect
-	go.uber.org/multierr v1.1.0 // indirect
-	go.uber.org/zap v1.10.0 // indirect
-	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
-	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
-	google.golang.org/grpc v1.25.1
-	sigs.k8s.io/yaml v1.1.0 // indirect
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/net v0.0.0-20200625001655-4c5254603344
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	google.golang.org/genproto v0.0.0-20200707001353-8e8330bf89df
+	google.golang.org/grpc v1.29.1
 )

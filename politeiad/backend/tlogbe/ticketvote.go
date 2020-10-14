@@ -69,24 +69,24 @@ var (
 // ticketVotePlugin satisfies the pluginClient interface.
 type ticketVotePlugin struct {
 	sync.Mutex
-	backend backend.Backend
-	tlog    tlogClient
+	activeNetParams *chaincfg.Params
+	backend         backend.Backend
+	tlog            tlogClient
 
 	// Plugin settings
-	activeNetParams *chaincfg.Params
 	voteDurationMin uint32 // In blocks
 	voteDurationMax uint32 // In blocks
-
-	// identity contains the full identity that the plugin uses to
-	// create receipts, i.e. signatures of user provided data that
-	// prove the backend received and processed a plugin command.
-	identity *identity.FullIdentity
 
 	// dataDir is the ticket vote plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
 	// time by walking the trillian trees. Ex, the vote summary once a
 	// record vote has ended.
 	dataDir string
+
+	// identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	identity *identity.FullIdentity
 
 	// inv contains the record inventory categorized by vote status.
 	// The inventory will only contain public, non-abandoned records.
@@ -2018,6 +2018,8 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 			voteDurationMin = ticketvote.DefaultTestNetVoteDurationMin
 		case chaincfg.SimNetParams().Name:
 			voteDurationMin = ticketvote.DefaultSimNetVoteDurationMin
+		default:
+			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
 		}
 	}
 	if voteDurationMax == 0 {
@@ -2028,6 +2030,8 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 			voteDurationMax = ticketvote.DefaultTestNetVoteDurationMax
 		case chaincfg.SimNetParams().Name:
 			voteDurationMax = ticketvote.DefaultSimNetVoteDurationMax
+		default:
+			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
 		}
 	}
 
@@ -2039,13 +2043,13 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 	}
 
 	return &ticketVotePlugin{
-		dataDir:         dataDir,
+		activeNetParams: activeNetParams,
 		backend:         backend,
 		tlog:            tlog,
-		identity:        id,
-		activeNetParams: activeNetParams,
 		voteDurationMin: voteDurationMin,
 		voteDurationMax: voteDurationMax,
+		dataDir:         dataDir,
+		identity:        id,
 		votes:           make(map[string]map[string]string),
 		mutexes:         make(map[string]*sync.Mutex),
 	}, nil

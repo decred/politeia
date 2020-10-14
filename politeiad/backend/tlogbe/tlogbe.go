@@ -1477,7 +1477,7 @@ func (t *tlogBackend) RegisterPlugin(p backend.Plugin) error {
 			return err
 		}
 	case dcrdata.ID:
-		client, err = newDcrdataPlugin(p.Settings)
+		client, err = newDcrdataPlugin(p.Settings, t.activeNetParams)
 		if err != nil {
 			return err
 		}
@@ -1718,11 +1718,11 @@ func New(anp *chaincfg.Params, homeDir, dataDir, dcrtimeHost, encryptionKeyFile,
 		prefixes:        make(map[string][]byte),
 		vettedTreeIDs:   make(map[string]int64),
 		inventory: map[backend.MDStatusT][]string{
-			backend.MDStatusUnvetted:          make([]string, 0),
-			backend.MDStatusIterationUnvetted: make([]string, 0),
-			backend.MDStatusVetted:            make([]string, 0),
-			backend.MDStatusCensored:          make([]string, 0),
-			backend.MDStatusArchived:          make([]string, 0),
+			backend.MDStatusUnvetted:          make([]string, 0, 256),
+			backend.MDStatusIterationUnvetted: make([]string, 0, 256),
+			backend.MDStatusVetted:            make([]string, 0, 256),
+			backend.MDStatusCensored:          make([]string, 0, 256),
+			backend.MDStatusArchived:          make([]string, 0, 256),
 		},
 	}
 

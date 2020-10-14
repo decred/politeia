@@ -499,12 +499,9 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Append record index and freeze record leaves to trillian tree.
-	// The queued leaves get added to the tree by the log signer FILO.
-	// Send the freeze record in first so that it gets appended to the
-	// tree last.
 	leaves := []*trillian.LogLeaf{
-		logLeafNew(freezeRecordHash, []byte(keyPrefixFreezeRecord+keys[1])),
 		logLeafNew(idxHash, []byte(keyPrefixRecordIndex+keys[0])),
+		logLeafNew(freezeRecordHash, []byte(keyPrefixFreezeRecord+keys[1])),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {

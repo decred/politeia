@@ -32,6 +32,7 @@ var (
 )
 
 type piwww struct {
+	// This is here to prevent parsing errors caused by config flags.
 	Config shared.Config
 
 	// Basic commands
@@ -197,7 +198,7 @@ func _main() error {
 			fmt.Printf("%v\n", helpMsg)
 			return nil
 		}
-		return fmt.Errorf("parse help flags: %v", err)
+		return fmt.Errorf("parse help flag: %v", err)
 	}
 
 	// Get politeiawww CSRF token
@@ -209,9 +210,7 @@ func _main() error {
 	}
 
 	// Parse subcommand and execute
-	parser = flags.NewParser(&piwww{
-		Config: *cfg,
-	}, flags.Default)
+	parser = flags.NewParser(&piwww{Config: *cfg}, flags.Default)
 	_, err = parser.Parse()
 	if err != nil {
 		os.Exit(1)

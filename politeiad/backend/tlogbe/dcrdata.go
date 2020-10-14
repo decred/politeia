@@ -14,7 +14,9 @@ import (
 	"strings"
 	"sync"
 
-	v4 "github.com/decred/dcrdata/api/types/v4"
+	"github.com/decred/dcrd/chaincfg/v3"
+	jsonrpc "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
+	v5 "github.com/decred/dcrdata/api/types/v5"
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/backend"
@@ -42,10 +44,13 @@ var (
 // dcrdataplugin satisfies the pluginClient interface.
 type dcrdataPlugin struct {
 	sync.Mutex
-	hostHTTP string            // dcrdata HTTP host
-	hostWS   string            // dcrdata websocket host
-	client   *http.Client      // HTTP client
-	ws       *wsdcrdata.Client // Websocket client
+	activeNetParams *chaincfg.Params
+	client          *http.Client
+	ws              *wsdcrdata.Client
+
+	// Plugin settings
+	hostHTTP string // dcrdata HTTP host
+	hostWS   string // dcrdata websocket host
 
 	// bestBlock is the cached best block height. This field is kept up
 	// to date by the websocket connection. If the websocket connection
@@ -129,13 +134,13 @@ func (p *dcrdataPlugin) makeReq(method string, route string, v interface{}) ([]b
 }
 
 // bestBlockHTTP fetches and returns the best block from the dcrdata http API.
-func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
+func (p *dcrdataPlugin) bestBlockHTTP() (*v5.BlockDataBasic, error) {
 	resBody, err := p.makeReq(http.MethodGet, routeBestBlock, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var bdb v4.BlockDataBasic
+	var bdb v5.BlockDataBasic
 	err = json.Unmarshal(resBody, &bdb)
 	if err != nil {
 		return nil, err
@@ -146,7 +151,7 @@ func (p *dcrdataPlugin) bestBlockHTTP() (*v4.BlockDataBasic, error) {
 
 // blockDetailsHTTP fetches and returns the block details from the dcrdata API
 // for the provided block height.
-func (p *dcrdataPlugin) blockDetailsHTTP(height uint32) (*v4.BlockDataBasic, error) {
+func (p *dcrdataPlugin) blockDetailsHTTP(height uint32) (*v5.BlockDataBasic, error) {
 	h := strconv.FormatUint(uint64(height), 10)
 
 	route := strings.Replace(routeBlockDetails, "{height}", h, 1)
@@ -155,7 +160,7 @@ func (p *dcrdataPlugin) blockDetailsHTTP(height uint32) (*v4.BlockDataBasic, err
 		return nil, err
 	}
 
-	var bdb v4.BlockDataBasic
+	var bdb v5.BlockDataBasic
 	err = json.Unmarshal(resBody, &bdb)
 	if err != nil {
 		return nil, err
@@ -185,8 +190,8 @@ func (p *dcrdataPlugin) ticketPoolHTTP(blockHash string) ([]string, error) {
 
 // txsTrimmedHTTP fetches and returns the TrimmedTx from the dcrdata API for
 // the provided tx IDs.
-func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v4.TrimmedTx, error) {
-	t := v4.Txns{
+func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v5.TrimmedTx, error) {
+	t := v5.Txns{
 		Transactions: txIDs,
 	}
 	resBody, err := p.makeReq(http.MethodPost, routeTxsTrimmed, t)
@@ -194,7 +199,7 @@ func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v4.TrimmedTx, error) {
 		return nil, err
 	}
 
-	var txs []v4.TrimmedTx
+	var txs []v5.TrimmedTx
 	err = json.Unmarshal(resBody, &txs)
 	if err != nil {
 		return nil, err
@@ -266,6 +271,36 @@ func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func convertTicketPoolInfoFromV5(t v5.TicketPoolInfo) dcrdata.TicketPoolInfo {
+	return dcrdata.TicketPoolInfo{
+		Height:  t.Height,
+		Size:    t.Size,
+		Value:   t.Value,
+		ValAvg:  t.ValAvg,
+		Winners: t.Winners,
+	}
+}
+
+func convertBlockDataBasicFromV5(b v5.BlockDataBasic) dcrdata.BlockDataBasic {
+	var poolInfo *dcrdata.TicketPoolInfo
+	if b.PoolInfo != nil {
+		p := convertTicketPoolInfoFromV5(*b.PoolInfo)
+		poolInfo = &p
+	}
+	return dcrdata.BlockDataBasic{
+		Height:     b.Height,
+		Size:       b.Size,
+		Hash:       b.Hash,
+		Difficulty: b.Difficulty,
+		StakeDiff:  b.StakeDiff,
+		Time:       b.Time.UNIX(),
+		NumTx:      b.NumTx,
+		MiningFee:  b.MiningFee,
+		TotalSent:  b.TotalSent,
+		PoolInfo:   poolInfo,
+	}
+}
+
 func (p *dcrdataPlugin) cmdBlockDetails(payload string) (string, error) {
 	log.Tracef("dcrdata cmdBlockDetails: %v", payload)
 
@@ -283,7 +318,7 @@ func (p *dcrdataPlugin) cmdBlockDetails(payload string) (string, error) {
 
 	// Prepare reply
 	bdr := dcrdata.BlockDetailsReply{
-		Block: *bdb,
+		Block: convertBlockDataBasicFromV5(*bdb),
 	}
 	reply, err := dcrdata.EncodeBlockDetailsReply(bdr)
 	if err != nil {
@@ -320,6 +355,101 @@ func (p *dcrdataPlugin) cmdTicketPool(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func convertScriptSigFromJSONRPC(s jsonrpc.ScriptSig) dcrdata.ScriptSig {
+	return dcrdata.ScriptSig{
+		Asm: s.Asm,
+		Hex: s.Hex,
+	}
+}
+
+func convertVinFromJSONRPC(v jsonrpc.Vin) dcrdata.Vin {
+	var scriptSig *dcrdata.ScriptSig
+	if v.ScriptSig != nil {
+		s := convertScriptSigFromJSONRPC(*v.ScriptSig)
+		scriptSig = &s
+	}
+	return dcrdata.Vin{
+		Coinbase:    v.Coinbase,
+		Stakebase:   v.Stakebase,
+		Txid:        v.Txid,
+		Vout:        v.Vout,
+		Tree:        v.Tree,
+		Sequence:    v.Sequence,
+		AmountIn:    v.AmountIn,
+		BlockHeight: v.BlockHeight,
+		BlockIndex:  v.BlockIndex,
+		ScriptSig:   scriptSig,
+	}
+}
+
+func convertVinsFromV5(ins []jsonrpc.Vin) []dcrdata.Vin {
+	i := make([]dcrdata.Vin, 0, len(ins))
+	for _, v := range ins {
+		i = append(i, convertVinFromJSONRPC(v))
+	}
+	return i
+}
+
+func convertScriptPubKeyFromV5(s v5.ScriptPubKey) dcrdata.ScriptPubKey {
+	return dcrdata.ScriptPubKey{
+		Asm:       s.Asm,
+		Hex:       s.Hex,
+		ReqSigs:   s.ReqSigs,
+		Type:      s.Type,
+		Addresses: s.Addresses,
+		CommitAmt: s.CommitAmt,
+	}
+}
+
+func convertTxInputIDFromV5(t v5.TxInputID) dcrdata.TxInputID {
+	return dcrdata.TxInputID{
+		Hash:  t.Hash,
+		Index: t.Index,
+	}
+}
+
+func convertVoutFromV5(v v5.Vout) dcrdata.Vout {
+	var spend *dcrdata.TxInputID
+	if v.Spend != nil {
+		s := convertTxInputIDFromV5(*v.Spend)
+		spend = &s
+	}
+	return dcrdata.Vout{
+		Value:               v.Value,
+		N:                   v.N,
+		Version:             v.Version,
+		ScriptPubKeyDecoded: convertScriptPubKeyFromV5(v.ScriptPubKeyDecoded),
+		Spend:               spend,
+	}
+}
+
+func convertVoutsFromV5(outs []v5.Vout) []dcrdata.Vout {
+	o := make([]dcrdata.Vout, 0, len(outs))
+	for _, v := range outs {
+		o = append(o, convertVoutFromV5(v))
+	}
+	return o
+}
+
+func convertTrimmedTxFromV5(t v5.TrimmedTx) dcrdata.TrimmedTx {
+	return dcrdata.TrimmedTx{
+		TxID:     t.TxID,
+		Version:  t.Version,
+		Locktime: t.Locktime,
+		Expiry:   t.Expiry,
+		Vin:      convertVinsFromV5(t.Vin),
+		Vout:     convertVoutsFromV5(t.Vout),
+	}
+}
+
+func convertTrimmedTxsFromV5(txs []v5.TrimmedTx) []dcrdata.TrimmedTx {
+	t := make([]dcrdata.TrimmedTx, 0, len(txs))
+	for _, v := range txs {
+		t = append(t, convertTrimmedTxFromV5(v))
+	}
+	return t
+}
+
 func (p *dcrdataPlugin) cmdTxsTrimmed(payload string) (string, error) {
 	log.Tracef("cmdTxsTrimmed: %v", payload)
 
@@ -337,7 +467,7 @@ func (p *dcrdataPlugin) cmdTxsTrimmed(payload string) (string, error) {
 
 	// Prepare reply
 	ttr := dcrdata.TxsTrimmedReply{
-		Txs: txs,
+		Txs: convertTrimmedTxsFromV5(txs),
 	}
 	reply, err := dcrdata.EncodeTxsTrimmedReply(ttr)
 	if err != nil {
@@ -481,7 +611,7 @@ func (p *dcrdataPlugin) fsck() error {
 	return nil
 }
 
-func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) {
+func newDcrdataPlugin(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
 	// Unpack plugin settings
 	var (
 		hostHTTP string
@@ -504,10 +634,24 @@ func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) 
 	// Set optional plugin settings to default values if a value was
 	// not specified.
 	if hostHTTP == "" {
-		hostHTTP = dcrdata.DefaultHostHTTP
+		switch activeNetParams.Name {
+		case chaincfg.MainNetParams().Name:
+			hostHTTP = dcrdata.DefaultHostHTTPMainNet
+		case chaincfg.TestNet3Params().Name:
+			hostHTTP = dcrdata.DefaultHostHTTPTestNet
+		default:
+			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
+		}
 	}
 	if hostWS == "" {
-		hostWS = dcrdata.DefaultHostWS
+		switch activeNetParams.Name {
+		case chaincfg.MainNetParams().Name:
+			hostWS = dcrdata.DefaultHostWSMainNet
+		case chaincfg.TestNet3Params().Name:
+			hostWS = dcrdata.DefaultHostWSTestNet
+		default:
+			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
+		}
 	}
 
 	// Setup http client
@@ -526,9 +670,10 @@ func newDcrdataPlugin(settings []backend.PluginSetting) (*dcrdataPlugin, error) 
 	}
 
 	return &dcrdataPlugin{
-		hostHTTP: hostHTTP,
-		hostWS:   hostWS,
-		client:   client,
-		ws:       ws,
+		activeNetParams: activeNetParams,
+		client:          client,
+		ws:              ws,
+		hostHTTP:        hostHTTP,
+		hostWS:          hostWS,
 	}, nil
 }

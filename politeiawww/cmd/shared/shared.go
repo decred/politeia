@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -26,8 +26,8 @@ var (
 	// ErrUserIdentityNotFound is emitted when a user identity is
 	// required but the config object does not contain one.
 	ErrUserIdentityNotFound = errors.New("user identity not found; " +
-		"you must either create a new user or use the updateuserkey " +
-		"command to generate a new identity for the logged in user")
+		"you must either create a new user or update the user key to  " +
+		"generate a new identity for the logged in user")
 )
 
 // PrintJSON prints the passed in JSON using the style specified by the global
