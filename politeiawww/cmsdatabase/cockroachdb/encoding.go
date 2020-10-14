@@ -49,12 +49,14 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 
 	for i, dbInvoiceLineItem := range dbInvoice.LineItems {
 		invoiceLineItem := EncodeInvoiceLineItem(&dbInvoiceLineItem)
-		invoiceLineItem.LineItemKey = dbInvoice.Token + strconv.Itoa(i)
+		invoiceLineItem.LineItemKey = dbInvoice.Token + dbInvoice.Version + strconv.Itoa(i)
+		invoiceLineItem.InvoiceToken = dbInvoice.Token
 		invoice.LineItems = append(invoice.LineItems, invoiceLineItem)
 	}
 
 	for _, dbInvoiceChange := range dbInvoice.Changes {
 		invoiceChange := encodeInvoiceChange(&dbInvoiceChange)
+		invoiceChange.InvoiceToken = dbInvoice.Token
 		invoice.Changes = append(invoice.Changes, invoiceChange)
 	}
 

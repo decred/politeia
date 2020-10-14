@@ -45,9 +45,9 @@ type Invoice struct {
 	ContractorContact  string    `gorm:"not null"`
 	PaymentAddress     string    `gorm:"not null"`
 
-	LineItems []LineItem      `gorm:"foreignkey:InvoiceToken"`
-	Changes   []InvoiceChange `gorm:"foreignkey:InvoiceToken"`
-	Payments  Payments        `gorm:"foreignkey:InvoiceToken"`
+	LineItems []LineItem      `gorm:"foreignkey:InvoiceKey"`
+	Changes   []InvoiceChange `gorm:"foreignkey:InvoiceKey"`
+	Payments  Payments        `gorm:"foreignkey:InvoiceKey"`
 }
 
 // TableName returns the table name of the invoices table.
@@ -57,7 +57,8 @@ func (Invoice) TableName() string {
 
 // LineItem is the database model for the database.LineItem type
 type LineItem struct {
-	LineItemKey    string `gorm:"primary_key"` // Token of the Invoice + array index
+	LineItemKey    string `gorm:"primary_key"` // Token of the Invoice + version + array index
+	InvoiceKey     string `gorm:"not null"`    // The key of the invoice that it is attached
 	InvoiceToken   string `gorm:"not null"`    // Censorship token of the invoice
 	Type           uint   `gorm:"not null"`    // Type of line item
 	Domain         string `gorm:"not null"`    // Domain of the work performed (dev, marketing etc)
@@ -78,6 +79,7 @@ func (LineItem) TableName() string {
 // InvoiceChange contains entries for any status update that occurs to a given
 // invoice.  This will give a full history of an invoices history.
 type InvoiceChange struct {
+	InvoiceKey     string    `gorm:"not null"` // The key of the invoice that it is attached
 	InvoiceToken   string    `gorm:"not null"` // Censorship token of the invoice
 	AdminPublicKey string    `gorm:"not null"` // The public of the admin that processed the status change.
 	NewStatus      uint      `gorm:"not null"` // Updated status of the invoice.
@@ -104,7 +106,8 @@ func (ExchangeRate) TableName() string {
 
 // Payments contains all the information about a given invoice's payment
 type Payments struct {
-	InvoiceToken    string `gorm:"primary_key"`
+	InvoiceKey      string `gorm:"primary_key"` // The key of the invoice that it is attached
+	InvoiceToken    string `gorm:"not null"`
 	Address         string `gorm:"not null"`
 	TxIDs           string `gorm:"not null"`
 	TimeStarted     int64  `gorm:"not null"`
