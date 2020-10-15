@@ -33,6 +33,9 @@ const (
 
 	defaultWalletMainnetPort = "9111"
 	defaultWalletTestnetPort = "19111"
+
+	clientCertFile = "client.pem"
+	clientKeyFile  = "client-key.pem"
 )
 
 var (
@@ -71,6 +74,9 @@ type config struct {
 	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours and minutes e.g. 5h10m (default 0s means autodetect duration)"`
 	Trickle          bool   `long:"trickle" description:"Enable vote trickling, requires --proxy."`
 	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
+
+	ClientCert string `long:"cert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"key" description:"Path to TLS client authentication key"`
 
 	voteDir      string
 	dial         func(string, string) (net.Conn, error)
@@ -465,6 +471,18 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("cannot use --trickle " +
 				"without --proxy")
 		}
+	}
+
+	// Set path for the client key/cert depending on if they are set in options
+	if cfg.ClientCert == "" {
+		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
+	} else {
+		cfg.ClientCert = filepath.Join(cfg.HomeDir, cfg.ClientCert)
+	}
+	if cfg.ClientKey == "" {
+		cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
+	} else {
+		cfg.ClientKey = filepath.Join(cfg.HomeDir, cfg.ClientKey)
 	}
 
 	return &cfg, remainingArgs, nil

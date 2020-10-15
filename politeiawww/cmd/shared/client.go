@@ -8,8 +8,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -2413,10 +2415,23 @@ func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
 
 // LoadWalletClient connects to a dcrwallet instance.
 func (c *Client) LoadWalletClient() error {
-	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert, "")
+	serverCAs := x509.NewCertPool()
+	serverCert, err := ioutil.ReadFile(c.cfg.WalletCert)
 	if err != nil {
 		return err
 	}
+	if !serverCAs.AppendCertsFromPEM(serverCert) {
+		return fmt.Errorf("no certificates found in %s",
+			c.cfg.WalletCert)
+	}
+	keypair, err := tls.LoadX509KeyPair(c.cfg.ClientCert, c.cfg.ClientKey)
+	if err != nil {
+		return fmt.Errorf("read client keypair: %v", err)
+	}
+	creds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{keypair},
+		RootCAs:      serverCAs,
+	})
 
 	conn, err := grpc.Dial(c.cfg.WalletHost,
 		grpc.WithTransportCredentials(creds))

@@ -10,12 +10,14 @@ import (
 	"context"
 	crand "crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -216,10 +218,24 @@ func newClient(cfg *config) (*ctx, error) {
 	}
 
 	// Wallet GRPC
-	creds, err := credentials.NewClientTLSFromFile(cfg.WalletCert, "")
+	serverCAs := x509.NewCertPool()
+	serverCert, err := ioutil.ReadFile(cfg.WalletCert)
 	if err != nil {
 		return nil, err
 	}
+	if !serverCAs.AppendCertsFromPEM(serverCert) {
+		return nil, fmt.Errorf("no certificates found in %s",
+			cfg.WalletCert)
+	}
+	keypair, err := tls.LoadX509KeyPair(cfg.ClientCert, cfg.ClientKey)
+	if err != nil {
+		return nil, fmt.Errorf("read client keypair: %v", err)
+	}
+	creds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{keypair},
+		RootCAs:      serverCAs,
+	})
+
 	conn, err := grpc.Dial(cfg.WalletHost,
 		grpc.WithTransportCredentials(creds))
 	if err != nil {
