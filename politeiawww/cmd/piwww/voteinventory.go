@@ -5,6 +5,7 @@
 package main
 
 import (
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
@@ -14,12 +15,25 @@ type voteInventoryCmd struct{}
 
 // Execute executes the vote inventory command.
 func (cmd *voteInventoryCmd) Execute(args []string) error {
-	reply, err := client.VoteInventory()
+	// Setup request
+	vi := pi.VoteInventory{}
+
+	// Send request. The request and response details are printed to
+	// the console.
+	err := shared.PrintJSON(vi)
+	if err != nil {
+		return err
+	}
+	vir, err := client.VoteInventory(vi)
+	if err != nil {
+		return err
+	}
+	err = shared.PrintJSON(vir)
 	if err != nil {
 		return err
 	}
 
-	return shared.PrintJSON(reply)
+	return nil
 }
 
 // voteInventoryHelpMsg is the command help message.

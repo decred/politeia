@@ -640,7 +640,7 @@ func newDcrdataPlugin(settings []backend.PluginSetting, activeNetParams *chaincf
 		case chaincfg.TestNet3Params().Name:
 			hostHTTP = dcrdata.DefaultHostHTTPTestNet
 		default:
-			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
+			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 		}
 	}
 	if hostWS == "" {
@@ -650,7 +650,7 @@ func newDcrdataPlugin(settings []backend.PluginSetting, activeNetParams *chaincf
 		case chaincfg.TestNet3Params().Name:
 			hostWS = dcrdata.DefaultHostWSTestNet
 		default:
-			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
+			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 		}
 	}
 

@@ -9,41 +9,43 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// voteResultsCmd gets the votes that have been cast for the specified
-// proposal.
+// voteResultsCmd retreives the cast votes for the provided proposal.
 type voteResultsCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token"` // Censorship token
+		Token string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the proposal votes command.
+// Execute executes the vote results command.
 func (cmd *voteResultsCmd) Execute(args []string) error {
-	// Prep request payload
+	// Setup request
 	vr := pi.VoteResults{
 		Token: cmd.Args.Token,
 	}
 
-	// Print request details
+	// Send request. The request and response details are printed to
+	// the console.
 	err := shared.PrintJSON(vr)
 	if err != nil {
 		return err
 	}
-
 	vrr, err := client.VoteResults(vr)
 	if err != nil {
 		return err
 	}
+	err = shared.PrintJSON(vrr)
+	if err != nil {
+		return err
+	}
 
-	return shared.PrintJSON(vrr)
+	return nil
 }
 
-// voteResultsHelpMsg is the output of the help command when 'voteresults' is
-// specified.
+// voteResultsHelpMsg is the help command message.
 const voteResultsHelpMsg = `voteresults "token"
 
-Fetch vote results for a proposal.
+Fetch vote results for the provided proposal.
 
 Arguments:
-1. token       (string, required)  Proposal censorship token
+1. token  (string, required)  Proposal censorship token
 `

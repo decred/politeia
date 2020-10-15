@@ -1053,6 +1053,8 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		Payload:   payload,
 	}
 
+	log.Infof("Plugin %v: %v %v", remoteAddr(r), pc.ID, pc.Command)
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 

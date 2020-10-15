@@ -161,8 +161,7 @@ type recordIndex struct {
 	// of this record. A record can be copied to a new tree after
 	// certain status changes, such as when a record is made public and
 	// the record is copied from an unvetted tree to a vetted tree.
-	// TreePointer should only be set if the existing tree has been
-	// frozen.
+	// TreePointer should only be set if the tree has been frozen.
 	TreePointer int64 `json:"treepointer,omitempty"`
 }
 
@@ -359,7 +358,7 @@ func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
 	var a anchor
 	err = json.Unmarshal(b, &a)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal freezeRecord: %v", err)
+		return nil, fmt.Errorf("unmarshal anchor: %v", err)
 	}
 
 	return &a, nil
@@ -1700,7 +1699,8 @@ func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error
 
 // TODO run fsck episodically
 func (t *tlog) fsck() {
-	// Set tree status to frozen for any trees with a freeze record.
+	// Set tree status to frozen for any trees that are frozen and have
+	// been anchored one last time.
 	// Failed censor. Ensure all blobs have been deleted from all
 	// record versions of a censored record.
 }

@@ -639,8 +639,66 @@ func (p *piPlugin) cmdCommentVote(payload string) (string, error) {
 }
 
 func (p *piPlugin) cmdVoteInventory(payload string) (string, error) {
-	// TODO
-	return "", nil
+	// Payload is empty. Nothing to decode.
+
+	// Get ticketvote inventory
+	r, err := p.backend.Plugin(ticketvote.ID, ticketvote.CmdInventory, "", "")
+	if err != nil {
+		return "", fmt.Errorf("ticketvote inventory: %v", err)
+	}
+	ir, err := ticketvote.DecodeInventoryReply([]byte(r))
+	if err != nil {
+		return "", err
+	}
+
+	// Get vote summaries for all finished proposal votes
+	s := ticketvote.Summaries{
+		Tokens: ir.Finished,
+	}
+	b, err := ticketvote.EncodeSummaries(s)
+	if err != nil {
+		return "", err
+	}
+	r, err = p.backend.Plugin(ticketvote.ID, ticketvote.CmdSummaries,
+		"", string(b))
+	if err != nil {
+		return "", fmt.Errorf("ticketvote summaries: %v", err)
+	}
+	sr, err := ticketvote.DecodeSummariesReply([]byte(r))
+	if err != nil {
+		return "", err
+	}
+	if len(sr.Summaries) != len(ir.Finished) {
+		return "", fmt.Errorf("unexpected number of summaries: got %v, want %v",
+			len(sr.Summaries), len(ir.Finished))
+	}
+
+	// Categorize votes
+	approved := make([]string, 0, len(sr.Summaries))
+	rejected := make([]string, 0, len(sr.Summaries))
+	for token, v := range sr.Summaries {
+		if v.Approved {
+			approved = append(approved, token)
+		} else {
+			rejected = append(rejected, token)
+		}
+	}
+
+	// Prepare reply
+	vir := pi.VoteInventoryReply{
+		Unauthorized: ir.Unauthorized,
+		Authorized:   ir.Authorized,
+		Started:      ir.Started,
+		Approved:     approved,
+		Rejected:     rejected,
+		BestBlock:    ir.BestBlock,
+	}
+	reply, err := pi.EncodeVoteInventoryReply(vir)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
 }
 
 func (p *piPlugin) hookNewRecordPre(payload string) error {

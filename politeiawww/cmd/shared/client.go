@@ -1260,9 +1260,9 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 
 // VoteInventory retrieves the tokens of all proposals in the inventory
 // categorized by their vote status.
-func (c *Client) VoteInventory() (*pi.VoteInventoryReply, error) {
+func (c *Client) VoteInventory(vi pi.VoteInventory) (*pi.VoteInventoryReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteInventory, nil)
+		pi.RouteVoteInventory, vi)
 	if err != nil {
 		return nil, err
 	}
@@ -1718,7 +1718,7 @@ func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, e
 
 // VoteResults retrieves the vote results for the specified proposal.
 func (c *Client) VoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodGet,
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
 		pi.APIRoute, pi.RouteVoteResults, vr)
 	if err != nil {
 		return nil, err
@@ -1731,7 +1731,7 @@ func (c *Client) VoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
 	var vrr pi.VoteResultsReply
 	err = json.Unmarshal(respBody, &vrr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalVotesReply: %v", err)
+		return nil, err
 	}
 
 	if c.cfg.Verbose {
