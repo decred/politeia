@@ -98,19 +98,21 @@ type tlogBackend struct {
 	// record token, where n is defined by the TokenPrefixLength from
 	// the politeiad API. Record lookups by token prefix are allowed.
 	// This cache is used to prevent prefix collisions when creating
-	// new tokens and to facilitate lookups by token prefix.
+	// new tokens and to facilitate lookups by token prefix. This cache
+	// is built on startup.
 	prefixes map[string][]byte // [tokenPrefix]token
 
 	// vettedTreeIDs contains the token to tree ID mapping for vetted
 	// records. The token corresponds to the unvetted tree ID so
 	// unvetted lookups can be done directly, but vetted lookups
-	// required pulling the freeze record from the unvetted tree to
-	// get the vetted tree ID. This cache memoizes these results.
+	// required pulling the vetted tree pointer from the unvetted tree.
+	// This cache memoizes those results and is lazy loaded.
 	vettedTreeIDs map[string]int64 // [token]treeID
 
 	// inventory contains the full record inventory grouped by record
 	// status. Each list of tokens is sorted by the timestamp of the
-	// status change from newest to oldest.
+	// status change from newest to oldest. This cache is built on
+	// startup.
 	inventory map[backend.MDStatusT][]string
 }
 
@@ -191,36 +193,37 @@ func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 
 	// Unvetted tree exists. Get the freeze record to see if it
 	// contains a pointer to a vetted tree.
-	fr, err := t.unvetted.freezeRecord(treeID)
-	if err != nil {
-		if errors.Is(err, errFreezeRecordNotFound) {
-			// Unvetted tree exists and is not frozen. This is an unvetted
-			// record.
-			return 0, false
-		}
-		e := fmt.Sprintf("unvetted freezeRecord %v: %v", treeID, err)
+	isFrozen, vettedTreeID, err := t.unvetted.treeIsFrozen(treeID)
+	switch {
+	case err != nil:
+		// Something went wrong
+		e := fmt.Sprintf("unvetted treeIsFrozen %v: %v", treeID, err)
 		panic(e)
-	}
-	if fr.TreeID == 0 {
+	case !isFrozen:
+		// Unvetted tree exists and is not frozen. This is an unvetted
+		// record.
+		return 0, false
+	case vettedTreeID == 0:
 		// Unvetted tree has been frozen but does not contain a pointer
 		// to another tree. This means it was frozen for some other
 		// reason (ex. censored). This is not a vetted record.
 		return 0, false
+	default:
+		// Unvetted tree is frozen and points to a vetted tree. Continue.
 	}
 
-	// Ensure the freeze record tree ID points to a valid vetted tree.
-	// This should not fail.
-	if !t.vetted.treeExists(fr.TreeID) {
+	// Verify the vetted tree exists. This should not fail.
+	if !t.vetted.treeExists(vettedTreeID) {
 		// We're in trouble!
 		e := fmt.Sprintf("freeze record of unvetted tree %v points to "+
-			"an invalid vetted tree %v", treeID, fr.TreeID)
+			"an invalid vetted tree %v", treeID, vettedTreeID)
 		panic(e)
 	}
 
 	// Update the vetted cache
-	t.vettedTreeIDAdd(hex.EncodeToString(token), fr.TreeID)
+	t.vettedTreeIDAdd(hex.EncodeToString(token), vettedTreeID)
 
-	return fr.TreeID, true
+	return vettedTreeID, true
 }
 
 func (t *tlogBackend) inventoryGet() map[backend.MDStatusT][]string {
@@ -1148,11 +1151,8 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 		token, vettedTreeID)
 
 	// Freeze the unvetted tree
-	fr := freezeRecord{
-		TreeID: vettedTreeID,
-	}
 	treeID := treeIDFromToken(token)
-	err = t.unvetted.treeFreeze(treeID, rm, metadata, fr)
+	err = t.unvetted.treeFreeze(treeID, rm, metadata, vettedTreeID)
 	if err != nil {
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
@@ -1169,7 +1169,7 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
-	err := t.unvetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	err := t.unvetted.treeFreeze(treeID, rm, metadata, 0)
 	if err != nil {
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
@@ -1292,7 +1292,7 @@ func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, meta
 	if !ok {
 		return fmt.Errorf("vetted record not found")
 	}
-	err := t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	err := t.vetted.treeFreeze(treeID, rm, metadata, 0)
 	if err != nil {
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
@@ -1318,7 +1318,7 @@ func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, met
 	if !ok {
 		return fmt.Errorf("vetted record not found")
 	}
-	err := t.vetted.treeFreeze(treeID, rm, metadata, freezeRecord{})
+	err := t.vetted.treeFreeze(treeID, rm, metadata, 0)
 	if err != nil {
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
@@ -1614,51 +1614,35 @@ func (t *tlogBackend) setup() error {
 		// Add tree to prefixes cache
 		t.prefixAdd(token)
 
-		// Check if the tree needs to be added to the vettedTreeIDs cache
-		// by checking the freeze record of the unvetted tree.
-		var vettedTreeID int64
-		fr, err := t.unvetted.freezeRecord(v.TreeId)
-		switch err {
-		case errFreezeRecordNotFound:
-			// No freeze record means this is not a vetted record.
-			// Nothing to do. Continue.
-		case nil:
-			// A freeze record exists. If a pointer to a vetted tree has
-			// been set, add it to the vettedTreeIDs cache.
-			if fr.TreeID != 0 {
-				vettedTreeID = fr.TreeID
-				t.vettedTreeIDAdd(hex.EncodeToString(token), vettedTreeID)
-			}
-		default:
-			// All other errors
-			return fmt.Errorf("freezeRecord %v: %v", v.TreeId, err)
+		// Verify record exists. Its possible for empty trees to be
+		// present. This can happen if there was some kind of network
+		// failure or internal server error on record creation.
+		_, err := t.unvetted.recordLatest(v.TreeId)
+		if err == errRecordNotFound {
+			// This is an empty tree. Skip it.
+			continue
+		} else if err != nil {
+			return fmt.Errorf("unvetted recordLatest %v: %v", v.TreeId, err)
 		}
 
-		// Add record to the inventory cache
+		// Record does exist. Pull it from the backend.
 		var r *backend.Record
-		if vettedTreeID != 0 {
-			r, err = t.GetVetted(token, "")
-			if err != nil {
-				if errors.Is(err, backend.ErrRecordNotFound) {
-					// A tree that was created but no record was appended onto
-					// it for whatever reason. This can happen if there is a
-					// network failure or internal server error.
-					continue
-				}
-				return fmt.Errorf("GetVetted %x: %v", token, err)
-			}
-		} else {
+		_, ok := t.vettedTreeIDFromToken(token)
+		if !ok {
+			// Record is unvetted
 			r, err = t.GetUnvetted(token, "")
 			if err != nil {
-				if errors.Is(err, backend.ErrRecordNotFound) {
-					// A tree that was created but no record was appended onto
-					// it for whatever reason. This can happen if there is a
-					// network failure or internal server error.
-					continue
-				}
+				return fmt.Errorf("GetUnvetted %x: %v", token, err)
+			}
+		} else {
+			// Record is vetted
+			r, err = t.GetVetted(token, "")
+			if err != nil {
 				return fmt.Errorf("GetUnvetted %x: %v", token, err)
 			}
 		}
+
+		// Add record to the inventory cache
 		t.inventoryAdd(hex.EncodeToString(token), r.RecordMetadata.Status)
 	}
 

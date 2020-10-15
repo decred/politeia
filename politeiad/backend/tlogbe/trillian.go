@@ -277,6 +277,13 @@ func (t *trillianClient) signedLogRoot(treeID int64) (*trillian.SignedLogRoot, *
 // will be in the queued leaf. Inclusion proofs will not exist for leaves that
 // fail to be appended. Note leaves that are duplicates will fail and it is the
 // callers responsibility to determine how they should be handled.
+//
+// Trillain DOES NOT guarantee that the leaves of a queued leaves batch are
+// appended in the order in which they were received. Trillian is also not
+// consistent about the order that leaves are appended in. At the time of
+// writing this I have not looked into why this is or if there are other
+// methods that can be used. DO NOT rely on the leaves being in a specific
+// order.
 func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
 	log.Tracef("trillian leavesAppend: %v", treeID)
 

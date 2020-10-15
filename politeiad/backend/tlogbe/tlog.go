@@ -97,8 +97,8 @@ type tlog struct {
 	droppingAnchor bool
 }
 
-// recordIndex contains the merkle leaf hashes of all the record content for a
-// specific record version and iteration. The record index can be used to
+// recordIndex contains the merkle leaf hashes of all the record content leaves
+// for a specific record version and iteration. The record index can be used to
 // lookup the trillian log leaves for the record content and the log leaves can
 // be used to lookup the kv store blobs.
 //
@@ -147,11 +147,23 @@ type recordIndex struct {
 	RecordMetadata []byte            `json:"recordmetadata"`
 	Metadata       map[uint64][]byte `json:"metadata"` // [metadataID]merkle
 	Files          map[string][]byte `json:"files"`    // [filename]merkle
-}
 
-// TODO add comment explaining what a freeze record is
-type freezeRecord struct {
-	TreeID int64 `json:"treeid,omitempty"`
+	// Frozen is used to indicate that the tree for this record has
+	// been frozen. This happens as a result of certain record status
+	// changes. The only thing that can be appended onto a frozen tree
+	// is one additional anchor record. Once a frozen tree has been
+	// anchored, the tlog fsck function will update the status of the
+	// tree to frozen in trillian, at which point trillian will not
+	// allow any additional leaves to be appended onto the tree.
+	Frozen bool `json:"frozen,omitempty"`
+
+	// TreePointer is the tree ID of the tree that is the new location
+	// of this record. A record can be copied to a new tree after
+	// certain status changes, such as when a record is made public and
+	// the record is copied from an unvetted tree to a vetted tree.
+	// TreePointer should only be set if the existing tree has been
+	// frozen.
+	TreePointer int64 `json:"treepointer,omitempty"`
 }
 
 func treeIDFromToken(token []byte) int64 {
@@ -172,28 +184,12 @@ func blobIsEncrypted(b []byte) bool {
 	return bytes.HasPrefix(b, []byte("sbox"))
 }
 
-// treeIsFrozen deterimes if the tree is frozen given the full list of the
-// tree's leaves. A tree is considered frozen if the tree contains a freeze
-// record leaf.
-func treeIsFrozen(leaves []*trillian.LogLeaf) bool {
-	for i := 0; i < len(leaves); i++ {
-		if leafIsFreezeRecord(leaves[i]) {
-			return true
-		}
-	}
-	return false
-}
-
 func leafIsRecordIndex(l *trillian.LogLeaf) bool {
 	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixRecordIndex))
 }
 
 func leafIsRecordContent(l *trillian.LogLeaf) bool {
 	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixRecordContent))
-}
-
-func leafIsFreezeRecord(l *trillian.LogLeaf) bool {
-	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixFreezeRecord))
 }
 
 func leafIsAnchor(l *trillian.LogLeaf) bool {
@@ -276,23 +272,6 @@ func convertBlobEntryFromRecordIndex(ri recordIndex) (*store.BlobEntry, error) {
 	return &be, nil
 }
 
-func convertBlobEntryFromFreezeRecord(fr freezeRecord) (*store.BlobEntry, error) {
-	data, err := json.Marshal(fr)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorFreezeRecord,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
 func convertBlobEntryFromAnchor(a anchor) (*store.BlobEntry, error) {
 	data, err := json.Marshal(a)
 	if err != nil {
@@ -308,44 +287,6 @@ func convertBlobEntryFromAnchor(a anchor) (*store.BlobEntry, error) {
 	}
 	be := store.NewBlobEntry(hint, data)
 	return &be, nil
-}
-
-func convertFreezeRecordFromBlobEntry(be store.BlobEntry) (*freezeRecord, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorFreezeRecord {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorFreezeRecord)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	hash, err := hex.DecodeString(be.Hash)
-	if err != nil {
-		return nil, fmt.Errorf("decode hash: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), hash) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), hash)
-	}
-	var fr freezeRecord
-	err = json.Unmarshal(b, &fr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal freezeRecord: %v", err)
-	}
-
-	return &fr, nil
 }
 
 func convertRecordIndexFromBlobEntry(be store.BlobEntry) (*recordIndex, error) {
@@ -443,13 +384,18 @@ func (t *tlog) treeExists(treeID int64) bool {
 }
 
 // treeFreeze updates the status of a record and freezes the trillian tree as a
-// result of a record status change. Once a freeze record has been appended
-// onto the tree the tlog backend considers the tree to be frozen. The only
-// thing that can be appended onto a frozen tree is one additional anchor
-// record. Once a frozen tree has been anchored, the tlog fsck function will
-// update the status of the tree to frozen in trillian, at which point trillian
-// will not allow any additional leaves to be appended onto the tree.
-func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, fr freezeRecord) error {
+// result of a record status change. The tree pointer is the tree ID of the new
+// location of the record. This is provided on certain status changes such as
+// when a unvetted record is make public and the unvetted record is moved to a
+// vetted tree. A value of 0 indicates that no tree pointer exists.
+//
+// Once the record index has been saved with its frozen field set, the tree
+// is considered to be frozen. The only thing that can be appended onto a
+// frozen tree is one additional anchor record. Once a frozen tree has been
+// anchored, the tlog fsck function will update the status of the tree to
+// frozen in trillian, at which point trillian will not allow any additional
+// leaves to be appended onto the tree.
+func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, treePointer int64) error {
 	log.Tracef("%v treeFreeze: %v", t.id, treeID)
 
 	// Save metadata
@@ -458,8 +404,11 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return err
 	}
 
+	// Update the record index
+	idx.Frozen = true
+	idx.TreePointer = treePointer
+
 	// Blobify the record index
-	blobs := make([][]byte, 0, 2)
 	be, err := convertBlobEntryFromRecordIndex(*idx)
 	if err != nil {
 		return err
@@ -472,43 +421,26 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	if err != nil {
 		return err
 	}
-	blobs = append(blobs, b)
 
-	// Blobify the freeze record
-	be, err = convertBlobEntryFromFreezeRecord(fr)
-	if err != nil {
-		return err
-	}
-	freezeRecordHash, err := hex.DecodeString(be.Hash)
-	if err != nil {
-		return err
-	}
-	b, err = store.Blobify(*be)
-	if err != nil {
-		return err
-	}
-	blobs = append(blobs, b)
-
-	// Save blobs to the kv store
-	keys, err := t.store.Put(blobs)
+	// Save record index blob to the kv store
+	keys, err := t.store.Put([][]byte{b})
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
 	}
-	if len(keys) != 2 {
+	if len(keys) != 1 {
 		return fmt.Errorf("wrong number of keys: got %v, want 1", len(keys))
 	}
 
-	// Append record index and freeze record leaves to trillian tree.
+	// Append record index leaf to the trillian tree
 	leaves := []*trillian.LogLeaf{
 		logLeafNew(idxHash, []byte(keyPrefixRecordIndex+keys[0])),
-		logLeafNew(freezeRecordHash, []byte(keyPrefixFreezeRecord+keys[1])),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {
 		return fmt.Errorf("leavesAppend: %v", err)
 	}
-	if len(queued) != 2 {
-		return fmt.Errorf("wrong number of queud leaves: got %v, want 2",
+	if len(queued) != 1 {
+		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
 			len(queued))
 	}
 	failed := make([]string, 0, len(queued))
@@ -525,80 +457,18 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	return nil
 }
 
-// freeze record returns the freeze record of the provided tree if one exists.
-// If one does not exists a errFreezeRecordNotFound error is returned.
-func (t *tlog) freezeRecord(treeID int64) (*freezeRecord, error) {
-	log.Tracef("%v freezeRecord: %v", t.id, treeID)
-
-	// Check if the tree contains a freeze record. The last two leaves
-	// are checked because the last leaf will be the final anchor drop,
-	// which may not exist yet if the tree was recently frozen.
-	tree, err := t.trillian.tree(treeID)
+// treeIsFrozen returns whether the provided tree is frozen and the tree
+// pointer if one exists.
+func (t *tlog) treeIsFrozen(treeID int64) (bool, int64, error) {
+	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
-		return nil, errRecordNotFound
+		return false, 0, fmt.Errorf("leavesAll: %v", err)
 	}
-	_, lr, err := t.trillian.signedLogRootForTree(tree)
+	idx, err := t.recordIndexLatest(leavesAll)
 	if err != nil {
-		return nil, fmt.Errorf("signedLogRootForTree: %v", err)
+		return false, 0, err
 	}
-
-	var startIndex, count int64
-	switch lr.TreeSize {
-	case 0:
-		return nil, errFreezeRecordNotFound
-	case 1:
-		startIndex = 0
-		count = 1
-	default:
-		startIndex = int64(lr.TreeSize) - 2
-		count = 2
-	}
-
-	leaves, err := t.trillian.leavesByRange(treeID, startIndex, count)
-	if err != nil {
-		return nil, fmt.Errorf("leavesByRange: %v", err)
-	}
-	var l *trillian.LogLeaf
-	for _, v := range leaves {
-		if leafIsFreezeRecord(v) {
-			l = v
-			break
-		}
-	}
-	if l == nil {
-		// No freeze record was found
-		return nil, errFreezeRecordNotFound
-	}
-
-	// A freeze record was found. Pull it from the store.
-	k, err := extractKeyFromLeaf(l)
-	if err != nil {
-		return nil, err
-	}
-	blobs, err := t.store.Get([]string{k})
-	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
-	}
-	if len(blobs) != 1 {
-		return nil, fmt.Errorf("unexpected blobs count: got %v, want 1",
-			len(blobs))
-	}
-
-	// Decode freeze record
-	b, ok := blobs[k]
-	if !ok {
-		return nil, fmt.Errorf("blob not found %v", k)
-	}
-	be, err := store.Deblob(b)
-	if err != nil {
-		return nil, err
-	}
-	fr, err := convertFreezeRecordFromBlobEntry(*be)
-	if err != nil {
-		return nil, err
-	}
-
-	return fr, nil
+	return idx.Frozen, idx.TreePointer, nil
 }
 
 func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
@@ -801,11 +671,6 @@ type recordBlobsPrepareReply struct {
 //
 // TODO test this function
 func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File, encryptionKey *encryptionKey) (*recordBlobsPrepareReply, error) {
-	// Verify tree state
-	if treeIsFrozen(leavesAll) {
-		return nil, errTreeIsFrozen
-	}
-
 	// Verify there are no duplicate or empty mdstream IDs
 	mdstreamIDs := make(map[uint64]struct{}, len(metadata))
 	for _, v := range metadata {
@@ -1094,11 +959,6 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
 
-	// Verify tree state
-	if treeIsFrozen(leavesAll) {
-		return errTreeIsFrozen
-	}
-
 	// Get the existing record index
 	currIdx, err := t.recordIndexLatest(leavesAll)
 	if errors.Is(err, errRecordNotFound) {
@@ -1109,6 +969,11 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		}
 	} else if err != nil {
 		return fmt.Errorf("recordIndexLatest: %v", err)
+	}
+
+	// Verify tree state
+	if currIdx.Frozen {
+		return errTreeIsFrozen
 	}
 
 	// Prepare kv store blobs
@@ -1217,7 +1082,11 @@ func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 	}
 
 	// Verify tree state
-	if treeIsFrozen(leavesAll) {
+	currIdx, err := t.recordIndexLatest(leavesAll)
+	if err != nil {
+		return nil, err
+	}
+	if currIdx.Frozen {
 		return nil, errTreeIsFrozen
 	}
 
@@ -1308,34 +1177,38 @@ func (t *tlog) recordDel(treeID int64) error {
 	}
 
 	// Get all tree leaves
-	leaves, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
 
 	// Ensure tree is frozen. Deleting files from the store is only
 	// allowed on frozen trees.
-	if !treeIsFrozen(leaves) {
+	currIdx, err := t.recordIndexLatest(leavesAll)
+	if err != nil {
+		return err
+	}
+	if !currIdx.Frozen {
 		return errTreeIsNotFrozen
 	}
 
 	// Retrieve all the record indexes
-	indexes, err := t.recordIndexes(leaves)
+	indexes, err := t.recordIndexes(leavesAll)
 	if err != nil {
-		return fmt.Errorf("recordIndexes: %v", err)
+		return err
 	}
 
 	// Aggregate the keys for all file blobs of all versions. The
 	// record index points to the log leaf merkle leaf hash. The log
 	// leaf contains the kv store key.
-	merkles := make(map[string]struct{}, len(leaves))
+	merkles := make(map[string]struct{}, len(leavesAll))
 	for _, v := range indexes {
 		for _, merkle := range v.Files {
 			merkles[hex.EncodeToString(merkle)] = struct{}{}
 		}
 	}
 	keys := make([]string, 0, len(merkles))
-	for _, v := range leaves {
+	for _, v := range leavesAll {
 		_, ok := merkles[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
 			key, err := extractKeyFromLeaf(v)
@@ -1545,16 +1418,16 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 	}
 
 	// Verify tree is not frozen
-	_, err := t.freezeRecord(treeID)
-	switch err {
-	case nil:
-		// Freeze record was found. Tree is frozen.
-		return nil, errTreeIsFrozen
-	case errFreezeRecordNotFound:
-		// Tree is not frozen; continue
-	default:
-		// All other errors
+	leavesAll, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+	idx, err := t.recordIndexLatest(leavesAll)
+	if err != nil {
 		return nil, err
+	}
+	if idx.Frozen {
+		return nil, errTreeIsFrozen
 	}
 
 	// Encrypt blobs if specified
