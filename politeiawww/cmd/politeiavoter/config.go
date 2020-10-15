@@ -476,13 +476,9 @@ func loadConfig() (*config, []string, error) {
 	// Set path for the client key/cert depending on if they are set in options
 	if cfg.ClientCert == "" {
 		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
-	} else {
-		cfg.ClientCert = filepath.Join(cfg.HomeDir, cfg.ClientCert)
 	}
 	if cfg.ClientKey == "" {
 		cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
-	} else {
-		cfg.ClientKey = filepath.Join(cfg.HomeDir, cfg.ClientKey)
 	}
 
 	return &cfg, remainingArgs, nil
