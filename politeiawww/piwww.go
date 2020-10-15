@@ -61,8 +61,8 @@ var (
 )
 
 // tokenIsValid returns whether the provided string is a valid politeiad
-// censorship record token. This CAN BE EITHER the short token or the full
-// length token.
+// censorship record token. This CAN BE EITHER the full length token or the
+// token prefix.
 //
 // Short tokens should only be used when retrieving data. Data that is written
 // to disk should always reference the full length token.
@@ -71,7 +71,7 @@ func tokenIsValid(token string) bool {
 	switch {
 	case len(token) == pd.TokenPrefixLength:
 		// Token is a short proposal token
-	case len(token) == pd.TokenSizeMin*2:
+	case len(token) == pd.TokenSizeShort*2:
 		// Token is a full length token
 	default:
 		// Unknown token size
@@ -91,7 +91,7 @@ func tokenIsFullLength(token string) bool {
 	if err != nil {
 		return false
 	}
-	if len(b) != pd.TokenSizeMin {
+	if len(b) != pd.TokenSizeShort {
 		return false
 	}
 	return true

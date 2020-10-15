@@ -159,7 +159,7 @@ func (p *TestPoliteiad) handleNewRecord(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Prepare response
-	tokenb, err := util.Random(v1.TokenSizeMax)
+	tokenb, err := util.Random(v1.TokenSizeLong)
 	if err != nil {
 		util.RespondWithJSON(w, http.StatusInternalServerError, err)
 		return

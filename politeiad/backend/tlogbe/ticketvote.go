@@ -242,7 +242,7 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 			}
 			// We can assume that the record vote status is unauthorized
 			// since it would have already been added to the vote inventory
-			// during the authorization request if one had occured.
+			// during the authorization request if one had occurred.
 			inv.unauthorized = append(inv.unauthorized, v)
 		}
 	}
@@ -2090,6 +2090,7 @@ func (p *ticketVotePlugin) setup() error {
 
 	// Build votes cache
 	log.Debugf("ticketvote: building votes cache")
+
 	inv, err := p.inventory(bestBlock)
 	if err != nil {
 		return fmt.Errorf("inventory: %v", err)
@@ -2205,7 +2206,7 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 		case chaincfg.SimNetParams().Name:
 			voteDurationMin = ticketvote.DefaultSimNetVoteDurationMin
 		default:
-			return nil, fmt.Errorf("unkown active net: %v", activeNetParams.Name)
+			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 		}
 	}
 	if voteDurationMax == 0 {

@@ -31,11 +31,24 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 }
 
 // ConvertStringToken verifies and converts a string token to a proper sized
-// []byte.
+// byte slice. This function accepts both the full length token and the token
+// prefix.
 func ConvertStringToken(token string) ([]byte, error) {
-	if len(token) > pd.TokenSizeMax*2 ||
-		len(token) < pd.TokenSizeMin*2 {
+	switch {
+	case len(token) == pd.TokenSizeShort*2:
+		// Tlog backend token; continue
+	case len(token) != pd.TokenSizeLong*2:
+		// Git backend token; continue
+	case len(token) == pd.TokenPrefixLength:
+		// Token prefix; continue
+	default:
 		return nil, fmt.Errorf("invalid censorship token size")
+	}
+	// If the token length is an odd number of characters, a 0 digit is
+	// appended onto the string to prevent a hex.ErrLenth (odd length
+	// hex string) error when decoding.
+	if len(token)%2 == 1 {
+		token = token + "0"
 	}
 	blob, err := hex.DecodeString(token)
 	if err != nil {

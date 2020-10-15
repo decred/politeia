@@ -7,7 +7,6 @@ package tlogbe
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -165,16 +164,21 @@ type recordIndex struct {
 	TreePointer int64 `json:"treepointer,omitempty"`
 }
 
-func treeIDFromToken(token []byte) int64 {
-	return int64(binary.LittleEndian.Uint64(token))
-}
+func treePointerExists(r recordIndex) bool {
+	// Sanity checks
+	switch {
+	case !r.Frozen && r.TreePointer > 0:
+		// Tree pointer should only be set if the record is frozen
+		e := fmt.Sprintf("tree pointer set without record being frozen %v",
+			r.TreePointer)
+		panic(e)
+	case r.TreePointer < 0:
+		// Tree pointer should never be negative
+		e := fmt.Sprintf("tree pointer is < 0: %v", r.TreePointer)
+		panic(e)
+	}
 
-func tokenFromTreeID(treeID int64) []byte {
-	b := make([]byte, binary.MaxVarintLen64)
-	// Converting between int64 and uint64 doesn't change
-	// the sign bit, only the way it's interpreted.
-	binary.LittleEndian.PutUint64(b, uint64(treeID))
-	return b
+	return r.TreePointer > 0
 }
 
 // blobIsEncrypted returns whether the provided blob has been prefixed with an
@@ -456,18 +460,46 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	return nil
 }
 
-// treeIsFrozen returns whether the provided tree is frozen and the tree
-// pointer if one exists.
-func (t *tlog) treeIsFrozen(treeID int64) (bool, int64, error) {
+// treePointer returns the tree pointer for the provided tree if one exists.
+// The returned bool will indicate if a tree pointer was found.
+func (t *tlog) treePointer(treeID int64) (int64, bool) {
+	log.Tracef("%v treePointer: %v", t.id, treeID)
+
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return 0, false
+	}
+
+	// Verify record index exists
+	var idx *recordIndex
 	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
-		return false, 0, fmt.Errorf("leavesAll: %v", err)
+		err = fmt.Errorf("leavesAll: %v", err)
+		goto printErr
 	}
-	idx, err := t.recordIndexLatest(leavesAll)
+	idx, err = t.recordIndexLatest(leavesAll)
 	if err != nil {
-		return false, 0, err
+		if err == errRecordNotFound {
+			// This is an empty tree. This can happen sometimes if a error
+			// occurred during record creation. Return gracefully.
+			return 0, false
+		}
+		err = fmt.Errorf("recordIndexLatest: %v", err)
+		goto printErr
 	}
-	return idx.Frozen, idx.TreePointer, nil
+
+	// Check if a tree pointer exists
+	if !treePointerExists(*idx) {
+		// Tree pointer not found
+		return 0, false
+	}
+
+	// Tree pointer found!
+	return idx.TreePointer, true
+
+printErr:
+	log.Errorf("%v treePointer: %v", t.id, err)
+	return 0, false
 }
 
 func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
@@ -519,12 +551,11 @@ func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 	return nil
 }
 
-func (t *tlog) recordIndexVersion(leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
-	indexes, err := t.recordIndexes(leaves)
-	if err != nil {
-		return nil, err
-	}
-
+// recordIndexVersion takes a list of record indexes for a record and returns
+// the most recent iteration of the specified version. A version of 0 indicates
+// that the latest version should be returned. A errRecordNotFound is returned
+// if the provided version does not exist.
+func recordIndexVersion(indexes []recordIndex, version uint32) (*recordIndex, error) {
 	// Return the record index for the specified version
 	var ri *recordIndex
 	if version == 0 {
@@ -548,6 +579,15 @@ func (t *tlog) recordIndexVersion(leaves []*trillian.LogLeaf, version uint32) (*
 	}
 
 	return ri, nil
+}
+
+func (t *tlog) recordIndexVersion(leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
+	indexes, err := t.recordIndexes(leaves)
+	if err != nil {
+		return nil, err
+	}
+
+	return recordIndexVersion(indexes, version)
 }
 
 func (t *tlog) recordIndexLatest(leaves []*trillian.LogLeaf) (*recordIndex, error) {
@@ -1227,6 +1267,61 @@ func (t *tlog) recordDel(treeID int64) error {
 	return nil
 }
 
+// recordExists returns whether a record exists on the provided tree ID. A
+// record is considered to not exist if any of the following conditions are
+// met:
+//
+// * A tree does not exist for the tree ID.
+//
+// * A tree exists but a record index does not exist. This can happen if a
+//   tree was created but there was a network error prior to the record index
+//   being appended to the tree.
+//
+// * The tree is frozen and points to another tree. The record is considered to
+//   exists on the tree being pointed to, but not on this one. This happens
+//   in some situations like when an unvetted record is made public and copied
+//   onto a vetted tree.
+//
+// The tree pointer is also returned if one is found.
+func (t *tlog) recordExists(treeID int64) bool {
+	log.Tracef("%v recordExists: %v", t.id, treeID)
+
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return false
+	}
+
+	// Verify record index exists
+	var idx *recordIndex
+	leavesAll, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		err = fmt.Errorf("leavesAll: %v", err)
+		goto printErr
+	}
+	idx, err = t.recordIndexLatest(leavesAll)
+	if err != nil {
+		if err == errRecordNotFound {
+			// This is an empty tree. This can happen sometimes if a error
+			// occurred during record creation. Return gracefully.
+			return false
+		}
+		err = fmt.Errorf("recordIndexLatest: %v", err)
+		goto printErr
+	}
+
+	// Verify a tree pointer does not exist
+	if treePointerExists(*idx) {
+		return false
+	}
+
+	// Record exists!
+	return true
+
+printErr:
+	log.Errorf("%v recordExists: %v", t.id, err)
+	return false
+}
+
 func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	log.Tracef("%v record: %v %v", t.id, treeID, version)
 
@@ -1241,28 +1336,45 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
 
-	// Get the record index for the specified version
-	index, err := t.recordIndexVersion(leaves, version)
+	// Verify the latest record index does not point to another tree.
+	// If it does have a tree pointer, the record is considered to
+	// exists on the tree being pointed to, but not on this one. This
+	// happens in situations such as when an unvetted record is made
+	// public and copied to a vetted tree. Querying the unvetted tree
+	// will result in a errRecordNotFound error being returned and the
+	// vetted tree must be queried instead.
+	indexes, err := t.recordIndexes(leaves)
 	if err != nil {
 		return nil, err
+	}
+	idxLatest, err := recordIndexVersion(indexes, 0)
+	if err != nil {
+		return nil, err
+	}
+	if treePointerExists(*idxLatest) {
+		return nil, errRecordNotFound
 	}
 
 	// Use the record index to pull the record content from the store.
 	// The keys for the record content first need to be extracted from
 	// their associated log leaf.
+	idx, err := recordIndexVersion(indexes, version)
+	if err != nil {
+		return nil, err
+	}
 
 	// Compile merkle root hashes of record content
 	merkles := make(map[string]struct{}, 64)
-	merkles[hex.EncodeToString(index.RecordMetadata)] = struct{}{}
-	for _, v := range index.Metadata {
+	merkles[hex.EncodeToString(idx.RecordMetadata)] = struct{}{}
+	for _, v := range idx.Metadata {
 		merkles[hex.EncodeToString(v)] = struct{}{}
 	}
-	for _, v := range index.Files {
+	for _, v := range idx.Files {
 		merkles[hex.EncodeToString(v)] = struct{}{}
 	}
 
 	// Walk the tree and extract the record content keys
-	keys := make([]string, 0, len(index.Metadata)+len(index.Files)+1)
+	keys := make([]string, 0, len(idx.Metadata)+len(idx.Files)+1)
 	for _, v := range leaves {
 		_, ok := merkles[hex.EncodeToString(v.MerkleLeafHash)]
 		if !ok {
@@ -1318,8 +1430,8 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	// Decode blob entries
 	var (
 		recordMD *backend.RecordMetadata
-		metadata = make([]backend.MetadataStream, 0, len(index.Metadata))
-		files    = make([]backend.File, 0, len(index.Files))
+		metadata = make([]backend.MetadataStream, 0, len(idx.Metadata))
+		files    = make([]backend.File, 0, len(idx.Files))
 	)
 	for _, v := range entries {
 		// Decode the data hint
@@ -1381,13 +1493,13 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	switch {
 	case recordMD == nil:
 		return nil, fmt.Errorf("record metadata not found")
-	case len(metadata) != len(index.Metadata):
+	case len(metadata) != len(idx.Metadata):
 		return nil, fmt.Errorf("invalid number of metadata; got %v, want %v",
-			len(metadata), len(index.Metadata))
+			len(metadata), len(idx.Metadata))
 	}
 
 	return &backend.Record{
-		Version:        strconv.FormatUint(uint64(index.Version), 10),
+		Version:        strconv.FormatUint(uint64(idx.Version), 10),
 		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 		Files:          files,

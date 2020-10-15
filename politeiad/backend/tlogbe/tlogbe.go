@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -34,7 +35,6 @@ import (
 
 // TODO testnet vs mainnet trillian databases
 // TODO fsck
-// TODO allow token prefix lookups
 
 const (
 	defaultTrillianKeyFilename   = "trillian.key"
@@ -93,7 +93,7 @@ type tlogBackend struct {
 	vetted          *tlog
 	plugins         map[string]plugin // [pluginID]plugin
 
-	// prefixes contains the token prefix to full token mapping for all
+	// prefixes contains the prefix to full token mapping for unvetted
 	// records. The prefix is the first n characters of the hex encoded
 	// record token, where n is defined by the TokenPrefixLength from
 	// the politeiad API. Record lookups by token prefix are allowed.
@@ -124,15 +124,68 @@ type plugin struct {
 	client   pluginClient
 }
 
+func tokenIsFullLength(token []byte) bool {
+	return len(token) == v1.TokenSizeShort
+}
+
 func tokenPrefix(token []byte) string {
 	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
 }
 
-func (t *tlogBackend) isShutdown() bool {
-	t.RLock()
-	defer t.RUnlock()
+// tokenPrefixSize returns the size in bytes of a token prefix.
+func tokenPrefixSize() int {
+	// If the token prefix length is an odd number of characters then
+	// padding will have needed to be added to it prior to decoding it
+	// to hex to prevent a hex.ErrLenth (odd length hex string) error.
+	// Account for this padding in the prefix size.
+	var size int
+	if v1.TokenPrefixLength%2 == 1 {
+		// Add 1 to the length to account for padding
+		size = (v1.TokenPrefixLength + 1) / 2
+	} else {
+		// No padding was required
+		size = v1.TokenPrefixLength / 2
+	}
+	return size
+}
 
-	return t.shutdown
+func tokenFromTreeID(treeID int64) []byte {
+	b := make([]byte, binary.MaxVarintLen64)
+	// Converting between int64 and uint64 doesn't change
+	// the sign bit, only the way it's interpreted.
+	binary.LittleEndian.PutUint64(b, uint64(treeID))
+	return b
+}
+
+func treeIDFromToken(token []byte) int64 {
+	return int64(binary.LittleEndian.Uint64(token))
+}
+
+// fullLengthToken returns the full length token given the token prefix.
+//
+// This function must be called WITHOUT the lock held.
+func (t *tlogBackend) fullLengthToken(prefix []byte) ([]byte, bool) {
+	t.Lock()
+	defer t.Unlock()
+
+	token, ok := t.prefixes[tokenPrefix(prefix)]
+	return token, ok
+}
+
+// unvettedTreeIDFromToken returns the unvetted tree ID for the provided token.
+// This can be either the full length token or the token prefix.
+//
+// This function must be called WITHOUT the lock held.
+func (t *tlogBackend) unvettedTreeIDFromToken(token []byte) int64 {
+	if len(token) == tokenPrefixSize() {
+		// This is a token prefix. Get the full token from the cache.
+		var ok bool
+		token, ok = t.fullLengthToken(token)
+		if !ok {
+			return 0
+		}
+	}
+	return treeIDFromToken(token)
 }
 
 func (t *tlogBackend) prefixExists(fullToken []byte) bool {
@@ -173,50 +226,33 @@ func (t *tlogBackend) vettedTreeIDAdd(token string, treeID int64) {
 // vettedTreeIDFromToken returns the vetted tree ID that corresponds to the
 // provided token. If a tree ID is not found then the returned bool will be
 // false.
+//
+// This function must be called WITHOUT the lock held.
 func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 	// Check if the token is in the vetted cache. The vetted cache is
 	// lazy loaded if the token is not present then we need to check
 	// manually.
-	treeID, ok := t.vettedTreeID(token)
+	vettedTreeID, ok := t.vettedTreeID(token)
 	if ok {
-		return treeID, true
+		return vettedTreeID, true
 	}
 
 	// The token is derived from the unvetted tree ID. Check if the
-	// token corresponds to an unvetted tree.
-	treeID = treeIDFromToken(token)
-	if !t.unvetted.treeExists(treeID) {
-		// Unvetted tree does not exists. This token does not correspond
-		// to any record.
+	// unvetted record has a tree pointer. The tree pointer will be
+	// the vetted tree ID.
+	unvettedTreeID := t.unvettedTreeIDFromToken(token)
+	vettedTreeID, ok = t.unvetted.treePointer(unvettedTreeID)
+	if !ok {
+		// No tree pointer. This record either doesn't exist or is an
+		// unvetted record.
 		return 0, false
-	}
-
-	// Unvetted tree exists. Get the freeze record to see if it
-	// contains a pointer to a vetted tree.
-	isFrozen, vettedTreeID, err := t.unvetted.treeIsFrozen(treeID)
-	switch {
-	case err != nil:
-		// Something went wrong
-		e := fmt.Sprintf("unvetted treeIsFrozen %v: %v", treeID, err)
-		panic(e)
-	case !isFrozen:
-		// Unvetted tree exists and is not frozen. This is an unvetted
-		// record.
-		return 0, false
-	case vettedTreeID == 0:
-		// Unvetted tree has been frozen but does not contain a pointer
-		// to another tree. This means it was frozen for some other
-		// reason (ex. censored). This is not a vetted record.
-		return 0, false
-	default:
-		// Unvetted tree is frozen and points to a vetted tree. Continue.
 	}
 
 	// Verify the vetted tree exists. This should not fail.
 	if !t.vetted.treeExists(vettedTreeID) {
 		// We're in trouble!
 		e := fmt.Sprintf("freeze record of unvetted tree %v points to "+
-			"an invalid vetted tree %v", treeID, vettedTreeID)
+			"an invalid vetted tree %v", unvettedTreeID, vettedTreeID)
 		panic(e)
 	}
 
@@ -549,6 +585,13 @@ func metadataStreamsUpdate(curr, mdAppend, mdOverwrite []backend.MetadataStream)
 	return metadata
 }
 
+func (t *tlogBackend) isShutdown() bool {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.shutdown
+}
+
 // New satisfies the Backend interface.
 //
 // This function satisfies the Backend interface.
@@ -657,6 +700,14 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		}
 	}
 
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return nil, backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusInvalidToken,
+		}
+	}
+
 	// Verify record exists and is unvetted
 	if !t.UnvettedExists(token) {
 		return nil, backend.ErrRecordNotFound
@@ -752,6 +803,14 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		// any new files being added.
 		if cve.ErrorCode != v1.ErrorStatusEmpty {
 			return nil, err
+		}
+	}
+
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return nil, backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
 	}
 
@@ -859,6 +918,14 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 		}
 	}
 
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusInvalidToken,
+		}
+	}
+
 	// Verify record exists and is unvetted
 	if !t.UnvettedExists(token) {
 		return backend.ErrRecordNotFound
@@ -945,6 +1012,14 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 		}
 	}
 
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusInvalidToken,
+		}
+	}
+
 	// Get vetted tree ID
 	treeID, ok := t.vettedTreeIDFromToken(token)
 	if !ok {
@@ -1015,29 +1090,17 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 func (t *tlogBackend) UnvettedExists(token []byte) bool {
 	log.Tracef("UnvettedExists %x", token)
 
-	// If the token is in the vetted cache then we know this is not an
-	// unvetted record without having to make any network requests.
+	// Verify token is not in the vetted tree IDs cache. If it is then
+	// we can be sure that this is not a unvetted record without having
+	// to send any network requests.
 	_, ok := t.vettedTreeID(token)
 	if ok {
 		return false
 	}
 
-	// Check if unvetted tree exists
-	treeID := treeIDFromToken(token)
-	if !t.unvetted.treeExists(treeID) {
-		// Unvetted tree does not exists. No tree, no record.
-		return false
-	}
-
-	// An unvetted tree exists. Check if a vetted tree also exists. If
-	// one does then it means this record has been made public and is
-	// no longer unvetted.
-	if t.VettedExists(token) {
-		return false
-	}
-
-	// Vetted record does not exist. This is an unvetted record.
-	return true
+	// Check for unvetted record
+	treeID := t.unvettedTreeIDFromToken(token)
+	return t.unvetted.recordExists(treeID)
 }
 
 // This function satisfies the Backend interface.
@@ -1056,7 +1119,7 @@ func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record
 		return nil, backend.ErrShutdown
 	}
 
-	treeID := treeIDFromToken(token)
+	treeID := t.unvettedTreeIDFromToken(token)
 	var v uint32
 	if version != "" {
 		u, err := strconv.ParseUint(version, 10, 64)
@@ -1118,27 +1181,9 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 // This function must be called WITH the unvetted lock held.
 func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Create a vetted tree
-	var (
-		vettedToken  []byte
-		vettedTreeID int64
-		err          error
-	)
-	for retries := 0; retries < 10; retries++ {
-		vettedTreeID, err = t.vetted.treeNew()
-		if err != nil {
-			return err
-		}
-		vettedToken = tokenFromTreeID(vettedTreeID)
-
-		// Check for token prefix collisions
-		if !t.prefixExists(vettedToken) {
-			// Not a collision. Update prefixes cache.
-			t.prefixAdd(vettedToken)
-			break
-		}
-
-		log.Infof("Token prefix collision %v, creating new token",
-			tokenPrefix(vettedToken))
+	vettedTreeID, err := t.vetted.treeNew()
+	if err != nil {
+		return err
 	}
 
 	// Save the record to the vetted tlog
@@ -1190,6 +1235,14 @@ func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, me
 func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetUnvettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
+
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return nil, backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusInvalidToken,
+		}
+	}
 
 	// Verify record exists and is unvetted
 	if !t.UnvettedExists(token) {
@@ -1276,10 +1329,22 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 		token, backend.MDStatus[currStatus], currStatus,
 		backend.MDStatus[status], status)
 
-	// Return the updated record
-	r, err = t.unvetted.recordLatest(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+	// Return the updated record. If the record was made public it is
+	// now a vetted record and must be fetched accordingly.
+	switch status {
+	case backend.MDStatusVetted:
+		r, err = t.GetVetted(token, "")
+		if err != nil {
+			return nil, fmt.Errorf("GetVetted: %v", err)
+		}
+	case backend.MDStatusCensored:
+		r, err = t.GetUnvetted(token, "")
+		if err != nil {
+			return nil, fmt.Errorf("GetUnvetted: %v", err)
+		}
+	default:
+		return nil, fmt.Errorf("unknown status: %v (%v)",
+			backend.MDStatus[status], status)
 	}
 
 	return r, nil
@@ -1332,6 +1397,14 @@ func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, met
 func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetVettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
+
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return nil, backend.ContentVerificationError{
+			ErrorCode: v1.ErrorStatusInvalidToken,
+		}
+	}
 
 	// Get vetted tree ID
 	treeID, ok := t.vettedTreeIDFromToken(token)
@@ -1614,32 +1687,34 @@ func (t *tlogBackend) setup() error {
 		// Add tree to prefixes cache
 		t.prefixAdd(token)
 
-		// Verify record exists. Its possible for empty trees to be
-		// present. This can happen if there was some kind of network
-		// failure or internal server error on record creation.
-		_, err := t.unvetted.recordLatest(v.TreeId)
-		if err == errRecordNotFound {
-			// This is an empty tree. Skip it.
-			continue
-		} else if err != nil {
-			return fmt.Errorf("unvetted recordLatest %v: %v", v.TreeId, err)
-		}
+		// Identify whether the record is unvetted or vetted.
+		isUnvetted := t.UnvettedExists(token)
+		isVetted := t.VettedExists(token)
 
-		// Record does exist. Pull it from the backend.
+		// Get the record
 		var r *backend.Record
-		_, ok := t.vettedTreeIDFromToken(token)
-		if !ok {
+		switch {
+		case isUnvetted && isVetted:
+			// Sanity check
+			e := fmt.Sprintf("records is both unvetted and vetted: %x", token)
+			panic(e)
+		case isUnvetted:
 			// Record is unvetted
 			r, err = t.GetUnvetted(token, "")
 			if err != nil {
 				return fmt.Errorf("GetUnvetted %x: %v", token, err)
 			}
-		} else {
+		case isVetted:
 			// Record is vetted
 			r, err = t.GetVetted(token, "")
 			if err != nil {
 				return fmt.Errorf("GetUnvetted %x: %v", token, err)
 			}
+		default:
+			// This is an empty tree. This can happen if there was an error
+			// during record creation and the record failed to be appended
+			// to the tree.
+			log.Debugf("Empty tree found for token %x", token)
 		}
 
 		// Add record to the inventory cache

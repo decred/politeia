@@ -1281,7 +1281,7 @@ func (g *gitBackEnd) populateTokenPrefixCache() error {
 func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 	TRIES := 1000
 	for i := 0; i < TRIES; i++ {
-		token, err := util.Random(pd.TokenSizeMax)
+		token, err := util.Random(pd.TokenSizeLong)
 		if err != nil {
 			return nil, err
 		}

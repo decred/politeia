@@ -41,9 +41,9 @@ const (
 	ChallengeSize = 32 // Size of challenge token in bytes
 
 	// Token sizes. The size of the token depends on the politeiad
-	// backend configuration, but will always be within this range.
-	TokenSizeMin = 10
-	TokenSizeMax = 32
+	// backend configuration.
+	TokenSizeShort = 10
+	TokenSizeLong  = 32
 
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
