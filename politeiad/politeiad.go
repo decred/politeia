@@ -1028,7 +1028,7 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		// Check for a user error
 		var e backend.PluginUserError
 		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
+			log.Infof("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
 			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
@@ -1053,7 +1053,7 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		Payload:   payload,
 	}
 
-	log.Infof("Plugin %v: %v %v", remoteAddr(r), pc.ID, pc.Command)
+	log.Infof("%v Plugin cmd executed: %v %v", remoteAddr(r), pc.ID, pc.Command)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

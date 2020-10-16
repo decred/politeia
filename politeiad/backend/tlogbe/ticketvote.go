@@ -109,6 +109,10 @@ type ticketVotePlugin struct {
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
+// voteInventory contains the record inventory catagorized by vote status. The
+// authorized and started lists are updated in real-time since ticket vote
+// plugin commands initiate those actions. The unauthorized and finished lists
+// are lazy loaded since those lists depends on external state.
 type voteInventory struct {
 	unauthorized []string          // Unauthorized tokens
 	authorized   []string          // Authorized tokens
@@ -137,12 +141,16 @@ func (p *ticketVotePlugin) inventorySetToAuthorized(token string) {
 		u := p.inv.unauthorized
 		u = append(u[:i], u[i+1:]...)
 		p.inv.unauthorized = u
+
+		log.Debugf("ticketvote: removed from unauthorized inv: %v", token)
 	}
 
 	// Prepend the token to the authorized list
 	a := p.inv.authorized
 	a = append([]string{token}, a...)
 	p.inv.authorized = a
+
+	log.Debugf("ticketvote: added to authorized inv: %v", token)
 }
 
 func (p *ticketVotePlugin) inventorySetToUnauthorized(token string) {
@@ -166,12 +174,16 @@ func (p *ticketVotePlugin) inventorySetToUnauthorized(token string) {
 		a := p.inv.authorized
 		a = append(a[:i], a[i+1:]...)
 		p.inv.authorized = a
+
+		log.Debugf("ticketvote: removed from authorized inv: %v", token)
 	}
 
 	// Prepend the token to the unauthorized list
 	u := p.inv.unauthorized
 	u = append([]string{token}, u...)
 	p.inv.unauthorized = u
+
+	log.Debugf("ticketvote: added to unauthorized inv: %v", token)
 }
 
 func (p *ticketVotePlugin) inventorySetToStarted(token string, endHeight uint32) {
@@ -199,8 +211,12 @@ func (p *ticketVotePlugin) inventorySetToStarted(token string, endHeight uint32)
 	a = append(a[:i], a[i+1:]...)
 	p.inv.authorized = a
 
+	log.Debugf("ticketvote: removed from authorized inv: %v", token)
+
 	// Add the token to the started map
 	p.inv.started[token] = endHeight
+
+	log.Debugf("ticketvote: added to started inv: %v", token)
 }
 
 func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
@@ -245,13 +261,16 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 			// since it would have already been added to the vote inventory
 			// during the authorization request if one had occurred.
 			p.inv.unauthorized = append(p.inv.unauthorized, v)
+
+			log.Debugf("ticketvote: added to unauthorized inv: %v", v)
 		}
 	}
 
 	// The records are moved to their correct vote status category in
 	// the inventory on authorization, revoking the authorization, and
-	// on starting the vote. The last thing we must check for is
-	// whether any votes have finished since the last inventory update.
+	// on starting the vote. We can assume these lists are already
+	// up-to-date. The last thing we must check for is whether any
+	// votes have finished since the last inventory update.
 
 	// Check if the inventory has been updated for this block height.
 	if p.inv.bestBlock == bestBlock {
@@ -263,17 +282,24 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 	// any proposal votes have finished.
 	for token, endHeight := range p.inv.started {
 		if bestBlock >= endHeight {
-			// Vote has finished
-			p.inv.finished = append(p.inv.finished, token)
+			// Vote has finished. Remove it from the started list.
 			delete(p.inv.started, token)
+
+			log.Debugf("ticketvote: removed from started inv: %v", token)
+
+			// Add it to the finished list
+			p.inv.finished = append(p.inv.finished, token)
+
+			log.Debugf("ticketvote: added to finished inv: %v", token)
 		}
 	}
 
 	// Update best block
 	p.inv.bestBlock = bestBlock
 
+	log.Debugf("ticketvote: inv updated for best block %v", bestBlock)
+
 reply:
-	// TODO make this better
 	// Return a copy of the inventory
 	var (
 		unauthorized = make([]string, len(p.inv.unauthorized))
@@ -281,17 +307,11 @@ reply:
 		started      = make(map[string]uint32, len(p.inv.started))
 		finished     = make([]string, len(p.inv.finished))
 	)
-	for k, v := range p.inv.unauthorized {
-		unauthorized[k] = v
-	}
-	for k, v := range p.inv.authorized {
-		authorized[k] = v
-	}
+	copy(unauthorized, p.inv.unauthorized)
+	copy(authorized, p.inv.authorized)
+	copy(finished, p.inv.finished)
 	for k, v := range p.inv.started {
 		started[k] = v
-	}
-	for k, v := range p.inv.finished {
-		finished[k] = v
 	}
 
 	return &voteInventory{
@@ -331,7 +351,8 @@ func (p *ticketVotePlugin) cachedVotesSet(token, ticket, voteBit string) {
 
 	p.votes[token][ticket] = voteBit
 
-	log.Debugf("Votes add: %v %v %v", token, ticket, voteBit)
+	log.Debugf("ticketvote: added vote to cache: %v %v %v",
+		token, ticket, voteBit)
 }
 
 func (p *ticketVotePlugin) cachedVotesDel(token string) {
@@ -340,7 +361,7 @@ func (p *ticketVotePlugin) cachedVotesDel(token string) {
 
 	delete(p.votes, token)
 
-	log.Debugf("Votes del: %v", token)
+	log.Debugf("ticketvote: deleted votes cache: %v", token)
 }
 
 func (p *ticketVotePlugin) cachedSummaryPath(token string) string {
@@ -386,6 +407,8 @@ func (p *ticketVotePlugin) cachedSummarySave(token string, s ticketvote.Summary)
 	if err != nil {
 		return err
 	}
+
+	log.Debugf("ticketvote: saved votes summary: %v", token)
 
 	return nil
 }
@@ -2066,7 +2089,7 @@ func (p *ticketVotePlugin) setup() error {
 	}
 
 	// Build inventory cache
-	log.Debugf("ticketvote: building inventory cache")
+	log.Infof("ticketvote: building inventory cache")
 
 	ibs, err := p.backend.InventoryByStatus()
 	if err != nil {
@@ -2117,14 +2140,10 @@ func (p *ticketVotePlugin) setup() error {
 	}
 	p.Unlock()
 
-	// Build votes cache
-	log.Debugf("ticketvote: building votes cache")
+	// Build votes cace
+	log.Infof("ticketvote: building votes cache")
 
-	inv, err := p.inventory(bestBlock)
-	if err != nil {
-		return fmt.Errorf("inventory: %v", err)
-	}
-	for k := range inv.started {
+	for k := range started {
 		token, err := hex.DecodeString(k)
 		if err != nil {
 			return err
@@ -2267,10 +2286,10 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 		dataDir:         dataDir,
 		identity:        id,
 		inv: voteInventory{
-			unauthorized: make([]string, 0, 256),
-			authorized:   make([]string, 0, 256),
-			started:      make(map[string]uint32, 256),
-			finished:     make([]string, 0, 256),
+			unauthorized: make([]string, 0, 1024),
+			authorized:   make([]string, 0, 1024),
+			started:      make(map[string]uint32, 1024),
+			finished:     make([]string, 0, 1024),
 			bestBlock:    0,
 		},
 		votes:   make(map[string]map[string]string),

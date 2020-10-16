@@ -35,6 +35,12 @@ const (
 	routeBlockDetails = "/api/block/{height}"
 	routeTicketPool   = "/api/stake/pool/b/{hash}/full"
 	routeTxsTrimmed   = "/api/txs/trimmed"
+
+	// Request headers
+	headerContentType = "Content-Type"
+
+	// Header values
+	contentTypeJSON = "application/json; charset=utf-8"
 )
 
 var (
@@ -90,7 +96,7 @@ func (p *dcrdataPlugin) bestBlockIsStale() bool {
 	return p.bestBlockStale
 }
 
-func (p *dcrdataPlugin) makeReq(method string, route string, v interface{}) ([]byte, error) {
+func (p *dcrdataPlugin) makeReq(method string, route string, headers map[string]string, v interface{}) ([]byte, error) {
 	var (
 		url     = p.hostHTTP + route
 		reqBody []byte
@@ -99,19 +105,22 @@ func (p *dcrdataPlugin) makeReq(method string, route string, v interface{}) ([]b
 
 	log.Tracef("%v %v", method, url)
 
-	// Setup request body
+	// Setup request
 	if v != nil {
 		reqBody, err = json.Marshal(v)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	// Send request
 	req, err := http.NewRequest(method, url, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
+	for k, v := range headers {
+		req.Header.Add(k, v)
+	}
+
+	// Send request
 	r, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -135,7 +144,7 @@ func (p *dcrdataPlugin) makeReq(method string, route string, v interface{}) ([]b
 
 // bestBlockHTTP fetches and returns the best block from the dcrdata http API.
 func (p *dcrdataPlugin) bestBlockHTTP() (*v5.BlockDataBasic, error) {
-	resBody, err := p.makeReq(http.MethodGet, routeBestBlock, nil)
+	resBody, err := p.makeReq(http.MethodGet, routeBestBlock, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +164,7 @@ func (p *dcrdataPlugin) blockDetailsHTTP(height uint32) (*v5.BlockDataBasic, err
 	h := strconv.FormatUint(uint64(height), 10)
 
 	route := strings.Replace(routeBlockDetails, "{height}", h, 1)
-	resBody, err := p.makeReq(http.MethodGet, route, nil)
+	resBody, err := p.makeReq(http.MethodGet, route, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +183,7 @@ func (p *dcrdataPlugin) blockDetailsHTTP(height uint32) (*v5.BlockDataBasic, err
 func (p *dcrdataPlugin) ticketPoolHTTP(blockHash string) ([]string, error) {
 	route := strings.Replace(routeTicketPool, "{hash}", blockHash, 1)
 	route += "?sort=true"
-	resBody, err := p.makeReq(http.MethodGet, route, nil)
+	resBody, err := p.makeReq(http.MethodGet, route, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +203,10 @@ func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v5.TrimmedTx, error) {
 	t := v5.Txns{
 		Transactions: txIDs,
 	}
-	resBody, err := p.makeReq(http.MethodPost, routeTxsTrimmed, t)
+	headers := map[string]string{
+		headerContentType: contentTypeJSON,
+	}
+	resBody, err := p.makeReq(http.MethodPost, routeTxsTrimmed, headers, t)
 	if err != nil {
 		return nil, err
 	}

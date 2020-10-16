@@ -113,12 +113,12 @@ const (
 	// VoteOptionIDApprove is the vote option ID that indicates the
 	// proposal should be approved. Proposal votes are required to use
 	// this vote option ID.
-	VoteOptionIDApprove = "approve"
+	VoteOptionIDApprove = "yes"
 
 	// VoteOptionIDReject is the vote option ID that indicates the
 	// proposal should be rejected. Proposal votes are required to use
 	// this vote option ID.
-	VoteOptionIDReject = "reject"
+	VoteOptionIDReject = "no"
 
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
