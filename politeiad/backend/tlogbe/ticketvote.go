@@ -101,8 +101,11 @@ type ticketVotePlugin struct {
 	// the vote has ended and the vote summary has been saved.
 	votes map[string]map[string]string // [token][ticket]voteBit
 
-	// Mutexes contains a mutex for each record. The mutexes are lazy
-	// loaded.
+	// Mutexes contains a mutex for each record and are used to lock
+	// the trillian tree for a given record to prevent concurrent
+	// ticket vote plugin updates to the same tree. They are not used
+	// to update any of the ticket vote plugin memory caches. These
+	// mutexes are lazy loaded.
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
@@ -114,7 +117,7 @@ type voteInventory struct {
 	bestBlock    uint32            // Height of last inventory update
 }
 
-func (p *ticketVotePlugin) inventorySetToAuthorize(token string) {
+func (p *ticketVotePlugin) inventorySetToAuthorized(token string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -130,8 +133,9 @@ func (p *ticketVotePlugin) inventorySetToAuthorize(token string) {
 		}
 	}
 	if found {
+		// Remove the token from unauthorized
 		u := p.inv.unauthorized
-		u = append(u[:i], u[i+1])
+		u = append(u[:i], u[i+1:]...)
 		p.inv.unauthorized = u
 	}
 
@@ -158,8 +162,9 @@ func (p *ticketVotePlugin) inventorySetToUnauthorized(token string) {
 		}
 	}
 	if found {
+		// Remove the token from authorized
 		a := p.inv.authorized
-		a = append(a[:i], a[i+1])
+		a = append(a[:i], a[i+1:]...)
 		p.inv.authorized = a
 	}
 
@@ -191,7 +196,7 @@ func (p *ticketVotePlugin) inventorySetToStarted(token string, endHeight uint32)
 	}
 
 	a := p.inv.authorized
-	a = append(a[:i], a[i+1])
+	a = append(a[:i], a[i+1:]...)
 	p.inv.authorized = a
 
 	// Add the token to the started map
@@ -202,35 +207,31 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	// Get existing vote inventory
-	inv := p.inv
-
 	// Check backend inventory for new records
 	invBackend, err := p.backend.InventoryByStatus()
 	if err != nil {
 		return nil, fmt.Errorf("InventoryByStatus: %v", err)
 	}
-
 	var (
 		vetted       = invBackend.Vetted
-		voteInvCount = len(inv.unauthorized) + len(inv.authorized) +
-			len(inv.started) + len(inv.finished)
+		voteInvCount = len(p.inv.unauthorized) + len(p.inv.authorized) +
+			len(p.inv.started) + len(p.inv.finished)
 	)
 	if voteInvCount != len(vetted) {
 		// There are new records. Put all ticket vote inventory records
 		// into a map so we can easily find what backend records are
 		// missing.
 		all := make(map[string]struct{}, voteInvCount)
-		for _, v := range inv.unauthorized {
+		for _, v := range p.inv.unauthorized {
 			all[v] = struct{}{}
 		}
-		for _, v := range inv.authorized {
+		for _, v := range p.inv.authorized {
 			all[v] = struct{}{}
 		}
-		for k := range inv.started {
+		for k := range p.inv.started {
 			all[k] = struct{}{}
 		}
-		for _, v := range inv.finished {
+		for _, v := range p.inv.finished {
 			all[v] = struct{}{}
 		}
 
@@ -243,7 +244,7 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 			// We can assume that the record vote status is unauthorized
 			// since it would have already been added to the vote inventory
 			// during the authorization request if one had occurred.
-			inv.unauthorized = append(inv.unauthorized, v)
+			p.inv.unauthorized = append(p.inv.unauthorized, v)
 		}
 	}
 
@@ -253,25 +254,26 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 	// whether any votes have finished since the last inventory update.
 
 	// Check if the inventory has been updated for this block height.
-	if inv.bestBlock == bestBlock {
+	if p.inv.bestBlock == bestBlock {
 		// Inventory already updated. Nothing else to do.
 		goto reply
 	}
 
 	// Inventory has not been updated for this block height. Check if
 	// any proposal votes have finished.
-	for token, endHeight := range inv.started {
+	for token, endHeight := range p.inv.started {
 		if bestBlock >= endHeight {
 			// Vote has finished
-			inv.finished = append(inv.finished, token)
-			delete(inv.started, token)
+			p.inv.finished = append(p.inv.finished, token)
+			delete(p.inv.started, token)
 		}
 	}
 
 	// Update best block
-	inv.bestBlock = bestBlock
+	p.inv.bestBlock = bestBlock
 
 reply:
+	// TODO make this better
 	// Return a copy of the inventory
 	var (
 		unauthorized = make([]string, len(p.inv.unauthorized))
@@ -297,6 +299,7 @@ reply:
 		authorized:   authorized,
 		started:      started,
 		finished:     finished,
+		bestBlock:    p.inv.bestBlock,
 	}, nil
 }
 
@@ -641,6 +644,11 @@ func (p *ticketVotePlugin) authorizes(token []byte) ([]ticketvote.AuthorizeDetai
 		auths = append(auths, *a)
 	}
 
+	// Sort from oldest to newest
+	sort.SliceStable(auths, func(i, j int) bool {
+		return auths[i].Timestamp < auths[j].Timestamp
+	})
+
 	return auths, nil
 }
 
@@ -766,6 +774,11 @@ func (p *ticketVotePlugin) castVotes(token []byte) ([]ticketvote.CastVoteDetails
 		}
 		votes = append(votes, *cv)
 	}
+
+	// Sort by ticket hash
+	sort.SliceStable(votes, func(i, j int) bool {
+		return votes[i].Ticket < votes[j].Ticket
+	})
 
 	return votes, nil
 }
@@ -1144,6 +1157,18 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 		return "", err
 	}
 
+	// Update inventory
+	switch a.Action {
+	case ticketvote.ActionAuthorize:
+		p.inventorySetToAuthorized(a.Token)
+	case ticketvote.ActionRevoke:
+		p.inventorySetToUnauthorized(a.Token)
+	default:
+		// Should not happen
+		e := fmt.Sprintf("invalid authorize action: %v", a.Action)
+		panic(e)
+	}
+
 	// Prepare reply
 	ar := ticketvote.AuthorizeReply{
 		Timestamp: auth.Timestamp,
@@ -1416,6 +1441,9 @@ func (p *ticketVotePlugin) cmdStart(payload string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("startSave: %v", err)
 	}
+
+	// Update inventory
+	p.inventorySetToStarted(vd.Params.Token, vd.EndBlockHeight)
 
 	// Prepare reply
 	reply, err := ticketvote.EncodeStartReply(*sr)
@@ -2085,6 +2113,7 @@ func (p *ticketVotePlugin) setup() error {
 		authorized:   authorized,
 		started:      started,
 		finished:     finished,
+		bestBlock:    bestBlock,
 	}
 	p.Unlock()
 

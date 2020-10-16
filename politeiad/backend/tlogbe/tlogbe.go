@@ -135,7 +135,7 @@ func tokenPrefix(token []byte) string {
 // tokenPrefixSize returns the size in bytes of a token prefix.
 func tokenPrefixSize() int {
 	// If the token prefix length is an odd number of characters then
-	// padding will have needed to be added to it prior to decoding it
+	// padding would have needed to be added to it prior to decoding it
 	// to hex to prevent a hex.ErrLenth (odd length hex string) error.
 	// Account for this padding in the prefix size.
 	var size int
