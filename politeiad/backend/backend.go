@@ -168,14 +168,11 @@ type Plugin struct {
 }
 
 // InventoryByStatus contains the record tokens of all records in the inventory
-// categorized by MDStatusT. Each list is sorted by the timestamp of the status
-// change from newest to oldest.
+// categorized by state and MDStatusT. Each list is sorted by the timestamp of
+// the status change from newest to oldest.
 type InventoryByStatus struct {
-	Unvetted          []string
-	IterationUnvetted []string
-	Vetted            []string
-	Censored          []string
-	Archived          []string
+	Unvetted map[MDStatusT][]string
+	Vetted   map[MDStatusT][]string
 }
 
 type Backend interface {

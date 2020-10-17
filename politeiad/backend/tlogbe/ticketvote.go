@@ -109,7 +109,7 @@ type ticketVotePlugin struct {
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
-// voteInventory contains the record inventory catagorized by vote status. The
+// voteInventory contains the record inventory categorized by vote status. The
 // authorized and started lists are updated in real-time since ticket vote
 // plugin commands initiate those actions. The unauthorized and finished lists
 // are lazy loaded since those lists depends on external state.
@@ -228,15 +228,24 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 	if err != nil {
 		return nil, fmt.Errorf("InventoryByStatus: %v", err)
 	}
-	var (
-		vetted       = invBackend.Vetted
-		voteInvCount = len(p.inv.unauthorized) + len(p.inv.authorized) +
-			len(p.inv.started) + len(p.inv.finished)
-	)
-	if voteInvCount != len(vetted) {
-		// There are new records. Put all ticket vote inventory records
-		// into a map so we can easily find what backend records are
-		// missing.
+
+	// Find number of records in the vetted inventory
+	var vettedInvCount int
+	for _, tokens := range invBackend.Vetted {
+		vettedInvCount += len(tokens)
+	}
+
+	// Find number of records in the vote inventory
+	voteInvCount := len(p.inv.unauthorized) + len(p.inv.authorized) +
+		len(p.inv.started) + len(p.inv.finished)
+
+	// The vetted inventory count and the vote inventory count should
+	// be the same. If they're not then it means we there are records
+	// missing from vote inventory.
+	if vettedInvCount != voteInvCount {
+		// Records are missing from the vote inventory. Put all ticket
+		// vote inventory records into a map so we can easily find what
+		// backend records are missing.
 		all := make(map[string]struct{}, voteInvCount)
 		for _, v := range p.inv.unauthorized {
 			all[v] = struct{}{}
@@ -252,17 +261,20 @@ func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
 		}
 
 		// Add missing records to the vote inventory
-		for _, v := range invBackend.Vetted {
-			if _, ok := all[v]; ok {
-				// Record is already in the vote inventory
-				continue
-			}
-			// We can assume that the record vote status is unauthorized
-			// since it would have already been added to the vote inventory
-			// during the authorization request if one had occurred.
-			p.inv.unauthorized = append(p.inv.unauthorized, v)
+		for _, tokens := range invBackend.Vetted {
+			for _, v := range tokens {
+				if _, ok := all[v]; ok {
+					// Record is already in the vote inventory
+					continue
+				}
+				// We can assume that the record vote status is unauthorized
+				// since it would have already been added to the vote
+				// inventory during the authorization request if one had
+				// occurred.
+				p.inv.unauthorized = append(p.inv.unauthorized, v)
 
-			log.Debugf("ticketvote: added to unauthorized inv: %v", v)
+				log.Debugf("ticketvote: added to unauthorized inv: %v", v)
+			}
 		}
 	}
 
@@ -2107,26 +2119,28 @@ func (p *ticketVotePlugin) setup() error {
 		started      = make(map[string]uint32, 256) // [token]endHeight
 		finished     = make([]string, 0, 256)
 	)
-	for _, v := range ibs.Vetted {
-		token, err := hex.DecodeString(v)
-		if err != nil {
-			return err
-		}
-		s, err := p.summary(token, bestBlock)
-		if err != nil {
-			return fmt.Errorf("summary %v: %v", v, err)
-		}
-		switch s.Status {
-		case ticketvote.VoteStatusUnauthorized:
-			unauthorized = append(unauthorized, v)
-		case ticketvote.VoteStatusAuthorized:
-			authorized = append(authorized, v)
-		case ticketvote.VoteStatusStarted:
-			started[v] = s.EndBlockHeight
-		case ticketvote.VoteStatusFinished:
-			finished = append(finished, v)
-		default:
-			return fmt.Errorf("invalid vote status %v %v", v, s.Status)
+	for _, tokens := range ibs.Vetted {
+		for _, v := range tokens {
+			token, err := hex.DecodeString(v)
+			if err != nil {
+				return err
+			}
+			s, err := p.summary(token, bestBlock)
+			if err != nil {
+				return fmt.Errorf("summary %v: %v", v, err)
+			}
+			switch s.Status {
+			case ticketvote.VoteStatusUnauthorized:
+				unauthorized = append(unauthorized, v)
+			case ticketvote.VoteStatusAuthorized:
+				authorized = append(authorized, v)
+			case ticketvote.VoteStatusStarted:
+				started[v] = s.EndBlockHeight
+			case ticketvote.VoteStatusFinished:
+				finished = append(finished, v)
+			default:
+				return fmt.Errorf("invalid vote status %v %v", v, s.Status)
+			}
 		}
 	}
 

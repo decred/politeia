@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	ticketvote "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
@@ -391,34 +392,45 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	log.Tracef("processTokenInventory")
 
 	// Get record inventory
-	ri, err := p.inventoryByStatus(ctx)
+	ir, err := p.inventoryByStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get vote inventory
-	vi, err := p.piVoteInventory(ctx)
+	vir, err := p.piVoteInventory(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Prepare reply
-	tir := www.TokenInventoryReply{
-		Pre:       append(vi.Unauthorized, vi.Authorized...),
-		Active:    vi.Started,
-		Approved:  vi.Approved,
-		Rejected:  vi.Rejected,
-		Abandoned: ri.Archived,
-	}
+	// Unpack record inventory
+	var (
+		archived        = ir.Vetted[pd.RecordStatusArchived]
+		unvetted        = ir.Unvetted[pd.RecordStatusNotReviewed]
+		unvettedChanges = ir.Unvetted[pd.RecordStatusUnreviewedChanges]
+		unreviewed      = append(unvetted, unvettedChanges...)
+		censored        = ir.Unvetted[pd.RecordStatusCensored]
+	)
+
+	// Only return unvetted tokens to admins
 	if isAdmin {
-		tir.Unreviewed = ri.Unvetted
-		tir.Censored = ri.Censored
+		unreviewed = nil
+		censored = nil
 	}
 
-	return &tir, nil
+	return &www.TokenInventoryReply{
+		Unreviewed: unreviewed,
+		Censored:   censored,
+		Pre:        append(vir.Unauthorized, vir.Authorized...),
+		Active:     vir.Started,
+		Approved:   vir.Approved,
+		Rejected:   vir.Rejected,
+		Abandoned:  archived,
+	}, nil
 }
 
 /*
+// TODO remove old vote code
 func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
 	// Make sure token is valid and not a prefix
 	if !tokenIsValid(av.Token) {

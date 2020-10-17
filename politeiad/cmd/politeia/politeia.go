@@ -443,12 +443,17 @@ func recordInventory() error {
 	}
 
 	// Print response to user
-	fmt.Printf("Inventory by status:\n")
-	fmt.Printf("  Unvetted         : %v\n", ibsr.Unvetted)
-	fmt.Printf("  IterationUnvetted: %v\n", ibsr.IterationUnvetted)
-	fmt.Printf("  Vetted           : %v\n", ibsr.Vetted)
-	fmt.Printf("  Censored         : %v\n", ibsr.Censored)
-	fmt.Printf("  Archived         : %v\n", ibsr.Archived)
+	fmt.Printf("Inventory:\n")
+	fmt.Printf("  Unvetted\n")
+	for status, tokens := range ibsr.Unvetted {
+		fmt.Printf("    %-15v: %v\n",
+			v1.RecordStatus[status], strings.Join(tokens, ", "))
+	}
+	fmt.Printf("  Vetted\n")
+	for status, tokens := range ibsr.Vetted {
+		fmt.Printf("    %-15v: %v\n",
+			v1.RecordStatus[status], strings.Join(tokens, ", "))
+	}
 
 	return nil
 }

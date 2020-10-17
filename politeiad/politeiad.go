@@ -644,7 +644,7 @@ func (p *politeia) inventoryByStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ps, err := p.backend.InventoryByStatus()
+	inv, err := p.backend.InventoryByStatus()
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
@@ -657,13 +657,20 @@ func (p *politeia) inventoryByStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare reply
 	response := p.identity.SignMessage(challenge)
+	var (
+		unvetted = make(map[v1.RecordStatusT][]string)
+		vetted   = make(map[v1.RecordStatusT][]string)
+	)
+	for status, tokens := range inv.Unvetted {
+		unvetted[convertBackendStatus(status)] = tokens
+	}
+	for status, tokens := range inv.Vetted {
+		vetted[convertBackendStatus(status)] = tokens
+	}
 	reply := v1.InventoryByStatusReply{
-		Response:          hex.EncodeToString(response[:]),
-		Unvetted:          ps.Unvetted,
-		IterationUnvetted: ps.IterationUnvetted,
-		Vetted:            ps.Vetted,
-		Censored:          ps.Censored,
-		Archived:          ps.Archived,
+		Response: hex.EncodeToString(response[:]),
+		Unvetted: unvetted,
+		Vetted:   vetted,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

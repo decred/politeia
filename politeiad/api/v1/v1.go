@@ -392,14 +392,12 @@ type InventoryByStatus struct {
 	Challenge string `json:"challenge"` // Random challenge
 }
 
-// InventoryByStatusReply returns all censorship record tokens by status.
+// InventoryByStatusReply returns all censorship record tokens categorized by
+// record state and record status.
 type InventoryByStatusReply struct {
-	Response          string   `json:"response"`          // Challenge response
-	Unvetted          []string `json:"unvetted"`          // Unvetted tokens
-	IterationUnvetted []string `json:"iterationunvetted"` // Iteration unvetted tokens
-	Vetted            []string `json:"vetted"`            // Vetted tokens
-	Censored          []string `json:"censored"`          // Censored tokens
-	Archived          []string `json:"archived"`          // Archived tokens
+	Response string                     `json:"response"` // Challenge response
+	Unvetted map[RecordStatusT][]string `json:"unvetted"`
+	Vetted   map[RecordStatusT][]string `json:"vetted"`
 }
 
 // UserErrorReply returns details about an error that occurred while trying to

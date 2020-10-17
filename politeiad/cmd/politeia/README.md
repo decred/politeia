@@ -231,10 +231,11 @@ categorized by their record status.
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory
 
-Inventory by status:
-  Unvetted         : [tokens...]
-  IterationUnvetted: [tokens...]
-  Vetted           : [tokens...]
-  Censored         : [tokens...]
-  Archived         : [tokens...]
+Inventory:
+  Unvetted
+    not reviewed   : 344044686e9ba76f0000, 43df32e2405065250000
+    censored       : 9f104b878a83242d0000
+  Vetted
+    public         : e2228e7a7e7c80030000, a6c064874351f4120000
+    archived       : 6b099750984e05490000
 ```

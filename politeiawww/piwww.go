@@ -163,7 +163,7 @@ func convertUserErrorFromSignatureError(err error) pi.UserErrorReply {
 
 func convertPropStateFromPropStatus(s pi.PropStatusT) pi.PropStateT {
 	switch s {
-	case pi.PropStatusUnvetted, pi.PropStatusCensored:
+	case pi.PropStatusUnreviewed, pi.PropStatusCensored:
 		return pi.PropStateUnvetted
 	case pi.PropStatusPublic, pi.PropStatusAbandoned:
 		return pi.PropStateVetted
@@ -183,7 +183,7 @@ func convertPropStateFromPi(s pi.PropStateT) piplugin.PropStateT {
 
 func convertRecordStatusFromPropStatus(s pi.PropStatusT) pd.RecordStatusT {
 	switch s {
-	case pi.PropStatusUnvetted:
+	case pi.PropStatusUnreviewed:
 		return pd.RecordStatusNotReviewed
 	case pi.PropStatusPublic:
 		return pd.RecordStatusPublic
@@ -231,13 +231,13 @@ func convertPropStatusFromPD(s pd.RecordStatusT) pi.PropStatusT {
 	case pd.RecordStatusNotFound:
 		// Intentionally omitted. No corresponding PropStatusT.
 	case pd.RecordStatusNotReviewed:
-		return pi.PropStatusUnvetted
+		return pi.PropStatusUnreviewed
 	case pd.RecordStatusCensored:
 		return pi.PropStatusCensored
 	case pd.RecordStatusPublic:
 		return pi.PropStatusPublic
 	case pd.RecordStatusUnreviewedChanges:
-		return pi.PropStatusUnvetted
+		return pi.PropStatusUnreviewed
 	case pd.RecordStatusArchived:
 		return pi.PropStatusAbandoned
 	}
@@ -1306,7 +1306,7 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe pi.ProposalEdi
 
 	// Verify proposal status
 	switch curr.Status {
-	case pi.PropStatusUnvetted, pi.PropStatusPublic:
+	case pi.PropStatusUnreviewed, pi.PropStatusPublic:
 		// Allowed; continue
 	default:
 		return nil, pi.UserErrorReply{
@@ -1540,26 +1540,34 @@ func (p *politeiawww) processProposals(ctx context.Context, ps pi.Proposals, isA
 }
 
 func (p *politeiawww) processProposalInventory(ctx context.Context, isAdmin bool) (*pi.ProposalInventoryReply, error) {
-	log.Tracef("processProposalInventory")
+	log.Tracef("processProposalInventory: %v", isAdmin)
 
 	ir, err := p.inventoryByStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
-	reply := pi.ProposalInventoryReply{
-		Unvetted:  append(ir.Unvetted, ir.IterationUnvetted...),
-		Public:    ir.Vetted,
-		Censored:  ir.Censored,
-		Abandoned: ir.Archived,
+	var (
+		unvetted = make(map[string][]string, len(ir.Unvetted))
+		vetted   = make(map[string][]string, len(ir.Vetted))
+	)
+	for status, tokens := range ir.Unvetted {
+		s := convertPropStatusFromPD(status)
+		unvetted[pi.PropStatus[s]] = tokens
+	}
+	for status, tokens := range ir.Vetted {
+		s := convertPropStatusFromPD(status)
+		vetted[pi.PropStatus[s]] = tokens
 	}
 
-	// Remove unvetted data from non-admin users
+	// Only return unvetted tokens to admins
 	if !isAdmin {
-		reply.Unvetted = []string{}
-		reply.Censored = []string{}
+		unvetted = nil
 	}
 
-	return &reply, nil
+	return &pi.ProposalInventoryReply{
+		Unvetted: unvetted,
+		Vetted:   vetted,
+	}, nil
 }
 
 func (p *politeiawww) processCommentNew(ctx context.Context, cn pi.CommentNew, usr user.User) (*pi.CommentNewReply, error) {
@@ -1830,6 +1838,9 @@ func (p *politeiawww) processVoteAuthorize(ctx context.Context, va pi.VoteAuthor
 			ErrorContext: []string{"not active identity"},
 		}
 	}
+
+	// TODO Verify user is the proposal author. Hmmm I think the userID
+	// probably needs to be attached to the vote authorization.
 
 	// Send plugin command
 	ar, err := p.voteAuthorize(ctx, convertVoteAuthorizeFromPi(va))

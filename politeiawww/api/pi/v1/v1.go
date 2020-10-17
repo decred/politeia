@@ -67,11 +67,11 @@ const (
 	PropStateVetted   PropStateT = 2
 
 	// Proposal statuses
-	PropStatusInvalid   PropStatusT = 0 // Invalid status
-	PropStatusUnvetted  PropStatusT = 1 // Prop has not been vetted
-	PropStatusPublic    PropStatusT = 2 // Prop has been made public
-	PropStatusCensored  PropStatusT = 3 // Prop has been censored
-	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
+	PropStatusInvalid    PropStatusT = 0 // Invalid status
+	PropStatusUnreviewed PropStatusT = 1 // Prop has not been reviewed
+	PropStatusPublic     PropStatusT = 2 // Prop has been made public
+	PropStatusCensored   PropStatusT = 3 // Prop has been censored
+	PropStatusAbandoned  PropStatusT = 4 // Prop has been abandoned
 
 	// Comment vote types
 	CommentVoteInvalid  CommentVoteT = 0
@@ -191,6 +191,15 @@ const (
 )
 
 var (
+	// PropStatus contains the human readable proposal statuses.
+	PropStatus = map[PropStatusT]string{
+		PropStatusInvalid:    "invalid",
+		PropStatusUnreviewed: "unreviewed",
+		PropStatusPublic:     "public",
+		PropStatusCensored:   "censored",
+		PropStatusAbandoned:  "abandoned",
+	}
+
 	// ErrorStatus contains human readable error messages.
 	// TODO fill in error status messages
 	ErrorStatus = map[ErrorStatusT]string{
@@ -461,16 +470,18 @@ type ProposalsReply struct {
 }
 
 // ProposalInventory retrieves the tokens of all proposals in the inventory,
-// categorized by proposal status and ordered by timestamp of the status change
-// from newest to oldest.
+// categorized by proposal staet and proposal status. Each list is ordered by
+// timestamp of the status change from newest to oldest. Unvetted proposal
+// tokens are only returned to admins.
 type ProposalInventory struct{}
 
-// ProposalInventoryReply is the reply to the ProposalInventory command.
+// ProposalInventoryReply is the reply to the ProposalInventory command. The
+// inventory maps contain map[status][]tokens where the status is the human
+// readable proposal status, as defined by the PropStatus map, and the tokens
+// are the proposal tokens for that status.
 type ProposalInventoryReply struct {
-	Unvetted  []string `json:"unvetted,omitempty"`
-	Public    []string `json:"public"`
-	Censored  []string `json:"censored"`
-	Abandoned []string `json:"abandoned"`
+	Unvetted map[string][]string `json:"unvetted,omitempty"`
+	Vetted   map[string][]string `json:"vetted"`
 }
 
 // Comment represent a proposal comment.

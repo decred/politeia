@@ -951,9 +951,9 @@ func (c *Client) Proposals(p pi.Proposals) (*pi.ProposalsReply, error) {
 
 // ProposalInventory retrieves the censorship tokens of all proposals,
 // separated by their status.
-func (c *Client) ProposalInventory() (*pi.ProposalInventoryReply, error) {
+func (c *Client) ProposalInventory(p pi.ProposalInventory) (*pi.ProposalInventoryReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteProposalInventory, nil)
+		pi.RouteProposalInventory, p)
 	if err != nil {
 		return nil, err
 	}

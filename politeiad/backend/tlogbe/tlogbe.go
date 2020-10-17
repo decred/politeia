@@ -33,7 +33,8 @@ import (
 	"github.com/subosito/gozaru"
 )
 
-// TODO testnet vs mainnet trillian databases
+// TODO testnet vs mainnet trillian databases. Can I also make different dbs
+// for pi and cms so we can switch back and forth without issues?
 // TODO fsck
 
 const (
@@ -48,6 +49,10 @@ const (
 	// from the politeiad config. The user does not have to set these
 	// manually.
 	pluginSettingDataDir = "datadir"
+
+	// Record states
+	stateUnvetted = "unvetted"
+	stateVetted   = "vetted"
 )
 
 var (
@@ -113,7 +118,12 @@ type tlogBackend struct {
 	// status. Each list of tokens is sorted by the timestamp of the
 	// status change from newest to oldest. This cache is built on
 	// startup.
-	inventory map[backend.MDStatusT][]string
+	inv recordInventory
+}
+
+type recordInventory struct {
+	unvetted map[backend.MDStatusT][]string
+	vetted   map[backend.MDStatusT][]string
 }
 
 // plugin represents a tlogbe plugin.
@@ -262,38 +272,71 @@ func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 	return vettedTreeID, true
 }
 
-func (t *tlogBackend) inventoryGet() map[backend.MDStatusT][]string {
+func (t *tlogBackend) inventory() recordInventory {
 	t.RLock()
 	defer t.RUnlock()
 
 	// Return a copy of the inventory
-	inv := make(map[backend.MDStatusT][]string, len(t.inventory))
-	for status, tokens := range t.inventory {
-		tokensCopy := make([]string, len(tokens))
-		copy(tokensCopy, tokens)
-		inv[status] = tokensCopy
+	var (
+		unvetted = make(map[backend.MDStatusT][]string, len(t.inv.unvetted))
+		vetted   = make(map[backend.MDStatusT][]string, len(t.inv.vetted))
+	)
+	for status, tokens := range t.inv.unvetted {
+		s := make([]string, len(tokens))
+		copy(s, tokens)
+		unvetted[status] = s
+	}
+	for status, tokens := range t.inv.vetted {
+		s := make([]string, len(tokens))
+		copy(s, tokens)
+		vetted[status] = s
 	}
 
-	return inv
+	return recordInventory{
+		unvetted: unvetted,
+		vetted:   vetted,
+	}
 }
 
-func (t *tlogBackend) inventoryAdd(token string, s backend.MDStatusT) {
+func (t *tlogBackend) inventoryAdd(state string, tokenb []byte, s backend.MDStatusT) {
 	t.Lock()
 	defer t.Unlock()
 
-	t.inventory[s] = append([]string{token}, t.inventory[s]...)
+	token := hex.EncodeToString(tokenb)
+	switch state {
+	case stateUnvetted:
+		t.inv.unvetted[s] = append([]string{token}, t.inv.unvetted[s]...)
+	case stateVetted:
+		t.inv.vetted[s] = append([]string{token}, t.inv.vetted[s]...)
+	default:
+		e := fmt.Sprintf("unknown state '%v'", state)
+		panic(e)
+	}
 
-	log.Debugf("Add to inventory: %v %v", token, backend.MDStatus[s])
+	log.Debugf("Add to inv %v: %v %v", state, token, backend.MDStatus[s])
 }
 
-func (t *tlogBackend) inventoryUpdate(token string, currStatus, newStatus backend.MDStatusT) {
+func (t *tlogBackend) inventoryUpdate(state string, tokenb []byte, currStatus, newStatus backend.MDStatusT) {
+	token := hex.EncodeToString(tokenb)
+
 	t.Lock()
 	defer t.Unlock()
+
+	var inv map[backend.MDStatusT][]string
+	switch state {
+	case stateUnvetted:
+		inv = t.inv.unvetted
+	case stateVetted:
+		inv = t.inv.vetted
+	default:
+		e := fmt.Sprintf("unknown state '%v'", state)
+		panic(e)
+	}
 
 	// Find the index of the token in its current status list
 	var idx int
 	var found bool
-	for k, v := range t.inventory[currStatus] {
+	for k, v := range inv[currStatus] {
 		if v == token {
 			// Token found
 			idx = k
@@ -309,14 +352,55 @@ func (t *tlogBackend) inventoryUpdate(token string, currStatus, newStatus backen
 	}
 
 	// Remove the token from its current status list
-	tokens := t.inventory[currStatus]
-	t.inventory[currStatus] = append(tokens[:idx], tokens[idx+1:]...)
+	tokens := inv[currStatus]
+	inv[currStatus] = append(tokens[:idx], tokens[idx+1:]...)
 
 	// Prepend token to new status
-	t.inventory[newStatus] = append([]string{token}, t.inventory[newStatus]...)
+	inv[newStatus] = append([]string{token}, inv[newStatus]...)
 
-	log.Debugf("Update inventory: %v %v to %v",
-		token, backend.MDStatus[currStatus], backend.MDStatus[newStatus])
+	log.Debugf("Update inv %v: %v %v to %v", state, token,
+		backend.MDStatus[currStatus], backend.MDStatus[newStatus])
+}
+
+// inventoryMoveToVetted moves a token from the unvetted inventory to the
+// vetted inventory. The unvettedStatus is the status of the record prior to
+// the update and the vettedStatus is the status of the record after the
+// update.
+func (t *tlogBackend) inventoryMoveToVetted(tokenb []byte, unvettedStatus, vettedStatus backend.MDStatusT) {
+	t.Lock()
+	defer t.Unlock()
+
+	token := hex.EncodeToString(tokenb)
+	unvetted := t.inv.unvetted
+	vetted := t.inv.vetted
+
+	// Find the index of the token in its current status list
+	var idx int
+	var found bool
+	for k, v := range unvetted[unvettedStatus] {
+		if v == token {
+			// Token found
+			idx = k
+			found = true
+			break
+		}
+	}
+	if !found {
+		// Token was never found. This should not happen.
+		e := fmt.Sprintf("inventoryMoveToVetted: unvetted token not found: %v %v",
+			token, unvettedStatus)
+		panic(e)
+	}
+
+	// Remove the token from the unvetted status list
+	tokens := unvetted[unvettedStatus]
+	unvetted[unvettedStatus] = append(tokens[:idx], tokens[idx+1:]...)
+
+	// Prepend token to vetted status
+	vetted[vettedStatus] = append([]string{token}, vetted[vettedStatus]...)
+
+	log.Debugf("Inv move to vetted: %v %v to %v", token,
+		backend.MDStatus[unvettedStatus], backend.MDStatus[vettedStatus])
 }
 
 // verifyContent verifies that all provided MetadataStream and File are sane.
@@ -672,7 +756,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Update the inventory cache
-	t.inventoryAdd(hex.EncodeToString(token), backend.MDStatusUnvetted)
+	t.inventoryAdd(stateUnvetted, token, backend.MDStatusUnvetted)
 
 	log.Infof("New record %x", token)
 
@@ -1219,7 +1303,7 @@ func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, me
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
 
-	log.Debugf("Unvetted record frozen %v", token)
+	log.Debugf("Unvetted record frozen %x", token)
 
 	// Delete all record files
 	err = t.unvetted.recordDel(treeID)
@@ -1227,7 +1311,7 @@ func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, me
 		return fmt.Errorf("recordDel %v: %v", treeID, err)
 	}
 
-	log.Debugf("Unvetted record files deleted %v", token)
+	log.Debugf("Unvetted record files deleted %x", token)
 
 	return nil
 }
@@ -1322,32 +1406,26 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 			token, err)
 	}
 
-	// Update inventory cache
-	t.inventoryUpdate(rm.Token, currStatus, status)
-
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
 		token, backend.MDStatus[currStatus], currStatus,
 		backend.MDStatus[status], status)
 
-	// Return the updated record. If the record was made public it is
-	// now a vetted record and must be fetched accordingly.
-	switch status {
-	case backend.MDStatusVetted:
-		r, err = t.GetVetted(token, "")
-		if err != nil {
-			return nil, fmt.Errorf("GetVetted: %v", err)
-		}
-	case backend.MDStatusCensored:
-		r, err = t.GetUnvetted(token, "")
-		if err != nil {
-			return nil, fmt.Errorf("GetUnvetted: %v", err)
-		}
-	default:
-		return nil, fmt.Errorf("unknown status: %v (%v)",
-			backend.MDStatus[status], status)
+	// Update inventory cache
+	if status == backend.MDStatusVetted {
+		// Record was made public
+		t.inventoryMoveToVetted(token, currStatus, status)
+	} else {
+		// All other status changes
+		t.inventoryUpdate(stateUnvetted, token, currStatus, status)
 	}
 
-	return r, nil
+	// Return the updated record. If the record was made public it is
+	// now a vetted record and must be fetched accordingly.
+	if status == backend.MDStatusVetted {
+		return t.GetVetted(token, "")
+	}
+
+	return t.GetUnvetted(token, "")
 }
 
 // This function must be called WITH the vetted lock held.
@@ -1362,7 +1440,7 @@ func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, meta
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
 
-	log.Debugf("Vetted record frozen %v", token)
+	log.Debugf("Vetted record frozen %x", token)
 
 	// Delete all record files
 	err = t.vetted.recordDel(treeID)
@@ -1370,7 +1448,7 @@ func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, meta
 		return fmt.Errorf("recordDel %v: %v", treeID, err)
 	}
 
-	log.Debugf("Vetted record files deleted %v", token)
+	log.Debugf("Vetted record files deleted %x", token)
 
 	return nil
 }
@@ -1388,7 +1466,7 @@ func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, met
 		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
 	}
 
-	log.Debugf("Vetted record frozen %v", token)
+	log.Debugf("Vetted record frozen %x", token)
 
 	return nil
 }
@@ -1485,7 +1563,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Update inventory cache
-	t.inventoryUpdate(rm.Token, currStatus, status)
+	t.inventoryUpdate(stateVetted, token, currStatus, status)
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
 		token, backend.MDStatus[currStatus], currStatus,
@@ -1518,13 +1596,10 @@ func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, in
 func (t *tlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	log.Tracef("InventoryByStatus")
 
-	inv := t.inventoryGet()
+	inv := t.inventory()
 	return &backend.InventoryByStatus{
-		Unvetted:          inv[backend.MDStatusUnvetted],
-		IterationUnvetted: inv[backend.MDStatusIterationUnvetted],
-		Vetted:            inv[backend.MDStatusVetted],
-		Censored:          inv[backend.MDStatusCensored],
-		Archived:          inv[backend.MDStatusArchived],
+		Unvetted: inv.unvetted,
+		Vetted:   inv.vetted,
 	}, nil
 }
 
@@ -1698,18 +1773,27 @@ func (t *tlogBackend) setup() error {
 			// Sanity check
 			e := fmt.Sprintf("records is both unvetted and vetted: %x", token)
 			panic(e)
+
 		case isUnvetted:
-			// Record is unvetted
+			// Get unvetted record
 			r, err = t.GetUnvetted(token, "")
 			if err != nil {
 				return fmt.Errorf("GetUnvetted %x: %v", token, err)
 			}
+
+			// Add record to the inventory cache
+			t.inventoryAdd(stateUnvetted, token, r.RecordMetadata.Status)
+
 		case isVetted:
-			// Record is vetted
+			// Get vetted record
 			r, err = t.GetVetted(token, "")
 			if err != nil {
 				return fmt.Errorf("GetUnvetted %x: %v", token, err)
 			}
+
+			// Add record to the inventory cache
+			t.inventoryAdd(stateVetted, token, r.RecordMetadata.Status)
+
 		default:
 			// This is an empty tree. This can happen if there was an error
 			// during record creation and the record failed to be appended
@@ -1717,8 +1801,6 @@ func (t *tlogBackend) setup() error {
 			log.Debugf("Empty tree found for token %x", token)
 		}
 
-		// Add record to the inventory cache
-		t.inventoryAdd(hex.EncodeToString(token), r.RecordMetadata.Status)
 	}
 
 	return nil
@@ -1776,12 +1858,9 @@ func New(anp *chaincfg.Params, homeDir, dataDir, dcrtimeHost, encryptionKeyFile,
 		plugins:         make(map[string]plugin),
 		prefixes:        make(map[string][]byte),
 		vettedTreeIDs:   make(map[string]int64),
-		inventory: map[backend.MDStatusT][]string{
-			backend.MDStatusUnvetted:          make([]string, 0, 256),
-			backend.MDStatusIterationUnvetted: make([]string, 0, 256),
-			backend.MDStatusVetted:            make([]string, 0, 256),
-			backend.MDStatusCensored:          make([]string, 0, 256),
-			backend.MDStatusArchived:          make([]string, 0, 256),
+		inv: recordInventory{
+			unvetted: make(map[backend.MDStatusT][]string),
+			vetted:   make(map[backend.MDStatusT][]string),
 		},
 	}
 
