@@ -64,9 +64,6 @@ var (
 // is to check if the record exists in the mutexes function to ensure a token
 // is valid before holding the lock on it.
 
-// TODO the bottleneck for casting a large ballot of votes is waiting for the
-// log signer. Break the cast votes up and send them concurrently.
-
 // TODO should start and startrunoff be combined into a single command?
 
 // ticketVotePlugin satisfies the pluginClient interface.
@@ -1495,42 +1492,62 @@ func (p *ticketVotePlugin) cmdStartRunoff(payload string) (string, error) {
 	return "", nil
 }
 
-// ballotExitWithErr applies the provided vote error to each of the cast vote
-// replies then returns the encoded ballot reply.
-func ballotExitWithErr(votes []ticketvote.CastVote, errCode ticketvote.VoteErrorT, errContext string) (string, error) {
-	token := votes[0].Token
-	receipts := make([]ticketvote.CastVoteReply, len(votes))
-	for k, v := range votes {
-		// Its possible that cast votes were provided for different
-		// records. This is not allowed. Verify the token is the same
-		// before applying the provided error.
-		if v.Token != token {
-			// Token is not the same. Use multiple record vote error.
-			e := ticketvote.VoteErrorMultipleRecordVotes
-			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteError[e]
-			continue
-		}
+// ballot casts the provided votes concurrently. The vote results are passed
+// back through the results channel to the calling function. This function
+// waits until all provided votes have been cast before returning.
+//
+// This function must be called WITH the record lock held.
+func (p *ticketVotePlugin) ballot(votes []ticketvote.CastVote, results chan ticketvote.CastVoteReply) {
+	// Cast the votes concurrently
+	var wg sync.WaitGroup
+	for _, v := range votes {
+		// Increment the wait group counter
+		wg.Add(1)
 
-		// Use the provided vote error
-		receipts[k].Ticket = v.Ticket
-		receipts[k].ErrorCode = errCode
-		receipts[k].ErrorContext = errContext
+		go func(v ticketvote.CastVote) {
+			// Decrement wait group counter once vote is cast
+			defer wg.Done()
+
+			// Setup cast vote details
+			receipt := p.identity.SignMessage([]byte(v.Signature))
+			cv := ticketvote.CastVoteDetails{
+				Token:     v.Token,
+				Ticket:    v.Ticket,
+				VoteBit:   v.VoteBit,
+				Signature: v.Signature,
+				Receipt:   hex.EncodeToString(receipt[:]),
+			}
+
+			// Save cast vote
+			var cvr ticketvote.CastVoteReply
+			err := p.castVoteSave(cv)
+			if err != nil {
+				t := time.Now().Unix()
+				log.Errorf("cmdBallot: castVoteSave %v: %v", t, err)
+				e := ticketvote.VoteErrorInternalError
+				cvr.Ticket = v.Ticket
+				cvr.ErrorCode = e
+				cvr.ErrorContext = fmt.Sprintf("%v: %v",
+					ticketvote.VoteError[e], t)
+				return
+			}
+
+			// Update receipt
+			cvr.Ticket = v.Ticket
+			cvr.Receipt = cv.Receipt
+
+			// Update cast votes cache
+			p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
+
+			// Send result back to calling function
+			results <- cvr
+		}(v)
 	}
 
-	// Prepare reply
-	br := ticketvote.BallotReply{
-		Receipts: receipts,
-	}
-	reply, err := ticketvote.EncodeBallotReply(br)
-	if err != nil {
-		return "", err
-	}
-	return string(reply), nil
+	// Wait for the full ballot to be cast before returning.
+	wg.Wait()
 }
 
-// TODO test this when casting large blocks of votes
 // cmdBallot casts a ballot of votes. This function will not return a user
 // error if one occurs. It will instead return the ballot reply with the error
 // included in the invidiual cast vote reply that it applies to.
@@ -1557,44 +1574,62 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		return string(reply), nil
 	}
 
-	// Verify token
-	token, err := hex.DecodeString(votes[0].Token)
-	if err != nil {
-		e := ticketvote.VoteErrorTokenInvalid
-		c := fmt.Sprintf("%v: not hex", ticketvote.VoteError[e])
-		return ballotExitWithErr(votes, e, c)
+	// Verify that all tokens in the ballot are valid, full length
+	// tokens and that they are all voting for the same record.
+	var (
+		token    []byte
+		receipts = make([]ticketvote.CastVoteReply, len(votes))
+	)
+	for k, v := range votes {
+		// Verify token
+		t, err := decodeTokenFullLength(v.Token)
+		if err != nil {
+			e := ticketvote.VoteErrorTokenInvalid
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = fmt.Sprintf("%v: not hex",
+				ticketvote.VoteError[e])
+			continue
+		}
+		if token == nil {
+			// Set token to the first valid one we come across. All votes
+			// in the ballot with a valid token are required to be the same
+			// as this token.
+			token = t
+		}
+
+		// Verify token is the same
+		if !bytes.Equal(t, token) {
+			e := ticketvote.VoteErrorMultipleRecordVotes
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			continue
+		}
 	}
 
-	// Verify record vote status
-	vd, err := p.voteDetails(token)
+	// From this point forward, it can be assumed that all votes that
+	// have not had their error set are voting for the same record. Get
+	// the record and vote data that we need to perform the remaining
+	// inexpensive validation before we have to hold the lock.
+	voteDetails, err := p.voteDetails(token)
 	if err != nil {
 		return "", err
 	}
-	if vd == nil {
-		// Vote has not been started yet
-		e := ticketvote.VoteErrorVoteStatusInvalid
-		c := fmt.Sprintf("%v: vote not started", ticketvote.VoteError[e])
-		return ballotExitWithErr(votes, e, c)
-	}
-	bb, err := p.bestBlock()
+	bestBlock, err := p.bestBlock()
 	if err != nil {
 		return "", err
 	}
-	if bb >= vd.EndBlockHeight {
-		// Vote has ended
-		e := ticketvote.VoteErrorVoteStatusInvalid
-		c := fmt.Sprintf("%v: vote has ended", ticketvote.VoteError[e])
-		return ballotExitWithErr(votes, e, c)
-	}
 
-	// Put eligible tickets in a map for easy lookups
-	eligible := make(map[string]struct{}, len(vd.EligibleTickets))
-	for _, v := range vd.EligibleTickets {
+	// eligible contains the ticket hashes of all eligble tickets. They
+	// are put into a map for O(n) lookups.
+	eligible := make(map[string]struct{}, len(voteDetails.EligibleTickets))
+	for _, v := range voteDetails.EligibleTickets {
 		eligible[v] = struct{}{}
 	}
 
-	// Obtain largest commitment addresses for each ticket. The vote
-	// must be signed using the largest commitment address.
+	// addrs contains the largest commitment addresses for each ticket.
+	// The vote must be signed using the largest commitment address.
 	tickets := make([]string, 0, len(ballot.Votes))
 	for _, v := range ballot.Votes {
 		tickets = append(tickets, v.Ticket)
@@ -1604,26 +1639,30 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		return "", fmt.Errorf("largestCommitmentAddrs: %v", err)
 	}
 
-	// The lock must be held for the remainder of the function to
-	// ensure duplicate votes cannot be cast.
-	m := p.mutex(hex.EncodeToString(token))
-	m.Lock()
-	defer m.Unlock()
-
-	// castVotes contains the tickets that have alread voted
-	castVotes := p.cachedVotes(token)
-
-	// Verify and save votes
-	receipts := make([]ticketvote.CastVoteReply, len(votes))
+	// Perform validation that doesn't require holding the record lock.
 	for k, v := range votes {
-		// Set receipt ticket
-		receipts[k].Ticket = v.Ticket
+		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+			// Vote has an error. Skip it.
+			continue
+		}
 
-		// Verify token is the same
-		if v.Token != hex.EncodeToString(token) {
-			e := ticketvote.VoteErrorMultipleRecordVotes
+		// Verify record vote status
+		if voteDetails == nil {
+			// Vote has not been started yet
+			e := ticketvote.VoteErrorVoteStatusInvalid
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			receipts[k].ErrorContext = fmt.Sprintf("%v: vote not started",
+				ticketvote.VoteError[e])
+			continue
+		}
+		if bestBlock >= voteDetails.EndBlockHeight {
+			// Vote has ended
+			e := ticketvote.VoteErrorVoteStatusInvalid
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = fmt.Sprintf("%v: vote has ended",
+				ticketvote.VoteError[e])
 			continue
 		}
 
@@ -1631,13 +1670,16 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		bit, err := strconv.ParseUint(v.VoteBit, 16, 64)
 		if err != nil {
 			e := ticketvote.VoteErrorVoteBitInvalid
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = ticketvote.VoteError[e]
 			continue
 		}
-		err = voteBitVerify(vd.Params.Options, vd.Params.Mask, bit)
+		err = voteBitVerify(voteDetails.Params.Options,
+			voteDetails.Params.Mask, bit)
 		if err != nil {
 			e := ticketvote.VoteErrorVoteBitInvalid
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteError[e], err)
@@ -1645,30 +1687,33 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		}
 
 		// Verify vote signature
-		ca := addrs[k]
-		if ca.ticket != v.Ticket {
+		commitmentAddr := addrs[k]
+		if commitmentAddr.ticket != v.Ticket {
 			t := time.Now().Unix()
 			log.Errorf("cmdBallot: commitment addr mismatch %v: %v %v",
-				t, ca.ticket, v.Ticket)
+				t, commitmentAddr.ticket, v.Ticket)
 			e := ticketvote.VoteErrorInternalError
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteError[e], t)
 			continue
 		}
-		if ca.err != nil {
+		if commitmentAddr.err != nil {
 			t := time.Now().Unix()
 			log.Errorf("cmdBallot: commitment addr error %v: %v %v",
-				t, ca.ticket, ca.err)
+				t, commitmentAddr.ticket, commitmentAddr.err)
 			e := ticketvote.VoteErrorInternalError
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteError[e], t)
 			continue
 		}
-		err = p.castVoteSignatureVerify(v, ca.addr)
+		err = p.castVoteSignatureVerify(v, commitmentAddr.addr)
 		if err != nil {
 			e := ticketvote.VoteErrorSignatureInvalid
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteError[e], err)
@@ -1679,46 +1724,130 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		_, ok := eligible[v.Ticket]
 		if !ok {
 			e := ticketvote.VoteErrorTicketNotEligible
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			continue
+		}
+	}
+
+	// The record lock must be held for the remainder of the function to
+	// ensure duplicate votes cannot be cast.
+	m := p.mutex(hex.EncodeToString(token))
+	m.Lock()
+	defer m.Unlock()
+
+	// cachedVotes contains the tickets that have alread voted
+	cachedVotes := p.cachedVotes(token)
+	for k, v := range votes {
+		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+			// Vote has an error. Skip it.
 			continue
 		}
 
 		// Verify ticket has not already vote
-		_, ok = castVotes[v.Ticket]
+		_, ok := cachedVotes[v.Ticket]
 		if ok {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
+			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = ticketvote.VoteError[e]
 			continue
 		}
+	}
 
-		// Save cast vote
-		receipt := p.identity.SignMessage([]byte(v.Signature))
-		cv := ticketvote.CastVoteDetails{
-			Token:     v.Token,
-			Ticket:    v.Ticket,
-			VoteBit:   v.VoteBit,
-			Signature: v.Signature,
-			Receipt:   hex.EncodeToString(receipt[:]),
+	// The votes that have passed validation will be cast in batches of
+	// size batchSize. Each batch of votes is cast concurrently in order
+	// to accommodate the trillian log signer bottleneck. The log signer
+	// picks up queued leaves and appends them onto the trillian tree
+	// every xxx ms, where xxx is a configurable value on the log signer,
+	// but is typically a few hundred milliseconds. Lets use 200ms as an
+	// example. If we don't cast the votes in batches then every vote in
+	// the ballot will take 200 milliseconds since we wait for the leaf
+	// to be fully appended before considering the trillian call
+	// successful. A person casting hundreds of votes in a single ballot
+	// would cause UX issues for the all voting clients since the lock is
+	// held during these calls.
+	//
+	// The second variable that we must watch out for is the max trillian
+	// queued leaf batch size. This is also a configurable trillian value
+	// that represents the maximum number of leaves that can be waiting
+	// in the queue for all trees in the trillian instance. This value is
+	// typically around the order of magnitude of 1000 queued leaves.
+	//
+	// This is why a vote batch size of 5 was chosen. It is large enough
+	// to alleviate performance bottlenecks from the log signer interval,
+	// but small enough to still allow multiple records votes be held
+	// concurrently without running into the queued leaf batch size limit.
+
+	// Prepare work
+	var (
+		batchSize = 5
+		batch     = make([]ticketvote.CastVote, 0, batchSize)
+		queue     = make([][]ticketvote.CastVote, 0, len(votes)/batchSize)
+
+		ballotCount int
+	)
+	for k, v := range votes {
+		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+			// Vote has an error. Skip it.
+			continue
 		}
-		err = p.castVoteSave(cv)
-		if err != nil {
+
+		// Add vote to the current batch
+		batch = append(batch, v)
+		ballotCount++
+
+		if len(batch) == batchSize {
+			// This batch is full. Add the batch to the queue and start
+			// a new batch.
+			queue = append(queue, batch)
+			batch = make([]ticketvote.CastVote, 0, batchSize)
+		}
+	}
+	if len(batch) != 0 {
+		// Add leftover batch to the queue
+		queue = append(queue, batch)
+	}
+
+	log.Debugf("Casting %v votes in %v batches of size %v",
+		ballotCount, len(queue), batchSize)
+
+	// Cast ballot in batches
+	results := make(chan ticketvote.CastVoteReply, ballotCount)
+	for i, batch := range queue {
+		log.Debugf("Casting vote batch %v/%v", i+1, len(queue))
+
+		p.ballot(batch, results)
+	}
+
+	// Empty out the results channel
+	r := make(map[string]ticketvote.CastVoteReply, ballotCount)
+	close(results)
+	for v := range results {
+		r[v.Ticket] = v
+	}
+
+	// Fill in the receipts
+	for k, v := range votes {
+		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+			// Vote has an error. Skip it.
+			continue
+		}
+		cvr, ok := r[v.Ticket]
+		if !ok {
 			t := time.Now().Unix()
-			log.Errorf("cmdBallot: castVoteSave %v: %v", t, err)
+			log.Errorf("cmdBallot: vote result not found %v: %v", t, v.Ticket)
 			e := ticketvote.VoteErrorInternalError
-			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
+			cvr.Ticket = v.Ticket
+			cvr.ErrorCode = e
+			cvr.ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteError[e], t)
 			continue
 		}
 
-		// Update receipt
-		receipts[k].Ticket = cv.Ticket
-		receipts[k].Receipt = cv.Receipt
-
-		// Update cast votes cache
-		p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
+		// Fill in receipt
+		receipts[k] = cvr
 	}
 
 	// Prepare reply

@@ -138,6 +138,16 @@ func tokenIsFullLength(token []byte) bool {
 	return len(token) == v1.TokenSizeShort
 }
 
+func decodeTokenFullLength(token string) ([]byte, error) {
+	t, err := hex.DecodeString(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hex")
+	}
+	if !tokenIsFullLength(t) {
+		return nil, fmt.Errorf("invalid token size")
+	}
+	return t, nil
+}
 func tokenPrefix(token []byte) string {
 	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
 }
