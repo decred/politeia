@@ -2034,10 +2034,10 @@ func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
-// VoteBallot casts ballot of votes for a proposal.
-func (c *Client) VoteBallot(vb *pi.VoteBallot) (*pi.VoteBallotReply, error) {
+// VoteBallot casts a ballot of votes for a proposal.
+func (c *Client) VoteBallot(vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteVoteBallot, &vb)
+		pi.APIRoute, pi.RouteVoteBallot, vb)
 	if err != nil {
 		return nil, err
 	}

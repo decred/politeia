@@ -313,7 +313,14 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 		return nil, nil, fmt.Errorf("QueuedLeaves: %v", err)
 	}
 
-	// Only wait if we actually updated the tree
+	// Wait for inclusion of all queued leaves in the root. We must
+	// check for inclusion instead of simply waiting for a root update
+	// because a root update doesn't necessarily mean the queued leaves
+	// from this request were added yet. The root will be updated as
+	// soon as the first leaf in the queue is added, which can lead to
+	// errors when the queue contains multiple leaves and we try to
+	// fetch the inclusion proof in the code below for leaves that are
+	// still in the process of being taken out of the queue.
 	var n int
 	for k := range qlr.QueuedLeaves {
 		c := codes.Code(qlr.QueuedLeaves[k].GetStatus().GetCode())
@@ -321,29 +328,29 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 			n++
 		}
 	}
-	if len(leaves)-n != 0 {
-		// Wait for root update
-		log.Debugf("Waiting for root update")
 
-		var logRoot types.LogRootV1
-		err := logRoot.UnmarshalBinary(slr.LogRoot)
+	log.Debugf("Queued/Ignored leaves: %v/%v", len(leaves)-n, n)
+
+	var logRoot types.LogRootV1
+	err = logRoot.UnmarshalBinary(slr.LogRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	c, err := client.NewFromTree(t.client, tree, logRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, v := range qlr.QueuedLeaves {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		err = c.WaitForInclusion(ctx, v.Leaf.LeafValue)
 		if err != nil {
-			return nil, nil, err
-		}
-		c, err := client.NewFromTree(t.client, tree, logRoot)
-		if err != nil {
-			return nil, nil, err
-		}
-		_, err = c.WaitForRootUpdate(t.ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("WaitForRootUpdate: %v", err)
+			return nil, nil, fmt.Errorf("WaitForInclusion: %v", err)
 		}
 	}
 
-	log.Debugf("Stored/Ignored leaves: %v/%v", len(leaves)-n, n)
-
 	// Get the latest signed log root
-	slr, lrv1, err := t.signedLogRootForTree(tree)
+	_, lr, err := t.signedLogRootForTree(tree)
 	if err != nil {
 		return nil, nil, fmt.Errorf("signedLogRootForTree post update: %v", err)
 	}
@@ -358,8 +365,8 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 		// Only retrieve the inclusion proof if the leaf was successfully
 		// appended. Leaves that were not successfully appended will be
 		// returned without an inclusion proof and the caller can decide
-		// what to do. Note this includes leaves that were not appended
-		// because they were a duplicate.
+		// what to do with them. Note this includes leaves that were not
+		// appended because they were a duplicate.
 		c := codes.Code(v.GetStatus().GetCode())
 		if c == codes.OK {
 			// Verify that the merkle leaf hash is using the expected
@@ -373,7 +380,7 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 
 			// The LeafIndex of a QueuedLogLeaf will not be set yet. Get the
 			// inclusion proof by MerkleLeafHash.
-			qlp.Proof, err = t.inclusionProof(treeID, v.Leaf.MerkleLeafHash, lrv1)
+			qlp.Proof, err = t.inclusionProof(treeID, v.Leaf.MerkleLeafHash, lr)
 			if err != nil {
 				return nil, nil, fmt.Errorf("inclusionProof %v %x: %v",
 					treeID, v.Leaf.MerkleLeafHash, err)
@@ -383,7 +390,7 @@ func (t *trillianClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) 
 		proofs = append(proofs, qlp)
 	}
 
-	return proofs, lrv1, nil
+	return proofs, lr, nil
 }
 
 func (t *trillianClient) leavesByRange(treeID int64, startIndex, count int64) ([]*trillian.LogLeaf, error) {

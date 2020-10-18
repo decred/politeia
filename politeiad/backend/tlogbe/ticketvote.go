@@ -1535,7 +1535,7 @@ func (p *ticketVotePlugin) ballot(votes []ticketvote.CastVote, results chan tick
 				cvr.ErrorCode = e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
 					ticketvote.VoteError[e], t)
-				return
+				goto sendResult
 			}
 
 			// Update receipt
@@ -1545,6 +1545,7 @@ func (p *ticketVotePlugin) ballot(votes []ticketvote.CastVote, results chan tick
 			// Update cast votes cache
 			p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
 
+		sendResult:
 			// Send result back to calling function
 			results <- cvr
 		}(v)
@@ -1792,6 +1793,8 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 		batch     = make([]ticketvote.CastVote, 0, batchSize)
 		queue     = make([][]ticketvote.CastVote, 0, len(votes)/batchSize)
 
+		// ballotCount is the number of votes that have passed validation
+		// and are being cast in this ballot.
 		ballotCount int
 	)
 	for k, v := range votes {
@@ -1822,7 +1825,7 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 	// Cast ballot in batches
 	results := make(chan ticketvote.CastVoteReply, ballotCount)
 	for i, batch := range queue {
-		log.Debugf("Casting vote batch %v/%v", i+1, len(queue))
+		log.Debugf("Casting %v votes in batch %v/%v", len(batch), i+1, len(queue))
 
 		p.ballot(batch, results)
 	}
@@ -1832,6 +1835,10 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 	close(results)
 	for v := range results {
 		r[v.Ticket] = v
+	}
+
+	if len(r) != ballotCount {
+		log.Errorf("Missing results: got %v, want %v", len(r), ballotCount)
 	}
 
 	// Fill in the receipts
@@ -1845,9 +1852,9 @@ func (p *ticketVotePlugin) cmdBallot(payload string) (string, error) {
 			t := time.Now().Unix()
 			log.Errorf("cmdBallot: vote result not found %v: %v", t, v.Ticket)
 			e := ticketvote.VoteErrorInternalError
-			cvr.Ticket = v.Ticket
-			cvr.ErrorCode = e
-			cvr.ErrorContext = fmt.Sprintf("%v: %v",
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteError[e], t)
 			continue
 		}
