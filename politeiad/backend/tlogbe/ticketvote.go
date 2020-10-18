@@ -2137,6 +2137,7 @@ func (p *ticketVotePlugin) cmdSummaries(payload string) (string, error) {
 	// Prepare reply
 	sr := ticketvote.SummariesReply{
 		Summaries: summaries,
+		BestBlock: bb,
 	}
 	reply, err := ticketvote.EncodeSummariesReply(sr)
 	if err != nil {
