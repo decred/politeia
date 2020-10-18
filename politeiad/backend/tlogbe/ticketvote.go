@@ -999,10 +999,16 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 			snapshotHeight, snapshotHash)
 	}
 
+	// The start block height has the ticket maturity subtracted from
+	// it to prevent forking issues. This means we the vote starts in
+	// the past. The ticket maturity needs to be added to the end block
+	// height to correct for this.
+	endBlockHeight := snapshotHeight + duration + ticketMaturity
+
 	return &ticketvote.StartReply{
 		StartBlockHeight: snapshotHeight,
 		StartBlockHash:   snapshotHash,
-		EndBlockHeight:   snapshotHeight + duration,
+		EndBlockHeight:   endBlockHeight,
 		EligibleTickets:  tpr.Tickets,
 	}, nil
 }
@@ -2351,12 +2357,30 @@ func (p *ticketVotePlugin) fsck() error {
 }
 
 func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
-	// Unpack plugin settings
+	// Plugin settings
 	var (
 		dataDir         string
 		voteDurationMin uint32
 		voteDurationMax uint32
 	)
+
+	// Set plugin settings to defaults. These will be overwritten if
+	// the setting was specified by the user.
+	switch activeNetParams.Name {
+	case chaincfg.MainNetParams().Name:
+		voteDurationMin = ticketvote.DefaultMainNetVoteDurationMin
+		voteDurationMax = ticketvote.DefaultMainNetVoteDurationMax
+	case chaincfg.TestNet3Params().Name:
+		voteDurationMin = ticketvote.DefaultTestNetVoteDurationMin
+		voteDurationMax = ticketvote.DefaultTestNetVoteDurationMax
+	case chaincfg.SimNetParams().Name:
+		voteDurationMin = ticketvote.DefaultSimNetVoteDurationMin
+		voteDurationMax = ticketvote.DefaultSimNetVoteDurationMax
+	default:
+		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
+	}
+
+	// Parse user provided plugin settings
 	for _, v := range settings {
 		switch v.Key {
 		case pluginSettingDataDir:
@@ -2385,33 +2409,6 @@ func newTicketVotePlugin(backend backend.Backend, tlog tlogClient, settings []ba
 	case dataDir == "":
 		return nil, fmt.Errorf("plugin setting not found: %v",
 			pluginSettingDataDir)
-	}
-
-	// Set optional plugin settings to default values if a value was
-	// not specified.
-	if voteDurationMin == 0 {
-		switch activeNetParams.Name {
-		case chaincfg.MainNetParams().Name:
-			voteDurationMin = ticketvote.DefaultMainNetVoteDurationMin
-		case chaincfg.TestNet3Params().Name:
-			voteDurationMin = ticketvote.DefaultTestNetVoteDurationMin
-		case chaincfg.SimNetParams().Name:
-			voteDurationMin = ticketvote.DefaultSimNetVoteDurationMin
-		default:
-			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
-		}
-	}
-	if voteDurationMax == 0 {
-		switch activeNetParams.Name {
-		case chaincfg.MainNetParams().Name:
-			voteDurationMax = ticketvote.DefaultMainNetVoteDurationMax
-		case chaincfg.TestNet3Params().Name:
-			voteDurationMax = ticketvote.DefaultTestNetVoteDurationMax
-		case chaincfg.SimNetParams().Name:
-			voteDurationMax = ticketvote.DefaultSimNetVoteDurationMax
-		default:
-			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
-		}
 	}
 
 	// Create the plugin data directory
