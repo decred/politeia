@@ -36,6 +36,8 @@ import (
 // TODO upvoting a comment twice in the same second causes a duplicate leaf
 // error which causes a 500. Solution: add the timestamp to the vote index.
 
+// TODO verify all writes only accept full length tokens
+
 const (
 	// Blob entry data descriptors
 	dataDescriptorCommentAdd  = "commentadd"
@@ -433,7 +435,7 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 		CommentID: cd.CommentID,
 		Version:   0,
 		Timestamp: cd.Timestamp,
-		Receipt:   "",
+		Receipt:   cd.Receipt,
 		Downvotes: 0,
 		Upvotes:   0,
 		Deleted:   true,
@@ -763,6 +765,19 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 	return cs, nil
 }
 
+// comment returns the latest version of the provided comment.
+func (p *commentsPlugin) comment(s comments.StateT, token []byte, idx commentsIndex, commentID uint32) (*comments.Comment, error) {
+	cs, err := p.comments(s, token, idx, []uint32{commentID})
+	if err != nil {
+		return nil, fmt.Errorf("comments: %v", err)
+	}
+	c, ok := cs[commentID]
+	if !ok {
+		return nil, fmt.Errorf("comment not found")
+	}
+	return &c, nil
+}
+
 func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	log.Tracef("comments cmdNew: %v", payload)
 
@@ -877,11 +892,15 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	log.Debugf("Comment saved to record %v comment ID %v",
 		ca.Token, ca.CommentID)
 
+	// Return new comment
+	c, err := p.comment(ca.State, token, *idx, ca.CommentID)
+	if err != nil {
+		return "", fmt.Errorf("comment %x %v: %v", token, ca.CommentID, err)
+	}
+
 	// Prepare reply
 	nr := comments.NewReply{
-		CommentID: ca.CommentID,
-		Timestamp: ca.Timestamp,
-		Receipt:   ca.Receipt,
+		Comment: *c,
 	}
 	reply, err := comments.EncodeNewReply(nr)
 	if err != nil {
@@ -1029,11 +1048,15 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	log.Debugf("Comment edited on record %v comment ID %v",
 		ca.Token, ca.CommentID)
 
+	// Return updated comment
+	c, err := p.comment(e.State, token, *idx, e.CommentID)
+	if err != nil {
+		return "", fmt.Errorf("comment %x %v: %v", token, e.CommentID, err)
+	}
+
 	// Prepare reply
 	er := comments.EditReply{
-		Version:   ca.Version,
-		Timestamp: ca.Timestamp,
-		Receipt:   ca.Receipt,
+		Comment: *c,
 	}
 	reply, err := comments.EncodeEditReply(er)
 	if err != nil {
@@ -1159,10 +1182,15 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 		return "", fmt.Errorf("del: %v", err)
 	}
 
+	// Return updated comment
+	c, err := p.comment(d.State, token, *idx, d.CommentID)
+	if err != nil {
+		return "", fmt.Errorf("comment %x %v: %v", token, d.CommentID, err)
+	}
+
 	// Prepare reply
 	dr := comments.DelReply{
-		Timestamp: cd.Timestamp,
-		Receipt:   cd.Receipt,
+		Comment: *c,
 	}
 	reply, err := comments.EncodeDelReply(dr)
 	if err != nil {

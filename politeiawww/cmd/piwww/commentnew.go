@@ -98,7 +98,7 @@ func (c *commentNewCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	receiptb, err := util.ConvertSignature(ncr.Receipt)
+	receiptb, err := util.ConvertSignature(ncr.Comment.Receipt)
 	if err != nil {
 		return err
 	}

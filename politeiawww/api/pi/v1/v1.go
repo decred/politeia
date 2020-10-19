@@ -530,9 +530,7 @@ type CommentNew struct {
 // Receipt is the server signature of the client signature. This is proof that
 // the server received and processed the CommentNew command.
 type CommentNewReply struct {
-	CommentID uint32 `json:"commentid"`
-	Timestamp int64  `json:"timestamp"`
-	Receipt   string `json:"receipt"`
+	Comment Comment `json:"comment"`
 }
 
 // CommentCensor permanently censors a comment. The comment will be deleted
@@ -554,8 +552,7 @@ type CommentCensor struct {
 // Receipt is the server signature of the client signature. This is proof that
 // the server received and processed the CommentCensor command.
 type CommentCensorReply struct {
-	Timestamp int64  `json:"timestamp"`
-	Receipt   string `json:"receipt"`
+	Comment Comment `json:"comment"`
 }
 
 // CommentVote casts a comment vote (upvote or downvote). Only allowed on

@@ -144,6 +144,14 @@ func proposalName(pr pi.ProposalRecord) string {
 	return name
 }
 
+// commentFillInUser populates the provided comment with user data that is not
+// store in politeiad and must be populated separately after pulling the
+// comment from politeiad.
+func commentFillInUser(c pi.Comment, u user.User) pi.Comment {
+	c.Username = u.Username
+	return c
+}
+
 func convertUserErrorFromSignatureError(err error) pi.UserErrorReply {
 	var e util.SignatureError
 	var s pi.ErrorStatusT
@@ -1624,20 +1632,22 @@ func (p *politeiawww) processCommentNew(ctx context.Context, cn pi.CommentNew, u
 		return nil, err
 	}
 
+	// Prepare reply
+	c := convertCommentFromPlugin(cnr.Comment)
+	c = commentFillInUser(c, usr)
+
 	// Emit event
 	p.eventManager.emit(eventProposalComment,
 		dataProposalComment{
-			state:     cn.State,
-			token:     cn.Token,
-			commentID: cnr.CommentID,
-			parentID:  cn.ParentID,
-			username:  usr.Username,
+			state:     c.State,
+			token:     c.Token,
+			commentID: c.CommentID,
+			parentID:  c.ParentID,
+			username:  c.Username,
 		})
 
 	return &pi.CommentNewReply{
-		CommentID: cnr.CommentID,
-		Timestamp: cnr.Timestamp,
-		Receipt:   cnr.Receipt,
+		Comment: c,
 	}, nil
 }
 
@@ -1720,9 +1730,12 @@ func (p *politeiawww) processCommentCensor(ctx context.Context, cc pi.CommentCen
 		return nil, err
 	}
 
+	// Prepare reply
+	c := convertCommentFromPlugin(ccr.Comment)
+	c = commentFillInUser(c, usr)
+
 	return &pi.CommentCensorReply{
-		Timestamp: ccr.Timestamp,
-		Receipt:   ccr.Receipt,
+		Comment: c,
 	}, nil
 }
 

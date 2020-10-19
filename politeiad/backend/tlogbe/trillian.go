@@ -422,10 +422,6 @@ func (t *trillianClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 		return []*trillian.LogLeaf{}, nil
 	}
 
-	// Default gprc max message size is 4MB (4194304 bytes). We need to
-	// increase this when fetching all leaves.
-	// maxMsgSize := grpc.MaxCallSendMsgSize(6000000)
-
 	// Get all leaves
 	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))
 }

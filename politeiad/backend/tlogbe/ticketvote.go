@@ -64,7 +64,7 @@ var (
 // is to check if the record exists in the mutexes function to ensure a token
 // is valid before holding the lock on it.
 
-// TODO should start and startrunoff be combined into a single command?
+// TODO verify all writes only accept full length tokens
 
 // ticketVotePlugin satisfies the pluginClient interface.
 type ticketVotePlugin struct {

@@ -90,7 +90,7 @@ func (cmd *commentCensorCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	receiptb, err := util.ConvertSignature(ccr.Receipt)
+	receiptb, err := util.ConvertSignature(ccr.Comment.Receipt)
 	if err != nil {
 		return err
 	}

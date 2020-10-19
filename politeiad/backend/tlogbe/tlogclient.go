@@ -8,6 +8,8 @@ import (
 	"fmt"
 )
 
+// TODO verify writes only accept full length tokens
+
 // tlogClient provides an API for the plugins to use to interact with the tlog
 // backend. Plugins are allowed to save, delete, and get plugin data to/from
 // the tlog backend. Editing plugin data is not allowed.

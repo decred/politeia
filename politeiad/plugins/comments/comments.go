@@ -91,15 +91,16 @@ type Comment struct {
 	ParentID  uint32 `json:"parentid"`  // Parent comment ID if reply
 	Comment   string `json:"comment"`   // Comment text
 	PublicKey string `json:"publickey"` // Public key used for Signature
-	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
+	Signature string `json:"signature"` // Client signature
 	CommentID uint32 `json:"commentid"` // Comment ID
 	Version   uint32 `json:"version"`   // Comment version
 	Timestamp int64  `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string `json:"receipt"`   // Server signature of client signature
 	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
 	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
-	Deleted   bool   `json:"deleted"`   // Comment has been deleted
-	Reason    string `json:"reason"`    // Reason for deletion
+
+	Deleted bool   `json:"deleted,omitempty"` // Comment has been deleted
+	Reason  string `json:"reason,omitempty"`  // Reason for deletion
 }
 
 // CommentAdd is the structure that is saved to disk when a comment is created
@@ -198,9 +199,7 @@ func DecodeNew(payload []byte) (*New, error) {
 
 // NewReply is the reply to the New command.
 type NewReply struct {
-	CommentID uint32 `json:"commentid"` // Comment ID
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server sig of client sig
+	Comment Comment `json:"comment"`
 }
 
 // EncodeNew encodes a NewReply into a JSON byte slice.
@@ -249,9 +248,7 @@ func DecodeEdit(payload []byte) (*Edit, error) {
 
 // EditReply is the reply to the Edit command.
 type EditReply struct {
-	Version   uint32 `json:"version"`   // Comment version
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server signature of client signature
+	Comment Comment `json:"comment"`
 }
 
 // EncodeEdit encodes a EditReply into a JSON byte slice.
@@ -298,8 +295,7 @@ func DecodeDel(payload []byte) (*Del, error) {
 
 // DelReply is the reply to the Del command.
 type DelReply struct {
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server signature of client signature
+	Comment Comment `json:"comment"`
 }
 
 // EncodeDelReply encodes a DelReply into a JSON byte slice.

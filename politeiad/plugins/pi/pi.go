@@ -11,6 +11,8 @@ import (
 	"errors"
 	"io"
 	"strings"
+
+	"github.com/decred/politeia/politeiad/plugins/comments"
 )
 
 type PropStateT int
@@ -291,9 +293,7 @@ func DecodeCommentNew(payload []byte) (*CommentNew, error) {
 
 // CommentNewReply is the reply to the CommentNew command.
 type CommentNewReply struct {
-	CommentID uint32 `json:"commentid"` // Comment ID
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server sig of client sig
+	Comment comments.Comment `json:"comment"`
 }
 
 // EncodeCommentNew encodes a CommentNewReply into a JSON byte slice.
@@ -342,8 +342,7 @@ func DecodeCommentCensor(payload []byte) (*CommentCensor, error) {
 
 // CommentCensorReply is the reply to the CommentCensor command.
 type CommentCensorReply struct {
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server signature of client signature
+	Comment comments.Comment `json:"comment"`
 }
 
 // EncodeCommentCensorReply encodes a CommentCensorReply into a JSON byte

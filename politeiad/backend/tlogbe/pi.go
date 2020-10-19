@@ -401,9 +401,7 @@ func (p *piPlugin) cmdCommentNew(payload string) (string, error) {
 		return "", err
 	}
 	cnr := pi.CommentNewReply{
-		CommentID: nr.CommentID,
-		Timestamp: nr.Timestamp,
-		Receipt:   nr.Receipt,
+		Comment: nr.Comment,
 	}
 	reply, err := pi.EncodeCommentNewReply(cnr)
 	if err != nil {
@@ -506,8 +504,7 @@ func (p *piPlugin) cmdCommentCensor(payload string) (string, error) {
 		return "", err
 	}
 	ccr := pi.CommentCensorReply{
-		Timestamp: dr.Timestamp,
-		Receipt:   dr.Receipt,
+		Comment: dr.Comment,
 	}
 	reply, err := pi.EncodeCommentCensorReply(ccr)
 	if err != nil {

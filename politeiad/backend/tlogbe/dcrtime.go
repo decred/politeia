@@ -16,15 +16,13 @@ import (
 )
 
 var (
-	// TODO flip skipVerify to false when done testing
-	skipVerify = true
 	httpClient = &http.Client{
 		Timeout: 1 * time.Minute,
 		Transport: &http.Transport{
 			IdleConnTimeout:       1 * time.Minute,
 			ResponseHeaderTimeout: 1 * time.Minute,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: skipVerify,
+				InsecureSkipVerify: false,
 			},
 		},
 	}
