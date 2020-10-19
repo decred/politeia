@@ -288,7 +288,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	log.Tracef("%v  ", string(requestBody))
 
 	log.Debugf("Request: %v", fullRoute)
-	req, err := http.NewRequest(http.MethodGet, fullRoute,
+	req, err := http.NewRequestWithContext(c.wctx, http.MethodGet, fullRoute,
 		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -384,7 +384,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 		log.Tracef("%v  ", string(requestBody))
 	}
 
-	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	req, err := http.NewRequestWithContext(c.wctx, method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +455,7 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 		log.Tracef("%v  ", string(requestBody))
 	}
 
-	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	req, err := http.NewRequestWithContext(c.wctx, method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -574,7 +574,7 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 }
 
 func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
+	responseBody, err := c.makeRequest(http.MethodGet, v1.RouteActiveVote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -722,7 +722,7 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 		return nil, fmt.Errorf("sendVote: only one vote allowed")
 	}
 
-	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, ballot)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteCastVotes, ballot)
 	if err != nil {
 		return nil, err
 	}
@@ -912,6 +912,8 @@ func (c *ctx) _voteTrickler(token string) error {
 			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
 
 		select {
+		case <-c.wctx.Done():
+			goto exit
 		case <-time.After(vote.At):
 		case <-c.retryLoopForceExit:
 			// The retry loop is forcing an exit. Put vote back
@@ -1021,7 +1023,7 @@ func verifyV1Vote(params *chaincfg.Params, address string, vote *v1.CastVote) bo
 // XXX remove this once BatchVoteSummary is live.
 func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
 	route := "/proposals/" + token + "/votestatus"
-	responseBody, err := c.makeRequest("GET", route, nil)
+	responseBody, err := c.makeRequest(http.MethodGet, route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1292,7 +1294,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	}
 
 	// Vote on the supplied proposal
-	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteCastVotes, &cv)
 	if err != nil {
 		return err
 	}
@@ -1362,7 +1364,7 @@ func (c *ctx) vote(seed int64, args []string) error {
 }
 
 func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteBatchVoteSummary,
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteBatchVoteSummary,
 		v1.BatchVoteSummary{Tokens: []string{token}})
 	if err != nil {
 		return nil, err
@@ -1379,7 +1381,7 @@ func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 }
 
 func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
+	responseBody, err := c.makeRequest(http.MethodGet, "/proposals/"+token+"/votes", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1445,7 +1447,7 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 		Password: password,
 	}
 
-	responseBody, err := c.makeRequest("POST", v1.RouteLogin, l)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteLogin, l)
 	if err != nil {
 		return nil, err
 	}
@@ -1461,7 +1463,7 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 }
 
 func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteStartVote, sv)
 	if err != nil {
 		return nil, err
 	}
