@@ -22,7 +22,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -47,10 +46,6 @@ import (
 	"golang.org/x/net/publicsuffix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-)
-
-var (
-	signals []os.Signal
 )
 
 func generateSeed() (int64, error) {
@@ -196,7 +191,7 @@ type voteInterval struct {
 	At    time.Duration `json:"at"`    // Delay to fire off vote
 }
 
-func newClient(cfg *config) (*ctx, error) {
+func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: cfg.SkipVerify,
 	}
@@ -235,7 +230,7 @@ func newClient(cfg *config) (*ctx, error) {
 		mainLoopDone:       make(chan struct{}),
 		mainLoopForceExit:  make(chan struct{}),
 		retryLoopForceExit: make(chan struct{}),
-		wctx:               context.Background(),
+		wctx:               shutdownCtx,
 		creds:              creds,
 		conn:               conn,
 		wallet:             wallet,
@@ -324,9 +319,9 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	return &v, nil
 }
 
-func firstContact(cfg *config) (*ctx, error) {
+func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
-	c, err := newClient(cfg)
+	c, err := newClient(shutdownCtx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -769,22 +764,6 @@ func (c *ctx) dumpTogo() {
 	}
 }
 
-// signalHandler catches SIGUSR1 and dumps the current state of the vote
-// trickler.
-func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
-	for {
-		select {
-		case <-signals:
-			fmt.Printf("----- politeiavoter status -----\n")
-			c.dumpTogo()
-			c.dumpComplete()
-			c.dumpQueue()
-		case <-done:
-			return
-		}
-	}
-}
-
 func (c *ctx) voteIntervalPush(v *voteInterval) {
 	c.Lock()
 	defer c.Unlock()
@@ -913,12 +892,6 @@ func (c *ctx) _voteTrickler(token string) error {
 	voteCount := c.voteIntervalLen()
 	c.ballotResults = make([]BallotResult, 0, voteCount)
 
-	// Launch signal handler
-	signalsChan := make(chan os.Signal, 1)
-	signalsDone := make(chan struct{}, 1)
-	signal.Notify(signalsChan, signals...)
-	go c.signalHandler(signalsChan, signalsDone)
-
 	// Launch retry loop
 	c.retryWG.Add(1)
 	go c.retryLoop()
@@ -1012,10 +985,6 @@ func (c *ctx) _voteTrickler(token string) error {
 	log.Debugf("ballotResults %v", spew.Sdump(c.ballotResults))
 
 exit:
-	// Shut down signal handler
-	signal.Stop(signalsChan)
-	close(signalsDone)
-
 	return nil
 }
 
@@ -1262,6 +1231,8 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	}
 
 	if c.cfg.Trickle {
+		go c.statsHandler()
+
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
 			bestBlock, err := c.bestBlock()
@@ -1577,8 +1548,13 @@ func _main() error {
 		}
 	}
 
+	// Get a context that will be canceled when a shutdown signal has been
+	// triggered either from an OS signal such as SIGINT (Ctrl+C) or from
+	// another subsystem such as the RPC server.
+	shutdownCtx := shutdownListener()
+
 	// Contact WWW
-	c, err := firstContact(cfg)
+	c, err := firstContact(shutdownCtx, cfg)
 	if err != nil {
 		return err
 	}
