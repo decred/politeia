@@ -29,10 +29,12 @@ const (
 	defaultWalletHost        = "127.0.0.1"
 	defaultWalletTestnetPort = "19111"
 
-	userFile     = "user.txt"
-	csrfFile     = "csrf.txt"
-	cookieFile   = "cookies.json"
-	identityFile = "identity.json"
+	userFile       = "user.txt"
+	csrfFile       = "csrf.txt"
+	cookieFile     = "cookies.json"
+	identityFile   = "identity.json"
+	clientCertFile = "client.pem"
+	clientKeyFile  = "client-key.pem"
 )
 
 var (
@@ -56,6 +58,9 @@ type Config struct {
 	WalletCert string // Wallet GRPC certificate
 	FaucetHost string // Testnet faucet host
 	CSRF       string // CSRF header token
+
+	ClientCert string `long:"cert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"key" description:"Path to TLS client authentication key"`
 
 	Identity *identity.FullIdentity // User identity
 	Cookies  []*http.Cookie         // User cookies
@@ -181,6 +186,14 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		return nil, fmt.Errorf("load identity: %v", err)
 	}
 	cfg.Identity = id
+
+	// Set path for the client key/cert depending on if they are set in options
+	if cfg.ClientCert == "" {
+		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
+	}
+	if cfg.ClientKey == "" {
+		cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
+	}
 
 	return &cfg, nil
 }
