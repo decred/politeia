@@ -21,8 +21,15 @@ testnet=1
 
 ## Requirements
 
-Voting requires access to wallet GRPC. Therefore this tool needs the wallet
-certificate. By default the tool will look in `~/.dcrwallet/rpc.cert`.
+Voting requires access to wallet GRPC. Therefore this tool needs the wallet's
+server certificate to authenticate the server, as well as a local client keypair
+to authenticate the client to `dcrwallet`.  The server certifiate by default
+will be found in `~/.dcrwallet/rpc.cert`, and this can be modified to another
+path using the `--walletgrpccert` flag.  Client certs can be generated using
+[`gencerts`](https://github.com/decred/dcrd/blob/master/cmd/gencerts/) and
+`politeiavoter` will read `client.pem` and `client-key.pem` from its application
+directory by default.  The certificate must be appended to
+`~/.dcrwallet/clients.pem` in order for `dcrwallet` to trust the client.
 
 In order to sign votes ```politeiavoter``` requires the wallet passphrase.
 
