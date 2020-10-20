@@ -8,7 +8,6 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -52,8 +51,8 @@ const (
 	defaultVoteDurationMin = uint32(2016)
 	defaultVoteDurationMax = uint32(4032)
 
-	defaultMailAddress    = "Politeia <noreply@example.org>"
-	defaultCMSMailAddress = "Contractor Management System <noreply@example.org>"
+	defaultMailAddressPi  = "Politeia <noreply@example.org>"
+	defaultMailAddressCMS = "Contractor Management System <noreply@example.org>"
 
 	defaultDcrdataMainnet = "dcrdata.decred.org:443"
 	defaultDcrdataTestnet = "testnet.decred.org:443"
@@ -95,54 +94,61 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir                  string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion              bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile               string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir                  string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir                   string   `long:"logdir" description:"Directory to log output."`
-	TestNet                  bool     `long:"testnet" description:"Use the test network"`
-	SimNet                   bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile                  string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CookieKeyFile            string   `long:"cookiekey" description:"File containing the secret cookies key"`
-	CPUProfile               string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile               string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel               string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners                []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version                  string
-	HTTPSCert                string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey                 string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCHost                  string `long:"rpchost" description:"Host for politeiad in this format"`
-	RPCCert                  string `long:"rpccert" description:"File containing the https certificate file"`
+	HomeDir         string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion     bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile      string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir         string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir          string   `long:"logdir" description:"Directory to log output."`
+	TestNet         bool     `long:"testnet" description:"Use the test network"`
+	SimNet          bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile         string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CookieKeyFile   string   `long:"cookiekey" description:"File containing the secret cookies key"`
+	DebugLevel      string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners       []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
+	HTTPSCert       string   `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey        string   `long:"httpskey" description:"File containing the https certificate key"`
+	RPCHost         string   `long:"rpchost" description:"Host for politeiad in this format"`
+	RPCCert         string   `long:"rpccert" description:"File containing the https certificate file"`
+	RPCIdentityFile string   `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
+	RPCUser         string   `long:"rpcuser" description:"RPC user name for privileged politeaid commands"`
+	RPCPass         string   `long:"rpcpass" description:"RPC password for privileged politeiad commands"`
+	FetchIdentity   bool     `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	Interactive     string   `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	AdminLogFile    string   `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
+	Mode            string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+
+	// User database settings
+	UserDB           string `long:"userdb" description:"Database choice for the user database"`
+	DBHost           string `long:"dbhost" description:"Database ip:port"`
+	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
+	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+	EncryptionKey    string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
+	OldEncryptionKey string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
+
+	// SMTP settings
+	MailHost         string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
+	MailUser         string `long:"mailuser" description:"Email server username"`
+	MailPass         string `long:"mailpass" description:"Email server password"`
+	MailAddress      string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
+	SMTPCert         string `long:"smtpcert" description:"File containing the smtp certificate file"`
+	SMTPSkipVerify   bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
+	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
+
+	// XXX These should be plugin settings
 	DcrdataHost              string `long:"dcrdatahost" description:"Dcrdata ip:port"`
-	RPCIdentityFile          string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
-	Identity                 *identity.PublicIdentity
-	RPCUser                  string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass                  string `long:"rpcpass" description:"RPC password for privileged commands"`
-	MailHost                 string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
-	MailUser                 string `long:"mailuser" description:"Email server username"`
-	MailPass                 string `long:"mailpass" description:"Email server password"`
-	MailAddress              string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
-	DBHost                   string `long:"dbhost" description:"Database ip:port"`
-	DBRootCert               string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert                   string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
-	DBKey                    string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	BuildCMSDB               bool   `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
-	UserDB                   string `long:"userdb" description:"Database choice for the user database"`
-	EncryptionKey            string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
-	OldEncryptionKey         string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
-	FetchIdentity            bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	WebServerAddress         string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
-	Interactive              string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
 	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
 	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
 	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
-	VoteDurationMin          uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
-	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
-	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
-	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
-	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
-	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
-	SystemCerts              *x509.CertPool
+	BuildCMSDB               bool   `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
+
+	// TODO these need to be removed
+	VoteDurationMin uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
+	VoteDurationMax uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
+
+	Version     string
+	Identity    *identity.PublicIdentity
+	SystemCerts *x509.CertPool
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -388,14 +394,13 @@ func loadConfig() (*config, []string, error) {
 		HTTPSCert:                defaultHTTPSCertFile,
 		RPCCert:                  defaultRPCCertFile,
 		CookieKeyFile:            defaultCookieKeyFile,
-		PaywallAmount:            defaultPaywallAmount,
-		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		Version:                  version.String(),
-		VoteDurationMin:          defaultVoteDurationMin,
-		VoteDurationMax:          defaultVoteDurationMax,
-		MailAddress:              defaultMailAddress,
 		Mode:                     defaultWWWMode,
 		UserDB:                   defaultUserDB,
+		PaywallAmount:            defaultPaywallAmount,
+		MinConfirmationsRequired: defaultPaywallMinConfirmations,
+		VoteDurationMin:          defaultVoteDurationMin,
+		VoteDurationMax:          defaultVoteDurationMax,
 	}
 
 	// Service options which are only added on Windows.
@@ -508,13 +513,16 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Verify mode
+	// Verify mode and set mode specific defaults
 	switch cfg.Mode {
 	case cmsWWWMode:
-		if cfg.MailAddress == defaultMailAddress {
-			cfg.MailAddress = defaultCMSMailAddress
+		if cfg.MailAddress == "" {
+			cfg.MailAddress = defaultMailAddressCMS
 		}
 	case politeiaWWWMode:
+		if cfg.MailAddress == "" {
+			cfg.MailAddress = defaultMailAddressPi
+		}
 	default:
 		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
 		fmt.Fprintln(os.Stderr, err)
@@ -595,89 +603,6 @@ func loadConfig() (*config, []string, error) {
 	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
 	cfg.RPCCert = cleanAndExpandPath(cfg.RPCCert)
 
-	// Validate cache options.
-	switch {
-	case cfg.DBHost == "":
-		return nil, nil, fmt.Errorf("dbhost param is required")
-	case cfg.DBRootCert == "":
-		return nil, nil, fmt.Errorf("dbrootcert param is required")
-	case cfg.DBCert == "":
-		return nil, nil, fmt.Errorf("dbcert param is required")
-	case cfg.DBKey == "":
-		return nil, nil, fmt.Errorf("dbkey param is required")
-	}
-
-	cfg.DBRootCert = cleanAndExpandPath(cfg.DBRootCert)
-	cfg.DBCert = cleanAndExpandPath(cfg.DBCert)
-	cfg.DBKey = cleanAndExpandPath(cfg.DBKey)
-
-	// Validate db host.
-	_, err = url.Parse(cfg.DBHost)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse dbhost: %v", err)
-	}
-
-	// Validate db root cert.
-	b, err := ioutil.ReadFile(cfg.DBRootCert)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read dbrootcert: %v", err)
-	}
-	block, _ := pem.Decode(b)
-	_, err = x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse dbrootcert: %v", err)
-	}
-
-	// Validate db key pair.
-	_, err = tls.LoadX509KeyPair(cfg.DBCert, cfg.DBKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load key pair dbcert "+
-			"and dbkey: %v", err)
-	}
-
-	// Validate user database selection.
-	switch cfg.UserDB {
-	case userDBLevel, userDBCockroach:
-		// Valid selection; continue
-	default:
-		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
-			"be either leveldb or cockroachdb", cfg.UserDB)
-	}
-
-	// Validate encryption keys.
-	cfg.EncryptionKey = cleanAndExpandPath(cfg.EncryptionKey)
-	cfg.OldEncryptionKey = cleanAndExpandPath(cfg.OldEncryptionKey)
-
-	if cfg.EncryptionKey != "" {
-		if cfg.UserDB == userDBLevel {
-			return nil, nil, fmt.Errorf("data at rest encryption is not" +
-				"currently supported for leveldb; remove encryption key " +
-				"param or change user database param")
-		}
-
-		if !util.FileExists(cfg.EncryptionKey) {
-			return nil, nil, fmt.Errorf("file not found %v",
-				cfg.EncryptionKey)
-		}
-	}
-
-	if cfg.OldEncryptionKey != "" {
-		if cfg.EncryptionKey == "" {
-			return nil, nil, fmt.Errorf("old encryption key param " +
-				"cannot be used without encryption key param")
-		}
-
-		if cfg.EncryptionKey == cfg.OldEncryptionKey {
-			return nil, nil, fmt.Errorf("old encryption key param " +
-				"and encryption key param must be different")
-		}
-
-		if !util.FileExists(cfg.OldEncryptionKey) {
-			return nil, nil, fmt.Errorf("file not found %v",
-				cfg.OldEncryptionKey)
-		}
-	}
-
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
 		fmt.Println("Supported subsystems", supportedSubsystems())
@@ -721,7 +646,7 @@ func loadConfig() (*config, []string, error) {
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
 
-	// Set up the rpc address.
+	// Set up the politeiad rpc address.
 	if cfg.TestNet {
 		port = v1.DefaultTestnetPort
 		if cfg.RPCHost == "" {
@@ -732,21 +657,9 @@ func loadConfig() (*config, []string, error) {
 		if cfg.RPCHost == "" {
 			cfg.RPCHost = v1.DefaultMainnetHost
 		}
-		if cfg.MinConfirmationsRequired != defaultPaywallMinConfirmations {
-			return nil, nil, fmt.Errorf("[ERR]: Can not change min block " +
-				"confirmations when in mainnet")
-		}
 	}
 
-	// Setup dcrdata addresses
-	if cfg.DcrdataHost == "" {
-		if cfg.TestNet {
-			cfg.DcrdataHost = defaultDcrdataTestnet
-		} else {
-			cfg.DcrdataHost = defaultDcrdataMainnet
-		}
-	}
-
+	// Verify politeiad RPC settings
 	cfg.RPCHost = util.NormalizeAddress(cfg.RPCHost, port)
 	u, err := url.Parse("https://" + cfg.RPCHost)
 	if err != nil {
@@ -754,25 +667,16 @@ func loadConfig() (*config, []string, error) {
 	}
 	cfg.RPCHost = u.String()
 
-	// Set random username and password when not specified
 	if cfg.RPCUser == "" {
-		name, err := util.Random(32)
-		if err != nil {
-			return nil, nil, err
-		}
-		cfg.RPCUser = base64.StdEncoding.EncodeToString(name)
-		log.Warnf("RPC user name not set, using random value")
+		return nil, nil, fmt.Errorf("politeiad rpc user must be provided " +
+			"with --rpcuser")
 	}
 	if cfg.RPCPass == "" {
-		pass, err := util.Random(32)
-		if err != nil {
-			return nil, nil, err
-		}
-		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
-		log.Warnf("RPC password not set, using random value")
+		return nil, nil, fmt.Errorf("politeiad rpc pass must be provided " +
+			"with --rpcpass")
 	}
 
-	// Valide mail settings
+	// Verify mail settings
 	switch {
 	case cfg.MailHost == "" && cfg.MailUser == "" &&
 		cfg.MailPass == "" && cfg.WebServerAddress == "":
@@ -788,49 +692,21 @@ func loadConfig() (*config, []string, error) {
 
 	u, err = url.Parse(cfg.MailHost)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse mail host: %v",
-			err)
+		return nil, nil, fmt.Errorf("unable to parse mail host: %v", err)
 	}
 	cfg.MailHost = u.String()
 
 	a, err := mail.ParseAddress(cfg.MailAddress)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse mail address: %v",
-			err)
+		return nil, nil, fmt.Errorf("unable to parse mail address: %v", err)
 	}
 	cfg.MailAddress = a.String()
 
 	u, err = url.Parse(cfg.WebServerAddress)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse web server address: %v",
-			err)
+		return nil, nil, fmt.Errorf("unable to parse web server address: %v", err)
 	}
 	cfg.WebServerAddress = u.String()
-
-	// Load identity
-	if err := loadIdentity(&cfg); err != nil {
-		return nil, nil, err
-	}
-
-	// Warn about missing config file only after all other configuration is
-	// done.  This prevents the warning on help messages and invalid
-	// options.  Note this should go directly before the return.
-	if configFileError != nil {
-		log.Warnf("%v", configFileError)
-	}
-
-	// Parse the extended public key if the paywall is enabled.
-	if cfg.PaywallAmount != 0 || cfg.PaywallXpub != "" {
-		if cfg.PaywallAmount < dust {
-			return nil, nil, fmt.Errorf("[ERR]: Paywall amount needs to be "+
-				"higher than %v", dust)
-		}
-		_, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub, activeNetParams.Params)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error processing extended public key: %v",
-				err)
-		}
-	}
 
 	// Validate smtp root cert.
 	if cfg.SMTPCert != "" {
@@ -853,8 +729,146 @@ func loadConfig() (*config, []string, error) {
 		cfg.SystemCerts = systemCerts
 
 		if cfg.SMTPSkipVerify {
-			log.Warnf("SMTPCert has been set so SMTPSkipVerify is being disregarded.")
+			log.Warnf("SMTPCert has been set so SMTPSkipVerify is being disregarded")
 		}
+	}
+
+	// Validate user database selection.
+	switch cfg.UserDB {
+	case userDBLevel:
+		// Leveldb implementation does not require any database settings
+		// and does support encrypting data at rest. Return an error if
+		// the user has the encryption settings set to prevent them from
+		// thinking their data is being encrypted.
+		switch {
+		case cfg.DBHost != "":
+			log.Warnf("leveldb does not use --dbhost")
+		case cfg.DBRootCert != "":
+			log.Warnf("leveldb does not use --dbrootcert")
+		case cfg.DBCert != "":
+			log.Warnf("leveldb does not use --dbcert")
+		case cfg.DBKey != "":
+			log.Warnf("leveldb does not use --dbkey")
+		case cfg.EncryptionKey != "":
+			return nil, nil, fmt.Errorf("leveldb --encryptionkey not supported")
+		case cfg.OldEncryptionKey != "":
+			return nil, nil, fmt.Errorf("leveldb --oldencryptionkey not supported")
+		}
+
+	case userDBCockroach:
+		// Cockroachdb required these settings
+		switch {
+		case cfg.DBHost == "":
+			return nil, nil, fmt.Errorf("dbhost param is required")
+		case cfg.DBRootCert == "":
+			return nil, nil, fmt.Errorf("dbrootcert param is required")
+		case cfg.DBCert == "":
+			return nil, nil, fmt.Errorf("dbcert param is required")
+		case cfg.DBKey == "":
+			return nil, nil, fmt.Errorf("dbkey param is required")
+		}
+
+		// Clean user database settings
+		cfg.DBRootCert = cleanAndExpandPath(cfg.DBRootCert)
+		cfg.DBCert = cleanAndExpandPath(cfg.DBCert)
+		cfg.DBKey = cleanAndExpandPath(cfg.DBKey)
+
+		// Validate user database host
+		_, err = url.Parse(cfg.DBHost)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse dbhost: %v", err)
+		}
+
+		// Validate user database root cert
+		b, err := ioutil.ReadFile(cfg.DBRootCert)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read dbrootcert: %v", err)
+		}
+		block, _ := pem.Decode(b)
+		_, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse dbrootcert: %v", err)
+		}
+
+		// Validate user database key pair
+		_, err = tls.LoadX509KeyPair(cfg.DBCert, cfg.DBKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load key pair dbcert "+
+				"and dbkey: %v", err)
+		}
+
+		// Validate user database encryption keys
+		cfg.EncryptionKey = cleanAndExpandPath(cfg.EncryptionKey)
+		cfg.OldEncryptionKey = cleanAndExpandPath(cfg.OldEncryptionKey)
+
+		if cfg.EncryptionKey != "" && !util.FileExists(cfg.EncryptionKey) {
+			return nil, nil, fmt.Errorf("file not found %v", cfg.EncryptionKey)
+		}
+
+		if cfg.OldEncryptionKey != "" {
+			switch {
+			case cfg.EncryptionKey == "":
+				return nil, nil, fmt.Errorf("old encryption key param " +
+					"cannot be used without encryption key param")
+
+			case cfg.EncryptionKey == cfg.OldEncryptionKey:
+				return nil, nil, fmt.Errorf("old encryption key param " +
+					"and encryption key param must be different")
+
+			case !util.FileExists(cfg.OldEncryptionKey):
+				return nil, nil, fmt.Errorf("file not found %v", cfg.OldEncryptionKey)
+			}
+		}
+
+	default:
+		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
+			"be either leveldb or cockroachdb", cfg.UserDB)
+	}
+
+	// Verify paywall settings
+
+	paywallIsEnabled := cfg.PaywallAmount != 0 || cfg.PaywallXpub != ""
+	if paywallIsEnabled {
+		// Parse extended public key
+		_, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub,
+			activeNetParams.Params)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error processing extended "+
+				"public key: %v", err)
+		}
+
+		// Verify paywall amount
+		if cfg.PaywallAmount < dust {
+			return nil, nil, fmt.Errorf("paywall amount needs to be "+
+				"higher than %v", dust)
+		}
+
+		// Verify required paywall confirmations
+		if !cfg.TestNet && !cfg.SimNet &&
+			cfg.MinConfirmationsRequired != defaultPaywallMinConfirmations {
+			return nil, nil, fmt.Errorf("cannot set --minconfirmations on mainnet")
+		}
+	}
+
+	// Setup dcrdata addresses
+	if cfg.DcrdataHost == "" {
+		if cfg.TestNet {
+			cfg.DcrdataHost = defaultDcrdataTestnet
+		} else {
+			cfg.DcrdataHost = defaultDcrdataMainnet
+		}
+	}
+
+	// Load identity
+	if err := loadIdentity(&cfg); err != nil {
+		return nil, nil, err
+	}
+
+	// Warn about missing config file only after all other configuration is
+	// done.  This prevents the warning on help messages and invalid
+	// options.  Note this should go directly before the return.
+	if configFileError != nil {
+		log.Warnf("%v", configFileError)
 	}
 
 	return &cfg, remainingArgs, nil
