@@ -26,6 +26,10 @@ type VoteErrorT int
 // for 1 result to be returned so that we have the option to change this is
 // we want to.
 // TODO should we add auths to the vote summary?
+// TODO should routes for fetching comments be in their own API? This would
+// make politeiawww far more configurable. I think so.
+// TODO add a comments/count endpoint and take the comments count off of the
+// proposal record
 
 const (
 	APIVersion = 1
@@ -353,7 +357,7 @@ type StatusChange struct {
 	Timestamp int64       `json:"timestamp"`
 }
 
-// ProposalRecord is an entire proposal and it's contents.
+// ProposalRecord represents a proposal submission and its metadata.
 //
 // Signature is the client signature of the proposal merkle root. The merkle
 // root is the ordered merkle root of all proposal Files and Metadata.
@@ -397,8 +401,7 @@ type ProposalNew struct {
 
 // ProposalNewReply is the reply to the ProposalNew command.
 type ProposalNewReply struct {
-	Timestamp        int64            `json:"timestamp"`
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Proposal ProposalRecord `json:"proposal"`
 }
 
 // ProposalEdit edits an existing proposal.
@@ -418,9 +421,7 @@ type ProposalEdit struct {
 
 // ProposalEditReply is the reply to the ProposalEdit command.
 type ProposalEditReply struct {
-	Version          string           `json:"version"`
-	Timestamp        int64            `json:"timestamp"`
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Proposal ProposalRecord `json:"proposal"`
 }
 
 // ProposalStatusSet sets the status of a proposal. Some status changes require
@@ -439,7 +440,7 @@ type ProposalStatusSet struct {
 
 // ProposalStatusSetReply is the reply to the ProposalStatusSet command.
 type ProposalStatusSetReply struct {
-	Timestamp int64 `json:"timestamp"`
+	Proposal ProposalRecord `json:"proposal"`
 }
 
 // ProposalRequest is used to request the ProposalRecord of the provided

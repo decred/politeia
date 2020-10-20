@@ -144,6 +144,14 @@ func proposalName(pr pi.ProposalRecord) string {
 	return name
 }
 
+// proposalRecordFillInUser fills in all user fields that are store in the
+// user database and not in politeiad.
+func proposalRecordFillInUser(pr pi.ProposalRecord, u user.User) pi.ProposalRecord {
+	pr.UserID = u.ID.String()
+	pr.Username = u.Username
+	return pr
+}
+
 // commentFillInUser populates the provided comment with user data that is not
 // store in politeiad and must be populated separately after pulling the
 // comment from politeiad.
@@ -725,11 +733,6 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 // proposalRecords returns the ProposalRecord for each of the provided proposal
 // requests. If a token does not correspond to an actual proposal then it will
 // not be included in the returned map.
-//
-// TODO this presents a challenge because the proposal Metadata still needs to
-// be returned even if the proposal Files are not returned, which means that we
-// will always need to fetch the record from politeiad with the files attached
-// since the proposal Metadata is saved to politeiad as a politeiad File.
 func (p *politeiawww) proposalRecords(ctx context.Context, state pi.PropStateT, reqs []pi.ProposalRequest, includeFiles bool) (map[string]pi.ProposalRecord, error) {
 	// Get politeiad records
 	props := make([]pi.ProposalRecord, 0, len(reqs))
@@ -816,8 +819,7 @@ func (p *politeiawww) proposalRecords(ctx context.Context, state pi.PropStateT, 
 			return nil, fmt.Errorf("user not found for pubkey %v from proposal %v",
 				v.PublicKey, token)
 		}
-		props[k].UserID = u.ID.String()
-		props[k].Username = u.Username
+		props[k] = proposalRecordFillInUser(v, u)
 	}
 
 	// Convert proposals to a map
@@ -1231,9 +1233,14 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn pi.ProposalNew,
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
 
+	// Get full proposal record
+	pr, err := p.proposalRecordLatest(ctx, pi.PropStateUnvetted, cr.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pi.ProposalNewReply{
-		Timestamp:        timestamp,
-		CensorshipRecord: cr,
+		Proposal: *pr,
 	}, nil
 }
 
@@ -1395,10 +1402,14 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe pi.ProposalEdi
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
 
+	// Get updated proposal
+	pr, err := p.proposalRecordLatest(ctx, pe.State, pe.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pi.ProposalEditReply{
-		Version:          r.Version,
-		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
-		Timestamp:        timestamp,
+		Proposal: *pr,
 	}, nil
 }
 
@@ -1515,8 +1526,15 @@ func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.Propo
 			adminID: usr.ID.String(),
 		})
 
+	// Get updated proposal
+	state := convertPropStateFromPropStatus(pss.Status)
+	pr, err := p.proposalRecordLatest(ctx, state, pss.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pi.ProposalStatusSetReply{
-		Timestamp: timestamp,
+		Proposal: *pr,
 	}, nil
 }
 

@@ -183,17 +183,9 @@ func (cmd *proposalNewCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	pr := pi.ProposalRecord{
-		Files:            pn.Files,
-		Metadata:         pn.Metadata,
-		PublicKey:        pn.PublicKey,
-		Signature:        pn.Signature,
-		CensorshipRecord: pnr.CensorshipRecord,
-	}
-	err = verifyProposal(pr, vr.PubKey)
+	err = verifyProposal(pnr.Proposal, vr.PubKey)
 	if err != nil {
-		return fmt.Errorf("unable to verify proposal %v: %v",
-			pr.CensorshipRecord.Token, err)
+		return fmt.Errorf("unable to verify proposal: %v", err)
 	}
 
 	return nil

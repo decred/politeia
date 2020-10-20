@@ -25,7 +25,7 @@ type proposalStatusSetCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the set proposal status command.
+// Execute executes the proposal status set command.
 func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	propStatus := map[string]pi.PropStatusT{
 		"public":    pi.PropStatusPublic,
@@ -102,6 +102,16 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	err = shared.PrintJSON(pssr)
 	if err != nil {
 		return err
+	}
+
+	// Verify proposal
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
+	err = verifyProposal(pssr.Proposal, vr.PubKey)
+	if err != nil {
+		return fmt.Errorf("unable to verify proposal: %v", err)
 	}
 
 	return nil

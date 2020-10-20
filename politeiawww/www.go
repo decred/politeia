@@ -817,6 +817,8 @@ func _main() error {
 	router.Use(recoverMiddleware)
 
 	// Setup user database
+	log.Infof("User db: %v", loadedCfg.UserDB)
+
 	var userDB user.Database
 	switch loadedCfg.UserDB {
 	case userDBLevel:
