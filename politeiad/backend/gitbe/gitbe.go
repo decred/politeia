@@ -2720,11 +2720,14 @@ func (g *gitBackEnd) Inventory(vettedCount, vettedStart, branchCount uint, inclu
 		fileNames = append(fileNames, v.Name())
 	}
 	if vettedCount != 0 {
-		pageEnd := vettedStart + vettedCount
-		if pageEnd > uint(len(fileNames)) {
-			pageEnd = uint(len(fileNames))
+		switch {
+		case uint(len(fileNames)) <= vettedStart:
+			fileNames = []string{}
+		case uint(len(fileNames[vettedStart:])) < vettedCount:
+			fileNames = fileNames[vettedStart:]
+		default:
+			fileNames = fileNames[vettedStart : vettedStart+vettedCount]
 		}
-		fileNames = fileNames[vettedStart:pageEnd]
 	}
 
 	// Strip non record directories
