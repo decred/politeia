@@ -20,14 +20,14 @@ type retry struct {
 	vote    v1.CastVote
 }
 
-func (c *ctx) retryPush(r *retry) {
+func (c *client) retryPush(r *retry) {
 	c.Lock()
 	defer c.Unlock()
 	r.retries++
 	c.retryQ.PushBack(r)
 }
 
-func (c *ctx) retryPop() *retry {
+func (c *client) retryPop() *retry {
 	c.Lock()
 	defer c.Unlock()
 
@@ -38,13 +38,13 @@ func (c *ctx) retryPop() *retry {
 	return c.retryQ.Remove(e).(*retry)
 }
 
-func (c *ctx) retryLen() int {
+func (c *client) retryLen() int {
 	c.Lock()
 	defer c.Unlock()
 	return c.retryQ.Len()
 }
 
-func (c *ctx) dumpQueue() {
+func (c *client) dumpQueue() {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -55,7 +55,7 @@ func (c *ctx) dumpQueue() {
 	}
 }
 
-func (c *ctx) retryLoop() {
+func (c *client) retryLoop() {
 	log.Debug("retryLoop: start of day")
 	defer log.Debugf("retryLoop: end of times")
 	defer c.retryWG.Done()

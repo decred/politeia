@@ -13,7 +13,7 @@ import (
 	"syscall"
 )
 
-func (c *ctx) statsHandler() {
+func (c *client) statsHandler() {
 	// Launch signal handler
 	signalsChan := make(chan os.Signal, 1)
 	signalsDone := make(chan struct{}, 1)

@@ -155,8 +155,8 @@ type BallotResult struct {
 	Receipt v1.CastVoteReply `json:"receipt"` // result of vote
 }
 
-// ctx is the client context.
-type ctx struct {
+// client is the client context.
+type client struct {
 	sync.RWMutex                      // retryQ lock
 	retryQ             *list.List     // retry message queue FIFO
 	retryWG            sync.WaitGroup // Wait for retry loop to exit
@@ -171,10 +171,10 @@ type ctx struct {
 	cfg *config // application config
 
 	// https
-	client    *http.Client
-	id        *identity.PublicIdentity
-	csrf      string
-	userAgent string
+	httpClient *http.Client
+	id         *identity.PublicIdentity
+	csrf       string
+	userAgent  string
 
 	// wallet grpc
 	wctx   context.Context
@@ -193,7 +193,7 @@ type voteInterval struct {
 	At    time.Duration `json:"at"`    // Delay to fire off vote
 }
 
-func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
+func newClient(shutdownCtx context.Context, cfg *config) (*client, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: cfg.SkipVerify,
 	}
@@ -239,7 +239,7 @@ func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	wallet := pb.NewWalletServiceClient(conn)
 
 	// return context
-	return &ctx{
+	return &client{
 		run:                time.Now(),
 		retryQ:             new(list.List),
 		voteIntervalQ:      new(list.List),
@@ -251,7 +251,7 @@ func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 		conn:               conn,
 		wallet:             wallet,
 		cfg:                cfg,
-		client: &http.Client{
+		httpClient: &http.Client{
 			Transport: tr,
 			Jar:       jar,
 		},
@@ -263,7 +263,7 @@ type JSONTime struct {
 	Time string `json:"time"`
 }
 
-func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
+func (c *client) jsonLog(filename, token string, work ...interface{}) error {
 	dir := filepath.Join(c.cfg.voteDir, token)
 	os.MkdirAll(dir, 0700)
 
@@ -292,7 +292,7 @@ func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
 	return nil
 }
 
-func (c *ctx) getCSRF() (*v1.VersionReply, error) {
+func (c *client) getCSRF() (*v1.VersionReply, error) {
 	requestBody, err := json.Marshal(v1.Version{})
 	if err != nil {
 		return nil, err
@@ -310,7 +310,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", c.userAgent)
-	r, err := c.client.Do(req)
+	r, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	return &v, nil
 }
 
-func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
+func firstContact(shutdownCtx context.Context, cfg *config) (*client, error) {
 	// Always hit / first for csrf token and obtain api version
 	c, err := newClient(shutdownCtx, cfg)
 	if err != nil {
@@ -370,7 +370,7 @@ func convertTicketHashes(h []string) ([][]byte, error) {
 	return hashes, nil
 }
 
-func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
+func (c *client) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	var requestBody []byte
 	var queryParams string
 	if b != nil {
@@ -407,10 +407,10 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
+	r, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, ErrRetry{
-			At:  "c.client.Do(req)",
+			At:  "c.httpClient.Do(req)",
 			Err: err,
 		}
 	}
@@ -441,7 +441,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	return responseBody, nil
 }
 
-func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, error) {
+func (c *client) makeRequestFail(method, route string, b interface{}) ([]byte, error) {
 	var requestBody []byte
 	var queryParams string
 	if b != nil {
@@ -478,10 +478,10 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
+	r, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, ErrRetry{
-			At:  "c.client.Do(req)",
+			At:  "c.httpClient.Do(req)",
 			Err: err,
 		}
 	}
@@ -523,7 +523,7 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 // is valid.  In the case it is invalid, and the wallet can sign it, the ticket
 // is included so it may be resubmitted.  This could be caused by bad data on
 // the server or if the server is lying to the client.
-func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTicketsResponse) ([]*pb.CommittedTicketsResponse_TicketAddress, error) {
+func (c *client) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTicketsResponse) ([]*pb.CommittedTicketsResponse_TicketAddress, error) {
 	// Put cast votes into a map to filter in linear time
 	castVotes := make(map[string]v1.CastVote)
 	for _, v := range vrr.CastVotes {
@@ -589,7 +589,7 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 	return eligible, nil
 }
 
-func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
+func (c *client) _inventory() (*v1.ActiveVoteReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, v1.RouteActiveVote, nil)
 	if err != nil {
 		return nil, err
@@ -605,7 +605,7 @@ func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
 	return &ar, nil
 }
 
-func (c *ctx) inventory() error {
+func (c *client) inventory() error {
 	i, err := c._inventory()
 	if err != nil {
 		return err
@@ -727,13 +727,13 @@ func (e ErrRetry) Error() string {
 
 // sendVoteFail isa test function that will fail a Ballot call with a retryable
 // error.
-func (c *ctx) sendVoteFail(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
+func (c *client) sendVoteFail(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 	return nil, ErrRetry{
 		At: "sendVoteFail",
 	}
 }
 
-func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
+func (c *client) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 	if len(ballot.Votes) != 1 {
 		return nil, fmt.Errorf("sendVote: only one vote allowed")
 	}
@@ -758,7 +758,7 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 }
 
 // dumpComplete dumps the completed votes in this run.
-func (c *ctx) dumpComplete() {
+func (c *client) dumpComplete() {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -769,7 +769,7 @@ func (c *ctx) dumpComplete() {
 }
 
 // dumpTogo dumps the votes that have not been casrt yet.
-func (c *ctx) dumpTogo() {
+func (c *client) dumpTogo() {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -780,13 +780,13 @@ func (c *ctx) dumpTogo() {
 	}
 }
 
-func (c *ctx) voteIntervalPush(v *voteInterval) {
+func (c *client) voteIntervalPush(v *voteInterval) {
 	c.Lock()
 	defer c.Unlock()
 	c.voteIntervalQ.PushBack(v)
 }
 
-func (c *ctx) voteIntervalPop() *voteInterval {
+func (c *client) voteIntervalPop() *voteInterval {
 	c.Lock()
 	defer c.Unlock()
 
@@ -797,14 +797,14 @@ func (c *ctx) voteIntervalPop() *voteInterval {
 	return c.voteIntervalQ.Remove(e).(*voteInterval)
 }
 
-func (c *ctx) voteIntervalLen() uint64 {
+func (c *client) voteIntervalLen() uint64 {
 	c.RLock()
 	defer c.RUnlock()
 	return uint64(c.voteIntervalQ.Len())
 }
 
 // calculateTrickle calculates the trickle schedule.
-func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+func (c *client) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
 	votes := uint64(len(ctres.TicketAddresses))
 	duration := c.cfg.voteDuration
 	maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
@@ -903,7 +903,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 // _voteTrickler trickles votes to the server. The idea here is to not issue
 // large number of votes in one go to the server at the same time giving away
 // which IP address owns what votes.
-func (c *ctx) _voteTrickler(token string) error {
+func (c *client) _voteTrickler(token string) error {
 	// Synthesize reply, needs locking once go routines launch
 	voteCount := c.voteIntervalLen()
 	c.ballotResults = make([]BallotResult, 0, voteCount)
@@ -1037,7 +1037,7 @@ func verifyV1Vote(params *chaincfg.Params, address string, vote *v1.CastVote) bo
 }
 
 // XXX remove this once BatchVoteSummary is live.
-func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
+func (c *client) voteStatus(token string) (*v1.VoteStatusReply, error) {
 	route := "/proposals/" + token + "/votestatus"
 	responseBody, err := c.makeRequest(http.MethodGet, route, nil)
 	if err != nil {
@@ -1055,7 +1055,7 @@ func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
 }
 
 // XXX remove this once BatchVoteSummary is live
-func (c *ctx) _bestBlock() (uint32, error) {
+func (c *client) _bestBlock() (uint32, error) {
 	var url string
 	if c.cfg.TestNet {
 		url = "https://testnet.decred.org:443/api/block/best"
@@ -1070,7 +1070,7 @@ func (c *ctx) _bestBlock() (uint32, error) {
 		return 0, err
 	}
 
-	r, err := c.client.Do(req)
+	r, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -1097,7 +1097,7 @@ func (c *ctx) _bestBlock() (uint32, error) {
 // height. A bug in dcrdata has caused a best block height of 0 to be returned
 // intermittently. This function retries the dcrdata call until a valid best
 // block height is returned or the maxRetries limit is exceeded.
-func (c *ctx) bestBlock() (uint32, error) {
+func (c *client) bestBlock() (uint32, error) {
 	var (
 		maxRetries    = 100
 		sleepInterval = 5 * time.Second
@@ -1127,7 +1127,7 @@ func (c *ctx) bestBlock() (uint32, error) {
 	return bestBlock, nil
 }
 
-func (c *ctx) _vote(seed int64, token, voteId string) error {
+func (c *client) _vote(seed int64, token, voteId string) error {
 	/*
 		XXX Add this back in once BatchVoteSummary is live
 		// Pull the vote summary first to make sure the vote is still active.
@@ -1339,7 +1339,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	return nil
 }
 
-func (c *ctx) vote(seed int64, args []string) error {
+func (c *client) vote(seed int64, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
@@ -1384,7 +1384,7 @@ func (c *ctx) vote(seed int64, args []string) error {
 	return nil
 }
 
-func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
+func (c *client) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteBatchVoteSummary,
 		v1.BatchVoteSummary{Tokens: []string{token}})
 	if err != nil {
@@ -1401,7 +1401,7 @@ func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 	return &bvsr, nil
 }
 
-func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
+func (c *client) _tally(token string) (*v1.VoteResultsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet, "/proposals/"+token+"/votes", nil)
 	if err != nil {
 		return nil, err
@@ -1417,7 +1417,7 @@ func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
 	return &vrr, nil
 }
 
-func (c *ctx) tally(args []string) error {
+func (c *client) tally(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("tally: not enough arguments %v", args)
 	}
@@ -1462,7 +1462,7 @@ func (c *ctx) tally(args []string) error {
 	return nil
 }
 
-func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
+func (c *client) login(email, password string) (*v1.LoginReply, error) {
 	l := v1.Login{
 		Email:    email,
 		Password: password,
@@ -1483,7 +1483,7 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 	return &lr, nil
 }
 
-func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
+func (c *client) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteStartVote, sv)
 	if err != nil {
 		return nil, err
@@ -1499,7 +1499,7 @@ func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 	return &svr, nil
 }
 
-func (c *ctx) startVote(args []string) error {
+func (c *client) startVote(args []string) error {
 	if len(args) != 4 {
 		return fmt.Errorf("startvote: not enough arguments, expected:" +
 			"identityfile email password token")
