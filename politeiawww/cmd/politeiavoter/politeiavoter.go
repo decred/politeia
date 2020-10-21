@@ -1065,7 +1065,12 @@ func (c *ctx) _bestBlock() (uint32, error) {
 
 	log.Debugf("Request: GET %v", url)
 
-	r, err := c.client.Get(url)
+	req, err := http.NewRequestWithContext(c.wctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	r, err := c.client.Do(req)
 	if err != nil {
 		return 0, err
 	}
