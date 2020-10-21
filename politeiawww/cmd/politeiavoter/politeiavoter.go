@@ -24,7 +24,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -49,10 +48,6 @@ import (
 	"golang.org/x/net/publicsuffix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-)
-
-var (
-	signals []os.Signal
 )
 
 func generateSeed() (int64, error) {
@@ -198,7 +193,7 @@ type voteInterval struct {
 	At    time.Duration `json:"at"`    // Delay to fire off vote
 }
 
-func newClient(cfg *config) (*ctx, error) {
+func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: cfg.SkipVerify,
 	}
@@ -251,7 +246,7 @@ func newClient(cfg *config) (*ctx, error) {
 		mainLoopDone:       make(chan struct{}),
 		mainLoopForceExit:  make(chan struct{}),
 		retryLoopForceExit: make(chan struct{}),
-		wctx:               context.Background(),
+		wctx:               shutdownCtx,
 		creds:              creds,
 		conn:               conn,
 		wallet:             wallet,
@@ -309,7 +304,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	log.Tracef("%v  ", string(requestBody))
 
 	log.Debugf("Request: %v", fullRoute)
-	req, err := http.NewRequest(http.MethodGet, fullRoute,
+	req, err := http.NewRequestWithContext(c.wctx, http.MethodGet, fullRoute,
 		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -340,9 +335,9 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	return &v, nil
 }
 
-func firstContact(cfg *config) (*ctx, error) {
+func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
-	c, err := newClient(cfg)
+	c, err := newClient(shutdownCtx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -405,7 +400,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 		log.Tracef("%v  ", string(requestBody))
 	}
 
-	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	req, err := http.NewRequestWithContext(c.wctx, method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +471,7 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 		log.Tracef("%v  ", string(requestBody))
 	}
 
-	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	req, err := http.NewRequestWithContext(c.wctx, method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -595,7 +590,7 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 }
 
 func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
+	responseBody, err := c.makeRequest(http.MethodGet, v1.RouteActiveVote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -743,7 +738,7 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 		return nil, fmt.Errorf("sendVote: only one vote allowed")
 	}
 
-	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, ballot)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteCastVotes, ballot)
 	if err != nil {
 		return nil, err
 	}
@@ -782,22 +777,6 @@ func (c *ctx) dumpTogo() {
 	for e := c.voteIntervalQ.Front(); e != nil; e = e.Next() {
 		r := e.Value.(*voteInterval)
 		fmt.Printf("  %v %v\n", r.Vote.Ticket, r.At)
-	}
-}
-
-// signalHandler catches SIGUSR1 and dumps the current state of the vote
-// trickler.
-func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
-	for {
-		select {
-		case <-signals:
-			fmt.Printf("----- politeiavoter status -----\n")
-			c.dumpTogo()
-			c.dumpComplete()
-			c.dumpQueue()
-		case <-done:
-			return
-		}
 	}
 }
 
@@ -929,12 +908,6 @@ func (c *ctx) _voteTrickler(token string) error {
 	voteCount := c.voteIntervalLen()
 	c.ballotResults = make([]BallotResult, 0, voteCount)
 
-	// Launch signal handler
-	signalsChan := make(chan os.Signal, 1)
-	signalsDone := make(chan struct{}, 1)
-	signal.Notify(signalsChan, signals...)
-	go c.signalHandler(signalsChan, signalsDone)
-
 	// Launch retry loop
 	c.retryWG.Add(1)
 	go c.retryLoop()
@@ -955,6 +928,8 @@ func (c *ctx) _voteTrickler(token string) error {
 			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
 
 		select {
+		case <-c.wctx.Done():
+			goto exit
 		case <-time.After(vote.At):
 		case <-c.retryLoopForceExit:
 			// The retry loop is forcing an exit. Put vote back
@@ -1028,10 +1003,6 @@ func (c *ctx) _voteTrickler(token string) error {
 	log.Debugf("ballotResults %v", spew.Sdump(c.ballotResults))
 
 exit:
-	// Shut down signal handler
-	signal.Stop(signalsChan)
-	close(signalsDone)
-
 	return nil
 }
 
@@ -1068,7 +1039,7 @@ func verifyV1Vote(params *chaincfg.Params, address string, vote *v1.CastVote) bo
 // XXX remove this once BatchVoteSummary is live.
 func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
 	route := "/proposals/" + token + "/votestatus"
-	responseBody, err := c.makeRequest("GET", route, nil)
+	responseBody, err := c.makeRequest(http.MethodGet, route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1278,6 +1249,8 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	}
 
 	if c.cfg.Trickle {
+		go c.statsHandler()
+
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
 			bestBlock, err := c.bestBlock()
@@ -1337,7 +1310,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	}
 
 	// Vote on the supplied proposal
-	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteCastVotes, &cv)
 	if err != nil {
 		return err
 	}
@@ -1407,7 +1380,7 @@ func (c *ctx) vote(seed int64, args []string) error {
 }
 
 func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteBatchVoteSummary,
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteBatchVoteSummary,
 		v1.BatchVoteSummary{Tokens: []string{token}})
 	if err != nil {
 		return nil, err
@@ -1424,7 +1397,7 @@ func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 }
 
 func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
+	responseBody, err := c.makeRequest(http.MethodGet, "/proposals/"+token+"/votes", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1490,7 +1463,7 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 		Password: password,
 	}
 
-	responseBody, err := c.makeRequest("POST", v1.RouteLogin, l)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteLogin, l)
 	if err != nil {
 		return nil, err
 	}
@@ -1506,7 +1479,7 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 }
 
 func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
+	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteStartVote, sv)
 	if err != nil {
 		return nil, err
 	}
@@ -1593,8 +1566,13 @@ func _main() error {
 		}
 	}
 
+	// Get a context that will be canceled when a shutdown signal has been
+	// triggered either from an OS signal such as SIGINT (Ctrl+C) or from
+	// another subsystem such as the RPC server.
+	shutdownCtx := shutdownListener()
+
 	// Contact WWW
-	c, err := firstContact(cfg)
+	c, err := firstContact(shutdownCtx, cfg)
 	if err != nil {
 		return err
 	}
