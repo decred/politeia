@@ -177,16 +177,6 @@ func convertUserErrorFromSignatureError(err error) pi.UserErrorReply {
 	}
 }
 
-func convertPropStateFromPropStatus(s pi.PropStatusT) pi.PropStateT {
-	switch s {
-	case pi.PropStatusUnreviewed, pi.PropStatusCensored:
-		return pi.PropStateUnvetted
-	case pi.PropStatusPublic, pi.PropStatusAbandoned:
-		return pi.PropStateVetted
-	}
-	return pi.PropStateInvalid
-}
-
 func convertPropStateFromPi(s pi.PropStateT) piplugin.PropStateT {
 	switch s {
 	case pi.PropStateUnvetted:
@@ -291,7 +281,7 @@ func convertFilesFromPD(f []pd.File) ([]pi.File, []pi.Metadata) {
 	return files, metadata
 }
 
-func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
+func convertProposalRecordFromPD(r pd.Record, state pi.PropStateT) (*pi.ProposalRecord, error) {
 	// Decode metadata streams
 	var (
 		pg  *piplugin.ProposalGeneral
@@ -316,7 +306,6 @@ func convertProposalRecordFromPD(r pd.Record) (*pi.ProposalRecord, error) {
 	// Convert to pi types
 	files, metadata := convertFilesFromPD(r.Files)
 	status := convertPropStatusFromPD(r.Status)
-	state := convertPropStateFromPropStatus(status)
 
 	statuses := make([]pi.StatusChange, 0, len(sc))
 	for _, v := range sc {
@@ -761,7 +750,7 @@ func (p *politeiawww) proposalRecords(ctx context.Context, state pi.PropStateT, 
 			continue
 		}
 
-		pr, err := convertProposalRecordFromPD(*r)
+		pr, err := convertProposalRecordFromPD(*r, state)
 		if err != nil {
 			return nil, err
 		}
@@ -1516,10 +1505,18 @@ func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.Propo
 		}
 	}
 
+	// The proposal state will have changed if the proposal was made
+	// public.
+	state := pss.State
+	if pss.Status == pi.PropStatusPublic {
+		state = pi.PropStateVetted
+	}
+
 	// Emit status change event
 	p.eventManager.emit(eventProposalStatusChange,
 		dataProposalStatusChange{
 			token:   pss.Token,
+			state:   state,
 			status:  convertPropStatusFromPD(r.Status),
 			version: r.Version,
 			reason:  pss.Reason,
@@ -1527,7 +1524,6 @@ func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.Propo
 		})
 
 	// Get updated proposal
-	state := convertPropStateFromPropStatus(pss.Status)
 	pr, err := p.proposalRecordLatest(ctx, state, pss.Token)
 	if err != nil {
 		return nil, err

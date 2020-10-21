@@ -258,7 +258,8 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 
 type dataProposalStatusChange struct {
 	token   string         // Proposal censorship token
-	status  pi.PropStatusT // Proposal status
+	state   pi.PropStateT  // Updated proposal state
+	status  pi.PropStatusT // Updated proposal status
 	version string         // Proposal version
 	reason  string         // Status change reason
 	adminID string         // Admin uuid
@@ -283,11 +284,10 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 		}
 
 		// Get the proposal author
-		state := convertPropStateFromPropStatus(d.status)
-		pr, err := p.proposalRecordLatest(context.Background(), state, d.token)
+		pr, err := p.proposalRecordLatest(context.Background(), d.state, d.token)
 		if err != nil {
 			log.Errorf("handleEventProposalStatusChange: proposalRecordLatest "+
-				"%v %v: %v", state, d.token, err)
+				"%v %v: %v", d.state, d.token, err)
 			continue
 		}
 		author, err := p.db.UserGetByPubKey(pr.PublicKey)

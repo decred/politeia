@@ -131,7 +131,8 @@ func (p *politeiawww) emailProposalStatusChange(d dataProposalStatusChange, prop
 		}
 
 	default:
-		return fmt.Errorf("no user notification for prop status %v", d.status)
+		log.Debugf("no user notification for prop status %v", d.status)
+		return nil
 	}
 
 	return p.smtp.sendEmailTo(subject, body, emails)
