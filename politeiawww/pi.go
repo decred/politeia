@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 
+	"github.com/decred/politeia/politeiad/plugins/pi"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 )
 
@@ -16,7 +17,8 @@ func (p *politeiawww) piProposals(ctx context.Context, ps piplugin.Proposals) (*
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ctx, piplugin.ID, piplugin.CmdProposals, string(b))
+	r, err := p.pluginCommand(ctx, piplugin.ID,
+		piplugin.CmdProposals, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +35,8 @@ func (p *politeiawww) piCommentNew(ctx context.Context, cn piplugin.CommentNew) 
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ctx, piplugin.ID, piplugin.CmdCommentNew, string(b))
+	r, err := p.pluginCommand(ctx, piplugin.ID,
+		piplugin.CmdCommentNew, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +53,8 @@ func (p *politeiawww) piCommentVote(ctx context.Context, cvp piplugin.CommentVot
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ctx, piplugin.ID, piplugin.CmdCommentVote, string(b))
+	r, err := p.pluginCommand(ctx, piplugin.ID,
+		piplugin.CmdCommentVote, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +71,8 @@ func (p *politeiawww) piCommentCensor(ctx context.Context, cc piplugin.CommentCe
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ctx, piplugin.ID, piplugin.CmdCommentCensor, string(b))
+	r, err := p.pluginCommand(ctx, piplugin.ID,
+		piplugin.CmdCommentCensor, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -89,4 +94,22 @@ func (p *politeiawww) piVoteInventory(ctx context.Context) (*piplugin.VoteInvent
 		return nil, err
 	}
 	return vir, nil
+}
+
+// piPassThrough executes the pi plugin PassThrough command.
+func (p *politeiawww) piPassThrough(ctx context.Context, pt pi.PassThrough) (*pi.PassThroughReply, error) {
+	b, err := piplugin.EncodePassThrough(pt)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(ctx, piplugin.ID,
+		piplugin.CmdPassThrough, string(b))
+	if err != nil {
+		return nil, err
+	}
+	ptr, err := piplugin.DecodePassThroughReply(([]byte(r)))
+	if err != nil {
+		return nil, err
+	}
+	return ptr, nil
 }

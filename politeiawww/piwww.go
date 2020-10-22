@@ -471,6 +471,7 @@ func convertVoteParamsFromPi(v pi.VoteParams) ticketvote.VoteParams {
 		Duration:         v.Duration,
 		QuorumPercentage: v.QuorumPercentage,
 		PassPercentage:   v.PassPercentage,
+		Parent:           v.Parent,
 	}
 	// Convert vote options
 	vo := make([]ticketvote.VoteOption, 0, len(v.Options))
@@ -1902,6 +1903,14 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr
 		return nil, fmt.Errorf("not an admin")
 	}
 
+	// Verify there is work to be done
+	if len(vs.Starts) == 0 {
+		return nil, pi.UserErrorReply{
+			ErrorCode:    pi.ErrorStatusStartDetailsInvalid,
+			ErrorContext: []string{"no start details found"},
+		}
+	}
+
 	// Verify admin signed with their active identity
 	for _, v := range vs.Starts {
 		if usr.PublicKey() != v.PublicKey {
@@ -1912,19 +1921,57 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr
 		}
 	}
 
-	// Call the ticketvote plugin to start vote
-	reply, err := p.voteStart(ctx, convertVoteStartFromPi(vs))
-	if err != nil {
-		return nil, err
+	// Start vote
+	var (
+		sr  *ticketvote.StartReply
+		err error
+	)
+	switch vs.Starts[0].Params.Type {
+	case pi.VoteTypeStandard:
+		// A standard vote can be started using the ticketvote plugin
+		// directly.
+		sr, err = p.voteStart(ctx, convertVoteStartFromPi(vs))
+		if err != nil {
+			return nil, err
+		}
+
+	case pi.VoteTypeRunoff:
+		// A runoff vote requires additional validation that is not part
+		// of the ticketvote plugin. We pass the ticketvote command
+		// through the pi plugin so that it can perform this additional
+		// validation.
+		s := convertVoteStartFromPi(vs)
+		payload, err := ticketvote.EncodeStart(s)
+		if err != nil {
+			return nil, err
+		}
+		pt := piplugin.PassThrough{
+			PluginID: ticketvote.ID,
+			Cmd:      ticketvote.CmdStart,
+			Payload:  string(payload),
+		}
+		ptr, err := p.piPassThrough(ctx, pt)
+		if err != nil {
+			return nil, err
+		}
+		sr, err = ticketvote.DecodeStartReply([]byte(ptr.Payload))
+		if err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, pi.UserErrorReply{
+			ErrorCode: pi.ErrorStatusVoteTypeInvalid,
+		}
 	}
 
 	// TODO Emit notification for each start
 
 	return &pi.VoteStartReply{
-		StartBlockHeight: reply.StartBlockHeight,
-		StartBlockHash:   reply.StartBlockHash,
-		EndBlockHeight:   reply.EndBlockHeight,
-		EligibleTickets:  reply.EligibleTickets,
+		StartBlockHeight: sr.StartBlockHeight,
+		StartBlockHash:   sr.StartBlockHash,
+		EndBlockHeight:   sr.EndBlockHeight,
+		EligibleTickets:  sr.EligibleTickets,
 	}, nil
 }
 

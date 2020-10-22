@@ -80,8 +80,8 @@ const (
 	ErrorStatusVoteStatusInvalid
 	ErrorStatusStartDetailsInvalid
 	ErrorStatusStartDetailsMissing
-	ErrorStatusRFPInvalid
-	ErrorStatusLinkByDeadlineNotMet
+	ErrorStatusVoteParentInvalid
+	ErrorStatusLinkByNotExpired
 )
 
 var (

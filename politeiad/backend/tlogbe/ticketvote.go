@@ -69,9 +69,9 @@ var (
 // ticketVotePlugin satisfies the pluginClient interface.
 type ticketVotePlugin struct {
 	sync.Mutex
-	activeNetParams *chaincfg.Params
 	backend         backend.Backend
 	tlog            tlogClient
+	activeNetParams *chaincfg.Params
 
 	// Plugin settings
 	voteDurationMin uint32 // In blocks
@@ -1395,6 +1395,27 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		}
 	}
 
+	// Verify parent token
+	switch {
+	case vote.Type == ticketvote.VoteTypeStandard && vote.Parent != "":
+		e := "parent token should not be provided for a standard vote"
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorContext: []string{e},
+		}
+	case vote.Type == ticketvote.VoteTypeRunoff:
+		_, err := tokenDecode(vote.Parent)
+		if err != nil {
+			e := fmt.Sprintf("invalid parent %v", vote.Parent)
+			return backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorContext: []string{e},
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1548,12 +1569,13 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 		duration = s.Starts[0].Params.Duration
 		quorum   = s.Starts[0].Params.QuorumPercentage
 		pass     = s.Starts[0].Params.PassPercentage
+		parent   = s.Starts[0].Params.Parent
 	)
 	for _, v := range s.Starts {
 		// Verify vote params are the same for all submissions
 		switch {
 		case v.Params.Type != ticketvote.VoteTypeRunoff:
-			e := fmt.Sprintf("vote type invalid %v: got %v, want %v",
+			e := fmt.Sprintf("%v vote type invalid: got %v, want %v",
 				v.Params.Token, v.Params.Type, ticketvote.VoteTypeRunoff)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
@@ -1561,7 +1583,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				ErrorContext: []string{e},
 			}
 		case v.Params.Mask != mask:
-			e := fmt.Sprintf("mask invalid %v: all masks must be the same",
+			e := fmt.Sprintf("%v mask invalid: all must be the same",
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
@@ -1569,7 +1591,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				ErrorContext: []string{e},
 			}
 		case v.Params.Duration != duration:
-			e := fmt.Sprintf("duration invalid %v: all durations must be the same",
+			e := fmt.Sprintf("%v duration invalid: all must be the same",
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
@@ -1577,7 +1599,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				ErrorContext: []string{e},
 			}
 		case v.Params.QuorumPercentage != quorum:
-			e := fmt.Sprintf("quorum invalid %v: all quorums must be the same",
+			e := fmt.Sprintf("%v quorum invalid: must be the same",
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
@@ -1585,7 +1607,15 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				ErrorContext: []string{e},
 			}
 		case v.Params.PassPercentage != pass:
-			e := fmt.Sprintf("pass rate invalid %v: all pass rates must be the same",
+			e := fmt.Sprintf("%v pass rate invalid: all must be the same",
+				v.Params.Token)
+			return nil, backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorContext: []string{e},
+			}
+		case v.Params.Parent != parent:
+			e := fmt.Sprintf("%v parent invalid: all must be the same",
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
@@ -1629,12 +1659,26 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 		return nil, err
 	}
 
+	// Verify parent exists
+	parentb, err := tokenDecode(parent)
+	if err != nil {
+		return nil, err
+	}
+	if !p.backend.VettedExists(parentb) {
+		e := fmt.Sprintf("parent record not found %v", parent)
+		return nil, backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorContext: []string{e},
+		}
+	}
+
 	// TODO handle the case where part of the votes are started but
 	// not all.
 
+	// Validate existing record state. The lock for each record must
+	// be held for the remainder of this function.
 	for _, v := range s.Starts {
-		// Validate existing record state. The lock for this record must
-		// be held for the remainder of this function.
 		m := p.mutex(v.Params.Token)
 		m.Lock()
 		defer m.Unlock()
@@ -2228,12 +2272,66 @@ func (p *ticketVotePlugin) cmdResults(payload string) (string, error) {
 	return string(reply), nil
 }
 
+// voteIsApproved returns whether the provided vote option results met the
+// provided quorum and pass percentage requirements. This function can only be
+// called on votes that use VoteOptionIDApprove and VoteOptionIDReject. Any
+// other vote option IDs will cause this function to panic.
+func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionResult) bool {
+	// Tally the total votes
+	var total uint64
+	for _, v := range results {
+		total += v.Votes
+	}
+
+	// Calculate required thresholds
+	var (
+		eligible   = float64(len(vd.EligibleTickets))
+		quorumPerc = float64(vd.Params.QuorumPercentage)
+		passPerc   = float64(vd.Params.PassPercentage)
+		quorum     = uint64(quorumPerc / 100 * eligible)
+		pass       = uint64(passPerc / 100 * float64(total))
+
+		approvedVotes uint64
+	)
+
+	// Tally approve votes
+	for _, v := range results {
+		switch v.ID {
+		case ticketvote.VoteOptionIDApprove:
+			// Valid vote option
+			approvedVotes++
+		case ticketvote.VoteOptionIDReject:
+			// Valid vote option
+		default:
+			// Invalid vote option
+			e := fmt.Sprintf("invalid vote option id found: %v", v.ID)
+			panic(e)
+		}
+	}
+
+	// Check tally against thresholds
+	var approved bool
+	switch {
+	case total < quorum:
+		// Quorum not met
+		approved = false
+	case approvedVotes < pass:
+		// Pass percentage not met
+		approved = false
+	default:
+		// Vote was approved
+		approved = true
+	}
+
+	return approved
+}
+
 func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.Summary, error) {
 	// Check if the summary has been cached
 	s, err := p.cachedSummary(hex.EncodeToString(token))
 	switch {
 	case errors.Is(err, errRecordNotFound):
-		// Cached summary not found
+		// Cached summary not found. Continue.
 	case err != nil:
 		// Some other error
 		return nil, fmt.Errorf("cachedSummary: %v", err)
@@ -2245,7 +2343,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Summary has not been cached. Get it manually.
 
 	// Assume vote is unauthorized. Only update the status when the
-	// appropriate record has been found.
+	// appropriate record has been found that proves otherwise.
 	status := ticketvote.VoteStatusUnauthorized
 
 	// Check if the vote has been authorized
@@ -2290,8 +2388,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 		status = ticketvote.VoteStatusFinished
 	}
 
-	// Pull the cast votes from the cache and calculate the results
-	// manually.
+	// Pull the cast votes from the cache and tally the results
 	votes := p.cachedVotes(token)
 	tally := make(map[string]int, len(vd.Params.Options))
 	for _, voteBit := range votes {
@@ -2308,44 +2405,6 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 		})
 	}
 
-	// Approved can only be calculated on certain types of votes
-	var approved bool
-	switch vd.Params.Type {
-	case ticketvote.VoteTypeStandard, ticketvote.VoteTypeRunoff:
-		// Calculate results for a simple approve/reject vote
-		var total uint64
-		for _, v := range results {
-			total += v.Votes
-		}
-
-		var (
-			eligible   = float64(len(vd.EligibleTickets))
-			quorumPerc = float64(vd.Params.QuorumPercentage)
-			passPerc   = float64(vd.Params.PassPercentage)
-			quorum     = uint64(quorumPerc / 100 * eligible)
-			pass       = uint64(passPerc / 100 * float64(total))
-
-			approvedVotes uint64
-		)
-		for _, v := range results {
-			if v.ID == ticketvote.VoteOptionIDApprove {
-				approvedVotes++
-			}
-		}
-
-		switch {
-		case total < quorum:
-			// Quorum not met
-			approved = false
-		case approvedVotes < pass:
-			// Pass percentage not met
-			approved = false
-		default:
-			// Vote was approved
-			approved = true
-		}
-	}
-
 	// Prepare summary
 	summary := ticketvote.Summary{
 		Type:             vd.Params.Type,
@@ -2358,23 +2417,43 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 		QuorumPercentage: vd.Params.QuorumPercentage,
 		PassPercentage:   vd.Params.PassPercentage,
 		Results:          results,
-		Approved:         approved,
 	}
 
-	// Cache the summary if the vote has finished so we don't have to
-	// calculate these results again.
-	if status == ticketvote.VoteStatusFinished {
-		// Save summary
-		err = p.cachedSummarySave(vd.Params.Token, summary)
-		if err != nil {
-			return nil, fmt.Errorf("cachedSummarySave %v: %v %v",
-				vd.Params.Token, err, summary)
-		}
-
-		// Remove record from the votes cache now that a summary has been
-		// saved for it.
-		p.cachedVotesDel(vd.Params.Token)
+	// If the vote has not finished yet then we are done for now.
+	if status == ticketvote.VoteStatusStarted {
+		return &summary, nil
 	}
+
+	// The vote has finished. We can calculate if the vote was approved
+	// for certain vote types and cache the results.
+	switch vd.Params.Type {
+	case ticketvote.VoteTypeStandard, ticketvote.VoteTypeRunoff:
+		// These vote types are strictly approve/reject votes so we can
+		// calculate the vote approval. Continue.
+	default:
+		// Nothing else to do for all other vote types
+		return &summary, nil
+	}
+
+	// Calculate vote approval
+	approved := voteIsApproved(*vd, results)
+
+	// If this is a standard vote then we can take the results as is. A
+	// runoff vote requires that we pull all other runoff vote
+	// submissions to determine if the vote actually passed.
+	// TODO
+	summary.Approved = approved
+
+	// Cache the summary
+	err = p.cachedSummarySave(vd.Params.Token, summary)
+	if err != nil {
+		return nil, fmt.Errorf("cachedSummarySave %v: %v %v",
+			vd.Params.Token, err, summary)
+	}
+
+	// Remove record from the votes cache now that a summary has been
+	// saved for it.
+	p.cachedVotesDel(vd.Params.Token)
 
 	return &summary, nil
 }

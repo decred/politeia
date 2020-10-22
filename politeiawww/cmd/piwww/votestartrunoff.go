@@ -113,6 +113,7 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 					Bit:         0x02,
 				},
 			},
+			Parent: cmd.Args.TokenRFP,
 		}
 		vb, err := json.Marshal(vote)
 		if err != nil {

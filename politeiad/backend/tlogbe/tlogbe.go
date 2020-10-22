@@ -1666,7 +1666,8 @@ func (t *tlogBackend) RegisterPlugin(p backend.Plugin) error {
 			return err
 		}
 	case pi.ID:
-		client, err = newPiPlugin(t, newBackendClient(t), p.Settings)
+		client, err = newPiPlugin(t, newBackendClient(t), p.Settings,
+			t.activeNetParams)
 		if err != nil {
 			return err
 		}

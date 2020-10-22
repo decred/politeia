@@ -153,7 +153,7 @@ Vote commands
   voteauthorize           (user)   Authorize a proposal vote
   votestart               (admin)  Start a proposal vote
   votestartrunoff         (admin)  Start a runoff vote
-  voteballot              (public) Cast a ballot of votes
+  castballot              (public) Cast a ballot of votes
   votes                   (public) Get vote details
   voteresults             (public) Get full vote results
   votesummaries           (public) Get vote summaries

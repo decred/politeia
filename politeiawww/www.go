@@ -82,6 +82,8 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 	return www.ErrorStatusInvalid
 }
 
+// TODO verify all plugin errors have been added to these www conversion
+// functions
 func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) www.ErrorStatusT {
 	switch e {
 	case piplugin.ErrorStatusPropLinkToInvalid:
@@ -187,12 +189,14 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 
 func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
 	switch e {
+	case piplugin.ErrorStatusPageSizeExceeded:
+		return pi.ErrorStatusPageSizeExceeded
+	case piplugin.ErrorStatusPropNotFound:
+		return pi.ErrorStatusPropNotFound
 	case piplugin.ErrorStatusPropStateInvalid:
 		return pi.ErrorStatusPropStateInvalid
 	case piplugin.ErrorStatusPropTokenInvalid:
 		return pi.ErrorStatusPropTokenInvalid
-	case piplugin.ErrorStatusPropNotFound:
-		return pi.ErrorStatusPropNotFound
 	case piplugin.ErrorStatusPropStatusInvalid:
 		return pi.ErrorStatusPropStatusInvalid
 	case piplugin.ErrorStatusPropVersionInvalid:
@@ -203,8 +207,14 @@ func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
 		return pi.ErrorStatusPropLinkToInvalid
 	case piplugin.ErrorStatusVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
-	case piplugin.ErrorStatusPageSizeExceeded:
-		return pi.ErrorStatusPageSizeExceeded
+	case piplugin.ErrorStatusStartDetailsInvalid:
+		return pi.ErrorStatusStartDetailsInvalid
+	case piplugin.ErrorStatusStartDetailsMissing:
+		return pi.ErrorStatusStartDetailsMissing
+	case piplugin.ErrorStatusVoteParentInvalid:
+		return pi.ErroStatusVoteParentInvalid
+	case piplugin.ErrorStatusLinkByNotExpired:
+		return pi.ErrorStatusLinkByNotExpired
 	}
 	return pi.ErrorStatusInvalid
 }

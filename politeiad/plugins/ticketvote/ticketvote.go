@@ -196,6 +196,10 @@ type VoteParams struct {
 	PassPercentage uint32 `json:"passpercentage"`
 
 	Options []VoteOption `json:"options"`
+
+	// Parent is the token of the parent record. This field will only
+	// be populated for runoff votes.
+	Parent string `json:"parent,omitempty"`
 }
 
 // VoteDetails is the structure that is saved to disk when a vote is started.

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -36,8 +37,9 @@ var (
 // piPlugin satisfies the pluginClient interface.
 type piPlugin struct {
 	sync.Mutex
-	backend backend.Backend
-	tlog    tlogClient
+	backend         backend.Backend
+	tlog            tlogClient
+	activeNetParams *chaincfg.Params
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
@@ -714,119 +716,84 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 		}
 	}
 
-	// Get records for all RFP submissions
-	records := make(map[string]backend.Record, len(s.Starts))
-	for _, v := range s.Starts {
-		token, err := tokenDecode(v.Params.Token)
-		if err != nil {
-			e := fmt.Sprintf("%v: %v", v.Params.Token, err)
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropTokenInvalid),
-				ErrorContext: []string{e},
-			}
-		}
-		r, err := p.backend.GetVetted(token, "")
-		if err != nil {
-			if errors.Is(err, errRecordNotFound) {
-				return "", backend.PluginUserError{
-					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusPropNotFound),
-					ErrorContext: []string{v.Params.Token},
-				}
-			}
-			return "", fmt.Errorf("GetVetted %x: %v", token, err)
-		}
-		records[v.Params.Token] = *r
+	// Sanity check. This pass through command should only be used for
+	// RFP runoff votes.
+	if s.Starts[0].Params.Type != ticketvote.VoteTypeRunoff {
+		return "", fmt.Errorf("not a runoff vote")
 	}
 
-	// Get RFP token. Just use the linkto from the first start details
-	// record.
-	token := s.Starts[0].Params.Token
-	r := records[token]
-	pm, err := proposalMetadataFromFiles(r.Files)
+	// Get RFP token. Just use the parent token from the first vote
+	// params. If the different vote params use different parent
+	// tokens, the ticketvote plugin will catch it.
+	rfpToken := s.Starts[0].Params.Parent
+	rfpTokenb, err := tokenDecode(rfpToken)
 	if err != nil {
-		return "", err
-	}
-	if pm == nil {
-		// Proposal metadata was not found
-		e := fmt.Sprintf("record is not a proposal %v", token)
+		e := fmt.Sprintf("invalid rfp token '%v'", rfpToken)
 		return "", backend.PluginUserError{
 			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusStartDetailsInvalid),
+			ErrorCode:    int(pi.ErrorStatusVoteParentInvalid),
 			ErrorContext: []string{e},
 		}
-	}
-	if pm.LinkTo == "" {
-		// Proposal is not an RFP submission
-		e := fmt.Sprintf("proposal is not an rfp submission %v", token)
-		return "", backend.PluginUserError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusStartDetailsInvalid),
-			ErrorContext: []string{e},
-		}
-	}
-	rfpToken, err := tokenDecode(pm.LinkTo)
-	if err != nil {
-		return "", fmt.Errorf("decode rfp token %v: %v", pm.LinkTo, err)
 	}
 
 	// Get RFP record
-	rfp, err := p.backend.GetVetted(rfpToken, "")
+	rfp, err := p.backend.GetVetted(rfpTokenb, "")
 	if err != nil {
 		if errors.Is(err, errRecordNotFound) {
 			e := fmt.Sprintf("rfp not found %x", rfpToken)
 			return "", backend.PluginUserError{
 				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusRFPInvalid),
+				ErrorCode:    int(pi.ErrorStatusVoteParentInvalid),
 				ErrorContext: []string{e},
 			}
 		}
-		return "", fmt.Errorf("GetVetted %x: %v", token, err)
+		return "", fmt.Errorf("GetVetted %x: %v", rfpToken, err)
 	}
 
-	// Verify RFP proposal linkby has expired
+	// Verify RFP linkby has expired. The runoff vote is not allowed to
+	// start until after the linkby deadline has passed.
 	rfpPM, err := proposalMetadataFromFiles(rfp.Files)
 	if err != nil {
 		return "", err
 	}
 	if rfpPM == nil {
-		e := fmt.Sprintf("rfp is not a proposal %x", rfpToken)
+		e := fmt.Sprintf("rfp is not a proposal %v", rfpToken)
 		return "", backend.PluginUserError{
 			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusRFPInvalid),
+			ErrorCode:    int(pi.ErrorStatusVoteParentInvalid),
 			ErrorContext: []string{e},
 		}
 	}
-	if rfpPM.LinkBy > time.Now().Unix() {
-		e := fmt.Sprintf("rfp %x linkby deadline not met %v",
+	isExpired := rfpPM.LinkBy < time.Now().Unix()
+	isMainNet := p.activeNetParams.Name == chaincfg.MainNetParams().Name
+	switch {
+	case !isExpired && isMainNet:
+		e := fmt.Sprintf("rfp %v linkby deadline not met %v",
 			rfpToken, rfpPM.LinkBy)
 		return "", backend.PluginUserError{
 			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusLinkByDeadlineNotMet),
+			ErrorCode:    int(pi.ErrorStatusLinkByNotExpired),
 			ErrorContext: []string{e},
 		}
+	case !isExpired:
+		// Allow the vote to be started before the link by deadline
+		// expires on testnet and simnet only. This makes testing the
+		// RFP process easier.
+		log.Warnf("RFP linkby deadline has not been met; disregarding " +
+			"since this is not mainnet")
 	}
 
-	// Verify all public, non-abandoned RFP submissions have been
-	// included in the request. The linked from list of the RFP will
-	// include abandoned proposals that must be filtered out.
-	linkedFrom, err := p.linkedFrom(hex.EncodeToString(rfpToken))
+	// Compile a list of the expected RFP submissions that should be in
+	// the runoff vote. This will be all of the public proposals that
+	// have linked to the RFP. The RFP's linked from list will include
+	// abandoned proposals that need to be filtered out.
+	linkedFrom, err := p.linkedFrom(rfpToken)
 	if err != nil {
 		return "", err
 	}
+	// map[token]struct{}
 	expected := make(map[string]struct{}, len(linkedFrom.Tokens))
 	for k := range linkedFrom.Tokens {
-		_, ok := records[k]
-		if ok {
-			// RFP submission has been included in the runoff vote
-			expected[k] = struct{}{}
-			continue
-		}
-
-		// RFP submission has not been included in the runoff vote. This
-		// is expected if the submission has been abandoned. If not then
-		// it is a user error.
 		token, err := tokenDecode(k)
 		if err != nil {
 			return "", err
@@ -835,41 +802,51 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if r.RecordMetadata.Status == backend.MDStatusVetted {
-			// Record is public and should be part of runoff vote
+		if r.RecordMetadata.Status != backend.MDStatusVetted {
+			// This proposal is not public and should not be included in
+			// the runoff vote.
+			continue
+		}
+
+		// This is a public proposal that is part of the RFP linked from
+		// list. It is required to be in the runoff vote.
+		expected[k] = struct{}{}
+	}
+
+	// Verify that there are no extra submissions in the runoff vote
+	for _, v := range s.Starts {
+		_, ok := expected[v.Params.Token]
+		if !ok {
+			// This submission should not be here
+			e := fmt.Sprintf("found token that should not be included: %v",
+				v.Params.Token)
 			return "", backend.PluginUserError{
 				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusStartDetailsMissing),
-				ErrorContext: []string{r.RecordMetadata.Token},
+				ErrorCode:    int(pi.ErrorStatusStartDetailsInvalid),
+				ErrorContext: []string{e},
 			}
 		}
 	}
 
-	// We know that all public records in the RFP's linked from list
-	// have been included in the runoff vote, but we must also verify
-	// that no extra start details have been included that shouldn't be
-	// there.
-	if len(s.Starts) != len(expected) {
-		// There are extra submissions. Find the culprits.
-		invalid := make([]string, 0, len(s.Starts))
-		for _, v := range s.Starts {
-			_, ok := expected[v.Params.Token]
-			if !ok {
-				// This submission should not be here
-				invalid = append(invalid, v.Params.Token)
+	// Verify that the runoff vote is not missing any submissions
+	subs := make(map[string]struct{}, len(s.Starts))
+	for _, v := range s.Starts {
+		subs[v.Params.Token] = struct{}{}
+	}
+	for token := range expected {
+		_, ok := subs[token]
+		if !ok {
+			// This proposal is missing from the runoff vote
+			return "", backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusStartDetailsMissing),
+				ErrorContext: []string{token},
 			}
-		}
-		e := fmt.Sprintf("found tokens that should not be included: %v",
-			strings.Join(invalid, ", "))
-		return "", backend.PluginUserError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusStartDetailsInvalid),
-			ErrorContext: []string{e},
 		}
 	}
 
 	// Pi plugin validation complete! Pass the plugin command to the
-	// backend.
+	// ticketvote plugin.
 	return p.backend.Plugin(ticketvote.ID, ticketvote.CmdStart, "", payload)
 }
 
@@ -1266,7 +1243,7 @@ func (p *piPlugin) fsck() error {
 	return nil
 }
 
-func newPiPlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting) (*piPlugin, error) {
+func newPiPlugin(backend backend.Backend, tlog tlogClient, settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*piPlugin, error) {
 	// Unpack plugin settings
 	var dataDir string
 	for _, v := range settings {
@@ -1293,8 +1270,9 @@ func newPiPlugin(backend backend.Backend, tlog tlogClient, settings []backend.Pl
 	}
 
 	return &piPlugin{
-		dataDir: dataDir,
-		backend: backend,
-		tlog:    tlog,
+		dataDir:         dataDir,
+		backend:         backend,
+		activeNetParams: activeNetParams,
+		tlog:            tlog,
 	}, nil
 }

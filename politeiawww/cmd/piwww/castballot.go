@@ -44,6 +44,9 @@ func (c *castBallotCmd) Execute(args []string) error {
 	if !ok {
 		return fmt.Errorf("proposal not found: %v", token)
 	}
+	if pv.Vote == nil {
+		return fmt.Errorf("vote hasn't started yet")
+	}
 
 	// Verify provided vote ID
 	var voteBit string

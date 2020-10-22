@@ -190,7 +190,12 @@ const (
 	// Vote errors
 	ErrorStatusVoteAuthInvalid
 	ErrorStatusVoteStatusInvalid
+	ErrorStatusStartDetailsInvalid
+	ErrorStatusStartDetailsMissing
 	ErrorStatusVoteParamsInvalid
+	ErrorStatusVoteTypeInvalid
+	ErroStatusVoteParentInvalid
+	ErrorStatusLinkByNotExpired
 )
 
 var (
@@ -659,6 +664,10 @@ type VoteParams struct {
 	PassPercentage uint32 `json:"passpercentage"`
 
 	Options []VoteOption `json:"options"`
+
+	// Parent is the token of the parent proposal. This field will only
+	// be populated for runoff votes.
+	Parent string `json:"parent,omitempty"`
 }
 
 // VoteDetails contains the details of a proposal vote.
