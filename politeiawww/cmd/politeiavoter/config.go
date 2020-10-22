@@ -19,6 +19,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/go-socks/socks"
+	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -88,20 +89,6 @@ type config struct {
 // on Windows.
 type serviceOptions struct {
 	ServiceCommand string `short:"s" long:"service" description:"Service command {install, remove, start, stop}"`
-}
-
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Expand initial ~ to OS specific home directory.
-	if strings.HasPrefix(path, "~") {
-		homeDir := filepath.Dir(defaultHomeDir)
-		path = strings.Replace(path, "~", homeDir, 1)
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
-	// but the variables can still be expanded via POSIX-style $VARIABLE.
-	return filepath.Clean(os.ExpandEnv(path))
 }
 
 // validLogLevel returns whether or not logLevel is a valid debug log level.
@@ -385,7 +372,7 @@ func loadConfig() (*config, []string, error) {
 	}
 	// Append the network type to the log directory so it is "namespaced"
 	// per network in the same fashion as the data directory.
-	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
+	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
 
 	// Special show command to list supported subsystems and exit.
@@ -422,7 +409,7 @@ func loadConfig() (*config, []string, error) {
 	if cfg.WalletCert == "" {
 		cfg.WalletCert = defaultWalletCertFile
 	}
-	cfg.WalletCert = cleanAndExpandPath(cfg.WalletCert)
+	cfg.WalletCert = util.CleanAndExpandPath(cfg.WalletCert)
 
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
@@ -474,6 +461,8 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Set path for the client key/cert depending on if they are set in options
+	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
+	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
 	if cfg.ClientCert == "" {
 		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
 	}
