@@ -12,13 +12,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -42,7 +42,7 @@ var (
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
 
-// Config represents the piwww configuration settings.
+// Config represents the CLI configuration settings.
 type Config struct {
 	HomeDir     string `long:"appdata" description:"Path to application home directory"`
 	Host        string `long:"host" description:"politeiawww host"`
@@ -52,15 +52,16 @@ type Config struct {
 	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
 	Silent      bool   `long:"silent" description:"Suppress all output"`
 
+	// TODO add docs for this to the piwww README
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for dcrwallet client authentication"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS dcrwallet client authentication key"`
+
 	DataDir    string // Application data dir
 	Version    string // CLI version
 	WalletHost string // Wallet host
 	WalletCert string // Wallet GRPC certificate
 	FaucetHost string // Testnet faucet host
 	CSRF       string // CSRF header token
-
-	ClientCert string `long:"cert" description:"Path to TLS certificate for client authentication"`
-	ClientKey  string `long:"key" description:"Path to TLS client authentication key"`
 
 	Identity *identity.FullIdentity // User identity
 	Cookies  []*http.Cookie         // User cookies
@@ -113,10 +114,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 
 	// Update the application home directory if specified
 	if cfg.HomeDir != homeDir {
-		homeDir, err := filepath.Abs(cleanAndExpandPath(cfg.HomeDir))
-		if err != nil {
-			return nil, fmt.Errorf("cleaning path: %v", err)
-		}
+		homeDir := util.CleanAndExpandPath(cfg.HomeDir)
 		cfg.HomeDir = homeDir
 		cfg.DataDir = filepath.Join(cfg.HomeDir, dataDirname)
 	}
@@ -188,6 +186,8 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	cfg.Identity = id
 
 	// Set path for the client key/cert depending on if they are set in options
+	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
+	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
 	if cfg.ClientCert == "" {
 		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
 	}
@@ -386,28 +386,6 @@ func (cfg *Config) SaveLoggedInUsername(username string) error {
 	cfg.Identity = id
 
 	return nil
-}
-
-// cleanAndExpandPath expands environment variables and leading ~ in the passed
-// path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Expand initial ~ to OS specific home directory
-	if strings.HasPrefix(path, "~") {
-		var homeDir string
-		usr, err := user.Current()
-		if err == nil {
-			homeDir = usr.HomeDir
-		} else {
-			// Fallback to CWD
-			homeDir = "."
-		}
-
-		path = strings.Replace(path, "~", homeDir, 1)
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
-	// but the variables can still be expanded via POSIX-style $VARIABLE.
-	return filepath.Clean(os.ExpandEnv(path))
 }
 
 // filesExists reports whether the named file or directory exists.

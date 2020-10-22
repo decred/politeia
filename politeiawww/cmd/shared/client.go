@@ -2774,6 +2774,62 @@ func (c *Client) StartVoteDCC(sv cms.StartVote) (*cms.StartVoteReply, error) {
 	return &svr, nil
 }
 
+// SetTOTP sets the logged in user's TOTP Key.
+func (c *Client) SetTOTP(st *www.SetTOTP) (*www.SetTOTPReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteSetTOTP, st)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, wwwError(respBody, statusCode)
+	}
+
+	var str www.SetTOTPReply
+	err = json.Unmarshal(respBody, &str)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(str)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &str, nil
+}
+
+// VerifyTOTP comfirms the logged in user's TOTP Key.
+func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteVerifyTOTP, vt)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, wwwError(respBody, statusCode)
+	}
+
+	var vtr www.VerifyTOTPReply
+	err = json.Unmarshal(respBody, &vtr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VerifyTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vtr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vtr, nil
+}
+
 // WalletAccounts retrieves the walletprc accounts.
 func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	if c.wallet == nil {
@@ -2851,62 +2907,8 @@ func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.Sig
 	return smr, nil
 }
 
-// SetTOTP sets the logged in user's TOTP Key.
-func (c *Client) SetTOTP(st *www.SetTOTP) (*www.SetTOTPReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		cms.APIRoute, www.RouteSetTOTP, st)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, wwwError(respBody, statusCode)
-	}
-
-	var str www.SetTOTPReply
-	err = json.Unmarshal(respBody, &str)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal SetTOTPReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(str)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &str, nil
-}
-
-// VerifyTOTP comfirms the logged in user's TOTP Key.
-func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		cms.APIRoute, www.RouteVerifyTOTP, vt)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, wwwError(respBody, statusCode)
-	}
-
-	var vtr www.VerifyTOTPReply
-	err = json.Unmarshal(respBody, &vtr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal VerifyTOTPReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(vtr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vtr, nil
-}
-
+// TODO the wallet client should be its own client and it should verify
+// that the dcrwallet client certs are set.
 // LoadWalletClient connects to a dcrwallet instance.
 func (c *Client) LoadWalletClient() error {
 	serverCAs := x509.NewCertPool()

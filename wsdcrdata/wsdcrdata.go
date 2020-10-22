@@ -448,9 +448,7 @@ func psclientNew(url string) (*psclient.Client, error) {
 		ReadTimeout:  psclient.DefaultReadTimeout,
 		WriteTimeout: 3 * time.Second,
 	}
-	d := time.Now().Add(15 * time.Second)
-	ctx, _ := context.WithDeadline(context.Background(), d)
-	c, err := psclient.New(url, ctx, &opts)
+	c, err := psclient.New(url, context.Background(), &opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %v: %v", url, err)
 	}

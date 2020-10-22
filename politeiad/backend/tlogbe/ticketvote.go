@@ -183,34 +183,66 @@ func (p *ticketVotePlugin) inventorySetToUnauthorized(token string) {
 	log.Debugf("ticketvote: added to unauthorized inv: %v", token)
 }
 
-func (p *ticketVotePlugin) inventorySetToStarted(token string, endHeight uint32) {
+func (p *ticketVotePlugin) inventorySetToStarted(token string, t ticketvote.VoteT, endHeight uint32) {
 	p.Lock()
 	defer p.Unlock()
 
-	// Remove the token from the authorized list. The token should
-	// always be in the authorized list prior to the vote being started
-	// so panicing when this is not the case is ok.
-	var i int
-	var found bool
-	for k, v := range p.inv.authorized {
-		if v == token {
-			i = k
-			found = true
-			break
+	switch t {
+	case ticketvote.VoteTypeStandard:
+		// Remove the token from the authorized list. The token should
+		// always be in the authorized list prior to the vote being
+		// started for standard votes so panicing when this is not the
+		// case is ok.
+		var i int
+		var found bool
+		for k, v := range p.inv.authorized {
+			if v == token {
+				i = k
+				found = true
+				break
+			}
 		}
-	}
-	if !found {
-		e := fmt.Sprintf("token not found in authorized list: %v", token)
+		if !found {
+			e := fmt.Sprintf("token not found in authorized list: %v", token)
+			panic(e)
+		}
+
+		a := p.inv.authorized
+		a = append(a[:i], a[i+1:]...)
+		p.inv.authorized = a
+
+		log.Debugf("ticketvote: removed from authorized inv: %v", token)
+
+	case ticketvote.VoteTypeRunoff:
+		// A runoff vote does not require the submission votes be
+		// authorized prior to the vote starting. The token might be in
+		// the unauthorized list, but its also possible that its not
+		// since the unauthorized list is lazy loaded and it might not
+		// have been added yet. Remove it only if it is found.
+		var i int
+		var found bool
+		for k, v := range p.inv.unauthorized {
+			if v == token {
+				i = k
+				found = true
+				break
+			}
+		}
+		if found {
+			// Remove the token from unauthorized
+			u := p.inv.unauthorized
+			u = append(u[:i], u[i+1:]...)
+			p.inv.unauthorized = u
+
+			log.Debugf("ticketvote: removed from unauthorized inv: %v", token)
+		}
+
+	default:
+		e := fmt.Sprintf("invalid vote type %v", t)
 		panic(e)
 	}
 
-	a := p.inv.authorized
-	a = append(a[:i], a[i+1:]...)
-	p.inv.authorized = a
-
-	log.Debugf("ticketvote: removed from authorized inv: %v", token)
-
-	// Add the token to the started map
+	// Add the token to the started list
 	p.inv.started[token] = endHeight
 
 	log.Debugf("ticketvote: added to started inv: %v", token)
@@ -1491,7 +1523,8 @@ func (p *ticketVotePlugin) startStandard(s ticketvote.Start) (*ticketvote.StartR
 	}
 
 	// Update inventory
-	p.inventorySetToStarted(vd.Params.Token, vd.EndBlockHeight)
+	p.inventorySetToStarted(vd.Params.Token, ticketvote.VoteTypeStandard,
+		vd.EndBlockHeight)
 
 	return &ticketvote.StartReply{
 		StartBlockHeight: sr.StartBlockHeight,
@@ -1668,7 +1701,8 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 		}
 
 		// Update inventory
-		p.inventorySetToStarted(vd.Params.Token, vd.EndBlockHeight)
+		p.inventorySetToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
+			vd.EndBlockHeight)
 	}
 
 	return &ticketvote.StartReply{
@@ -2210,31 +2244,32 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 
 	// Summary has not been cached. Get it manually.
 
+	// Assume vote is unauthorized. Only update the status when the
+	// appropriate record has been found.
+	status := ticketvote.VoteStatusUnauthorized
+
 	// Check if the vote has been authorized
 	auths, err := p.authorizes(token)
 	if err != nil {
 		return nil, fmt.Errorf("authorizes: %v", err)
 	}
-	if len(auths) == 0 {
-		// Vote has not been authorized yet
-		return &ticketvote.Summary{
-			Status:  ticketvote.VoteStatusUnauthorized,
-			Results: []ticketvote.VoteOptionResult{},
-		}, nil
-	}
-	lastAuth := auths[len(auths)-1]
-	switch ticketvote.AuthActionT(lastAuth.Action) {
-	case ticketvote.AuthActionAuthorize:
-		// Vote has been authorized; continue
-	case ticketvote.AuthActionRevoke:
-		// Vote authorization has been revoked
-		return &ticketvote.Summary{
-			Status:  ticketvote.VoteStatusUnauthorized,
-			Results: []ticketvote.VoteOptionResult{},
-		}, nil
+	if len(auths) > 0 {
+		lastAuth := auths[len(auths)-1]
+		switch ticketvote.AuthActionT(lastAuth.Action) {
+		case ticketvote.AuthActionAuthorize:
+			// Vote has been authorized; continue
+			status = ticketvote.VoteStatusAuthorized
+		case ticketvote.AuthActionRevoke:
+			// Vote authorization has been revoked. Its not possible for
+			// the vote to have been started. We can stop looking.
+			return &ticketvote.Summary{
+				Status:  status,
+				Results: []ticketvote.VoteOptionResult{},
+			}, nil
+		}
 	}
 
-	// Vote has been authorized. Check if it has been started yet.
+	// Check if the vote has been started
 	vd, err := p.voteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("startDetails: %v", err)
@@ -2242,14 +2277,13 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	if vd == nil {
 		// Vote has not been started yet
 		return &ticketvote.Summary{
-			Status:  ticketvote.VoteStatusAuthorized,
+			Status:  status,
 			Results: []ticketvote.VoteOptionResult{},
 		}, nil
 	}
 
 	// Vote has been started. Check if it is still in progress or has
 	// already ended.
-	var status ticketvote.VoteStatusT
 	if bestBlock < vd.EndBlockHeight {
 		status = ticketvote.VoteStatusStarted
 	} else {
@@ -2337,8 +2371,8 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 				vd.Params.Token, err, summary)
 		}
 
-		// Remove record from the votes cache now that a summary has
-		// been saved for it.
+		// Remove record from the votes cache now that a summary has been
+		// saved for it.
 		p.cachedVotesDel(vd.Params.Token)
 	}
 

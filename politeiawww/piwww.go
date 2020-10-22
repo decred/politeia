@@ -1469,6 +1469,7 @@ func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.Propo
 		return nil, convertUserErrorFromSignatureError(err)
 	}
 
+	// TODO don't allow censoring a proposal once the vote has started
 	// Verification that requires retrieving the existing proposal is
 	// done in politeiad. This includes:
 	// -Verify proposal exists (politeiad)

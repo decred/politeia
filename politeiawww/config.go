@@ -16,7 +16,6 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -157,60 +156,6 @@ type serviceOptions struct {
 	ServiceCommand string `short:"s" long:"service" description:"Service command {install, remove, start, stop}"`
 }
 
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Nothing to do when no path is given.
-	if path == "" {
-		return path
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows cmd.exe-style
-	// %VARIABLE%, but the variables can still be expanded via POSIX-style
-	// $VARIABLE.
-	path = os.ExpandEnv(path)
-
-	if !strings.HasPrefix(path, "~") {
-		return filepath.Clean(path)
-	}
-
-	// Expand initial ~ to the current user's home directory, or ~otheruser
-	// to otheruser's home directory.  On Windows, both forward and backward
-	// slashes can be used.
-	path = path[1:]
-
-	var pathSeparators string
-	if runtime.GOOS == "windows" {
-		pathSeparators = string(os.PathSeparator) + "/"
-	} else {
-		pathSeparators = string(os.PathSeparator)
-	}
-
-	userName := ""
-	if i := strings.IndexAny(path, pathSeparators); i != -1 {
-		userName = path[:i]
-		path = path[i:]
-	}
-
-	homeDir := ""
-	var u *user.User
-	var err error
-	if userName == "" {
-		u, err = user.Current()
-	} else {
-		u, err = user.Lookup(userName)
-	}
-	if err == nil {
-		homeDir = u.HomeDir
-	}
-	// Fallback to CWD if user lookup fails or user has no home directory.
-	if homeDir == "" {
-		homeDir = "."
-	}
-
-	return filepath.Join(homeDir, path)
-}
-
 // validLogLevel returns whether or not logLevel is a valid debug log level.
 func validLogLevel(logLevel string) bool {
 	switch logLevel {
@@ -345,7 +290,7 @@ func loadIdentity(cfg *config) error {
 		cfg.RPCIdentityFile = filepath.Join(cfg.HomeDir,
 			defaultIdentityFilename)
 	} else {
-		cfg.RPCIdentityFile = cleanAndExpandPath(cfg.RPCIdentityFile)
+		cfg.RPCIdentityFile = util.CleanAndExpandPath(cfg.RPCIdentityFile)
 	}
 
 	if cfg.FetchIdentity {
@@ -589,19 +534,19 @@ func loadConfig() (*config, []string, error) {
 	// All data is specific to a network, so namespacing the data directory
 	// means each individual piece of serialized data does not have to
 	// worry about changing names per network and such.
-	cfg.DataDir = cleanAndExpandPath(cfg.DataDir)
+	cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
 	cfg.DataDir = filepath.Join(cfg.DataDir, netName(activeNetParams))
 
 	// Append the network type to the log directory so it is "namespaced"
 	// per network in the same fashion as the data directory.
-	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
+	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
 
 	cfg.AdminLogFile = filepath.Join(cfg.LogDir, adminLogFilename)
 
-	cfg.HTTPSKey = cleanAndExpandPath(cfg.HTTPSKey)
-	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
-	cfg.RPCCert = cleanAndExpandPath(cfg.RPCCert)
+	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
+	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
+	cfg.RPCCert = util.CleanAndExpandPath(cfg.RPCCert)
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
@@ -710,7 +655,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Validate smtp root cert.
 	if cfg.SMTPCert != "" {
-		cfg.SMTPCert = cleanAndExpandPath(cfg.SMTPCert)
+		cfg.SMTPCert = util.CleanAndExpandPath(cfg.SMTPCert)
 
 		b, err := ioutil.ReadFile(cfg.SMTPCert)
 		if err != nil {
@@ -769,9 +714,9 @@ func loadConfig() (*config, []string, error) {
 		}
 
 		// Clean user database settings
-		cfg.DBRootCert = cleanAndExpandPath(cfg.DBRootCert)
-		cfg.DBCert = cleanAndExpandPath(cfg.DBCert)
-		cfg.DBKey = cleanAndExpandPath(cfg.DBKey)
+		cfg.DBRootCert = util.CleanAndExpandPath(cfg.DBRootCert)
+		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
+		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
 
 		// Validate user database host
 		_, err = url.Parse(cfg.DBHost)
@@ -798,8 +743,8 @@ func loadConfig() (*config, []string, error) {
 		}
 
 		// Validate user database encryption keys
-		cfg.EncryptionKey = cleanAndExpandPath(cfg.EncryptionKey)
-		cfg.OldEncryptionKey = cleanAndExpandPath(cfg.OldEncryptionKey)
+		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
+		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
 
 		if cfg.EncryptionKey != "" && !util.FileExists(cfg.EncryptionKey) {
 			return nil, nil, fmt.Errorf("file not found %v", cfg.EncryptionKey)
