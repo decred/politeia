@@ -72,6 +72,8 @@ func (c *ctx) retryLoop() {
 		}
 
 		select {
+		case <-c.wctx.Done():
+			return
 		case <-c.mainLoopForceExit:
 			// Main loop is forcing an exit
 			fmt.Printf("Forced exit retry vote queue.\n")
