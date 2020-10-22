@@ -448,7 +448,9 @@ func psclientNew(url string) (*psclient.Client, error) {
 		ReadTimeout:  psclient.DefaultReadTimeout,
 		WriteTimeout: 3 * time.Second,
 	}
-	c, err := psclient.New(url, context.Background(), &opts)
+	d := time.Now().Add(15 * time.Second)
+	ctx, _ := context.WithDeadline(context.Background(), d)
+	c, err := psclient.New(url, ctx, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %v: %v", url, err)
 	}
@@ -475,6 +477,8 @@ func psclientNew(url string) (*psclient.Client, error) {
 
 // New returns a new Client.
 func New(dcrdataURL string) (*Client, error) {
+	log.Tracef("New: %v", dcrdataURL)
+
 	// Setup dcrdata connection. If there is an error when connecting
 	// to dcrdata, return both the error and the Client so that the
 	// caller can decide if reconnection attempts should be made.

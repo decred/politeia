@@ -83,7 +83,7 @@ type piwww struct {
 	VoteAuthorize   voteAuthorizeCmd   `command:"voteauthorize"`
 	VoteStart       voteStartCmd       `command:"votestart"`
 	VoteStartRunoff voteStartRunoffCmd `command:"votestartrunoff"`
-	VoteBallot      voteBallotCmd      `command:"voteballot"`
+	CastBallot      castBallotCmd      `command:"castballot"`
 	Votes           votesCmd           `command:"votes"`
 	VoteResults     voteResultsCmd     `command:"voteresults"`
 	VoteSummaries   voteSummariesCmd   `command:"votesummaries"`
@@ -168,7 +168,7 @@ Dev commands
 `
 
 func _main() error {
-	// Load config. The config variable is a CLI global variable.
+	// Load config. The config variable is aglobal variable.
 	var err error
 	cfg, err = shared.LoadConfig(defaultHomeDir,
 		defaultDataDirname, defaultConfigFilename)
@@ -176,7 +176,7 @@ func _main() error {
 		return fmt.Errorf("load config: %v", err)
 	}
 
-	// Load client. The client variable is a CLI global variable.
+	// Load client. The client variable is a global variable.
 	client, err = shared.NewClient(cfg)
 	if err != nil {
 		return fmt.Errorf("load client: %v", err)

@@ -91,9 +91,13 @@ func (cmd *voteStartCmd) Execute(args []string) error {
 	b := cfg.Identity.SignMessage([]byte(msg))
 	signature := hex.EncodeToString(b[:])
 	vs := pi.VoteStart{
-		Params:    vote,
-		PublicKey: cfg.Identity.Public.String(),
-		Signature: signature,
+		Starts: []pi.StartDetails{
+			{
+				Params:    vote,
+				PublicKey: cfg.Identity.Public.String(),
+				Signature: signature,
+			},
+		},
 	}
 
 	// Send request. The request and response details are printed to

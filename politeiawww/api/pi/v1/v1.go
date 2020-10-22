@@ -17,19 +17,19 @@ type VoteAuthActionT string
 type VoteT int
 type VoteErrorT int
 
-// TODO the plugin policies should be returned in a route
-// TODO show the difference between unvetted censored and vetted censored
-// in the proposal inventory route since fetching them requires specifying
-// the state.
 // TODO verify that all batched request have a page size limit
+// TODO add fetching proposals by user ID. Will probably need to add user ID
+// to the general metadata stream.
+// TODO add a comments/count endpoint and take the comments count off of the
+// proposal record
+// TODO linkedfrom should really be pulled out of a proposal record an added
+// as a separate enpoint as well.
+// TODO create a comments and vote api for those plugin commands that are not
+// pi specific
+// TODO the plugin policies should be returned in a route
 // TODO make RouteVoteResults a batched route but that only currently allows
 // for 1 result to be returned so that we have the option to change this is
 // we want to.
-// TODO should we add auths to the vote summary?
-// TODO should routes for fetching comments be in their own API? This would
-// make politeiawww far more configurable. I think so.
-// TODO add a comments/count endpoint and take the comments count off of the
-// proposal record
 
 const (
 	APIVersion = 1
@@ -52,14 +52,13 @@ const (
 	RouteCommentVotes  = "/comments/votes"
 
 	// Vote routes
-	RouteVoteAuthorize   = "/vote/authorize"
-	RouteVoteStart       = "/vote/start"
-	RouteVoteStartRunoff = "/vote/startrunoff"
-	RouteVoteBallot      = "/vote/ballot"
-	RouteVotes           = "/votes"
-	RouteVoteResults     = "/votes/results"
-	RouteVoteSummaries   = "/votes/summaries"
-	RouteVoteInventory   = "/votes/inventory"
+	RouteVoteAuthorize = "/vote/authorize"
+	RouteVoteStart     = "/vote/start"
+	RouteCastBallot    = "/vote/castballot"
+	RouteVotes         = "/votes"
+	RouteVoteResults   = "/votes/results"
+	RouteVoteSummaries = "/votes/summaries"
+	RouteVoteInventory = "/votes/inventory"
 
 	// Proposal states. A proposal state can be either unvetted or
 	// vetted. The PropStatusT type further breaks down these two
@@ -84,8 +83,8 @@ const (
 
 	// Vote statuses
 	VoteStatusInvalid      VoteStatusT = 0 // Invalid status
-	VoteStatusUnauthorized VoteStatusT = 1 // Vote cannot be started
-	VoteStatusAuthorized   VoteStatusT = 2 // Vote can be started
+	VoteStatusUnauthorized VoteStatusT = 1 // Vote has not been authorized
+	VoteStatusAuthorized   VoteStatusT = 2 // Vote has been authorized
 	VoteStatusStarted      VoteStatusT = 3 // Vote has been started
 	VoteStatusFinished     VoteStatusT = 4 // Vote has finished
 
@@ -101,15 +100,16 @@ const (
 	// specified quorum and pass requirements.
 	VoteTypeStandard VoteT = 1
 
-	// VoteTypeRunoff specifies a runoff vote that multiple records
-	// compete in. All records are voted on like normal, but there can
-	// only be one winner in a runoff vote. The winner is the record
-	// that meets the quorum requirement, meets the pass requirement,
-	// and that has the most net yes votes. The winning record is
-	// considered approved and all other records are considered to be
-	// rejected. If no records meet the quorum and pass requirements
-	// then all records are considered rejected. Note, in a runoff vote
-	// it's possible for a proposal to meet both the quorum and pass
+	// VoteTypeRunoff specifies a runoff vote that multiple proposals
+	// compete in. All proposals are voted on like normal and all votes
+	// are simple approve/reject votes, but there can only be one
+	// winner in a runoff vote. The winner is the proposal that meets
+	// the quorum requirement, meets the pass requirement, and that has
+	// the most net yes votes. The winning proposal is considered
+	// approved and all other proposals are considered to be rejected.
+	// If no proposals meet the quorum and pass requirements then all
+	// proposals are considered rejected. Note, in a runoff vote it is
+	// possible for a proposal to meet both the quorum and pass
 	// requirements but still be rejected if it does not have the most
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
@@ -123,6 +123,19 @@ const (
 	// proposal should be rejected. Proposal votes are required to use
 	// this vote option ID.
 	VoteOptionIDReject = "no"
+
+	// Cast vote errors
+	// TODO these need human readable equivalents
+	VoteErrorInvalid             VoteErrorT = 0
+	VoteErrorInternalError       VoteErrorT = 1
+	VoteErrorTokenInvalid        VoteErrorT = 2
+	VoteErrorRecordNotFound      VoteErrorT = 3
+	VoteErrorMultipleRecordVotes VoteErrorT = 4
+	VoteErrorVoteStatusInvalid   VoteErrorT = 5
+	VoteErrorVoteBitInvalid      VoteErrorT = 6
+	VoteErrorSignatureInvalid    VoteErrorT = 7
+	VoteErrorTicketNotEligible   VoteErrorT = 8
+	VoteErrorTicketAlreadyVoted  VoteErrorT = 9
 
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
@@ -178,20 +191,6 @@ const (
 	ErrorStatusVoteAuthInvalid
 	ErrorStatusVoteStatusInvalid
 	ErrorStatusVoteParamsInvalid
-	ErrorStatusBallotInvalid
-
-	// Cast vote errors
-	// TODO these need human readable equivalents
-	VoteErrorInvalid             VoteErrorT = 0
-	VoteErrorInternalError       VoteErrorT = 1
-	VoteErrorTokenInvalid        VoteErrorT = 2
-	VoteErrorRecordNotFound      VoteErrorT = 3
-	VoteErrorMultipleRecordVotes VoteErrorT = 4
-	VoteErrorVoteStatusInvalid   VoteErrorT = 5
-	VoteErrorVoteBitInvalid      VoteErrorT = 6
-	VoteErrorSignatureInvalid    VoteErrorT = 7
-	VoteErrorTicketNotEligible   VoteErrorT = 8
-	VoteErrorTicketAlreadyVoted  VoteErrorT = 9
 )
 
 var (
@@ -257,7 +256,6 @@ var (
 		// Vote errors
 		ErrorStatusVoteStatusInvalid: "vote status invalid",
 		ErrorStatusVoteParamsInvalid: "vote params invalid",
-		ErrorStatusBallotInvalid:     "ballot invalid",
 	}
 )
 
@@ -625,8 +623,8 @@ type CommentVotesReply struct {
 	Votes []CommentVoteDetails `json:"votes"`
 }
 
-// AuthorizeDetails contains the details of a vote authorization.
-type AuthorizeDetails struct {
+// AuthDetails contains the details of a vote authorization.
+type AuthDetails struct {
 	Token     string `json:"token"`     // Proposal token
 	Version   uint32 `json:"version"`   // Proposal version
 	Action    string `json:"action"`    // Authorize or revoke
@@ -742,15 +740,30 @@ type VoteAuthorizeReply struct {
 	Receipt   string `json:"receipt"`
 }
 
-// VoteStart starts a proposal vote.  All proposal votes must be authorized
-// by the proposal author before an admin is able to start the voting process.
+// StartDetails is the structure that is provided when starting a proposal vote.
 //
-// Signature is the signature of a SHA256 digest of the JSON encoded Vote
+// Signature is the signature of a SHA256 digest of the JSON encoded VoteParams
 // structure.
-type VoteStart struct {
+type StartDetails struct {
 	Params    VoteParams `json:"params"`
 	PublicKey string     `json:"publickey"`
 	Signature string     `json:"signature"`
+}
+
+// VoteStart starts a proposal vote or multiple proposal votes if the vote is
+// a runoff vote.
+//
+// Standard votes require that the vote have been authorized by the proposal
+// author before an admin will able to start the voting process. The
+// StartDetails list should only contain a single StartDetails.
+//
+// Runoff votes can be started by an admin at any point once the RFP link by
+// deadline has expired. Runoff votes DO NOT require the votes to have been
+// authorized by the submission authors prior to an admin starting the runoff
+// vote. All public, non-abandoned RFP submissions should be included in the
+// list of StartDetails.
+type VoteStart struct {
+	Starts []StartDetails `json:"starts"`
 }
 
 // VoteStartReply is the reply to the VoteStart command.
@@ -759,22 +772,6 @@ type VoteStartReply struct {
 	StartBlockHash   string   `json:"startblockhash"`
 	EndBlockHeight   uint32   `json:"endblockheight"`
 	EligibleTickets  []string `json:"eligibletickets"`
-}
-
-// VoteStartRunoff starts a runoff vote between the provided submissions. Each
-// submission is required to have its own Authorize and Start.
-type VoteStartRunoff struct {
-	Token  string          `json:"token"` // RFP token
-	Auths  []VoteAuthorize `json:"auths"`
-	Starts []VoteStart     `json:"starts"`
-}
-
-// VoteStartRunoffReply is the reply to the VoteStartRunoff command.
-type VoteStartRunoffReply struct {
-	StartBlockHeight uint32   `json:"startblockheight"`
-	StartBlockHash   string   `json:"startblockhash"`
-	EndBlockHeight   uint32   `json:"endblockheight"`
-	EligibleTickets  []string `json:"eligibletickets"` // Ticket hashes
 }
 
 // CastVote is a signed ticket vote.
@@ -796,14 +793,14 @@ type CastVoteReply struct {
 	ErrorContext string     `json:"errorcontext,omitempty"`
 }
 
-// VoteBallot is a batch of votes that are sent to the server. A ballot can only
-// contain the votes for a single record.
-type VoteBallot struct {
+// CastBallot casts a ballot of votes. A ballot can only contain the votes for
+// a single record.
+type CastBallot struct {
 	Votes []CastVote `json:"votes"`
 }
 
-// VoteBallotReply is a reply to a batched list of votes.
-type VoteBallotReply struct {
+// CastBallotReply is a reply to a batched list of votes.
+type CastBallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
 
@@ -811,8 +808,8 @@ type VoteBallotReply struct {
 // proposal vote. The vote details will be null if the proposal vote has not
 // been started yet.
 type ProposalVote struct {
-	Auths []AuthorizeDetails `json:"auths"`
-	Vote  *VoteDetails       `json:"vote"`
+	Auths []AuthDetails `json:"auths"`
+	Vote  *VoteDetails  `json:"vote"`
 }
 
 // Votes returns the vote authorizations and vote details for each of the

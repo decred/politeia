@@ -19,8 +19,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// voteBallotCmd casts a ballot of votes for the specified proposal.
-type voteBallotCmd struct {
+// castBallotCmd casts a ballot of votes for the specified proposal.
+type castBallotCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token"`
 		VoteID string `positional-arg-name:"voteid"`
@@ -29,7 +29,7 @@ type voteBallotCmd struct {
 }
 
 // Execute executes the vote ballot command.
-func (c *voteBallotCmd) Execute(args []string) error {
+func (c *castBallotCmd) Execute(args []string) error {
 	token := c.Args.Token
 	voteID := c.Args.VoteID
 
@@ -145,14 +145,14 @@ func (c *voteBallotCmd) Execute(args []string) error {
 			Signature: hex.EncodeToString(sigs.Replies[i].Signature),
 		})
 	}
-	vb := pi.VoteBallot{
+	cb := pi.CastBallot{
 		Votes: votes,
 	}
 
 	// Send ballot request
-	vbr, err := client.VoteBallot(vb)
+	cbr, err := client.CastBallot(cb)
 	if err != nil {
-		return fmt.Errorf("VoteBallot: %v", err)
+		return fmt.Errorf("CastBallot: %v", err)
 	}
 
 	// Get the server pubkey so that we can validate the receipts.
@@ -169,9 +169,9 @@ func (c *voteBallotCmd) Execute(args []string) error {
 	// ticket hash so in order to associate a failed receipt with a
 	// specific ticket, we need  to lookup the ticket hash and store
 	// it separately.
-	failedReceipts := make([]pi.CastVoteReply, 0, len(vbr.Receipts))
+	failedReceipts := make([]pi.CastVoteReply, 0, len(cbr.Receipts))
 	failedTickets := make([]string, 0, len(eligibleTickets))
-	for i, v := range vbr.Receipts {
+	for i, v := range cbr.Receipts {
 		// Lookup ticket hash. br.Receipts and eligibleTickets use the
 		// same ordering
 		h := eligibleTickets[i]
@@ -198,7 +198,7 @@ func (c *voteBallotCmd) Execute(args []string) error {
 
 	// Print results
 	if !cfg.Silent {
-		fmt.Printf("Votes succeeded: %v\n", len(vbr.Receipts)-len(failedReceipts))
+		fmt.Printf("Votes succeeded: %v\n", len(cbr.Receipts)-len(failedReceipts))
 		fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
 		for i, v := range failedReceipts {
 			fmt.Printf("Failed vote    : %v %v\n", failedTickets[i], v.ErrorContext)
@@ -208,8 +208,8 @@ func (c *voteBallotCmd) Execute(args []string) error {
 	return nil
 }
 
-// voteBallotHelpMsg is the help command message.
-const voteBallotHelpMsg = `voteballot "token" "voteid"
+// castBallotHelpMsg is the help command message.
+const castBallotHelpMsg = `castballot "token" "voteid"
 
 Cast a ballot of ticket votes for a proposal. This command will only work when
 on testnet and when running dcrwallet locally on the default port.

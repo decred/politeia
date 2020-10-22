@@ -426,11 +426,11 @@ func convertCommentVoteFromPi(v pi.CommentVoteT) piplugin.CommentVoteT {
 func convertVoteAuthActionFromPi(a pi.VoteAuthActionT) ticketvote.AuthActionT {
 	switch a {
 	case pi.VoteAuthActionAuthorize:
-		return ticketvote.ActionAuthorize
+		return ticketvote.AuthActionAuthorize
 	case pi.VoteAuthActionRevoke:
-		return ticketvote.ActionRevoke
+		return ticketvote.AuthActionRevoke
 	default:
-		return ticketvote.ActionAuthorize
+		return ticketvote.AuthActionAuthorize
 	}
 }
 
@@ -486,11 +486,21 @@ func convertVoteParamsFromPi(v pi.VoteParams) ticketvote.VoteParams {
 	return tv
 }
 
+func convertStartDetailsFromPi(sd pi.StartDetails) ticketvote.StartDetails {
+	return ticketvote.StartDetails{
+		Params:    convertVoteParamsFromPi(sd.Params),
+		PublicKey: sd.PublicKey,
+		Signature: sd.Signature,
+	}
+}
+
 func convertVoteStartFromPi(vs pi.VoteStart) ticketvote.Start {
+	starts := make([]ticketvote.StartDetails, 0, len(vs.Starts))
+	for _, v := range vs.Starts {
+		starts = append(starts, convertStartDetailsFromPi(v))
+	}
 	return ticketvote.Start{
-		Params:    convertVoteParamsFromPi(vs.Params),
-		PublicKey: vs.PublicKey,
-		Signature: vs.Signature,
+		Starts: starts,
 	}
 }
 
@@ -595,10 +605,10 @@ func convertVoteDetailsFromPlugin(vd ticketvote.VoteDetails) pi.VoteDetails {
 	}
 }
 
-func convertAuthorizeDetailsFromPlugin(auths []ticketvote.AuthorizeDetails) []pi.AuthorizeDetails {
-	a := make([]pi.AuthorizeDetails, 0, len(auths))
+func convertAuthDetailsFromPlugin(auths []ticketvote.AuthDetails) []pi.AuthDetails {
+	a := make([]pi.AuthDetails, 0, len(auths))
 	for _, v := range auths {
-		a = append(a, pi.AuthorizeDetails{
+		a = append(a, pi.AuthDetails{
 			Token:     v.Token,
 			Version:   v.Version,
 			Action:    v.Action,
@@ -634,7 +644,7 @@ func convertProposalVotesFromPlugin(votes map[string]ticketvote.RecordVote) map[
 			vdp = &vd
 		}
 		pv[k] = pi.ProposalVote{
-			Auths: convertAuthorizeDetailsFromPlugin(v.Auths),
+			Auths: convertAuthDetailsFromPlugin(v.Auths),
 			Vote:  vdp,
 		}
 	}
@@ -1875,6 +1885,8 @@ func (p *politeiawww) processVoteAuthorize(ctx context.Context, va pi.VoteAuthor
 		return nil, err
 	}
 
+	// TODO Emit notification
+
 	return &pi.VoteAuthorizeReply{
 		Timestamp: ar.Timestamp,
 		Receipt:   ar.Receipt,
@@ -1882,7 +1894,7 @@ func (p *politeiawww) processVoteAuthorize(ctx context.Context, va pi.VoteAuthor
 }
 
 func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr user.User) (*pi.VoteStartReply, error) {
-	log.Tracef("processVoteStart: %v", vs.Params.Token)
+	log.Tracef("processVoteStart: %v", len(vs.Starts))
 
 	// Sanity check
 	if !usr.Admin {
@@ -1890,10 +1902,12 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr
 	}
 
 	// Verify admin signed with their active identity
-	if usr.PublicKey() != vs.PublicKey {
-		return nil, pi.UserErrorReply{
-			ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
+	for _, v := range vs.Starts {
+		if usr.PublicKey() != v.PublicKey {
+			return nil, pi.UserErrorReply{
+				ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
+				ErrorContext: []string{"not active identity"},
+			}
 		}
 	}
 
@@ -1903,6 +1917,8 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr
 		return nil, err
 	}
 
+	// TODO Emit notification for each start
+
 	return &pi.VoteStartReply{
 		StartBlockHeight: reply.StartBlockHeight,
 		StartBlockHash:   reply.StartBlockHash,
@@ -1911,68 +1927,18 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr
 	}, nil
 }
 
-func (p *politeiawww) processVoteStartRunoff(ctx context.Context, vsr pi.VoteStartRunoff, usr user.User) (*pi.VoteStartRunoffReply, error) {
-	log.Tracef("processVoteStartRunoff: %v", vsr.Token)
+func (p *politeiawww) processCastBallot(ctx context.Context, vc pi.CastBallot) (*pi.CastBallotReply, error) {
+	log.Tracef("processCastBallot")
 
-	// Sanity check
-	if !usr.Admin {
-		return nil, fmt.Errorf("not an admin")
+	cb := ticketvote.CastBallot{
+		Ballot: convertCastVotesFromPi(vc.Votes),
 	}
-
-	// Verify admin signed all authorizations and starts using their
-	// active identity.
-	for _, v := range vsr.Auths {
-		if usr.PublicKey() != v.PublicKey {
-			e := fmt.Sprintf("authorize %v public key is not the active identity",
-				v.Token)
-			return nil, pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
-				ErrorContext: []string{e},
-			}
-		}
-	}
-	for _, v := range vsr.Starts {
-		if usr.PublicKey() != v.PublicKey {
-			e := fmt.Sprintf("start %v public key is not the active identity",
-				v.Params.Token)
-			return nil, pi.UserErrorReply{
-				ErrorCode:    pi.ErrorStatusPublicKeyInvalid,
-				ErrorContext: []string{e},
-			}
-		}
-	}
-
-	// Send plugin command
-	tsr := ticketvote.StartRunoff{
-		Token:  vsr.Token,
-		Auths:  convertVoteAuthsFromPi(vsr.Auths),
-		Starts: convertVoteStartsFromPi(vsr.Starts),
-	}
-	srr, err := p.voteStartRunoff(ctx, tsr)
+	reply, err := p.castBallot(ctx, cb)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pi.VoteStartRunoffReply{
-		StartBlockHeight: srr.StartBlockHeight,
-		StartBlockHash:   srr.StartBlockHash,
-		EndBlockHeight:   srr.EndBlockHeight,
-		EligibleTickets:  srr.EligibleTickets,
-	}, nil
-}
-
-func (p *politeiawww) processVoteBallot(ctx context.Context, vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
-	log.Tracef("processVoteBallot")
-
-	b := ticketvote.Ballot{
-		Votes: convertCastVotesFromPi(vb.Votes),
-	}
-	reply, err := p.voteBallot(ctx, b)
-	if err != nil {
-		return nil, err
-	}
-
-	return &pi.VoteBallotReply{
+	return &pi.CastBallotReply{
 		Receipts: convertCastVoteRepliesFromPlugin(reply.Receipts),
 	}, nil
 }
@@ -1993,7 +1959,7 @@ func (p *politeiawww) processVotes(ctx context.Context, v pi.Votes) (*pi.VotesRe
 func (p *politeiawww) processVoteResults(ctx context.Context, vr pi.VoteResults) (*pi.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", vr.Token)
 
-	cvr, err := p.castVotes(ctx, vr.Token)
+	cvr, err := p.voteResults(ctx, vr.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -2386,53 +2352,23 @@ func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
-func (p *politeiawww) handleVoteStartRunoff(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteStartRunoff")
+func (p *politeiawww) handleCastBallot(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCastBallot")
 
-	var vsr pi.VoteStartRunoff
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vsr); err != nil {
-		respondWithPiError(w, r, "handleVoteStartRunoff: unmarshal",
-			pi.UserErrorReply{
-				ErrorCode: pi.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.getSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteStartRunoff: getSessionUser: %v", err)
-		return
-	}
-
-	vsrr, err := p.processVoteStartRunoff(r.Context(), vsr, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteStartRunoff: processVoteStartRunoff: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vsrr)
-}
-
-func (p *politeiawww) handleVoteBallot(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteBallot")
-
-	var vb pi.VoteBallot
+	var vb pi.CastBallot
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&vb); err != nil {
-		respondWithPiError(w, r, "handleVoteBallot: unmarshal",
+		respondWithPiError(w, r, "handleCastBallot: unmarshal",
 			pi.UserErrorReply{
 				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
 		return
 	}
 
-	vbr, err := p.processVoteBallot(r.Context(), vb)
+	vbr, err := p.processCastBallot(r.Context(), vb)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleVoteBallot: processVoteBallot: %v", err)
+			"handleCastBallot: processCastBallot: %v", err)
 		return
 	}
 
@@ -2575,10 +2511,7 @@ func (p *politeiawww) setPiRoutes() {
 		pi.RouteVoteStart, p.handleVoteStart,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteStartRunoff, p.handleVoteStartRunoff,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteBallot, p.handleVoteBallot,
+		pi.RouteCastBallot, p.handleCastBallot,
 		permissionPublic)
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteVotes, p.handleVotes,

@@ -1656,36 +1656,6 @@ func (c *Client) VoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
 	return &vsr, nil
 }
 
-// VoteStartRunoff sends the given VoteStartRunoff to the pi api
-// RouteVoteStartRunoff and returns the reply.
-func (c *Client) VoteStartRunoff(vsr pi.VoteStartRunoff) (*pi.VoteStartRunoffReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteVoteStartRunoff, vsr)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vsrr pi.VoteStartRunoffReply
-	err = json.Unmarshal(respBody, &vsrr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		vsrr.EligibleTickets = []string{"removed by piwww for readability"}
-		err := prettyPrintJSON(vsrr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vsrr, nil
-}
-
 // UserRegistrationPayment checks whether the logged in user has paid their user
 // registration fee.
 func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, error) {
@@ -2034,10 +2004,10 @@ func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
-// VoteBallot casts a ballot of votes for a proposal.
-func (c *Client) VoteBallot(vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
+// CastBallot casts a ballot of votes for a proposal.
+func (c *Client) CastBallot(cb pi.CastBallot) (*pi.CastBallotReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteVoteBallot, vb)
+		pi.APIRoute, pi.RouteCastBallot, cb)
 	if err != nil {
 		return nil, err
 	}
@@ -2046,20 +2016,20 @@ func (c *Client) VoteBallot(vb pi.VoteBallot) (*pi.VoteBallotReply, error) {
 		return nil, piError(respBody, statusCode)
 	}
 
-	var vbr pi.VoteBallotReply
-	err = json.Unmarshal(respBody, &vbr)
+	var cbr pi.CastBallotReply
+	err = json.Unmarshal(respBody, &cbr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal VoteBallotReply: %v", err)
+		return nil, fmt.Errorf("unmarshal CastBallotReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(vbr)
+		err := prettyPrintJSON(cbr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &vbr, nil
+	return &cbr, nil
 }
 
 // UpdateUserKey updates the identity of the logged in user.

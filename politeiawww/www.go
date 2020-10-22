@@ -122,7 +122,6 @@ func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) www.ErrorSta
 		return www.ErrorStatusInvalidPropVoteParams
 	case ticketvote.ErrorStatusVoteStatusInvalid:
 		return www.ErrorStatusInvalidPropVoteStatus
-	case ticketvote.ErrorStatusBallotInvalid:
 	}
 	return www.ErrorStatusInvalid
 }
@@ -256,8 +255,6 @@ func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatu
 		return pi.ErrorStatusVoteParamsInvalid
 	case ticketvote.ErrorStatusVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
-	case ticketvote.ErrorStatusBallotInvalid:
-		return pi.ErrorStatusBallotInvalid
 	}
 	return pi.ErrorStatusInvalid
 }
@@ -380,8 +377,8 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 					r.URL, r.Proto, t, errCode)
 			} else {
 				log.Errorf("%v %v %v %v Internal error %v: error "+
-					"code from politeiad plugin %v: %v", remoteAddr(r),
-					r.Method, r.URL, r.Proto, t, pluginID, errCode)
+					"code from politeiad plugin %v: %v %v", remoteAddr(r),
+					r.Method, r.URL, r.Proto, t, pluginID, errCode, errContext)
 			}
 
 			util.RespondWithJSON(w, http.StatusInternalServerError,

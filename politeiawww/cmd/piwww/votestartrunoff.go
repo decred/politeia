@@ -85,22 +85,8 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 		}
 	}
 
-	// Prepare VoteAuthorize for each submission
-	auths := make([]pi.VoteAuthorize, 0, len(submissions))
-	for _, v := range submissions {
-		action := pi.VoteAuthActionAuthorize
-		msg := v.CensorshipRecord.Token + v.Version + string(action)
-		sig := cfg.Identity.SignMessage([]byte(msg))
-		auths = append(auths, pi.VoteAuthorize{
-			Token:     v.CensorshipRecord.Token,
-			Action:    action,
-			PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
-			Signature: hex.EncodeToString(sig[:]),
-		})
-	}
-
 	// Prepare VoteStart for each submission
-	starts := make([]pi.VoteStart, 0, len(submissions))
+	starts := make([]pi.StartDetails, 0, len(submissions))
 	for _, v := range submissions {
 		version, err := strconv.ParseUint(v.Version, 10, 32)
 		if err != nil {
@@ -135,7 +121,7 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 		msg := hex.EncodeToString(util.Digest(vb))
 		sig := cfg.Identity.SignMessage([]byte(msg))
 
-		starts = append(starts, pi.VoteStart{
+		starts = append(starts, pi.StartDetails{
 			Params:    vote,
 			PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 			Signature: hex.EncodeToString(sig[:]),
@@ -143,16 +129,14 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 	}
 
 	// Prepare and send request
-	svr := pi.VoteStartRunoff{
-		Token:  cmd.Args.TokenRFP,
-		Auths:  auths,
+	vs := pi.VoteStart{
 		Starts: starts,
 	}
-	err = shared.PrintJSON(svr)
+	err = shared.PrintJSON(vs)
 	if err != nil {
 		return err
 	}
-	svrr, err := client.VoteStartRunoff(svr)
+	vsr, err := client.VoteStart(vs)
 	if err != nil {
 		return err
 	}
@@ -160,9 +144,8 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 	// Print response details. Remove ticket snapshot from
 	// the response before printing so that the output is
 	// legible.
-	m := "removed by piwww for readability"
-	svrr.EligibleTickets = []string{m}
-	err = shared.PrintJSON(svrr)
+	vsr.EligibleTickets = []string{"removed by piwww for readability"}
+	err = shared.PrintJSON(vsr)
 	if err != nil {
 		return err
 	}

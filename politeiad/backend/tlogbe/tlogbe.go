@@ -138,7 +138,10 @@ func tokenIsFullLength(token []byte) bool {
 	return len(token) == v1.TokenSizeShort
 }
 
-func decodeTokenFullLength(token string) ([]byte, error) {
+// tokenDecode decodes the provided hex encoded record token. This function
+// requires that the token be the full length. Token prefixes will return an
+// error.
+func tokenDecode(token string) ([]byte, error) {
 	t, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid hex")
@@ -148,8 +151,23 @@ func decodeTokenFullLength(token string) ([]byte, error) {
 	}
 	return t, nil
 }
-func tokenPrefix(token []byte) string {
-	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
+
+// tokenDecodeAnyLength decodes the provided hex encoded record token. This
+// function accepts both full length tokens and token prefixes.
+func tokenDecodeAnyLength(token string) ([]byte, error) {
+	t, err := hex.DecodeString(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hex")
+	}
+	switch {
+	case tokenIsFullLength(t):
+		// Full length tokens are allowed; continue
+	case len(t) == tokenPrefixSize():
+		// Token prefixes are allowed; continue
+	default:
+		return nil, fmt.Errorf("invalid token size")
+	}
+	return t, nil
 }
 
 // tokenPrefixSize returns the size in bytes of a token prefix.
@@ -169,6 +187,11 @@ func tokenPrefixSize() int {
 	return size
 }
 
+// tokenPrefix returns the token prefix as defined by the politeiad API.
+func tokenPrefix(token []byte) string {
+	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
+}
+
 func tokenFromTreeID(treeID int64) []byte {
 	b := make([]byte, binary.MaxVarintLen64)
 	// Converting between int64 and uint64 doesn't change
@@ -178,6 +201,9 @@ func tokenFromTreeID(treeID int64) []byte {
 }
 
 func treeIDFromToken(token []byte) int64 {
+	if !tokenIsFullLength(token) {
+		return 0
+	}
 	return int64(binary.LittleEndian.Uint64(token))
 }
 
