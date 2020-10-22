@@ -6,5 +6,7 @@
 
 package main
 
-func (c *client) statsHandler() {
+import "context"
+
+func (c *client) statsHandler(_ context.Context) {
 }

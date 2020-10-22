@@ -7,13 +7,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-func (c *client) statsHandler() {
+func (c *client) statsHandler(ctx context.Context) {
 	// Launch signal handler
 	signalsChan := make(chan os.Signal, 1)
 	signalsDone := make(chan struct{}, 1)
@@ -21,7 +22,7 @@ func (c *client) statsHandler() {
 
 	for {
 		select {
-		case <-c.wctx.Done():
+		case <-ctx.Done():
 			// Shut down signal handler
 			signal.Stop(signalsChan)
 			close(signalsDone)

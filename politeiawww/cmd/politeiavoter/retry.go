@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -55,7 +56,7 @@ func (c *client) dumpQueue() {
 	}
 }
 
-func (c *client) retryLoop() {
+func (c *client) retryLoop(ctx context.Context) {
 	log.Debug("retryLoop: start of day")
 	defer log.Debugf("retryLoop: end of times")
 	defer c.retryWG.Done()
@@ -72,7 +73,7 @@ func (c *client) retryLoop() {
 		}
 
 		select {
-		case <-c.wctx.Done():
+		case <-ctx.Done():
 			return
 		case <-c.mainLoopForceExit:
 			// Main loop is forcing an exit
@@ -107,7 +108,7 @@ func (c *client) retryLoop() {
 		ticket := e.vote.Ticket
 		b := v1.Ballot{Votes: []v1.CastVote{e.vote}}
 		log.Debugf("retryLoop: sendVote %v", ticket)
-		br, err := c.sendVote(&b)
+		br, err := c.sendVote(ctx, &b)
 		var serr ErrRetry
 		if errors.As(err, &serr) {
 			// Push to back retry later
