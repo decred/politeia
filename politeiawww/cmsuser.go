@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -369,40 +370,83 @@ func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManage
 	if mu.ContractorType != 0 {
 		uu.ContractorType = int(mu.ContractorType)
 	}
-	if len(mu.SupervisorUserIDs) > 0 {
-		// Validate SupervisorUserID input
-		parseSuperUserIds := make([]uuid.UUID, 0, len(mu.SupervisorUserIDs))
-		for _, super := range mu.SupervisorUserIDs {
-			parseUUID, err := uuid.Parse(super)
-			if err != nil {
-				e := fmt.Sprintf("invalid uuid: %v", super)
-				return nil, www.UserError{
-					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
-					ErrorContext: []string{e},
-				}
-			}
-			u, err := p.getCMSUserByID(super)
-			if err != nil {
-				e := fmt.Sprintf("user not found: %v", super)
-				return nil, www.UserError{
-					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
-					ErrorContext: []string{e},
-				}
-			}
-			if u.ContractorType != cms.ContractorTypeSupervisor {
-				e := fmt.Sprintf("user not a supervisor: %v", super)
-				return nil, www.UserError{
-					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
-					ErrorContext: []string{e},
-				}
-			}
-			parseSuperUserIds = append(parseSuperUserIds, parseUUID)
-		}
-		uu.SupervisorUserIDs = parseSuperUserIds
+
+	previousCMSUser, err := p.getCMSUserByIDRaw(mu.UserID)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(mu.ProposalsOwned) > 0 {
-		uu.ProposalsOwned = mu.ProposalsOwned
+	// Manage a user's supervisors
+	switch mu.SupervisorUserIDs.Action {
+	case "set":
+		supervisors := mu.SupervisorUserIDs.Payload
+		parseSupervisors := make([]uuid.UUID, 0, len(supervisors))
+		for _, id := range supervisors {
+			// Check if uuid is valid
+			parseUUID, err := uuid.Parse(id)
+			if err != nil {
+				e := fmt.Sprintf("invalid uuid: %v", id)
+				return nil, www.UserError{
+					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
+					ErrorContext: []string{e},
+				}
+			}
+			// Check if user exists
+			u, err := p.getCMSUserByID(id)
+			if err != nil {
+				e := fmt.Sprintf("user not found: %v", id)
+				return nil, www.UserError{
+					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
+					ErrorContext: []string{e},
+				}
+			}
+			// Make sure the user is a supervisor
+			if u.ContractorType != cms.ContractorTypeSupervisor {
+				e := fmt.Sprintf("user not a supervisor: %v", id)
+				return nil, www.UserError{
+					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
+					ErrorContext: []string{e},
+				}
+			}
+			parseSupervisors = append(parseSupervisors, parseUUID)
+		}
+		uu.SupervisorUserIDs = parseSupervisors
+	case "reset":
+		uu.SupervisorUserIDs = []uuid.UUID{}
+	case "":
+		uu.SupervisorUserIDs = previousCMSUser.SupervisorUserIDs
+	default:
+		e := fmt.Sprintf("invalid action: %v", mu.SupervisorUserIDs.Action)
+		return nil, www.UserError{
+			ErrorCode:    cms.ErrorStatusInvalidManageUserAction,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Manage a user's owned proposal
+	switch mu.ProposalsOwned.Action {
+	case "set":
+		tokens := mu.ProposalsOwned.Payload
+		for _, token := range tokens {
+			b, err := hex.DecodeString(token)
+			if err != nil || len(b) != pd.TokenSize {
+				return nil, www.UserError{
+					ErrorCode:    cms.ErrorStatusMalformedProposalToken,
+					ErrorContext: []string{token},
+				}
+			}
+		}
+		uu.ProposalsOwned = tokens
+	case "reset":
+		uu.ProposalsOwned = []string{}
+	case "":
+		uu.ProposalsOwned = previousCMSUser.ProposalsOwned
+	default:
+		e := fmt.Sprintf("invalid action: %v", mu.ProposalsOwned.Action)
+		return nil, www.UserError{
+			ErrorCode:    cms.ErrorStatusInvalidManageUserAction,
+			ErrorContext: []string{e},
+		}
 	}
 
 	payload, err := user.EncodeUpdateCMSUser(uu)

@@ -419,6 +419,7 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		CMSStatementSupportedChars:    cms.PolicySponsorStatementSupportedChars,
 		CMSSupportedDomains:           cms.PolicySupportedCMSDomains,
 		CMSSupportedLineItemTypes:     cms.PolicyCMSSupportedLineItemTypes,
+		CMSManageUserActions:          cms.PolicyCMSManageUserActions,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

@@ -241,6 +241,7 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+	ErrorStatusInvalidManageUserAction        www.ErrorStatusT = 1057
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
@@ -324,6 +325,14 @@ var (
 		},
 	}
 
+	// PolicyCMSManageUserActions defines the actions allowed to edit the
+	// user fields on manage user route
+	PolicyCMSManageUserActions = []string{
+		"",      // Do nothing
+		"set",   // Set payload
+		"reset", // Reset
+	}
+
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[www.ErrorStatusT]string{
 		ErrorStatusMalformedName:                  "malformed name",
@@ -380,6 +389,7 @@ var (
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
+		ErrorStatusInvalidManageUserAction:        "the client selected an invalid manage user action",
 	}
 )
 
@@ -536,6 +546,7 @@ type PolicyReply struct {
 	CMSStatementSupportedChars    []string                `json:"cmsstatementsupportedchars"`
 	CMSSupportedLineItemTypes     []AvailableLineItemType `json:"supportedlineitemtypes"`
 	CMSSupportedDomains           []AvailableDomain       `json:"supporteddomains"`
+	CMSManageUserActions          []string                `json:"cmsmanageuseractions"`
 }
 
 // UserInvoices is used to get all of the invoices by userID.
@@ -711,13 +722,20 @@ type EditUser struct {
 // EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
 
+// CMSManageUserAction specifies commands that can be used to manage
+// a user field.
+type CMSManageUserAction struct {
+	Action  string // Set or reset
+	Payload []string
+}
+
 // CMSManageUser updates the various fields for a given user.
 type CMSManageUser struct {
-	UserID            string          `json:"userid"`
-	Domain            DomainTypeT     `json:"domain,omitempty"`
-	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
-	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
-	ProposalsOwned    []string        `json:"proposalsowned,omitempty"`
+	UserID            string              `json:"userid"`
+	Domain            DomainTypeT         `json:"domain,omitempty"`
+	ContractorType    ContractorTypeT     `json:"contractortype,omitempty"`
+	SupervisorUserIDs CMSManageUserAction `json:"supervisoruserids,omitempty"`
+	ProposalsOwned    CMSManageUserAction `json:"proposalsowned,omitempty"`
 }
 
 // CMSManageUserReply is the reply for the CMSManageUserReply command.
