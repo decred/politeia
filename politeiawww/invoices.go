@@ -1769,9 +1769,7 @@ func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.Use
 
 	invoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pb.Token)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvoiceNotFound,
-		}
+		return nil, err
 	}
 	propBilling := make([]cms.ProposalLineItems, 0, len(invoices))
 	for _, inv := range invoices {
