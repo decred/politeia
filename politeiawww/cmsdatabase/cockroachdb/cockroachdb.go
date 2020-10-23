@@ -606,7 +606,7 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
               line_items.proposal_url,
               line_items.labor,
               line_items.expenses,
-              line_items.contractor_rate AS sub_rate
+              line_items.contractor_rate AS sub_rate,
               line_items.sub_user_id as sub_user
             FROM invoices
             LEFT OUTER JOIN invoices b
