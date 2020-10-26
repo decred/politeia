@@ -663,6 +663,21 @@ func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.Suppor
 	if err != nil {
 		return nil, err
 	}
+
+	if sd.Vote == supportString {
+		dcc.SupportUserIDs = append(dcc.SupportUserIDs, sd.PublicKey)
+	} else if sd.Vote == opposeString {
+		dcc.OppositionUserIDs = append(dcc.OppositionUserIDs, sd.PublicKey)
+	}
+	dbDcc := convertDCCDatabaseFromDCCRecord(*dcc)
+	if err != nil {
+		return nil, err
+	}
+	err = p.cmsDB.UpdateDCC(&dbDcc)
+	if err != nil {
+		return nil, err
+	}
+
 	// Fire new event notification upon new DCC being supported or opposed.
 	p.fireEvent(EventTypeDCCSupportOppose,
 		EventDataDCCSupportOppose{

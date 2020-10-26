@@ -1257,7 +1257,12 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			for _, s := range sc {
 				dbDCC.Status = s.NewStatus
 				dbDCC.StatusChangeReason = s.Reason
-				dbDCC.TimeReviewed = s.Timestamp
+				switch s.NewStatus {
+				case cms.DCCStatusActive:
+					dbDCC.TimeSubmitted = s.Timestamp
+				case cms.DCCStatusApproved, cms.DCCStatusRejected:
+					dbDCC.TimeReviewed = s.Timestamp
+				}
 			}
 		case mdstream.IDDCCSupportOpposition:
 			// Support and Opposition
@@ -1280,19 +1285,19 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			}
 			supports := ""
 			for i, support := range supportPubkeys {
-				if i != len(supportPubkeys)-1 {
-					supports += support + ", "
-				} else {
+				if i == 0 {
 					supports += support
+				} else {
+					supports += "," + support
 				}
 			}
 			dbDCC.SupportUserIDs = supports
 			opposes := ""
 			for i, oppose := range opposePubkeys {
-				if i != len(opposePubkeys)-1 {
-					opposes += oppose + ", "
-				} else {
+				if i == 0 {
 					opposes += oppose
+				} else {
+					opposes += "," + oppose
 				}
 			}
 			dbDCC.OppositionUserIDs = opposes
