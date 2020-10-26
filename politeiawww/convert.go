@@ -1546,6 +1546,6 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 		li.SubRate = 0
 		inv.Input.LineItems[i] = li
 	}
-
+	inv.Payment = cms.PaymentInformation{}
 	return *inv
 }
