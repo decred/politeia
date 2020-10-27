@@ -268,8 +268,8 @@ var (
 // error that is caused by something that the user did (malformed input, bad
 // timing, etc). The HTTP status code will be 400.
 type UserErrorReply struct {
-	ErrorCode    ErrorStatusT
-	ErrorContext []string
+	ErrorCode    ErrorStatusT `json:"errorcode"`
+	ErrorContext []string     `json:"errorcontext"`
 }
 
 // Error satisfies the error interface.
