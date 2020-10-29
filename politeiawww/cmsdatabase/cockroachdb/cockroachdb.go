@@ -919,7 +919,7 @@ func (c *cockroachdb) UpdatePayments(dbPayments *database.Payments) error {
 
 	log.Debugf("UpdatePayments: %v", payments.InvoiceToken)
 
-	return c.recordsdb.Save(payments).Error
+	return c.recordsdb.Save(&payments).Error
 }
 
 // PaymentsByAddress returns payments row that has the matching Address.

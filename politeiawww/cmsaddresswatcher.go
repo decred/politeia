@@ -155,6 +155,7 @@ func (p *politeiawww) restartCMSAddressesWatching(ctx context.Context) error {
 				listenStartDate := time.Date(int(invoice.Year),
 					time.Month(invoice.Month+1), 0, 0, 0, 0, 0, time.UTC)
 				invoice.Payments = database.Payments{
+					InvoiceToken: invoice.Token,
 					Address:      strings.TrimSpace(invoice.PaymentAddress),
 					TimeStarted:  listenStartDate.Unix(),
 					Status:       cms.PaymentStatusWatching,
