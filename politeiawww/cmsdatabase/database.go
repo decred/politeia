@@ -147,6 +147,7 @@ type ExchangeRate struct {
 
 // Payments contains information about each invoice's payments.
 type Payments struct {
+	InvoiceKey      string
 	InvoiceToken    string
 	Address         string
 	TxIDs           string

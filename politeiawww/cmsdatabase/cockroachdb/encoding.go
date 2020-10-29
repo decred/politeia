@@ -187,6 +187,7 @@ func decodeExchangeRate(exchangeRate ExchangeRate) *database.ExchangeRate {
 
 func encodePayments(dbPayments *database.Payments) Payments {
 	payments := Payments{}
+	payments.InvoiceKey = dbPayments.InvoiceKey
 	payments.InvoiceToken = dbPayments.InvoiceToken
 	payments.Address = dbPayments.Address
 	payments.TxIDs = dbPayments.TxIDs
@@ -200,6 +201,7 @@ func encodePayments(dbPayments *database.Payments) Payments {
 
 func decodePayment(payments *Payments) database.Payments {
 	dbPayments := database.Payments{}
+	dbPayments.InvoiceKey = payments.InvoiceKey
 	dbPayments.InvoiceToken = payments.InvoiceToken
 	dbPayments.Address = payments.Address
 	dbPayments.TxIDs = payments.TxIDs
