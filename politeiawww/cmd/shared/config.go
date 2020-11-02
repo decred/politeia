@@ -59,8 +59,8 @@ type Config struct {
 	FaucetHost string // Testnet faucet host
 	CSRF       string // CSRF header token
 
-	ClientCert string `long:"cert" description:"Path to TLS certificate for client authentication"`
-	ClientKey  string `long:"key" description:"Path to TLS client authentication key"`
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 
 	Identity *identity.FullIdentity // User identity
 	Cookies  []*http.Cookie         // User cookies
