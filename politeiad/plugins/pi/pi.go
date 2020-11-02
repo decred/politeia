@@ -304,12 +304,12 @@ type CommentNewReply struct {
 	Comment comments.Comment `json:"comment"`
 }
 
-// EncodeCommentNew encodes a CommentNewReply into a JSON byte slice.
+// EncodeCommentNewReply encodes a CommentNewReply into a JSON byte slice.
 func EncodeCommentNewReply(cnr CommentNewReply) ([]byte, error) {
 	return json.Marshal(cnr)
 }
 
-// DecodeCommentNew decodes a JSON byte slice into a CommentNewReply.
+// DecodeCommentNewReply decodes a JSON byte slice into a CommentNewReply.
 func DecodeCommentNewReply(payload []byte) (*CommentNewReply, error) {
 	var cnr CommentNewReply
 	err := json.Unmarshal(payload, &cnr)

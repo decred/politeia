@@ -51,6 +51,7 @@ func (cmd *voteAuthorizeCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("proposalRecordLatest: %v", err)
 	}
+	// Parse version
 	version, err := strconv.ParseUint(pr.Version, 10, 32)
 	if err != nil {
 		return err

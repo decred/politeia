@@ -31,6 +31,9 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 		"public":    pi.PropStatusPublic,
 		"censored":  pi.PropStatusCensored,
 		"abandoned": pi.PropStatusAbandoned,
+		"2":         pi.PropStatusPublic,
+		"3":         pi.PropStatusCensored,
+		"4":         pi.PropStatusAbandoned,
 	}
 
 	// Verify state. Defaults to vetted if the --unvetted flag

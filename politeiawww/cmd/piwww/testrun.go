@@ -6,11 +6,15 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -24,13 +28,20 @@ type testRunCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
+var (
+	minPasswordLength int
+	publicKey         string
+)
+
 // testUser stores user details that are used throughout the test run.
 type testUser struct {
-	ID        string // UUID
-	Email     string // Email
-	Username  string // Username
-	Password  string // Password (not hashed)
-	PublicKey string // Public key of active identity
+	ID             string // UUID
+	Email          string // Email
+	Username       string // Username
+	Password       string // Password (not hashed)
+	PublicKey      string // Public key of active identity
+	PaywallAddress string // Paywall address
+	PaywallAmount  uint64 // Paywall amount
 }
 
 // login logs in the specified user.
@@ -71,13 +82,13 @@ func randomString(length int) (string, error) {
 }
 
 // userNew creates a new user and returnes user's public key.
-func userNew(email, password, username string) (*identity.FullIdentity, error) {
+func userNew(email, password, username string) (*identity.FullIdentity, string, error) {
 	fmt.Printf("  Creating user: %v\n", email)
 
 	// Create user identity and save it to disk
 	id, err := shared.NewIdentity()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Setup new user request
@@ -87,12 +98,12 @@ func userNew(email, password, username string) (*identity.FullIdentity, error) {
 		Password:  shared.DigestSHA3(password),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
-	_, err = client.NewUser(nu)
+	nur, err := client.NewUser(nu)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return id, nil
+	return id, nur.VerificationToken, nil
 }
 
 // userManage sends a usermanage command
@@ -108,8 +119,46 @@ func userManage(userID, action, reason string) error {
 	return nil
 }
 
+// userEmailVerify verifies user's email
+func userEmailVerify(vt, email string, id *identity.FullIdentity) error {
+	fmt.Printf("  Verify user's email\n")
+	sig := id.SignMessage([]byte(vt))
+	_, err := client.VerifyNewUser(
+		&www.VerifyNewUser{
+			Email:             email,
+			VerificationToken: vt,
+			Signature:         hex.EncodeToString(sig[:]),
+		})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// userCreate creates new user & returns the created testUser
+func userCreate() (*testUser, *identity.FullIdentity, string, error) {
+	// Create user and verify email
+	randomStr, err := randomString(minPasswordLength)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	email := randomStr + "@example.com"
+	username := randomStr
+	password := randomStr
+	id, vt, err := userNew(email, password, username)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	return &testUser{
+		Email:    email,
+		Username: username,
+		Password: password,
+	}, id, vt, nil
+}
+
 // testUser tests piwww user specific routes.
-func testUserRoutes(admin testUser, minPasswordLength int) error {
+func testUserRoutes(admin testUser) error {
 	// sleepInterval is the time to wait in between requests
 	// when polling politeiawww for paywall tx confirmations.
 	const sleepInterval = 15 * time.Second
@@ -124,21 +173,14 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 		// purchased using the testnet faucet.
 		numCredits = 1
 
-		// Test users
-		user testUser
+		// Test user
+		user *testUser
 	)
 	// Run user routes.
 	fmt.Printf("Running user routes\n")
 
-	// Create user and verify email
-	randomStr, err := randomString(minPasswordLength)
-	if err != nil {
-		return err
-	}
-	email := randomStr + "@example.com"
-	username := randomStr
-	password := randomStr
-	id, err := userNew(email, password, username)
+	// Create new user
+	user, id, _, err := userCreate()
 	if err != nil {
 		return err
 	}
@@ -147,22 +189,14 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 	fmt.Printf("  Resend email Verification\n")
 	rvr, err := client.ResendVerification(www.ResendVerification{
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Email:     email,
+		Email:     user.Email,
 	})
 	if err != nil {
 		return err
 	}
 
 	// Verify email
-	fmt.Printf("  Verify user's email\n")
-	vt := rvr.VerificationToken
-	sig := id.SignMessage([]byte(vt))
-	_, err = client.VerifyNewUser(
-		&www.VerifyNewUser{
-			Email:             email,
-			VerificationToken: vt,
-			Signature:         hex.EncodeToString(sig[:]),
-		})
+	err = userEmailVerify(rvr.VerificationToken, user.Email, id)
 	if err != nil {
 		return err
 	}
@@ -170,20 +204,17 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 	// Login and store user details
 	fmt.Printf("  Login user\n")
 	lr, err := client.Login(&www.Login{
-		Email:    email,
-		Password: shared.DigestSHA3(password),
+		Email:    user.Email,
+		Password: shared.DigestSHA3(user.Password),
 	})
 	if err != nil {
 		return err
 	}
 
-	user = testUser{
-		ID:        lr.UserID,
-		Email:     email,
-		Username:  username,
-		Password:  password,
-		PublicKey: lr.PublicKey,
-	}
+	user.PublicKey = lr.PublicKey
+	user.PaywallAddress = lr.PaywallAddress
+	user.ID = lr.UserID
+	user.PaywallAmount = lr.PaywallAmount
 
 	// Logout user
 	fmt.Printf("  Logout user\n")
@@ -192,8 +223,14 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 		return err
 	}
 
+	// Update user key
+	err = userKeyUpdate(*user)
+	if err != nil {
+		return err
+	}
+
 	// Log back in
-	err = login(user)
+	err = login(*user)
 	if err != nil {
 		return err
 	}
@@ -216,17 +253,9 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 		return err
 	}
 
-	// Update user key
-	fmt.Printf("  Update user key\n")
-	ukuc := shared.UserKeyUpdateCmd{}
-	err = ukuc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
 	// Change username
 	fmt.Printf("  Change username\n")
-	randomStr, err = randomString(minPasswordLength)
+	randomStr, err := randomString(minPasswordLength)
 	if err != nil {
 		return err
 	}
@@ -268,13 +297,14 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 	user.Password = randomStr
 
 	// Login with new password
-	err = login(user)
+	err = login(*user)
 	if err != nil {
 		return err
 	}
+
 	// Check if paywall is enabled.  Paywall address and paywall
 	// amount will be zero values if paywall has been disabled.
-	if lr.PaywallAddress != "" && lr.PaywallAmount != 0 {
+	if user.PaywallAddress != "" && user.PaywallAmount != 0 {
 		paywallEnabled = true
 	} else {
 		fmt.Printf("WARNING: politeiawww paywall is disabled\n")
@@ -285,14 +315,14 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 		// Pay user registration fee
 		fmt.Printf("  Paying user registration fee\n")
 		txID, err := util.PayWithTestnetFaucet(context.Background(),
-			cfg.FaucetHost, lr.PaywallAddress, lr.PaywallAmount, "")
+			cfg.FaucetHost, user.PaywallAddress, user.PaywallAmount, "")
 		if err != nil {
 			return err
 		}
 
-		dcr := float64(lr.PaywallAmount) / 1e8
+		dcr := float64(user.PaywallAmount) / 1e8
 		fmt.Printf("  Paid %v DCR to %v with txID %v\n",
-			dcr, lr.PaywallAddress, txID)
+			dcr, user.PaywallAddress, txID)
 	}
 
 	// Wait for user registration payment confirmations
@@ -333,7 +363,7 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 		}
 
 		fmt.Printf("  Paid %v DCR to %v with txID %v\n",
-			float64(atoms)/1e8, lr.PaywallAddress, txID)
+			float64(atoms)/1e8, user.PaywallAddress, txID)
 	}
 
 	// Keep track of when the pending proposal credit payment
@@ -446,15 +476,526 @@ func testUserRoutes(admin testUser, minPasswordLength int) error {
 	return nil
 }
 
+// proposalNewNormal is a wrapper func which creates a proposal by calling
+// proposalNew
+func proposalNewNormal() (*pi.ProposalNew, error) {
+	return proposalNew(false, "")
+}
+
+// proposalNew returns a NewProposal object contains randonly generated
+// markdown text and a signature from the logged in user. If given `rfp` bool
+// is true it creates an RFP. If given `linkto` it creates a RFP submission.
+func proposalNew(rfp bool, linkto string) (*pi.ProposalNew, error) {
+	md, err := createMDFile()
+	if err != nil {
+		return nil, fmt.Errorf("create MD file: %v", err)
+	}
+	files := []pi.File{*md}
+
+	pm := www.ProposalMetadata{
+		Name: "Some proposal name",
+	}
+	if rfp {
+		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	}
+	if linkto != "" {
+		pm.LinkTo = linkto
+	}
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []pi.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    pi.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
+	}
+
+	sig, err := signedMerkleRoot(files, metadata, cfg.Identity)
+	if err != nil {
+		return nil, fmt.Errorf("sign merkle root: %v", err)
+	}
+
+	return &pi.ProposalNew{
+		Files:     files,
+		Metadata:  metadata,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: sig,
+	}, nil
+}
+
+// submitNewPropsal submits new proposal and verifies it
+//
+// This function returns with the user logged out
+func submitNewProposal(user testUser) (string, error) {
+	// Login user
+	err := login(user)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Printf("  New proposal\n")
+	pn, err := proposalNewNormal()
+	if err != nil {
+		return "", err
+	}
+	pnr, err := client.ProposalNew(*pn)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify proposal censorship record
+	pr := &pi.ProposalRecord{
+		Files:            pn.Files,
+		Metadata:         pn.Metadata,
+		PublicKey:        pn.PublicKey,
+		Signature:        pn.Signature,
+		CensorshipRecord: pnr.Proposal.CensorshipRecord,
+	}
+	err = verifyProposal(*pr, publicKey)
+	if err != nil {
+		return "", fmt.Errorf("verify proposal failed: %v", err)
+	}
+
+	token := pr.CensorshipRecord.Token
+	fmt.Printf("  Proposal submitted: %v\n", token)
+
+	// Logout
+	err = logout()
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+// proposalSetStatus calls proposal set status command
+//
+// This function returns with user logged out
+func proposalSetStatus(user testUser, state pi.PropStateT, token, reason string, status pi.PropStatusT) error {
+	// Login user
+	err := login(user)
+	if err != nil {
+		return err
+	}
+
+	pssc := proposalStatusSetCmd{
+		Unvetted: state == pi.PropStateUnvetted,
+	}
+	pssc.Args.Token = token
+	pssc.Args.Status = strconv.Itoa(int(status))
+	pssc.Args.Reason = reason
+	err = pssc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	return logout()
+}
+
+// proposalCensor censors given proposal
+//
+// This function returns with user logged out
+func proposalCensor(user testUser, state pi.PropStateT, token, reason string) error {
+	err := proposalSetStatus(user, state, token, reason, pi.PropStatusCensored)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// proposalPublic makes given proposal public
+//
+// This function returns with user logged out
+func proposalPublic(user testUser, token string) error {
+	err := proposalSetStatus(user, pi.PropStateUnvetted, token, "", pi.PropStatusPublic)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// proposalAbandon abandons given proposal
+//
+// This function returns with user logged out
+func proposalAbandon(user testUser, token, reason string) error {
+	err := proposalSetStatus(user, pi.PropStateVetted, token, reason,
+		pi.PropStatusAbandoned)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// proposalEdit edits given proposal
+//
+// This function returns with user logged out
+func proposalEdit(user testUser, state pi.PropStateT, token string) error {
+	// Login user
+	err := login(user)
+	if err != nil {
+		return err
+	}
+
+	epc := proposalEditCmd{
+		Random:   true,
+		Unvetted: state == pi.PropStateUnvetted,
+	}
+	epc.Args.Token = token
+	err = epc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Logout
+	return logout()
+}
+
+// proposals fetchs requested proposals and verifies returned map length
+//
+// This function returns with user logged out
+func proposals(user testUser, ps pi.Proposals) (map[string]pi.ProposalRecord, error) {
+	// Login user
+	err := login(user)
+	if err != nil {
+		return nil, err
+	}
+	psr, err := client.Proposals(ps)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(psr.Proposals) != len(ps.Requests) {
+		return nil, fmt.Errorf("Received wrong number of proposals: want %v,"+
+			" got %v", len(ps.Requests), len(psr.Proposals))
+	}
+
+	// Logout
+	err = logout()
+	if err != nil {
+		return nil, err
+	}
+
+	return psr.Proposals, nil
+}
+
+// userKeyUpdate updates user's key
+//
+// This function returns with the user logged out
+func userKeyUpdate(user testUser) error {
+	// Login user
+	err := login(user)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  Update user key\n")
+	ukuc := shared.UserKeyUpdateCmd{}
+	err = ukuc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	return logout()
+}
+
+// testProposalRoutes tests the propsal routes
+func testProposalRoutes(admin testUser) error {
+	// Run proposal routes.
+	fmt.Printf("Running proposal routes\n")
+
+	// Create test user
+	fmt.Printf("Creating test user\n")
+	user, id, vt, err := userCreate()
+	if err != nil {
+		return err
+	}
+
+	// Verify email
+	err = userEmailVerify(vt, user.Email, id)
+	if err != nil {
+		return err
+	}
+
+	// Update user key
+	err = userKeyUpdate(*user)
+	if err != nil {
+		return err
+	}
+
+	// Submit new proposal
+	censoredToken1, err := submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Edit unvetted proposal
+	fmt.Printf("  Edit unvetted proposal\n")
+	err = proposalEdit(*user, pi.PropStateUnvetted, censoredToken1)
+	if err != nil {
+		return err
+	}
+
+	// Censor unvetted proposal
+	fmt.Printf("  Censor unvetted proposal\n")
+	const reason = "because!"
+	err = proposalCensor(admin, pi.PropStateUnvetted, censoredToken1, reason)
+	if err != nil {
+		return err
+	}
+
+	// Submit new proposal
+	censoredToken2, err := submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Make the proposal public
+	fmt.Printf("  Set proposal status: public\n")
+	err = proposalPublic(admin, censoredToken2)
+	if err != nil {
+		return err
+	}
+
+	// Edit vetted proposal
+	fmt.Printf("  Edit vetted proposal\n")
+	err = proposalEdit(*user, pi.PropStateVetted, censoredToken2)
+	if err != nil {
+		return err
+	}
+
+	// Censor public proposal
+	fmt.Printf("  Censor public proposal\n")
+	err = proposalCensor(admin, pi.PropStateVetted, censoredToken2, reason)
+	if err != nil {
+		return err
+	}
+
+	// Submit new proposal
+	abandonedToken, err := submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Make the proposal public
+	fmt.Printf("  Set proposal status: public\n")
+	err = proposalPublic(admin, abandonedToken)
+	if err != nil {
+		return err
+	}
+
+	// Abandon public proposal
+	fmt.Printf("  Abandon proposal\n")
+	err = proposalAbandon(admin, abandonedToken, reason)
+	if err != nil {
+		return err
+	}
+
+	// Submit new proposal and leave it unvetted
+	unvettedToken, err := submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Submit new proposal and make it public
+	publicToken, err := submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Make the proposal public
+	fmt.Printf("  Set proposal status: public\n")
+	err = proposalPublic(admin, publicToken)
+	if err != nil {
+		return err
+	}
+
+	// Login admin
+	err = login(admin)
+	if err != nil {
+		return err
+	}
+
+	// Proposal inventory
+	var publicExists, censoredExists, abandonedExists, unvettedExists bool
+	fmt.Printf("  Proposal inventory\n")
+	pir, err := client.ProposalInventory(pi.ProposalInventory{})
+	if err != nil {
+		return err
+	}
+	// Vetted proposals map
+	vettedProps := pir.Vetted
+
+	// Ensure public proposal token received
+	publicProps, ok := vettedProps[pi.PropStatus[pi.PropStatusPublic]]
+	if !ok {
+		return fmt.Errorf("No public proposals returned")
+	}
+	for _, t := range publicProps {
+		if t == publicToken {
+			publicExists = true
+		}
+	}
+	if !publicExists {
+		return fmt.Errorf("Proposal inventory missing public proposal: %v",
+			publicToken)
+	}
+
+	// Ensure vetted censored proposal token received
+	vettedCensored, ok := vettedProps[pi.PropStatus[pi.PropStatusCensored]]
+	if !ok {
+		return fmt.Errorf("No vetted censrored proposals returned")
+	}
+	for _, t := range vettedCensored {
+		if t == censoredToken2 {
+			censoredExists = true
+		}
+	}
+	if !censoredExists {
+		return fmt.Errorf("Proposal inventory missing vetted censored proposal"+
+			": %v",
+			censoredToken1)
+	}
+
+	// Ensure abandoned proposal token received
+	abandonedProps, ok := vettedProps[pi.PropStatus[pi.PropStatusAbandoned]]
+	if !ok {
+		return fmt.Errorf("No abandoned proposals returned")
+	}
+	for _, t := range abandonedProps {
+		if t == abandonedToken {
+			abandonedExists = true
+		}
+	}
+	if !abandonedExists {
+		return fmt.Errorf("Proposal inventory missing abandoned proposal: %v",
+			abandonedToken)
+	}
+
+	// Unvetted propsoals
+	unvettedProps := pir.Unvetted
+
+	// Ensure unvetted proposal token received
+	unreviewedProps, ok := unvettedProps[pi.PropStatus[pi.PropStatusUnreviewed]]
+	if !ok {
+		return fmt.Errorf("No unreviewed proposals returned")
+	}
+	for _, t := range unreviewedProps {
+		if t == unvettedToken {
+			unvettedExists = true
+		}
+	}
+	if !unvettedExists {
+		return fmt.Errorf("Proposal inventory missing unvetted proposal: %v",
+			unvettedToken)
+	}
+
+	// Ensure unvetted censored proposal token received
+	unvettedCensored, ok := unvettedProps["censored"]
+	if !ok {
+		return fmt.Errorf("No unvetted censrored proposals returned")
+	}
+	for _, t := range unvettedCensored {
+		if t == censoredToken1 {
+			censoredExists = true
+		}
+	}
+	if !censoredExists {
+		return fmt.Errorf("Proposal inventory missing unvetted censored proposal"+
+			": %v",
+			censoredToken1)
+	}
+
+	// Get vetted proposals
+	fmt.Printf("  Fetch vetted proposals\n")
+	props, err := proposals(*user, pi.Proposals{
+		State: pi.PropStateVetted,
+		Requests: []pi.ProposalRequest{
+			{
+				Token: publicToken,
+			},
+			{
+				Token: abandonedToken,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, publicExists = props[publicToken]
+	_, abandonedExists = props[abandonedToken]
+	if !publicExists || !abandonedExists {
+		return fmt.Errorf("Proposal batch missing requested vetted proposals")
+	}
+
+	// Get vetted proposals with short tokens
+	fmt.Printf("  Fetch vetted proposals with short tokens\n")
+	shortPublicToken := publicToken[0:7]
+	shortAbandonedToken := abandonedToken[0:7]
+	props, err = proposals(*user, pi.Proposals{
+		State: pi.PropStateVetted,
+		Requests: []pi.ProposalRequest{
+			{
+				Token: shortPublicToken,
+			},
+			{
+				Token: shortAbandonedToken,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, publicExists = props[publicToken]
+	_, abandonedExists = props[abandonedToken]
+	if !publicExists || !abandonedExists {
+		return fmt.Errorf("Proposal batch missing requested vetted proposals")
+	}
+
+	// Get unvetted proposal
+	fmt.Printf("  Fetch unvetted proposal\n")
+	props, err = proposals(*user, pi.Proposals{
+		State: pi.PropStateUnvetted,
+		Requests: []pi.ProposalRequest{
+			{
+				Token: unvettedToken,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, unvettedExists = props[unvettedToken]
+	if !unvettedExists {
+		return fmt.Errorf("Proposal batch missing requested unvetted proposals")
+	}
+
+	// Get unvetted proposal with short token
+	fmt.Printf("  Fetch unvetted proposal with short token\n")
+	shortUnvettedToken := unvettedToken[0:7]
+	props, err = proposals(*user, pi.Proposals{
+		State: pi.PropStateUnvetted,
+		Requests: []pi.ProposalRequest{
+			{
+				Token: shortUnvettedToken,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, unvettedExists = props[unvettedToken]
+	if !unvettedExists {
+		return fmt.Errorf("Proposal batch missing requested unvetted proposals")
+	}
+
+	return nil
+}
+
 // Execute executes the test run command.
 func (cmd *testRunCmd) Execute(args []string) error {
-
-	const (
-		// Comment actions
-		commentActionUpvote   = "upvote"
-		commentActionDownvote = "downvote"
-	)
-
 	// Suppress output from cli commands
 	cfg.Silent = true
 
@@ -466,6 +1007,7 @@ func (cmd *testRunCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	minPasswordLength = int(policy.MinPasswordLength)
 
 	// Version (CSRF tokens)
 	fmt.Printf("  Version\n")
@@ -473,6 +1015,7 @@ func (cmd *testRunCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	publicKey = version.PubKey
 
 	// We only allow this to be run on testnet for right now.
 	// Running it on mainnet would require changing the user
@@ -514,11 +1057,18 @@ func (cmd *testRunCmd) Execute(args []string) error {
 	}
 
 	// Test user routes
-	err = testUserRoutes(admin, int(policy.MinPasswordLength))
+	err = testUserRoutes(admin)
 	if err != nil {
 		return err
 	}
 
+	// Test proposal routes
+	err = testProposalRoutes(admin)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Test run successful!\n")
 	return nil
 }
 

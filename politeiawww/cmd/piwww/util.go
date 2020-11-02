@@ -13,7 +13,9 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
@@ -70,6 +72,28 @@ func proposalRecord(state pi.PropStateT, token, version string) (*pi.ProposalRec
 	}
 
 	return &pr, nil
+}
+
+// createMDFile returns a File object that was created using a markdown file
+// filled with random text.
+func createMDFile() (*pi.File, error) {
+	var b bytes.Buffer
+	b.WriteString("This is the proposal title\n")
+
+	for i := 0; i < 10; i++ {
+		r, err := util.Random(32)
+		if err != nil {
+			return nil, err
+		}
+		b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
+	}
+
+	return &pi.File{
+		Name:    v1.PolicyIndexFilename,
+		MIME:    mime.DetectMimeType(b.Bytes()),
+		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
+		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
+	}, nil
 }
 
 // proposalRecord returns the latest ProposalRecrord version for the provided

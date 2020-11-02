@@ -80,11 +80,11 @@ func (c *commentNewCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	ncr, err := client.CommentNew(cn)
+	cnr, err := client.CommentNew(cn)
 	if err != nil {
 		return err
 	}
-	err = shared.PrintJSON(ncr)
+	err = shared.PrintJSON(cnr)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (c *commentNewCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	receiptb, err := util.ConvertSignature(ncr.Comment.Receipt)
+	receiptb, err := util.ConvertSignature(cnr.Comment.Receipt)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -87,35 +86,33 @@ func (cmd *proposalEditCmd) Execute(args []string) error {
 	}
 
 	// Prepare index file
-	var payload []byte
+	var (
+		file *pi.File
+		err  error
+	)
 	if cmd.Random {
 		// Generate random text for the index file
-		var b bytes.Buffer
-		for i := 0; i < 10; i++ {
-			r, err := util.Random(32)
-			if err != nil {
-				return err
-			}
-			b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
+		file, err = createMDFile()
+		if err != nil {
+			return err
 		}
-		payload = b.Bytes()
 	} else {
 		// Read the index file from disk
 		fp := util.CleanAndExpandPath(indexFile)
 		var err error
-		payload, err = ioutil.ReadFile(fp)
+		payload, err := ioutil.ReadFile(fp)
 		if err != nil {
 			return fmt.Errorf("ReadFile %v: %v", fp, err)
 		}
-	}
-
-	files := []pi.File{
-		{
+		file = &pi.File{
 			Name:    v1.PolicyIndexFilename,
 			MIME:    mime.DetectMimeType(payload),
 			Digest:  hex.EncodeToString(util.Digest(payload)),
 			Payload: base64.StdEncoding.EncodeToString(payload),
-		},
+		}
+	}
+	files := []pi.File{
+		*file,
 	}
 
 	// Prepare attachment files
