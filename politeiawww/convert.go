@@ -1393,10 +1393,11 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 
 func convertDatabaseInvoiceToProposalLineItems(inv cmsdatabase.Invoice) cms.ProposalLineItems {
 	return cms.ProposalLineItems{
-		Month:    int(inv.Month),
-		Year:     int(inv.Year),
-		UserID:   inv.UserID,
-		Username: inv.Username,
+		Month:          int(inv.Month),
+		Year:           int(inv.Year),
+		UserID:         inv.UserID,
+		Username:       inv.Username,
+		ContractorRate: inv.ContractorRate,
 		LineItem: cms.LineItemsInput{
 			Type:          inv.LineItems[0].Type,
 			Domain:        inv.LineItems[0].Domain,
