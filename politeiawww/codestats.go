@@ -289,7 +289,7 @@ func (p *politeiawww) checkUpdateCodeStats(existing, new []user.CodeStats) error
 			}
 		}
 	} else {
-		// Lenghts of new and exiting code stats differ, so update to new.
+		// Lengths of new and exiting code stats differ, so update to new.
 		updated = true
 	}
 	if !updated {
