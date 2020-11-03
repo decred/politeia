@@ -29,7 +29,7 @@ type UserInformationResult struct {
 
 // PullRequestInformation contains all the specific details of pull request.
 type PullRequestInformation struct {
-	Repository string `json:"repo"`
+	Repository string `json:"repository"`
 	URL        string `json:"url"`
 	Number     int    `json:"number"`
 	Additions  int64  `json:"additions"`
@@ -40,7 +40,7 @@ type PullRequestInformation struct {
 
 // ReviewInformation contains all the details of a review of a pull request.
 type ReviewInformation struct {
-	Repository string `json:"repo"`
+	Repository string `json:"repository"`
 	URL        string `json:"url"`
 	Number     int    `json:"number"`
 	Additions  int    `json:"additions"`
@@ -51,7 +51,7 @@ type ReviewInformation struct {
 
 // CommitInformation contains all the details of a review of a pull request.
 type CommitInformation struct {
-	Repository string `json:"repo"`
+	Repository string `json:"repository"`
 	URL        string `json:"url"`
 	SHA        string `json:"sha"`
 	Additions  int    `json:"additions"`

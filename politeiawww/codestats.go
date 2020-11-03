@@ -227,55 +227,10 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		if len(reply.UserCodeStats) > 0 {
 			log.Tracef("Checking update UserCodeStats: %v %v %v", u.GitHubName,
 				currentYear, currentMonth)
-			updated := false
-			// Check to see if current codestats match existing stats
-			if len(codeStats) == len(reply.UserCodeStats) {
-				for _, cs := range codeStats {
-					found := false
-					for _, ucs := range reply.UserCodeStats {
-						if cs.Repository != ucs.Repository {
-							continue
-						} else {
-							found = true
-						}
-						if ucs.MergedAdditions != cs.MergedAdditions ||
-							ucs.MergedDeletions != cs.MergedDeletions ||
-							ucs.ReviewDeletions != cs.ReviewDeletions ||
-							ucs.ReviewAdditions != ucs.ReviewAdditions ||
-							len(ucs.PRs) != len(cs.PRs) ||
-							len(ucs.Reviews) != len(cs.Reviews) {
-							updated = true
-							break
-						}
-					}
-					if !found {
-						updated = true
-					}
-				}
-			} else {
-				updated = true
+			err = p.checkUpdateCodeStats(reply.UserCodeStats, codeStats)
+			if err != nil {
+				return err
 			}
-			if updated {
-				log.Tracef("Updated UserCodeStats: %v %v %v", u.GitHubName,
-					currentYear, currentMonth)
-				ncs := user.UpdateCMSCodeStats{
-					UserCodeStats: codeStats,
-				}
-				payload, err = user.EncodeUpdateCMSCodeStats(ncs)
-				if err != nil {
-					return err
-				}
-				pc = user.PluginCommand{
-					ID:      user.CMSPluginID,
-					Command: user.CmdUpdateCMSUserCodeStats,
-					Payload: string(payload),
-				}
-				_, err = p.db.PluginExec(pc)
-				if err != nil {
-					return err
-				}
-			}
-			continue
 		}
 
 		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, currentYear,
@@ -298,9 +253,67 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
 
+func (p *politeiawww) checkUpdateCodeStats(existing, new []user.CodeStats) error {
+	// Check to see if current codestats match existing stats.
+	updated := false
+	// If the length of existing and new, differ that means it's been updated.
+	if len(existing) == len(new) {
+		// Loop through all newly received code stats
+		for _, cs := range new {
+			found := false
+			for _, ucs := range existing {
+				if cs.Repository != ucs.Repository {
+					continue
+				}
+				found = true
+				// Repositories match so check stats to see if anything has
+				// been updated.
+				if ucs.MergedAdditions != cs.MergedAdditions ||
+					ucs.MergedDeletions != cs.MergedDeletions ||
+					ucs.ReviewDeletions != cs.ReviewDeletions ||
+					ucs.ReviewAdditions != ucs.ReviewAdditions ||
+					len(ucs.PRs) != len(cs.PRs) ||
+					len(ucs.Reviews) != len(cs.Reviews) {
+					updated = true
+					break
+				}
+			}
+			// The new repository wasn't found so update to the new codestats.
+			if !found {
+				updated = true
+				break
+			}
+		}
+	} else {
+		// Lenghts of new and exiting code stats differ, so update to new.
+		updated = true
+	}
+	if !updated {
+		return nil
 	}
 
+	// Prepare payload and send to user database plugin.
+	ncs := user.UpdateCMSCodeStats{
+		UserCodeStats: new,
+	}
+	payload, err := user.EncodeUpdateCMSCodeStats(ncs)
+	if err != nil {
+		return err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUserCodeStats,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return err
+
+	}
 	return nil
 }
 

@@ -27,67 +27,64 @@ func EncodePullRequestReview(dbPullRequestReview *database.PullRequestReview) Pu
 // DecodePullRequestReview decodes a cockroachdb PullRequestReview into a
 // generic database.PullRequestReview
 func DecodePullRequestReview(prReview *PullRequestReview) *database.PullRequestReview {
-	dbPullRequestReview := &database.PullRequestReview{}
-	dbPullRequestReview.PullRequestURL = prReview.PullRequestURL
-	dbPullRequestReview.Author = prReview.Author
-	dbPullRequestReview.State = prReview.State
-	dbPullRequestReview.SubmittedAt = prReview.SubmittedAt
-	dbPullRequestReview.CommitID = prReview.CommitID
-	dbPullRequestReview.ID = prReview.ID
-	dbPullRequestReview.Repo = prReview.Repo
-	dbPullRequestReview.Number = prReview.Number
-
-	return dbPullRequestReview
+	return &database.PullRequestReview{
+		PullRequestURL: prReview.PullRequestURL,
+		Author:         prReview.Author,
+		State:          prReview.State,
+		SubmittedAt:    prReview.SubmittedAt,
+		CommitID:       prReview.CommitID,
+		ID:             prReview.ID,
+		Repo:           prReview.Repo,
+		Number:         prReview.Number,
+	}
 }
 
 // EncodePullRequest encodes a database.PullRequest into a cockroachdb
 // PullRequest.
 func EncodePullRequest(dbPullRequest *database.PullRequest) PullRequest {
-	pr := PullRequest{}
-	pr.ID = dbPullRequest.ID
-	pr.URL = dbPullRequest.URL
-	pr.Repo = dbPullRequest.Repo
-	pr.Organization = dbPullRequest.Organization
-	pr.Number = dbPullRequest.Number
-	pr.Author = dbPullRequest.User
-	pr.State = dbPullRequest.State
-	pr.UpdatedAt = dbPullRequest.UpdatedAt
-	pr.ClosedAt = dbPullRequest.ClosedAt
-	pr.MergedAt = dbPullRequest.MergedAt
-	pr.Merged = dbPullRequest.Merged
-	pr.Additions = dbPullRequest.Additions
-	pr.Deletions = dbPullRequest.Deletions
-	pr.MergedBy = dbPullRequest.MergedBy
-
-	return pr
+	return PullRequest{
+		ID:           dbPullRequest.ID,
+		URL:          dbPullRequest.URL,
+		Repo:         dbPullRequest.Repo,
+		Organization: dbPullRequest.Organization,
+		Number:       dbPullRequest.Number,
+		Author:       dbPullRequest.User,
+		State:        dbPullRequest.State,
+		UpdatedAt:    dbPullRequest.UpdatedAt,
+		ClosedAt:     dbPullRequest.ClosedAt,
+		MergedAt:     dbPullRequest.MergedAt,
+		Merged:       dbPullRequest.Merged,
+		Additions:    dbPullRequest.Additions,
+		Deletions:    dbPullRequest.Deletions,
+		MergedBy:     dbPullRequest.MergedBy,
+	}
 }
 
 // DecodePullRequest decodes a cockroachdb PullRequest into a generic
 // database.PullRequest
 func DecodePullRequest(pr *PullRequest) *database.PullRequest {
-	dbPullRequest := &database.PullRequest{}
-	dbPullRequest.ID = pr.ID
-	dbPullRequest.URL = pr.URL
-	dbPullRequest.Repo = pr.Repo
-	dbPullRequest.Organization = pr.Organization
-	dbPullRequest.Number = pr.Number
-	dbPullRequest.User = pr.Author
-	dbPullRequest.State = pr.State
-	dbPullRequest.UpdatedAt = pr.UpdatedAt
-	dbPullRequest.ClosedAt = pr.ClosedAt
-	dbPullRequest.MergedAt = pr.MergedAt
-	dbPullRequest.Merged = pr.Merged
-	dbPullRequest.Additions = pr.Additions
-	dbPullRequest.Deletions = pr.Deletions
-	dbPullRequest.MergedBy = pr.MergedBy
-
-	return dbPullRequest
+	return &database.PullRequest{
+		ID:           pr.ID,
+		URL:          pr.URL,
+		Repo:         pr.Repo,
+		Organization: pr.Organization,
+		Number:       pr.Number,
+		User:         pr.Author,
+		State:        pr.State,
+		UpdatedAt:    pr.UpdatedAt,
+		ClosedAt:     pr.ClosedAt,
+		MergedAt:     pr.MergedAt,
+		Merged:       pr.Merged,
+		Additions:    pr.Additions,
+		Deletions:    pr.Deletions,
+		MergedBy:     pr.MergedBy,
+	}
 }
 
 func convertMatchingReviewsToDatabaseReviews(matching []MatchingReviews) []database.PullRequestReview {
 	reviews := make([]database.PullRequestReview, 0, len(matching))
 	for _, match := range matching {
-		review := database.PullRequestReview{
+		reviews = append(reviews, database.PullRequestReview{
 			PullRequestURL: match.PullRequestURL,
 			ID:             match.ID,
 			Author:         match.Author,
@@ -96,14 +93,13 @@ func convertMatchingReviewsToDatabaseReviews(matching []MatchingReviews) []datab
 			SubmittedAt:    match.SubmittedAt,
 			Additions:      match.Additions,
 			Deletions:      match.Deletions,
-		}
-		reviews = append(reviews, review)
+		})
 	}
 	return reviews
 }
 
 func encodeCommit(dbCommit *database.Commit) Commit {
-	commit := Commit{
+	return Commit{
 		SHA:          dbCommit.SHA,
 		URL:          dbCommit.URL,
 		Repo:         dbCommit.Repo,
@@ -117,11 +113,10 @@ func encodeCommit(dbCommit *database.Commit) Commit {
 		Additions:    dbCommit.Additions,
 		Deletions:    dbCommit.Deletions,
 	}
-	return commit
 }
 
 func decodeCommit(commit *Commit) *database.Commit {
-	dbCommit := &database.Commit{
+	return &database.Commit{
 		SHA:          commit.SHA,
 		URL:          commit.URL,
 		Repo:         commit.Repo,
@@ -135,5 +130,4 @@ func decodeCommit(commit *Commit) *database.Commit {
 		Additions:    commit.Additions,
 		Deletions:    commit.Deletions,
 	}
-	return dbCommit
 }

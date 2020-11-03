@@ -24,7 +24,7 @@ func convertAPICommitsToDbComits(apiCommits []*api.PullRequestCommit, org, repoN
 			parentSHA = commit.Parents[0].SHA
 			parentURL = commit.Parents[0].URL
 		}
-		dbCommit := &database.Commit{
+		dbCommits = append(dbCommits, &database.Commit{
 			SHA:          commit.SHA,
 			URL:          commit.URL,
 			Message:      commit.Commit.Message,
@@ -37,8 +37,7 @@ func convertAPICommitsToDbComits(apiCommits []*api.PullRequestCommit, org, repoN
 			ParentURL:    parentURL,
 			Repo:         repoName,
 			Organization: org,
-		}
-		dbCommits = append(dbCommits, dbCommit)
+		})
 	}
 	return dbCommits
 }
@@ -100,7 +99,7 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetr
 	prInfo := make([]codetracker.PullRequestInformation, 0, len(dbPRs))
 
 	for _, dbPR := range dbPRs {
-		pr := codetracker.PullRequestInformation{
+		prInfo = append(prInfo, codetracker.PullRequestInformation{
 			URL:        dbPR.URL,
 			Repository: dbPR.Repo,
 			Additions:  int64(dbPR.Additions),
@@ -108,42 +107,37 @@ func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetr
 			Date:       time.Unix(dbPR.UpdatedAt, 0).Format(time.RFC1123),
 			Number:     dbPR.Number,
 			State:      dbPR.State,
-		}
-		prInfo = append(prInfo, pr)
+		})
 	}
 	return prInfo
 }
 
 func convertDBPullRequestReviewsToReviews(dbReviews []database.PullRequestReview) []codetracker.ReviewInformation {
 	reviewInfo := make([]codetracker.ReviewInformation, 0, len(dbReviews))
-
 	for _, dbReview := range dbReviews {
-		review := codetracker.ReviewInformation{
+		reviewInfo = append(reviewInfo, codetracker.ReviewInformation{
 			URL:        dbReview.PullRequestURL,
 			State:      dbReview.State,
 			Number:     dbReview.Number,
 			Repository: dbReview.Repo,
 			Additions:  dbReview.Additions,
 			Deletions:  dbReview.Deletions,
-		}
-		reviewInfo = append(reviewInfo, review)
+		})
 	}
 	return reviewInfo
 }
 
 func convertDBCommitsToCommits(dbCommits []database.Commit) []codetracker.CommitInformation {
 	commitInfo := make([]codetracker.CommitInformation, 0, len(dbCommits))
-
 	for _, dbCommit := range dbCommits {
-		commit := codetracker.CommitInformation{
+		commitInfo = append(commitInfo, codetracker.CommitInformation{
 			SHA:        dbCommit.SHA,
 			URL:        dbCommit.URL,
 			Repository: dbCommit.Repo,
 			Additions:  dbCommit.Additions,
 			Deletions:  dbCommit.Deletions,
 			Date:       dbCommit.Date,
-		}
-		commitInfo = append(commitInfo, commit)
+		})
 	}
 	return commitInfo
 }

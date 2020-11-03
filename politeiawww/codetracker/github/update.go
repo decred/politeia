@@ -128,7 +128,6 @@ func (g *github) updatePullRequest(org, repoName string, pr api.PullsRequest, st
 		err = g.codedb.NewCommit(commit)
 		if err != nil {
 			log.Errorf("error adding new commit: %v %v", commit.SHA, err)
-			continue
 		}
 	}
 	return nil

@@ -383,7 +383,7 @@ var (
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
-		ErrorStatusMissingCodeStatsUsername:       "Codestats site username is required to receive code stats",
+		ErrorStatusMissingCodeStatsUsername:       "codestats site username is required to receive code stats",
 		ErrorStatusTrackerNotStarted:              "code tracker required for attempted request, check token setting in config",
 	}
 )

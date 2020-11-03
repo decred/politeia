@@ -16,11 +16,18 @@ import (
 )
 
 const (
+	// Some various constants to prepare mock code stats.
+	// Number of months of data to mock
 	numberOfMonths = 3
-	startingMonth  = 11
-	startingYear   = 2019
 
-	numberOfMonthPrs     = 5
+	// Starting month and year for the mock data.
+	startingMonth = 11
+	startingYear  = 2019
+
+	// Number of PRs per month to add to the mock data.
+	numberOfMonthPrs = 5
+
+	// Number of Reviews per month to add to the mock data.
 	numberOfMonthReviews = 3
 )
 
@@ -82,8 +89,6 @@ func TestProcessUserCodeStats(t *testing.T) {
 	randomUUID := uuid.New().String()
 	noGithubNameSet := newCMSUser(t, p, false, false, cms.DomainTypeDeveloper,
 		cms.ContractorTypeDirect)
-	//sameDomainRequesting := newCMSUser(t, p, cms.DomainTypeDeveloper,
-	//	cms.ContractorTypeDirect)
 	differentDomain := newCMSUser(t, p, false, true, cms.DomainTypeMarketing,
 		cms.ContractorTypeDirect)
 
@@ -125,9 +130,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"error invalid dates end before start",
 			cms.UserCodeStats{
-				UserID:    requestedUser.ID.String(),
+				UserID: requestedUser.ID.String(),
+				// Friday, August 29, 1997 8:14:00 AM
 				StartTime: 872842440,
-				EndTime:   872841440,
+				// Friday, August 29, 1997 8:14:00 AM
+				EndTime: 872841440,
 			},
 			www.UserError{
 				ErrorCode: cms.ErrorStatusInvalidDatesRequested,
@@ -138,9 +145,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"error invalid dates beyond 6 month window",
 			cms.UserCodeStats{
-				UserID:    requestedUser.ID.String(),
+				UserID: requestedUser.ID.String(),
+				// Friday, August 29, 1997 8:14:00 AM
 				StartTime: 872842440,
-				EndTime:   1599748547,
+				// Thursday, September 10, 2020 2:35:47 PM
+				EndTime: 1599748547,
 			},
 			www.UserError{
 				ErrorCode: cms.ErrorStatusInvalidDatesRequested,
@@ -151,9 +160,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"error can't find requested user id",
 			cms.UserCodeStats{
-				UserID:    randomUUID,
+				UserID: randomUUID,
+				// Thursday, September 10, 2020 11:49:07 AM
 				StartTime: 1599738547,
-				EndTime:   1599748547,
+				// Thursday, September 10, 2020 2:35:47 PM
+				EndTime: 1599748547,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
@@ -164,9 +175,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"error can't find requesting cms user",
 			cms.UserCodeStats{
-				UserID:    requestedUser.ID.String(),
+				UserID: requestedUser.ID.String(),
+				// Thursday, September 10, 2020 11:49:07 AM
 				StartTime: 1599738547,
-				EndTime:   1599748547,
+				// Thursday, September 10, 2020 2:35:47 PM
+				EndTime: 1599748547,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
@@ -177,9 +190,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"empty reply different domain non-admin",
 			cms.UserCodeStats{
-				UserID:    requestedUser.ID.String(),
+				UserID: requestedUser.ID.String(),
+				// Thursday, September 10, 2020 11:49:07 AM
 				StartTime: 1599738547,
-				EndTime:   1599748547,
+				// Thursday, September 10, 2020 2:35:47 PM
+				EndTime: 1599748547,
 			},
 			nil,
 			&differentDomain.User,
@@ -188,9 +203,11 @@ func TestProcessUserCodeStats(t *testing.T) {
 		{
 			"error can't find requesting cms user",
 			cms.UserCodeStats{
-				UserID:    noGithubNameSet.ID.String(),
+				UserID: noGithubNameSet.ID.String(),
+				// Thursday, September 10, 2020 11:49:07 AM
 				StartTime: 1599738547,
-				EndTime:   1599748547,
+				// Thursday, September 10, 2020 2:35:47 PM
+				EndTime: 1599748547,
 			},
 			www.UserError{
 				ErrorCode: cms.ErrorStatusMissingCodeStatsUsername,

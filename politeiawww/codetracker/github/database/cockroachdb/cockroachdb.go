@@ -36,9 +36,7 @@ type cockroachdb struct {
 	recordsdb *gorm.DB // Database context
 }
 
-// Create new Pull Request.
-//
-// NewPullRequest satisfies the database interface.
+// NewPullRequest creates a new pull request row in the db.
 func (c *cockroachdb) NewPullRequest(dbPullRequest *database.PullRequest) error {
 	pr := EncodePullRequest(dbPullRequest)
 
@@ -46,9 +44,7 @@ func (c *cockroachdb) NewPullRequest(dbPullRequest *database.PullRequest) error 
 	return c.recordsdb.Create(&pr).Error
 }
 
-// Update existing pr.
-//
-// UpdatePullRequest satisfies the database interface.
+// UpdatePullRequest updates an existing pull request row in the db.
 func (c *cockroachdb) UpdatePullRequest(dbPullRequest *database.PullRequest) error {
 	pr := EncodePullRequest(dbPullRequest)
 
@@ -144,6 +140,7 @@ func (c *cockroachdb) UpdatedPullRequestsByUserDates(username string, start, end
 	return dbPRs, nil
 }
 
+// PullRequestByURL takes a url and returns all PRs that may match.
 func (c *cockroachdb) PullRequestsByURL(url string) ([]*database.PullRequest, error) {
 	urlPRs := make([]PullRequest, 0, 1024) // PNOOMA
 	err := c.recordsdb.
@@ -161,6 +158,8 @@ func (c *cockroachdb) PullRequestsByURL(url string) ([]*database.PullRequest, er
 	return dbPRs, nil
 }
 
+// MatchingReviews is a struct that will return results from a review
+// request.
 type MatchingReviews struct {
 	PullRequestURL string
 	ID             int64
@@ -221,9 +220,7 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 	return convertMatchingReviewsToDatabaseReviews(matching), nil
 }
 
-// Create new review.
-//
-// NewPullRequestReview satisfies the database interface.
+// NewPullRequestReview creates a new pull request review row.
 func (c *cockroachdb) NewPullRequestReview(dbPullRequestReview *database.PullRequestReview) error {
 	pr := EncodePullRequestReview(dbPullRequestReview)
 
@@ -231,9 +228,7 @@ func (c *cockroachdb) NewPullRequestReview(dbPullRequestReview *database.PullReq
 	return c.recordsdb.Create(&pr).Error
 }
 
-// Update existing review.
-//
-// UpdatePullRequestReview satisfies the database interface.
+// UpdatePullRequestReview updates an existing pull request review row.
 func (c *cockroachdb) UpdatePullRequestReview(dbPullRequestReview *database.PullRequestReview) error {
 	pr := EncodePullRequestReview(dbPullRequestReview)
 
@@ -288,9 +283,7 @@ func (c *cockroachdb) ReviewByID(id int64) (*database.PullRequestReview, error) 
 	return DecodePullRequestReview(&review), nil
 }
 
-// Create new commit.
-//
-// NewCommit satisfies the database interface.
+// NewCommit creates a new commit row.
 func (c *cockroachdb) NewCommit(dbCommit *database.Commit) error {
 	commit := encodeCommit(dbCommit)
 
