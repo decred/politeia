@@ -32,6 +32,8 @@ type CommitStats struct {
 	Total     int `json:"total"`
 }
 
+// PullRequestCommit contains information about commits underneath a given
+// Pull request.
 type PullRequestCommit struct {
 	SHA       string         `json:"sha"`
 	URL       string         `json:"url"`
@@ -124,7 +126,7 @@ type User struct {
 	NodeID    string `json:"node_id"`
 	Login     string `json:"login"`
 	URL       string `json:"url"`
-	HTMLURL   string `json:"html_url"`
+	HTMLURL   string `json:"htmlurl"`
 	Type      string `json:"type"`
 	SiteAdmin bool   `json:"site_admin"`
 }

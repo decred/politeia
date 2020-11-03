@@ -106,15 +106,14 @@ func (c *cockroachdb) UpdatedPullRequestsByUserDates(username string, start, end
 	// Select the most recent pullrequests (by url) that match author and are
 	// between start and end.
 	query := `
-		SELECT * FROM pullrequests 
-		WHERE author = $1 AND updated_at IN 
-		(SELECT 
-			MAX(updated_at) 
-			FROM pullrequests 
-			WHERE updated_at BETWEEN $2 AND $3 
-			GROUP BY url
-		)
-		`
+    SELECT * FROM pullrequests 
+      WHERE author = $1 AND updated_at IN 
+        (SELECT 
+          MAX(updated_at) 
+          FROM pullrequests 
+          WHERE updated_at BETWEEN $2 AND $3 
+		  GROUP BY url
+        )`
 	rows, err := c.recordsdb.Raw(query, username, start, end).Rows()
 	if err != nil {
 		return nil, err
@@ -193,10 +192,10 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
       pullrequests.additions,
       pullrequests.deletions
     FROM reviews
-	INNER JOIN pullrequests
+    INNER JOIN pullrequests
       ON pullrequests.url = reviews.pull_request_url
     WHERE reviews.author = $1 AND reviews.state = $2 AND 
-	  reviews.submitted_at BETWEEN $3 AND $4`
+      reviews.submitted_at BETWEEN $3 AND $4`
 
 	rows, err := c.recordsdb.Raw(query, username, "APPROVED", start, end).Rows()
 	if err != nil {

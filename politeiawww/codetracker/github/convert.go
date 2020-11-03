@@ -97,7 +97,6 @@ func convertAPIReviewToDbReview(apiReview api.PullRequestReview) database.PullRe
 
 func convertDBPullRequestsToPullRequests(dbPRs []*database.PullRequest) []codetracker.PullRequestInformation {
 	prInfo := make([]codetracker.PullRequestInformation, 0, len(dbPRs))
-
 	for _, dbPR := range dbPRs {
 		prInfo = append(prInfo, codetracker.PullRequestInformation{
 			URL:        dbPR.URL,

@@ -17,10 +17,11 @@ import (
 // Client contains the http client that communicates with the Github
 // servers, mutexes and api rate limiting rules.
 type Client struct {
+	sync.Mutex
+
 	gh *http.Client
 
-	rateLimitMtx sync.Mutex
-	rateLimit    RateLimitRule
+	rateLimit RateLimitRule
 }
 
 // NewClient creates a new instance of Client that contains a authorized
