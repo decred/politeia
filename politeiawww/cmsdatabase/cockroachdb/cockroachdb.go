@@ -613,7 +613,7 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
               ON invoices.token = b.token
               AND invoices.version < b.version
             INNER JOIN line_items
-              ON invoices.token = line_items.invoice_token
+              ON invoices.key = line_items.invoice_key
               WHERE line_items.proposal_url = ? AND invoices.status = ?`
 	rows, err := c.recordsdb.Raw(query, token, int(v1.InvoiceStatusPaid)).Rows()
 	if err != nil {
@@ -633,7 +633,6 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-
 	return convertMatchingLineItemToInvoices(matching), nil
 }
 
