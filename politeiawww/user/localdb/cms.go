@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	cmsUserPrefix = "cmswww"
+	cmsUserPrefix      = "cmswww"
+	cmsCodeStatsPrefix = "codestats"
 )
 
 // isCMSUserRecord returns true if the given key is a cms user record,
@@ -20,6 +21,13 @@ const (
 // because the DB contains some non-user records.
 func isCMSUserRecord(key string) bool {
 	return strings.HasPrefix(key, cmsUserPrefix)
+}
+
+// isCMSUserRecord returns true if the given key is a cms user record,
+// and false otherwise. This is helpful when iterating the user records
+// because the DB contains some non-user records.
+func isCMSCodeStatsRecord(key string) bool {
+	return strings.HasPrefix(key, cmsCodeStatsPrefix)
 }
 
 // cmdNewCMSUser inserts a new CMSUser record into the database.
@@ -214,6 +222,148 @@ func (l *localdb) cmdCMSUserByID(payload string) (string, error) {
 	return "", user.ErrUserNotFound
 }
 
+// cmdNewCMSCodeStats inserts a new CMSUser record into the database.
+func (l *localdb) cmdNewCMSCodeStats(payload string) (string, error) {
+	// Decode payload
+	nu, err := user.DecodeNewCMSCodeStats([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return "", user.ErrShutdown
+	}
+
+	for _, ncs := range nu.UserCodeStats {
+		key := []byte(cmsCodeStatsPrefix + ncs.ID)
+
+		// Make sure cms user does not exist
+		ok, err := l.userdb.Has(key, nil)
+		if err != nil {
+			return "", err
+		} else if ok {
+			return "", user.ErrUserExists
+		}
+
+		cmsPayload, err := user.EncodeCodeStats(ncs)
+		if err != nil {
+			return "", err
+		}
+
+		err = l.userdb.Put(key, cmsPayload, nil)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Prepare reply
+	var nur user.NewCMSCodeStatsReply
+	reply, err := user.EncodeNewCMSCodeStatsReply(nur)
+	if err != nil {
+		return "", nil
+	}
+
+	return string(reply), nil
+}
+
+// cmdUpdateCMSCodeStats updates an existing CMSUser record into the database.
+func (l *localdb) cmdUpdateCMSCodeStats(payload string) (string, error) {
+	// Decode payload
+	ucs, err := user.DecodeUpdateCMSCodeStats([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return "", user.ErrShutdown
+	}
+
+	for _, ncs := range ucs.UserCodeStats {
+		key := []byte(cmsCodeStatsPrefix + ncs.ID)
+
+		exists, err := l.userdb.Has(key, nil)
+		if err != nil {
+			return "", err
+		} else if !exists {
+			return "", user.ErrCodeStatsNotFound
+		}
+
+		cmsPayload, err := user.EncodeCodeStats(ncs)
+		if err != nil {
+			return "", err
+		}
+
+		err = l.userdb.Put(key, cmsPayload, nil)
+		if err != nil {
+			return "", err
+		}
+	}
+	// Prepare reply
+	var nur user.UpdateCMSCodeStatsReply
+	reply, err := user.EncodeUpdateCMSCodeStatsReply(nur)
+	if err != nil {
+		return "", nil
+	}
+
+	return string(reply), nil
+}
+
+func (l *localdb) cmdCMSCodeStatsByUserMonthYear(payload string) (string, error) {
+	// Decode payload
+	p, err := user.DecodeCMSCodeStatsByUserMonthYear([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return "", user.ErrShutdown
+	}
+
+	iter := l.userdb.NewIterator(util.BytesPrefix([]byte(cmsCodeStatsPrefix)), nil)
+	matching := make([]user.CodeStats, 0, 1048) // PNOOMA
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		if !isCMSCodeStatsRecord(string(key)) {
+			continue
+		}
+
+		cs, err := user.DecodeCodeStats(value)
+		if err != nil {
+			return "", err
+		}
+		if cs.GitHubName == p.GithubName &&
+			p.Month == cs.Month &&
+			cs.Year == p.Year {
+			matching = append(matching, *cs)
+		}
+	}
+	iter.Release()
+
+	if iter.Error() != nil {
+		return "", iter.Error()
+	}
+	r := user.CMSCodeStatsByUserMonthYearReply{
+		UserCodeStats: matching,
+	}
+	reply, err := user.EncodeCMSCodeStatsByUserMonthYearReply(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a cms plugin command.
 func (l *localdb) cmsPluginExec(cmd, payload string) (string, error) {
 	switch cmd {
@@ -223,6 +373,12 @@ func (l *localdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return l.cmdUpdateCMSUser(payload)
 	case user.CmdCMSUserByID:
 		return l.cmdCMSUserByID(payload)
+	case user.CmdNewCMSUserCodeStats:
+		return l.cmdNewCMSCodeStats(payload)
+	case user.CmdUpdateCMSUserCodeStats:
+		return l.cmdUpdateCMSCodeStats(payload)
+	case user.CmdCMSCodeStatsByUserMonthYear:
+		return l.cmdCMSCodeStatsByUserMonthYear(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}

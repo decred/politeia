@@ -51,7 +51,8 @@ func isUserRecord(key string) bool {
 	return key != UserVersionKey &&
 		key != LastPaywallAddressIndex &&
 		!strings.HasPrefix(key, sessionPrefix) &&
-		!strings.HasPrefix(key, cmsUserPrefix)
+		!strings.HasPrefix(key, cmsUserPrefix) &&
+		!strings.HasPrefix(key, cmsCodeStatsPrefix)
 }
 
 // Store new user.

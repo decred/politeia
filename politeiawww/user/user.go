@@ -38,6 +38,10 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
+
+	// ErrCodeStatsNotFound indicates that an requested code stats entry wasn't
+	// found.
+	ErrCodeStatsNotFound = errors.New("code stats not found")
 )
 
 // Identity wraps an ed25519 public key and timestamps to indicate if it is

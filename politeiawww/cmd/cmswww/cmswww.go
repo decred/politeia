@@ -61,6 +61,7 @@ type cmswww struct {
 	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername         shared.ChangeUsernameCmd  `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	CMSUsers               CMSUsersCmd               `command:"cmsusers" description:"(user)   get a list of cms users"`
+	CodeStats              CodeStatsCmd              `command:"codestats" description:"(user)    get a list of code stats per repo for the given userid"`
 	DCCComments            DCCCommentsCmd            `command:"dcccomments" description:"(user)   get the comments for a dcc proposal"`
 	DCCDetails             DCCDetailsCmd             `command:"dccdetails" description:"(user)   get the details of a dcc"`
 	EditInvoice            EditInvoiceCmd            `command:"editinvoice" description:"(user)   edit a invoice"`

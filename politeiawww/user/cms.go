@@ -7,15 +7,18 @@ import (
 )
 
 const (
-	CMSPluginVersion            = "1"
-	CMSPluginID                 = "cms"
-	CmdNewCMSUser               = "newcmsuser"
-	CmdCMSUsersByDomain         = "cmsusersbydomain"
-	CmdCMSUsersByContractorType = "cmsusersbycontractortype"
-	CmdUpdateCMSUser            = "updatecmsuser"
-	CmdCMSUserByID              = "cmsuserbyid"
-	CmdCMSUserSubContractors    = "cmsusersubcontractors"
-	CmdCMSUsersByProposalToken  = "cmsusersbyproposaltoken"
+	CMSPluginVersion               = "1"
+	CMSPluginID                    = "cms"
+	CmdNewCMSUser                  = "newcmsuser"
+	CmdCMSUsersByDomain            = "cmsusersbydomain"
+	CmdCMSUsersByContractorType    = "cmsusersbycontractortype"
+	CmdUpdateCMSUser               = "updatecmsuser"
+	CmdCMSUserByID                 = "cmsuserbyid"
+	CmdCMSUserSubContractors       = "cmsusersubcontractors"
+	CmdCMSUsersByProposalToken     = "cmsusersbyproposaltoken"
+	CmdNewCMSUserCodeStats         = "newcmsusercodestats"
+	CmdUpdateCMSUserCodeStats      = "updatecmsusercodestats"
+	CmdCMSCodeStatsByUserMonthYear = "cmscodestatsbyusermonthyear"
 )
 
 // CMSUser represents a CMS user. It contains the standard politeiawww user
@@ -389,4 +392,174 @@ func DecodeCMSUsersByProposalTokenReply(b []byte) (*CMSUsersByProposalTokenReply
 	}
 
 	return &reply, nil
+}
+
+// CodeStats is contains the all the information about a given user's code
+// work underneath a given repository over a certain month/year.
+type CodeStats struct {
+	ID               string   // UserID + GithubName + Month + Year
+	Repository       string   // Repository
+	GitHubName       string   // GithubName
+	Month            int      // Month of code stats
+	Year             int      // Year of code stats
+	PRs              []string // All PR URLs
+	Reviews          []string // All Reviewed PR URLS
+	Commits          []string // All of the commit URLS
+	MergedAdditions  int64    // Total merged code additions
+	MergedDeletions  int64    // Total merged code deletions
+	UpdatedAdditions int64    // Total updated code additions
+	UpdatedDeletions int64    // Total updated code deletions
+	ReviewAdditions  int64    // Total reviewed code additions
+	ReviewDeletions  int64    // Total reviewed code deletions
+	CommitAdditions  int64    // Total committed code additions
+	CommitDeletions  int64    // Total committed code deletions
+}
+
+// EncodeCodeStats encodes a CodeStats into a JSON byte slice.
+func EncodeCodeStats(cs CodeStats) ([]byte, error) {
+	return json.Marshal(cs)
+}
+
+// DecodeCodeStats decodes JSON byte slice into a CodeStats.
+func DecodeCodeStats(b []byte) (*CodeStats, error) {
+	var cs CodeStats
+
+	err := json.Unmarshal(b, &cs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cs, nil
+}
+
+// NewCMSCodeStats creates a new CMS code stats record in the user database.
+type NewCMSCodeStats struct {
+	UserCodeStats []CodeStats `json:"usercodestats"`
+}
+
+// EncodeNewCMSCodeStats encodes a NewCMSCodeStats into a JSON byte slice.
+func EncodeNewCMSCodeStats(u NewCMSCodeStats) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeNewCMSCodeStats decodes JSON byte slice into a NewCMSCodeStats.
+func DecodeNewCMSCodeStats(b []byte) (*NewCMSCodeStats, error) {
+	var u NewCMSCodeStats
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// NewCMSCodeStatsReply replies a to a NewCMSCodeStats request
+type NewCMSCodeStatsReply struct{}
+
+// EncodeNewCMSCodeStatsReply encodes a NewCMSCodeStatsReply into a JSON byte slice.
+func EncodeNewCMSCodeStatsReply(u NewCMSCodeStatsReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeNewCMSCodeStatsReply decodes JSON byte slice into a NewCMSCodeStatsReply.
+func DecodeNewCMSCodeStatsReply(b []byte) (*NewCMSCodeStatsReply, error) {
+	var u NewCMSCodeStatsReply
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// UpdateCMSCodeStats updates a CMS code stats record in the user database.
+type UpdateCMSCodeStats struct {
+	UserCodeStats []CodeStats `json:"usercodestats"`
+}
+
+// EncodeUpdateCMSCodeStats encodes a UpdateCMSCodeStats into a JSON byte slice.
+func EncodeUpdateCMSCodeStats(u UpdateCMSCodeStats) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeUpdateCMSCodeStats decodes JSON byte slice into a UpdateCMSCodeStats.
+func DecodeUpdateCMSCodeStats(b []byte) (*UpdateCMSCodeStats, error) {
+	var u UpdateCMSCodeStats
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// UpdateCMSCodeStatsReply replies a to a UpdateCMSCodeStats request
+type UpdateCMSCodeStatsReply struct{}
+
+// EncodeUpdateCMSCodeStatsReply encodes a UpdateCMSCodeStatsReply into a JSON byte slice.
+func EncodeUpdateCMSCodeStatsReply(u UpdateCMSCodeStatsReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeUpdateCMSCodeStatsReply decodes JSON byte slice into a UpdateCMSCodeStatsReply.
+func DecodeUpdateCMSCodeStatsReply(b []byte) (*UpdateCMSCodeStatsReply, error) {
+	var u UpdateCMSCodeStatsReply
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// CMSCodeStatsByUserMonthYear fetches CMS code stats based on requested
+// githubname, month and year
+type CMSCodeStatsByUserMonthYear struct {
+	GithubName string `json:"githubname"`
+	Month      int    `json:"month"`
+	Year       int    `json:"year"`
+}
+
+// EncodeCMSCodeStatsByUserMonthYear encodes a CMSCodeStatsByUserMonthYear into a JSON byte slice.
+func EncodeCMSCodeStatsByUserMonthYear(u CMSCodeStatsByUserMonthYear) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSCodeStatsByUserMonthYear decodes JSON byte slice into a CMSCodeStatsByUserMonthYear.
+func DecodeCMSCodeStatsByUserMonthYear(b []byte) (*CMSCodeStatsByUserMonthYear, error) {
+	var u CMSCodeStatsByUserMonthYear
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// CMSCodeStatsByUserMonthYearReply replies CMS code stats based on requested
+// githubname, month and year
+type CMSCodeStatsByUserMonthYearReply struct {
+	UserCodeStats []CodeStats `json:"usercodestats"`
+}
+
+// EncodeCMSCodeStatsByUserMonthYearReply encodes a CMSCodeStatsByUserMonthYearReply into a JSON byte slice.
+func EncodeCMSCodeStatsByUserMonthYearReply(u CMSCodeStatsByUserMonthYearReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSCodeStatsByUserMonthYearReply decodes JSON byte slice into a CMSCodeStatsByUserMonthYearReply.
+func DecodeCMSCodeStatsByUserMonthYearReply(b []byte) (*CMSCodeStatsByUserMonthYearReply, error) {
+	var u CMSCodeStatsByUserMonthYearReply
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
 }

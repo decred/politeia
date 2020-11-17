@@ -31,6 +31,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache/testcache"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
@@ -318,6 +319,93 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	}
 
 	return usr, fid
+}
+
+// newCMSUser creates a new user using randomly generated user credentials and
+// inserts the user into the database.  The user details and the full user
+// identity are returned.
+func newCMSUser(t *testing.T, p *politeiawww, isAdmin bool, setGithubname bool, domain cms.DomainTypeT, contractorType cms.ContractorTypeT) *user.CMSUser {
+	t.Helper()
+
+	// Generate random bytes to be used as user credentials
+	r, err := util.Random(int(www.PolicyMinPasswordLength))
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	u := user.NewCMSUser{
+		Email:                     hex.EncodeToString(r) + "@example.com",
+		Username:                  hex.EncodeToString(r),
+		NewUserVerificationToken:  nil,
+		NewUserVerificationExpiry: 0,
+		ContractorType:            int(cms.ContractorTypeDirect),
+	}
+
+	payload, err := user.EncodeNewCMSUser(u)
+	if err != nil {
+		t.Errorf("unable to encode new user %v", err)
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdNewCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		t.Errorf("unable to execute new cms user db request %v", err)
+	}
+
+	usr, err := p.db.UserGetByUsername(u.Username)
+	if err != nil {
+		t.Fatalf("error getting user by username %v", err)
+	}
+	p.setUserEmailsCache(usr.Email, usr.ID)
+
+	if isAdmin {
+		usr.Admin = true
+		err := p.db.UserUpdate(*usr)
+		if err != nil {
+			t.Fatalf("error updating user for admin %v", err)
+		}
+	}
+
+	uu := user.UpdateCMSUser{
+		ID:             usr.ID,
+		Domain:         int(domain),
+		ContractorType: int(contractorType),
+	}
+	if setGithubname {
+		uu.GitHubName = "testGithub"
+	}
+	payload, err = user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		t.Errorf("unable to encode new user %v", err)
+	}
+	pc = user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		t.Errorf("unable to execute update cms user db request %v", err)
+	}
+
+	// Add the user to the politeiawww in-memory [email]userID
+	// cache. Since the userID is generated in the database layer
+	// we need to lookup the user in order to get the userID.
+	usr, err = p.db.UserGetByUsername(u.Username)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	p.setUserEmailsCache(usr.Email, usr.ID)
+
+	cmsUser, err := p.getCMSUserByIDRaw(usr.ID.String())
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	return cmsUser
 }
 
 // newFileRandomMD returns a File with the name index.md that contains random
@@ -791,7 +879,6 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		t.Fatalf("create cookie key: %v", err)
 	}
 
-	// Setup logging
 	initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
 	setLogLevels("off")
 

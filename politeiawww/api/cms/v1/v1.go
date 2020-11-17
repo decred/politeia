@@ -54,6 +54,7 @@ const (
 	RouteProposalBilling        = "/proposals/billing"
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
+	RouteUserCodeStats          = "/user/codestats"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -241,6 +242,8 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+	ErrorStatusMissingCodeStatsUsername       www.ErrorStatusT = 1057
+	ErrorStatusTrackerNotStarted              www.ErrorStatusT = 1058
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
@@ -380,6 +383,8 @@ var (
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
+		ErrorStatusMissingCodeStatsUsername:       "codestats site username is required to receive code stats",
+		ErrorStatusTrackerNotStarted:              "code tracker required for attempted request, check token setting in config",
 	}
 )
 
@@ -1043,4 +1048,37 @@ type ProposalBillingDetails struct {
 // requested proposal.
 type ProposalBillingDetailsReply struct {
 	Details ProposalSpending `json:"details"`
+}
+
+// UserCodeStats is a request that other members of the requested user's domain
+// may attempt to view the given month/year of code changes
+type UserCodeStats struct {
+	UserID    string `json:"userid"`
+	StartTime int64  `json:"starttime"`
+	EndTime   int64  `json:"endtime"`
+}
+
+// UserCodeStatsReply responds with an array of code stats per repo for the
+// given user, month and year.
+type UserCodeStatsReply struct {
+	RepoStats []CodeStats `json:"repostats"`
+}
+
+// CodeStats contains various pieces of information for user's code
+// contributions per repo over a period of time.
+type CodeStats struct {
+	Month            int      `json:"month"`
+	Year             int      `json:"year"`
+	Repository       string   `json:"repository"`
+	MergedAdditions  int64    `json:"mergedadditions"`
+	MergedDeletions  int64    `json:"mergeddeletions"`
+	UpdatedAdditions int64    `json:"updatedadditions"`
+	UpdatedDeletions int64    `json:"updateddeletions"`
+	ReviewAdditions  int64    `json:"reviewadditions"`
+	ReviewDeletions  int64    `json:"reviewdeletions"`
+	CommitAdditions  int64    `json:"commitadditions"`
+	CommitDeletions  int64    `json:"commitdeletions"`
+	PRs              []string `json:"prs"`
+	Reviews          []string `json:"reviews"`
+	Commits          []string `json:"commits"`
 }

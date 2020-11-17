@@ -97,3 +97,30 @@ type CMSUser struct {
 func (CMSUser) TableName() string {
 	return tableCMSUsers
 }
+
+// CMSCodeStats struct contains information per month/year per repo for
+// a given users' code statistics for merged pull requests and completed
+// reviews over that time period.
+type CMSCodeStats struct {
+	ID               string `gorm:"primary_key"` // UserID + GithubName + Month + Year
+	GitHubName       string `gorm:"not null"`    // GithubName
+	Repository       string `gorm:"not null"`    // Repository
+	Month            int    `gorm:"not null"`    // Month of code stats
+	Year             int    `gorm:"not null"`    // Year of code stats
+	PRs              string `gorm:"not null"`    // String of all PR URLs separated by commas
+	Reviews          string `gorm:"not null"`    // String of all Reviewed PR URLS separated by commas
+	Commits          string `gorm:"not null"`    // String of all commit URL separated by commas
+	MergedAdditions  int64  `gorm:"not null"`    // Total merged code additions
+	MergedDeletions  int64  `gorm:"not null"`    // Total merged code deletions
+	UpdatedAdditions int64  `gorm:"not null"`    // Total updated code additions
+	UpdatedDeletions int64  `gorm:"not null"`    // Total updated code deletions
+	ReviewAdditions  int64  `gorm:"not null"`    // Total reviewed code additions
+	ReviewDeletions  int64  `gorm:"not null"`    // Total reviewed code deletions
+	CommitAdditions  int64  `gorm:"not null"`    // Total commit additions
+	CommitDeletions  int64  `gorm:"not null"`    // Total commit deletions
+}
+
+// TableName returns the table name of the CMSUsers table.
+func (CMSCodeStats) TableName() string {
+	return tableCMSCodeStats
+}

@@ -239,6 +239,13 @@ script.
     cd $GOPATH/src/github.com/decred/politeia
     ./scripts/cmssetup.sh
     
+#### 4b. Setup github codetracker:
+
+CMS uses the gitub API to figure out pull request, review and commit information
+of current users that have their domain set to "Developer".  
+
+To use the code tracker, set the github apitoken, the org and the repos that
+you would like for the code tracker to crawl.
 
 #### 5. Build the programs:
 

@@ -11,6 +11,8 @@ import (
 
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	"github.com/decred/politeia/politeiawww/codetracker/github"
+	ghdb "github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/wsdcrdata"
@@ -45,10 +47,12 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log            = backendLog.Logger("PWWW")
-	localdbLog     = backendLog.Logger("LODB")
-	cockroachdbLog = backendLog.Logger("CODB")
-	wsdcrdataLog   = backendLog.Logger("WSDD")
+	log              = backendLog.Logger("PWWW")
+	localdbLog       = backendLog.Logger("LODB")
+	cockroachdbLog   = backendLog.Logger("CODB")
+	wsdcrdataLog     = backendLog.Logger("WSDD")
+	githubTrackerLog = backendLog.Logger("GHTR")
+	githubdbLog      = backendLog.Logger("GHDB")
 )
 
 // Initialize package-global logger variables.
@@ -58,6 +62,8 @@ func init() {
 	cachedb.UseLogger(cockroachdbLog)
 	cmsdb.UseLogger(cockroachdbLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
+	github.UseLogger(githubTrackerLog)
+	ghdb.UseLogger(githubdbLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -66,6 +72,8 @@ var subsystemLoggers = map[string]slog.Logger{
 	"LODB": localdbLog,
 	"CODB": cockroachdbLog,
 	"WSDD": wsdcrdataLog,
+	"GHTR": githubTrackerLog,
+	"GHDB": githubdbLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

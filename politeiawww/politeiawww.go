@@ -25,6 +25,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
@@ -132,8 +133,9 @@ type politeiawww struct {
 	userEmails map[string]uuid.UUID // [email]userID
 
 	// Following entries are use only during cmswww mode
-	cmsDB cmsdatabase.Database
-	cron  *cron.Cron
+	cmsDB   cmsdatabase.Database
+	cron    *cron.Cron
+	tracker codetracker.CodeTracker
 
 	// wsDcrdata is a dcrdata websocket client
 	wsDcrdata *wsdcrdata.Client
