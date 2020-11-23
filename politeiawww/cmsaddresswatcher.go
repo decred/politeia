@@ -179,6 +179,28 @@ func (p *politeiawww) restartCMSAddressesWatching(ctx context.Context) error {
 			p.addWatchAddress(payments.Address)
 		}
 	}
+
+	// Also check to make sure all paid invoices in the database have
+	// corresponding payment data saved in records.
+	paidPayments, err := p.cmsDB.PaymentsByStatus(uint(cms.PaymentStatusPaid))
+	if err != nil {
+		return err
+	}
+	for _, payments := range paidPayments {
+		if payments.TxIDs == "" && payments.AmountReceived == 0 {
+			payments.Address = strings.TrimSpace(payments.Address)
+			paid := p.checkHistoricalPayments(ctx, &payments)
+			if !paid {
+				log.Errorf("found payment for invoice that is set to paid "+
+					"no payment found %v", payments.InvoiceToken)
+			}
+		} else {
+			log.Debugf("payment for %v has is proper txids %v and "+
+				"amount received %v", payments.InvoiceToken, payments.TxIDs,
+				payments.AmountReceived)
+		}
+	}
+
 	return nil
 }
 
@@ -222,6 +244,9 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 		} else {
 			txIDs += ", " + tx.TxID
 		}
+		if payment.TimeLastUpdated < tx.Timestamp {
+			payment.TimeLastUpdated = tx.Timestamp
+		}
 	}
 	payment.TxIDs = txIDs
 
@@ -238,7 +263,6 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 		payment.Status = cms.PaymentStatusPaid
 	}
 	payment.AmountReceived = int64(amountReceived)
-	payment.TimeLastUpdated = time.Now().Unix()
 
 	err = p.updateInvoicePayment(ctx, payment)
 	if err != nil {
