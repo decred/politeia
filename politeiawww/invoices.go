@@ -960,6 +960,7 @@ func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetIn
 	// If approved then update Invoice's Payment table in DB
 	if c.NewStatus == cms.InvoiceStatusApproved {
 		dbInvoice.Payments = database.Payments{
+			InvoiceToken: dbInvoice.Token,
 			Address:      strings.TrimSpace(dbInvoice.PaymentAddress),
 			TimeStarted:  time.Now().Unix(),
 			Status:       cms.PaymentStatusWatching,
