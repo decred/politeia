@@ -2360,87 +2360,60 @@ func (p *politeiawww) totpCheck(code string, u *user.User) error {
 			ErrorCode: www.ErrorStatusRequiresTOTPCode,
 		}
 	}
+
+	// Get the generated totp code. The provided code must match this
+	// generated code.
 	requestTime := time.Now()
 	currentCode, err := p.totpGenerateCode(u.TOTPSecret, requestTime)
 	if err != nil {
-		log.Errorf("login: totp code generation failed %v", u.Email)
-		return www.UserError{
+		return fmt.Errorf("totpGenerateCode: %v", err)
+	}
+
+	// Verify the user does not have too many failed attempts for this
+	// epoch.
+	if len(u.TOTPLastFailedCodeTime) >= totpFailedAttempts {
+		// The user has too many failed attempts. We must first verify
+		// that the failed attempts are from this epoch before this is
+		// considered to be an error. If the generated code from the
+		// failed timestamp matches the generated code from the current
+		// timestamp then we know the failures occurred during this epoch.
+		failedTS := u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1]
+		oldCode, err := p.totpGenerateCode(u.TOTPSecret, time.Unix(failedTS, 0))
+		if err != nil {
+			return fmt.Errorf("totpGenerateCode: %v", err)
+		}
+		if oldCode == currentCode {
+			// The failures occurred in the same epoch which means the user
+			// has exceeded their max allowed attempts.
+			return www.UserError{
+				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
+			}
+		}
+
+		// Previous failures are not from this epoch. Clear them out.
+		u.TOTPLastFailedCodeTime = []int64{}
+	}
+
+	// Verify the provided code matches the generated code
+	var replyError error
+	if currentCode == code {
+		// The code matches. Clear out all previous failed attempts
+		// before returning.
+		u.TOTPLastFailedCodeTime = []int64{}
+	} else {
+		// The code doesn't match. Save the failure and return an error.
+		ts := requestTime.Unix()
+		u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, ts)
+		replyError = www.UserError{
 			ErrorCode: www.ErrorStatusTOTPFailedValidation,
 		}
 	}
-	var replyError error
-	// Check to see if provided code matches.
-	if currentCode != code {
-		totpFails := len(u.TOTPLastFailedCodeTime)
-		// If this is the first time failing TOTP then just save request time
-		// and return invalid TOTP.
-		if totpFails == 0 {
-			log.Debugf("login: new totp code failure %v", u.Email)
-			u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
-			u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
-				requestTime.Unix())
-			replyError = www.UserError{
-				ErrorCode: www.ErrorStatusTOTPFailedValidation,
-			}
-		} else {
-			// This is not the first time failing a TOTP code check, so we need
-			// to see if the failure is in the same period as the previous
-			// failure.  We generate the code from the last requested time.
-			oldCode, err := p.totpGenerateCode(u.TOTPSecret,
-				time.Unix(u.TOTPLastFailedCodeTime[totpFails-1], 0))
-			if err != nil {
-				log.Debugf("login: new totp oldcode failure %v", err)
-				// Old code was unable to be generated, but still try and save
-				// time of totp to user information.
-				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
-					requestTime.Unix())
-				err = p.db.UserUpdate(*u)
-				if err != nil {
-					log.Errorf("login: user update failed %v", err)
-				}
-				return www.UserError{
-					ErrorCode: www.ErrorStatusTOTPFailedValidation,
-				}
-			}
-			// The codes match, so it's the same totp period as before.
-			// We increment the TOTPLastFailedCodeTime and check to see how
-			// many times the user has attempted then return relevant error.
-			if currentCode == oldCode {
-				log.Debugf("login: another failed window attempt %v",
-					u.Email)
-				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
-					requestTime.Unix())
-				// Check to see if the user has already attempted more than
-				// 2 TOTP codes for this window.
-				if len(u.TOTPLastFailedCodeTime) > totpFailedAttempts {
-					log.Debugf("login: too many totp attempts in same "+
-						"window %v", u.Email)
-					replyError = www.UserError{
-						ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
-					}
-				} else {
-					replyError = www.UserError{
-						ErrorCode: www.ErrorStatusTOTPFailedValidation,
-					}
-				}
-			} else {
-				log.Debugf("login: new totp code failure window %v", u.Email)
-				// oldCode and currentCode don't match so reset failed attempts
-				u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
-				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime,
-					requestTime.Unix())
-				replyError = www.UserError{
-					ErrorCode: www.ErrorStatusTOTPFailedValidation,
-				}
-			}
-		}
+
+	// Update the user database
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return fmt.Errorf("UserUpdate: %v", err)
 	}
-	// Only need to update use if there was an error
-	if replyError != nil {
-		err = p.db.UserUpdate(*u)
-		if err != nil {
-			log.Errorf("totpCheck: error updating user: %v", err)
-		}
-	}
+
 	return replyError
 }

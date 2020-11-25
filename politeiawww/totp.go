@@ -19,7 +19,9 @@ const (
 	defaultPoliteiaIssuer = "politeia"
 	defaultCMSIssuer      = "cms"
 
-	// Period of totp for testing used for generating codes during tests.
+	// Period (in seconds) of TOTP for testing used for generating codes during
+	// tests. A low period allows for codes to be generated and tested very
+	// quickly.
 	totpTestPeriod = 1
 )
 
