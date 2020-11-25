@@ -24,19 +24,16 @@ const (
 	ID      = "pi"
 	Version = "1"
 
+	// Plugin commands
 	// TODO refactor these commands to use the passthrough command
-
-	// Plugin commands. Many of these plugin commands rely on the
-	// commands from other plugins, but perform additional validation
-	// that is specific to pi or add additional functionality on top of
-	// the existing plugin commands that is specific to pi.
 	CmdProposals     = "proposals"     // Get plugin data for proposals
 	CmdCommentNew    = "commentnew"    // Create a new comment
 	CmdCommentCensor = "commentcensor" // Censor a comment
 	CmdCommentVote   = "commentvote"   // Upvote/downvote a comment
-	CmdVoteInventory = "voteinventory" // Get inventory by vote status
-	CmdVoteStart     = "votestart"     // Start a vote
-	CmdPassThrough   = "passthrough"   // Pass a plugin cmd through pi
+
+	CmdProposalInventory = "proposalinv" // Get inventory by proposal status
+	CmdVoteInventory     = "voteinv"     // Get inventory by vote status
+	CmdPassThrough       = "passthrough" // Pass a plugin cmd through pi
 
 	// Metadata stream IDs
 	MDStreamIDProposalGeneral = 1
@@ -426,6 +423,52 @@ func DecodeCommentVoteReply(payload []byte) (*CommentVoteReply, error) {
 		return nil, err
 	}
 	return &cvr, nil
+}
+
+// ProposalInventory retrieves the tokens of all proposals in the inventory,
+// categorized by proposal state and proposal status, that match the provided
+// filtering criteria. If no filtering criteria is provided then the full
+// proposal inventory is returned.
+type ProposalInventory struct {
+	UserID string `json:"userid,omitempty"`
+}
+
+// EncodeProposalInventory encodes a ProposalInventory into a JSON byte slice.
+func EncodeProposalInventory(pi ProposalInventory) ([]byte, error) {
+	return json.Marshal(pi)
+}
+
+// DecodeProposalInventory decodes a JSON byte slice into a ProposalInventory.
+func DecodeProposalInventory(payload []byte) (*ProposalInventory, error) {
+	var pi ProposalInventory
+	err := json.Unmarshal(payload, &pi)
+	if err != nil {
+		return nil, err
+	}
+	return &pi, nil
+}
+
+// ProposalInventoryReply is the reply to the ProposalInventory command.
+type ProposalInventoryReply struct {
+	Unvetted map[string][]string `json:"unvetted"`
+	Vetted   map[string][]string `json:"vetted"`
+}
+
+// EncodeProposalInventoryReply encodes a ProposalInventoryReply into a JSON
+// byte slice.
+func EncodeProposalInventoryReply(pir ProposalInventoryReply) ([]byte, error) {
+	return json.Marshal(pir)
+}
+
+// DecodeProposalInventoryReply decodes a JSON byte slice into a
+// ProposalInventoryReply.
+func DecodeProposalInventoryReply(payload []byte) (*ProposalInventoryReply, error) {
+	var pir ProposalInventoryReply
+	err := json.Unmarshal(payload, &pir)
+	if err != nil {
+		return nil, err
+	}
+	return &pir, nil
 }
 
 // VoteInventory requests the tokens of all proposals in the inventory

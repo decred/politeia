@@ -463,7 +463,7 @@ type ProposalRequest struct {
 // to false.
 type Proposals struct {
 	State        PropStateT        `json:"state"`
-	Requests     []ProposalRequest `json:"requests"`
+	Requests     []ProposalRequest `json:"requests,omitempty"`
 	IncludeFiles bool              `json:"includefiles,omitempty"`
 }
 
@@ -474,15 +474,19 @@ type ProposalsReply struct {
 }
 
 // ProposalInventory retrieves the tokens of all proposals in the inventory,
-// categorized by proposal staet and proposal status. Each list is ordered by
-// timestamp of the status change from newest to oldest. Unvetted proposal
-// tokens are only returned to admins.
-type ProposalInventory struct{}
+// categorized by proposal state and proposal status, that match the provided
+// filtering criteria. If no filtering criteria is provided then the full
+// proposal inventory is returned. Unvetted proposal tokens are only returned
+// to admins and the proposal author.
+type ProposalInventory struct {
+	UserID string `json:"userid,omitempty"`
+}
 
 // ProposalInventoryReply is the reply to the ProposalInventory command. The
 // inventory maps contain map[status][]tokens where the status is the human
 // readable proposal status, as defined by the PropStatus map, and the tokens
-// are the proposal tokens for that status.
+// are a list of proposal tokens for that status. Each list is ordered by
+// timestamp of the status change from newest to oldest.
 type ProposalInventoryReply struct {
 	Unvetted map[string][]string `json:"unvetted,omitempty"`
 	Vetted   map[string][]string `json:"vetted"`

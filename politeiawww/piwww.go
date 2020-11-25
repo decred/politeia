@@ -1573,34 +1573,32 @@ func (p *politeiawww) processProposals(ctx context.Context, ps pi.Proposals, isA
 	}, nil
 }
 
-func (p *politeiawww) processProposalInventory(ctx context.Context, isAdmin bool) (*pi.ProposalInventoryReply, error) {
-	log.Tracef("processProposalInventory: %v", isAdmin)
+func (p *politeiawww) processProposalInventory(ctx context.Context, inv pi.ProposalInventory, u *user.User) (*pi.ProposalInventoryReply, error) {
+	log.Tracef("processProposalInventory: %v", inv.UserID)
 
-	ir, err := p.inventoryByStatus(ctx)
+	// Send plugin command
+	i := piplugin.ProposalInventory{
+		UserID: inv.UserID,
+	}
+	pir, err := p.proposalInventory(ctx, i)
 	if err != nil {
 		return nil, err
 	}
-	var (
-		unvetted = make(map[string][]string, len(ir.Unvetted))
-		vetted   = make(map[string][]string, len(ir.Vetted))
-	)
-	for status, tokens := range ir.Unvetted {
-		s := convertPropStatusFromPD(status)
-		unvetted[pi.PropStatus[s]] = tokens
-	}
-	for status, tokens := range ir.Vetted {
-		s := convertPropStatusFromPD(status)
-		vetted[pi.PropStatus[s]] = tokens
-	}
 
-	// Only return unvetted tokens to admins
-	if !isAdmin {
-		unvetted = nil
+	// Determine if unvetted tokens should be returned
+	switch {
+	case u.Admin:
+		// User is an admin. Return unvetted.
+	case inv.UserID == u.ID.String():
+		// User is requesting their own proposals. Return unvetted.
+	default:
+		// Remove unvetted for all other cases
+		pir.Unvetted = nil
 	}
 
 	return &pi.ProposalInventoryReply{
-		Unvetted: unvetted,
-		Vetted:   vetted,
+		Unvetted: pir.Unvetted,
+		Vetted:   pir.Vetted,
 	}, nil
 }
 
@@ -2175,6 +2173,16 @@ func (p *politeiawww) handleProposals(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalInventory")
 
+	var inv pi.ProposalInventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&inv); err != nil {
+		respondWithPiError(w, r, "handleProposalInventory: unmarshal",
+			pi.UserErrorReply{
+				ErrorCode: pi.ErrorStatusInputInvalid,
+			})
+		return
+	}
+
 	// Lookup session user. This is a public route so a session may not
 	// exist. Ignore any session not found errors.
 	usr, err := p.getSessionUser(w, r)
@@ -2184,15 +2192,14 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	isAdmin := usr != nil && usr.Admin
-	ppi, err := p.processProposalInventory(r.Context(), isAdmin)
+	pir, err := p.processProposalInventory(r.Context(), inv, usr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalInventory: processProposalInventory: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, ppi)
+	util.RespondWithJSON(w, http.StatusOK, pir)
 }
 
 func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {

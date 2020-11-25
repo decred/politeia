@@ -32,7 +32,6 @@ const (
 	dataDescriptorRecordMetadata = "recordmetadata"
 	dataDescriptorMetadataStream = "metadatastream"
 	dataDescriptorRecordIndex    = "recordindex"
-	dataDescriptorFreezeRecord   = "freezerecord"
 	dataDescriptorAnchor         = "anchor"
 
 	// The keys for kv store blobs are saved by stuffing them into the
