@@ -182,9 +182,10 @@ func validateUsername(username string) error {
 	return nil
 }
 
-// validatePassword verifies that a password adheres to required policy.
+// validatePassword verifies that a password is of length 64 which is
+// the expected length for sha256 as a string
 func validatePassword(password string) error {
-	if len(password) < www.PolicyMinPasswordLength {
+	if len(password) != 64 {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMalformedPassword,
 		}
@@ -1096,6 +1097,16 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 }
 
 func (p *politeiawww) login(l www.Login) loginResult {
+	// Check password length, this prevents
+	// trying to bcrypt large password inputs.
+	err := validatePassword(l.Password)
+	if err != nil {
+		return loginResult{
+			reply: nil,
+			err:   err,
+		}
+	}
+
 	// Get user record
 	u, err := p.userByEmail(l.Email)
 	if err != nil {
