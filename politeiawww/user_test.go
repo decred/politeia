@@ -13,6 +13,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/go-test/deep"
@@ -238,7 +239,7 @@ func TestProcessNewUser(t *testing.T) {
 	}
 	validEmail := hex.EncodeToString(r) + "@example.com"
 	validUsername := hex.EncodeToString(r)
-	validPassword := hex.EncodeToString(r)
+	validPassword := shared.DigestSHA3(hex.EncodeToString(r))
 	validPublicKey := id.Public.String()
 
 	// Setup tests
@@ -855,7 +856,7 @@ func TestLogin(t *testing.T) {
 
 	// Create an unverified user
 	usrUnverified, _ := newUser(t, p, false, false)
-	usrUnverifiedPassword := usrUnverified.Username
+	usrUnverifiedPassword := shared.DigestSHA3(usrUnverified.Username)
 
 	// Create a user and lock their account from failed login
 	// attempts.
@@ -865,7 +866,7 @@ func TestLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	usrLockedPassword := usrLocked.Username
+	usrLockedPassword := shared.DigestSHA3(usrLocked.Username)
 
 	// Create a deactivated user
 	usrDeactivated, _ := newUser(t, p, true, false)
@@ -874,12 +875,12 @@ func TestLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	usrDeactivatedPassword := usrDeactivated.Username
+	usrDeactivatedPassword := shared.DigestSHA3(usrDeactivated.Username)
 
 	// Create a verified user and the expected login reply
 	// for the success case.
 	usr, id := newUser(t, p, true, false)
-	usrPassword := usr.Username
+	usrPassword := shared.DigestSHA3(usr.Username)
 	successReply := www.LoginReply{
 		IsAdmin:            false,
 		UserID:             usr.ID.String(),
@@ -916,7 +917,7 @@ func TestLogin(t *testing.T) {
 			"wrong password",
 			www.Login{
 				Email:    usr.Email,
-				Password: "",
+				Password: shared.DigestSHA3(""),
 			},
 			nil,
 			www.UserError{
@@ -1010,7 +1011,10 @@ func TestProcessLogin(t *testing.T) {
 	// Test the incorrect email error path because it's
 	// the quickest failure path for the login route.
 	start := time.Now()
-	_, err := p.processLogin(www.Login{})
+	_, err := p.processLogin(www.Login{
+		Email:    "invalidemailid",
+		Password: shared.DigestSHA3("notpassword"),
+	})
 	end := time.Now()
 	elapsed := end.Sub(start)
 
@@ -1032,7 +1036,7 @@ func TestProcessLogin(t *testing.T) {
 	start = time.Now()
 	lr, err := p.processLogin(www.Login{
 		Email:    u.Email,
-		Password: u.Username,
+		Password: shared.DigestSHA3(u.Username),
 	})
 	end = time.Now()
 	elapsed = end.Sub(start)
@@ -1234,13 +1238,13 @@ func TestProcessChangePassword(t *testing.T) {
 	// as the username, which is why currPass is set
 	// to be the username.
 	u, _ := newUser(t, p, true, false)
-	currPass := u.Username
+	currPass := shared.DigestSHA3(u.Username)
 
 	r, err := util.Random(int(www.PolicyMinPasswordLength))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	newPass := hex.EncodeToString(r)
+	newPass := shared.DigestSHA3(hex.EncodeToString(r))
 
 	// Setup tests
 	var tests = []struct {
@@ -1490,7 +1494,7 @@ func TestProcessVerifyResetPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newPass := hex.EncodeToString(h)
+	newPass := shared.DigestSHA3(hex.EncodeToString(h))
 
 	// Setup tests
 	var tests = []struct {
@@ -1631,7 +1635,7 @@ func TestProcessChangeUsername(t *testing.T) {
 	// Create a new user. newUser() sets
 	// the password to be the username.
 	u, _ := newUser(t, p, true, false)
-	password := u.Username
+	password := shared.DigestSHA3(u.Username)
 
 	// Setup tests
 	var tests = []struct {

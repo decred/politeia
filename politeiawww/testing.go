@@ -34,6 +34,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -250,7 +251,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	}
 
 	// Setup user
-	pass, err := p.hashPassword(hex.EncodeToString(r))
+	pass, err := p.hashPassword(shared.DigestSHA3(hex.EncodeToString(r)))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

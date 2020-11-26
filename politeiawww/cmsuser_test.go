@@ -37,7 +37,7 @@ func TestInviteNewUser(t *testing.T) {
 	registerReq := cms.RegisterUser{
 		Email:             emailVerified,
 		Username:          "test1",
-		Password:          "password",
+		Password:          shared.DigestSHA3("password"),
 		VerificationToken: reply.VerificationToken,
 		PublicKey:         hex.EncodeToString(id.Public.Key[:]),
 	}
@@ -202,7 +202,7 @@ func TestRegisterUser(t *testing.T) {
 
 	email := "test1@example.org"
 	username := "test1"
-	pwd := "password1"
+	pwd := shared.DigestSHA3("password1")
 
 	inviteUserReq := cms.InviteNewUser{
 		Email:     email,

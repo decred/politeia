@@ -17,6 +17,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/go-test/deep"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
@@ -109,7 +110,7 @@ func TestHandleNewUser(t *testing.T) {
 			"success",
 			www.NewUser{
 				Email:     "user@example.com",
-				Password:  "password",
+				Password:  shared.DigestSHA3("password"),
 				PublicKey: hex.EncodeToString(id.Public.Key[:]),
 				Username:  "user",
 			},
@@ -395,7 +396,7 @@ func TestHandleLogin(t *testing.T) {
 	// Create a user to test against. newUser() sets the
 	// password to be the same as the username.
 	u, _ := newUser(t, p, true, false)
-	password := u.Username
+	password := shared.DigestSHA3(u.Username)
 	successReply, err := p.createLoginReply(u, u.LastLoginTime)
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -421,7 +422,10 @@ func TestHandleLogin(t *testing.T) {
 		},
 		{
 			"processLogin error",
-			www.Login{},
+			www.Login{
+				Email:    u.Email,
+				Password: shared.DigestSHA3("notpassword"),
+			},
 			http.StatusUnauthorized,
 			nil,
 			www.UserError{
@@ -646,8 +650,8 @@ func TestHandleChangePassword(t *testing.T) {
 	// Create a user to test against. newUser()
 	// sets the password to be the username.
 	usr, _ := newUser(t, p, true, false)
-	currPass := usr.Username
-	newPass := currPass + "aaa"
+	currPass := shared.DigestSHA3(usr.Username)
+	newPass := shared.DigestSHA3(usr.Username + "aaa")
 
 	var tests = []struct {
 		name       string
@@ -863,7 +867,7 @@ func TestHandleVerifyResetPassword(t *testing.T) {
 			www.VerifyResetPassword{
 				Username:          usr.Username,
 				VerificationToken: verificationToken,
-				NewPassword:       "helloworld",
+				NewPassword:       shared.DigestSHA3("helloworld"),
 			},
 			http.StatusOK,
 			nil,
@@ -915,7 +919,7 @@ func TestHandleChangeUsername(t *testing.T) {
 	// Create a user to test against. newUser()
 	// sets the password to be the username.
 	usr, _ := newUser(t, p, true, false)
-	pass := usr.Username
+	pass := shared.DigestSHA3(usr.Username)
 
 	// Setup tests
 	var tests = []struct {
