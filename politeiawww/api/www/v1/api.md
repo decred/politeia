@@ -468,6 +468,9 @@ Reply:
 Login as a user or admin.  Admin status is determined by the server based on
 the user database.  Note that Login reply is identical to Me reply.
 
+A valid TOTP code is required if user has set and verified a TOTP secret 
+key previously.
+
 **Route:** `POST /v1/login`
 
 **Params:**
@@ -476,6 +479,7 @@ the user database.  Note that Login reply is identical to Me reply.
 |-|-|-|-|
 | email | string | Email address of user that is attempting to login. | Yes |
 | password | string | Accompanying password for provided email. | Yes |
+| code | string | TOTP code based on user's TOTP secret (if verified). | No |
 
 **Results:** See the [`Login reply`](#login-reply).
 
@@ -485,6 +489,9 @@ error codes:
 - [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
 - [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
 - [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
+- [`ErrorStatusRequiresTOTPCode`](#ErrorStatusRequiresTOTPCode)
+- [`ErrorStatusTOTPWaitForNewCode`](#ErrorStatusTOTPWaitForNewCode)
+- [`ErrorStatusTOTPFailedValidation`](#ErrorStatusTOTPFailedValidation)
 
 **Example**
 
@@ -2799,6 +2806,8 @@ Reply:
 | <a name="ErrorStatusWrongProposalType">ErrorStatusWrongProposalType</a> | 76 | Wrong proposal type. |
 | <a name="ErrorStatusTOTPFailedValidation">ErrorStatusTOTPFailedValidation</a> | 77 | TOTP code provided doesn't failed validation with current key. |
 | <a name="ErrorStatusTOTPInvalidType">ErrorStatusTOTPInvalidType</a> | 78 | Invalid TOTP Type. |
+| <a name="ErrorStatusRequiresTOTPCode">ErrorStatusRequiresTOTPCode</a> | 79 | User has verified TOTP secret and login requires code. |
+| <a name="ErrorStatusTOTPWaitForNewCode">ErrorStatusTOTPWaitForNewCode</a> | 80 | Must wait until next TOTP code window before another login attempt. |
 
 
 ### `Proposal status codes`

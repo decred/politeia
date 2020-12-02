@@ -19,30 +19,6 @@ func TestProcessSetTOTP(t *testing.T) {
 
 	basicUser, _ := newUser(t, p, true, false)
 
-	alreadySetUser, _ := newUser(t, p, true, false)
-
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      defaultPoliteiaIssuer,
-		AccountName: alreadySetUser.Username,
-	})
-	if err != nil {
-		t.Errorf("unable to generate secret key %v", err)
-	}
-
-	alreadySetUser.TOTPType = int(www.TOTPTypeBasic)
-	alreadySetUser.TOTPSecret = key.Secret()
-	alreadySetUser.TOTPVerified = true
-	alreadySetUser.TOTPLastUpdated = append(alreadySetUser.TOTPLastUpdated, time.Now().Unix())
-
-	err = p.db.UserUpdate(*alreadySetUser)
-	if err != nil {
-		t.Errorf("unable to update user secret key %v", err)
-	}
-
-	code, err := totp.GenerateCode(key.Secret(), time.Now())
-	if err != nil {
-		t.Errorf("unable to generate code %v", err)
-	}
 	var tests = []struct {
 		name      string
 		params    www.SetTOTP
@@ -67,6 +43,66 @@ func TestProcessSetTOTP(t *testing.T) {
 			nil,
 			basicUser,
 		},
+	}
+
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			reply, err := p.processSetTOTP(v.params, v.user)
+
+			got := errToStr(err)
+			want := errToStr(v.wantError)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+				return
+			}
+
+			if err != nil {
+				return
+			}
+			userInfo, err := p.userByIDStr(v.user.ID.String())
+			if err != nil {
+				t.Errorf("unable to get update user %v", err)
+				return
+			}
+			if userInfo.TOTPSecret != reply.Key {
+				t.Error("secret returned does not match saved key")
+			}
+		})
+	}
+
+	// Set up separate tests for testing already set totp key
+	alreadySetUser, _ := newUser(t, p, true, false)
+
+	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, alreadySetUser.Username)
+	key, err := totp.Generate(opts)
+	if err != nil {
+		t.Errorf("unable to generate secret key %v", err)
+	}
+
+	alreadySetUser.TOTPType = int(www.TOTPTypeBasic)
+	alreadySetUser.TOTPSecret = key.Secret()
+	alreadySetUser.TOTPVerified = true
+	alreadySetUser.TOTPLastUpdated = append(alreadySetUser.TOTPLastUpdated,
+		time.Now().Unix())
+
+	err = p.db.UserUpdate(*alreadySetUser)
+	if err != nil {
+		t.Errorf("unable to update user secret key %v", err)
+	}
+	requestTime := time.Now()
+	code, err := p.totpGenerateCode(key.Secret(), requestTime)
+	if err != nil {
+		t.Errorf("unable to generate code %v", err)
+	}
+
+	// We run separate tests because these are time dependant because of codes
+	// generated.
+	var alreadySetTests = []struct {
+		name      string
+		params    www.SetTOTP
+		wantError error
+		user      *user.User
+	}{
 		{
 			"error already set wrong code",
 			www.SetTOTP{
@@ -88,27 +124,32 @@ func TestProcessSetTOTP(t *testing.T) {
 			alreadySetUser,
 		},
 	}
-
-	for _, v := range tests {
+	for _, v := range alreadySetTests {
 		t.Run(v.name, func(t *testing.T) {
 			reply, err := p.processSetTOTP(v.params, v.user)
+
+			// Check to see that expected errors match
+			got := errToStr(err)
+			want := errToStr(v.wantError)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+				return
+			}
+
 			if err != nil {
-				got := errToStr(err)
-				want := errToStr(v.wantError)
-				if got != want {
-					t.Errorf("got %v, want %v", got, want)
-				}
 				return
 			}
 			userInfo, err := p.userByIDStr(v.user.ID.String())
 			if err != nil {
 				t.Errorf("unable to get update user %v", err)
+				return
 			}
 			if userInfo.TOTPSecret != reply.Key {
 				t.Error("secret returned does not match saved key")
 			}
 		})
 	}
+
 }
 
 func TestProcessVerifyTOTP(t *testing.T) {
@@ -117,10 +158,8 @@ func TestProcessVerifyTOTP(t *testing.T) {
 
 	usr, _ := newUser(t, p, true, false)
 
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      defaultPoliteiaIssuer,
-		AccountName: usr.Username,
-	})
+	opts := p.totpGenerateOpts(defaultPoliteiaIssuer, usr.Username)
+	key, err := totp.Generate(opts)
 	if err != nil {
 		t.Errorf("unable to generate secret key %v", err)
 	}
@@ -135,7 +174,7 @@ func TestProcessVerifyTOTP(t *testing.T) {
 		t.Errorf("unable to update user secret key %v", err)
 	}
 
-	code, err := totp.GenerateCode(key.Secret(), time.Now())
+	code, err := p.totpGenerateCode(key.Secret(), time.Now())
 	if err != nil {
 		t.Errorf("unable to generate code %v", err)
 	}

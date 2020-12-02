@@ -13,9 +13,10 @@ import (
 // LoginCmd logs into Politeia using the specified credentials.
 type LoginCmd struct {
 	Args struct {
-		Email    string `positional-arg-name:"email"`
-		Password string `positional-arg-name:"password"`
-	} `positional-args:"true" required:"true"`
+		Email    string `positional-arg-name:"email" required:"true"`
+		Password string `positional-arg-name:"password" required:"true"`
+		Code     string `positional-arg-name:"code"`
+	} `positional-args:"true" optional:"true"`
 }
 
 // Execute executes the login command.
@@ -31,6 +32,7 @@ func (cmd *LoginCmd) Execute(args []string) error {
 	l := &v1.Login{
 		Email:    cmd.Args.Email,
 		Password: DigestSHA3(cmd.Args.Password),
+		Code:     cmd.Args.Code,
 	}
 
 	// Print request details
@@ -63,6 +65,7 @@ Login as a user or admin.
 Arguments:
 1. email      (string, required)   Email
 2. password   (string, required)   Password
+3. code       (string)             TOTP Code
 
 Result:
 {
