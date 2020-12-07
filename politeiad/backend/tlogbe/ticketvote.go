@@ -2372,9 +2372,6 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Check if the vote has been authorized
 	auths, err := p.authorizes(token)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return nil, err
-		}
 		return nil, fmt.Errorf("authorizes: %v", err)
 	}
 	if len(auths) > 0 {

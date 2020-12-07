@@ -57,7 +57,7 @@ func (c *backendClient) tlogByID(tlogID string) (*tlog, error) {
 }
 
 // treeIDFromToken returns the treeID for the provided tlog instance ID and
-// token.
+// token. This function accepts both token prefixes and full length tokens.
 func (c *backendClient) treeIDFromToken(tlogID string, token []byte) (int64, error) {
 	if len(token) == tokenPrefixSize() {
 		// This is a token prefix. Get the full token from the cache.
@@ -78,7 +78,17 @@ func (c *backendClient) treeIDFromToken(tlogID string, token []byte) (int64, err
 		}
 		return treeID, nil
 	}
+
 	return 0, fmt.Errorf("unknown tlog id '%v'", tlogID)
+}
+
+// treeIDFromToken returns the treeID for the provided tlog instance ID and
+// token. This function only accepts full length tokens.
+func (c *backendClient) treeIDFromTokenFullLength(tlogID string, token []byte) (int64, error) {
+	if !tokenIsFullLength(token) {
+		return 0, errRecordNotFound
+	}
+	return c.treeIDFromToken(tlogID, token)
 }
 
 // save saves the provided blobs to the tlog backend. Note, hashes contains the
@@ -94,7 +104,7 @@ func (c *backendClient) save(tlogID string, token []byte, keyPrefix string, blob
 	}
 
 	// Get tree ID
-	treeID, err := c.treeIDFromToken(tlogID, token)
+	treeID, err := c.treeIDFromTokenFullLength(tlogID, token)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +125,7 @@ func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error
 	}
 
 	// Get tree ID
-	treeID, err := c.treeIDFromToken(tlogID, token)
+	treeID, err := c.treeIDFromTokenFullLength(tlogID, token)
 	if err != nil {
 		return err
 	}
