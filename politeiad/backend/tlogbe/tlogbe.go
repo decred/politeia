@@ -1779,6 +1779,7 @@ func (t *tlogBackend) Close() {
 	t.vetted.close()
 }
 
+// setup creates the tlog backend in-memory cache.
 func (t *tlogBackend) setup() error {
 	log.Tracef("setup")
 

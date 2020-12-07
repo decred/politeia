@@ -86,7 +86,7 @@ type tlog struct {
 	id            string
 	dcrtimeHost   string
 	encryptionKey *encryptionKey
-	trillian      *trillianClient
+	trillian      trillianClient
 	store         store.Blob
 	cron          *cron.Cron
 
@@ -1870,7 +1870,7 @@ func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, e
 	log.Infof("Trillian key %v: %v", id, trillianKeyFile)
 	log.Infof("Trillian host %v: %v", id, trillianHost)
 
-	tclient, err := newTrillianClient(trillianHost, trillianKeyFile)
+	trillianClient, err := newTClient(trillianHost, trillianKeyFile)
 	if err != nil {
 		return nil, err
 	}
@@ -1880,7 +1880,7 @@ func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, e
 		id:            id,
 		dcrtimeHost:   dcrtimeHost,
 		encryptionKey: ek,
-		trillian:      tclient,
+		trillian:      trillianClient,
 		store:         store,
 		cron:          cron.New(),
 	}
