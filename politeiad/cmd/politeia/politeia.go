@@ -72,6 +72,8 @@ func usage() {
 		"status\n")
 	fmt.Fprintf(os.Stderr, "  new               - Create new record "+
 		"[metadata<id>]... <filename>...\n")
+	fmt.Fprintf(os.Stderr, "  verify            - Verify a record "+
+		"<pubkey> <token> <merkle> <signature>\n")
 	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve record "+
 		"<id>\n")
 	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
@@ -593,8 +595,45 @@ func newRecord() error {
 	}
 
 	if !*printJson {
+		fmt.Printf("  Server public key: %v\n", id.String())
 		printCensorshipRecord(reply.CensorshipRecord)
 	}
+
+	return nil
+}
+
+func verifyRecord() error {
+	flags := flag.Args()[1:] // Chop off action.
+
+	// Action arguments
+	pk := flags[0]
+	token := flags[1]
+	merkleRoot := flags[2]
+	signature := flags[3]
+
+	if len(flags) < 4 {
+		return fmt.Errorf("Must pass all input parameters")
+	}
+
+	id, err := util.IdentityFromString(pk)
+	if err != nil {
+		return err
+	}
+	sig, err := util.ConvertSignature(signature)
+	if err != nil {
+		return err
+	}
+
+	// Verify merkle+token msg against signature
+	if !id.VerifyMessage([]byte(merkleRoot+token), sig) {
+		return fmt.Errorf("Invalid censorship record signature")
+	}
+
+	fmt.Printf("Public key : %s\n", pk)
+	fmt.Printf("Token      : %s\n", token)
+	fmt.Printf("Merkle root: %s\n", merkleRoot)
+	fmt.Printf("Signature  : %s\n\n", signature)
+	fmt.Println("Record successfully verified")
 
 	return nil
 }
@@ -1528,6 +1567,8 @@ func _main() error {
 			switch a {
 			case "identity":
 				return getIdentity()
+			case "verify":
+				return verifyRecord()
 			case "new":
 				return newRecord()
 			case "updateunvetted":

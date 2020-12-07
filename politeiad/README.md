@@ -69,6 +69,5 @@ Use the following config settings to spin up a development politeiad instance.
 # Tools and reference clients
 
 * [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) - Reference client for politeiad.
-* [politeia_verify](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia_verify) - Reference verification tool.
 
 
