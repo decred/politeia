@@ -1055,7 +1055,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 					payment.Status = cms.PaymentStatusPaid
 				}
 			}
-			dbInvoice.Changes = invChanges
 
 		case mdstream.IDInvoicePayment:
 			ip, err := mdstream.DecodeInvoicePayment([]byte(m.Payload))
@@ -1071,7 +1070,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				payment.TimeLastUpdated = s.Timestamp
 				payment.AmountReceived = s.AmountReceived
 			}
-			dbInvoice.Payments = payment
 		default:
 			// Log error but proceed
 			log.Errorf("convertRecordToInvoiceDB: invalid "+
@@ -1079,6 +1077,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				m.ID, p.CensorshipRecord.Token)
 		}
 	}
+	dbInvoice.Payments = payment
 
 	return &dbInvoice, nil
 }

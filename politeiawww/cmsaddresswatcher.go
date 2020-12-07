@@ -179,6 +179,28 @@ func (p *politeiawww) restartCMSAddressesWatching(ctx context.Context) error {
 			p.addWatchAddress(payments.Address)
 		}
 	}
+
+	// Also check to make sure all paid invoices in the database have
+	// corresponding payment data saved in records.
+	paidPayments, err := p.cmsDB.PaymentsByStatus(uint(cms.PaymentStatusPaid))
+	if err != nil {
+		return err
+	}
+	for _, payments := range paidPayments {
+		if payments.TxIDs == "" && payments.AmountReceived == 0 {
+			payments.Address = strings.TrimSpace(payments.Address)
+			paid := p.checkHistoricalPayments(ctx, &payments)
+			if !paid {
+				log.Errorf("found payment for invoice that is set to paid "+
+					"no payment found %v", payments.InvoiceToken)
+			}
+		} else {
+			log.Debugf("payment for %v has is proper txids %v and "+
+				"amount received %v", payments.InvoiceToken, payments.TxIDs,
+				payments.AmountReceived)
+		}
+	}
+
 	return nil
 }
 
@@ -222,6 +244,9 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 		} else {
 			txIDs += ", " + tx.TxID
 		}
+		if payment.TimeLastUpdated < tx.Timestamp {
+			payment.TimeLastUpdated = tx.Timestamp
+		}
 	}
 	payment.TxIDs = txIDs
 
@@ -238,9 +263,8 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 		payment.Status = cms.PaymentStatusPaid
 	}
 	payment.AmountReceived = int64(amountReceived)
-	payment.TimeLastUpdated = time.Now().Unix()
 
-	err = p.cmsDB.UpdatePayments(payment)
+	err = p.updateInvoicePayment(ctx, payment)
 	if err != nil {
 		log.Errorf("Error updating payments information for: %v %v",
 			payment.Address, err)
@@ -249,7 +273,7 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 	if payment.Status == cms.PaymentStatusPaid {
 		log.Debugf("Updating invoice %v status to paid", payment.InvoiceToken)
 		// Update invoice status here
-		err := p.invoiceStatusPaid(ctx, payment.InvoiceToken)
+		err := p.invoiceStatusPaid(ctx, payment.InvoiceToken, payment.InvoiceKey)
 		if err != nil {
 			log.Errorf("error updating invoice status to paid %v", err)
 		}
@@ -313,7 +337,7 @@ func (p *politeiawww) checkPayments(ctx context.Context, payment *database.Payme
 	if payment.Status == cms.PaymentStatusPaid {
 		log.Debugf("Updating invoice %v status to paid", payment.InvoiceToken)
 		// Update invoice status here
-		err := p.invoiceStatusPaid(ctx, payment.InvoiceToken)
+		err := p.invoiceStatusPaid(ctx, payment.InvoiceToken, payment.InvoiceKey)
 		if err != nil {
 			log.Errorf("error updating invoice status to paid %v", err)
 		}
@@ -377,8 +401,8 @@ func (p *politeiawww) updateInvoicePayment(ctx context.Context, payment *databas
 	}
 	return nil
 }
-func (p *politeiawww) invoiceStatusPaid(ctx context.Context, token string) error {
-	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
+func (p *politeiawww) invoiceStatusPaid(ctx context.Context, token, key string) error {
+	dbInvoice, err := p.cmsDB.InvoiceByKey(key)
 	if err != nil {
 		if errors.Is(err, cache.ErrRecordNotFound) {
 			err = www.UserError{
