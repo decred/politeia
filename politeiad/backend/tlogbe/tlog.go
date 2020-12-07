@@ -389,7 +389,7 @@ func (t *tlog) treeExists(treeID int64) bool {
 // treeFreeze updates the status of a record and freezes the trillian tree as a
 // result of a record status change. The tree pointer is the tree ID of the new
 // location of the record. This is provided on certain status changes such as
-// when a unvetted record is make public and the unvetted record is moved to a
+// when a unvetted record is made public and the unvetted record is moved to a
 // vetted tree. A value of 0 indicates that no tree pointer exists.
 //
 // Once the record index has been saved with its frozen field set, the tree
@@ -443,7 +443,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 		return fmt.Errorf("leavesAppend: %v", err)
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
+		return fmt.Errorf("wrong number of queued leaves: got %v, want 1",
 			len(queued))
 	}
 	failed := make([]string, 0, len(queued))

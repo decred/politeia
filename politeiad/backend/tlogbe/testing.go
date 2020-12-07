@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
@@ -73,6 +74,31 @@ func newBackendFileJPEG(t *testing.T) backend.File {
 
 	return backend.File{
 		Name:    hex.EncodeToString(r) + ".jpeg",
+		MIME:    mime.DetectMimeType(b.Bytes()),
+		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
+		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
+	}
+}
+
+func newBackendFilePNG(t *testing.T) backend.File {
+	t.Helper()
+
+	b := new(bytes.Buffer)
+	img := image.NewRGBA(image.Rect(0, 0, 1000, 500))
+
+	err := png.Encode(b, img)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// Generate a random name
+	r, err := util.Random(8)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	return backend.File{
+		Name:    hex.EncodeToString(r) + ".png",
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),

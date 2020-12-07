@@ -48,6 +48,8 @@ type trillianClient interface {
 
 	treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error)
 
+	treeFreeze(treeID int64) (*trillian.Tree, error)
+
 	leavesAll(treeID int64) ([]*trillian.LogLeaf, error)
 
 	leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error)
@@ -527,36 +529,6 @@ type testTClient struct {
 	privateKey *keyspb.PrivateKey
 }
 
-// tree returns trillian tree from passed in ID.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) tree(treeID int64) (*trillian.Tree, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	if tree, ok := t.trees[treeID]; ok {
-		return tree, nil
-	}
-
-	return nil, fmt.Errorf("Tree ID not found")
-}
-
-// treesAll signed log roots are not used for testing up until now, so we
-// return a nil value for it.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) treesAll() ([]*trillian.Tree, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	trees := make([]*trillian.Tree, len(t.trees))
-	for _, t := range t.trees {
-		trees = append(trees, t)
-	}
-
-	return trees, nil
-}
-
 // treeNew ceates a new trillian tree in memory.
 //
 // This function satisfies the TrillianClient interface.
@@ -589,6 +561,45 @@ func (t *testTClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error)
 	t.leaves[tree.TreeId] = []*trillian.LogLeaf{}
 
 	return &tree, nil, nil
+}
+
+func (t *testTClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
+	t.Lock()
+	defer t.Unlock()
+
+	t.trees[treeID].TreeState = trillian.TreeState_FROZEN
+
+	return t.trees[treeID], nil
+}
+
+// tree returns trillian tree from passed in ID.
+//
+// This function satisfies the TrillianClient interface.
+func (t *testTClient) tree(treeID int64) (*trillian.Tree, error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	if tree, ok := t.trees[treeID]; ok {
+		return tree, nil
+	}
+
+	return nil, fmt.Errorf("Tree ID not found")
+}
+
+// treesAll signed log roots are not used for testing up until now, so we
+// return a nil value for it.
+//
+// This function satisfies the TrillianClient interface.
+func (t *testTClient) treesAll() ([]*trillian.Tree, error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	trees := make([]*trillian.Tree, len(t.trees))
+	for _, t := range t.trees {
+		trees = append(trees, t)
+	}
+
+	return trees, nil
 }
 
 // leavesAll returns all leaves from a trillian tree.
