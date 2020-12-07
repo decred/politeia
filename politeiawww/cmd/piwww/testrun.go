@@ -63,7 +63,8 @@ func logout() error {
 	return nil
 }
 
-// userRegistrationPayment ensures current logged in user has paid registration fee
+// userRegistrationPayment ensures current logged in user has paid registration
+// fee
 func userRegistrationPayment() (www.UserRegistrationPaymentReply, error) {
 	urvr, err := client.UserRegistrationPayment()
 	if err != nil {
@@ -157,6 +158,27 @@ func userCreate() (*testUser, *identity.FullIdentity, string, error) {
 	}, id, vt, nil
 }
 
+// userDetals accepts a pointer to a testUser calls client's login command
+// and stores additional information on given testUser struct
+func userDetails(u *testUser) error {
+	// Login and store user details
+	fmt.Printf("  Login user\n")
+	lr, err := client.Login(&www.Login{
+		Email:    u.Email,
+		Password: shared.DigestSHA3(u.Password),
+	})
+	if err != nil {
+		return err
+	}
+
+	u.PublicKey = lr.PublicKey
+	u.PaywallAddress = lr.PaywallAddress
+	u.ID = lr.UserID
+	u.PaywallAmount = lr.PaywallAmount
+
+	return nil
+}
+
 // testUser tests piwww user specific routes.
 func testUserRoutes(admin testUser) error {
 	// sleepInterval is the time to wait in between requests
@@ -201,20 +223,11 @@ func testUserRoutes(admin testUser) error {
 		return err
 	}
 
-	// Login and store user details
-	fmt.Printf("  Login user\n")
-	lr, err := client.Login(&www.Login{
-		Email:    user.Email,
-		Password: shared.DigestSHA3(user.Password),
-	})
+	// Populate user's details
+	err = userDetails(user)
 	if err != nil {
 		return err
 	}
-
-	user.PublicKey = lr.PublicKey
-	user.PaywallAddress = lr.PaywallAddress
-	user.ID = lr.UserID
-	user.PaywallAmount = lr.PaywallAmount
 
 	// Logout user
 	fmt.Printf("  Logout user\n")
@@ -573,7 +586,7 @@ func submitNewProposal(user testUser) (string, error) {
 
 // proposalSetStatus calls proposal set status command
 //
-// This function returns with user logged out
+// This function returns with the user logged out
 func proposalSetStatus(user testUser, state pi.PropStateT, token, reason string, status pi.PropStatusT) error {
 	// Login user
 	err := login(user)
@@ -597,7 +610,7 @@ func proposalSetStatus(user testUser, state pi.PropStateT, token, reason string,
 
 // proposalCensor censors given proposal
 //
-// This function returns with user logged out
+// This function returns with the user logged out
 func proposalCensor(user testUser, state pi.PropStateT, token, reason string) error {
 	err := proposalSetStatus(user, state, token, reason, pi.PropStatusCensored)
 	if err != nil {
@@ -608,7 +621,7 @@ func proposalCensor(user testUser, state pi.PropStateT, token, reason string) er
 
 // proposalPublic makes given proposal public
 //
-// This function returns with user logged out
+// This function returns with the user logged out
 func proposalPublic(user testUser, token string) error {
 	err := proposalSetStatus(user, pi.PropStateUnvetted, token, "", pi.PropStatusPublic)
 	if err != nil {
@@ -619,7 +632,7 @@ func proposalPublic(user testUser, token string) error {
 
 // proposalAbandon abandons given proposal
 //
-// This function returns with user logged out
+// This function returns with the user logged out
 func proposalAbandon(user testUser, token, reason string) error {
 	err := proposalSetStatus(user, pi.PropStateVetted, token, reason,
 		pi.PropStatusAbandoned)
@@ -631,7 +644,7 @@ func proposalAbandon(user testUser, token, reason string) error {
 
 // proposalEdit edits given proposal
 //
-// This function returns with user logged out
+// This function returns with the user logged out
 func proposalEdit(user testUser, state pi.PropStateT, token string) error {
 	// Login user
 	err := login(user)
@@ -655,7 +668,7 @@ func proposalEdit(user testUser, state pi.PropStateT, token string) error {
 
 // proposals fetchs requested proposals and verifies returned map length
 //
-// This function returns with user logged out
+// This function returns with the user logged out
 func proposals(user testUser, ps pi.Proposals) (map[string]pi.ProposalRecord, error) {
 	// Login user
 	err := login(user)
@@ -707,7 +720,7 @@ func testProposalRoutes(admin testUser) error {
 	fmt.Printf("Running proposal routes\n")
 
 	// Create test user
-	fmt.Printf("Creating test user\n")
+	fmt.Printf("  Creating test user\n")
 	user, id, vt, err := userCreate()
 	if err != nil {
 		return err
@@ -994,6 +1007,405 @@ func testProposalRoutes(admin testUser) error {
 	return nil
 }
 
+// commentNew submits a new comment
+//
+// This function returns with the user logged out
+func commentNew(user testUser, state pi.PropStateT, token, comment, parentID string) error {
+	// Login user
+	err := login(user)
+	if err != nil {
+		return err
+	}
+
+	ncc := commentNewCmd{
+		Unvetted: state == pi.PropStateUnvetted,
+	}
+	ncc.Args.Token = token
+	ncc.Args.Comment = comment
+	ncc.Args.ParentID = parentID
+	err = ncc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	return logout()
+}
+
+// verifyCommentSctore accepts array of comments, a commentID and the expected
+// up & down votes and ensures given comment has expected score
+func verifyCommentScore(comments []pi.Comment, commentID uint32, upvotes, downvotes uint64) error {
+	var commentExists bool
+	for _, v := range comments {
+		if v.CommentID == commentID {
+			commentExists = true
+			switch {
+			case v.Upvotes != upvotes:
+				return fmt.Errorf("comment result up votes got %v, want %v",
+					v.Upvotes, upvotes)
+			case v.Downvotes != downvotes:
+				return fmt.Errorf("comment result down votes got %v, want %v",
+					v.Downvotes, downvotes)
+			}
+		}
+	}
+	if !commentExists {
+		return fmt.Errorf("comment not found: %v", commentID)
+	}
+
+	return nil
+}
+
+// verifyCommentVotes accepts comment votes array of all user's comment votes
+// on a proposals and a comment id, it verifies the number of the total votes,
+// the number of upvotes and the number of downvotes on given comment
+func verifyCommentVotes(votes []pi.CommentVoteDetails, commentID uint32, totalVotes, upvotes, downvotes int) error {
+	var (
+		uvotes        int
+		dvotes        int
+		total         int
+		commentExists bool
+	)
+	for _, v := range votes {
+		if v.CommentID == commentID {
+			commentExists = true
+			switch v.Vote {
+			case pi.CommentVoteDownvote:
+				dvotes++
+			case pi.CommentVoteUpvote:
+				uvotes++
+			}
+			total++
+		}
+	}
+	if !commentExists {
+		return fmt.Errorf("comment not found: %v", commentID)
+	}
+	if total != totalVotes {
+		return fmt.Errorf("wrong num of comment votes got %v, want %v",
+			total, totalVotes)
+	}
+	if uvotes != upvotes {
+		return fmt.Errorf("wrong num of upvotes: got %v, want %v",
+			uvotes, upvotes)
+	}
+	if dvotes != downvotes {
+		return fmt.Errorf("wrong num of downvotes: got %v, want %v",
+			dvotes, downvotes)
+	}
+
+	return nil
+}
+
+// testCommentRoutes tests the comment routes
+func testCommentRoutes(admin testUser) error {
+	// Run commment routes.
+	fmt.Printf("Running comment routes\n")
+
+	// Create test user
+	fmt.Printf("  Creating test user\n")
+	user, id, vt, err := userCreate()
+	if err != nil {
+		return err
+	}
+
+	// Verify email
+	err = userEmailVerify(vt, user.Email, id)
+	if err != nil {
+		return err
+	}
+
+	// Update user key
+	err = userKeyUpdate(*user)
+	if err != nil {
+		return err
+	}
+
+	// Populate user's info
+	err = userDetails(user)
+	if err != nil {
+		return err
+	}
+
+	// Submit new proposal
+	token, err := submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Make proposal public
+	fmt.Printf("  Set proposal status: public\n")
+	err = proposalPublic(admin, token)
+	if err != nil {
+		return err
+	}
+
+	// Abandon proposal
+	reason := "because!"
+	fmt.Printf("  Abandon proposal\n")
+	err = proposalAbandon(admin, token, reason)
+	if err != nil {
+		return err
+	}
+
+	// Comment on abandoned proposal
+	fmt.Printf("  Ensure commenting on abandoned proposal isn't allowed\n")
+	comment := "this is a comment"
+	err = commentNew(*user, pi.PropStateVetted, token, comment, "0")
+	if err == nil {
+		return fmt.Errorf("Commented on an abandoned proposal: %v", token)
+	}
+
+	// Submit new proposal
+	token, err = submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Censor proposal
+	fmt.Printf("  Censor proposal\n")
+	err = proposalCensor(admin, pi.PropStateUnvetted, token, reason)
+	if err != nil {
+		return err
+	}
+
+	// Comment on abandoned proposal
+	fmt.Printf("  Ensure commenting on censored proposal isn't allowed\n")
+	err = commentNew(*user, pi.PropStateVetted, token, comment, "0")
+	if err == nil {
+		return fmt.Errorf("Commented on a censored proposal: %v", token)
+	}
+
+	// Submit new proposal
+	token, err = submitNewProposal(*user)
+	if err != nil {
+		return err
+	}
+
+	// Author comment on unvetted proposal
+	fmt.Printf("  Author comment on an unvetted proposal\n")
+	err = commentNew(*user, pi.PropStateUnvetted, token, comment, "0")
+	if err != nil {
+		return err
+	}
+
+	// Admin comment on an unvetted proposal
+	fmt.Print("  Admin comment on an unvetted proposal\n")
+	err = commentNew(admin, pi.PropStateUnvetted, token, comment, "0")
+	if err != nil {
+		return err
+	}
+
+	// Make proposal a public
+	fmt.Printf("  Set proposal status: public\n")
+	err = proposalPublic(admin, token)
+	if err != nil {
+		return err
+	}
+
+	// Author comment on a public proposal
+	fmt.Printf("  Author comment on a public proposal\n")
+	err = commentNew(*user, pi.PropStateVetted, token, comment, "0")
+	if err != nil {
+		return err
+	}
+
+	// Create another user to comment
+	fmt.Printf("  Creating another test user\n")
+	thirdU, id, vt, err := userCreate()
+	if err != nil {
+		return err
+	}
+
+	// Verify email
+	err = userEmailVerify(vt, thirdU.Email, id)
+	if err != nil {
+		return err
+	}
+
+	// Update user key
+	err = userKeyUpdate(*thirdU)
+	if err != nil {
+		return err
+	}
+
+	// Another user comment on a public proposal
+	fmt.Print("  Another user comment on a public proposal\n")
+	err = commentNew(*user, pi.PropStateVetted, token, comment, "0")
+	if err != nil {
+		return err
+	}
+
+	// Comment on a public proposal - reply
+	fmt.Printf("  Comment on a public proposal: reply\n")
+	reply := "this is a comment reply"
+	err = commentNew(*user, pi.PropStateVetted, token, reply, "1")
+	if err != nil {
+		return err
+	}
+
+	// Validate comments
+	fmt.Printf("  Proposal details\n")
+	propReq := pi.ProposalRequest{
+		Token: token,
+	}
+	pdr, err := client.Proposals(pi.Proposals{
+		State:        pi.PropStateVetted,
+		Requests:     []pi.ProposalRequest{propReq},
+		IncludeFiles: false,
+	})
+	if err != nil {
+		return err
+	}
+	prop := pdr.Proposals[token]
+	if prop.Comments != 3 {
+		return fmt.Errorf("proposal num comments got %v, want 3",
+			prop.Comments)
+	}
+
+	fmt.Printf("  Proposal comments\n")
+	gcr, err := client.Comments(pi.Comments{
+		Token: token,
+		State: pi.PropStateVetted,
+	})
+	if err != nil {
+		return fmt.Errorf("Comments: %v", err)
+	}
+
+	if len(gcr.Comments) != 3 {
+		return fmt.Errorf("num comments got %v, want 3",
+			len(gcr.Comments))
+	}
+
+	for _, c := range gcr.Comments {
+		// We check the userID because userIDs are not part of
+		// the politeiad comment record. UserIDs are stored in
+		// in politeiawww and are added to the comments at the
+		// time of the request. This introduces the potential
+		// for errors.
+		if c.UserID != user.ID && c.CommentID == 1 {
+			return fmt.Errorf("comment %v has wrong userID got %v, want %v",
+				c.CommentID, c.UserID, user.ID)
+		}
+	}
+
+	// Login with admin to be able to vote on user's comments
+	fmt.Printf("  Login admin\n")
+	err = login(admin)
+	if err != nil {
+		return err
+	}
+
+	// Comment vote sequence
+	var (
+		// Comment actions
+		commentActionUpvote   = strconv.Itoa(int(pi.CommentVoteUpvote))
+		commentActionDownvote = strconv.Itoa(int(pi.CommentVoteDownvote))
+	)
+	cvc := commentVoteCmd{}
+	cvc.Args.Token = token
+	cvc.Args.CommentID = "1"
+	cvc.Args.Vote = commentActionUpvote
+
+	fmt.Printf("  Comment vote: upvote\n")
+	err = cvc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// XXX workaround to prevent comment votes from having the same timestamp
+	time.Sleep(time.Second)
+
+	fmt.Printf("  Comment vote: upvote\n")
+	err = cvc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// XXX workaround to prevent comment votes from having the same timestamp
+	time.Sleep(time.Second)
+
+	fmt.Printf("  Comment vote: upvote\n")
+	err = cvc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// XXX workaround to prevent comment votes from having the same timestamp
+	time.Sleep(time.Second)
+
+	fmt.Printf("  Comment vote: downvote\n")
+	cvc.Args.Vote = commentActionDownvote
+	err = cvc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	// Validate comment votes
+	fmt.Printf("  Fetch proposal's comments & verify first comment score\n")
+	gcr, err = client.Comments(pi.Comments{
+		Token: token,
+		State: pi.PropStateVetted,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Verify first comment score
+	err = verifyCommentScore(gcr.Comments, 1, 0, 1)
+	if err != nil {
+		return err
+	}
+
+	// Validate comment votes using short token
+	fmt.Printf("  Fetch proposal's comments using short token & verify first " +
+		"comment score\n")
+	gcr, err = client.Comments(pi.Comments{
+		Token: token[0:7],
+		State: pi.PropStateVetted,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Verify first comment score
+	err = verifyCommentScore(gcr.Comments, 1, 0, 1)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  Verify admin's comment votes\n")
+	cvr, err := client.CommentVotes(pi.CommentVotes{
+		State:  pi.PropStateVetted,
+		Token:  token,
+		UserID: admin.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = verifyCommentVotes(cvr.Votes, 1, 4, 3, 1)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  Verify admin's comment votes using short token\n")
+	cvr, err = client.CommentVotes(pi.CommentVotes{
+		State:  pi.PropStateVetted,
+		Token:  token[0:7],
+		UserID: admin.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = verifyCommentVotes(cvr.Votes, 1, 4, 3, 1)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Execute executes the test run command.
 func (cmd *testRunCmd) Execute(args []string) error {
 	// Suppress output from cli commands
@@ -1041,6 +1453,12 @@ func (cmd *testRunCmd) Execute(args []string) error {
 		return err
 	}
 
+	// Populate admin's info
+	err = userDetails(&admin)
+	if err != nil {
+		return err
+	}
+
 	// Ensure admin paid registration free
 	urpr, err := userRegistrationPayment()
 	if err != nil {
@@ -1068,7 +1486,14 @@ func (cmd *testRunCmd) Execute(args []string) error {
 		return err
 	}
 
+	// Test comment routes
+	err = testCommentRoutes(admin)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Test run successful!\n")
+
 	return nil
 }
 
