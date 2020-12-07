@@ -155,6 +155,10 @@ func tokenDecode(token string) ([]byte, error) {
 // tokenDecodeAnyLength decodes the provided hex encoded record token. This
 // function accepts both full length tokens and token prefixes.
 func tokenDecodeAnyLength(token string) ([]byte, error) {
+	// If provided token has odd length add padding
+	if len(token)%2 == 1 {
+		token = token + "0"
+	}
 	t, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid hex")

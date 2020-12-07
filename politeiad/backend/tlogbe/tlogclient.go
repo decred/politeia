@@ -59,6 +59,15 @@ func (c *backendClient) tlogByID(tlogID string) (*tlog, error) {
 // treeIDFromToken returns the treeID for the provided tlog instance ID and
 // token.
 func (c *backendClient) treeIDFromToken(tlogID string, token []byte) (int64, error) {
+	if len(token) == tokenPrefixSize() {
+		// This is a token prefix. Get the full token from the cache.
+		var ok bool
+		token, ok = c.backend.fullLengthToken(token)
+		if !ok {
+			return 0, errRecordNotFound
+		}
+	}
+
 	switch tlogID {
 	case tlogIDUnvetted:
 		return treeIDFromToken(token), nil
