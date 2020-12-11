@@ -660,7 +660,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 
 				piToken := formatInvoiceField(lineInput.ProposalToken)
-				if piToken != "" && !validateInvoiceField(piToken) {
+				if piToken != "" && !pd.RegexpSHA256.MatchString(piToken) {
 					return www.UserError{
 						ErrorCode: cms.ErrorStatusMalformedProposalToken,
 					}
