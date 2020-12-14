@@ -106,6 +106,7 @@ var (
 		ErrorStatusNoChanges:                     "no changes in record",
 		ErrorStatusRecordFound:                   "record found",
 		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
+		ErrorStatusInvalidToken:                  "invalid token",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
