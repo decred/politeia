@@ -854,3 +854,91 @@ func TestVettedExists(t *testing.T) {
 		t.Errorf("got true, want false")
 	}
 }
+
+func TestGetUnvetted(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create new record
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+	rec, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	token, err := tokenDecode(rec.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Random token
+	tokenRandom := tokenFromTreeID(123)
+
+	// Bad version error
+	_, err = tlogBackend.GetUnvetted(token, "badversion")
+	if err != backend.ErrRecordNotFound {
+		t.Errorf("got error %v, want %v", err, backend.ErrRecordNotFound)
+	}
+
+	// Bad token error
+	_, err = tlogBackend.GetUnvetted(tokenRandom, "")
+	if err != backend.ErrRecordNotFound {
+		t.Errorf("got error %v, want %v", err, backend.ErrRecordNotFound)
+	}
+
+	// Success
+	_, err = tlogBackend.GetUnvetted(token, "")
+	if err != nil {
+		t.Errorf("got error %v, want nil", err)
+	}
+}
+
+func TestGetVetted(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create new record
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+	rec, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	token, err := tokenDecode(rec.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Random token
+	tokenRandom := tokenFromTreeID(123)
+
+	// Bad version error
+	_, err = tlogBackend.GetUnvetted(token, "badversion")
+	if err != backend.ErrRecordNotFound {
+		t.Errorf("got error %v, want %v", err, backend.ErrRecordNotFound)
+	}
+
+	// Bad token error
+	_, err = tlogBackend.GetUnvetted(tokenRandom, "")
+	if err != backend.ErrRecordNotFound {
+		t.Errorf("got error %v, want %v", err, backend.ErrRecordNotFound)
+	}
+
+	// Success
+	_, err = tlogBackend.GetUnvetted(token, "")
+	if err != nil {
+		t.Errorf("got error %v, want nil", err)
+	}
+}
