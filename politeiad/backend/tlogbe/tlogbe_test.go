@@ -801,3 +801,56 @@ func TestUnvettedExists(t *testing.T) {
 		t.Errorf("got true, want false")
 	}
 }
+func TestVettedExists(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create unvetted record
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+	unvetted, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenUnvetted, err := tokenDecode(unvetted.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create vetted record
+	vetted, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenVetted, err := tokenDecode(vetted.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	md = append(md, backend.MetadataStream{
+		ID:      2,
+		Payload: "",
+	})
+	err = tlogBackend.unvettedPublish(tokenVetted, *vetted, md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Run VettedExists test cases
+	//
+	// Record exists
+	result := tlogBackend.VettedExists(tokenVetted)
+	if result == false {
+		t.Errorf("got false, want true")
+	}
+	// Record does not exist
+	result = tlogBackend.VettedExists(tokenUnvetted)
+	if result == true {
+		t.Errorf("got true, want false")
+	}
+}
