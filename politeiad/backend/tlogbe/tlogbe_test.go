@@ -762,3 +762,42 @@ func TestUpdateVettedMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestUnvettedExists(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create new record
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+	rec, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	token, err := tokenDecode(rec.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Random token
+	tokenRandom := tokenFromTreeID(123)
+
+	// Run UnvettedExists test cases
+	//
+	// Record exists
+	result := tlogBackend.UnvettedExists(token)
+	if result == false {
+		t.Errorf("got false, want true")
+	}
+	// Record does not exist
+	result = tlogBackend.UnvettedExists(tokenRandom)
+	if result == true {
+		t.Errorf("got true, want false")
+	}
+}
