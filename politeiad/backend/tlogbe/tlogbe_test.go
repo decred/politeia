@@ -574,3 +574,191 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateVettedMetadata(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create new record
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+	rec, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	token, err := tokenDecode(rec.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	md = append(md, backend.MetadataStream{
+		ID:      3,
+		Payload: "",
+	})
+	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Test all record content verification error through the
+	// UpdateVettedMetadata endpoint
+	recordContentTests := setupRecordContentTests(t)
+	for _, test := range recordContentTests {
+		t.Run(test.description, func(t *testing.T) {
+			// Make backend call
+			err := tlogBackend.UpdateVettedMetadata(token,
+				test.metadata, []backend.MetadataStream{})
+
+			// Parse error
+			var contentError backend.ContentVerificationError
+			if errors.As(err, &contentError) {
+				if contentError.ErrorCode != test.err.ErrorCode {
+					t.Errorf("got error %v, want %v",
+						v1.ErrorStatus[contentError.ErrorCode],
+						v1.ErrorStatus[test.err.ErrorCode])
+				}
+			}
+		})
+	}
+
+	// test case: Token not full length
+	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
+	if err != nil {
+		t.Error(err)
+	}
+
+	// test case: Record not found
+	tokenRandom := tokenFromTreeID(123)
+
+	// test case: Frozen tree
+	recFrozen, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenFrozen, err := tokenDecode(recFrozen.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	md = append(md, backend.MetadataStream{
+		ID:      4,
+		Payload: "",
+	})
+	err = tlogBackend.unvettedPublish(tokenFrozen, *recFrozen, md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	treeIDFrozenVetted := tlogBackend.vettedTreeIDs[recFrozen.Token]
+	err = tlogBackend.vetted.treeFreeze(treeIDFrozenVetted,
+		backend.RecordMetadata{}, []backend.MetadataStream{}, 0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Setup UpdateVettedMetadata tests
+	var tests = []struct {
+		description           string
+		token                 []byte
+		mdAppend, mdOverwrite []backend.MetadataStream
+		wantContentErr        *backend.ContentVerificationError
+		wantErr               error
+	}{
+		{
+			"no changes to record metadata, empty streams",
+			token,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			&backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusNoChanges,
+			},
+			nil,
+		},
+		{
+			"invalid token",
+			tokenShort,
+			[]backend.MetadataStream{{
+				ID:      2,
+				Payload: "random",
+			}},
+			[]backend.MetadataStream{},
+			&backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidToken,
+			},
+			nil,
+		},
+		{
+			"record not found",
+			tokenRandom,
+			[]backend.MetadataStream{{
+				ID:      2,
+				Payload: "random",
+			}},
+			[]backend.MetadataStream{},
+			nil,
+			backend.ErrRecordNotFound,
+		},
+		{
+			"tree frozen for changes",
+			tokenFrozen,
+			[]backend.MetadataStream{{
+				ID:      2,
+				Payload: "random",
+			}},
+			[]backend.MetadataStream{},
+			nil,
+			backend.ErrRecordLocked,
+		},
+		{
+			"no changes to record metadata, same payload",
+			token,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{{
+				ID:      3,
+				Payload: "",
+			}},
+			nil,
+			backend.ErrNoChanges,
+		},
+		{
+			"success",
+			token,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{{
+				ID:      1,
+				Payload: "newdata",
+			}},
+			nil,
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			// Make backend call
+			err = tlogBackend.UpdateVettedMetadata(test.token,
+				test.mdAppend, test.mdOverwrite)
+
+			// Parse error
+			var contentError backend.ContentVerificationError
+			if errors.As(err, &contentError) {
+				if test.wantContentErr == nil {
+					t.Errorf("got error %v, want nil", err)
+				}
+				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+					t.Errorf("got error %v, want %v",
+						v1.ErrorStatus[contentError.ErrorCode],
+						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+				}
+				return
+			}
+
+			if test.wantErr != err {
+				t.Errorf("got error %v, want %v", err, test.wantErr)
+			}
+		})
+	}
+}
