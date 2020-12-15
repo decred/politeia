@@ -1403,7 +1403,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	rm.Iteration += 1
 	rm.Timestamp = time.Now().Unix()
 
-	// Apply metdata changes
+	// Apply metadata changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks

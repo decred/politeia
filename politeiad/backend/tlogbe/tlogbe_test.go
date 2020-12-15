@@ -801,6 +801,7 @@ func TestUnvettedExists(t *testing.T) {
 		t.Errorf("got true, want false")
 	}
 }
+
 func TestVettedExists(t *testing.T) {
 	tlogBackend, err := newTestTlogBackend(t)
 	if err != nil {
@@ -920,25 +921,402 @@ func TestGetVetted(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	md = append(md, backend.MetadataStream{
+		ID:      2,
+		Payload: "",
+	})
+	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
+	if err != nil {
+		t.Error(err)
+	}
 
 	// Random token
 	tokenRandom := tokenFromTreeID(123)
 
 	// Bad version error
-	_, err = tlogBackend.GetUnvetted(token, "badversion")
+	_, err = tlogBackend.GetVetted(token, "badversion")
 	if err != backend.ErrRecordNotFound {
 		t.Errorf("got error %v, want %v", err, backend.ErrRecordNotFound)
 	}
 
 	// Bad token error
-	_, err = tlogBackend.GetUnvetted(tokenRandom, "")
+	_, err = tlogBackend.GetVetted(tokenRandom, "")
 	if err != backend.ErrRecordNotFound {
 		t.Errorf("got error %v, want %v", err, backend.ErrRecordNotFound)
 	}
 
 	// Success
-	_, err = tlogBackend.GetUnvetted(token, "")
+	_, err = tlogBackend.GetVetted(token, "")
 	if err != nil {
 		t.Errorf("got error %v, want nil", err)
+	}
+}
+
+func TestSetUnvettedStatus(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Helpers
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+
+	// Invalid status transitions
+	//
+	// test case: Unvetted to archived
+	recUnvetToArch, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenUnvetToArch, err := tokenDecode(recUnvetToArch.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	// test case: Unvetted to unvetted
+	recUnvetToUnvet, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenUnvetToUnvet, err := tokenDecode(recUnvetToUnvet.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Valid status transitions
+	//
+	// test case: Unvetted to vetted
+	recUnvetToVet, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenUnvetToVet, err := tokenDecode(recUnvetToVet.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	// test case: Unvetted to censored
+	recUnvetToCensored, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenUnvetToCensored, err := tokenDecode(recUnvetToCensored.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// test case: Token not full length
+	tokenShort, err := util.ConvertStringToken(
+		util.TokenToPrefix(recUnvetToVet.Token))
+	if err != nil {
+		t.Error(err)
+	}
+
+	// test case: Record not found
+	tokenRandom := tokenFromTreeID(123)
+
+	// Setup SetUnvettedStatus tests
+	var tests = []struct {
+		description           string
+		token                 []byte
+		status                backend.MDStatusT
+		mdAppend, mdOverwrite []backend.MetadataStream
+		wantContentErr        *backend.ContentVerificationError
+		wantErr               error
+	}{
+		{
+			"invalid: unvetted to archived",
+			tokenUnvetToArch,
+			backend.MDStatusArchived,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			backend.StateTransitionError{
+				From: recUnvetToArch.Status,
+				To:   backend.MDStatusArchived,
+			},
+		},
+		{
+			"invalid: unvetted to unvetted",
+			tokenUnvetToUnvet,
+			backend.MDStatusUnvetted,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			backend.StateTransitionError{
+				From: recUnvetToArch.Status,
+				To:   backend.MDStatusUnvetted,
+			},
+		},
+		{
+			"valid: unvetted to vetted",
+			tokenUnvetToVet,
+			backend.MDStatusVetted,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			nil,
+		},
+		{
+			"valid: unvetted to censored",
+			tokenUnvetToCensored,
+			backend.MDStatusCensored,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			nil,
+		},
+		{
+			"invalid token",
+			tokenShort,
+			backend.MDStatusCensored,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			&backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidToken,
+			},
+			nil,
+		},
+		{
+			"record not found",
+			tokenRandom,
+			backend.MDStatusCensored,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			backend.ErrRecordNotFound,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			// Make backend call
+			_, err = tlogBackend.SetUnvettedStatus(test.token, test.status,
+				test.mdAppend, test.mdOverwrite)
+
+			// Parse error
+			var contentError backend.ContentVerificationError
+			if errors.As(err, &contentError) {
+				if test.wantContentErr == nil {
+					t.Errorf("got error %v, want nil", err)
+				}
+				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+					t.Errorf("got error %v, want %v",
+						v1.ErrorStatus[contentError.ErrorCode],
+						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+				}
+				return
+			}
+
+			if test.wantErr != err {
+				t.Errorf("got error %v, want %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestSetVettedStatus(t *testing.T) {
+	tlogBackend, err := newTestTlogBackend(t)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Helpers
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+
+	// Invalid status transitions
+	//
+	// test case: Vetted to unvetted
+	recVetToUnvet, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenVetToUnvet, err := tokenDecode(recVetToUnvet.Token)
+	if err != nil {
+		t.Error(err)
+	}
+
+	md = append(md, backend.MetadataStream{
+		ID:      2,
+		Payload: "",
+	})
+	_, err = tlogBackend.SetUnvettedStatus(tokenVetToUnvet,
+		backend.MDStatusVetted, md, []backend.MetadataStream{})
+	if err != nil {
+		t.Error(err)
+	}
+	// test case: Vetted to vetted
+	recVetToVet, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenVetToVet, err := tokenDecode(recVetToVet.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	md = append(md, backend.MetadataStream{
+		ID:      3,
+		Payload: "",
+	})
+	_, err = tlogBackend.SetUnvettedStatus(tokenVetToVet,
+		backend.MDStatusVetted, md, []backend.MetadataStream{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Valid status transitions
+	//
+	// test case: Vetted to archived
+	recVetToArch, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenVetToArch, err := tokenDecode(recVetToArch.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	md = append(md, backend.MetadataStream{
+		ID:      4,
+		Payload: "",
+	})
+	_, err = tlogBackend.SetUnvettedStatus(tokenVetToArch,
+		backend.MDStatusVetted, md, []backend.MetadataStream{})
+	if err != nil {
+		t.Error(err)
+	}
+	// test case: Vetted to censored
+	recVetToCensored, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Error(err)
+	}
+	tokenVetToCensored, err := tokenDecode(recVetToCensored.Token)
+	if err != nil {
+		t.Error(err)
+	}
+	md = append(md, backend.MetadataStream{
+		ID:      5,
+		Payload: "",
+	})
+	_, err = tlogBackend.SetUnvettedStatus(tokenVetToCensored,
+		backend.MDStatusVetted, md, []backend.MetadataStream{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	// test case: Token not full length
+	tokenShort, err := util.ConvertStringToken(
+		util.TokenToPrefix(recVetToCensored.Token))
+	if err != nil {
+		t.Error(err)
+	}
+
+	// test case: Record not found
+	tokenRandom := tokenFromTreeID(123)
+
+	// Setup SetVettedStatus tests
+	var tests = []struct {
+		description           string
+		token                 []byte
+		status                backend.MDStatusT
+		mdAppend, mdOverwrite []backend.MetadataStream
+		wantContentErr        *backend.ContentVerificationError
+		wantErr               error
+	}{
+		{
+			"invalid: vetted to unvetted",
+			tokenVetToUnvet,
+			backend.MDStatusUnvetted,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			backend.StateTransitionError{
+				From: backend.MDStatusVetted,
+				To:   backend.MDStatusUnvetted,
+			},
+		},
+		{
+			"invalid: vetted to vetted",
+			tokenVetToVet,
+			backend.MDStatusVetted,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			backend.StateTransitionError{
+				From: backend.MDStatusVetted,
+				To:   backend.MDStatusVetted,
+			},
+		},
+		{
+			"valid: vetted to archived",
+			tokenVetToArch,
+			backend.MDStatusArchived,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			nil,
+		},
+		{
+			"valid: vetted to censored",
+			tokenVetToCensored,
+			backend.MDStatusCensored,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			nil,
+		},
+		{
+			"invalid token",
+			tokenShort,
+			backend.MDStatusCensored,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			&backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidToken,
+			},
+			nil,
+		},
+		{
+			"record not found",
+			tokenRandom,
+			backend.MDStatusCensored,
+			[]backend.MetadataStream{},
+			[]backend.MetadataStream{},
+			nil,
+			backend.ErrRecordNotFound,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			// Make backend call
+			_, err = tlogBackend.SetVettedStatus(test.token, test.status,
+				test.mdAppend, test.mdOverwrite)
+
+			// Parse error
+			var contentError backend.ContentVerificationError
+			if errors.As(err, &contentError) {
+				if test.wantContentErr == nil {
+					t.Errorf("got error %v, want nil", err)
+				}
+				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+					t.Errorf("got error %v, want %v",
+						v1.ErrorStatus[contentError.ErrorCode],
+						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+				}
+				return
+			}
+
+			if test.wantErr != err {
+				t.Errorf("got error %v, want %v", err, test.wantErr)
+			}
+		})
 	}
 }
