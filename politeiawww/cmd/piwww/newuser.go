@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
@@ -28,7 +29,7 @@ type NewUserCmd struct {
 
 // Execute executes the new user command.
 func (cmd *NewUserCmd) Execute(args []string) error {
-	email := cmd.Args.Email
+	email := strings.ToLower(cmd.Args.Email)
 	username := cmd.Args.Username
 	password := cmd.Args.Password
 
