@@ -4,7 +4,9 @@
 
 package main
 
-import "text/template"
+import (
+	"text/template"
+)
 
 // User email verify - Send verification link to new user
 type userEmailVerify struct {
@@ -151,6 +153,45 @@ If you do not recognize this, please ignore this email.
 var userDCCApprovedTmpl = template.Must(
 	template.New("userDCCApproved").Parse(userDCCApprovedText))
 
+var invoiceFirstNotificationTmpl = template.Must(
+	template.New("first_invoice_notification").Parse(invoiceFirstText))
+var invoiceSecondNotificationTmpl = template.Must(
+	template.New("second_invoice_notification").Parse(invoiceSecondText))
+var invoiceFinalNotificationTmpl = template.Must(
+	template.New("final_invoice_notification").Parse(invoiceFinalText))
+
+type invoiceNotification struct {
+	Username string
+	Month    string
+	Year     int
+}
+
+const invoiceFirstText = `
+{{.Username}},
+
+Please submit your invoice for {{.Month}} {{.Year}}.
+
+Regards,
+Contractor Management System
+`
+
+const invoiceSecondText = `
+{{.Username}},
+
+You have not yet submitted an invoice for {{.Month}} {{.Year}}.
+
+Regards,
+Contractor Management System`
+
+const invoiceFinalText = `
+{{.Username}},
+
+You have not yet submitted an invoice for {{.Month}} {{.Year}}.  This is the final warning you will receive, if you delay further, you may not be included in this month's payout.
+
+Regards,
+Contractor Management System
+`
+
 // DCC submitted - Send to admins
 type dccSubmitted struct {
 	Link string // DCC gui link
@@ -201,25 +242,6 @@ Contractor Management System
 
 var invoiceStatusUpdateTmpl = template.Must(
 	template.New("invoiceStatusUpdate").Parse(invoiceStatusUpdateText))
-
-// Invoice not sent - Send to users that did not send monthly invoice yet
-type invoiceNotSent struct {
-	Username string // User username
-	Month    string // Current month
-	Year     int    // Current year
-}
-
-const invoiceNotSentText = `
-{{.Username}},
-
-You have not yet submitted an invoice for {{.Month}} {{.Year}}.  Please do so as soon as possible, so your invoice may be reviewed and paid out in a timely manner.
-
-Regards,
-Contractor Management System
-`
-
-var invoiceNotSentTmpl = template.Must(
-	template.New("invoiceNotSent").Parse(invoiceNotSentText))
 
 // Invoice new comment - Send to invoice owner
 const invoiceNewCommentText = `

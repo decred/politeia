@@ -270,19 +270,17 @@ func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) e
 	return p.mail.SendTo(subject, body, recipients)
 }
 
-// emailInvoiceNotSent sends a invoice not sent email notification to the
-// provided email address.
-func (p *politeiawww) emailInvoiceNotSent(email, username string) error {
+// emailInvoiceNotifications emails users that have not yet submitted an
+// invoice for the given month/year
+func (p *politeiawww) emailInvoiceNotifications(email, username, subject string, tmpl *template.Template) error {
 	// Set the date to the first day of the previous month.
 	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
-	tplData := invoiceNotSent{
+	tplData := invoiceNotification{
 		Username: username,
 		Month:    newDate.Month().String(),
 		Year:     newDate.Year(),
 	}
-
-	subject := "Awaiting Monthly Invoice"
-	body, err := createBody(invoiceNotSentTmpl, tplData)
+	body, err := createBody(tmpl, &tplData)
 	if err != nil {
 		return err
 	}
