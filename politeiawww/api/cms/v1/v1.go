@@ -74,12 +74,11 @@ const (
 	LineItemTypeSubHours LineItemTypeT = 4 // Line items for subcontractor billing
 
 	// Domain types
-	DomainTypeInvalid       DomainTypeT = 0 // Invalid Domain type
-	DomainTypeDeveloper     DomainTypeT = 1 // Developer domain
-	DomainTypeMarketing     DomainTypeT = 2 // Marketing domain
-	DomainTypeResearch      DomainTypeT = 4 // Research domain
-	DomainTypeDesign        DomainTypeT = 5 // Design domain
-	DomainTypeDocumentation DomainTypeT = 6 // Documentation domain
+	DomainTypeInvalid   DomainTypeT = 0 // Invalid Domain type
+	DomainTypeDeveloper DomainTypeT = 1 // Developer domain
+	DomainTypeMarketing DomainTypeT = 2 // Marketing domain
+	DomainTypeResearch  DomainTypeT = 4 // Research domain
+	DomainTypeDesign    DomainTypeT = 5 // Design domain
 
 	// Contractor types
 	ContractorTypeInvalid         ContractorTypeT = 0 // Invalid contractor type
@@ -299,10 +298,6 @@ var (
 		{
 			Description: "design",
 			Type:        DomainTypeDesign,
-		},
-		{
-			Description: "documentation",
-			Type:        DomainTypeDocumentation,
 		},
 	}
 
