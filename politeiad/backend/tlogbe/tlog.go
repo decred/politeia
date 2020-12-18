@@ -367,6 +367,14 @@ func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
 	return &a, nil
 }
 
+func (t *tlog) encrypt(b []byte) ([]byte, error) {
+	if t.encryptionKey == nil {
+		return nil, fmt.Errorf("cannot encrypt blob; encryption key "+
+			"not set for tlog instance %v", t.id)
+	}
+	return t.encryptionKey.encrypt(0, b)
+}
+
 func (t *tlog) treeNew() (int64, error) {
 	log.Tracef("%v treeNew", t.id)
 
@@ -1543,7 +1551,7 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 	// Encrypt blobs if specified
 	if encrypt {
 		for k, v := range blobs {
-			e, err := t.encryptionKey.encrypt(0, v)
+			e, err := t.encrypt(v)
 			if err != nil {
 				return nil, err
 			}
