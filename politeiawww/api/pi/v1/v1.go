@@ -34,7 +34,8 @@ type VoteErrorT int
 const (
 	APIVersion = 1
 
-	// APIRoute is prefixed onto all routes.
+	// APIRoute is prefixed onto all routes defined in this package.
+	// TODO should the api route be "/pi/v1"?
 	APIRoute = "/v1"
 
 	// Proposal routes
@@ -69,12 +70,32 @@ const (
 	PropStateUnvetted PropStateT = 1
 	PropStateVetted   PropStateT = 2
 
-	// Proposal statuses
-	PropStatusInvalid    PropStatusT = 0 // Invalid status
-	PropStatusUnreviewed PropStatusT = 1 // Prop has not been reviewed
-	PropStatusPublic     PropStatusT = 2 // Prop has been made public
-	PropStatusCensored   PropStatusT = 3 // Prop has been censored
-	PropStatusAbandoned  PropStatusT = 4 // Prop has been abandoned
+	// PropStatusInvalid indicates the proposal status is invalid.
+	PropStatusInvalid PropStatusT = 0
+
+	// PropStatusUnreviewed indicates the proposal has been submitted,
+	// but has not yet been reviewed and made public by an admin. A
+	// proposal with this status will have a proposal state of
+	// PropStateUnvetted.
+	PropStatusUnreviewed PropStatusT = 1
+
+	// PropStatusPublic indicates that a proposal has been reviewed and
+	// made public by an admin. A proposal with this status will have
+	// a proposal state of PropStateVetted.
+	PropStatusPublic PropStatusT = 2
+
+	// PropStatusCensored indicates that a proposal has been censored
+	// by an admin for violating the proposal guidlines.. Both unvetted
+	// and vetted proposals can be censored so a proposal with this
+	// status can have a state of either PropStateUnvetted or
+	// PropStateVetted depending on whether the proposal was censored
+	// before or after it was made public.
+	PropStatusCensored PropStatusT = 3
+
+	// PropStatusAbandoned indicates that a proposal has been marked
+	// as abandoned by an admin due to the author being inactive.
+	// TODO can a unvetted proposal be abandoned?
+	PropStatusAbandoned PropStatusT = 4
 
 	// Comment vote types
 	CommentVoteInvalid  CommentVoteT = 0
@@ -92,7 +113,7 @@ const (
 	VoteAuthActionAuthorize VoteAuthActionT = "authorize"
 	VoteAuthActionRevoke    VoteAuthActionT = "revoke"
 
-	// Vote types
+	// VoteTypeInvalid represents and invalid vote type.
 	VoteTypeInvalid VoteT = 0
 
 	// VoteTypeStandard is used to indicate a simple approve or reject
@@ -199,8 +220,8 @@ const (
 )
 
 var (
-	// PropStatus contains the human readable proposal statuses.
-	PropStatus = map[PropStatusT]string{
+	// PropStatuses contains the human readable proposal statuses.
+	PropStatuses = map[PropStatusT]string{
 		PropStatusInvalid:    "invalid",
 		PropStatusUnreviewed: "unreviewed",
 		PropStatusPublic:     "public",
@@ -314,11 +335,6 @@ const (
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission. It is attached to a proposal submission as a Metadata object.
-//
-// TODO should there be a Type field? The issue is that we currently assume
-// a proposal is an RFP submission if the LinkTo is set. This boxes us in and
-// prevents us from using LinkTo in the future without some additional field
-// like a Type field.
 type ProposalMetadata struct {
 	Name string `json:"name"` // Proposal name
 
@@ -455,8 +471,8 @@ type ProposalRequest struct {
 }
 
 // Proposals retrieves the ProposalRecord for each of the provided proposal
-// requests. Unvetted proposals are stripped of their user defined proposal
-// files and metadata when being returned to non-admins.
+// requests. Unvetted proposals are stripped of their user defined files and
+// metadata when being returned to non-admins.
 //
 // IncludeFiles specifies whether the proposal files should be returned. The
 // user defined metadata will still be returned even when IncludeFiles is set
@@ -484,11 +500,11 @@ type ProposalInventory struct {
 
 // ProposalInventoryReply is the reply to the ProposalInventory command. The
 // inventory maps contain map[status][]tokens where the status is the human
-// readable proposal status, as defined by the PropStatus map, and the tokens
+// readable proposal status, as defined by the PropStatuses map, and the tokens
 // are a list of proposal tokens for that status. Each list is ordered by
 // timestamp of the status change from newest to oldest.
 type ProposalInventoryReply struct {
-	Unvetted map[string][]string `json:"unvetted,omitempty"`
+	Unvetted map[string][]string `json:"unvetted"`
 	Vetted   map[string][]string `json:"vetted"`
 }
 

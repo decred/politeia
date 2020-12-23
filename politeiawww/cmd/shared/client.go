@@ -951,8 +951,7 @@ func (c *Client) Proposals(p pi.Proposals) (*pi.ProposalsReply, error) {
 	return &pr, nil
 }
 
-// ProposalInventory retrieves the censorship tokens of all proposals,
-// separated by their status.
+// ProposalInventory sends a ProposalInventory request to politeiawww.
 func (c *Client) ProposalInventory(p pi.ProposalInventory) (*pi.ProposalInventoryReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
 		pi.RouteProposalInventory, p)

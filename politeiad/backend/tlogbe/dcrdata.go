@@ -609,7 +609,7 @@ func (p *dcrdataPlugin) cmd(cmd, payload string) (string, error) {
 //
 // This function satisfies the pluginClient interface.
 func (p *dcrdataPlugin) hook(h hookT, payload string) error {
-	log.Tracef("dcrdata hook: %v %v", hooks[h], payload)
+	log.Tracef("dcrdata hook: %v", hooks[h])
 
 	return nil
 }

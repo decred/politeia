@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	// Filenames of memoized data saved to the data dir.
-	filenameLinkedFrom = "{token}-linkedfrom.json"
+	// Filenames of cached data saved to the pi plugin data dir.
+	fnLinkedFrom = "{token}-linkedfrom.json"
+	fnUserData   = "{userid}.json"
 )
 
 var (
@@ -47,62 +48,32 @@ type piPlugin struct {
 	dataDir string
 }
 
-func isRFP(pm pi.ProposalMetadata) bool {
-	return pm.LinkBy != 0
-}
-
-// proposalMetadataFromFiles parses and returns the ProposalMetadata from the
-// provided files. If a ProposalMetadata is not found, nil is returned.
-func proposalMetadataFromFiles(files []backend.File) (*pi.ProposalMetadata, error) {
-	var pm *pi.ProposalMetadata
-	for _, v := range files {
-		if v.Name == pi.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-			pm, err = pi.DecodeProposalMetadata(b)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	return pm, nil
-}
-
-func convertPropStatusFromMDStatus(s backend.MDStatusT) pi.PropStatusT {
-	var status pi.PropStatusT
-	switch s {
-	case backend.MDStatusUnvetted, backend.MDStatusIterationUnvetted:
-		status = pi.PropStatusUnvetted
-	case backend.MDStatusVetted:
-		status = pi.PropStatusPublic
-	case backend.MDStatusCensored:
-		status = pi.PropStatusCensored
-	case backend.MDStatusArchived:
-		status = pi.PropStatusAbandoned
-	}
-	return status
-}
-
 // linkedFrom is the the structure that is updated and cached for proposal A
-// when proposal B links to proposal A. The list contains all proposals that
-// have linked to proposal A. The linked from list will only contain public
-// proposals.
+// when proposal B links to proposal A. Proposals can link to one another using
+// the ProposalMetadata LinkTo field. The linkedFrom list contains all
+// proposals that have linked to proposal A. The list will only contain public
+// proposals. The linkedFrom list is saved to disk in the pi plugin data dir,
+// specifying the parent proposal token in the filename.
 //
-// Example: an RFP proposal's linked from list will contain all public RFP
-// submissions since they have all linked to the RFP proposal.
+// Example: the linked from list for an RFP proposal will contain all public
+// RFP submissions. The cached list can be found in the pi plugin data dir
+// at the path specified by linkedFromPath().
 type linkedFrom struct {
 	Tokens map[string]struct{} `json:"tokens"`
 }
 
+// linkedFromPath returns the path to the linkedFrom list for the provided
+// proposal token.
 func (p *piPlugin) linkedFromPath(token string) string {
-	fn := strings.Replace(filenameLinkedFrom, "{token}", token, 1)
+	fn := strings.Replace(fnLinkedFrom, "{token}", token, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
+// linkedFromWithLock return the linkedFrom list for the provided proposal
+// token.
+//
 // This function must be called WITH the lock held.
-func (p *piPlugin) linkedFromLocked(token string) (*linkedFrom, error) {
+func (p *piPlugin) linkedFromWithLock(token string) (*linkedFrom, error) {
 	fp := p.linkedFromPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
@@ -124,65 +95,214 @@ func (p *piPlugin) linkedFromLocked(token string) (*linkedFrom, error) {
 	return &lf, nil
 }
 
+// linkedFrom return the linkedFrom list for the provided proposal token.
+//
+// This function must be called WITHOUT the lock held.
 func (p *piPlugin) linkedFrom(token string) (*linkedFrom, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.linkedFromLocked(token)
+	return p.linkedFromWithLock(token)
 }
 
+// linkedFromSaveWithLock saves the provided linkedFrom list to the pi plugin
+// data dir.
+//
+// This function must be called WITH the lock held.
+func (p *piPlugin) linkedFromSaveWithLock(token string, lf linkedFrom) error {
+	b, err := json.Marshal(lf)
+	if err != nil {
+		return err
+	}
+	fp := p.linkedFromPath(token)
+	return ioutil.WriteFile(fp, b, 0664)
+}
+
+// linkedFromAdd updates the cached linkedFrom list for the parentToken, adding
+// the childToken to the list.
+//
+// This function must be called WITHOUT the lock held.
 func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get existing linked from list
-	lf, err := p.linkedFromLocked(parentToken)
+	lf, err := p.linkedFromWithLock(parentToken)
 	if errors.Is(err, errRecordNotFound) {
-		return fmt.Errorf("linkedFromLocked %v: %v", parentToken, err)
+		return fmt.Errorf("linkedFromWithLock %v: %v", parentToken, err)
 	}
 
 	// Update list
 	lf.Tokens[childToken] = struct{}{}
 
 	// Save list
-	b, err := json.Marshal(lf)
-	if err != nil {
-		return err
-	}
-	fp := p.linkedFromPath(parentToken)
-	err = ioutil.WriteFile(fp, b, 0664)
-	if err != nil {
-		return fmt.Errorf("WriteFile: %v", err)
-	}
-
-	return nil
+	return p.linkedFromSaveWithLock(parentToken, *lf)
 }
 
+// linkedFromDel updates the cached linkedFrom list for the parentToken,
+// deleting the childToken from the list.
+//
+// This function must be called WITHOUT the lock held.
 func (p *piPlugin) linkedFromDel(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get existing linked from list
-	lf, err := p.linkedFromLocked(parentToken)
+	lf, err := p.linkedFromWithLock(parentToken)
 	if err != nil {
-		return fmt.Errorf("linkedFromLocked %v: %v", parentToken, err)
+		return fmt.Errorf("linkedFromWithLock %v: %v", parentToken, err)
 	}
 
 	// Update list
 	delete(lf.Tokens, childToken)
 
 	// Save list
-	b, err := json.Marshal(lf)
+	return p.linkedFromSaveWithLock(parentToken, *lf)
+}
+
+// userData contains cached pi plugin data for a specific user. The userData
+// JSON is saved to disk in the pi plugin data dir. The user ID is included in
+// the filename.
+type userData struct {
+	// Tokens contains a list of all the proposals that have been
+	// submitted by this user. This data is cached so that the
+	// ProposalInv command can filter proposals by user ID.
+	Tokens []string `json:"tokens"`
+}
+
+// userDataPath returns the filepath to the cached userData struct for the
+// specified user.
+func (p *piPlugin) userDataPath(userID string) string {
+	fn := strings.Replace(fnUserData, "{userid}", userID, 1)
+	return filepath.Join(p.dataDir, fn)
+}
+
+// userDataWithLock returns the cached userData struct for the specified user.
+//
+// This function must be called WITH the lock held.
+func (p *piPlugin) userDataWithLock(userID string) (*userData, error) {
+	fp := p.userDataPath(userID)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		var e *os.PathError
+		if errors.As(err, &e) && !os.IsExist(err) {
+			// File does't exist. Return an empty userData.
+			return &userData{
+				Tokens: []string{},
+			}, nil
+		}
+	}
+
+	var ud userData
+	err = json.Unmarshal(b, &ud)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ud, nil
+}
+
+// userData returns the cached userData struct for the specified user.
+//
+// This function must be called WITHOUT the lock held.
+func (p *piPlugin) userData(userID string) (*userData, error) {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.userDataWithLock(userID)
+}
+
+// userDataSaveWithLock saves the provided userData to the pi plugin data dir.
+//
+// This function must be called WITH the lock held.
+func (p *piPlugin) userDataSaveWithLock(userID string, ud userData) error {
+	b, err := json.Marshal(ud)
 	if err != nil {
 		return err
 	}
-	fp := p.linkedFromPath(parentToken)
-	err = ioutil.WriteFile(fp, b, 0664)
+
+	fp := p.userDataPath(userID)
+	return ioutil.WriteFile(fp, b, 0664)
+}
+
+// userDataAddToken adds the provided token to the cached userData for the
+// provided user.
+//
+// This function must be called WITHOUT the lock held.
+func (p *piPlugin) userDataAddToken(userID string, token string) error {
+	p.Lock()
+	defer p.Unlock()
+
+	// Get current user data
+	ud, err := p.userDataWithLock(userID)
 	if err != nil {
-		return fmt.Errorf("WriteFile: %v", err)
+		return err
 	}
 
-	return nil
+	// Add token
+	ud.Tokens = append(ud.Tokens, token)
+
+	// Save changes
+	return p.userDataSaveWithLock(userID, *ud)
+}
+
+// isRFP returns whether the provided proposal metadata belongs to an RFP
+// proposal.
+func isRFP(pm pi.ProposalMetadata) bool {
+	return pm.LinkBy != 0
+}
+
+// decodeProposalMetadata decodes and returns the ProposalMetadata from the
+// provided backend files. If a ProposalMetadata is not found, nil is returned.
+func decodeProposalMetadata(files []backend.File) (*pi.ProposalMetadata, error) {
+	var pm *pi.ProposalMetadata
+	for _, v := range files {
+		if v.Name == pi.FileNameProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			pm, err = pi.DecodeProposalMetadata(b)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+	return pm, nil
+}
+
+// decodeGeneralMetadata decodes and returns the GeneralMetadata from the
+// provided backend metadata streams. If a GeneralMetadata is not found, nil is
+// returned.
+func decodeGeneralMetadata(metadata []backend.MetadataStream) (*pi.GeneralMetadata, error) {
+	var gm *pi.GeneralMetadata
+	var err error
+	for _, v := range metadata {
+		if v.ID == pi.MDStreamIDGeneralMetadata {
+			gm, err = pi.DecodeGeneralMetadata([]byte(v.Payload))
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+	return gm, nil
+}
+
+func convertPropStatusFromMDStatus(s backend.MDStatusT) pi.PropStatusT {
+	var status pi.PropStatusT
+	switch s {
+	case backend.MDStatusUnvetted, backend.MDStatusIterationUnvetted:
+		status = pi.PropStatusUnvetted
+	case backend.MDStatusVetted:
+		status = pi.PropStatusPublic
+	case backend.MDStatusCensored:
+		status = pi.PropStatusCensored
+	case backend.MDStatusArchived:
+		status = pi.PropStatusAbandoned
+	}
+	return status
 }
 
 func (p *piPlugin) cmdProposals(payload string) (string, error) {
@@ -637,6 +757,104 @@ func (p *piPlugin) cmdCommentVote(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (p *piPlugin) cmdProposalInv(payload string) (string, error) {
+	// Decode payload
+	inv, err := pi.DecodeProposalInv([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Get full record inventory
+	ibs, err := p.backend.InventoryByStatus()
+	if err != nil {
+		return "", err
+	}
+
+	// Apply user ID filtering criteria
+	if inv.UserID != "" {
+		// Lookup the proposal tokens that have been submitted by the
+		// specified user.
+		ud, err := p.userData(inv.UserID)
+		if err != nil {
+			return "", fmt.Errorf("userData %v: %v", inv.UserID, err)
+		}
+		userTokens := make(map[string]struct{}, len(ud.Tokens))
+		for _, v := range ud.Tokens {
+			userTokens[v] = struct{}{}
+		}
+
+		// Compile a list of unvetted tokens categorized by MDStatusT
+		// that were submitted by the user.
+		filtered := make(map[backend.MDStatusT][]string, len(ibs.Unvetted))
+		for status, tokens := range ibs.Unvetted {
+			for _, v := range tokens {
+				_, ok := userTokens[v]
+				if !ok {
+					// Proposal was not submitted by the user
+					continue
+				}
+
+				// Proposal was submitted by the user
+				ftokens, ok := filtered[status]
+				if !ok {
+					ftokens = make([]string, 0, len(tokens))
+				}
+				filtered[status] = append(ftokens, v)
+			}
+		}
+
+		// Update unvetted inventory with filtered tokens
+		ibs.Unvetted = filtered
+
+		// Compile a list of vetted tokens categorized by MDStatusT that
+		// were submitted by the user.
+		filtered = make(map[backend.MDStatusT][]string, len(ibs.Vetted))
+		for status, tokens := range ibs.Vetted {
+			for _, v := range tokens {
+				_, ok := userTokens[v]
+				if !ok {
+					// Proposal was not submitted by the user
+					continue
+				}
+
+				// Proposal was submitted by the user
+				ftokens, ok := filtered[status]
+				if !ok {
+					ftokens = make([]string, 0, len(tokens))
+				}
+				filtered[status] = append(ftokens, v)
+			}
+		}
+
+		// Update vetted inventory with filtered tokens
+		ibs.Vetted = filtered
+	}
+
+	// Convert MDStatus keys to human readable proposal statuses
+	unvetted := make(map[string][]string, len(ibs.Unvetted))
+	vetted := make(map[string][]string, len(ibs.Vetted))
+	for k, v := range ibs.Unvetted {
+		s := pi.PropStatuses[convertPropStatusFromMDStatus(k)]
+		unvetted[s] = v
+	}
+	for k, v := range ibs.Vetted {
+		s := pi.PropStatuses[convertPropStatusFromMDStatus(k)]
+		vetted[s] = v
+	}
+
+	// Prepare reply
+	pir := pi.ProposalInvReply{
+		Unvetted: unvetted,
+		Vetted:   vetted,
+	}
+	reply, err := pi.EncodeProposalInvReply(pir)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 func (p *piPlugin) cmdVoteInventory(payload string) (string, error) {
 	// Payload is empty. Nothing to decode.
 
@@ -707,7 +925,7 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 		return "", err
 	}
 
-	// Verify there is work to do
+	// Verify work needs to be done
 	if len(s.Starts) == 0 {
 		return "", backend.PluginUserError{
 			PluginID:     pi.ID,
@@ -752,7 +970,7 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 
 	// Verify RFP linkby has expired. The runoff vote is not allowed to
 	// start until after the linkby deadline has passed.
-	rfpPM, err := proposalMetadataFromFiles(rfp.Files)
+	rfpPM, err := decodeProposalMetadata(rfp.Files)
 	if err != nil {
 		return "", err
 	}
@@ -817,7 +1035,7 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 	for _, v := range s.Starts {
 		_, ok := expected[v.Params.Token]
 		if !ok {
-			// This submission should not be here
+			// This submission should not be here.
 			e := fmt.Sprintf("found token that should not be included: %v",
 				v.Params.Token)
 			return "", backend.PluginUserError{
@@ -895,19 +1113,9 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	}
 
 	// Decode ProposalMetadata
-	var pm *pi.ProposalMetadata
-	for _, v := range nr.Files {
-		if v.Name == pi.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			pm, err = pi.DecodeProposalMetadata(b)
-			if err != nil {
-				return err
-			}
-			break
-		}
+	pm, err := decodeProposalMetadata(nr.Files)
+	if err != nil {
+		return err
 	}
 	if pm == nil {
 		return fmt.Errorf("proposal metadata not found")
@@ -947,7 +1155,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 			}
 			return err
 		}
-		linkToPM, err := proposalMetadataFromFiles(r.Files)
+		linkToPM, err := decodeProposalMetadata(r.Files)
 		if err != nil {
 			return err
 		}
@@ -1006,6 +1214,30 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	return nil
 }
 
+func (p *piPlugin) hookNewRecordPost(payload string) error {
+	nr, err := decodeHookNewRecord([]byte(payload))
+	if err != nil {
+		return err
+	}
+
+	// Decode GeneralMetadata
+	gm, err := decodeGeneralMetadata(nr.Metadata)
+	if err != nil {
+		return err
+	}
+	if gm == nil {
+		panic("general metadata not found")
+	}
+
+	// Add token to the user data cache
+	err = p.userDataAddToken(gm.UserID, nr.RecordMetadata.Token)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (p *piPlugin) hookEditRecordPre(payload string) error {
 	er, err := decodeHookEditRecord([]byte(payload))
 	if err != nil {
@@ -1020,11 +1252,11 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	// linkto.
 	status := convertPropStatusFromMDStatus(er.Current.RecordMetadata.Status)
 	if status == pi.PropStatusPublic {
-		pmCurr, err := proposalMetadataFromFiles(er.Current.Files)
+		pmCurr, err := decodeProposalMetadata(er.Current.Files)
 		if err != nil {
 			return err
 		}
-		pmNew, err := proposalMetadataFromFiles(er.FilesAdd)
+		pmNew, err := decodeProposalMetadata(er.FilesAdd)
 		if err != nil {
 			return err
 		}
@@ -1147,7 +1379,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	// If the LinkTo field has been set then the linkedFrom
 	// list might need to be updated for the proposal that is being
 	// linked to, depending on the status change that is being made.
-	pm, err := proposalMetadataFromFiles(srs.Current.Files)
+	pm, err := decodeProposalMetadata(srs.Current.Files)
 	if err != nil {
 		return err
 	}
@@ -1205,6 +1437,8 @@ func (p *piPlugin) cmd(cmd, payload string) (string, error) {
 		return p.cmdCommentCensor(payload)
 	case pi.CmdCommentVote:
 		return p.cmdCommentVote(payload)
+	case pi.CmdProposalInv:
+		return p.cmdProposalInv(payload)
 	case pi.CmdVoteInventory:
 		return p.cmdVoteInventory(payload)
 	case pi.CmdPassThrough:
@@ -1223,6 +1457,8 @@ func (p *piPlugin) hook(h hookT, payload string) error {
 	switch h {
 	case hookNewRecordPre:
 		return p.hookNewRecordPre(payload)
+	case hookNewRecordPost:
+		return p.hookNewRecordPost(payload)
 	case hookEditRecordPre:
 		return p.hookEditRecordPre(payload)
 	case hookSetRecordStatusPost:

@@ -45,9 +45,13 @@ const (
 	tlogIDUnvetted = "unvetted"
 	tlogIDVetted   = "vetted"
 
-	// The following are the IDs of plugin settings that are derived
-	// from the politeiad config. The user does not have to set these
-	// manually.
+	// pluginDataDirname is the plugin data directory name. It is
+	// located in the tlog backend data directory and is provided to
+	// the plugins for storing plugin data.
+	pluginDataDirname = "plugins"
+
+	// pluginSettingDataDir is the PluginSetting key for the plugin
+	// data directory.
 	pluginSettingDataDir = "datadir"
 
 	// Record states
@@ -792,13 +796,12 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 	err = t.pluginHook(hookNewRecordPost, string(b))
 	if err != nil {
-		log.Errorf("New %x: pluginHook newRecordPost: %v", token, err)
+		e := fmt.Sprintf("New %x: pluginHook newRecordPost: %v", token, err)
+		panic(e)
 	}
 
 	// Update the inventory cache
 	t.inventoryAdd(stateUnvetted, token, backend.MDStatusUnvetted)
-
-	log.Infof("New record %x", token)
 
 	return rm, nil
 }
@@ -896,8 +899,9 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	// Call post plugin hooks
 	err = t.pluginHook(hookEditRecordPost, string(b))
 	if err != nil {
-		log.Errorf("UpdateUnvettedRecord %x: pluginHook editRecordPost: %v",
+		e := fmt.Sprintf("UpdateUnvettedRecord %x: pluginHook editRecordPost: %v",
 			token, err)
+		panic(e)
 	}
 
 	// Return updated record
@@ -1005,8 +1009,9 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	// Call post plugin hooks
 	err = t.pluginHook(hookEditRecordPost, string(b))
 	if err != nil {
-		log.Errorf("UpdateVettedRecord %x: pluginHook editRecordPost: %v",
+		e := fmt.Sprintf("UpdateVettedRecord %x: pluginHook editRecordPost: %v",
 			token, err)
+		panic(e)
 	}
 
 	// Return updated record
@@ -1103,8 +1108,9 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	// Call post plugin hooks
 	err = t.pluginHook(hookEditMetadataPost, string(b))
 	if err != nil {
-		log.Errorf("UpdateUnvettedMetadata %x: pluginHook editMetadataPost: %v",
+		e := fmt.Sprintf("UpdateUnvettedMetadata %x: pluginHook editMetadataPost: %v",
 			token, err)
+		panic(e)
 	}
 
 	return nil
@@ -1200,8 +1206,9 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	// Call post plugin hooks
 	err = t.pluginHook(hookEditMetadataPost, string(b))
 	if err != nil {
-		log.Errorf("UpdateVettedMetadata %x: pluginHook editMetadataPost: %v",
+		e := fmt.Sprintf("UpdateVettedMetadata %x: pluginHook editMetadataPost: %v",
 			token, err)
+		panic(e)
 	}
 
 	return nil
@@ -1442,8 +1449,9 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	// Call post plugin hooks
 	err = t.pluginHook(hookSetRecordStatusPost, string(b))
 	if err != nil {
-		log.Errorf("SetUnvettedStatus %x: pluginHook setRecordStatusPost: %v",
+		e := fmt.Sprintf("SetUnvettedStatus %x: pluginHook setRecordStatusPost: %v",
 			token, err)
+		panic(e)
 	}
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
@@ -1598,8 +1606,9 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	// Call post plugin hooks
 	err = t.pluginHook(hookSetRecordStatusPost, string(b))
 	if err != nil {
-		log.Errorf("SetVettedStatus %x: pluginHook setRecordStatusPost: %v",
+		e := fmt.Sprintf("SetVettedStatus %x: pluginHook setRecordStatusPost: %v",
 			token, err)
+		panic(e)
 	}
 
 	// Update inventory cache
@@ -1646,11 +1655,12 @@ func (t *tlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 func (t *tlogBackend) RegisterPlugin(p backend.Plugin) error {
 	log.Tracef("RegisterPlugin: %v", p.ID)
 
-	// Add tlog backend data dir to plugin settings. The plugin data
-	// dir should append the plugin ID onto the tlog backend data dir.
+	// Add the plugin data dir to the plugin settings. Plugins should
+	// create their own individual data directories inside of the
+	// plugin data directory.
 	p.Settings = append(p.Settings, backend.PluginSetting{
 		Key:   pluginSettingDataDir,
-		Value: t.dataDir,
+		Value: filepath.Join(t.dataDir, pluginDataDirname),
 	})
 
 	var (

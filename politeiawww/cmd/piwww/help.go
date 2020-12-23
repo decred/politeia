@@ -47,7 +47,7 @@ func (cmd *helpCmd) Execute(args []string) error {
 	case "proposals":
 		fmt.Printf("%s\n", proposalsHelpMsg)
 	case "proposalinventory":
-		fmt.Printf("%s\n", proposalInventoryHelpMsg)
+		fmt.Printf("%s\n", proposalInvHelpMsg)
 
 	// Comment commands
 	case "commentnew":

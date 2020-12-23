@@ -82,12 +82,16 @@ var (
 // We do not unwind.
 type tlog struct {
 	sync.Mutex
-	id            string
-	dcrtimeHost   string
+	id          string
+	dcrtimeHost string
+	trillian    trillianClient
+	store       store.Blob
+	cron        *cron.Cron
+
+	// encryptionKey is used to encrypt record blobs before saving them
+	// to the key-value store. This is an optional param. Record blobs
+	// will not be encrypted if this is left as nil.
 	encryptionKey *encryptionKey
-	trillian      trillianClient
-	store         store.Blob
-	cron          *cron.Cron
 
 	// droppingAnchor indicates whether tlog is in the process of
 	// dropping an anchor, i.e. timestamping unanchored trillian trees
@@ -104,8 +108,9 @@ type tlog struct {
 //
 // 1. Record content blobs are saved to the kv store.
 //
-// 2. The kv store keys are stuffed into the LogLeaf.ExtraData field and the
-//    leaves are appended onto the trillian tree.
+// 2. A trillian leaf is created for each record content blob. The kv store
+//    key for the blob is stuffed into the LogLeaf.ExtraData field. All leaves
+//    are appended onto the trillian tree.
 //
 // 3. If there are failures in steps 1 or 2 for any of the blobs then the
 //    update will exit without completing. No unwinding is performed. Blobs
@@ -120,7 +125,8 @@ type tlog struct {
 // of a recordIndex are considered to be orphaned and can be disregarded.
 type recordIndex struct {
 	// Version represents the version of the record. The version is
-	// only incremented when the record files are updated.
+	// only incremented when the record files are updated. Metadata
+	// only updates do no increment the version.
 	Version uint32 `json:"version"`
 
 	// Iteration represents the iteration of the record. The iteration
@@ -172,7 +178,8 @@ func treePointerExists(r recordIndex) bool {
 			r.TreePointer)
 		panic(e)
 	case r.TreePointer < 0:
-		// Tree pointer should never be negative
+		// Tree pointer should never be negative. Trillian uses a int64
+		// for the tree ID so we do too.
 		e := fmt.Sprintf("tree pointer is < 0: %v", r.TreePointer)
 		panic(e)
 	}
@@ -707,7 +714,7 @@ type recordBlobsPrepareReply struct {
 	// saved to the kv store. Hashes contains the hashes of the record
 	// content prior to being blobified.
 	//
-	// blobs and hashes MUST share the same ordering.
+	// blobs and hashes share the same ordering.
 	blobs  [][]byte
 	hashes [][]byte
 }
@@ -716,7 +723,7 @@ type recordBlobsPrepareReply struct {
 // the blob kv store and appended onto a trillian tree.
 //
 // TODO test this function
-func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File, encryptionKey *encryptionKey) (*recordBlobsPrepareReply, error) {
+func (t *tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordBlobsPrepareReply, error) {
 	// Verify there are no duplicate or empty mdstream IDs
 	mdstreamIDs := make(map[uint64]struct{}, len(metadata))
 	for _, v := range metadata {
@@ -881,8 +888,8 @@ func recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMe
 			return nil, err
 		}
 		// Encypt file blobs if encryption key has been set
-		if encryptionKey != nil {
-			b, err = encryptionKey.encrypt(0, b)
+		if t.encryptionKey != nil {
+			b, err = t.encrypt(b)
 			if err != nil {
 				return nil, err
 			}
@@ -1023,8 +1030,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Prepare kv store blobs
-	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
-		files, t.encryptionKey)
+	bpr, err := t.recordBlobsPrepare(leavesAll, rm, metadata, files)
 	if err != nil {
 		return err
 	}
@@ -1137,8 +1143,7 @@ func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 	}
 
 	// Prepare kv store blobs
-	bpr, err := recordBlobsPrepare(leavesAll, rm, metadata,
-		[]backend.File{}, t.encryptionKey)
+	bpr, err := t.recordBlobsPrepare(leavesAll, rm, metadata, []backend.File{})
 	if err != nil {
 		return nil, err
 	}

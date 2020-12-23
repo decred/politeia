@@ -83,18 +83,18 @@ func (p *politeiawww) piCommentCensor(ctx context.Context, cc piplugin.CommentCe
 	return ccr, nil
 }
 
-// proposalInventory returns the pi plugin proposal inventory.
-func (p *politeiawww) proposalInventory(ctx context.Context, inv piplugin.ProposalInventory) (*piplugin.ProposalInventoryReply, error) {
-	b, err := piplugin.EncodeProposalInventory(inv)
+// proposalInv returns the pi plugin proposal inventory.
+func (p *politeiawww) proposalInv(ctx context.Context, inv piplugin.ProposalInv) (*piplugin.ProposalInvReply, error) {
+	b, err := piplugin.EncodeProposalInv(inv)
 	if err != nil {
 		return nil, err
 	}
 	r, err := p.pluginCommand(ctx, piplugin.ID,
-		piplugin.CmdProposalInventory, string(b))
+		piplugin.CmdProposalInv, string(b))
 	if err != nil {
 		return nil, err
 	}
-	reply, err := piplugin.DecodeProposalInventoryReply(([]byte(r)))
+	reply, err := piplugin.DecodeProposalInvReply(([]byte(r)))
 	if err != nil {
 		return nil, err
 	}

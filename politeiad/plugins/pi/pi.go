@@ -25,18 +25,20 @@ const (
 	Version = "1"
 
 	// Plugin commands
-	// TODO refactor these commands to use the passthrough command
-	CmdProposals     = "proposals"     // Get plugin data for proposals
 	CmdCommentNew    = "commentnew"    // Create a new comment
 	CmdCommentCensor = "commentcensor" // Censor a comment
 	CmdCommentVote   = "commentvote"   // Upvote/downvote a comment
+	CmdProposalInv   = "proposalinv"   // Get inventory by proposal status
+	CmdVoteInventory = "voteinv"       // Get inventory by vote status
 
-	CmdProposalInventory = "proposalinv" // Get inventory by proposal status
-	CmdVoteInventory     = "voteinv"     // Get inventory by vote status
-	CmdPassThrough       = "passthrough" // Pass a plugin cmd through pi
+	// TODO get rid of CmdProposals
+	CmdProposals = "proposals" // Get plugin data for proposals
+
+	// TODO get rid of CmdPassThrough
+	CmdPassThrough = "passthrough" // Pass a plugin cmd through pi
 
 	// Metadata stream IDs
-	MDStreamIDProposalGeneral = 1
+	MDStreamIDGeneralMetadata = 1
 	MDStreamIDStatusChanges   = 2
 
 	// FileNameProposalMetadata is the filename of the ProposalMetadata
@@ -82,6 +84,15 @@ const (
 )
 
 var (
+	// PropStatuses contains the human readable proposal statuses.
+	PropStatuses = map[PropStatusT]string{
+		PropStatusInvalid:   "invalid",
+		PropStatusUnvetted:  "unvetted",
+		PropStatusPublic:    "public",
+		PropStatusCensored:  "censored",
+		PropStatusAbandoned: "abandoned",
+	}
+
 	// StatusChanges contains the allowed proposal status change
 	// transitions. If StatusChanges[currentStatus][newStatus] exists
 	// then the status change is allowed.
@@ -106,10 +117,11 @@ var (
 	}
 )
 
-// ProposalMetadata contains proposal metadata that is provided by the user on
-// proposal submission. ProposalMetadata is saved to politeiad as a file, not
-// as a metadata stream, since it needs to be included in the merkle root that
-// politeiad signs.
+// ProposalMetadata contains metadata that is provided by the user as part of
+// the proposal submission bundle. The proposal metadata is included in the
+// proposal signature since it is user specified data. The ProposalMetadata
+// object is saved to politeiad as a file, not as a metadata stream, since it
+// needs to be included in the merkle root that politeiad signs.
 type ProposalMetadata struct {
 	// Name is the name of the proposal.
 	Name string `json:"name"`
@@ -139,32 +151,31 @@ func DecodeProposalMetadata(payload []byte) (*ProposalMetadata, error) {
 	return &pm, nil
 }
 
-// ProposalGeneral represents general proposal metadata that is saved on
-// proposal submission. ProposalGeneral is saved to politeiad as a metadata
-// stream.
+// GeneralMetadata contains general metadata about a politeiad record. It is
+// saved to politeiad as a metadata stream.
 //
-// Signature is the client signature of the proposal merkle root. The merkle
-// root is the ordered merkle root of all proposal Files and Metadata.
-type ProposalGeneral struct {
-	UserID    string `json:"userid"`    // Unique user ID
+// Signature is the client signature of the record merkle root. The merkle root
+// is the ordered merkle root of all politeiad Files.
+type GeneralMetadata struct {
+	UserID    string `json:"userid"`    // Author user ID
 	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
 	Timestamp int64  `json:"timestamp"` // Submission UNIX timestamp
 }
 
-// EncodeProposalGeneral encodes a ProposalGeneral into a JSON byte slice.
-func EncodeProposalGeneral(pg ProposalGeneral) ([]byte, error) {
-	return json.Marshal(pg)
+// EncodeGeneralMetadata encodes a GeneralMetadata into a JSON byte slice.
+func EncodeGeneralMetadata(gm GeneralMetadata) ([]byte, error) {
+	return json.Marshal(gm)
 }
 
-// DecodeProposalGeneral decodes a JSON byte slice into a ProposalGeneral.
-func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
-	var pg ProposalGeneral
-	err := json.Unmarshal(payload, &pg)
+// DecodeGeneralMetadata decodes a JSON byte slice into a GeneralMetadata.
+func DecodeGeneralMetadata(payload []byte) (*GeneralMetadata, error) {
+	var gm GeneralMetadata
+	err := json.Unmarshal(payload, &gm)
 	if err != nil {
 		return nil, err
 	}
-	return &pg, nil
+	return &gm, nil
 }
 
 // StatusChange represents a proposal status change.
@@ -237,6 +248,7 @@ func DecodeProposals(payload []byte) (*Proposals, error) {
 }
 
 // ProposalPluginData contains all the plugin data for a proposal.
+// TODO get rid of this command
 type ProposalPluginData struct {
 	Comments   uint64   `json:"comments"`   // Number of comments
 	LinkedFrom []string `json:"linkedfrom"` // Linked from list
@@ -425,22 +437,22 @@ func DecodeCommentVoteReply(payload []byte) (*CommentVoteReply, error) {
 	return &cvr, nil
 }
 
-// ProposalInventory retrieves the tokens of all proposals in the inventory,
-// categorized by proposal state and proposal status, that match the provided
-// filtering criteria. If no filtering criteria is provided then the full
-// proposal inventory is returned.
-type ProposalInventory struct {
+// ProposalInv retrieves the tokens of all proposals in the inventory that
+// match the provided filtering criteria. The returned proposals are
+// categorized by proposal state and status. If no filtering criteria is
+// provided then the full proposal inventory is returned.
+type ProposalInv struct {
 	UserID string `json:"userid,omitempty"`
 }
 
-// EncodeProposalInventory encodes a ProposalInventory into a JSON byte slice.
-func EncodeProposalInventory(pi ProposalInventory) ([]byte, error) {
+// EncodeProposalInv encodes a ProposalInv into a JSON byte slice.
+func EncodeProposalInv(pi ProposalInv) ([]byte, error) {
 	return json.Marshal(pi)
 }
 
-// DecodeProposalInventory decodes a JSON byte slice into a ProposalInventory.
-func DecodeProposalInventory(payload []byte) (*ProposalInventory, error) {
-	var pi ProposalInventory
+// DecodeProposalInv decodes a JSON byte slice into a ProposalInv.
+func DecodeProposalInv(payload []byte) (*ProposalInv, error) {
+	var pi ProposalInv
 	err := json.Unmarshal(payload, &pi)
 	if err != nil {
 		return nil, err
@@ -448,22 +460,24 @@ func DecodeProposalInventory(payload []byte) (*ProposalInventory, error) {
 	return &pi, nil
 }
 
-// ProposalInventoryReply is the reply to the ProposalInventory command.
-type ProposalInventoryReply struct {
+// ProposalInvReply is the reply to the ProposalInv command. The returned maps
+// contains map[status][]token where the status is the human readable proposal
+// status and the token is the proposal token.
+type ProposalInvReply struct {
 	Unvetted map[string][]string `json:"unvetted"`
 	Vetted   map[string][]string `json:"vetted"`
 }
 
-// EncodeProposalInventoryReply encodes a ProposalInventoryReply into a JSON
+// EncodeProposalInvReply encodes a ProposalInvReply into a JSON
 // byte slice.
-func EncodeProposalInventoryReply(pir ProposalInventoryReply) ([]byte, error) {
+func EncodeProposalInvReply(pir ProposalInvReply) ([]byte, error) {
 	return json.Marshal(pir)
 }
 
-// DecodeProposalInventoryReply decodes a JSON byte slice into a
-// ProposalInventoryReply.
-func DecodeProposalInventoryReply(payload []byte) (*ProposalInventoryReply, error) {
-	var pir ProposalInventoryReply
+// DecodeProposalInvReply decodes a JSON byte slice into a
+// ProposalInvReply.
+func DecodeProposalInvReply(payload []byte) (*ProposalInvReply, error) {
+	var pir ProposalInvReply
 	err := json.Unmarshal(payload, &pir)
 	if err != nil {
 		return nil, err

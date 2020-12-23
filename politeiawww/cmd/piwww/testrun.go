@@ -842,7 +842,7 @@ func testProposalRoutes(admin testUser) error {
 	vettedProps := pir.Vetted
 
 	// Ensure public proposal token received
-	publicProps, ok := vettedProps[pi.PropStatus[pi.PropStatusPublic]]
+	publicProps, ok := vettedProps[pi.PropStatuses[pi.PropStatusPublic]]
 	if !ok {
 		return fmt.Errorf("No public proposals returned")
 	}
@@ -857,7 +857,7 @@ func testProposalRoutes(admin testUser) error {
 	}
 
 	// Ensure vetted censored proposal token received
-	vettedCensored, ok := vettedProps[pi.PropStatus[pi.PropStatusCensored]]
+	vettedCensored, ok := vettedProps[pi.PropStatuses[pi.PropStatusCensored]]
 	if !ok {
 		return fmt.Errorf("No vetted censrored proposals returned")
 	}
@@ -873,7 +873,7 @@ func testProposalRoutes(admin testUser) error {
 	}
 
 	// Ensure abandoned proposal token received
-	abandonedProps, ok := vettedProps[pi.PropStatus[pi.PropStatusAbandoned]]
+	abandonedProps, ok := vettedProps[pi.PropStatuses[pi.PropStatusAbandoned]]
 	if !ok {
 		return fmt.Errorf("No abandoned proposals returned")
 	}
@@ -891,7 +891,7 @@ func testProposalRoutes(admin testUser) error {
 	unvettedProps := pir.Unvetted
 
 	// Ensure unvetted proposal token received
-	unreviewedProps, ok := unvettedProps[pi.PropStatus[pi.PropStatusUnreviewed]]
+	unreviewedProps, ok := unvettedProps[pi.PropStatuses[pi.PropStatusUnreviewed]]
 	if !ok {
 		return fmt.Errorf("No unreviewed proposals returned")
 	}
@@ -1429,18 +1429,17 @@ func (cmd *testRunCmd) Execute(args []string) error {
 	}
 	publicKey = version.PubKey
 
-	// We only allow this to be run on testnet for right now.
-	// Running it on mainnet would require changing the user
-	// email verification flow.
-	// We ensure vote duration isn't longer than
-	// 3 blocks as we need to approve an RFP and it's
-	// submission as part of our tests.
+	// Verify politeiawww settings
 	switch {
 	case !version.TestNet:
 		return fmt.Errorf("this command must be run on testnet")
 	case policy.MinVoteDuration > 3:
-		return fmt.Errorf("--votedurationmin flag should be <= 3, as the " +
-			"tests include RFP & submssions voting")
+		// Min vote duration must be <=3 since this command waits for
+		// proposal votes to finish as part of the test run.
+		return fmt.Errorf("politeiawww min vote duration is currently %v. "+
+			"This command requires a min vote duration of <=3 blocks. Use "+
+			"the politeiawww --votedurationmin flag to update this setting.",
+			policy.MinVoteDuration)
 	}
 
 	// Ensure admin credentials are valid

@@ -284,14 +284,14 @@ func convertFilesFromPD(f []pd.File) ([]pi.File, []pi.Metadata) {
 func convertProposalRecordFromPD(r pd.Record, state pi.PropStateT) (*pi.ProposalRecord, error) {
 	// Decode metadata streams
 	var (
-		pg  *piplugin.ProposalGeneral
+		gm  *piplugin.GeneralMetadata
 		sc  = make([]piplugin.StatusChange, 0, 16)
 		err error
 	)
 	for _, v := range r.Metadata {
 		switch v.ID {
-		case piplugin.MDStreamIDProposalGeneral:
-			pg, err = piplugin.DecodeProposalGeneral([]byte(v.Payload))
+		case piplugin.MDStreamIDGeneralMetadata:
+			gm, err = piplugin.DecodeGeneralMetadata([]byte(v.Payload))
 			if err != nil {
 				return nil, err
 			}
@@ -326,13 +326,13 @@ func convertProposalRecordFromPD(r pd.Record, state pi.PropStateT) (*pi.Proposal
 	// plugin command.
 	return &pi.ProposalRecord{
 		Version:          r.Version,
-		Timestamp:        pg.Timestamp,
+		Timestamp:        gm.Timestamp,
 		State:            state,
 		Status:           status,
 		UserID:           "", // Intentionally omitted
 		Username:         "", // Intentionally omitted
-		PublicKey:        pg.PublicKey,
-		Signature:        pg.Signature,
+		PublicKey:        gm.PublicKey,
+		Signature:        gm.Signature,
 		Comments:         0, // Intentionally omitted
 		Statuses:         statuses,
 		Files:            files,
@@ -1190,19 +1190,19 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn pi.ProposalNew,
 
 	// Setup metadata stream
 	timestamp := time.Now().Unix()
-	pg := piplugin.ProposalGeneral{
+	gm := piplugin.GeneralMetadata{
 		UserID:    usr.ID.String(),
 		PublicKey: pn.PublicKey,
 		Signature: pn.Signature,
 		Timestamp: timestamp,
 	}
-	b, err := piplugin.EncodeProposalGeneral(pg)
+	b, err := piplugin.EncodeGeneralMetadata(gm)
 	if err != nil {
 		return nil, err
 	}
 	metadata := []pd.MetadataStream{
 		{
-			ID:      piplugin.MDStreamIDProposalGeneral,
+			ID:      piplugin.MDStreamIDGeneralMetadata,
 			Payload: string(b),
 		},
 	}
@@ -1349,19 +1349,19 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe pi.ProposalEdi
 
 	// Setup politeiad metadata
 	timestamp := time.Now().Unix()
-	pg := piplugin.ProposalGeneral{
+	gm := piplugin.GeneralMetadata{
 		UserID:    usr.ID.String(),
 		PublicKey: pe.PublicKey,
 		Signature: pe.Signature,
 		Timestamp: timestamp,
 	}
-	b, err := piplugin.EncodeProposalGeneral(pg)
+	b, err := piplugin.EncodeGeneralMetadata(gm)
 	if err != nil {
 		return nil, err
 	}
 	mdOverwrite := []pd.MetadataStream{
 		{
-			ID:      piplugin.MDStreamIDProposalGeneral,
+			ID:      piplugin.MDStreamIDGeneralMetadata,
 			Payload: string(b),
 		},
 	}
@@ -1577,10 +1577,10 @@ func (p *politeiawww) processProposalInventory(ctx context.Context, inv pi.Propo
 	log.Tracef("processProposalInventory: %v", inv.UserID)
 
 	// Send plugin command
-	i := piplugin.ProposalInventory{
+	i := piplugin.ProposalInv{
 		UserID: inv.UserID,
 	}
-	pir, err := p.proposalInventory(ctx, i)
+	pir, err := p.proposalInv(ctx, i)
 	if err != nil {
 		return nil, err
 	}

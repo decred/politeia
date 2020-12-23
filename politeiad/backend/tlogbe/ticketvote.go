@@ -2716,7 +2716,7 @@ func (p *ticketVotePlugin) cmd(cmd, payload string) (string, error) {
 //
 // This function satisfies the pluginClient interface.
 func (p *ticketVotePlugin) hook(h hookT, payload string) error {
-	log.Tracef("ticketvote hook: %v %v", hooks[h], payload)
+	log.Tracef("ticketvote hook: %v", hooks[h])
 
 	return nil
 }

@@ -11,17 +11,23 @@ import (
 )
 
 const (
+	// DefaultConfigFilename is the default configuration file name.
 	DefaultConfigFilename = "politeiawww.conf"
-	DefaultDataDirname    = "data"
+
+	// DefaultDataDirname is the default data directory name. The data
+	// directory is located in the application home directory.
+	DefaultDataDirname = "data"
 )
 
 var (
-	// DefaultHomeDir points to politeiawww's home directory for configuration and data.
+	// DefaultHomeDir points to politeiawww's default home directory.
 	DefaultHomeDir = dcrutil.AppDataDir("politeiawww", false)
 
-	// DefaultConfigFile points to politeiawww's default config file.
+	// DefaultConfigFile points to politeiawww's default config file
+	// path.
 	DefaultConfigFile = filepath.Join(DefaultHomeDir, DefaultConfigFilename)
 
-	// DefaultDataDir points to politeiawww's default data directory.
+	// DefaultDataDir points to politeiawww's default data directory
+	// path.
 	DefaultDataDir = filepath.Join(DefaultHomeDir, DefaultDataDirname)
 )

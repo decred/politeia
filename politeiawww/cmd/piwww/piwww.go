@@ -70,7 +70,7 @@ type piwww struct {
 	ProposalEdit      proposalEditCmd      `command:"proposaledit"`
 	ProposalStatusSet proposalStatusSetCmd `command:"proposalstatusset"`
 	Proposals         proposalsCmd         `command:"proposals"`
-	ProposalInventory proposalInventoryCmd `command:"proposalinv"`
+	ProposalInv       proposalInvCmd       `command:"proposalinv"`
 
 	// Comments commands
 	CommentNew    commentNewCmd    `command:"commentnew"`
