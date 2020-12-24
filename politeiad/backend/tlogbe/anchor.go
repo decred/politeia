@@ -83,7 +83,7 @@ func (t *tlog) anchorSave(a anchor) error {
 	}
 	prefixedKey := []byte(keyPrefixAnchorRecord + keys[0])
 	queued, _, err := t.trillian.leavesAppend(a.TreeID, []*trillian.LogLeaf{
-		logLeafNew(h, prefixedKey),
+		newLogLeaf(h, prefixedKey),
 	})
 	if err != nil {
 		return fmt.Errorf("leavesAppend: %v", err)
@@ -356,7 +356,7 @@ func (t *tlog) anchor() {
 		default:
 			// Anchor record found. If the anchor height differs from the
 			// current height then the tree needs to be anchored.
-			_, lr, err := t.trillian.signedLogRootForTree(v)
+			_, lr, err := t.trillian.signedLogRoot(v)
 			if err != nil {
 				exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
 				return
@@ -372,7 +372,7 @@ func (t *tlog) anchor() {
 
 		// Tree has not been anchored at current height. Add it to the
 		// list of anchors.
-		_, lr, err := t.trillian.signedLogRootForTree(v)
+		_, lr, err := t.trillian.signedLogRoot(v)
 		if err != nil {
 			exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
 			return

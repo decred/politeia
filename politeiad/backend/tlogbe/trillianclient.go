@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/decred/politeia/util"
@@ -34,43 +35,55 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	_ trillianClient = (*tClient)(nil)
-	_ trillianClient = (*testTClient)(nil)
-)
-
-// trillianClient provides an interface with basic tree operations needed for a
-// trillian client.
+// trillianClient provides an interface for interacting with a trillian log
+// instance. It creates an abstraction over the trillian provided
+// TrillianLogClient and TrillianAdminClient, creating a simplified API for the
+// backend to use and allowing us to create a implementation that can be used
+// for testing.
 type trillianClient interface {
-	tree(treeID int64) (*trillian.Tree, error)
-
-	treesAll() ([]*trillian.Tree, error)
-
+	// treeNew creates a new tree.
 	treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error)
 
+	// treeFreeze sets the status of a tree to frozen.
 	treeFreeze(treeID int64) (*trillian.Tree, error)
 
-	leavesAll(treeID int64) ([]*trillian.LogLeaf, error)
+	// tree returns a tree.
+	tree(treeID int64) (*trillian.Tree, error)
 
-	leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error)
+	// treesAll returns all trees in the trillian instance.
+	treesAll() ([]*trillian.Tree, error)
 
+	// leavesAppend appends leaves to a tree.
 	leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof,
 		*types.LogRootV1, error)
 
-	signedLogRootForTree(tree *trillian.Tree) (*trillian.SignedLogRoot,
+	// leavesByRange returns the leaves within a specific index range.
+	leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error)
+
+	// leavesAll returns all leaves of a tree.
+	leavesAll(treeID int64) ([]*trillian.LogLeaf, error)
+
+	// signedLogRoot returns the signed log root for a tree.
+	signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot,
 		*types.LogRootV1, error)
 
+	// inclusionProof returns the inclusion proof for a leaf.
+	inclusionProof(treeID int64, merkleLeafHash []byte,
+		lrv1 *types.LogRootV1) (*trillian.Proof, error)
+
+	// close closes the client connection.
 	close()
 }
 
-// tClient implements the TrillianClient interface and provides a client that
-// abstracts over the existing TrillianLogClient and TrillianAdminClient. This
-// provides a simplified API for the backend to use and ensures that proper
-// verification of all trillian responses is performed.
-type tClient struct {
+var (
+	_ trillianClient = (*tclient)(nil)
+)
+
+// tclient implements the trillianClient interface.
+type tclient struct {
 	host       string
 	grpc       *grpc.ClientConn
-	client     trillian.TrillianLogClient
+	log        trillian.TrillianLogClient
 	admin      trillian.TrillianAdminClient
 	ctx        context.Context
 	privateKey *keyspb.PrivateKey // Trillian signing key
@@ -101,7 +114,8 @@ func merkleLeafHash(leafValue []byte) []byte {
 	return h.Sum(nil)
 }
 
-func logLeafNew(value []byte, extraData []byte) *trillian.LogLeaf {
+// newLogLeaf returns a trillian LogLeaf.
+func newLogLeaf(value []byte, extraData []byte) *trillian.LogLeaf {
 	return &trillian.LogLeaf{
 		LeafValue: value,
 		ExtraData: extraData,
@@ -112,8 +126,8 @@ func logLeafNew(value []byte, extraData []byte) *trillian.LogLeaf {
 // correct. It returns the tree and the signed log root which can be externally
 // verified.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
+// This function satisfies the trillianClient interface.
+func (t *tclient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 	log.Tracef("trillian treeNew")
 
 	pk, err := ptypes.MarshalAny(t.privateKey)
@@ -141,7 +155,7 @@ func (t *tClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 	}
 
 	// Init tree or signer goes bananas
-	ilr, err := t.client.InitLog(t.ctx, &trillian.InitLogRequest{
+	ilr, err := t.log.InitLog(t.ctx, &trillian.InitLogRequest{
 		LogId: tree.TreeId,
 	})
 	if err != nil {
@@ -178,7 +192,10 @@ func (t *tClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 	return tree, ilr.Created, nil
 }
 
-func (t *tClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
+// treeFreeze updates the state of a tree to frozen.
+//
+// This function satisfies the trillianClient interface.
+func (t *tclient) treeFreeze(treeID int64) (*trillian.Tree, error) {
 	log.Tracef("trillian treeFreeze: %v", treeID)
 
 	// Get the current tree
@@ -204,10 +221,10 @@ func (t *tClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
 	return updated, nil
 }
 
-// tree returns a trillian tree by its ID.
+// tree returns a trillian tree.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) tree(treeID int64) (*trillian.Tree, error) {
+// This function satisfies the trillianClient interface.
+func (t *tclient) tree(treeID int64) (*trillian.Tree, error) {
 	log.Tracef("trillian tree: %v", treeID)
 
 	tree, err := t.admin.GetTree(t.ctx, &trillian.GetTreeRequest{
@@ -225,10 +242,10 @@ func (t *tClient) tree(treeID int64) (*trillian.Tree, error) {
 	return tree, nil
 }
 
-// treesAll returns all trillian trees stored in the backend.
+// treesAll returns all trees in the trillian instance.
 //
-// This function satisfies the TrillianClient interface
-func (t *tClient) treesAll() ([]*trillian.Tree, error) {
+// This function satisfies the trillianClient interface
+func (t *tclient) treesAll() ([]*trillian.Tree, error) {
 	log.Tracef("trillian treesAll")
 
 	ltr, err := t.admin.ListTrees(t.ctx, &trillian.ListTreesRequest{})
@@ -239,10 +256,13 @@ func (t *tClient) treesAll() ([]*trillian.Tree, error) {
 	return ltr.Tree, nil
 }
 
-func (t *tClient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *types.LogRootV1) (*trillian.Proof, error) {
+// inclusionProof returns the inclusion proof for a trillian log leaf.
+//
+// This function satisfies the trillianClient interface
+func (t *tclient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *types.LogRootV1) (*trillian.Proof, error) {
 	log.Tracef("tillian inclusionProof: %v %x", treeID, merkleLeafHash)
 
-	resp, err := t.client.GetInclusionProofByHash(t.ctx,
+	resp, err := t.log.GetInclusionProofByHash(t.ctx,
 		&trillian.GetInclusionProofByHashRequest{
 			LogId:    treeID,
 			LeafHash: merkleLeafHash,
@@ -271,12 +291,12 @@ func (t *tClient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *type
 	return proof, nil
 }
 
-// signedLogRootForTree returns the signed log root of a trillian tree.
+// signedLogRoot returns the signed log root of a trillian tree.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) signedLogRootForTree(tree *trillian.Tree) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
+// This function satisfies the trillianClient interface.
+func (t *tclient) signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
 	// Get the signed log root for the current tree height
-	resp, err := t.client.GetLatestSignedLogRoot(t.ctx,
+	resp, err := t.log.GetLatestSignedLogRoot(t.ctx,
 		&trillian.GetLatestSignedLogRootRequest{LogId: tree.TreeId})
 	if err != nil {
 		return nil, nil, err
@@ -296,23 +316,6 @@ func (t *tClient) signedLogRootForTree(tree *trillian.Tree) (*trillian.SignedLog
 	return resp.SignedLogRoot, lrv1, nil
 }
 
-// signedLogRoot returns the signed log root for the provided tree ID at its
-// current height. The log root is structure is decoded an returned as well.
-func (t *tClient) signedLogRoot(treeID int64) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
-	log.Tracef("trillian signedLogRoot: %v", treeID)
-
-	tree, err := t.tree(treeID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("tree: %v", err)
-	}
-	slr, lr, err := t.signedLogRootForTree(tree)
-	if err != nil {
-		return nil, nil, fmt.Errorf("signedLogRoot: %v", err)
-	}
-
-	return slr, lr, nil
-}
-
 // leavesAppend appends the provided leaves onto the provided tree. The queued
 // leaf and the leaf inclusion proof are returned. If a leaf was not
 // successfully appended, the queued leaf will still be returned and the error
@@ -327,8 +330,8 @@ func (t *tClient) signedLogRoot(treeID int64) (*trillian.SignedLogRoot, *types.L
 // methods that can be used. DO NOT rely on the leaves being in a specific
 // order.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
+// This function satisfies the trillianClient interface.
+func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
 	log.Tracef("trillian leavesAppend: %v", treeID)
 
 	// Get the latest signed log root
@@ -336,9 +339,9 @@ func (t *tClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	if err != nil {
 		return nil, nil, err
 	}
-	slr, _, err := t.signedLogRootForTree(tree)
+	slr, _, err := t.signedLogRoot(tree)
 	if err != nil {
-		return nil, nil, fmt.Errorf("signedLogRootForTree pre update: %v", err)
+		return nil, nil, fmt.Errorf("signedLogRoot pre update: %v", err)
 	}
 
 	// Ensure the tree is not frozen
@@ -349,7 +352,7 @@ func (t *tClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	log.Debugf("Appending %v leaves to tree id %v", len(leaves), treeID)
 
 	// Append leaves to log
-	qlr, err := t.client.QueueLeaves(t.ctx, &trillian.QueueLeavesRequest{
+	qlr, err := t.log.QueueLeaves(t.ctx, &trillian.QueueLeavesRequest{
 		LogId:  treeID,
 		Leaves: leaves,
 	})
@@ -380,7 +383,7 @@ func (t *tClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	if err != nil {
 		return nil, nil, err
 	}
-	c, err := client.NewFromTree(t.client, tree, logRoot)
+	c, err := client.NewFromTree(t.log, tree, logRoot)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -394,9 +397,9 @@ func (t *tClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	}
 
 	// Get the latest signed log root
-	_, lr, err := t.signedLogRootForTree(tree)
+	_, lr, err := t.signedLogRoot(tree)
 	if err != nil {
-		return nil, nil, fmt.Errorf("signedLogRootForTree post update: %v", err)
+		return nil, nil, fmt.Errorf("signedLogRoot post update: %v", err)
 	}
 
 	// Get inclusion proofs
@@ -440,11 +443,11 @@ func (t *tClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 // leavesByRange returns the log leaves of a trillian tree by the range provided
 // by the user.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) leavesByRange(treeID int64, startIndex, count int64) ([]*trillian.LogLeaf, error) {
+// This function satisfies the trillianClient interface.
+func (t *tclient) leavesByRange(treeID int64, startIndex, count int64) ([]*trillian.LogLeaf, error) {
 	log.Tracef("trillian leavesByRange: %v %v %v", treeID, startIndex, count)
 
-	glbrr, err := t.client.GetLeavesByRange(t.ctx,
+	glbrr, err := t.log.GetLeavesByRange(t.ctx,
 		&trillian.GetLeavesByRangeRequest{
 			LogId:      treeID,
 			StartIndex: startIndex,
@@ -459,14 +462,20 @@ func (t *tClient) leavesByRange(treeID int64, startIndex, count int64) ([]*trill
 
 // leavesAll returns all of the leaves for the provided treeID.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
+// This function satisfies the trillianClient interface.
+func (t *tclient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	log.Tracef("trillian leavesAll: %v", treeID)
 
-	// Get log root
-	_, lr, err := t.signedLogRoot(treeID)
+	// Get tree
+	tree, err := t.tree(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("SignedLogRoot: %v", err)
+		return nil, fmt.Errorf("tree: %v", err)
+	}
+
+	// Get signed log root
+	_, lr, err := t.signedLogRoot(tree)
+	if err != nil {
+		return nil, fmt.Errorf("signedLogRoot: %v", err)
 	}
 	if lr.TreeSize == 0 {
 		return []*trillian.LogLeaf{}, nil
@@ -479,12 +488,12 @@ func (t *tClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 // leafProofs returns the leafProofs for the provided treeID and merkle leaf
 // hashes. The inclusion proof returned in the leafProof is for the tree height
 // specified by the provided LogRootV1.
-func (t *tClient) leafProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
+func (t *tclient) leafProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
 	log.Tracef("trillian leafProofs: %v %v %x",
 		treeID, lr.TreeSize, merkleLeafHashes)
 
 	// Retrieve leaves
-	r, err := t.client.GetLeavesByHash(t.ctx,
+	r, err := t.log.GetLeavesByHash(t.ctx,
 		&trillian.GetLeavesByHashRequest{
 			LogId:    treeID,
 			LeafHash: merkleLeafHashes,
@@ -511,198 +520,27 @@ func (t *tClient) leafProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.
 
 // close closes the trillian grpc connection.
 //
-// This function satisfies the TrillianClient interface.
-func (t *tClient) close() {
+// This function satisfies the trillianClient interface.
+func (t *tclient) close() {
 	log.Tracef("trillian close %v", t.host)
 
 	t.grpc.Close()
 }
 
-// testTClient implements TClient interface and is used for
-// testing purposes.
-type testTClient struct {
-	sync.RWMutex
-
-	trees  map[int64]*trillian.Tree      // [treeID]Tree
-	leaves map[int64][]*trillian.LogLeaf // [treeID][]LogLeaf
-
-	privateKey *keyspb.PrivateKey
+func newTrillianKey() (crypto.Signer, error) {
+	return keys.NewFromSpec(&keyspb.Specification{
+		// TODO Params: &keyspb.Specification_Ed25519Params{},
+		Params: &keyspb.Specification_EcdsaParams{},
+	})
 }
 
-// treeNew ceates a new trillian tree in memory.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
-	t.Lock()
-	defer t.Unlock()
-
-	// Retrieve private key
-	pk, err := ptypes.MarshalAny(t.privateKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Create trillian tree
-	tree := trillian.Tree{
-		TreeId:             rand.Int63(),
-		TreeState:          trillian.TreeState_ACTIVE,
-		TreeType:           trillian.TreeType_LOG,
-		HashStrategy:       trillian.HashStrategy_RFC6962_SHA256,
-		HashAlgorithm:      sigpb.DigitallySigned_SHA256,
-		SignatureAlgorithm: sigpb.DigitallySigned_ECDSA,
-		DisplayName:        "",
-		Description:        "",
-		MaxRootDuration:    ptypes.DurationProto(0),
-		PrivateKey:         pk,
-	}
-	t.trees[tree.TreeId] = &tree
-
-	// Initialize leaves map for that tree
-	t.leaves[tree.TreeId] = []*trillian.LogLeaf{}
-
-	return &tree, nil, nil
-}
-
-func (t *testTClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
-	t.Lock()
-	defer t.Unlock()
-
-	t.trees[treeID].TreeState = trillian.TreeState_FROZEN
-
-	return t.trees[treeID], nil
-}
-
-// tree returns trillian tree from passed in ID.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) tree(treeID int64) (*trillian.Tree, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	if tree, ok := t.trees[treeID]; ok {
-		return tree, nil
-	}
-
-	return nil, fmt.Errorf("Tree ID not found")
-}
-
-// treesAll signed log roots are not used for testing up until now, so we
-// return a nil value for it.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) treesAll() ([]*trillian.Tree, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	trees := make([]*trillian.Tree, len(t.trees))
-	for _, t := range t.trees {
-		trees = append(trees, t)
-	}
-
-	return trees, nil
-}
-
-// leavesAll returns all leaves from a trillian tree.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	// Check if treeID entry exists
-	if _, ok := t.leaves[treeID]; !ok {
-		return nil, fmt.Errorf("Tree ID %d does not contain any leaf data",
-			treeID)
-	}
-
-	return t.leaves[treeID], nil
-}
-
-// leavesByRange returns leaves in range according to the passed in parameters.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	// Check if treeID entry exists
-	if _, ok := t.leaves[treeID]; !ok {
-		return nil, fmt.Errorf("Tree ID %d does not contain any leaf data",
-			treeID)
-	}
-
-	// Get leaves by range. Indexes are ordered.
-	var c int64
-	var leaves []*trillian.LogLeaf
-	for _, leaf := range t.leaves[treeID] {
-		if leaf.LeafIndex >= startIndex && c < count {
-			leaves = append(leaves, leaf)
-			c++
-		}
-	}
-
-	return nil, nil
-}
-
-// leavesAppend satisfies the TClient interface. It appends leaves to the
-// corresponding trillian tree in memory.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
-	t.Lock()
-	defer t.Unlock()
-
-	// Get last leaf index
-	var index int64
-	if len(t.leaves[treeID]) > 0 {
-		l := len(t.leaves[treeID])
-		index = t.leaves[treeID][l-1].LeafIndex + 1
-	} else {
-		index = 0
-	}
-
-	// Set merkle hash for each leaf and append to memory. Also append the
-	// queued value for the leaves to be returned by the function.
-	var queued []queuedLeafProof
-	for _, l := range leaves {
-		l.LeafIndex = index
-		l.MerkleLeafHash = merkleLeafHash(l.LeafValue)
-		t.leaves[treeID] = append(t.leaves[treeID], l)
-
-		queued = append(queued, queuedLeafProof{
-			QueuedLeaf: &trillian.QueuedLogLeaf{
-				Leaf:   l,
-				Status: nil,
-			},
-			Proof: nil,
-		})
-	}
-
-	return queued, nil, nil
-}
-
-// signedLogRootForTree is a stub to satisfy the interface. It is not used for
-// testing.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) signedLogRootForTree(tree *trillian.Tree) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
-	return nil, nil, nil
-}
-
-// close is a stub to satisfy the interface. It is not used for testing.
-//
-// This function satisfies the TrillianClient interface.
-func (t *testTClient) close() {}
-
-func newTClient(host, keyFile string) (*tClient, error) {
+// newTClient returns a new tclient.
+func newTClient(host, keyFile string) (*tclient, error) {
 	// Setup trillian key file
 	if !util.FileExists(keyFile) {
 		// Trillian key file does not exist. Create one.
 		log.Infof("Generating trillian private key")
-		key, err := keys.NewFromSpec(&keyspb.Specification{
-			// TODO Params: &keyspb.Specification_Ed25519Params{},
-			Params: &keyspb.Specification_EcdsaParams{},
-		})
+		key, err := newTrillianKey()
 		if err != nil {
 			return nil, err
 		}
@@ -740,9 +578,9 @@ func newTClient(host, keyFile string) (*tClient, error) {
 		return nil, err
 	}
 
-	t := tClient{
+	t := tclient{
 		grpc:       g,
-		client:     trillian.NewTrillianLogClient(g),
+		log:        trillian.NewTrillianLogClient(g),
 		admin:      trillian.NewTrillianAdminClient(g),
 		ctx:        context.Background(),
 		privateKey: privateKey,
@@ -760,4 +598,214 @@ func newTClient(host, keyFile string) (*tClient, error) {
 	}
 
 	return &t, nil
+}
+
+var (
+	_ trillianClient = (*testTClient)(nil)
+)
+
+// testTClient implements the trillianClient interface and is used for testing.
+type testTClient struct {
+	sync.RWMutex
+
+	trees  map[int64]*trillian.Tree      // [treeID]Tree
+	leaves map[int64][]*trillian.LogLeaf // [treeID][]LogLeaf
+
+	privateKey *keyspb.PrivateKey
+}
+
+// treeNew ceates a new trillian tree in memory.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
+	t.Lock()
+	defer t.Unlock()
+
+	// Retrieve private key
+	pk, err := ptypes.MarshalAny(t.privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create trillian tree
+	tree := trillian.Tree{
+		TreeId:             rand.Int63(),
+		TreeState:          trillian.TreeState_ACTIVE,
+		TreeType:           trillian.TreeType_LOG,
+		HashStrategy:       trillian.HashStrategy_RFC6962_SHA256,
+		HashAlgorithm:      sigpb.DigitallySigned_SHA256,
+		SignatureAlgorithm: sigpb.DigitallySigned_ECDSA,
+		DisplayName:        "",
+		Description:        "",
+		MaxRootDuration:    ptypes.DurationProto(0),
+		PrivateKey:         pk,
+	}
+	t.trees[tree.TreeId] = &tree
+
+	// Initialize leaves map for that tree
+	t.leaves[tree.TreeId] = []*trillian.LogLeaf{}
+
+	return &tree, nil, nil
+}
+
+// treeFreeze sets the state of a tree to frozen.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
+	t.Lock()
+	defer t.Unlock()
+
+	t.trees[treeID].TreeState = trillian.TreeState_FROZEN
+
+	return t.trees[treeID], nil
+}
+
+// tree returns trillian tree from passed in ID.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) tree(treeID int64) (*trillian.Tree, error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	if tree, ok := t.trees[treeID]; ok {
+		return tree, nil
+	}
+
+	return nil, fmt.Errorf("tree ID not found")
+}
+
+// treesAll signed log roots are not used for testing up until now, so we
+// return a nil value for it.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) treesAll() ([]*trillian.Tree, error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	trees := make([]*trillian.Tree, len(t.trees))
+	for _, t := range t.trees {
+		trees = append(trees, t)
+	}
+
+	return trees, nil
+}
+
+// leavesAppend satisfies the TClient interface. It appends leaves to the
+// corresponding trillian tree in memory.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
+	t.Lock()
+	defer t.Unlock()
+
+	// Get last leaf index
+	var index int64
+	if len(t.leaves[treeID]) > 0 {
+		l := len(t.leaves[treeID])
+		index = t.leaves[treeID][l-1].LeafIndex + 1
+	} else {
+		index = 0
+	}
+
+	// Set merkle hash for each leaf and append to memory. Also append the
+	// queued value for the leaves to be returned by the function.
+	var queued []queuedLeafProof
+	for _, l := range leaves {
+		l.LeafIndex = index
+		l.MerkleLeafHash = merkleLeafHash(l.LeafValue)
+		t.leaves[treeID] = append(t.leaves[treeID], l)
+
+		queued = append(queued, queuedLeafProof{
+			QueuedLeaf: &trillian.QueuedLogLeaf{
+				Leaf:   l,
+				Status: nil,
+			},
+			Proof: nil,
+		})
+	}
+
+	return queued, nil, nil
+}
+
+// leavesByRange returns leaves in range according to the passed in parameters.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	// Check if treeID entry exists
+	if _, ok := t.leaves[treeID]; !ok {
+		return nil, fmt.Errorf("tree ID %d does not contain any leaf data",
+			treeID)
+	}
+
+	// Get leaves by range. Indexes are ordered.
+	var c int64
+	var leaves []*trillian.LogLeaf
+	for _, leaf := range t.leaves[treeID] {
+		if leaf.LeafIndex >= startIndex && c < count {
+			leaves = append(leaves, leaf)
+			c++
+		}
+	}
+
+	return nil, nil
+}
+
+// leavesAll returns all leaves from a trillian tree.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	// Check if treeID entry exists
+	if _, ok := t.leaves[treeID]; !ok {
+		return nil, fmt.Errorf("tree ID %d does not contain any leaf data",
+			treeID)
+	}
+
+	return t.leaves[treeID], nil
+}
+
+// signedLogRoot has not been implemented yet for the test client.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
+	return nil, nil, nil
+}
+
+// inclusionProof has not been implement yet for the test client.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *types.LogRootV1) (*trillian.Proof, error) {
+	return nil, nil
+}
+
+// close closes the trillian client connection. There is nothing to do for the
+// test implementation.
+//
+// This function satisfies the trillianClient interface.
+func (t *testTClient) close() {}
+
+// newTestTClient returns a new testTClient.
+func newTestTClient(t *testing.T) (*testTClient, error) {
+	// Create trillian private key
+	key, err := newTrillianKey()
+	if err != nil {
+		return nil, err
+	}
+	keyDer, err := der.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &testTClient{
+		trees:  make(map[int64]*trillian.Tree),
+		leaves: make(map[int64][]*trillian.LogLeaf),
+		privateKey: &keyspb.PrivateKey{
+			Der: keyDer,
+		},
+	}, nil
 }

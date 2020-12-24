@@ -23,10 +23,6 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
-	"github.com/google/trillian"
-	"github.com/google/trillian/crypto/keys"
-	"github.com/google/trillian/crypto/keys/der"
-	"github.com/google/trillian/crypto/keyspb"
 	"github.com/robfig/cron"
 )
 
@@ -112,33 +108,6 @@ func newBackendMetadataStream(t *testing.T, id uint64, payload string) backend.M
 		ID:      id,
 		Payload: payload,
 	}
-}
-
-// newTestTClient provides a trillian client implementation used for
-// testing. It implements the TClient interface, which includes all major
-// tree operations used in the tlog backend.
-func newTestTClient(t *testing.T) (*testTClient, error) {
-	// Create trillian private key
-	key, err := keys.NewFromSpec(&keyspb.Specification{
-		Params: &keyspb.Specification_EcdsaParams{},
-	})
-	if err != nil {
-		return nil, err
-	}
-	keyDer, err := der.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-
-	ttc := testTClient{
-		trees:  make(map[int64]*trillian.Tree),
-		leaves: make(map[int64][]*trillian.LogLeaf),
-		privateKey: &keyspb.PrivateKey{
-			Der: keyDer,
-		},
-	}
-
-	return &ttc, nil
 }
 
 // newTestTlog returns a tlog used for testing.

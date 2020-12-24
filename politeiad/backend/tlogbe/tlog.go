@@ -450,7 +450,7 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Append record index leaf to the trillian tree
 	leaves := []*trillian.LogLeaf{
-		logLeafNew(idxHash, []byte(keyPrefixRecordIndex+keys[0])),
+		newLogLeaf(idxHash, []byte(keyPrefixRecordIndex+keys[0])),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {
@@ -541,7 +541,7 @@ func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 		return err
 	}
 	leaves := []*trillian.LogLeaf{
-		logLeafNew(h, []byte(keyPrefixRecordIndex+keys[0])),
+		newLogLeaf(h, []byte(keyPrefixRecordIndex+keys[0])),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {
@@ -937,7 +937,7 @@ func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
 	for k := range blobs {
 		pk := []byte(keyPrefixRecordContent + keys[k])
-		leaves = append(leaves, logLeafNew(hashes[k], pk))
+		leaves = append(leaves, newLogLeaf(hashes[k], pk))
 	}
 
 	// Append leaves to trillian tree
@@ -1578,7 +1578,7 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
 	for k := range blobs {
 		pk := []byte(keyPrefix + keys[k])
-		leaves = append(leaves, logLeafNew(hashes[k], pk))
+		leaves = append(leaves, newLogLeaf(hashes[k], pk))
 	}
 
 	// Append leaves to trillian tree
