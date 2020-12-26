@@ -35,11 +35,25 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// trillianClient provides an interface for interacting with a trillian log
-// instance. It creates an abstraction over the trillian provided
-// TrillianLogClient and TrillianAdminClient, creating a simplified API for the
-// backend to use and allowing us to create a implementation that can be used
-// for testing.
+// queuedLeafProof contains the results of a leaf append command, i.e. the
+// QueuedLeaf, and the inclusion proof for that leaf. If the leaf append
+// command fails the QueuedLeaf will contain an error code from the failure and
+// the Proof will not be present.
+type queuedLeafProof struct {
+	QueuedLeaf *trillian.QueuedLogLeaf
+	Proof      *trillian.Proof
+}
+
+// leafProof contains a log leaf and the inclusion proof for the log leaf.
+type leafProof struct {
+	Leaf  *trillian.LogLeaf
+	Proof *trillian.Proof
+}
+
+// trillianClient provides an interface for interacting with a trillian log. It
+// creates an abstraction over the trillian provided TrillianLogClient and
+// TrillianAdminClient, creating a simplified API for the backend to use and
+// allowing us to create a implementation that can be used for testing.
 type trillianClient interface {
 	// treeNew creates a new tree.
 	treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error)
@@ -67,9 +81,11 @@ type trillianClient interface {
 	signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot,
 		*types.LogRootV1, error)
 
-	// inclusionProof returns the inclusion proof for a leaf.
-	inclusionProof(treeID int64, merkleLeafHash []byte,
-		lrv1 *types.LogRootV1) (*trillian.Proof, error)
+	// inclusionProofs returns the log leaves and the inclusion proofs
+	// for a set of merkle leaf hashes. The inclusion proofs returned
+	// for the tree height specified by the provided LogRootV1.
+	inclusionProofs(treeID int64, merkleLeafHashes [][]byte,
+		lrv1 *types.LogRootV1) ([]leafProof, error)
 
 	// close closes the client connection.
 	close()
@@ -88,21 +104,6 @@ type tclient struct {
 	ctx        context.Context
 	privateKey *keyspb.PrivateKey // Trillian signing key
 	publicKey  crypto.PublicKey   // Trillian public key
-}
-
-// leafProof contains a log leaf and the inclusion proof for the log leaf.
-type leafProof struct {
-	Leaf  *trillian.LogLeaf
-	Proof *trillian.Proof
-}
-
-// queuedLeafProof contains the results of a leaf append command, i.e. the
-// QueuedLeaf, and the inclusion proof for that leaf. The inclusion proof will
-// not be present if the leaf append command failed. The QueuedLeaf will
-// contain the error code from the failure.
-type queuedLeafProof struct {
-	QueuedLeaf *trillian.QueuedLogLeaf
-	Proof      *trillian.Proof
 }
 
 // merkleLeafHash returns the merkle leaf hash for the provided leaf value.
@@ -485,11 +486,11 @@ func (t *tclient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))
 }
 
-// leafProofs returns the leafProofs for the provided treeID and merkle leaf
-// hashes. The inclusion proof returned in the leafProof is for the tree height
+// inclusionProofs returns the log leaves and the inclusion proofs for a set of
+// merkle leaf hashes. The inclusion proofs returned for the tree height
 // specified by the provided LogRootV1.
-func (t *tclient) leafProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
-	log.Tracef("trillian leafProofs: %v %v %x",
+func (t *tclient) inclusionProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
+	log.Tracef("trillian inclusionProofs: %v %v %x",
 		treeID, lr.TreeSize, merkleLeafHashes)
 
 	// Retrieve leaves
@@ -776,10 +777,10 @@ func (t *testTClient) signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoo
 	return nil, nil, nil
 }
 
-// inclusionProof has not been implement yet for the test client.
+// inclusionProofs has not been implement yet for the test client.
 //
 // This function satisfies the trillianClient interface.
-func (t *testTClient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *types.LogRootV1) (*trillian.Proof, error) {
+func (t *testTClient) inclusionProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
 	return nil, nil
 }
 

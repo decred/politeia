@@ -1,3 +1,7 @@
+// Copyright (c) 2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package tlogbe
 
 import (
@@ -82,7 +86,7 @@ func timestampBatch(host, id string, digests []string) (*dcrtime.TimestampBatchR
 
 // verifyBatch returns the data to verify that a digest was included in a
 // dcrtime timestamp. This function verifies the merkle path and merkle root of
-// all successful timestamps. The caller is responsible for check the result
+// all successful timestamps. The caller is responsible for checking the result
 // code and handling digests that failed to be timestamped.
 //
 // Note the Result in the reply will be set to OK as soon as the digest is
