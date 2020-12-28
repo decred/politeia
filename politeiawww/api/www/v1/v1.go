@@ -54,8 +54,8 @@ const (
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
 
-	// The following routes WILL BE DEPRECATED in the near future and
-	// should not be used. The pi v1 API should be used instead.
+	// The following routes have been DEPRECATED and support will be
+	// removed in the near future.
 	RouteTokenInventory   = "/proposals/tokeninventory"
 	RouteProposalDetails  = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
 	RouteBatchProposals   = "/proposals/batch"
@@ -63,8 +63,7 @@ const (
 	RouteCastVotes        = "/proposals/castvotes"
 	RouteBatchVoteSummary = "/proposals/batchvotesummary"
 
-	// The following route HAVE BEEN DEPRECATED. The pi v1 API should
-	// be used instead.
+	// The following routes are NO LONGER SUPPORTED.
 	RouteActiveVote        = "/proposals/activevote"
 	RouteAllVetted         = "/proposals/vetted"
 	RouteNewProposal       = "/proposals/new"
@@ -699,6 +698,8 @@ type VerifyResetPasswordReply struct{}
 // If After is specified, the "page" returned starts after the proposal
 // whose censorship token is provided. If Before is specified, the "page"
 // returned starts before the proposal whose censorship token is provided.
+//
+// This request is NO LONGER SUPPORTED.
 type UserProposals struct {
 	UserId string `schema:"userid"`
 	Before string `schema:"before"`
@@ -708,6 +709,8 @@ type UserProposals struct {
 // UserProposalsReply replies to the UserProposals command with
 // a list of proposals that the user has submitted and the total
 // amount of proposals
+//
+// This request is NO LONGER SUPPORTED.
 type UserProposalsReply struct {
 	Proposals      []ProposalRecord `json:"proposals"`      // user proposals
 	NumOfProposals int              `json:"numofproposals"` // number of proposals submitted by the user
@@ -846,6 +849,8 @@ type UserPaymentsRescanReply struct {
 // Signature is the signature of the proposal merkle root. The merkle root
 // contains the ordered files and metadata digests. The file digests are first
 // in the ordering.
+//
+// This request is NO LONGER SUPPORTED.
 type NewProposal struct {
 	Files     []File     `json:"files"`     // Proposal files
 	Metadata  []Metadata `json:"metadata"`  // User specified metadata
@@ -854,6 +859,8 @@ type NewProposal struct {
 }
 
 // NewProposalReply is used to reply to the NewProposal command
+//
+// This request is NO LONGER SUPPORTED.
 type NewProposalReply struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -862,12 +869,16 @@ type NewProposalReply struct {
 // and by the proposal version (optional). If the version isn't specified
 // the latest proposal version will be returned by default. Returns only
 // vetted proposals.
+//
+// This request has been DEPRECATED.
 type ProposalsDetails struct {
 	Token   string `json:"token"`             // Censorship token
 	Version string `json:"version,omitempty"` // Proposal version
 }
 
 // ProposalDetailsReply is used to reply to a proposal details command.
+//
+// This request has been DEPRECATED.
 type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
@@ -875,22 +886,30 @@ type ProposalDetailsReply struct {
 // BatchProposals is used to request the proposal details for each of the
 // provided censorship tokens. The returned proposals do not include the
 // proposal files. Returns only vetted proposals.
+//
+// This request has been DEPRECATED.
 type BatchProposals struct {
 	Tokens []string `json:"tokens"` // Censorship tokens
 }
 
 // BatchProposalsReply is used to reply to a BatchProposals command.
+//
+// This request has been DEPRECATED.
 type BatchProposalsReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // BatchVoteSummary is used to request the VoteSummary for the each of the
 // provided censorship tokens.
+//
+// This request has been DEPRECATED.
 type BatchVoteSummary struct {
 	Tokens []string `json:"tokens"` // Censorship tokens
 }
 
 // BatchVoteSummaryReply is used to reply to a BatchVoteSummary command.
+//
+// This request has been DEPRECATED.
 type BatchVoteSummaryReply struct {
 	BestBlock uint64                 `json:"bestblock"` // Current block height
 	Summaries map[string]VoteSummary `json:"summaries"` // [token]VoteSummary
@@ -900,6 +919,8 @@ type BatchVoteSummaryReply struct {
 // have the ability to change a proposal's status. Some status changes, such
 // as censoring a proposal, require the StatusChangeMessage to be populated
 // with the reason for the status change.
+//
+// This request is NO LONGER SUPPORTED.
 type SetProposalStatus struct {
 	Token               string      `json:"token"`                         // Proposal token
 	ProposalStatus      PropStatusT `json:"proposalstatus"`                // New status
@@ -909,6 +930,8 @@ type SetProposalStatus struct {
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
+//
+// This request is NO LONGER SUPPORTED.
 type SetProposalStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
@@ -927,12 +950,16 @@ type SetProposalStatusReply struct {
 //
 // If Before is specified, the "page" returned starts before the provided
 // proposal censorship token, when sorted in reverse chronological order.
+//
+// This request is NO LONGER SUPPORTED.
 type GetAllVetted struct {
 	Before string `schema:"before"`
 	After  string `schema:"after"`
 }
 
 // GetAllVettedReply is used to reply with a list of vetted proposals.
+//
+// This request is NO LONGER SUPPORTED.
 type GetAllVettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
@@ -988,6 +1015,8 @@ type Vote struct {
 }
 
 // ActiveVote obtains all proposals that have active votes.
+//
+// This request is NO LONGER SUPPORTED.
 type ActiveVote struct{}
 
 // ProposalVoteTuple is the proposal, vote and vote details.
@@ -998,6 +1027,8 @@ type ProposalVoteTuple struct {
 }
 
 // ActiveVoteReply returns all proposals that have active votes.
+//
+// This request is NO LONGER SUPPORTED.
 type ActiveVoteReply struct {
 	Votes []ProposalVoteTuple `json:"votes"` // Active votes
 }
@@ -1008,6 +1039,8 @@ type ActiveVoteReply struct {
 // is ready to be voted on.  The signature and public key are from the
 // proposal author.  The author can revoke a previously sent vote authorization
 // by setting the Action field to revoke.
+//
+// This request is NO LONGER SUPPORTED.
 type AuthorizeVote struct {
 	Action    string `json:"action"`    // Authorize or revoke
 	Token     string `json:"token"`     // Proposal token
@@ -1017,6 +1050,8 @@ type AuthorizeVote struct {
 
 // AuthorizeVoteReply returns a receipt if the action was successfully
 // executed.
+//
+// This request is NO LONGER SUPPORTED.
 type AuthorizeVoteReply struct {
 	Action  string `json:"action"`  // Authorize or revoke
 	Receipt string `json:"receipt"` // Server signature of client signature
@@ -1024,8 +1059,7 @@ type AuthorizeVoteReply struct {
 
 // StartVote starts the voting process for a proposal.
 //
-// THIS ROUTE HAS BEEN DEPRECATED
-// A proposal vote must be initiated using the v2 StartVote route.
+// This request is NO LONGER SUPPORTED.
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote
@@ -1033,6 +1067,8 @@ type StartVote struct {
 }
 
 // StartVoteReply returns the eligible ticket pool.
+//
+// This request is NO LONGER SUPPORTED.
 type StartVoteReply struct {
 	StartBlockHeight string   `json:"startblockheight"` // Block height
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
@@ -1059,11 +1095,15 @@ type CastVoteReply struct {
 }
 
 // Ballot is a batch of votes that are sent to the server.
+//
+// This request has been DEPRECATED.
 type Ballot struct {
 	Votes []CastVote `json:"votes"`
 }
 
 // BallotReply is a reply to a batched list of votes.
+//
+// This request has been DEPRECATED.
 type BallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
@@ -1071,10 +1111,14 @@ type BallotReply struct {
 // VoteResults retrieves a single proposal vote results from the server. If the
 // voting period has not yet started for the given proposal a reply is returned
 // with all fields set to their zero value.
+//
+// This request has been DEPRECATED.
 type VoteResults struct{}
 
 // VoteResultsReply returns the original proposal vote and the associated cast
 // votes.
+//
+// This request has been DEPRECATED.
 type VoteResultsReply struct {
 	StartVote      StartVote      `json:"startvote"`      // Original vote
 	CastVotes      []CastVote     `json:"castvotes"`      // Vote results
@@ -1109,6 +1153,8 @@ type Comment struct {
 // the user is implied by the session.  A parent ID of 0 indicates that the
 // comment does not have a parent.  A non-zero parent ID indicates that the
 // comment is a reply to an existing comment.
+//
+// This request is NO LONGER SUPPORTED.
 type NewComment struct {
 	Token     string `json:"token"`     // Censorship token
 	ParentID  string `json:"parentid"`  // Parent comment ID
@@ -1119,16 +1165,22 @@ type NewComment struct {
 
 // NewCommentReply returns the site generated Comment ID or an error if
 // something went wrong.
+//
+// This request is NO LONGER SUPPORTED.
 type NewCommentReply struct {
 	Comment Comment `json:"comment"` // Comment + receipt
 }
 
 // GetComments retrieve all comments for a given proposal.
+//
+// This request is NO LONGER SUPPORTED.
 type GetComments struct {
 	Token string `json:"token"` // Censorship token
 }
 
 // GetCommentsReply returns the provided number of comments.
+//
+// This request is NO LONGER SUPPORTED.
 type GetCommentsReply struct {
 	Comments   []Comment `json:"comments"`             // Comments
 	AccessTime int64     `json:"accesstime,omitempty"` // User Access Time
@@ -1142,6 +1194,8 @@ const (
 )
 
 // LikeComment allows a user to up or down vote a comment.
+//
+// This request is NO LONGER SUPPORTED.
 type LikeComment struct {
 	Token     string `json:"token"`     // Censorship token
 	CommentID string `json:"commentid"` // Comment ID
@@ -1151,6 +1205,8 @@ type LikeComment struct {
 }
 
 // LikeCommentReply returns the current up/down vote result.
+//
+// This request is NO LONGER SUPPORTED.
 type LikeCommentReply struct {
 	// XXX we probably need a sequence numkber or something here and some sort of rate limit
 	Total     uint64 `json:"total"`               // Total number of up and down votes
@@ -1163,6 +1219,8 @@ type LikeCommentReply struct {
 
 // CensorComment allows an admin to censor a comment. The signature and
 // public key are from the admin that censored this comment.
+//
+// This request is NO LONGER SUPPORTED.
 type CensorComment struct {
 	Token     string `json:"token"`     // Proposal censorship token
 	CommentID string `json:"commentid"` // Comment ID
@@ -1173,6 +1231,8 @@ type CensorComment struct {
 
 // CensorCommentReply returns a receipt if the comment was successfully
 // censored.
+//
+// This request is NO LONGER SUPPORTED.
 type CensorCommentReply struct {
 	Receipt string `json:"receipt"` // Server signature of client signature
 }
@@ -1187,10 +1247,14 @@ type CommentLike struct {
 
 // UserCommentsLikes is a command to fetch all user vote actions
 // on the comments of a given proposal
+//
+// This request is NO LONGER SUPPORTED.
 type UserCommentsLikes struct{}
 
 // UserCommentsLikesReply is a reply with all user vote actions
 // for the comments of a given proposal
+//
+// This request is NO LONGER SUPPORTED.
 type UserCommentsLikesReply struct {
 	CommentsLikes []CommentLike `json:"commentslikes"`
 }
@@ -1204,11 +1268,13 @@ type VoteOptionResult struct {
 
 // VoteStatus is a command to fetch the the current vote status for a single
 // public proposal
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is NO LONGER SUPPORTED.
 type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is NO LONGER SUPPORTED.
 type VoteStatusReply struct {
 	Token              string             `json:"token"`              // Censorship token
 	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
@@ -1222,11 +1288,13 @@ type VoteStatusReply struct {
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is NO LONGER SUPPORTED.
 type GetAllVoteStatus struct{}
 
 // GetAllVoteStatusReply returns the vote status of all public proposals
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is NO LONGER SUPPORTED.
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }
@@ -1299,6 +1367,8 @@ type UserIdentity struct {
 // Signature is the signature of the proposal merkle root. The merkle root
 // contains the ordered files and metadata digests. The file digests are first
 // in the ordering.
+//
+// This request is NO LONGER SUPPORTED.
 type EditProposal struct {
 	Token     string     `json:"token"`
 	Files     []File     `json:"files"`
@@ -1308,12 +1378,16 @@ type EditProposal struct {
 }
 
 // EditProposalReply is used to reply to the EditProposal command
+//
+// This request is NO LONGER SUPPORTED.
 type EditProposalReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
 // TokenInventory retrieves the censorship record tokens of all proposals in
 // the inventory, categorized by stage of the voting process.
+//
+// This request has been DEPRECATED.
 type TokenInventory struct{}
 
 // TokenInventoryReply is used to reply to the TokenInventory command and
@@ -1326,6 +1400,8 @@ type TokenInventory struct{}
 //
 // Sorted by voting period end block height in descending order:
 // Active, Approved, Rejected
+//
+// This request has been DEPRECATED.
 type TokenInventoryReply struct {
 	// Vetted
 	Pre       []string `json:"pre"`       // Tokens of all props that are pre-vote
