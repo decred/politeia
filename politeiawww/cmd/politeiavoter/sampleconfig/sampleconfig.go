@@ -45,6 +45,8 @@ const FileContents = `[Application Options]
 ; wallethost=localhost
 ; walletgrpccert=
 ; walletpassphrase=
+; clientcert=client.pem
+; clientkey=client-key.pem
 
 ; ------------------------------------------------------------------------------
 ; Debug
