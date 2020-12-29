@@ -30,8 +30,6 @@ type VoteErrorT int
 // TODO module these API packages
 
 const (
-	APIVersion = 1
-
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/pi/v1"
 

@@ -17,7 +17,9 @@ type userPaymentsRescanCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the rescan user payments command.
+// Execute executes the userPaymentsRescanCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userPaymentsRescanCmd) Execute(args []string) error {
 	upr := &v1.UserPaymentsRescan{
 		UserID: cmd.Args.UserID,

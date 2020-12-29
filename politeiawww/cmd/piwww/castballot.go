@@ -28,7 +28,9 @@ type castBallotCmd struct {
 	Password string `long:"password" optional:"true"`
 }
 
-// Execute executes the vote ballot command.
+// Execute executes the castBallotCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (c *castBallotCmd) Execute(args []string) error {
 	token := c.Args.Token
 	voteID := c.Args.VoteID

@@ -16,7 +16,9 @@ type voteSummariesCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the vote summaries command.
+// Execute executes the voteSummariesCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *voteSummariesCmd) Execute(args []string) error {
 	// Setup request
 	vs := pi.VoteSummaries{

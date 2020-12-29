@@ -23,7 +23,9 @@ type voteAuthorizeCmd struct {
 	} `positional-args:"true"`
 }
 
-// Execute executes the vote authorize command.
+// Execute executes the voteAuthorizeCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *voteAuthorizeCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 

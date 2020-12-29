@@ -13,7 +13,9 @@ type userDetailsCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the user details command.
+// Execute executes the userDetailsCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userDetailsCmd) Execute(args []string) error {
 	udr, err := client.UserDetails(cmd.Args.UserID)
 	if err != nil {

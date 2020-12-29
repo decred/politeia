@@ -21,7 +21,9 @@ type commentVotesCmd struct {
 	Me bool `long:"me" optional:"true"`
 }
 
-// Execute executes the user comment likes command.
+// Execute executes the commentVotesCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (c *commentVotesCmd) Execute(args []string) error {
 	token := c.Args.Token
 	userID := c.Args.UserID

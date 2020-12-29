@@ -31,7 +31,9 @@ type voteStartRunoffCmd struct {
 	} `positional-args:"true"`
 }
 
-// Execute executes the StartVoteRunoff command.
+// Execute executes the voteStartRunoffCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {

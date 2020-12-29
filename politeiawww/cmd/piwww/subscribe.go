@@ -25,7 +25,9 @@ type subscribeCmd struct {
 	Close bool `long:"close" optional:"true"` // Do not keep connetion alive
 }
 
-// Execute executes the subscribe command.
+// Execute executes the subscribeCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *subscribeCmd) Execute(args []string) error {
 	// Parse args
 	route := v1.RouteUnauthenticatedWebSocket

@@ -1406,7 +1406,9 @@ func testCommentRoutes(admin testUser) error {
 	return nil
 }
 
-// Execute executes the test run command.
+// Execute executes the testRunCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *testRunCmd) Execute(args []string) error {
 	// Suppress output from cli commands
 	cfg.Silent = true

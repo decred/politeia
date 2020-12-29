@@ -20,7 +20,9 @@ type userEmailVerifyCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the verify user email command.
+// Execute executes the userEmailVerifyCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userEmailVerifyCmd) Execute(args []string) error {
 	// Load user identity
 	id, err := cfg.LoadIdentity(cmd.Args.Username)

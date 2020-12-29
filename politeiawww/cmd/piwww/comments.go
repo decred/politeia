@@ -19,7 +19,9 @@ type commentsCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the proposal comments command.
+// Execute executes the commentsCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *commentsCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 

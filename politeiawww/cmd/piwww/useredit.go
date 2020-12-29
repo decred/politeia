@@ -20,7 +20,9 @@ type userEditCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the edit user command.
+// Execute executes the userEditCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userEditCmd) Execute(args []string) error {
 	emailNotifs := map[string]v1.EmailNotificationT{
 		"userproposalchange":        v1.NotificationEmailMyProposalStatusChange,

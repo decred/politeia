@@ -21,7 +21,9 @@ type sendFaucetTxCmd struct {
 	} `positional-args:"true"`
 }
 
-// Execute executes the send faucet tx command.
+// Execute executes the sendFaucetTxCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *sendFaucetTxCmd) Execute(args []string) error {
 	address := cmd.Args.Address
 	atoms := cmd.Args.Amount

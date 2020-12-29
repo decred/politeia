@@ -26,7 +26,9 @@ type commentCensorCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the censor comment command.
+// Execute executes the commentCensorCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *commentCensorCmd) Execute(args []string) error {
 	// Unpack args
 	token := cmd.Args.Token

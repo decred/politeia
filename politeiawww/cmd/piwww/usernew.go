@@ -26,7 +26,9 @@ type userNewCmd struct {
 	NoSave  bool `long:"nosave" optional:"true"`  // Don't save user identity to disk
 }
 
-// Execute executes the new user command.
+// Execute executes the userNewCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userNewCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 	username := cmd.Args.Username

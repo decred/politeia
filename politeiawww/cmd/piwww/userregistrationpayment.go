@@ -10,7 +10,9 @@ import "github.com/decred/politeia/politeiawww/cmd/shared"
 // registration payment.
 type userRegistrationPaymentCmd struct{}
 
-// Execute executes the user registration payment command.
+// Execute executes the userRegistrationPaymentCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userRegistrationPaymentCmd) Execute(args []string) error {
 	vupr, err := client.UserRegistrationPayment()
 	if err != nil {

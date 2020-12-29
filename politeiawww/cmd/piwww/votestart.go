@@ -25,7 +25,9 @@ type voteStartCmd struct {
 	} `positional-args:"true"`
 }
 
-// Execute executes the vote start command.
+// Execute executes the voteStartCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *voteStartCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 

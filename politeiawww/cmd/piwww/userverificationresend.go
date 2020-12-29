@@ -9,8 +9,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// userVerificationResendCmd re-sends the user verification email for an unverified
-// user.
+// userVerificationResendCmd re-sends the user verification email for an
+// unverified user.
 type userVerificationResendCmd struct {
 	Args struct {
 		Email     string `positional-arg-name:"email"`     // User email
@@ -18,7 +18,9 @@ type userVerificationResendCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the resend verification command.
+// Execute executes the userVerificationResendCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userVerificationResendCmd) Execute(args []string) error {
 	rv := v1.ResendVerification{
 		Email:     cmd.Args.Email,

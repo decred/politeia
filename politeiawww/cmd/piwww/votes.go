@@ -16,7 +16,9 @@ type votesCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the votes command.
+// Execute executes the votesCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (c *votesCmd) Execute(args []string) error {
 	// Setup request
 	v := pi.Votes{

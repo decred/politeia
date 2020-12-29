@@ -26,7 +26,9 @@ type commentNewCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the new comment command.
+// Execute executes the commentNewCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (c *commentNewCmd) Execute(args []string) error {
 	// Unpack args
 	token := c.Args.Token

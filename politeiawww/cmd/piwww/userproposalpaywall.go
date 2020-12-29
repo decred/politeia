@@ -9,7 +9,9 @@ import "github.com/decred/politeia/politeiawww/cmd/shared"
 // userProposalPaywallCmd gets paywall info for the logged in user.
 type userProposalPaywallCmd struct{}
 
-// Execute executes the proposal paywall command.
+// Execute executes the userProposalPaywallCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userProposalPaywallCmd) Execute(args []string) error {
 	ppdr, err := client.UserProposalPaywall()
 	if err != nil {

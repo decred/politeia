@@ -42,6 +42,7 @@ const (
 	VoteDownvote VoteT = -1
 	VoteUpvote   VoteT = 1
 
+	// TODO make these default settings, not policies
 	// PolicyCommentLengthMax is the maximum number of characters
 	// accepted for comments.
 	PolicyCommentLengthMax = 8000

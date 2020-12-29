@@ -24,7 +24,9 @@ type commentVoteCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the like comment command.
+// Execute executes the commentVoteCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (c *commentVoteCmd) Execute(args []string) error {
 	votes := map[string]pi.CommentVoteT{
 		"upvote":   pi.CommentVoteUpvote,

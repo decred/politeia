@@ -13,7 +13,9 @@ import (
 // non-abandoned proposals in  inventory categorized by their vote status.
 type voteInventoryCmd struct{}
 
-// Execute executes the vote inventory command.
+// Execute executes the voteInventoryCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *voteInventoryCmd) Execute(args []string) error {
 	// Setup request
 	vi := pi.VoteInventory{}

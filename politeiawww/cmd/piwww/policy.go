@@ -9,7 +9,9 @@ import "github.com/decred/politeia/politeiawww/cmd/shared"
 // policyCmd gets the server policy information.
 type policyCmd struct{}
 
-// Execute executes the policy command.
+// Execute executes the policyCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *policyCmd) Execute(args []string) error {
 	pr, err := client.Policy()
 	if err != nil {

@@ -9,7 +9,9 @@ import "github.com/decred/politeia/politeiawww/cmd/shared"
 // userProposalCreditsCmd gets the proposal credits for the logged in user.
 type userProposalCreditsCmd struct{}
 
-// Execute executes the user proposal credits command.
+// Execute executes the userProposalCreditsCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *userProposalCreditsCmd) Execute(args []string) error {
 	ppdr, err := client.UserProposalCredits()
 	if err != nil {

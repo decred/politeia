@@ -43,7 +43,9 @@ type proposalNewCmd struct {
 	RFP bool `long:"rfp" optional:"true"`
 }
 
-// Execute executes the new proposal command.
+// Execute executes the proposalNewCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *proposalNewCmd) Execute(args []string) error {
 	indexFile := cmd.Args.IndexFile
 	attachments := cmd.Args.Attachments

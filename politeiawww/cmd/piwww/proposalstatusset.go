@@ -25,7 +25,9 @@ type proposalSetStatusCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the proposal status set command.
+// Execute executes the proposalSetStatusCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *proposalSetStatusCmd) Execute(args []string) error {
 	propStatus := map[string]pi.PropStatusT{
 		"public":    pi.PropStatusPublic,

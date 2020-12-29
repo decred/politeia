@@ -17,7 +17,9 @@ type helpCmd struct {
 	} `positional-args:"true"`
 }
 
-// Execute executes the help command.
+// Execute executes the helpCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *helpCmd) Execute(args []string) error {
 	if cmd.Args.Topic == "" {
 		return fmt.Errorf("Specify a command to print a detailed help " +

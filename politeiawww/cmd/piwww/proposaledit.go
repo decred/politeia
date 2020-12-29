@@ -50,7 +50,9 @@ type proposalEditCmd struct {
 	UseMD bool `long:"usemd" optional:"true"`
 }
 
-// Execute executes the proposal edit command.
+// Execute executes the proposalEditCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (cmd *proposalEditCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	indexFile := cmd.Args.IndexFile

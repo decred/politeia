@@ -26,7 +26,9 @@ type proposalsCmd struct {
 	IncludeFiles bool `long:"includefiles" optional:"true"`
 }
 
-// Execute executes the proposals command.
+// Execute executes the proposalsCmd command.
+//
+// This function satisfies the go-flags Commander interface.
 func (c *proposalsCmd) Execute(args []string) error {
 	proposals := c.Args.Proposals
 
