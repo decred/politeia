@@ -11,6 +11,24 @@ import (
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 )
 
+// piPassThrough executes the pi plugin PassThrough command.
+func (p *politeiawww) piPassThrough(ctx context.Context, pt pi.PassThrough) (*pi.PassThroughReply, error) {
+	b, err := piplugin.EncodePassThrough(pt)
+	if err != nil {
+		return nil, err
+	}
+	r, err := p.pluginCommand(ctx, piplugin.ID,
+		piplugin.CmdPassThrough, string(b))
+	if err != nil {
+		return nil, err
+	}
+	ptr, err := piplugin.DecodePassThroughReply(([]byte(r)))
+	if err != nil {
+		return nil, err
+	}
+	return ptr, nil
+}
+
 // piProposals returns the pi plugin data for the provided proposals.
 func (p *politeiawww) piProposals(ctx context.Context, ps piplugin.Proposals) (*piplugin.ProposalsReply, error) {
 	b, err := piplugin.EncodeProposals(ps)
@@ -27,60 +45,6 @@ func (p *politeiawww) piProposals(ctx context.Context, ps piplugin.Proposals) (*
 		return nil, err
 	}
 	return pr, nil
-}
-
-// piCommentNew uses the pi plugin to submit a new comment.
-func (p *politeiawww) piCommentNew(ctx context.Context, cn piplugin.CommentNew) (*piplugin.CommentNewReply, error) {
-	b, err := piplugin.EncodeCommentNew(cn)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, piplugin.ID,
-		piplugin.CmdCommentNew, string(b))
-	if err != nil {
-		return nil, err
-	}
-	cnr, err := piplugin.DecodeCommentNewReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-	return cnr, nil
-}
-
-// piCommentVote uses the pi plugin to vote on a comment.
-func (p *politeiawww) piCommentVote(ctx context.Context, cvp piplugin.CommentVote) (*piplugin.CommentVoteReply, error) {
-	b, err := piplugin.EncodeCommentVote(cvp)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, piplugin.ID,
-		piplugin.CmdCommentVote, string(b))
-	if err != nil {
-		return nil, err
-	}
-	cvr, err := piplugin.DecodeCommentVoteReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-	return cvr, nil
-}
-
-// piCommentCensor uses the pi plugin to censor a proposal comment.
-func (p *politeiawww) piCommentCensor(ctx context.Context, cc piplugin.CommentCensor) (*piplugin.CommentCensorReply, error) {
-	b, err := piplugin.EncodeCommentCensor(cc)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, piplugin.ID,
-		piplugin.CmdCommentCensor, string(b))
-	if err != nil {
-		return nil, err
-	}
-	ccr, err := piplugin.DecodeCommentCensorReply(([]byte(r)))
-	if err != nil {
-		return nil, err
-	}
-	return ccr, nil
 }
 
 // proposalInv returns the pi plugin proposal inventory.
@@ -112,22 +76,4 @@ func (p *politeiawww) piVoteInventory(ctx context.Context) (*piplugin.VoteInvent
 		return nil, err
 	}
 	return vir, nil
-}
-
-// piPassThrough executes the pi plugin PassThrough command.
-func (p *politeiawww) piPassThrough(ctx context.Context, pt pi.PassThrough) (*pi.PassThroughReply, error) {
-	b, err := piplugin.EncodePassThrough(pt)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, piplugin.ID,
-		piplugin.CmdPassThrough, string(b))
-	if err != nil {
-		return nil, err
-	}
-	ptr, err := piplugin.DecodePassThroughReply(([]byte(r)))
-	if err != nil {
-		return nil, err
-	}
-	return ptr, nil
 }

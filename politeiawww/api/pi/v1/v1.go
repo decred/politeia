@@ -8,7 +8,6 @@ import (
 	"fmt"
 )
 
-type ErrorStatusT int
 type CommentVoteT int
 type VoteStatusT int
 type VoteAuthActionT string
@@ -16,26 +15,25 @@ type VoteT int
 type VoteErrorT int
 
 // TODO verify that all batched request have a page size limit
-// TODO add fetching proposals by user ID. Will probably need to add user ID
-// to the general metadata stream.
-// TODO add a comments/count endpoint and take the comments count off of the
-// proposal record
-// TODO linkedfrom should really be pulled out of a proposal record an added
-// as a separate enpoint as well.
-// TODO create a comments and vote api for those plugin commands that are not
-// pi specific
-// TODO the plugin policies should be returned in a route
+// TODO comments count and linked from should be pulled out of the proposal
+// record struct. These should be separate endpoints:
+// /comments/count
+// /proposal/linkedfrom
+// TODO routes that map directly to plugin commands (comment and vote routes)
+// should be added to their own API package so that they can be used by
+// multiple politeia applications (pi, cms, forum).
 // TODO make RouteVoteResults a batched route but that only currently allows
-// for 1 result to be returned so that we have the option to change this is
+// for 1 result to be returned so that we have the option to change this if
 // we want to.
-// TODO each API needs a version and policy route
+// TODO pi needs a Version route and a Policy route. The policies should be
+// defined in the plugin packages and returned in the policy route.
+// TODO module these API packages
 
 const (
 	APIVersion = 1
 
 	// APIRoute is prefixed onto all routes defined in this package.
-	// TODO should the api route be "/pi/v1"?
-	APIRoute = "/v1"
+	APIRoute = "/pi/v1"
 
 	// Proposal routes
 	RouteProposalNew       = "/proposal/new"
@@ -107,7 +105,12 @@ const (
 	// proposal should be rejected. Proposal votes are required to use
 	// this vote option ID.
 	VoteOptionIDReject = "no"
+)
 
+// ErrorStatusT represents a user error status code.
+type ErrorStatusT int
+
+const (
 	// Cast vote errors
 	// TODO these need human readable equivalents
 	VoteErrorInvalid             VoteErrorT = 0
@@ -265,7 +268,7 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// PropStateT represents a proposal state type. A proposal state can be either
+// PropStateT represents a proposal state. A proposal state can be either
 // unvetted or vetted. The PropStatusT type further breaks down these two
 // states into more granular statuses.
 type PropStateT int
@@ -283,7 +286,7 @@ const (
 	PropStateVetted PropStateT = 2
 )
 
-// PropStatusT represents a proposal status type.
+// PropStatusT represents a proposal status.
 type PropStatusT int
 
 const (

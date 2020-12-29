@@ -362,6 +362,26 @@ func convertPropStateFromComments(s comments.StateT) pi.PropStateT {
 	return pi.PropStateInvalid
 }
 
+func convertCommentStateFromPi(s pi.PropStateT) comments.StateT {
+	switch s {
+	case pi.PropStateUnvetted:
+		return comments.StateUnvetted
+	case pi.PropStateVetted:
+		return comments.StateVetted
+	}
+	return comments.StateInvalid
+}
+
+func convertCommentVoteFromPi(cv pi.CommentVoteT) comments.VoteT {
+	switch cv {
+	case pi.CommentVoteDownvote:
+		return comments.VoteUpvote
+	case pi.CommentVoteUpvote:
+		return comments.VoteDownvote
+	}
+	return comments.VoteInvalid
+}
+
 func convertCommentFromPlugin(c comments.Comment) pi.Comment {
 	return pi.Comment{
 		UserID:    c.UserID,
@@ -408,19 +428,6 @@ func convertCommentVoteDetailsFromPlugin(cv []comments.CommentVote) []pi.Comment
 		})
 	}
 	return c
-}
-
-func convertCommentVoteFromPi(v pi.CommentVoteT) piplugin.CommentVoteT {
-	switch v {
-	case pi.CommentVoteInvalid:
-		return piplugin.VoteInvalid
-	case pi.CommentVoteDownvote:
-		return piplugin.VoteDownvote
-	case pi.CommentVoteUpvote:
-		return piplugin.VoteUpvote
-	default:
-		return piplugin.VoteInvalid
-	}
 }
 
 func convertVoteAuthActionFromPi(a pi.VoteAuthActionT) ticketvote.AuthActionT {
@@ -1642,22 +1649,35 @@ func (p *politeiawww) processCommentNew(ctx context.Context, cn pi.CommentNew, u
 	}
 
 	// Send plugin command
-	pcn := piplugin.CommentNew{
+	n := comments.New{
 		UserID:    usr.ID.String(),
-		State:     convertPropStateFromPi(cn.State),
+		State:     convertCommentStateFromPi(cn.State),
 		Token:     cn.Token,
 		ParentID:  cn.ParentID,
 		Comment:   cn.Comment,
 		PublicKey: cn.PublicKey,
 		Signature: cn.Signature,
 	}
-	cnr, err := p.piCommentNew(ctx, pcn)
+	b, err := comments.EncodeNew(n)
+	if err != nil {
+		return nil, err
+	}
+	pt := piplugin.PassThrough{
+		PluginID:  comments.ID,
+		PluginCmd: comments.CmdNew,
+		Payload:   string(b),
+	}
+	ptr, err := p.piPassThrough(ctx, pt)
+	if err != nil {
+		return nil, err
+	}
+	nr, err := comments.DecodeNewReply([]byte(ptr.Payload))
 	if err != nil {
 		return nil, err
 	}
 
 	// Prepare reply
-	c := convertCommentFromPlugin(cnr.Comment)
+	c := convertCommentFromPlugin(nr.Comment)
 	c = commentFillInUser(c, usr)
 
 	// Emit event
@@ -1702,25 +1722,38 @@ func (p *politeiawww) processCommentVote(ctx context.Context, cv pi.CommentVote,
 	}
 
 	// Send plugin command
-	pcv := piplugin.CommentVote{
+	v := comments.Vote{
 		UserID:    usr.ID.String(),
-		State:     convertPropStateFromPi(cv.State),
+		State:     convertCommentStateFromPi(cv.State),
 		Token:     cv.Token,
 		CommentID: cv.CommentID,
 		Vote:      convertCommentVoteFromPi(cv.Vote),
 		PublicKey: cv.PublicKey,
 		Signature: cv.Signature,
 	}
-	cvr, err := p.piCommentVote(ctx, pcv)
+	b, err := comments.EncodeVote(v)
+	if err != nil {
+		return nil, err
+	}
+	pt := piplugin.PassThrough{
+		PluginID:  comments.ID,
+		PluginCmd: comments.CmdVote,
+		Payload:   string(b),
+	}
+	ptr, err := p.piPassThrough(ctx, pt)
+	if err != nil {
+		return nil, err
+	}
+	vr, err := comments.DecodeVoteReply([]byte(ptr.Payload))
 	if err != nil {
 		return nil, err
 	}
 
 	return &pi.CommentVoteReply{
-		Downvotes: cvr.Downvotes,
-		Upvotes:   cvr.Upvotes,
-		Timestamp: cvr.Timestamp,
-		Receipt:   cvr.Receipt,
+		Downvotes: vr.Downvotes,
+		Upvotes:   vr.Upvotes,
+		Timestamp: vr.Timestamp,
+		Receipt:   vr.Receipt,
 	}, nil
 }
 
@@ -1741,21 +1774,34 @@ func (p *politeiawww) processCommentCensor(ctx context.Context, cc pi.CommentCen
 	}
 
 	// Send plugin command
-	pcc := piplugin.CommentCensor{
-		State:     convertPropStateFromPi(cc.State),
+	d := comments.Del{
+		State:     convertCommentStateFromPi(cc.State),
 		Token:     cc.Token,
 		CommentID: cc.CommentID,
 		Reason:    cc.Reason,
 		PublicKey: cc.PublicKey,
 		Signature: cc.Signature,
 	}
-	ccr, err := p.piCommentCensor(ctx, pcc)
+	b, err := comments.EncodeDel(d)
+	if err != nil {
+		return nil, err
+	}
+	pt := piplugin.PassThrough{
+		PluginID:  comments.ID,
+		PluginCmd: comments.CmdDel,
+		Payload:   string(b),
+	}
+	ptr, err := p.piPassThrough(ctx, pt)
+	if err != nil {
+		return nil, err
+	}
+	dr, err := comments.DecodeDelReply([]byte(ptr.Payload))
 	if err != nil {
 		return nil, err
 	}
 
 	// Prepare reply
-	c := convertCommentFromPlugin(ccr.Comment)
+	c := convertCommentFromPlugin(dr.Comment)
 	c = commentFillInUser(c, usr)
 
 	return &pi.CommentCensorReply{

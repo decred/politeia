@@ -429,334 +429,6 @@ func (p *piPlugin) voteSummary(token string) (*ticketvote.Summary, error) {
 	return &summary, nil
 }
 
-func (p *piPlugin) cmdCommentNew(payload string) (string, error) {
-	cn, err := pi.DecodeCommentNew([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verifying the state, token, and that the record exists is also
-	// done in the comments plugin but we duplicate it here so that the
-	// vote summary request can complete successfully.
-
-	// Verify state
-	switch cn.State {
-	case pi.PropStateUnvetted, pi.PropStateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := util.ConvertStringToken(cn.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
-		}
-	}
-
-	// Verify record exists
-	var exists bool
-	switch cn.State {
-	case pi.PropStateUnvetted:
-		exists = p.backend.UnvettedExists(token)
-	case pi.PropStateVetted:
-		exists = p.backend.VettedExists(token)
-	default:
-		// Should not happen. State has already been validated.
-		return "", fmt.Errorf("invalid state %v", cn.State)
-	}
-	if !exists {
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropNotFound),
-		}
-	}
-
-	// Verify vote status
-	if cn.State == pi.PropStateVetted {
-		vs, err := p.voteSummary(cn.Token)
-		if err != nil {
-			return "", fmt.Errorf("voteSummary: %v", err)
-		}
-		switch vs.Status {
-		case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
-			ticketvote.VoteStatusStarted:
-			// Comments are allowed on these vote statuses; continue
-		default:
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
-				ErrorContext: []string{"vote has ended; proposal is locked"},
-			}
-		}
-	}
-
-	// Setup plugin command
-	n := comments.New{
-		UserID:    cn.UserID,
-		State:     comments.StateT(cn.State),
-		Token:     cn.Token,
-		ParentID:  cn.ParentID,
-		Comment:   cn.Comment,
-		PublicKey: cn.PublicKey,
-		Signature: cn.Signature,
-	}
-	b, err := comments.EncodeNew(n)
-	if err != nil {
-		return "", err
-	}
-
-	// Send plugin command
-	r, err := p.backend.Plugin(comments.ID, comments.CmdNew, "", string(b))
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	nr, err := comments.DecodeNewReply([]byte(r))
-	if err != nil {
-		return "", err
-	}
-	cnr := pi.CommentNewReply{
-		Comment: nr.Comment,
-	}
-	reply, err := pi.EncodeCommentNewReply(cnr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-func (p *piPlugin) cmdCommentCensor(payload string) (string, error) {
-	cc, err := pi.DecodeCommentCensor([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verifying the state, token, and that the record exists is also
-	// done in the comments plugin but we duplicate it here so that the
-	// vote summary request can complete successfully.
-
-	// Verify state
-	switch cc.State {
-	case pi.PropStateUnvetted, pi.PropStateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := util.ConvertStringToken(cc.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
-		}
-	}
-
-	// Verify record exists
-	var exists bool
-	switch cc.State {
-	case pi.PropStateUnvetted:
-		exists = p.backend.UnvettedExists(token)
-	case pi.PropStateVetted:
-		exists = p.backend.VettedExists(token)
-	default:
-		// Should not happen. State has already been validated.
-		return "", fmt.Errorf("invalid state %v", cc.State)
-	}
-	if !exists {
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropNotFound),
-		}
-	}
-
-	// Verify vote status
-	if cc.State == pi.PropStateVetted {
-		vs, err := p.voteSummary(cc.Token)
-		if err != nil {
-			return "", fmt.Errorf("voteSummary: %v", err)
-		}
-		switch vs.Status {
-		case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
-			ticketvote.VoteStatusStarted:
-			// Censoring is allowed on these vote statuses; continue
-		default:
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
-				ErrorContext: []string{"vote has ended; proposal is locked"},
-			}
-		}
-	}
-
-	// Setup plugin command
-	d := comments.Del{
-		State:     comments.StateT(cc.State),
-		Token:     cc.Token,
-		CommentID: cc.CommentID,
-		Reason:    cc.Reason,
-		PublicKey: cc.PublicKey,
-		Signature: cc.Signature,
-	}
-	b, err := comments.EncodeDel(d)
-	if err != nil {
-		return "", err
-	}
-
-	// Send plugin command
-	r, err := p.backend.Plugin(comments.ID, comments.CmdDel, "", string(b))
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	dr, err := comments.DecodeDelReply([]byte(r))
-	if err != nil {
-		return "", err
-	}
-	ccr := pi.CommentCensorReply{
-		Comment: dr.Comment,
-	}
-	reply, err := pi.EncodeCommentCensorReply(ccr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-func (p *piPlugin) cmdCommentVote(payload string) (string, error) {
-	cv, err := pi.DecodeCommentVote([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verifying the state, token, and that the record exists is also
-	// done in the comments plugin but we duplicate it here so that the
-	// vote summary request can complete successfully.
-
-	// Verify state
-	switch cv.State {
-	case pi.PropStateUnvetted, pi.PropStateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := util.ConvertStringToken(cv.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  pi.ID,
-			ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
-		}
-	}
-
-	// Verify record exists
-	var record *backend.Record
-	switch cv.State {
-	case pi.PropStateUnvetted:
-		record, err = p.backend.GetUnvetted(token, "")
-	case pi.PropStateVetted:
-		record, err = p.backend.GetVetted(token, "")
-	default:
-		// Should not happen. State has already been validated.
-		return "", fmt.Errorf("invalid state %v", cv.State)
-	}
-	if err != nil {
-		if errors.Is(err, backend.ErrRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropNotFound),
-			}
-		}
-		return "", fmt.Errorf("get record: %v", err)
-	}
-
-	// Verify record status
-	status := convertPropStatusFromMDStatus(record.RecordMetadata.Status)
-	switch status {
-	case pi.PropStatusPublic:
-		// Comment votes are only allowed on public proposals; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusPropStatusInvalid),
-			ErrorContext: []string{"proposal is not public"},
-		}
-	}
-
-	// Verify vote status
-	vs, err := p.voteSummary(cv.Token)
-	if err != nil {
-		return "", fmt.Errorf("voteSummary: %v", err)
-	}
-	switch vs.Status {
-	case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
-		ticketvote.VoteStatusStarted:
-		// Comment votes are allowed on these vote statuses; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
-			ErrorContext: []string{"vote has ended; proposal is locked"},
-		}
-	}
-
-	// Setup plugin command
-	v := comments.Vote{
-		UserID:    cv.UserID,
-		State:     comments.StateT(cv.State),
-		Token:     cv.Token,
-		CommentID: cv.CommentID,
-		Vote:      comments.VoteT(cv.Vote),
-		PublicKey: cv.PublicKey,
-		Signature: cv.Signature,
-	}
-	b, err := comments.EncodeVote(v)
-	if err != nil {
-		return "", err
-	}
-
-	// Send plugin command
-	r, err := p.backend.Plugin(comments.ID, comments.CmdVote, "", string(b))
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	vr, err := comments.DecodeVoteReply([]byte(r))
-	if err != nil {
-		return "", err
-	}
-	cvr := pi.CommentVoteReply{
-		Downvotes: vr.Downvotes,
-		Upvotes:   vr.Upvotes,
-		Timestamp: vr.Timestamp,
-		Receipt:   vr.Receipt,
-	}
-	reply, err := pi.EncodeCommentVoteReply(cvr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
 func (p *piPlugin) cmdProposalInv(payload string) (string, error) {
 	// Decode payload
 	inv, err := pi.DecodeProposalInv([]byte(payload))
@@ -918,6 +590,233 @@ func (p *piPlugin) cmdVoteInventory(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (p *piPlugin) commentNew(payload string) (string, error) {
+	n, err := comments.DecodeNew([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Verifying the state, token, and that the record exists is also
+	// done in the comments plugin but we duplicate it here so that the
+	// vote summary request can complete successfully.
+
+	// Verify state
+	switch n.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
+		}
+	}
+
+	// Verify token
+	token, err := util.ConvertStringToken(n.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
+		}
+	}
+
+	// Verify record exists
+	var exists bool
+	switch n.State {
+	case comments.StateUnvetted:
+		exists = p.backend.UnvettedExists(token)
+	case comments.StateVetted:
+		exists = p.backend.VettedExists(token)
+	default:
+		// Should not happen. State has already been validated.
+		return "", fmt.Errorf("invalid state %v", n.State)
+	}
+	if !exists {
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropNotFound),
+		}
+	}
+
+	// Verify vote status
+	if n.State == comments.StateVetted {
+		vs, err := p.voteSummary(n.Token)
+		if err != nil {
+			return "", fmt.Errorf("voteSummary: %v", err)
+		}
+		switch vs.Status {
+		case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
+			ticketvote.VoteStatusStarted:
+			// Comments are allowed on these vote statuses; continue
+		default:
+			return "", backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+				ErrorContext: []string{"vote has ended; proposal is locked"},
+			}
+		}
+	}
+
+	// Send plugin command
+	return p.backend.Plugin(comments.ID, comments.CmdNew, "", payload)
+}
+
+func (p *piPlugin) commentDel(payload string) (string, error) {
+	d, err := comments.DecodeDel([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Verifying the state, token, and that the record exists is also
+	// done in the comments plugin but we duplicate it here so that the
+	// vote summary request can complete successfully.
+
+	// Verify state
+	switch d.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
+		}
+	}
+
+	// Verify token
+	token, err := util.ConvertStringToken(d.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
+		}
+	}
+
+	// Verify record exists
+	var exists bool
+	switch d.State {
+	case comments.StateUnvetted:
+		exists = p.backend.UnvettedExists(token)
+	case comments.StateVetted:
+		exists = p.backend.VettedExists(token)
+	default:
+		// Should not happen. State has already been validated.
+		return "", fmt.Errorf("invalid state %v", d.State)
+	}
+	if !exists {
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropNotFound),
+		}
+	}
+
+	// Verify vote status
+	if d.State == comments.StateVetted {
+		vs, err := p.voteSummary(d.Token)
+		if err != nil {
+			return "", fmt.Errorf("voteSummary: %v", err)
+		}
+		switch vs.Status {
+		case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
+			ticketvote.VoteStatusStarted:
+			// Deling is allowed on these vote statuses; continue
+		default:
+			return "", backend.PluginUserError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+				ErrorContext: []string{"vote has ended; proposal is locked"},
+			}
+		}
+	}
+
+	// Send plugin command
+	return p.backend.Plugin(comments.ID, comments.CmdDel, "", payload)
+}
+
+func (p *piPlugin) commentVote(payload string) (string, error) {
+	v, err := comments.DecodeVote([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Verifying the state, token, and that the record exists is also
+	// done in the comments plugin but we duplicate it here so that the
+	// vote summary request can complete successfully.
+
+	// Verify state
+	switch v.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropStateInvalid),
+		}
+	}
+
+	// Verify token
+	token, err := util.ConvertStringToken(v.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:  pi.ID,
+			ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
+		}
+	}
+
+	// Verify record exists
+	var record *backend.Record
+	switch v.State {
+	case comments.StateUnvetted:
+		record, err = p.backend.GetUnvetted(token, "")
+	case comments.StateVetted:
+		record, err = p.backend.GetVetted(token, "")
+	default:
+		// Should not happen. State has already been validated.
+		return "", fmt.Errorf("invalid state %v", v.State)
+	}
+	if err != nil {
+		if errors.Is(err, backend.ErrRecordNotFound) {
+			return "", backend.PluginUserError{
+				PluginID:  pi.ID,
+				ErrorCode: int(pi.ErrorStatusPropNotFound),
+			}
+		}
+		return "", fmt.Errorf("get record: %v", err)
+	}
+
+	// Verify record status
+	status := convertPropStatusFromMDStatus(record.RecordMetadata.Status)
+	switch status {
+	case pi.PropStatusPublic:
+		// Comment votes are only allowed on public proposals; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:     pi.ID,
+			ErrorCode:    int(pi.ErrorStatusPropStatusInvalid),
+			ErrorContext: []string{"proposal is not public"},
+		}
+	}
+
+	// Verify vote status
+	vs, err := p.voteSummary(v.Token)
+	if err != nil {
+		return "", fmt.Errorf("voteSummary: %v", err)
+	}
+	switch vs.Status {
+	case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
+		ticketvote.VoteStatusStarted:
+		// Comment votes are allowed on these vote statuses; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:     pi.ID,
+			ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+			ErrorContext: []string{"vote has ended; proposal is locked"},
+		}
+	}
+
+	// Send plugin command
+	return p.backend.Plugin(comments.ID, comments.CmdVote, "", payload)
+}
+
 func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 	// Decode payload
 	s, err := ticketvote.DecodeStart([]byte(payload))
@@ -1068,6 +967,33 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 	return p.backend.Plugin(ticketvote.ID, ticketvote.CmdStart, "", payload)
 }
 
+func (p *piPlugin) passThrough(pt pi.PassThrough) (string, error) {
+	switch pt.PluginID {
+	case comments.ID:
+		switch pt.PluginCmd {
+		case comments.CmdNew:
+			return p.commentNew(pt.Payload)
+		case comments.CmdDel:
+			return p.commentDel(pt.Payload)
+		case comments.CmdVote:
+			return p.commentVote(pt.Payload)
+		default:
+			return "", fmt.Errorf("invalid %v plugin cmd '%v'",
+				pt.PluginID, pt.PluginCmd)
+		}
+	case ticketvote.ID:
+		switch pt.PluginCmd {
+		case ticketvote.CmdStart:
+			return p.ticketVoteStart(pt.Payload)
+		default:
+			return "", fmt.Errorf("invalid %v plugin cmd '%v'",
+				pt.PluginID, pt.PluginCmd)
+		}
+	default:
+		return "", fmt.Errorf("invalid plugin id '%v'", pt.PluginID)
+	}
+}
+
 func (p *piPlugin) cmdPassThrough(payload string) (string, error) {
 	// Decode payload
 	pt, err := pi.DecodePassThrough([]byte(payload))
@@ -1075,21 +1001,8 @@ func (p *piPlugin) cmdPassThrough(payload string) (string, error) {
 		return "", err
 	}
 
-	// Get pass through function
-	var fn func(string) (string, error)
-	switch pt.PluginID {
-	case ticketvote.ID:
-		switch pt.PluginCmd {
-		case ticketvote.CmdStart:
-			fn = p.ticketVoteStart
-		}
-	default:
-		return "", fmt.Errorf("invalid passthrough plugin command %v %v",
-			pt.PluginID, pt.PluginCmd)
-	}
-
-	// Execute pass through
-	r, err := fn(pt.Payload)
+	// Execute command
+	r, err := p.passThrough(*pt)
 	if err != nil {
 		return "", err
 	}
@@ -1431,12 +1344,6 @@ func (p *piPlugin) cmd(cmd, payload string) (string, error) {
 	switch cmd {
 	case pi.CmdProposals:
 		return p.cmdProposals(payload)
-	case pi.CmdCommentNew:
-		return p.cmdCommentNew(payload)
-	case pi.CmdCommentCensor:
-		return p.cmdCommentCensor(payload)
-	case pi.CmdCommentVote:
-		return p.cmdCommentVote(payload)
 	case pi.CmdProposalInv:
 		return p.cmdProposalInv(payload)
 	case pi.CmdVoteInventory:

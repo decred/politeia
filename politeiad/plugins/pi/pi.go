@@ -24,11 +24,6 @@ const (
 	ID      = "pi"
 	Version = "1"
 
-	// TODO these should use the PassThrough command
-	CmdCommentNew    = "commentnew"    // Create a new comment
-	CmdCommentCensor = "commentcensor" // Censor a comment
-	CmdCommentVote   = "commentvote"   // Vote on a comment
-
 	// Plugin commands
 	CmdPassThrough   = "passthrough" // Plugin command pass through
 	CmdProposalInv   = "proposalinv" // Get inventory by proposal status
@@ -59,11 +54,6 @@ const (
 	PropStatusPublic    PropStatusT = 2 // Prop has been made public
 	PropStatusCensored  PropStatusT = 3 // Prop has been censored
 	PropStatusAbandoned PropStatusT = 4 // Prop has been abandoned
-
-	// Comment vote types
-	VoteInvalid  CommentVoteT = 0
-	VoteDownvote CommentVoteT = -1
-	VoteUpvote   CommentVoteT = 1
 
 	// User error status codes
 	// TODO number error codes and add human readable error messages
@@ -293,7 +283,6 @@ func DecodeProposals(payload []byte) (*Proposals, error) {
 }
 
 // ProposalPluginData contains all the plugin data for a proposal.
-// TODO get rid of this command
 type ProposalPluginData struct {
 	Comments   uint64   `json:"comments"`   // Number of comments
 	LinkedFrom []string `json:"linkedfrom"` // Linked from list
