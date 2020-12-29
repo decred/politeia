@@ -13,8 +13,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// proposalStatusSetCmd sets the status of a proposal.
-type proposalStatusSetCmd struct {
+// proposalSetStatusCmd sets the status of a proposal.
+type proposalSetStatusCmd struct {
 	Args struct {
 		Token   string `positional-arg-name:"token" required:"true"`
 		Status  string `positional-arg-name:"status" required:"true"`
@@ -26,7 +26,7 @@ type proposalStatusSetCmd struct {
 }
 
 // Execute executes the proposal status set command.
-func (cmd *proposalStatusSetCmd) Execute(args []string) error {
+func (cmd *proposalSetStatusCmd) Execute(args []string) error {
 	propStatus := map[string]pi.PropStatusT{
 		"public":    pi.PropStatusPublic,
 		"censored":  pi.PropStatusCensored,
@@ -63,7 +63,7 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 		status = s
 	} else {
 		return fmt.Errorf("Invalid proposal status '%v'\n %v",
-			cmd.Args.Status, proposalStatusSetHelpMsg)
+			cmd.Args.Status, proposalSetStatusHelpMsg)
 	}
 
 	// Verify version
@@ -82,7 +82,7 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	// Setup request
 	msg := cmd.Args.Token + version + strconv.Itoa(int(status)) + cmd.Args.Reason
 	sig := cfg.Identity.SignMessage([]byte(msg))
-	pss := pi.ProposalStatusSet{
+	pss := pi.ProposalSetStatus{
 		Token:     cmd.Args.Token,
 		State:     state,
 		Version:   version,
@@ -98,7 +98,7 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	pssr, err := client.ProposalStatusSet(pss)
+	pssr, err := client.ProposalSetStatus(pss)
 	if err != nil {
 		return err
 	}
@@ -120,8 +120,8 @@ func (cmd *proposalStatusSetCmd) Execute(args []string) error {
 	return nil
 }
 
-// proposalStatusSetHelpMsg is the output of the help command.
-const proposalStatusSetHelpMsg = `proposalstatusset "token" "status" "reason"
+// proposalSetStatusHelpMsg is the output of the help command.
+const proposalSetStatusHelpMsg = `proposalstatusset "token" "status" "reason"
 
 Set the status of a proposal. This command assumes the proposal is a vetted
 record. If the proposal is unvetted, the --unvetted flag must be used. Requires

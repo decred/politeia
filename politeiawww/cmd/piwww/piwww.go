@@ -68,7 +68,7 @@ type piwww struct {
 	// Proposal commands
 	ProposalNew       proposalNewCmd       `command:"proposalnew"`
 	ProposalEdit      proposalEditCmd      `command:"proposaledit"`
-	ProposalStatusSet proposalStatusSetCmd `command:"proposalstatusset"`
+	ProposalSetStatus proposalSetStatusCmd `command:"proposalsetstatus"`
 	Proposals         proposalsCmd         `command:"proposals"`
 	ProposalInv       proposalInvCmd       `command:"proposalinv"`
 

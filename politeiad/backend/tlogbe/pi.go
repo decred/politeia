@@ -1079,13 +1079,13 @@ func (p *piPlugin) cmdPassThrough(payload string) (string, error) {
 	var fn func(string) (string, error)
 	switch pt.PluginID {
 	case ticketvote.ID:
-		switch pt.Cmd {
+		switch pt.PluginCmd {
 		case ticketvote.CmdStart:
 			fn = p.ticketVoteStart
 		}
 	default:
 		return "", fmt.Errorf("invalid passthrough plugin command %v %v",
-			pt.PluginID, pt.Cmd)
+			pt.PluginID, pt.PluginCmd)
 	}
 
 	// Execute pass through

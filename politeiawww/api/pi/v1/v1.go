@@ -9,8 +9,6 @@ import (
 )
 
 type ErrorStatusT int
-type PropStateT int
-type PropStatusT int
 type CommentVoteT int
 type VoteStatusT int
 type VoteAuthActionT string
@@ -30,6 +28,7 @@ type VoteErrorT int
 // TODO make RouteVoteResults a batched route but that only currently allows
 // for 1 result to be returned so that we have the option to change this is
 // we want to.
+// TODO each API needs a version and policy route
 
 const (
 	APIVersion = 1
@@ -41,7 +40,7 @@ const (
 	// Proposal routes
 	RouteProposalNew       = "/proposal/new"
 	RouteProposalEdit      = "/proposal/edit"
-	RouteProposalStatusSet = "/proposal/setstatus"
+	RouteProposalSetStatus = "/proposal/setstatus"
 	RouteProposals         = "/proposals"
 	RouteProposalInventory = "/proposals/inventory"
 
@@ -60,42 +59,6 @@ const (
 	RouteVoteResults   = "/votes/results"
 	RouteVoteSummaries = "/votes/summaries"
 	RouteVoteInventory = "/votes/inventory"
-
-	// Proposal states. A proposal state can be either unvetted or
-	// vetted. The PropStatusT type further breaks down these two
-	// states into more granular statuses. Unvetted proposal data is
-	// not made available to the public. Only admins and the proposal
-	// author are able to view unvetted proposals.
-	PropStateInvalid  PropStateT = 0
-	PropStateUnvetted PropStateT = 1
-	PropStateVetted   PropStateT = 2
-
-	// PropStatusInvalid indicates the proposal status is invalid.
-	PropStatusInvalid PropStatusT = 0
-
-	// PropStatusUnreviewed indicates the proposal has been submitted,
-	// but has not yet been reviewed and made public by an admin. A
-	// proposal with this status will have a proposal state of
-	// PropStateUnvetted.
-	PropStatusUnreviewed PropStatusT = 1
-
-	// PropStatusPublic indicates that a proposal has been reviewed and
-	// made public by an admin. A proposal with this status will have
-	// a proposal state of PropStateVetted.
-	PropStatusPublic PropStatusT = 2
-
-	// PropStatusCensored indicates that a proposal has been censored
-	// by an admin for violating the proposal guidlines.. Both unvetted
-	// and vetted proposals can be censored so a proposal with this
-	// status can have a state of either PropStateUnvetted or
-	// PropStateVetted depending on whether the proposal was censored
-	// before or after it was made public.
-	PropStatusCensored PropStatusT = 3
-
-	// PropStatusAbandoned indicates that a proposal has been marked
-	// as abandoned by an admin due to the author being inactive.
-	// TODO can a unvetted proposal be abandoned?
-	PropStatusAbandoned PropStatusT = 4
 
 	// Comment vote types
 	CommentVoteInvalid  CommentVoteT = 0
@@ -220,15 +183,6 @@ const (
 )
 
 var (
-	// PropStatuses contains the human readable proposal statuses.
-	PropStatuses = map[PropStatusT]string{
-		PropStatusInvalid:    "invalid",
-		PropStatusUnreviewed: "unreviewed",
-		PropStatusPublic:     "public",
-		PropStatusCensored:   "censored",
-		PropStatusAbandoned:  "abandoned",
-	}
-
 	// ErrorStatus contains human readable error messages.
 	// TODO fill in error status messages
 	ErrorStatus = map[ErrorStatusT]string{
@@ -309,6 +263,65 @@ type ServerErrorReply struct {
 // Error satisfies the error interface.
 func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
+
+// PropStateT represents a proposal state type. A proposal state can be either
+// unvetted or vetted. The PropStatusT type further breaks down these two
+// states into more granular statuses.
+type PropStateT int
+
+const (
+	// PropStateInvalid indicates an invalid proposal state.
+	PropStateInvalid PropStateT = 0
+
+	// PropStateUnvetted indicates a proposal has not been made public
+	// yet. Only admins and the proposal author are able to view
+	// unvetted proposals.
+	PropStateUnvetted PropStateT = 1
+
+	// PropStateVetted indicates a proposal has been made public.
+	PropStateVetted PropStateT = 2
+)
+
+// PropStatusT represents a proposal status type.
+type PropStatusT int
+
+const (
+	// PropStatusInvalid indicates the proposal status is invalid.
+	PropStatusInvalid PropStatusT = 0
+
+	// PropStatusUnreviewed indicates the proposal has been submitted,
+	// but has not yet been reviewed and made public by an admin. A
+	// proposal with this status will have a proposal state of
+	// PropStateUnvetted.
+	PropStatusUnreviewed PropStatusT = 1
+
+	// PropStatusPublic indicates that a proposal has been reviewed and
+	// made public by an admin. A proposal with this status will have
+	// a proposal state of PropStateVetted.
+	PropStatusPublic PropStatusT = 2
+
+	// PropStatusCensored indicates that a proposal has been censored
+	// by an admin for violating the proposal guidlines.. Both unvetted
+	// and vetted proposals can be censored so a proposal with this
+	// status can have a state of either PropStateUnvetted or
+	// PropStateVetted depending on whether the proposal was censored
+	// before or after it was made public.
+	PropStatusCensored PropStatusT = 3
+
+	// PropStatusAbandoned indicates that a proposal has been marked
+	// as abandoned by an admin due to the author being inactive.
+	// TODO can a unvetted proposal be abandoned?
+	PropStatusAbandoned PropStatusT = 4
+)
+
+// PropStatuses contains the human readable proposal statuses.
+var PropStatuses = map[PropStatusT]string{
+	PropStatusInvalid:    "invalid",
+	PropStatusUnreviewed: "unreviewed",
+	PropStatusPublic:     "public",
+	PropStatusCensored:   "censored",
+	PropStatusAbandoned:  "abandoned",
 }
 
 // File describes an individual file that is part of the proposal. The
@@ -443,11 +456,11 @@ type ProposalEditReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
-// ProposalStatusSet sets the status of a proposal. Some status changes require
+// ProposalSetStatus sets the status of a proposal. Some status changes require
 // a reason to be included.
 //
 // Signature is the client signature of the Token+Version+Status+Reason.
-type ProposalStatusSet struct {
+type ProposalSetStatus struct {
 	Token     string      `json:"token"`            // Censorship token
 	State     PropStateT  `json:"state"`            // Proposal state
 	Version   string      `json:"version"`          // Proposal version
@@ -457,8 +470,8 @@ type ProposalStatusSet struct {
 	Signature string      `json:"signature"`        // Client signature
 }
 
-// ProposalStatusSetReply is the reply to the ProposalStatusSet command.
-type ProposalStatusSetReply struct {
+// ProposalSetStatusReply is the reply to the ProposalSetStatus command.
+type ProposalSetStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 

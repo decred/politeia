@@ -1413,8 +1413,8 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe pi.ProposalEdi
 	}, nil
 }
 
-func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.ProposalStatusSet, usr user.User) (*pi.ProposalStatusSetReply, error) {
-	log.Tracef("processProposalStatusSet: %v %v", pss.Token, pss.Status)
+func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss pi.ProposalSetStatus, usr user.User) (*pi.ProposalSetStatusReply, error) {
+	log.Tracef("processProposalSetStatus: %v %v", pss.Token, pss.Status)
 
 	// Sanity check
 	if !usr.Admin {
@@ -1541,7 +1541,7 @@ func (p *politeiawww) processProposalStatusSet(ctx context.Context, pss pi.Propo
 		return nil, err
 	}
 
-	return &pi.ProposalStatusSetReply{
+	return &pi.ProposalSetStatusReply{
 		Proposal: *pr,
 	}, nil
 }
@@ -1944,9 +1944,9 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs pi.VoteStart, usr
 			return nil, err
 		}
 		pt := piplugin.PassThrough{
-			PluginID: ticketvote.ID,
-			Cmd:      ticketvote.CmdStart,
-			Payload:  string(payload),
+			PluginID:  ticketvote.ID,
+			PluginCmd: ticketvote.CmdStart,
+			Payload:   string(payload),
 		}
 		ptr, err := p.piPassThrough(ctx, pt)
 		if err != nil {
@@ -2107,13 +2107,13 @@ func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, per)
 }
 
-func (p *politeiawww) handleProposalStatusSet(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalStatusSet")
+func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalSetStatus")
 
-	var pss pi.ProposalStatusSet
+	var pss pi.ProposalSetStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&pss); err != nil {
-		respondWithPiError(w, r, "handleProposalStatusSet: unmarshal",
+		respondWithPiError(w, r, "handleProposalSetStatus: unmarshal",
 			pi.UserErrorReply{
 				ErrorCode: pi.ErrorStatusInputInvalid,
 			})
@@ -2123,14 +2123,14 @@ func (p *politeiawww) handleProposalStatusSet(w http.ResponseWriter, r *http.Req
 	usr, err := p.getSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalStatusSet: getSessionUser: %v", err)
+			"handleProposalSetStatus: getSessionUser: %v", err)
 		return
 	}
 
-	pssr, err := p.processProposalStatusSet(r.Context(), pss, *usr)
+	pssr, err := p.processProposalSetStatus(r.Context(), pss, *usr)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalStatusSet: processProposalStatusSet: %v", err)
+			"handleProposalSetStatus: processProposalSetStatus: %v", err)
 		return
 	}
 
@@ -2532,7 +2532,7 @@ func (p *politeiawww) setPiRoutes() {
 		pi.RouteProposalEdit, p.handleProposalEdit,
 		permissionLogin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
-		pi.RouteProposalStatusSet, p.handleProposalStatusSet,
+		pi.RouteProposalSetStatus, p.handleProposalSetStatus,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, pi.APIRoute,
 		pi.RouteProposals, p.handleProposals,

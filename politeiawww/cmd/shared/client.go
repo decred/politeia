@@ -895,10 +895,10 @@ func (c *Client) ProposalEdit(pe pi.ProposalEdit) (*pi.ProposalEditReply, error)
 	return &per, nil
 }
 
-// ProposalStatusSet sets the status of a proposal
-func (c *Client) ProposalStatusSet(pss pi.ProposalStatusSet) (*pi.ProposalStatusSetReply, error) {
+// ProposalSetStatus sets the status of a proposal
+func (c *Client) ProposalSetStatus(pss pi.ProposalSetStatus) (*pi.ProposalSetStatusReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteProposalStatusSet, pss)
+		pi.APIRoute, pi.RouteProposalSetStatus, pss)
 	if err != nil {
 		return nil, err
 	}
@@ -907,10 +907,10 @@ func (c *Client) ProposalStatusSet(pss pi.ProposalStatusSet) (*pi.ProposalStatus
 		return nil, piError(respBody, statusCode)
 	}
 
-	var pssr pi.ProposalStatusSetReply
+	var pssr pi.ProposalSetStatusReply
 	err = json.Unmarshal(respBody, &pssr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalStatusSetReply: %v", err)
+		return nil, fmt.Errorf("unmarshal ProposalSetStatusReply: %v", err)
 	}
 
 	if c.cfg.Verbose {

@@ -140,20 +140,6 @@ var (
 		VoteErrorTicketNotEligible:   "ticket not eligible",
 		VoteErrorTicketAlreadyVoted:  "ticket already voted",
 	}
-
-	// ErrorStatus contains human readable user error statuses.
-	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:              "error status invalid",
-		ErrorStatusTokenInvalid:         "token invalid",
-		ErrorStatusPublicKeyInvalid:     "public key invalid",
-		ErrorStatusSignatureInvalid:     "signature invalid",
-		ErrorStatusRecordNotFound:       "record not found",
-		ErrorStatusRecordStatusInvalid:  "record status invalid",
-		ErrorStatusAuthorizationInvalid: "authorization invalid",
-		ErrorStatusVoteParamsInvalid:    "vote params invalid",
-		ErrorStatusVoteStatusInvalid:    "vote status invalid",
-		ErrorStatusPageSizeExceeded:     "page size exceeded",
-	}
 )
 
 // AuthDetails is the structure that is saved to disk when a vote is authorized

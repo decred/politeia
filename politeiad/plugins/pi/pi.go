@@ -2,8 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package pi provides a plugin for functionality that is specific to decred's
-// proposal system.
+// Package pi provides a politeiad plugin for functionality that is specific to
+// decred's proposal system.
 package pi
 
 import (
@@ -24,18 +24,18 @@ const (
 	ID      = "pi"
 	Version = "1"
 
-	// Plugin commands
+	// TODO these should use the PassThrough command
 	CmdCommentNew    = "commentnew"    // Create a new comment
 	CmdCommentCensor = "commentcensor" // Censor a comment
-	CmdCommentVote   = "commentvote"   // Upvote/downvote a comment
-	CmdProposalInv   = "proposalinv"   // Get inventory by proposal status
-	CmdVoteInventory = "voteinv"       // Get inventory by vote status
+	CmdCommentVote   = "commentvote"   // Vote on a comment
+
+	// Plugin commands
+	CmdPassThrough   = "passthrough" // Plugin command pass through
+	CmdProposalInv   = "proposalinv" // Get inventory by proposal status
+	CmdVoteInventory = "voteinv"     // Get inventory by vote status
 
 	// TODO get rid of CmdProposals
 	CmdProposals = "proposals" // Get plugin data for proposals
-
-	// TODO get rid of CmdPassThrough
-	CmdPassThrough = "passthrough" // Pass a plugin cmd through pi
 
 	// Metadata stream IDs
 	MDStreamIDGeneralMetadata = 1
@@ -107,13 +107,6 @@ var (
 		},
 		PropStatusCensored:  {},
 		PropStatusAbandoned: {},
-	}
-
-	// ErrorStatus contains human readable user error statuses.
-	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:           "error status invalid",
-		ErrorStatusPropLinkToInvalid: "proposal link to invalid",
-		ErrorStatusVoteStatusInvalid: "vote status invalid",
 	}
 )
 
@@ -222,6 +215,58 @@ func DecodeStatusChanges(payload []byte) ([]StatusChange, error) {
 	}
 
 	return statuses, nil
+}
+
+// PassThrough is used to extended a command from a different plugin package
+// with functionality that is specific to the pi plugin, without needing to
+// define a new pi command and new pi types. The command passes through the pi
+// plugin before being executed.
+//
+// Example, the pi plugin does not allow comments to be made on a proposal if
+// the proposal vote has ended. This validation is specific to the pi plugin
+// and does not require the comment payloads to be altered. PassThrough is used
+// to pass the comments plugin command through the pi plugin, where the pi
+// plugin can first perform pi specific validation before executing the
+// comments plugin command.
+type PassThrough struct {
+	PluginID  string `json:"pluginid"`
+	PluginCmd string `json:"plugincmd"`
+	Payload   string `json:"payload"`
+}
+
+// EncodePassThrough encodes a PassThrough into a JSON byte slice.
+func EncodePassThrough(p PassThrough) ([]byte, error) {
+	return json.Marshal(p)
+}
+
+// DecodePassThrough decodes a JSON byte slice into a PassThrough.
+func DecodePassThrough(payload []byte) (*PassThrough, error) {
+	var p PassThrough
+	err := json.Unmarshal(payload, &p)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// PassThroughReply is the reply to the PassThrough command.
+type PassThroughReply struct {
+	Payload string `json:"payload"`
+}
+
+// EncodePassThroughReply encodes a PassThroughReply into a JSON byte slice.
+func EncodePassThroughReply(p PassThroughReply) ([]byte, error) {
+	return json.Marshal(p)
+}
+
+// DecodePassThroughReply decodes a JSON byte slice into a PassThroughReply.
+func DecodePassThroughReply(payload []byte) (*PassThroughReply, error) {
+	var p PassThroughReply
+	err := json.Unmarshal(payload, &p)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 // Proposals requests the plugin data for the provided proposals. This includes
@@ -533,55 +578,4 @@ func DecodeVoteInventoryReply(payload []byte) (*VoteInventoryReply, error) {
 		return nil, err
 	}
 	return &vir, nil
-}
-
-// PassThrough is used to add additional functionality onto plugin commands
-// from external plugin packages without changing the base command request and
-// response payloads. The command passes through the pi plugin before being
-// executed.
-//
-// Example, the pi plugin does not allow comments to be made once a proposal
-// vote has ended. This validation is specific to the pi plugin and does not
-// require the comment payloads to be altered. PassThrough is used to pass the
-// comments plugin command through the pi plugin, where the pi plugin can first
-// perform pi specific validation before executing the comments plugin command.
-type PassThrough struct {
-	PluginID string `json:"pluginid"`
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"`
-}
-
-// EncodePassThrough encodes a PassThrough into a JSON byte slice.
-func EncodePassThrough(p PassThrough) ([]byte, error) {
-	return json.Marshal(p)
-}
-
-// DecodePassThrough decodes a JSON byte slice into a PassThrough.
-func DecodePassThrough(payload []byte) (*PassThrough, error) {
-	var p PassThrough
-	err := json.Unmarshal(payload, &p)
-	if err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
-
-// PassThroughReply is the reply to the PassThrough command.
-type PassThroughReply struct {
-	Payload string `json:"payload"`
-}
-
-// EncodePassThroughReply encodes a PassThroughReply into a JSON byte slice.
-func EncodePassThroughReply(p PassThroughReply) ([]byte, error) {
-	return json.Marshal(p)
-}
-
-// DecodePassThroughReply decodes a JSON byte slice into a PassThroughReply.
-func DecodePassThroughReply(payload []byte) (*PassThroughReply, error) {
-	var p PassThroughReply
-	err := json.Unmarshal(payload, &p)
-	if err != nil {
-		return nil, err
-	}
-	return &p, nil
 }

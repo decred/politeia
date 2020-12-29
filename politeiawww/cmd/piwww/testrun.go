@@ -594,7 +594,7 @@ func proposalSetStatus(user testUser, state pi.PropStateT, token, reason string,
 		return err
 	}
 
-	pssc := proposalStatusSetCmd{
+	pssc := proposalSetStatusCmd{
 		Unvetted: state == pi.PropStateUnvetted,
 	}
 	pssc.Args.Token = token

@@ -52,6 +52,7 @@ const (
 	PolicyVoteChangesMax = 5
 
 	// Error status codes
+	// TODO number status codes
 	ErrorStatusInvalid      ErrorStatusT = 0
 	ErrorStatusStateInvalid ErrorStatusT = iota
 	ErrorStatusTokenInvalid
@@ -64,21 +65,6 @@ const (
 	ErrorStatusParentIDInvalid
 	ErrorStatusVoteInvalid
 	ErrorStatusVoteChangesMax
-)
-
-var (
-	// ErrorStatus contains human readable error statuses.
-	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:          "invalid error status",
-		ErrorStatusTokenInvalid:     "invalid token",
-		ErrorStatusPublicKeyInvalid: "invalid public key",
-		ErrorStatusSignatureInvalid: "invalid signature",
-		ErrorStatusRecordNotFound:   "record not found",
-		ErrorStatusCommentNotFound:  "comment not found",
-		ErrorStatusParentIDInvalid:  "parent id invalid",
-		ErrorStatusVoteInvalid:      "invalid vote",
-		ErrorStatusVoteChangesMax:   "vote changes max exceeded",
-	}
 )
 
 // Comment represent a record comment.
