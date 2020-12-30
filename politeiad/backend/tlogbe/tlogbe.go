@@ -741,7 +741,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHook(hookNewRecordPre, string(b))
+	err = t.pluginHookPre(hookNewRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -794,11 +794,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHook(hookNewRecordPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("New %x: pluginHook newRecordPost: %v", token, err)
-		panic(e)
-	}
+	t.pluginHookPost(hookNewRecordPost, string(b))
 
 	// Update the inventory cache
 	t.inventoryAdd(stateUnvetted, token, backend.MDStatusUnvetted)
@@ -879,7 +875,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHook(hookEditRecordPre, string(b))
+	err = t.pluginHookPre(hookEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -897,7 +893,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call post plugin hooks
-	err = t.pluginHook(hookEditRecordPost, string(b))
+	t.pluginHookPost(hookEditRecordPost, string(b))
 	if err != nil {
 		e := fmt.Sprintf("UpdateUnvettedRecord %x: pluginHook editRecordPost: %v",
 			token, err)
@@ -989,7 +985,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHook(hookEditRecordPre, string(b))
+	err = t.pluginHookPre(hookEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1007,12 +1003,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	}
 
 	// Call post plugin hooks
-	err = t.pluginHook(hookEditRecordPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("UpdateVettedRecord %x: pluginHook editRecordPost: %v",
-			token, err)
-		panic(e)
-	}
+	t.pluginHookPost(hookEditRecordPost, string(b))
 
 	// Return updated record
 	r, err = t.vetted.recordLatest(treeID)
@@ -1085,7 +1076,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	if err != nil {
 		return err
 	}
-	err = t.pluginHook(hookEditMetadataPre, string(b))
+	err = t.pluginHookPre(hookEditMetadataPre, string(b))
 	if err != nil {
 		return err
 	}
@@ -1106,12 +1097,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	}
 
 	// Call post plugin hooks
-	err = t.pluginHook(hookEditMetadataPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("UpdateUnvettedMetadata %x: pluginHook editMetadataPost: %v",
-			token, err)
-		panic(e)
-	}
+	t.pluginHookPost(hookEditMetadataPost, string(b))
 
 	return nil
 }
@@ -1183,7 +1169,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return err
 	}
-	err = t.pluginHook(hookEditMetadataPre, string(b))
+	err = t.pluginHookPre(hookEditMetadataPre, string(b))
 	if err != nil {
 		return err
 	}
@@ -1204,12 +1190,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call post plugin hooks
-	err = t.pluginHook(hookEditMetadataPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("UpdateVettedMetadata %x: pluginHook editMetadataPost: %v",
-			token, err)
-		panic(e)
-	}
+	t.pluginHookPost(hookEditMetadataPost, string(b))
 
 	return nil
 }
@@ -1424,7 +1405,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHook(hookSetRecordStatusPre, string(b))
+	err = t.pluginHookPre(hookSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1447,12 +1428,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Call post plugin hooks
-	err = t.pluginHook(hookSetRecordStatusPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("SetUnvettedStatus %x: pluginHook setRecordStatusPost: %v",
-			token, err)
-		panic(e)
-	}
+	t.pluginHookPost(hookSetRecordStatusPost, string(b))
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
 		token, backend.MDStatus[currStatus], currStatus,
@@ -1581,7 +1557,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHook(hookSetRecordStatusPre, string(b))
+	err = t.pluginHookPre(hookSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1604,12 +1580,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Call post plugin hooks
-	err = t.pluginHook(hookSetRecordStatusPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("SetVettedStatus %x: pluginHook setRecordStatusPost: %v",
-			token, err)
-		panic(e)
-	}
+	t.pluginHookPost(hookSetRecordStatusPost, string(b))
 
 	// Update inventory cache
 	t.inventoryUpdate(stateVetted, token, currStatus, status)
@@ -1760,7 +1731,7 @@ func (t *tlogBackend) Plugin(pluginID, cmd, cmdID, payload string) (string, erro
 	return reply, nil
 }
 
-func (t *tlogBackend) pluginHook(h hookT, payload string) error {
+func (t *tlogBackend) pluginHookPre(h hookT, payload string) error {
 	// Pass hook event and payload to each plugin
 	for _, v := range t.plugins {
 		err := v.client.hook(h, payload)
@@ -1774,6 +1745,20 @@ func (t *tlogBackend) pluginHook(h hookT, payload string) error {
 	}
 
 	return nil
+}
+
+func (t *tlogBackend) pluginHookPost(h hookT, payload string) {
+	// Pass hook event and payload to each plugin
+	for _, v := range t.plugins {
+		err := v.client.hook(h, payload)
+		if err != nil {
+			// This is the post plugin hook so the data has already been
+			// saved to the tlog backend. We do not have the ability to
+			// unwind. Log the error and continue.
+			log.Criticalf("pluginHookPost %v %v: %v: %v", v.id, h, err, payload)
+			continue
+		}
+	}
 }
 
 // Close shuts the backend down and performs cleanup.
