@@ -194,8 +194,6 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 		handler = p.isLoggedInAsAdmin(handler)
 	case permissionLogin:
 		handler = p.isLoggedIn(handler)
-	default:
-		handler = handler
 	}
 
 	if method == "" {
@@ -510,7 +508,7 @@ func _main() error {
 
 	// Setup a subrouter that is CSRF protected. Authenticated routes
 	// are required to use the auth router. The subrouter takes on the
-	// configuration of the router that is was spawned from, including
+	// configuration of the router that it was spawned from, including
 	// all of the middleware that has already been registered.
 	p.auth = p.router.NewRoute().Subrouter()
 	p.auth.Use(csrfMiddleware)
