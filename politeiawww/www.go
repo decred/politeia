@@ -191,21 +191,26 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 
 	switch perm {
 	case permissionAdmin:
-		handler = logging(p.isLoggedInAsAdmin(handler))
+		handler = p.isLoggedInAsAdmin(handler)
 	case permissionLogin:
-		handler = logging(p.isLoggedIn(handler))
+		handler = p.isLoggedIn(handler)
 	default:
-		handler = logging(handler)
+		handler = handler
 	}
-
-	// All handlers need to close the body
-	handler = closeBody(handler)
 
 	if method == "" {
 		// Websocket
 		log.Tracef("Adding websocket: %v", fullRoute)
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler)
-	} else {
+		return
+	}
+
+	switch perm {
+	case permissionAdmin, permissionLogin:
+		// Add route to auth router
+		p.auth.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
+	default:
+		// Add route to public router
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 	}
 }
@@ -491,14 +496,24 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	csrfHandle := csrf.Protect(
+	csrfMiddleware := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
 		csrf.MaxAge(sessionMaxAge),
 	)
 
+	// Setup router
 	p.router = mux.NewRouter()
+	p.router.Use(closeBodyMiddleware)
+	p.router.Use(loggingMiddleware)
 	p.router.Use(recoverMiddleware)
+
+	// Setup a subrouter that is CSRF protected. Authenticated routes
+	// are required to use the auth router. The subrouter takes on the
+	// configuration of the router that is was spawned from, including
+	// all of the middleware that has already been registered.
+	p.auth = p.router.NewRoute().Subrouter()
+	p.auth.Use(csrfMiddleware)
 
 	// Setup dcrdata websocket connection
 	ws, err := wsdcrdata.New(p.dcrdataHostWS())
@@ -730,7 +745,7 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:   csrfHandle(p.router),
+				Handler:   p.router,
 				Addr:      listen,
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,

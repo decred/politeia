@@ -15,6 +15,15 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+func remoteAddr(r *http.Request) string {
+	via := r.RemoteAddr
+	xff := r.Header.Get(www.Forward)
+	if xff != "" {
+		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
+	}
+	return via
+}
+
 // isLoggedIn ensures that a user is logged in before calling the next
 // function.
 func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
@@ -77,11 +86,20 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// logging logs all incoming commands before calling the next funxtion.
+// closeBodyMiddleware closes the request body.
+func closeBodyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		r.Body.Close()
+	})
+}
+
+// loggingMiddleware logs all incoming commands before calling the next
+// function.
 //
 // NOTE: LOGGING WILL LOG PASSWORDS IF TRACING IS ENABLED.
-func logging(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Trace incoming request
 		log.Tracef("%v", newLogClosure(func() string {
 			trace, err := httputil.DumpRequest(r, true)
@@ -94,25 +112,10 @@ func logging(f http.HandlerFunc) http.HandlerFunc {
 
 		// Log incoming connection
 		log.Infof("%v %v %v %v", remoteAddr(r), r.Method, r.URL, r.Proto)
-		f(w, r)
-	}
-}
 
-// closeBody closes the request body.
-func closeBody(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		f(w, r)
-		r.Body.Close()
-	}
-}
-
-func remoteAddr(r *http.Request) string {
-	via := r.RemoteAddr
-	xff := r.Header.Get(www.Forward)
-	if xff != "" {
-		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
-	}
-	return via
+		// Call next handler
+		next.ServeHTTP(w, r)
+	})
 }
 
 // recoverMiddleware recovers from any panics by logging the panic and

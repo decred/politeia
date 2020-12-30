@@ -1126,24 +1126,17 @@ func (p *politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
-	// Templates
-	//p.addTemplate(templateNewProposalSubmittedName,
-	//	templateNewProposalSubmittedRaw)
+	// Return a 404 when a route is not found
+	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
-	// Static content.
-	// XXX disable static for now.  This code is broken and it needs to
-	// point to a sane directory.  If a directory is not set it SHALL be
-	// disabled.
-	//p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-	//	http.FileServer(http.Dir("."))))
+	// The version routes set the CSRF token and thus need to be part
+	// of the CSRF protected auth router.
+	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
+	p.auth.StrictSlash(true).
+		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
+		Methods(http.MethodGet)
 
 	// Public routes.
-	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
-	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVersion, p.handleVersion,
-		permissionPublic)
-
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		www.RoutePolicy, p.handleCMSPolicy,
 		permissionPublic)
