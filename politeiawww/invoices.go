@@ -321,6 +321,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 		return nil, err
 	}
 	payment := cmsdatabase.Payments{
+		InvoiceToken: dbInvoice.Token,
 		Address:      dbInvoice.PaymentAddress,
 		AmountNeeded: int64(payout.DCRTotal),
 	}
