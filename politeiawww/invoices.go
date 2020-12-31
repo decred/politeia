@@ -1144,6 +1144,7 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 		inv.Input.LineItems[i] = li
 	}
 	inv.Payment = cms.PaymentInformation{}
+	inv.Total = 0
 	return *inv
 }
 
