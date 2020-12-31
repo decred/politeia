@@ -48,6 +48,17 @@ const FileContents = `[Application Options]
 ; clientcert=client.pem
 ; clientkey=client-key.pem
 
+; Client certificates are required to communicate with dcrwallet. Generate a
+; client certificate key using the gencerts utility that is provided by dcrd. For
+; example on a machine with a local wallet inside the politeiavoter directory:
+; 'gencerts -L client.pem client-key.pem'
+; Then append 'client.pem' to '~.dcrwallet/clients.pem'. NOTE: the wallet looks
+; for the file called clients (plural).
+
+clientcert=client.pem
+clientkey=client-key.pem
+
+
 ; ------------------------------------------------------------------------------
 ; Debug
 ; ------------------------------------------------------------------------------
