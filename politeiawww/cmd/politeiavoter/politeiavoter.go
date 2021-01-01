@@ -17,6 +17,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -50,6 +51,12 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	failedJournal  = "failed.json"
+	successJournal = "success.json"
+	workJournal    = "work.json"
+)
+
 func generateSeed() (int64, error) {
 	var seedBytes [8]byte
 	_, err := crand.Read(seedBytes[:])
@@ -64,10 +71,11 @@ func usage() {
 	fmt.Fprintf(os.Stderr, " flags:\n")
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\n actions:\n")
-	fmt.Fprintf(os.Stderr, "  inventory          - Retrieve all proposals"+
+	fmt.Fprintf(os.Stderr, "  inventory - Retrieve all proposals"+
 		" that are being voted on\n")
-	fmt.Fprintf(os.Stderr, "  vote               - Vote on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  tally              - Tally votes on a proposal\n")
+	fmt.Fprintf(os.Stderr, "  vote      - Vote on a proposal\n")
+	fmt.Fprintf(os.Stderr, "  tally     - Tally votes on a proposal\n")
+	fmt.Fprintf(os.Stderr, "  verify    - Verify votes on a proposal\n")
 	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
 	//	"(admin only)\n")
 	fmt.Fprintf(os.Stderr, "\n")
@@ -173,7 +181,6 @@ type ctx struct {
 	// https
 	client    *http.Client
 	id        *identity.PublicIdentity
-	csrf      string
 	userAgent string
 
 	// wallet grpc
@@ -292,72 +299,6 @@ func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
 	return nil
 }
 
-func (c *ctx) getCSRF() (*v1.VersionReply, error) {
-	requestBody, err := json.Marshal(v1.Version{})
-	if err != nil {
-		return nil, err
-	}
-
-	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
-	log.Debugf("Request: GET %v", fullRoute)
-
-	log.Tracef("%v  ", string(requestBody))
-
-	log.Debugf("Request: %v", fullRoute)
-	req, err := http.NewRequestWithContext(c.wctx, http.MethodGet, fullRoute,
-		bytes.NewReader(requestBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", c.userAgent)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-	log.Tracef("Response: %v", string(responseBody))
-	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%v", r.StatusCode)
-	}
-
-	var v v1.VersionReply
-	err = json.Unmarshal(responseBody, &v)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
-	}
-
-	c.csrf = r.Header.Get(v1.CsrfToken)
-
-	return &v, nil
-}
-
-func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
-	// Always hit / first for csrf token and obtain api version
-	c, err := newClient(shutdownCtx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	version, err := c.getCSRF()
-	if err != nil {
-		return nil, err
-	}
-	log.Debugf("Version: %v", version.Version)
-	log.Debugf("Route  : %v", version.Route)
-	log.Debugf("Pubkey : %v", version.PubKey)
-	log.Debugf("CSRF   : %v", c.csrf)
-
-	c.id, err = util.IdentityFromString(version.PubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
-}
-
 func convertTicketHashes(h []string) ([][]byte, error) {
 	hashes := make([][]byte, 0, len(h))
 	for _, v := range h {
@@ -406,7 +347,6 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	}
 
 	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return nil, ErrRetry{
@@ -477,7 +417,6 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 	}
 
 	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return nil, ErrRetry{
@@ -511,6 +450,46 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 	}
 
 	return responseBody, nil
+}
+
+// getVersion retursn the server side version structure.
+func (c *ctx) getVersion() (*v1.VersionReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, v1.RouteVersion, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var v v1.VersionReply
+	err = json.Unmarshal(responseBody, &v)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
+	}
+
+	return &v, nil
+}
+
+// firstContact connect to the wallet and it obtains the version structure from
+// the politeia server.
+func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
+	// Always hit / first for to obtain the server identity and api version
+	c, err := newClient(shutdownCtx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	version, err := c.getVersion()
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Version: %v", version.Version)
+	log.Debugf("Route  : %v", version.Route)
+	log.Debugf("Pubkey : %v", version.PubKey)
+
+	c.id, err = util.IdentityFromString(version.PubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 // eligibleVotes takes a vote result reply that contains the full list of
@@ -715,10 +694,10 @@ func (c *ctx) inventory() error {
 }
 
 type ErrRetry struct {
-	At   string `json:"at"`   // where in the code
-	Body []byte `json:"body"` // http body if we have one
-	Code int    `json:"code"` // http code
-	Err  error  `json:"err"`  // underlying error
+	At   string      `json:"at"`   // where in the code
+	Body []byte      `json:"body"` // http body if we have one
+	Code int         `json:"code"` // http code
+	Err  interface{} `json:"err"`  // underlying error
 }
 
 func (e ErrRetry) Error() string {
@@ -892,7 +871,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 	}
 
 	// Log work
-	err := c.jsonLog("work.json", token, buckets)
+	err := c.jsonLog(workJournal, token, buckets)
 	if err != nil {
 		return err
 	}
@@ -951,7 +930,7 @@ func (c *ctx) _voteTrickler(token string) error {
 		if errors.As(err, &e) {
 			// Append failed vote to retry queue
 			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
-			err := c.jsonLog("failed.json", token, b, e)
+			err := c.jsonLog(failedJournal, token, b, e)
 			if err != nil {
 				return err
 			}
@@ -973,7 +952,7 @@ func (c *ctx) _voteTrickler(token string) error {
 			if br.ErrorStatus == decredplugin.ErrorStatusVoteHasEnded {
 				// Force an exit of the both the main queue and the
 				// retry queue if the voting period has ended.
-				err = c.jsonLog("failed.json", token, br)
+				err = c.jsonLog(failedJournal, token, br)
 				if err != nil {
 					return err
 				}
@@ -983,7 +962,7 @@ func (c *ctx) _voteTrickler(token string) error {
 				goto exit
 			}
 
-			err = c.jsonLog("success.json", token, result)
+			err = c.jsonLog(successJournal, token, result)
 			if err != nil {
 				return err
 			}
@@ -1122,7 +1101,12 @@ func (c *ctx) bestBlock() (uint32, error) {
 	return bestBlock, nil
 }
 
-func (c *ctx) _vote(seed int64, token, voteId string) error {
+func (c *ctx) _vote(token, voteId string) error {
+	seed, err := generateSeed()
+	if err != nil {
+		return err
+	}
+
 	/*
 		XXX Add this back in once BatchVoteSummary is live
 		// Pull the vote summary first to make sure the vote is still active.
@@ -1334,12 +1318,12 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	return nil
 }
 
-func (c *ctx) vote(seed int64, args []string) error {
+func (c *ctx) vote(args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
-	err := c._vote(seed, args[0], args[1])
+	err := c._vote(args[0], args[1])
 	if err != nil {
 		return err
 	}
@@ -1547,6 +1531,486 @@ func (c *ctx) startVote(args []string) error {
 	return nil
 }
 
+type failedTuple struct {
+	Time  JSONTime
+	Votes v1.Ballot `json:"votes"`
+	Error ErrRetry
+}
+
+func decodeFailed(filename string, failed map[string][]failedTuple) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	d := json.NewDecoder(f)
+
+	var (
+		ft     *failedTuple
+		ticket string
+	)
+	state := 0
+	for {
+		switch state {
+		case 0:
+			ft = &failedTuple{}
+			err = d.Decode(&ft.Time)
+			if err != nil {
+				// Only expect EOF in state 0
+				if err == io.EOF {
+					goto exit
+				}
+				return fmt.Errorf("decode time (%v): %v",
+					d.InputOffset(), err)
+			}
+			state = 1
+
+		case 1:
+			err = d.Decode(&ft.Votes)
+			if err != nil {
+				return fmt.Errorf("decode cast votes (%v): %v",
+					d.InputOffset(), err)
+			}
+
+			// Save ticket
+			if len(ft.Votes.Votes) != 1 {
+				// Should not happen
+				return fmt.Errorf("decode invalid length %v",
+					len(ft.Votes.Votes))
+			}
+			ticket = ft.Votes.Votes[0].Ticket
+
+			state = 2
+
+		case 2:
+			err = d.Decode(&ft.Error)
+			if err != nil {
+				return fmt.Errorf("decode error retry (%v): %v",
+					d.InputOffset(), err)
+			}
+
+			// Add to map
+			if ticket == "" {
+				return fmt.Errorf("decode no ticket found")
+			}
+			//fmt.Printf("failed ticket %v\n", ticket)
+			failed[ticket] = append(failed[ticket], *ft)
+
+			// Reset statemachine
+			ft = &failedTuple{}
+			ticket = ""
+			state = 0
+		}
+	}
+
+exit:
+	return nil
+}
+
+type successTuple struct {
+	Time   JSONTime
+	Result BallotResult
+}
+
+func decodeSuccess(filename string, success map[string][]successTuple) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	d := json.NewDecoder(f)
+
+	var st *successTuple
+	state := 0
+	for {
+		switch state {
+		case 0:
+			st = &successTuple{}
+			err = d.Decode(&st.Time)
+			if err != nil {
+				// Only expect EOF in state 0
+				if err == io.EOF {
+					goto exit
+				}
+				return fmt.Errorf("decode time (%v): %v",
+					d.InputOffset(), err)
+			}
+			state = 1
+
+		case 1:
+			err = d.Decode(&st.Result)
+			if err != nil {
+				return fmt.Errorf("decode cast votes (%v): %v",
+					d.InputOffset(), err)
+			}
+
+			// Add to map
+			ticket := st.Result.Ticket
+			if ticket == "" {
+				return fmt.Errorf("decode no ticket found")
+			}
+
+			//fmt.Printf("success ticket %v\n", ticket)
+			success[ticket] = append(success[ticket], *st)
+
+			// Reset statemachine
+			st = &successTuple{}
+			state = 0
+		}
+	}
+
+exit:
+	return nil
+}
+
+type workTuple struct {
+	Time  JSONTime
+	Votes []voteInterval
+}
+
+func decodeWork(filename string, work map[string][]workTuple) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	d := json.NewDecoder(f)
+
+	var (
+		wt *workTuple
+		t  string
+	)
+	state := 0
+	for {
+		switch state {
+		case 0:
+			wt = &workTuple{}
+			err = d.Decode(&wt.Time)
+			if err != nil {
+				// Only expect EOF in state 0
+				if err == io.EOF {
+					goto exit
+				}
+				return fmt.Errorf("decode time (%v): %v",
+					d.InputOffset(), err)
+			}
+			t = wt.Time.Time
+			state = 1
+
+		case 1:
+			err = d.Decode(&wt.Votes)
+			if err != nil {
+				return fmt.Errorf("decode votes (%v): %v",
+					d.InputOffset(), err)
+			}
+
+			// Add to map
+			if t == "" {
+				return fmt.Errorf("decode no time found")
+			}
+
+			work[t] = append(work[t], *wt)
+
+			// Reset statemachine
+			wt = &workTuple{}
+			t = ""
+			state = 0
+		}
+	}
+
+exit:
+	return nil
+}
+
+func (c *ctx) verifyVote(vote string) error {
+	// Vote directory
+	dir := filepath.Join(c.cfg.voteDir, vote)
+
+	// See if vote is ongoing
+	vsr, err := c.voteStatus(vote)
+	if err != nil {
+		return fmt.Errorf("could not obtain proposal status: %v\n",
+			err)
+	}
+	if vsr.Status != v1.PropVoteStatusFinished {
+		return fmt.Errorf("proposal not finished: %v\n", vsr.Status)
+	}
+
+	// Get and cache vote results
+	voteResultsFilename := filepath.Join(dir, ".voteresults")
+	if !util.FileExists(voteResultsFilename) {
+		vrr, err := c._tally(vote)
+		if err != nil {
+			return fmt.Errorf("failed to obtain voting results "+
+				"for %v: %v\n", vote, err)
+		}
+		f, err := os.Create(voteResultsFilename)
+		if err != nil {
+			return fmt.Errorf("create cache: %v", err)
+		}
+		e := json.NewEncoder(f)
+		err = e.Encode(vrr)
+		if err != nil {
+			f.Close()
+			_ = os.Remove(voteResultsFilename)
+			return fmt.Errorf("encode cache: %v", err)
+		}
+		f.Close()
+	}
+
+	// Open cached results
+	f, err := os.Open(voteResultsFilename)
+	if err != nil {
+		return fmt.Errorf("open cache: %v", err)
+	}
+	d := json.NewDecoder(f)
+	var vrr v1.VoteResultsReply
+	err = d.Decode(&vrr)
+	if err != nil {
+		f.Close()
+		return fmt.Errorf("decode cache: %v", err)
+	}
+	f.Close()
+
+	// Index vote results for more vroom vroom
+	eligible := make(map[string]string,
+		len(vrr.StartVoteReply.EligibleTickets))
+	for _, v := range vrr.StartVoteReply.EligibleTickets {
+		eligible[v] = "" // XXX
+	}
+	cast := make(map[string]string, len(vrr.CastVotes))
+	for _, v := range vrr.CastVotes {
+		cast[v.Ticket] = "" // XXX
+	}
+
+	// Create local work caches
+	fa, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	failed := make(map[string][]failedTuple, 128)   // [ticket]result
+	success := make(map[string][]successTuple, 128) // [ticket]result
+	work := make(map[string][]workTuple, 128)       // [time]work
+
+	fmt.Printf("== Checking vote %v\n", vote)
+	for k := range fa {
+		name := fa[k].Name()
+
+		filename := filepath.Join(dir, name)
+		switch {
+		case strings.HasPrefix(name, failedJournal):
+			err = decodeFailed(filename, failed)
+			if err != nil {
+				fmt.Printf("decodeFailed %v: %v\n", filename,
+					err)
+			}
+
+		case strings.HasPrefix(name, successJournal):
+			err = decodeSuccess(filename, success)
+			if err != nil {
+				fmt.Printf("decodeSuccess %v: %v\n", filename,
+					err)
+			}
+
+		case strings.HasPrefix(name, workJournal):
+			err = decodeWork(filename, work)
+			if err != nil {
+				fmt.Printf("decodeWork %v: %v\n", filename,
+					err)
+			}
+
+		case name == ".voteresults":
+			// Cache file, skip
+
+		default:
+			fmt.Printf("unknown journal: %v\n", name)
+		}
+	}
+
+	// Count vote statistics
+	type voteStat struct {
+		ticket  string
+		retries int
+		failed  int
+		success int
+	}
+
+	verbose := false
+	failedVotes := make(map[string]voteStat)
+	tickets := make(map[string]string, 128) // [time]
+	for k := range work {
+		wts := work[k]
+
+		for kk := range wts {
+			wt := wts[kk]
+
+			for kkk := range wt.Votes {
+				vi := wt.Votes[kkk]
+
+				if kkk == 0 && verbose {
+					fmt.Printf("Vote %v started: %v\n",
+						vi.Vote.Token, wt.Time.Time)
+				}
+
+				ticket := vi.Vote.Ticket
+				tickets[ticket] = "" // XXX
+				vs := voteStat{
+					ticket: ticket,
+				}
+				if f, ok := failed[ticket]; ok {
+					vs.retries = len(f)
+				}
+				if s, ok := success[ticket]; ok {
+					vs.success = len(s)
+					if len(s) != 1 {
+						fmt.Printf("multiple success:"+
+							" %v %v\n", len(s),
+							ticket)
+					}
+				} else {
+					vs.failed = 1
+					failedVotes[ticket] = vs
+				}
+
+				if verbose {
+					fmt.Printf("  ticket: %v retries %v "+
+						"success %v failed %v\n",
+						vs.ticket, vs.retries,
+						vs.success, vs.failed)
+				}
+			}
+		}
+	}
+
+	noVote := 0
+	failedVote := 0
+	completedNotRecorded := 0
+	for _, v := range failedVotes {
+		reason := "Error"
+		if v.retries == 0 {
+			if _, ok := cast[v.ticket]; ok {
+				completedNotRecorded++
+				continue
+			}
+			reason = "Not attempted"
+			noVote++
+		}
+		if v.failed != 0 {
+			fmt.Printf("  FAILED: %v - %v\n", v.ticket, reason)
+			failedVote++
+			continue
+		}
+	}
+	if noVote != 0 {
+		fmt.Printf("  votes that were not attempted: %v\n", noVote)
+	}
+	if failedVote != 0 {
+		fmt.Printf("  votes that failed: %v\n", failedVote)
+	}
+	if completedNotRecorded != 0 {
+		fmt.Printf("  votes that completed but were not recorded: %v\n",
+			completedNotRecorded)
+	}
+
+	// Cross check results
+	eligibleNotFound := 0
+	for ticket := range tickets {
+		// Did politea see ticket
+		if _, ok := eligible[ticket]; !ok {
+			fmt.Printf("work ticket not eligble: %v\n", ticket)
+			eligibleNotFound++
+		}
+
+		// Did politea complete vote
+		_, successFound := success[ticket]
+		_, failedFound := failedVotes[ticket]
+		switch {
+		case successFound && failedFound:
+			fmt.Printf("  pi vote succeeded and failed, " +
+				"impossible condition\n")
+		case !successFound && failedFound:
+			if _, ok := cast[ticket]; !ok {
+				fmt.Printf("  pi vote failed: %v\n", ticket)
+			}
+		case successFound && !failedFound:
+			// Vote succeeded on the first try
+		case !successFound && !failedFound:
+			fmt.Printf("  pi vote not seen: %v\n", ticket)
+		}
+	}
+
+	if eligibleNotFound != 0 {
+		fmt.Printf("  ineligible tickets: %v\n", eligibleNotFound)
+	}
+
+	// Print overall status
+	fmt.Printf("  Total votes       : %v\n", len(tickets))
+	fmt.Printf("  Successful votes  : %v\n", len(success)+
+		completedNotRecorded)
+	fmt.Printf("  Unsuccessful votes: %v\n", failedVote)
+	if failedVote != 0 {
+		fmt.Printf("== Failed votes on proposal %v\n", vote)
+	} else {
+		fmt.Printf("== NO failed votes on proposal %v\n", vote)
+	}
+
+	return nil
+}
+
+func (c *ctx) verify(args []string) error {
+	// Override 0 to list all possible votes.
+	if len(args) == 0 {
+		fa, err := ioutil.ReadDir(c.cfg.voteDir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Votes:\n")
+		for k := range fa {
+			_, err := hex.DecodeString(fa[k].Name())
+			if err != nil {
+				continue
+			}
+			fmt.Printf("  %v\n", fa[k].Name())
+		}
+	}
+
+	if len(args) == 1 && args[0] == "ALL" {
+		fa, err := ioutil.ReadDir(c.cfg.voteDir)
+		if err != nil {
+			return err
+		}
+		for k := range fa {
+			_, err := hex.DecodeString(fa[k].Name())
+			if err != nil {
+				continue
+			}
+
+			err = c.verifyVote(fa[k].Name())
+			if err != nil {
+				fmt.Printf("verifyVote: %v\n", err)
+			}
+		}
+
+		return nil
+	}
+
+	for k := range args {
+		_, err := hex.DecodeString(args[k])
+		if err != nil {
+			fmt.Printf("invalid vote: %v\n", args[k])
+			continue
+		}
+
+		err = c.verifyVote(args[k])
+		if err != nil {
+			fmt.Printf("verifyVote: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
 func _main() error {
 	cfg, args, err := loadConfig()
 	if err != nil {
@@ -1557,14 +2021,6 @@ func _main() error {
 		return fmt.Errorf("must provide action")
 	}
 	action := args[0]
-
-	var seed int64
-	if action == "vote" {
-		seed, err = generateSeed()
-		if err != nil {
-			return err
-		}
-	}
 
 	// Get a context that will be canceled when a shutdown signal has been
 	// triggered either from an OS signal such as SIGINT (Ctrl+C) or from
@@ -1598,7 +2054,9 @@ func _main() error {
 	case "tally":
 		err = c.tally(args[1:])
 	case "vote":
-		err = c.vote(seed, args[1:])
+		err = c.vote(args[1:])
+	case "verify":
+		err = c.verify(args[1:])
 	default:
 		err = fmt.Errorf("invalid action: %v", action)
 	}

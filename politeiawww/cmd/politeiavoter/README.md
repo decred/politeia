@@ -19,6 +19,18 @@ In the following examples the config file contained the following entry:
 testnet=1
 ```
 
+If you want to run multiple pivoters on the same machine while keeping them
+physically separated use the `appdata` setting in the config file. Then launch
+`politeiavoter` and point it to the config file using the `-C` option.  For
+example:
+```
+$ politeiavoter -C ~/.politeiavoter2/politeiavoter.conf
+```
+Excerpt from the `politeiavoter.conf` file:
+```
+appdata=~/.politeiavoter2
+```
+
 ## Requirements
 
 Voting requires access to wallet GRPC. Therefore this tool needs the wallet's
@@ -39,12 +51,13 @@ the trickling worthless.
 
 ## Workflow
 
-```politeiavoter``` supports three commands:
+```politeiavoter``` supports four commands:
 
 ```
-  inventory          - Retrieve all proposals that are being voted on
-  vote               - Vote on a proposal
-  tally              - Tally votes on a proposal
+  inventory - Retrieve all proposals that are being voted on
+  vote      - Vote on a proposal
+  tally     - Tally votes on a proposal
+  verify    - Verify a or ALL votes
 ```
 
 First one obtains the list of active proposals that are up for voting:
@@ -107,6 +120,35 @@ Vote Option:
   Bits                 : 2
   Votes received       : 9
   Percentage           : 100%
+```
+
+## Cross verification of vote data
+
+The `verify` command verifies the local journals against the `politeia` recoded
+voting activity. The point of this command is to enable the human to determine
+if vote failures occured and provides the necessary data to debug issues. For a
+non-developer this option is only interesting to see if the journals match the
+server data. The verify action can only be run on a completed vote.
+
+Display all votes that have occured:
+```
+$ politeiavoter verify
+Votes:
+  012b4e335f25704e28ef196d650316dca421f730225d39e37b31b3c646eb8497
+  023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc
+```
+
+Verify a single vote:
+```
+$ politeiavoter verify 023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc
+== NO failed votes proposal 023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc
+```
+
+Verify all votes:
+```
+$ politeiavoter verify ALL
+== NO failed votes proposal 012b4e335f25704e28ef196d650316dca421f730225d39e37b31b3c646eb8497
+== NO failed votes proposal 023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc
 ```
 
 ## Privacy considerations

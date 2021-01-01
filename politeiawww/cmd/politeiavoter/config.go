@@ -252,16 +252,17 @@ func loadConfig() (*config, []string, error) {
 		os.Exit(0)
 	}
 
-	// Update the home directory for stakepoold if specified. Since the
+	// Update the home directory for politeavoter if specified. Since the
 	// home directory is updated, other variables need to be updated to
 	// reflect the new changes.
 	if preCfg.HomeDir != "" {
-		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
+		cfg.HomeDir = util.CleanAndExpandPath(preCfg.HomeDir)
 
 		if preCfg.ConfigFile == defaultConfigFile {
-			cfg.ConfigFile = filepath.Join(cfg.HomeDir, defaultConfigFilename)
+			cfg.ConfigFile = filepath.Join(cfg.HomeDir,
+				defaultConfigFilename)
 		} else {
-			cfg.ConfigFile = preCfg.ConfigFile
+			cfg.ConfigFile = util.CleanAndExpandPath(preCfg.ConfigFile)
 		}
 		if preCfg.LogDir == defaultLogDir {
 			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
@@ -276,6 +277,7 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Load additional config from file.
+	hd := cfg.HomeDir
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
 	err = flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
@@ -290,6 +292,12 @@ func loadConfig() (*config, []string, error) {
 		configFileError = err
 	}
 
+	// See if appdata was overridden
+	if hd != cfg.HomeDir {
+		cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
+		cfg.voteDir = filepath.Join(cfg.HomeDir, defaultVoteDirname)
+	}
+
 	// Parse command line options again to ensure they take precedence.
 	remainingArgs, err := parser.Parse()
 	if err != nil {
@@ -302,6 +310,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Create the home directory if it doesn't already exist.
 	funcName := "loadConfig"
+	cfg.HomeDir = util.CleanAndExpandPath(cfg.HomeDir)
 	err = os.MkdirAll(cfg.HomeDir, 0700)
 	if err != nil {
 		// Show a nicer error message if it's because a symlink is
@@ -322,6 +331,7 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Create vote directory if it doesn't already exist.
+	cfg.voteDir = util.CleanAndExpandPath(cfg.voteDir)
 	err = os.MkdirAll(cfg.voteDir, 0700)
 	if err != nil {
 		// Show a nicer error message if it's because a symlink is
