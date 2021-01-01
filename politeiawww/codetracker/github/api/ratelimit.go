@@ -22,7 +22,8 @@ func (a *Client) RateLimit() (RateLimitRule, error) {
 
 	for {
 		if a.rateLimit.Remaining != 0 {
-			continue
+			a.rateLimit.Remaining--
+			break
 		}
 		b, err := a.gh.Get(rateLimitURL)
 		if err != nil {
