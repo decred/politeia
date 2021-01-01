@@ -29,6 +29,9 @@ import (
 const (
 	LoginAttemptsToLockUser = 5
 
+	// Number of attempts until totp locks until the next window
+	totpFailedAttempts = 2
+
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
 
@@ -1027,6 +1030,17 @@ func (p *politeiawww) login(l www.Login) loginResult {
 		}
 	}
 
+	// First check if TOTP is enabled and verified.
+	if u.TOTPVerified {
+		err := p.totpCheck(l.Code, u)
+		if err != nil {
+			return loginResult{
+				reply: nil,
+				err:   err,
+			}
+		}
+	}
+
 	// Verify password
 	err = bcrypt.CompareHashAndPassword(u.HashedPassword,
 		[]byte(l.Password))
@@ -1035,6 +1049,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 		log.Debugf("login: wrong password")
 		if !userIsLocked(u.FailedLoginAttempts) {
 			u.FailedLoginAttempts++
+			u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
 			err := p.db.UserUpdate(*u)
 			if err != nil {
 				return loginResult{
@@ -1093,6 +1108,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 	lastLoginTime := u.LastLoginTime
 	u.FailedLoginAttempts = 0
 	u.LastLoginTime = time.Now().Unix()
+	u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
 	err = p.db.UserUpdate(*u)
 	if err != nil {
 		return loginResult{
@@ -2268,4 +2284,70 @@ func (p *politeiawww) initPaywallChecker() error {
 	// Start the thread that checks for payments.
 	go p.checkForPayments()
 	return nil
+}
+
+func (p *politeiawww) totpCheck(code string, u *user.User) error {
+	// Return error to alert that a code is required.
+	if code == "" {
+		log.Debugf("login: totp code required %v", u.Email)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusRequiresTOTPCode,
+		}
+	}
+
+	// Get the generated totp code. The provided code must match this
+	// generated code.
+	requestTime := time.Now()
+	currentCode, err := p.totpGenerateCode(u.TOTPSecret, requestTime)
+	if err != nil {
+		return fmt.Errorf("totpGenerateCode: %v", err)
+	}
+
+	// Verify the user does not have too many failed attempts for this
+	// epoch.
+	if len(u.TOTPLastFailedCodeTime) >= totpFailedAttempts {
+		// The user has too many failed attempts. We must first verify
+		// that the failed attempts are from this epoch before this is
+		// considered to be an error. If the generated code from the
+		// failed timestamp matches the generated code from the current
+		// timestamp then we know the failures occurred during this epoch.
+		failedTS := u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1]
+		oldCode, err := p.totpGenerateCode(u.TOTPSecret, time.Unix(failedTS, 0))
+		if err != nil {
+			return fmt.Errorf("totpGenerateCode: %v", err)
+		}
+		if oldCode == currentCode {
+			// The failures occurred in the same epoch which means the user
+			// has exceeded their max allowed attempts.
+			return www.UserError{
+				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
+			}
+		}
+
+		// Previous failures are not from this epoch. Clear them out.
+		u.TOTPLastFailedCodeTime = []int64{}
+	}
+
+	// Verify the provided code matches the generated code
+	var replyError error
+	if currentCode == code {
+		// The code matches. Clear out all previous failed attempts
+		// before returning.
+		u.TOTPLastFailedCodeTime = []int64{}
+	} else {
+		// The code doesn't match. Save the failure and return an error.
+		ts := requestTime.Unix()
+		u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, ts)
+		replyError = www.UserError{
+			ErrorCode: www.ErrorStatusTOTPFailedValidation,
+		}
+	}
+
+	// Update the user database
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return fmt.Errorf("UserUpdate: %v", err)
+	}
+
+	return replyError
 }

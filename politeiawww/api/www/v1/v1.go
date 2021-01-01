@@ -221,6 +221,8 @@ const (
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
+	ErrorStatusRequiresTOTPCode            ErrorStatusT = 79
+	ErrorStatusTOTPWaitForNewCode          ErrorStatusT = 80
 
 	// Proposal state codes
 	//
@@ -399,6 +401,8 @@ var (
 		ErrorStatusWrongProposalType:           "wrong proposal type",
 		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
 		ErrorStatusTOTPInvalidType:             "invalid totp type",
+		ErrorStatusRequiresTOTPCode:            "login requires totp code",
+		ErrorStatusTOTPWaitForNewCode:          "must wait until next totp code window",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -743,6 +747,7 @@ type AbridgedUser struct {
 type Login struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Code     string `json:"code,omitempty"` // TOTP code based on user's TOTP secret (if verified)
 }
 
 // LoginReply is used to reply to the Login command.
