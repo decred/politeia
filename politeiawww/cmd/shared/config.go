@@ -53,8 +53,8 @@ type Config struct {
 	Silent      bool   `long:"silent" description:"Suppress all output"`
 
 	// TODO add docs for this to the piwww README
-	ClientCert string `long:"clientcert" description:"Path to TLS certificate for dcrwallet client authentication"`
-	ClientKey  string `long:"clientkey" description:"Path to TLS dcrwallet client authentication key"`
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 
 	DataDir    string // Application data dir
 	Version    string // CLI version
