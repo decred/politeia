@@ -421,10 +421,10 @@ location /api/ {
 	proxy_set_header X-Forwarded-For $remote_addr;
 	proxy_set_header Upgrade $http_upgrade;
 	proxy_set_header Connection "upgrade";
-	proxy_bypass_cache $http_upgrade;
+	proxy_cache_bypass $http_upgrade;
 
 	proxy_http_version 1.1;
-	proxy_ssl_trusted_certificated /path/to/politeiawww.crt;
+	proxy_ssl_trusted_certificate /path/to/politeiawww.crt;
 	proxy_ssl_verify on;
 	proxy_pass https://test-politeia.domain.com:4443/;
 }
