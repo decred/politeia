@@ -993,6 +993,9 @@ type ProposalLineItems struct {
 	Month int `json:"month"`
 	Year  int `json:"year"`
 
+	// Contractor rate
+	ContractorRate uint `json:"contractorrate"`
+
 	// Line Item Information
 	LineItem LineItemsInput `json:"lineitem"`
 }
