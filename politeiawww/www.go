@@ -560,21 +560,24 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 
 	switch perm {
 	case permissionAdmin:
-		handler = logging(p.isLoggedInAsAdmin(handler))
+		handler = p.isLoggedInAsAdmin(handler)
 	case permissionLogin:
-		handler = logging(p.isLoggedIn(handler))
-	default:
-		handler = logging(handler)
+		handler = p.isLoggedIn(handler)
 	}
-
-	// All handlers need to close the body
-	handler = closeBody(handler)
 
 	if method == "" {
 		// Websocket
 		log.Tracef("Adding websocket: %v", fullRoute)
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler)
-	} else {
+		return
+	}
+
+	switch perm {
+	case permissionAdmin, permissionLogin:
+		// Add route to auth router
+		p.auth.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
+	default:
+		// Add route to public router
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 	}
 }
@@ -834,9 +837,63 @@ func _main() error {
 		log.Infof("HTTPS keypair created")
 	}
 
+	// Load or create new CSRF key
+	log.Infof("Load CSRF key")
+	csrfKeyFilename := filepath.Join(loadedCfg.DataDir, "csrf.key")
+	fCSRF, err := os.Open(csrfKeyFilename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			key, err := util.Random(csrfKeyLength)
+			if err != nil {
+				return err
+			}
+
+			// Persist key
+			fCSRF, err = os.OpenFile(csrfKeyFilename,
+				os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+			if err != nil {
+				return err
+			}
+			_, err = fCSRF.Write(key)
+			if err != nil {
+				return err
+			}
+			_, err = fCSRF.Seek(0, 0)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	csrfKey := make([]byte, csrfKeyLength)
+	r, err := fCSRF.Read(csrfKey)
+	if err != nil {
+		return err
+	}
+	if r != csrfKeyLength {
+		return fmt.Errorf("CSRF key corrupt")
+	}
+	fCSRF.Close()
+
+	csrfMiddleware := csrf.Protect(
+		csrfKey,
+		csrf.Path("/"),
+		csrf.MaxAge(sessionMaxAge),
+	)
+
 	// Setup router
 	router := mux.NewRouter()
+	router.Use(closeBodyMiddleware)
+	router.Use(loggingMiddleware)
 	router.Use(recoverMiddleware)
+
+	// Setup a subrouter that is CSRF protected. Authenticated routes
+	// are required to use the auth router. The subrouter takes on the
+	// configuration of the router that it was spawned from, including
+	// all of the middleware that has already been registered.
+	auth := router.NewRoute().Subrouter()
+	auth.Use(csrfMiddleware)
 
 	// Setup user database
 	log.Infof("User db: %v", loadedCfg.UserDB)
@@ -918,6 +975,7 @@ func _main() error {
 		cfg:          loadedCfg,
 		params:       activeNetParams.Params,
 		router:       router,
+		auth:         auth,
 		client:       client,
 		smtp:         smtp,
 		db:           userDB,
@@ -955,51 +1013,6 @@ func _main() error {
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
 	}
 
-	// Load or create new CSRF key
-	log.Infof("Load CSRF key")
-	csrfKeyFilename := filepath.Join(p.cfg.DataDir, "csrf.key")
-	fCSRF, err := os.Open(csrfKeyFilename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			key, err := util.Random(csrfKeyLength)
-			if err != nil {
-				return err
-			}
-
-			// Persist key
-			fCSRF, err = os.OpenFile(csrfKeyFilename,
-				os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				return err
-			}
-			_, err = fCSRF.Write(key)
-			if err != nil {
-				return err
-			}
-			_, err = fCSRF.Seek(0, 0)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	csrfKey := make([]byte, csrfKeyLength)
-	r, err := fCSRF.Read(csrfKey)
-	if err != nil {
-		return err
-	}
-	if r != csrfKeyLength {
-		return fmt.Errorf("CSRF key corrupt")
-	}
-	fCSRF.Close()
-
-	csrfHandle := csrf.Protect(
-		csrfKey,
-		csrf.Path("/"),
-		csrf.MaxAge(sessionMaxAge),
-	)
-
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
 	for _, listener := range loadedCfg.Listeners {
@@ -1020,7 +1033,7 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:   csrfHandle(p.router),
+				Handler:   p.router,
 				Addr:      listen,
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,

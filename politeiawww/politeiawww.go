@@ -65,6 +65,7 @@ type politeiawww struct {
 	cfg          *config
 	params       *chaincfg.Params
 	router       *mux.Router
+	auth         *mux.Router // CSRF protected subrouter
 	client       *http.Client
 	smtp         *smtp
 	db           user.Database
@@ -591,17 +592,17 @@ func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *htt
 
 // setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
-	// Home
-	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).
+	// Return a 404 when a route is not found
+	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
+
+	// The version routes set the CSRF token and thus need to be part
+	// of the CSRF protected auth router.
+	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
+	p.auth.StrictSlash(true).
+		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
 		Methods(http.MethodGet)
 
-	// Not found
-	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-
-	// Public routes
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVersion, p.handleVersion,
-		permissionPublic)
+	// Public routes.
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
