@@ -367,7 +367,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 					payment.Status = cms.PaymentStatusPaid
 				}
 			}
-			dbInvoice.Changes = invChanges
 
 		case mdstream.IDInvoicePayment:
 			ip, err := mdstream.DecodeInvoicePayment([]byte(m.Payload))
@@ -383,7 +382,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				payment.TimeLastUpdated = s.Timestamp
 				payment.AmountReceived = s.AmountReceived
 			}
-			dbInvoice.Payments = payment
 		default:
 			// Log error but proceed
 			log.Errorf("initializeInventory: invalid "+
@@ -391,6 +389,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				m.ID, p.CensorshipRecord.Token)
 		}
 	}
+	dbInvoice.Payments = payment
 
 	return &dbInvoice, nil
 }
@@ -1311,6 +1310,7 @@ func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetIn
 	// If approved then update Invoice's Payment table in DB
 	if c.NewStatus == cms.InvoiceStatusApproved {
 		dbInvoice.Payments = database.Payments{
+			InvoiceToken: dbInvoice.Token,
 			Address:      strings.TrimSpace(dbInvoice.PaymentAddress),
 			TimeStarted:  time.Now().Unix(),
 			Status:       cms.PaymentStatusWatching,

@@ -149,6 +149,29 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	return DecodeInvoice(&invoice)
 }
 
+// InvoiceByKey Return invoice by its key.
+func (c *cockroachdb) InvoiceByKey(key string) (*database.Invoice, error) {
+	log.Debugf("InvoiceByKey: %v", key)
+
+	invoice := Invoice{}
+	err := c.recordsdb.
+		Where("key = ?", key).
+		Order("version desc").
+		Limit(1).
+		Preload("LineItems").
+		Preload("Changes").
+		Preload("Payments").
+		Find(&invoice).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = database.ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+
+	return DecodeInvoice(&invoice)
+}
+
 // InvoiceByTokenVersion Return invoice by its token and version
 func (c *cockroachdb) InvoiceByTokenVersion(token string, version string) (*database.Invoice, error) {
 	log.Debugf("InvoiceByTokenVersion: %v", token)
@@ -916,7 +939,7 @@ func New(host, net, rootCert, cert, key string) (*cockroachdb, error) {
 func (c *cockroachdb) UpdatePayments(dbPayments *database.Payments) error {
 	payments := encodePayments(dbPayments)
 
-	log.Debugf("UpdatePayments: %v", payments.InvoiceToken)
+	log.Debugf("UpdatePayments: %v", payments.InvoiceKey)
 
 	return c.recordsdb.Save(&payments).Error
 }
