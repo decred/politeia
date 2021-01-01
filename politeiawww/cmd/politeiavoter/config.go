@@ -76,8 +76,8 @@ type config struct {
 	Trickle          bool   `long:"trickle" description:"Enable vote trickling, requires --proxy."`
 	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 
-	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
-	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication (default: client.pem)"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key (default: client-key.pem)"`
 
 	voteDir      string
 	dial         func(string, string) (net.Conn, error)
