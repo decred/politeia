@@ -34,6 +34,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -745,6 +746,20 @@ func (p *politeiawww) setupCMS() error {
 		if err != nil {
 			return fmt.Errorf("build cache: %v", err)
 		}
+	}
+	if p.cfg.GithubAPIToken != "" && p.cfg.CodeStatOrganization != "" {
+		p.tracker, err = ghtracker.New(p.cfg.GithubAPIToken,
+			p.cfg.DBHost, p.cfg.DBRootCert, p.cfg.DBCert, p.cfg.DBKey)
+		if err != nil {
+			return fmt.Errorf("code tracker failed to load: %v", err)
+		}
+		go func() {
+			err = p.updateCodeStats(p.cfg.CodeStatOrganization,
+				p.cfg.CodeStatRepos, p.cfg.CodeStatStart, p.cfg.CodeStatEnd)
+			if err != nil {
+				log.Errorf("erroring updating code stats %v", err)
+			}
+		}()
 	}
 
 	// Register cms userdb plugin

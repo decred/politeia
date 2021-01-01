@@ -5,9 +5,6 @@ go 1.13
 require (
 	decred.org/dcrwallet v1.2.3-0.20200925172850-94689a677799
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/coreos/bbolt v1.3.3 // indirect
-	github.com/coreos/etcd v3.3.15+incompatible // indirect
-	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/dajohi/goemail v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200921185235-6d75c7ec1199
@@ -43,19 +40,20 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.1-0.20200711081900-c17162fe8fd7
-	github.com/jinzhu/gorm v1.9.10
+	github.com/jinzhu/gorm v1.9.12
 	github.com/jrick/logrotate v1.0.0
-	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/marcopeereboom/sbox v1.0.0
 	github.com/otiai10/copy v1.0.1
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
+	github.com/prometheus/common v0.10.0
 	github.com/robfig/cron v1.2.0
 	github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636
 	github.com/syndtr/goleveldb v1.0.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	google.golang.org/genproto v0.0.0-20200707001353-8e8330bf89df
 	google.golang.org/grpc v1.29.1

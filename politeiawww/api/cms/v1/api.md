@@ -28,6 +28,7 @@ server side notifications.  It does not render HTML.
     - [`Vote Details`](#vote-details)
     - [`Active votes`](#active-votes)
     - [`Start vote`](#start-vote)
+    - [`User code stats`](#user-code-stats)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
     - [Line item type codes](#line-item-type-codes)
@@ -1798,8 +1799,6 @@ Note: This call requires admin privileges.
 
 **Route:** `GET /v1/proposals/spendingsummary`
 
-**Params:**
-
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | offset | int | Page offset | No |
@@ -1823,7 +1822,6 @@ Note: This call requires admin privileges.
 **Example**
 
 Request:
-
 ``` json
 {}
 ```
@@ -1960,7 +1958,65 @@ Reply:
       ]
     }
   }
-    
+```
+
+### `User code stats`
+
+Returns all code stats based on provided userid and start/endtime.  
+
+This will return arrays of Repository Statistics for each month/year and
+repo that has been found for the range specified.  If no range, it just returns
+last month's data.  Repo stats include merge additions/deletions, review 
+additions/deletions, and pull request and review links.
+
+**Route:** `POST /user/codestats`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userid | string | The userid to return code statistics for. | Yes |
+| starttime | int64 | The start of time range to return code stats. | No |
+| endtime | int64 | The end of time range to return code stats. | No |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| repostats | []CodeStats | An array of repository details based on work performed. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "6638a1c9-271f-433e-bf2c-6144ddd8bed5",
+  "starttime": "1559460156",
+  "endtime": "1560460156"
+}
+```
+
+Reply:
+
+```json
+{
+  "repostats": [
+    {
+	    "repository": "politeia",
+	    "mergeadditions": "1500",
+	    "mergedeletions": "300",
+	    "reviewadditions": "300",
+	    "reviewdeletions": "234",
+	    "prs": [
+        "https://github.com/decred/politeia/pull/800"
+      ],
+	    "reviews": [
+        "politeia/801"
+      ]
+    }
+  ]
+}
 ```
 
 ### Error codes

@@ -2376,6 +2376,34 @@ func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
 	return &uir, nil
 }
 
+// CodeStats returns the given cms user's code statistics.
+func (c *Client) CodeStats(usc cms.UserCodeStats) (*cms.UserCodeStatsReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteUserCodeStats, usc)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, wwwError(respBody, statusCode)
+	}
+
+	var csr cms.UserCodeStatsReply
+	err = json.Unmarshal(respBody, &csr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserCodeStatsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(csr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &csr, nil
+}
+
 // CMSEditUser edits the current user's information.
 func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,

@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -83,6 +84,15 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+
+	// Default start date to start pulling code statistics if none specified.
+	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
+
+	// Default end date to stop pull code statistics if none specified.
+	defaultCodeStatEnd = time.Now() // Use today as the default end code stat date
+
+	// Check to make sure code stat start time is sane 2 years from today.
+	codeStatCheck = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 52 * 2) // 2 years in minutes 60min * 24h * 7days * 52weeks * 2years
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -135,11 +145,16 @@ type config struct {
 	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
 
 	// XXX These should be plugin settings
-	DcrdataHost              string `long:"dcrdatahost" description:"Dcrdata ip:port"`
-	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
-	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
-	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
-	BuildCMSDB               bool   `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
+	DcrdataHost              string   `long:"dcrdatahost" description:"Dcrdata ip:port"`
+	PaywallAmount            uint64   `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
+	PaywallXpub              string   `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	MinConfirmationsRequired uint64   `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
+	BuildCMSDB               bool     `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
+	GithubAPIToken           string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
+	CodeStatRepos            []string `long:"codestatrepos" description:"Repositories under the organization to crawl for code statistics"`
+	CodeStatOrganization     string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
+	CodeStatStart            int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
+	CodeStatEnd              int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
 
 	// TODO these need to be removed
 	VoteDurationMin uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
@@ -547,6 +562,32 @@ func loadConfig() (*config, []string, error) {
 	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
 	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 	cfg.RPCCert = util.CleanAndExpandPath(cfg.RPCCert)
+
+	if cfg.CodeStatOrganization != "" && len(cfg.CodeStatRepos) < 1 {
+		return nil, nil, fmt.Errorf("you must specify repos if code stat " +
+			"organization is given")
+	}
+
+	if cfg.CodeStatStart > 0 &&
+		(time.Unix(cfg.CodeStatStart, 0).Before(codeStatCheck) ||
+			time.Unix(cfg.CodeStatStart, 0).After(time.Now())) {
+		return nil, nil, fmt.Errorf("you have entered an invalid code stat " +
+			"start date")
+	}
+
+	if cfg.CodeStatEnd > 0 &&
+		time.Unix(cfg.CodeStatEnd, 0).Before(time.Unix(cfg.CodeStatStart, 0)) {
+		return nil, nil, fmt.Errorf("you have entered an invalid code stat " +
+			"end date")
+	}
+
+	if cfg.CodeStatStart <= 0 {
+		cfg.CodeStatStart = defaultCodeStatStart.Unix()
+	}
+
+	if cfg.CodeStatEnd <= 0 {
+		cfg.CodeStatEnd = defaultCodeStatEnd.Unix()
+	}
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {

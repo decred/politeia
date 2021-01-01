@@ -19,6 +19,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
@@ -90,6 +91,7 @@ type politeiawww struct {
 	cmsDB     cmsdatabase.Database
 	cron      *cron.Cron
 	wsDcrdata *wsdcrdata.Client
+	tracker   codetracker.CodeTracker
 
 	// The following fields are only used during testing.
 	test bool
