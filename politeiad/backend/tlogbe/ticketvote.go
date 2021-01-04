@@ -2349,6 +2349,8 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 	return approved
 }
 
+// summary returns the vote summary for a record. If a vetted record does not
+// exist for the token a errRecordNotFound error is returned.
 func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.Summary, error) {
 	// Check if the summary has been cached
 	s, err := p.cachedSummary(hex.EncodeToString(token))
@@ -2372,6 +2374,11 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Check if the vote has been authorized
 	auths, err := p.authorizes(token)
 	if err != nil {
+		if errors.Is(err, errRecordNotFound) {
+			// Let the calling function decide how to handle when a vetted
+			// record does not exist for the token.
+			return nil, err
+		}
 		return nil, fmt.Errorf("authorizes: %v", err)
 	}
 	if len(auths) > 0 {
