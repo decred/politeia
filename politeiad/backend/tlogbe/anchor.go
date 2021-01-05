@@ -219,7 +219,7 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 
 		log.Debugf("Verify %v anchor attempt %v/%v", t.id, try+1, retries)
 
-		vbr, err := verifyBatch(t.dcrtimeHost, anchorID, hashes)
+		vbr, err := t.dcrtime.verifyBatch(anchorID, hashes)
 		if err != nil {
 			exitErr = fmt.Errorf("verifyBatch: %v", err)
 			return
@@ -421,7 +421,7 @@ func (t *tlog) anchor() {
 	// Submit dcrtime anchor request
 	log.Infof("Anchoring %v %v trees", len(anchors), t.id)
 
-	tbr, err := timestampBatch(t.dcrtimeHost, anchorID, digests)
+	tbr, err := t.dcrtime.timestampBatch(anchorID, digests)
 	if err != nil {
 		exitErr = fmt.Errorf("timestampBatch: %v", err)
 		return

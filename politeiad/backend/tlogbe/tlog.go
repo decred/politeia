@@ -82,11 +82,11 @@ var (
 // We do not unwind.
 type tlog struct {
 	sync.Mutex
-	id          string
-	dcrtimeHost string
-	trillian    trillianClient
-	store       store.Blob
-	cron        *cron.Cron
+	id       string
+	trillian trillianClient
+	store    store.Blob
+	dcrtime  *dcrtimeClient
+	cron     *cron.Cron
 
 	// encryptionKey is used to encrypt record blobs before saving them
 	// to the key-value store. This is an optional param. Record blobs
@@ -1842,7 +1842,7 @@ func (t *tlog) close() {
 	}
 }
 
-func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, encryptionKeyFile string) (*tlog, error) {
+func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*tlog, error) {
 	// Load encryption key if provided. An encryption key is optional.
 	var ek *encryptionKey
 	if encryptionKeyFile != "" {
@@ -1887,14 +1887,20 @@ func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, dcrtimeHost, e
 		return nil, err
 	}
 
+	// Setup dcrtime client
+	dcrtimeClient, err := newDcrtimeClient(dcrtimeHost, dcrtimeCert)
+	if err != nil {
+		return nil, err
+	}
+
 	// Setup tlog
 	t := tlog{
 		id:            id,
-		dcrtimeHost:   dcrtimeHost,
-		encryptionKey: ek,
 		trillian:      trillianClient,
 		store:         store,
+		dcrtime:       dcrtimeClient,
 		cron:          cron.New(),
+		encryptionKey: ek,
 	}
 
 	// Launch cron

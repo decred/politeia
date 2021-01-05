@@ -27,14 +27,14 @@ func NormalizeAddress(addr, defaultPort string) string {
 	return addr
 }
 
-// NewClient returns a new http.Client instance
-func NewClient(skipVerify bool, certFilename string) (*http.Client, error) {
+// NewHTTPClient returns a new http.Client instance
+func NewHTTPClient(skipVerify bool, certPath string) (*http.Client, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,
 	}
 
-	if !skipVerify && certFilename != "" {
-		cert, err := ioutil.ReadFile(certFilename)
+	if !skipVerify && certPath != "" {
+		cert, err := ioutil.ReadFile(certPath)
 		if err != nil {
 			return nil, err
 		}

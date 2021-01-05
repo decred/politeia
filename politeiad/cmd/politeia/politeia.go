@@ -215,7 +215,7 @@ func pluginInventory() (*v1.PluginInventoryReply, error) {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func plugin() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func recordInventory() error {
 	}
 
 	// Make request
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -536,7 +536,7 @@ func newRecord() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -749,7 +749,7 @@ func updateVettedMetadata() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -839,7 +839,7 @@ func updateUnvettedMetadata() error {
 	}
 
 	// Make request
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -1005,7 +1005,7 @@ func updateRecord(vetted bool) error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -1085,7 +1085,7 @@ func getUnvetted() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -1189,7 +1189,7 @@ func getVetted() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -1344,7 +1344,7 @@ func setUnvettedStatus() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -1469,7 +1469,7 @@ func setVettedStatus() error {
 	}
 
 	// Make request
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewHTTPClient(verify, *rpccert)
 	if err != nil {
 		return err
 	}

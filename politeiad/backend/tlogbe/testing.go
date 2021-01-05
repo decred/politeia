@@ -17,13 +17,11 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/dcrutil/v3"
-	dcrtime "github.com/decred/dcrtime/api/v1"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
-	"github.com/robfig/cron"
 )
 
 var (
@@ -127,11 +125,9 @@ func newTestTlog(t *testing.T, id string) (*tlog, error) {
 
 	tlog := tlog{
 		id:            id,
-		dcrtimeHost:   dcrtime.DefaultTestnetTimeHost,
 		encryptionKey: nil,
 		trillian:      tclient,
 		store:         store,
-		cron:          cron.New(),
 	}
 
 	return &tlog, nil

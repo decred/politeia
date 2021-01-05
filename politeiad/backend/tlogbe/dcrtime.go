@@ -6,68 +6,59 @@ package tlogbe
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	dcrtime "github.com/decred/dcrtime/api/v2"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/util"
 )
 
-var (
-	httpClient = &http.Client{
-		Timeout: 1 * time.Minute,
-		Transport: &http.Transport{
-			IdleConnTimeout:       1 * time.Minute,
-			ResponseHeaderTimeout: 1 * time.Minute,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,
-			},
-		},
-	}
-)
+// dcrtimeClient is a client for interacting with the dcrtime API.
+type dcrtimeClient struct {
+	host     string
+	certPath string
+	http     *http.Client
+}
 
-// isDigest returns whether the provided digest is a valid SHA256 digest.
-func isDigest(digest string) bool {
+// isDigestSHA256 returns whether the provided digest is a valid SHA256 digest.
+func isDigestSHA256(digest string) bool {
 	return dcrtime.RegexpSHA256.MatchString(digest)
 }
 
-// timestampBatch posts the provided digests to the dcrtime v2 batch timestamp
-// route.
-func timestampBatch(host, id string, digests []string) (*dcrtime.TimestampBatchReply, error) {
-	log.Tracef("timestampBatch: %v %v %v", host, id, digests)
-
-	// Validate digests
-	for _, v := range digests {
-		if !isDigest(v) {
-			return nil, fmt.Errorf("invalid digest: %v", v)
+// makeReq makes an http request to a dcrtime method and route, serializing the
+// provided object as the request body. The response body is returned as a byte
+// slice.
+func (c *dcrtimeClient) makeReq(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		reqBody []byte
+		err     error
+	)
+	if v != nil {
+		reqBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	// Setup request
-	tb := dcrtime.TimestampBatch{
-		ID:      id,
-		Digests: digests,
-	}
-	b, err := json.Marshal(tb)
+	fullRoute := c.host + route
+
+	log.Tracef("%v %v", method, fullRoute)
+
+	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
 
-	// Send request
-	route := host + dcrtime.TimestampBatchRoute
-	r, err := httpClient.Post(route, "application/json", bytes.NewReader(b))
+	r, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Body.Close()
 
-	// Handle response
 	if r.StatusCode != http.StatusOK {
 		e, err := util.GetErrorFromJSON(r.Body)
 		if err != nil {
@@ -75,10 +66,37 @@ func timestampBatch(host, id string, digests []string) (*dcrtime.TimestampBatchR
 		}
 		return nil, fmt.Errorf("%v: %v", r.Status, e)
 	}
+
+	respBody := util.ConvertBodyToByteArray(r.Body, false)
+	return respBody, nil
+}
+
+// timestampBatch posts digests to the dcrtime v2 batch timestamp route.
+func (c *dcrtimeClient) timestampBatch(id string, digests []string) (*dcrtime.TimestampBatchReply, error) {
+	log.Tracef("timestampBatch: %v %v", id, digests)
+
+	// Setup request
+	for _, v := range digests {
+		if !isDigestSHA256(v) {
+			return nil, fmt.Errorf("invalid digest: %v", v)
+		}
+	}
+	tb := dcrtime.TimestampBatch{
+		ID:      id,
+		Digests: digests,
+	}
+
+	// Send request
+	respBody, err := c.makeReq(http.MethodPost, dcrtime.TimestampBatchRoute, tb)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
 	var tbr dcrtime.TimestampBatchReply
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&tbr); err != nil {
-		return nil, fmt.Errorf("decode TimestampBatchReply: %v", err)
+	err = json.Unmarshal(respBody, &tbr)
+	if err != nil {
+		return nil, err
 	}
 
 	return &tbr, nil
@@ -94,46 +112,31 @@ func timestampBatch(host, id string, digests []string) (*dcrtime.TimestampBatchR
 // once the digest has been included in a dcr transaction, except for the
 // ChainTimestamp field. The ChainTimestamp field is only populated once the
 // dcr transaction has 6 confirmations.
-func verifyBatch(host, id string, digests []string) (*dcrtime.VerifyBatchReply, error) {
-	log.Tracef("verifyBatch: %v %v %v", host, id, digests)
+func (c *dcrtimeClient) verifyBatch(id string, digests []string) (*dcrtime.VerifyBatchReply, error) {
+	log.Tracef("verifyBatch: %v %v", id, digests)
 
-	// Validate digests
+	// Setup request
 	for _, v := range digests {
-		if !isDigest(v) {
+		if !isDigestSHA256(v) {
 			return nil, fmt.Errorf("invalid digest: %v", v)
 		}
 	}
-
-	// Setup request
 	vb := dcrtime.VerifyBatch{
 		ID:      id,
 		Digests: digests,
 	}
-	b, err := json.Marshal(vb)
-	if err != nil {
-		return nil, err
-	}
 
 	// Send request
-	route := host + dcrtime.VerifyBatchRoute
-	r, err := httpClient.Post(route, "application/json", bytes.NewReader(b))
+	respBody, err := c.makeReq(http.MethodPost, dcrtime.VerifyBatchRoute, vb)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Body.Close()
 
-	// Handle response
-	if r.StatusCode != http.StatusOK {
-		e, err := util.GetErrorFromJSON(r.Body)
-		if err != nil {
-			return nil, fmt.Errorf("%v", r.Status)
-		}
-		return nil, fmt.Errorf("%v: %v", r.Status, e)
-	}
+	// Decode reply
 	var vbr dcrtime.VerifyBatchReply
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vbr); err != nil {
-		return nil, fmt.Errorf("decode VerifyBatchReply: %v", err)
+	err = json.Unmarshal(respBody, &vbr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Verify the merkle path and the merkle root of the timestamps
@@ -168,4 +171,17 @@ func verifyBatch(host, id string, digests []string) (*dcrtime.VerifyBatchReply, 
 	}
 
 	return &vbr, nil
+}
+
+// newDcrtimeClient returns a new dcrtimeClient.
+func newDcrtimeClient(host, certPath string) (*dcrtimeClient, error) {
+	c, err := util.NewHTTPClient(false, certPath)
+	if err != nil {
+		return nil, err
+	}
+	return &dcrtimeClient{
+		host:     host,
+		certPath: certPath,
+		http:     c,
+	}, nil
 }

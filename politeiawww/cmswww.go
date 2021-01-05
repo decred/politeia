@@ -1022,7 +1022,7 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 		}
 	}
 
-	client, err := util.NewClient(false, "")
+	client, err := util.NewHTTPClient(false, "")
 	if err != nil {
 		return nil, err
 	}

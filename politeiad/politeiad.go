@@ -1103,7 +1103,7 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	loadedCfg, _, err := loadConfig()
+	cfg, _, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("Could not load configuration file: %v", err)
 	}
@@ -1116,22 +1116,22 @@ func _main() error {
 	log.Infof("Version : %v", version.String())
 	log.Infof("Build Version: %v", version.BuildMainVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
-	log.Infof("Home dir: %v", loadedCfg.HomeDir)
+	log.Infof("Home dir: %v", cfg.HomeDir)
 
 	// Create the data directory in case it does not exist.
-	err = os.MkdirAll(loadedCfg.DataDir, 0700)
+	err = os.MkdirAll(cfg.DataDir, 0700)
 	if err != nil {
 		return err
 	}
 
 	// Generate the TLS cert and key file if both don't already
 	// exist.
-	if !util.FileExists(loadedCfg.HTTPSKey) &&
-		!util.FileExists(loadedCfg.HTTPSCert) {
+	if !util.FileExists(cfg.HTTPSKey) &&
+		!util.FileExists(cfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
 
 		err := util.GenCertPair(elliptic.P521(), "politeiad",
-			loadedCfg.HTTPSCert, loadedCfg.HTTPSKey)
+			cfg.HTTPSCert, cfg.HTTPSKey)
 		if err != nil {
 			return fmt.Errorf("unable to create https keypair: %v",
 				err)
@@ -1141,13 +1141,13 @@ func _main() error {
 	}
 
 	// Generate ed25519 identity to save messages, tokens etc.
-	if !util.FileExists(loadedCfg.Identity) {
+	if !util.FileExists(cfg.Identity) {
 		log.Infof("Generating signing identity...")
 		id, err := identity.New()
 		if err != nil {
 			return err
 		}
-		err = id.Save(loadedCfg.Identity)
+		err = id.Save(cfg.Identity)
 		if err != nil {
 			return err
 		}
@@ -1156,12 +1156,12 @@ func _main() error {
 
 	// Setup application context.
 	p := &politeia{
-		cfg:     loadedCfg,
+		cfg:     cfg,
 		plugins: make(map[string]v1.Plugin),
 	}
 
 	// Load identity.
-	p.identity, err = identity.LoadFullIdentity(loadedCfg.Identity)
+	p.identity, err = identity.LoadFullIdentity(cfg.Identity)
 	if err != nil {
 		return err
 	}
@@ -1169,16 +1169,16 @@ func _main() error {
 
 	// Load certs, if there.  If they aren't there assume OS is used to
 	// resolve cert validity.
-	if len(loadedCfg.DcrtimeCert) != 0 {
+	if len(cfg.DcrtimeCert) != 0 {
 		var certPool *x509.CertPool
-		if !util.FileExists(loadedCfg.DcrtimeCert) {
+		if !util.FileExists(cfg.DcrtimeCert) {
 			return fmt.Errorf("unable to find dcrtime cert %v",
-				loadedCfg.DcrtimeCert)
+				cfg.DcrtimeCert)
 		}
-		dcrtimeCert, err := ioutil.ReadFile(loadedCfg.DcrtimeCert)
+		dcrtimeCert, err := ioutil.ReadFile(cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("unable to read dcrtime cert %v: %v",
-				loadedCfg.DcrtimeCert, err)
+				cfg.DcrtimeCert, err)
 		}
 		certPool = x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(dcrtimeCert) {
@@ -1186,27 +1186,26 @@ func _main() error {
 		}
 	}
 	// Setup backend.
-	log.Infof("Backend: %v", loadedCfg.Backend)
-	switch loadedCfg.Backend {
+	log.Infof("Backend: %v", cfg.Backend)
+	switch cfg.Backend {
 	case backendGit:
-		b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
-			loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
-			loadedCfg.DcrdataHost)
+		b, err := gitbe.New(activeNetParams.Params, cfg.DataDir, cfg.DcrtimeHost,
+			"", p.identity, cfg.GitTrace, cfg.DcrdataHost)
 		if err != nil {
 			return fmt.Errorf("new gitbe: %v", err)
 		}
 		p.backend = b
 	case backendTlog:
-		b, err := tlogbe.New(activeNetParams.Params, loadedCfg.HomeDir,
-			loadedCfg.DataDir, loadedCfg.DcrtimeHost, loadedCfg.EncryptionKey,
-			loadedCfg.TrillianHostUnvetted, loadedCfg.TrillianKeyUnvetted,
-			loadedCfg.TrillianHostVetted, loadedCfg.TrillianKeyVetted)
+		b, err := tlogbe.New(activeNetParams.Params, cfg.HomeDir, cfg.DataDir,
+			cfg.TrillianHostUnvetted, cfg.TrillianKeyUnvetted,
+			cfg.TrillianHostVetted, cfg.TrillianKeyVetted,
+			cfg.EncryptionKey, cfg.DcrtimeHost, cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("new tlogbe: %v", err)
 		}
 		p.backend = b
 	default:
-		return fmt.Errorf("invalid backend selected: %v", loadedCfg.Backend)
+		return fmt.Errorf("invalid backend selected: %v", cfg.Backend)
 	}
 
 	// Setup mux
@@ -1245,7 +1244,7 @@ func _main() error {
 
 	// TODO document plugins and plugin settings in README
 	// Setup plugins
-	if len(loadedCfg.Plugins) > 0 {
+	if len(cfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
 			permissionAuth)
@@ -1255,7 +1254,7 @@ func _main() error {
 		// Parse plugin settings
 		// map[pluginID][]backend.PluginSetting
 		settings := make(map[string][]backend.PluginSetting)
-		for _, v := range loadedCfg.PluginSettings {
+		for _, v := range cfg.PluginSettings {
 			// Plugin setting will be in format: pluginID,key,value
 			s := strings.Split(v, ",")
 			if len(s) != 3 {
@@ -1280,7 +1279,7 @@ func _main() error {
 		}
 
 		// Register plugins
-		for _, v := range loadedCfg.Plugins {
+		for _, v := range cfg.Plugins {
 			// Verify plugin ID is lowercase
 			if backend.PluginRE.FindString(v) != v {
 				return fmt.Errorf("invalid plugin id: %v", v)
@@ -1342,7 +1341,7 @@ func _main() error {
 		}
 
 		// Setup plugins
-		for _, v := range loadedCfg.Plugins {
+		for _, v := range cfg.Plugins {
 			log.Infof("Setting up plugin: %v", v)
 			err := p.backend.SetupPlugin(v)
 			if err != nil {
@@ -1353,13 +1352,12 @@ func _main() error {
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
-	for _, listener := range loadedCfg.Listeners {
+	for _, listener := range cfg.Listeners {
 		listen := listener
 		go func() {
 			log.Infof("Listen: %v", listen)
 			listenC <- http.ListenAndServeTLS(listen,
-				loadedCfg.HTTPSCert, loadedCfg.HTTPSKey,
-				p.router)
+				cfg.HTTPSCert, cfg.HTTPSKey, p.router)
 		}()
 	}
 

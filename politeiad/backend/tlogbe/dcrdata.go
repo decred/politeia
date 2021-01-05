@@ -668,7 +668,7 @@ func newDcrdataPlugin(settings []backend.PluginSetting, activeNetParams *chaincf
 
 	// Setup http client
 	log.Infof("Dcrdata HTTP host: %v", hostHTTP)
-	client, err := util.NewClient(false, "")
+	client, err := util.NewHTTPClient(false, "")
 	if err != nil {
 		return nil, err
 	}

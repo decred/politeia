@@ -965,7 +965,7 @@ func _main() error {
 	}
 
 	// Setup politeiad client
-	client, err := util.NewClient(false, loadedCfg.RPCCert)
+	client, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
 	if err != nil {
 		return err
 	}
