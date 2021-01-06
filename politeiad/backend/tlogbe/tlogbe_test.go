@@ -14,10 +14,8 @@ import (
 )
 
 func TestNewRecord(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Test all record content verification error through the New endpoint
 	recordContentTests := setupRecordContentTests(t)
@@ -45,17 +43,15 @@ func TestNewRecord(t *testing.T) {
 	fs := []backend.File{
 		newBackendFile(t, "index.md"),
 	}
-	_, err = tlogBackend.New(md, fs)
+	_, err := tlogBackend.New(md, fs)
 	if err != nil {
 		t.Errorf("success case failed with %v", err)
 	}
 }
 
 func TestUpdateUnvettedRecord(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -219,10 +215,8 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 }
 
 func TestUpdateVettedRecord(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -405,10 +399,8 @@ func TestUpdateVettedRecord(t *testing.T) {
 }
 
 func TestUpdateUnvettedMetadata(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -576,10 +568,8 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 }
 
 func TestUpdateVettedMetadata(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -764,10 +754,8 @@ func TestUpdateVettedMetadata(t *testing.T) {
 }
 
 func TestUnvettedExists(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -803,10 +791,8 @@ func TestUnvettedExists(t *testing.T) {
 }
 
 func TestVettedExists(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create unvetted record
 	md := []backend.MetadataStream{
@@ -857,10 +843,8 @@ func TestVettedExists(t *testing.T) {
 }
 
 func TestGetUnvetted(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -901,10 +885,8 @@ func TestGetUnvetted(t *testing.T) {
 }
 
 func TestGetVetted(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Create new record
 	md := []backend.MetadataStream{
@@ -953,10 +935,8 @@ func TestGetVetted(t *testing.T) {
 }
 
 func TestSetUnvettedStatus(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Helpers
 	md := []backend.MetadataStream{
@@ -1119,10 +1099,8 @@ func TestSetUnvettedStatus(t *testing.T) {
 }
 
 func TestSetVettedStatus(t *testing.T) {
-	tlogBackend, err := newTestTlogBackend(t)
-	if err != nil {
-		t.Error(err)
-	}
+	tlogBackend, cleanup := newTestTlogBackend(t)
+	defer cleanup()
 
 	// Helpers
 	md := []backend.MetadataStream{
