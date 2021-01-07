@@ -139,7 +139,7 @@ type plugin struct {
 }
 
 func tokenIsFullLength(token []byte) bool {
-	return len(token) == v1.TokenSizeShort
+	return len(token) == v1.TokenSizeTlog
 }
 
 // tokenDecode decodes the provided hex encoded record token. This function
@@ -201,7 +201,7 @@ func tokenPrefix(token []byte) string {
 }
 
 func tokenFromTreeID(treeID int64) []byte {
-	b := make([]byte, binary.MaxVarintLen64)
+	b := make([]byte, v1.TokenSizeTlog)
 	// Converting between int64 and uint64 doesn't change
 	// the sign bit, only the way it's interpreted.
 	binary.LittleEndian.PutUint64(b, uint64(treeID))
@@ -1288,6 +1288,61 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 	}
 
 	return r, nil
+}
+
+// This function satisfies the Backend interface.
+func (t *tlogBackend) GetUnvettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
+	log.Tracef("GetUnvettedTimestamps: %x %v", token, version)
+
+	if t.isShutdown() {
+		return nil, backend.ErrShutdown
+	}
+
+	treeID := t.unvettedTreeIDFromToken(token)
+	var v uint32
+	if version != "" {
+		u, err := strconv.ParseUint(version, 10, 64)
+		if err != nil {
+			return nil, backend.ErrRecordNotFound
+		}
+		v = uint32(u)
+	}
+
+	// Verify record exists and is unvetted
+	if !t.UnvettedExists(token) {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	// Get timestamps
+	return t.unvetted.recordTimestamps(treeID, v, token)
+}
+
+// This function satisfies the Backend interface.
+func (t *tlogBackend) GetVettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
+	log.Tracef("GetVettedTimestamps: %x %v", token, version)
+
+	if t.isShutdown() {
+		return nil, backend.ErrShutdown
+	}
+
+	// Get tree ID
+	treeID, ok := t.vettedTreeIDFromToken(token)
+	if !ok {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	// Parse version
+	var v uint32
+	if version != "" {
+		u, err := strconv.ParseUint(version, 10, 64)
+		if err != nil {
+			return nil, backend.ErrRecordNotFound
+		}
+		v = uint32(u)
+	}
+
+	// Get timestamps
+	return t.vetted.recordTimestamps(treeID, v, token)
 }
 
 // This function must be called WITH the unvetted lock held.

@@ -22,6 +22,7 @@ import (
 	"decred.org/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/util"
@@ -123,6 +124,11 @@ func wwwError(body []byte, statusCode int) error {
 		return fmt.Errorf("%v", statusCode)
 	}
 
+	return nil
+}
+
+// TODO recordsError
+func recordsError(body []byte, statusCode int) error {
 	return nil
 }
 
@@ -895,7 +901,7 @@ func (c *Client) ProposalEdit(pe pi.ProposalEdit) (*pi.ProposalEditReply, error)
 	return &per, nil
 }
 
-// ProposalSetStatus sets the status of a proposal
+// ProposalSetStatus sends the ProposalSetStatus command to politeiawww.
 func (c *Client) ProposalSetStatus(pss pi.ProposalSetStatus) (*pi.ProposalSetStatusReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
 		pi.APIRoute, pi.RouteProposalSetStatus, pss)
@@ -921,6 +927,33 @@ func (c *Client) ProposalSetStatus(pss pi.ProposalSetStatus) (*pi.ProposalSetSta
 	}
 
 	return &pssr, nil
+}
+
+// RecordTimestamps sends the RecordTimestamps command to politeiawww.
+func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteTimestamps, t)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode != http.StatusOK {
+		return nil, recordsError(respBody, statusCode)
+	}
+
+	var tr rcv1.TimestampsReply
+	err = json.Unmarshal(respBody, &tr)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(tr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &tr, nil
 }
 
 // Proposals retrieves a proposal for each of the provided proposal requests.

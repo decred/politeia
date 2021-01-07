@@ -1281,7 +1281,7 @@ func (g *gitBackEnd) populateTokenPrefixCache() error {
 func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 	TRIES := 1000
 	for i := 0; i < TRIES; i++ {
-		token, err := util.Random(pd.TokenSizeLong)
+		token, err := util.Random(pd.TokenSizeGit)
 		if err != nil {
 			return nil, err
 		}
@@ -2437,6 +2437,20 @@ func (g *gitBackEnd) GetUnvetted(token []byte, version string) (*backend.Record,
 func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetVetted %x %v", token, version)
 	return g.getRecordLock(token, version, g.vetted, true)
+}
+
+// GetUnvettedTimestamps is not implemented.
+//
+// This function satisfies the Backend interface.
+func (g *gitBackEnd) GetUnvettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// GetVettedTimestamps is not implemented.
+//
+// This function satisfies the Backend interface.
+func (g *gitBackEnd) GetVettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // getVettedMetadataStream returns a byte slice of the given metadata stream.

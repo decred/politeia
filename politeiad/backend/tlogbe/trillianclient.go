@@ -39,15 +39,10 @@ import (
 // QueuedLeaf, and the inclusion proof for that leaf. If the leaf append
 // command fails the QueuedLeaf will contain an error code from the failure and
 // the Proof will not be present.
+// TODO I don't use this for anything. Just return the QueuedLeafProof.
 type queuedLeafProof struct {
 	QueuedLeaf *trillian.QueuedLogLeaf
 	Proof      *trillian.Proof
-}
-
-// leafProof contains a log leaf and the inclusion proof for the log leaf.
-type leafProof struct {
-	Leaf  *trillian.LogLeaf
-	Proof *trillian.Proof
 }
 
 // trillianClient provides an interface for interacting with a trillian log. It
@@ -71,9 +66,6 @@ type trillianClient interface {
 	leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof,
 		*types.LogRootV1, error)
 
-	// leavesByRange returns the leaves within a specific index range.
-	leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error)
-
 	// leavesAll returns all leaves of a tree.
 	leavesAll(treeID int64) ([]*trillian.LogLeaf, error)
 
@@ -81,11 +73,10 @@ type trillianClient interface {
 	signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot,
 		*types.LogRootV1, error)
 
-	// inclusionProofs returns the log leaves and the inclusion proofs
-	// for a set of merkle leaf hashes. The inclusion proofs returned
-	// for the tree height specified by the provided LogRootV1.
-	inclusionProofs(treeID int64, merkleLeafHashes [][]byte,
-		lrv1 *types.LogRootV1) ([]leafProof, error)
+	// inclusionProof returns a proof for the inclusion of a merkle
+	// leaf hash in a log root.
+	inclusionProof(treeID int64, merkleLeafHashe []byte,
+		lrv1 *types.LogRootV1) (*trillian.Proof, error)
 
 	// close closes the client connection.
 	close()
@@ -257,7 +248,8 @@ func (t *tclient) treesAll() ([]*trillian.Tree, error) {
 	return ltr.Tree, nil
 }
 
-// inclusionProof returns the inclusion proof for a trillian log leaf.
+// inclusionProof returns a proof for the inclusion of a merkle leaf hash in a
+// log root.
 //
 // This function satisfies the trillianClient interface
 func (t *tclient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *types.LogRootV1) (*trillian.Proof, error) {
@@ -486,39 +478,6 @@ func (t *tclient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))
 }
 
-// inclusionProofs returns the log leaves and the inclusion proofs for a set of
-// merkle leaf hashes. The inclusion proofs returned for the tree height
-// specified by the provided LogRootV1.
-func (t *tclient) inclusionProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
-	log.Tracef("trillian inclusionProofs: %v %v %x",
-		treeID, lr.TreeSize, merkleLeafHashes)
-
-	// Retrieve leaves
-	r, err := t.log.GetLeavesByHash(t.ctx,
-		&trillian.GetLeavesByHashRequest{
-			LogId:    treeID,
-			LeafHash: merkleLeafHashes,
-		})
-	if err != nil {
-		return nil, fmt.Errorf("GetLeavesByHashRequest: %v", err)
-	}
-
-	// Retrieve proofs
-	proofs := make([]leafProof, 0, len(r.Leaves))
-	for _, v := range r.Leaves {
-		p, err := t.inclusionProof(treeID, v.MerkleLeafHash, lr)
-		if err != nil {
-			return nil, fmt.Errorf("inclusionProof %x: %v", v.MerkleLeafHash, err)
-		}
-		proofs = append(proofs, leafProof{
-			Leaf:  v,
-			Proof: p,
-		})
-	}
-
-	return proofs, nil
-}
-
 // close closes the trillian grpc connection.
 //
 // This function satisfies the trillianClient interface.
@@ -728,32 +687,6 @@ func (t *testTClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]
 	return queued, nil, nil
 }
 
-// leavesByRange returns leaves in range according to the passed in parameters.
-//
-// This function satisfies the trillianClient interface.
-func (t *testTClient) leavesByRange(treeID, startIndex, count int64) ([]*trillian.LogLeaf, error) {
-	t.RLock()
-	defer t.RUnlock()
-
-	// Check if treeID entry exists
-	if _, ok := t.leaves[treeID]; !ok {
-		return nil, fmt.Errorf("tree ID %d does not contain any leaf data",
-			treeID)
-	}
-
-	// Get leaves by range. Indexes are ordered.
-	var c int64
-	var leaves []*trillian.LogLeaf
-	for _, leaf := range t.leaves[treeID] {
-		if leaf.LeafIndex >= startIndex && c < count {
-			leaves = append(leaves, leaf)
-			c++
-		}
-	}
-
-	return nil, nil
-}
-
 // leavesAll returns all leaves from a trillian tree.
 //
 // This function satisfies the trillianClient interface.
@@ -777,10 +710,10 @@ func (t *testTClient) signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoo
 	return nil, nil, nil
 }
 
-// inclusionProofs has not been implement yet for the test client.
+// inclusionProof has not been implement yet for the test client.
 //
 // This function satisfies the trillianClient interface.
-func (t *testTClient) inclusionProofs(treeID int64, merkleLeafHashes [][]byte, lr *types.LogRootV1) ([]leafProof, error) {
+func (t *testTClient) inclusionProof(treeID int64, merkleLeafHash []byte, lr *types.LogRootV1) (*trillian.Proof, error) {
 	return nil, nil
 }
 

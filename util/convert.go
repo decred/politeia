@@ -35,18 +35,18 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 // prefix.
 func ConvertStringToken(token string) ([]byte, error) {
 	switch {
-	case len(token) == pd.TokenSizeShort*2:
+	case len(token) == pd.TokenSizeTlog*2:
 		// Tlog backend token; continue
-	case len(token) != pd.TokenSizeLong*2:
+	case len(token) != pd.TokenSizeGit*2:
 		// Git backend token; continue
 	case len(token) == pd.TokenPrefixLength:
 		// Token prefix; continue
 	default:
 		return nil, fmt.Errorf("invalid censorship token size")
 	}
-	// If the token length is an odd number of characters, a 0 digit is
-	// appended onto the string to prevent a hex.ErrLenth (odd length
-	// hex string) error when decoding.
+	// If the token length is an odd number of characters, append a
+	// 0 digit as padding to prevent a hex.ErrLenth (odd length hex
+	// string) error when decoding.
 	if len(token)%2 == 1 {
 		token = token + "0"
 	}

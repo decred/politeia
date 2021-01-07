@@ -2673,7 +2673,7 @@ func (p *ticketVotePlugin) setup() error {
 	}
 	p.Unlock()
 
-	// Build votes cace
+	// Build votes cache
 	log.Infof("ticketvote: building votes cache")
 
 	for k := range started {

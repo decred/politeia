@@ -5,6 +5,7 @@
 package tlogbe
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -42,12 +43,115 @@ const (
 // trillian tree. This root hash is submitted to dcrtime to be anchored and is
 // the anchored digest in the VerifyDigest. Only the root hash is anchored, but
 // the full LogRootV1 struct is saved as part of an anchor record so that it
-// can be used to retreive inclusion proofs for any leaves that were included
+// can be used to retrieve inclusion proofs for any leaves that were included
 // in the root hash.
 type anchor struct {
 	TreeID       int64                 `json:"treeid"`
 	LogRoot      *types.LogRootV1      `json:"logroot"`
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
+}
+
+var (
+	errAnchorNotFound = errors.New("anchor not found")
+)
+
+// anchorForLeaf returns the anchor for a specific merkle leaf hash.
+func (t *tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
+	// Find the leaf for the provided merkle leaf hash
+	var l *trillian.LogLeaf
+	for i, v := range leaves {
+		if bytes.Equal(v.MerkleLeafHash, merkleLeafHash) {
+			l = v
+			// Sanity check
+			if l.LeafIndex != int64(i) {
+				return nil, fmt.Errorf("unexpected leaf index: got %v, want %v",
+					l.LeafIndex, i)
+			}
+			break
+		}
+	}
+	if l == nil {
+		return nil, fmt.Errorf("leaf not found")
+	}
+
+	// Find the first anchor that occurs after the leaf
+	var anchorKey string
+	for i := int(l.LeafIndex); i < len(leaves); i++ {
+		l := leaves[i]
+		if leafIsAnchor(l) {
+			anchorKey = extractKeyFromLeaf(l)
+			break
+		}
+	}
+	if anchorKey == "" {
+		// This record version has not been anchored yet
+		return nil, errAnchorNotFound
+	}
+
+	// Get the anchor record
+	blobs, err := t.store.Get([]string{anchorKey})
+	if err != nil {
+		return nil, fmt.Errorf("store Get: %v", err)
+	}
+	b, ok := blobs[anchorKey]
+	if !ok {
+		return nil, fmt.Errorf("blob not found %v", anchorKey)
+	}
+	be, err := store.Deblob(b)
+	if err != nil {
+		return nil, err
+	}
+	a, err := convertAnchorFromBlobEntry(*be)
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
+}
+
+// anchorLatest returns the most recent anchor for the provided tree. A
+// errAnchorNotFound is returned if no anchor is found for the provided tree.
+func (t *tlog) anchorLatest(treeID int64) (*anchor, error) {
+	// Get tree leaves
+	leavesAll, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+
+	// Find the most recent anchor leaf
+	var key string
+	for i := len(leavesAll) - 1; i >= 0; i-- {
+		if leafIsAnchor(leavesAll[i]) {
+			key = extractKeyFromLeaf(leavesAll[i])
+		}
+	}
+	if key == "" {
+		return nil, errAnchorNotFound
+	}
+
+	// Pull blob from key-value store
+	blobs, err := t.store.Get([]string{key})
+	if err != nil {
+		return nil, fmt.Errorf("store Get: %v", err)
+	}
+	if len(blobs) != 1 {
+		return nil, fmt.Errorf("unexpected blobs count: got %v, want 1",
+			len(blobs))
+	}
+	b, ok := blobs[key]
+	if !ok {
+		return nil, fmt.Errorf("blob not found %v", key)
+	}
+	be, err := store.Deblob(b)
+	if err != nil {
+		return nil, err
+	}
+	a, err := convertAnchorFromBlobEntry(*be)
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
 }
 
 // anchorSave saves an anchor to the key-value store and appends a log leaf
@@ -87,9 +191,10 @@ func (t *tlog) anchorSave(a anchor) error {
 		return err
 	}
 	prefixedKey := []byte(keyPrefixAnchorRecord + keys[0])
-	queued, _, err := t.trillian.leavesAppend(a.TreeID, []*trillian.LogLeaf{
+	leaves := []*trillian.LogLeaf{
 		newLogLeaf(h, prefixedKey),
-	})
+	}
+	queued, _, err := t.trillian.leavesAppend(a.TreeID, leaves)
 	if err != nil {
 		return fmt.Errorf("leavesAppend: %v", err)
 	}
@@ -112,63 +217,6 @@ func (t *tlog) anchorSave(a anchor) error {
 		t.id, a.TreeID, a.LogRoot.TreeSize)
 
 	return nil
-}
-
-var (
-	// errAnchorNotFound is emitted when a anchor is not found when
-	// requesting the anchor record from a tree.
-	errAnchorNotFound = errors.New("anchor not found")
-)
-
-// anchorLatest returns the most recent anchor for the provided tree. A
-// errAnchorNotFound is returned if no anchor is found for the provided tree.
-func (t *tlog) anchorLatest(treeID int64) (*anchor, error) {
-	// Get tree leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Find the most recent anchor leaf
-	var key string
-	for i := len(leavesAll) - 1; i >= 0; i-- {
-		if leafIsAnchor(leavesAll[i]) {
-			// Extract key-value store key
-			key, err = extractKeyFromLeaf(leavesAll[i])
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	if key == "" {
-		return nil, errAnchorNotFound
-	}
-
-	// Pull blob from key-value store
-	blobs, err := t.store.Get([]string{key})
-	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
-	}
-	if len(blobs) != 1 {
-		return nil, fmt.Errorf("unexpected blobs count: got %v, want 1",
-			len(blobs))
-	}
-
-	// Decode freeze record
-	b, ok := blobs[key]
-	if !ok {
-		return nil, fmt.Errorf("blob not found %v", key)
-	}
-	be, err := store.Deblob(b)
-	if err != nil {
-		return nil, err
-	}
-	a, err := convertAnchorFromBlobEntry(*be)
-	if err != nil {
-		return nil, err
-	}
-
-	return a, nil
 }
 
 // anchorWait waits for the anchor to drop. The anchor is not considered
@@ -341,11 +389,11 @@ func (t *tlog) anchorWait(anchors []anchor, digests []string) {
 		int(period.Minutes())*retries)
 }
 
-// anchor drops an anchor for any trees that have unanchored leaves at the time
-// of function invocation. A SHA256 digest of the tree's log root at its
+// anchorTrees drops an anchor for any trees that have unanchored leaves at the
+// time of function invocation. A SHA256 digest of the tree's log root at its
 // current height is timestamped onto the decred blockchain using the dcrtime
 // service. The anchor data is saved to the key-value store.
-func (t *tlog) anchor() {
+func (t *tlog) anchorTrees() {
 	log.Debugf("Start %v anchor process", t.id)
 
 	var exitErr error // Set on exit if there is an error

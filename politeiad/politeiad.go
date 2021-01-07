@@ -90,6 +90,48 @@ func convertBackendMetadataStream(mds backend.MetadataStream) v1.MetadataStream 
 	}
 }
 
+func convertBackendProof(p backend.Proof) v1.Proof {
+	return v1.Proof{
+		Type:       p.Type,
+		Digest:     p.Digest,
+		MerkleRoot: p.MerkleRoot,
+		MerklePath: p.MerklePath,
+		ExtraData:  p.ExtraData,
+	}
+}
+
+func convertBackendTimestamp(t backend.Timestamp) v1.Timestamp {
+	proofs := make([]v1.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, convertBackendProof(v))
+	}
+	return v1.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}
+}
+
+func convertBackendRecordTimestamps(rt backend.RecordTimestamps) v1.RecordTimestamps {
+	md := make(map[uint64]v1.Timestamp, len(rt.Metadata))
+	for k, v := range rt.Metadata {
+		md[k] = convertBackendTimestamp(v)
+	}
+	files := make(map[string]v1.Timestamp, len(rt.Files))
+	for k, v := range rt.Files {
+		files[k] = convertBackendTimestamp(v)
+	}
+	return v1.RecordTimestamps{
+		Token:          rt.Token,
+		Version:        rt.Version,
+		RecordMetadata: convertBackendTimestamp(rt.RecordMetadata),
+		Metadata:       md,
+		Files:          files,
+	}
+}
+
 // convertBackendStatus converts a backend MDStatus to an API status.
 func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
 	s := v1.RecordStatusInvalid
@@ -576,6 +618,110 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		}
 
 		log.Infof("Get vetted record %v: token %v", remoteAddr(r), t.Token)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) getUnvettedTimestamps(w http.ResponseWriter, r *http.Request) {
+	var t v1.GetUnvettedTimestamps
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	// Validate token
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
+		return
+	}
+
+	// Get timestamps
+	rt, err := p.backend.GetUnvettedTimestamps(token, t.Version)
+	switch {
+	case errors.Is(err, backend.ErrRecordNotFound):
+		// Record not found
+		log.Infof("Get unvetted timestamps %v: %v not found",
+			remoteAddr(r), t.Token)
+		p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
+		return
+
+	case err != nil:
+		// Generic internal error
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Get unvetted timestamps error code %v: %v",
+			remoteAddr(r), errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	log.Infof("Get unvetted timestamps %v: %v", remoteAddr(r), t.Token)
+
+	// Setup reply
+	response := p.identity.SignMessage(challenge)
+	reply := v1.GetUnvettedTimestampsReply{
+		Response:         hex.EncodeToString(response[:]),
+		RecordTimestamps: convertBackendRecordTimestamps(*rt),
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) getVettedTimestamps(w http.ResponseWriter, r *http.Request) {
+	var t v1.GetVettedTimestamps
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	// Validate token
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
+		return
+	}
+
+	// Get timestamps
+	rt, err := p.backend.GetVettedTimestamps(token, t.Version)
+	switch {
+	case errors.Is(err, backend.ErrRecordNotFound):
+		// Record not found
+		log.Infof("Get vetted timestamps %v: %v not found",
+			remoteAddr(r), t.Token)
+		p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
+		return
+
+	case err != nil:
+		// Generic internal error
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Get vetted timestamps error code %v: %v",
+			remoteAddr(r), errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	log.Infof("Get vetted timestamps %v: %v", remoteAddr(r), t.Token)
+
+	// Setup reply
+	response := p.identity.SignMessage(challenge)
+	reply := v1.GetVettedTimestampsReply{
+		Response:         hex.EncodeToString(response[:]),
+		RecordTimestamps: convertBackendRecordTimestamps(*rt),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -1227,6 +1373,10 @@ func _main() error {
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
 		permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetUnvettedTimestampsRoute,
+		p.getUnvettedTimestamps, permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetVettedTimestampsRoute,
+		p.getVettedTimestamps, permissionPublic)
 	p.addRoute(http.MethodPost, v1.InventoryByStatusRoute,
 		p.inventoryByStatus, permissionPublic)
 

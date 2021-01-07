@@ -355,10 +355,40 @@ func (p *politeiawww) getUnvetted(ctx context.Context, token, version string) (*
 	return &gur.Record, nil
 }
 
-// getUnvettedLatest returns the latest version of the unvetted record for the
-// provided token.
-func (p *politeiawww) getUnvettedLatest(ctx context.Context, token string) (*pd.Record, error) {
-	return p.getUnvetted(ctx, token, "")
+// getUnvettedTimestamps retrieves the timestamps for an unvetted record.
+func (p *politeiawww) getUnvettedTimestamps(ctx context.Context, token, version string) (*pd.RecordTimestamps, error) {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	gut := pd.GetUnvettedTimestamps{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     token,
+		Version:   version,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.GetUnvettedTimestampsRoute, gut)
+	if err != nil {
+		return nil, err
+	}
+
+	// Receive reply
+	var reply pd.GetUnvettedTimestampsReply
+	err = json.Unmarshal(resBody, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply.RecordTimestamps, nil
 }
 
 // getVetted retrieves a vetted record from politeiad.
@@ -397,10 +427,40 @@ func (p *politeiawww) getVetted(ctx context.Context, token, version string) (*pd
 	return &gvr.Record, nil
 }
 
-// getVettedLatest returns the latest version of the vetted record for the
-// provided token.
-func (p *politeiawww) getVettedLatest(ctx context.Context, token string) (*pd.Record, error) {
-	return p.getVetted(ctx, token, "")
+// getVettedTimestamps retrieves the timestamps for an unvetted record.
+func (p *politeiawww) getVettedTimestamps(ctx context.Context, token, version string) (*pd.RecordTimestamps, error) {
+	// Setup request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	gvt := pd.GetVettedTimestamps{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     token,
+		Version:   version,
+	}
+
+	// Send request
+	resBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.GetVettedTimestampsRoute, gvt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Receive reply
+	var reply pd.GetVettedTimestampsReply
+	err = json.Unmarshal(resBody, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply.RecordTimestamps, nil
 }
 
 // pluginInventory requests the plugin inventory from politeiad and returns

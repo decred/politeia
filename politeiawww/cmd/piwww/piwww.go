@@ -72,6 +72,9 @@ type piwww struct {
 	Proposals         proposalsCmd         `command:"proposals"`
 	ProposalInv       proposalInvCmd       `command:"proposalinv"`
 
+	// Record commands
+	RecordTimestamps recordTimestampsCmd `command:"recordtimestamps"`
+
 	// Comments commands
 	CommentNew    commentNewCmd    `command:"commentnew"`
 	CommentVote   commentVoteCmd   `command:"commentvote"`

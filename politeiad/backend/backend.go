@@ -149,6 +149,41 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
+// Proof contains an inclusion proof for the digest in the merkle root.
+type Proof struct {
+	Type       string
+	Digest     string
+	MerkleRoot string
+	MerklePath []string
+	ExtraData  string // JSON encoded
+}
+
+// Timestamp contains all of the data required to verify that a piece of record
+// content was timestamped onto the decred blockchain.
+//
+// All digests are hex encoded SHA256 digests. The merkle root can be found in
+// the OP_RETURN of the specified DCR transaction.
+//
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
+// been included in a DCR tx and the tx has 6 confirmations. The Data field
+// will not be populated if the data has been censored.
+type Timestamp struct {
+	Data       string // JSON encoded
+	Digest     string
+	TxID       string
+	MerkleRoot string
+	Proofs     []Proof
+}
+
+// RecordTimestamps contains a Timestamp for all record data.
+type RecordTimestamps struct {
+	Token          string // Censorship token
+	Version        string // Version of files
+	RecordMetadata Timestamp
+	Metadata       map[uint64]Timestamp // [metadataID]Timestamp
+	Files          map[string]Timestamp // [filename]Timestamp
+}
+
 // PluginSettings
 type PluginSetting struct {
 	Key   string // Name of setting
@@ -195,6 +230,14 @@ type Backend interface {
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
 
+	// Set unvetted record status
+	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
+		[]MetadataStream) (*Record, error)
+
+	// Set vetted record status
+	SetVettedStatus([]byte, MDStatusT, []MetadataStream,
+		[]MetadataStream) (*Record, error)
+
 	// Check if an unvetted record exists
 	UnvettedExists([]byte) bool
 
@@ -207,13 +250,11 @@ type Backend interface {
 	// Get vetted record
 	GetVetted([]byte, string) (*Record, error)
 
-	// Set unvetted record status
-	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (*Record, error)
+	// Get unvetted record content timestamps
+	GetUnvettedTimestamps([]byte, string) (*RecordTimestamps, error)
 
-	// Set vetted record status
-	SetVettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (*Record, error)
+	// Get vetted record content timestamps
+	GetVettedTimestamps([]byte, string) (*RecordTimestamps, error)
 
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, uint, bool, bool) ([]Record, []Record, error)

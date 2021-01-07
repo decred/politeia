@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,6 +23,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
@@ -72,7 +73,7 @@ func tokenIsValid(token string) bool {
 	switch {
 	case len(token) == pdv1.TokenPrefixLength:
 		// Token is a short proposal token
-	case len(token) == pdv1.TokenSizeShort*2:
+	case len(token) == pdv1.TokenSizeTlog*2:
 		// Token is a full length token
 	default:
 		// Unknown token size
@@ -92,7 +93,7 @@ func tokenIsFullLength(token string) bool {
 	if err != nil {
 		return false
 	}
-	if len(b) != pdv1.TokenSizeShort {
+	if len(b) != pdv1.TokenSizeTlog {
 		return false
 	}
 	return true
@@ -1252,6 +1253,19 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn piv1.ProposalNe
 	}, nil
 }
 
+// filenameIsMetadata returns whether the politeiad filename represents a pi
+// Metadata object. These are provided as user defined metadata in proposal
+// submissions but are stored as files in politeiad since they are part of the
+// merkle root that the user signs and must also be part of the merkle root
+// that politeiad signs.
+func filenameIsMetadata(filename string) bool {
+	switch filename {
+	case pi.FileNameProposalMetadata:
+		return true
+	}
+	return false
+}
+
 // filesToDel returns the names of the files that are included in current but
 // are not included in updated. These are the files that need to be deleted
 // from a proposal on update.
@@ -1557,6 +1571,17 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 func (p *politeiawww) processProposals(ctx context.Context, ps piv1.Proposals, isAdmin bool) (*piv1.ProposalsReply, error) {
 	log.Tracef("processProposals: %v", ps.Requests)
 
+	// Verify state
+	switch ps.State {
+	case piv1.PropStateUnvetted, piv1.PropStateVetted:
+		// Allowed; continue
+	default:
+		return nil, piv1.UserErrorReply{
+			ErrorCode: piv1.ErrorStatusPropStateInvalid,
+		}
+	}
+
+	// Get proposal records
 	props, err := p.proposalRecords(ctx, ps.State, ps.Requests, ps.IncludeFiles)
 	if err != nil {
 		return nil, err
@@ -1595,6 +1620,9 @@ func (p *politeiawww) processProposalInventory(ctx context.Context, inv piv1.Pro
 
 	// Determine if unvetted tokens should be returned
 	switch {
+	case u == nil:
+		// No user session. Remove unvetted.
+		pir.Unvetted = nil
 	case u.Admin:
 		// User is an admin. Return unvetted.
 	case inv.UserID == u.ID.String():
@@ -2581,6 +2609,9 @@ func (p *politeiawww) setPiRoutes() {
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposalSetStatus, p.handleProposalSetStatus,
 		permissionAdmin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteTimestamps, p.handleTimestamps,
+		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposals, p.handleProposals,
 		permissionPublic)

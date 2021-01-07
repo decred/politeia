@@ -205,12 +205,14 @@ func leafIsAnchor(l *trillian.LogLeaf) bool {
 	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixAnchorRecord))
 }
 
-func extractKeyFromLeaf(l *trillian.LogLeaf) (string, error) {
+func extractKeyFromLeaf(l *trillian.LogLeaf) string {
 	s := bytes.SplitAfter(l.ExtraData, []byte(":"))
 	if len(s) != 2 {
-		return "", fmt.Errorf("invalid key %s", l.ExtraData)
+		e := fmt.Sprintf("invalid key '%s' for leaf %x",
+			l.ExtraData, l.MerkleLeafHash)
+		panic(e)
 	}
-	return string(s[1]), nil
+	return string(s[1])
 }
 
 func convertBlobEntryFromFile(f backend.File) (*store.BlobEntry, error) {
@@ -380,6 +382,26 @@ func (t *tlog) encrypt(b []byte) ([]byte, error) {
 			"not set for tlog instance %v", t.id)
 	}
 	return t.encryptionKey.encrypt(0, b)
+}
+
+func (t *tlog) deblob(b []byte) (*store.BlobEntry, error) {
+	var err error
+	if t.encryptionKey != nil && blobIsEncrypted(b) {
+		b, _, err = t.encryptionKey.decrypt(b)
+		if err != nil {
+			return nil, err
+		}
+	}
+	be, err := store.Deblob(b)
+	if err != nil {
+		// Check if this is an encrypted blob that was not decrypted
+		if t.encryptionKey == nil && blobIsEncrypted(b) {
+			return nil, fmt.Errorf("blob is encrypted but no encryption " +
+				"key found to decrypt blob")
+		}
+		return nil, err
+	}
+	return be, nil
 }
 
 func (t *tlog) treeNew() (int64, error) {
@@ -618,12 +640,8 @@ func (t *tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) 
 	keys := make([]string, 0, 64)
 	for _, v := range leaves {
 		if leafIsRecordIndex(v) {
-			// This is a record index leaf. Extract they kv store key.
-			k, err := extractKeyFromLeaf(v)
-			if err != nil {
-				return nil, err
-			}
-			keys = append(keys, k)
+			// This is a record index leaf. Save the kv store key.
+			keys = append(keys, extractKeyFromLeaf(v))
 		}
 	}
 
@@ -649,7 +667,7 @@ func (t *tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) 
 
 	indexes := make([]recordIndex, 0, len(blobs))
 	for _, v := range blobs {
-		be, err := store.Deblob(v)
+		be, err := t.deblob(v)
 		if err != nil {
 			return nil, err
 		}
@@ -712,7 +730,9 @@ type recordBlobsPrepareReply struct {
 
 	// blobs contains the blobified record content that needs to be
 	// saved to the kv store. Hashes contains the hashes of the record
-	// content prior to being blobified.
+	// content prior to being blobified. These hashes are saved to
+	// trilian log leaves. The hashes are SHA256 hashes of the JSON
+	// encoded data.
 	//
 	// blobs and hashes share the same ordering.
 	blobs  [][]byte
@@ -1262,11 +1282,7 @@ func (t *tlog) recordDel(treeID int64) error {
 	for _, v := range leavesAll {
 		_, ok := merkles[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
-			key, err := extractKeyFromLeaf(v)
-			if err != nil {
-				return err
-			}
-			keys = append(keys, key)
+			keys = append(keys, extractKeyFromLeaf(v))
 		}
 	}
 
@@ -1394,14 +1410,8 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 			continue
 		}
 
-		// Leaf is part of record content. Extract the kv store key.
-		key, err := extractKeyFromLeaf(v)
-		if err != nil {
-			return nil, fmt.Errorf("extractKeyForRecordContent %x",
-				v.MerkleLeafHash)
-		}
-
-		keys = append(keys, key)
+		// Leaf is part of record content. Save the kv store key.
+		keys = append(keys, extractKeyFromLeaf(v))
 	}
 
 	// Get record content from store
@@ -1420,20 +1430,8 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	// Decode blobs
 	entries := make([]store.BlobEntry, 0, len(keys))
 	for _, v := range blobs {
-		var be *store.BlobEntry
-		if t.encryptionKey != nil && blobIsEncrypted(v) {
-			v, _, err = t.encryptionKey.decrypt(v)
-			if err != nil {
-				return nil, err
-			}
-		}
-		be, err := store.Deblob(v)
+		be, err := t.deblob(v)
 		if err != nil {
-			// Check if this is an encrypted blob that was not decrypted
-			if t.encryptionKey == nil && blobIsEncrypted(v) {
-				return nil, fmt.Errorf("blob is encrypted but no encryption " +
-					"key found to decrypt blob")
-			}
 			return nil, err
 		}
 		entries = append(entries, *be)
@@ -1524,8 +1522,181 @@ func (t *tlog) recordLatest(treeID int64) (*backend.Record, error) {
 	return t.record(treeID, 0)
 }
 
-// TODO implement recordProof
-func (t *tlog) recordProof(treeID int64, version uint32) {}
+// timestamp returns the timestamp for the data blob that corresponds to the
+// provided merkle leaf hash.
+func (t *tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
+	// Find the leaf
+	var l *trillian.LogLeaf
+	for _, v := range leaves {
+		if bytes.Equal(merkleLeafHash, v.MerkleLeafHash) {
+			l = v
+			break
+		}
+	}
+	if l == nil {
+		return nil, fmt.Errorf("leaf not found")
+	}
+
+	// Get blob entry from the kv store
+	key := extractKeyFromLeaf(l)
+	blobs, err := t.store.Get([]string{key})
+	if err != nil {
+		return nil, fmt.Errorf("store get: %v", err)
+	}
+
+	// Extract the data blob. Its possible for the data blob to not
+	// exist if has been censored. This is ok. We'll still return the
+	// rest of the timestamp.
+	var data []byte
+	if len(blobs) == 1 {
+		b, ok := blobs[key]
+		if !ok {
+			return nil, fmt.Errorf("blob not found %v", key)
+		}
+		be, err := t.deblob(b)
+		if err != nil {
+			return nil, err
+		}
+		data, err = base64.StdEncoding.DecodeString(be.Data)
+		if err != nil {
+			return nil, err
+		}
+		// Sanity check
+		if !bytes.Equal(l.LeafValue, util.Digest(data)) {
+			return nil, fmt.Errorf("data digest does not match leaf value")
+		}
+	}
+
+	// Setup timestamp
+	ts := backend.Timestamp{
+		Data:   string(data),
+		Digest: hex.EncodeToString(l.LeafValue),
+	}
+
+	// Get the anchor record for this leaf
+	a, err := t.anchorForLeaf(treeID, merkleLeafHash, leaves)
+	if err != nil {
+		if err == errAnchorNotFound {
+			// This data has not been anchored yet
+			return &ts, nil
+		}
+		return nil, fmt.Errorf("anchor: %v", err)
+	}
+
+	// Get trillian inclusion proof
+	p, err := t.trillian.inclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
+	if err != nil {
+		return nil, fmt.Errorf("inclusionProof %v %x: %v",
+			treeID, l.MerkleLeafHash, err)
+	}
+
+	// Setup proof for data digest inclusion in the log merkle root
+	ed := ExtraDataTrillianRFC6962{
+		LeafIndex: p.LeafIndex,
+		TreeSize:  int64(a.LogRoot.TreeSize),
+	}
+	extraData, err := json.Marshal(ed)
+	if err != nil {
+		return nil, err
+	}
+	merklePath := make([]string, 0, len(p.Hashes))
+	for _, v := range p.Hashes {
+		merklePath = append(merklePath, hex.EncodeToString(v))
+	}
+	trillianProof := backend.Proof{
+		Type:       ProofTypeTrillianRFC6962,
+		Digest:     ts.Digest,
+		MerkleRoot: hex.EncodeToString(a.LogRoot.RootHash),
+		MerklePath: merklePath,
+		ExtraData:  string(extraData),
+	}
+
+	// Setup proof for log merkle root inclusion in the dcrtime merkle
+	// root
+	if a.VerifyDigest.Digest != trillianProof.MerkleRoot {
+		return nil, fmt.Errorf("trillian merkle root not anchored")
+	}
+	hashes := a.VerifyDigest.ChainInformation.MerklePath.Hashes
+	merklePath = make([]string, 0, len(hashes))
+	for _, v := range hashes {
+		merklePath = append(merklePath, hex.EncodeToString(v[:]))
+	}
+	dcrtimeProof := backend.Proof{
+		Type:       ProofTypeDcrtime,
+		Digest:     a.VerifyDigest.Digest,
+		MerkleRoot: a.VerifyDigest.ChainInformation.MerkleRoot,
+		MerklePath: merklePath,
+	}
+
+	// Update timestamp
+	ts.TxID = a.VerifyDigest.ChainInformation.Transaction
+	ts.MerkleRoot = a.VerifyDigest.ChainInformation.MerkleRoot
+	ts.Proofs = []backend.Proof{
+		trillianProof,
+		dcrtimeProof,
+	}
+
+	// Verify timestamp
+	err = VerifyTimestamp(ts)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyTimestamp: %v", err)
+	}
+
+	return &ts, nil
+}
+
+func (t *tlog) recordTimestamps(treeID int64, version uint32, token []byte) (*backend.RecordTimestamps, error) {
+	log.Tracef("%v recordTimestamps: %v %v", t.id, treeID, version)
+
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return nil, errRecordNotFound
+	}
+
+	// Get record index
+	leaves, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
+	}
+	idx, err := t.recordIndexVersion(leaves, version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get record metadata timestamp
+	rm, err := t.timestamp(treeID, idx.RecordMetadata, leaves)
+	if err != nil {
+		return nil, fmt.Errorf("record metadata timestamp: %v", err)
+	}
+
+	// Get metadata timestamps
+	metadata := make(map[uint64]backend.Timestamp, len(idx.Metadata))
+	for k, v := range idx.Metadata {
+		ts, err := t.timestamp(treeID, v, leaves)
+		if err != nil {
+			return nil, fmt.Errorf("metadata %v timestamp: %v", k, err)
+		}
+		metadata[k] = *ts
+	}
+
+	// Get file timestamps
+	files := make(map[string]backend.Timestamp, len(idx.Files))
+	for k, v := range idx.Files {
+		ts, err := t.timestamp(treeID, v, leaves)
+		if err != nil {
+			return nil, fmt.Errorf("file %v timestamp: %v", k, err)
+		}
+		files[k] = *ts
+	}
+
+	return &backend.RecordTimestamps{
+		Token:          hex.EncodeToString(token),
+		Version:        strconv.FormatUint(uint64(version), 10),
+		RecordMetadata: *rm,
+		Metadata:       metadata,
+		Files:          files,
+	}, nil
+}
 
 // blobsSave saves the provided blobs to the key-value store then appends them
 // onto the trillian tree. Note, hashes contains the hashes of the data encoded
@@ -1534,6 +1705,12 @@ func (t *tlog) recordProof(treeID int64, version uint32) {}
 // This function satisfies the tlogClient interface.
 func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
 	log.Tracef("%v blobsSave: %v %v %v", t.id, treeID, keyPrefix, encrypt)
+
+	// Sanity check
+	if len(blobs) != len(hashes) {
+		return nil, fmt.Errorf("blob count and hashes count mismatch: "+
+			"got %v blobs, %v hashes", len(blobs), len(hashes))
+	}
 
 	// Verify tree exists
 	if !t.treeExists(treeID) {
@@ -1644,11 +1821,7 @@ func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 	for _, v := range leaves {
 		_, ok := merkleHashes[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
-			key, err := extractKeyFromLeaf(v)
-			if err != nil {
-				return err
-			}
-			keys = append(keys, key)
+			keys = append(keys, extractKeyFromLeaf(v))
 		}
 	}
 
@@ -1711,11 +1884,7 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 		if !ok {
 			return nil, fmt.Errorf("leaf not found for merkle hash: %x", v)
 		}
-		k, err := extractKeyFromLeaf(l)
-		if err != nil {
-			return nil, err
-		}
-		keys = append(keys, k)
+		keys = append(keys, extractKeyFromLeaf(l))
 	}
 
 	// Pull the blobs from the store. If is ok if one or more blobs is
@@ -1776,11 +1945,7 @@ func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error
 	keys := make([]string, 0, len(leaves))
 	for _, v := range leaves {
 		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
-			k, err := extractKeyFromLeaf(v)
-			if err != nil {
-				return nil, err
-			}
-			keys = append(keys, k)
+			keys = append(keys, extractKeyFromLeaf(v))
 		}
 	}
 
@@ -1906,7 +2071,7 @@ func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyF
 	// Launch cron
 	log.Infof("Launch %v cron anchor job", id)
 	err = t.cron.AddFunc(anchorSchedule, func() {
-		t.anchor()
+		t.anchorTrees()
 	})
 	if err != nil {
 		return nil, err

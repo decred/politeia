@@ -21,15 +21,17 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute               = "/v1/identity/"          // Retrieve identity
-	NewRecordRoute              = "/v1/newrecord/"         // New record
-	UpdateUnvettedRoute         = "/v1/updateunvetted/"    // Update unvetted record
-	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
-	UpdateVettedRoute           = "/v1/updatevetted/"      // Update vetted record
-	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"    // Update vetted metadata
-	GetUnvettedRoute            = "/v1/getunvetted/"       // Retrieve unvetted record
-	GetVettedRoute              = "/v1/getvetted/"         // Retrieve vetted record
-	InventoryByStatusRoute      = "/v1/inventorybystatus/" // Inventory record tokens by status
+	IdentityRoute               = "/v1/identity/"         // Retrieve identity
+	NewRecordRoute              = "/v1/newrecord/"        // New record
+	UpdateUnvettedRoute         = "/v1/updateunvetted/"   // Update unvetted record
+	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/" // Update unvetted metadata
+	UpdateVettedRoute           = "/v1/updatevetted/"     // Update vetted record
+	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
+	GetUnvettedRoute            = "/v1/getunvetted/"      // Retrieve unvetted record
+	GetVettedRoute              = "/v1/getvetted/"        // Retrieve vetted record
+	GetUnvettedTimestampsRoute  = "/v1/getunvettedts"
+	GetVettedTimestampsRoute    = "/v1/getvettedts"
+	InventoryByStatusRoute      = "/v1/inventorybystatus/"
 
 	// Auth required
 	InventoryRoute         = "/v1/inventory/"                  // Inventory records
@@ -42,8 +44,8 @@ const (
 
 	// Token sizes. The size of the token depends on the politeiad
 	// backend configuration.
-	TokenSizeShort = 10
-	TokenSizeLong  = 32
+	TokenSizeTlog = 8
+	TokenSizeGit  = 32
 
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
@@ -357,6 +359,72 @@ type UpdateUnvettedMetadata struct {
 // UpdateUnvettedMetadataReply returns a response challenge.
 type UpdateUnvettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
+}
+
+// Proof contains an inclusion proof for the digest in the merkle root.
+type Proof struct {
+	Type       string   `json:"type"`
+	Digest     string   `json:"digest"`
+	MerkleRoot string   `json:"merkleroot"`
+	MerklePath []string `json:"merklepath"`
+	ExtraData  string   `json:"extradata"` // JSON encoded
+}
+
+// Timestamp contains all of the data required to verify that a piece of record
+// content was timestamped onto the decred blockchain.
+//
+// All digests are hex encoded SHA256 digests. The merkle root can be found in
+// the OP_RETURN of the specified DCR transaction.
+//
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
+// been included in a DCR tx and the tx has 6 confirmations. The Data field
+// will not be populated if the data has been censored.
+type Timestamp struct {
+	Data       string  `json:"data"` // JSON encoded
+	Digest     string  `json:"digest"`
+	TxID       string  `json:"txid"`
+	MerkleRoot string  `json:"merkleroot"`
+	Proofs     []Proof `json:"proofs"`
+}
+
+// RecordTimestamps contains a Timestamp for all record files
+type RecordTimestamps struct {
+	Token          string    `json:"token"`   // Censorship token
+	Version        string    `json:"version"` // Version of files
+	RecordMetadata Timestamp `json:"recordmetadata"`
+
+	// map[metadataID]Timestamp
+	Metadata map[uint64]Timestamp `json:"metadata"`
+
+	// map[filename]Timestamp
+	Files map[string]Timestamp `json:"files"`
+}
+
+// GetUnvettedTimestamps requests the timestamps for an unvetted record.
+type GetUnvettedTimestamps struct {
+	Challenge string `json:"challenge"` // Random challenge
+	Token     string `json:"token"`     // Censorship token
+	Version   string `json:"version"`   // Record version
+}
+
+// GetUnvettedTimestampsReply is the reply to the GetUnvettedTimestamps
+// command.
+type GetUnvettedTimestampsReply struct {
+	Response         string           `json:"response"` // Challenge response
+	RecordTimestamps RecordTimestamps `json:"timestamp"`
+}
+
+// GetVettedTimestamps requests the timestamps for a vetted record.
+type GetVettedTimestamps struct {
+	Challenge string `json:"challenge"` // Random challenge
+	Token     string `json:"token"`     // Censorship token
+	Version   string `json:"version"`   // Record version
+}
+
+// GetVettedTimestampsReply is the reply to the GetVettedTimestamps command.
+type GetVettedTimestampsReply struct {
+	Response         string           `json:"response"` // Challenge response
+	RecordTimestamps RecordTimestamps `json:"timestamp"`
 }
 
 // Inventory sends an (expensive and therefore authenticated) inventory request

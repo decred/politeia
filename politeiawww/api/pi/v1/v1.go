@@ -12,7 +12,6 @@ type CommentVoteT int
 type VoteStatusT int
 type VoteAuthActionT string
 type VoteT int
-type VoteErrorT int
 
 // TODO verify that all batched request have a page size limit
 // TODO comments count and linked from should be pulled out of the proposal
@@ -109,19 +108,6 @@ const (
 type ErrorStatusT int
 
 const (
-	// Cast vote errors
-	// TODO these need human readable equivalents
-	VoteErrorInvalid             VoteErrorT = 0
-	VoteErrorInternalError       VoteErrorT = 1
-	VoteErrorTokenInvalid        VoteErrorT = 2
-	VoteErrorRecordNotFound      VoteErrorT = 3
-	VoteErrorMultipleRecordVotes VoteErrorT = 4
-	VoteErrorVoteStatusInvalid   VoteErrorT = 5
-	VoteErrorVoteBitInvalid      VoteErrorT = 6
-	VoteErrorSignatureInvalid    VoteErrorT = 7
-	VoteErrorTicketNotEligible   VoteErrorT = 8
-	VoteErrorTicketAlreadyVoted  VoteErrorT = 9
-
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
 	ErrorStatusInputInvalid     ErrorStatusT = 1
@@ -816,6 +802,25 @@ type VoteStartReply struct {
 	EndBlockHeight   uint32   `json:"endblockheight"`
 	EligibleTickets  []string `json:"eligibletickets"`
 }
+
+// VoteErrorT represents an error that occurred while attempting to cast a
+// ticket vote.
+type VoteErrorT int
+
+const (
+	// Cast vote errors
+	// TODO these need human readable equivalents
+	VoteErrorInvalid             VoteErrorT = 0
+	VoteErrorInternalError       VoteErrorT = 1
+	VoteErrorTokenInvalid        VoteErrorT = 2
+	VoteErrorRecordNotFound      VoteErrorT = 3
+	VoteErrorMultipleRecordVotes VoteErrorT = 4
+	VoteErrorVoteStatusInvalid   VoteErrorT = 5
+	VoteErrorVoteBitInvalid      VoteErrorT = 6
+	VoteErrorSignatureInvalid    VoteErrorT = 7
+	VoteErrorTicketNotEligible   VoteErrorT = 8
+	VoteErrorTicketAlreadyVoted  VoteErrorT = 9
+)
 
 // CastVote is a signed ticket vote.
 type CastVote struct {
