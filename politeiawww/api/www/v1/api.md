@@ -19,6 +19,7 @@ notifications.  It does not render HTML.
 - [`Logout`](#logout)
 - [`User details`](#user-details)
 - [`Edit user`](#edit-user)
+- [`Manage user`](#manage-user)
 - [`Users`](#users)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
@@ -28,6 +29,7 @@ notifications.  It does not render HTML.
 - [`User proposal credits`](#user-proposal-credits)
 - [`Proposal paywall details`](#proposal-paywall-details)
 - [`Verify user payment`](#verify-user-payment)
+- [`Rescan user payments`](#rescan-user-payments)
 
 **Proposal Routes**
 - [`Token inventory`](#token-inventory)
@@ -532,7 +534,7 @@ Reply:
 
 Checks that a user has paid his user registration fee.
 
-**Route:** `GET /v1/user/verifypayment`
+**Route:** `GET /v1/user/payments/registration`
 
 **Params:** none
 
@@ -554,7 +556,7 @@ error codes:
 Request:
 
 ```
-/v1/user/verifypayment
+/v1/user/payments/registration
 ```
 
 Reply:
@@ -565,6 +567,58 @@ Reply:
   "paywalladdress":"",
   "paywallamount":"",
   "paywalltxnotbefore":""
+}
+```
+
+### `Rescan user payments`
+
+Rescan payments made by the user.
+
+**Route:** `GET /v1/user/payments/rescan`
+
+**Params:**
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| userid | string | The unique id of the user. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| newcredits | []ProposalCredits | Contains information about the user's
+proposal credits payments` |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```
+/v1/user/payments/rescan
+```
+Request:
+
+```json
+{
+  "userid": "1"
+}
+```
+
+Reply:
+
+```json
+{
+  "newcredits": [
+    {
+      "paywallid": 1,
+      "price": 10000000,
+      "datepurchased": 1528821554,
+      "txid": "ff0207a03b761cb409c7677c5b5521562302653d2236c92d016dd47e0ae37bf7",
+    },
+  ]
 }
 ```
 
@@ -678,8 +732,41 @@ For a unlogged or normal user requesting data.
   }
 }
 ```
-
 ### `Edit user`
+
+Edits a user's details. This call requires login privileges.
+
+**Route:** `POST /v1/user/edit`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| emailnotifications | uint64 | The unique id of the user. | Yes |
+
+**Results:** none
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```json
+{
+  "emailnotifications": 2,
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Manage user`
 
 Edits a user's details. This call requires admin privileges.
 
@@ -1025,7 +1112,7 @@ politeiawww polls the paywall address until the paywall is either paid or it
 expires. A proposal paywall cannot be generated until the user has paid their
 user registration fee.
 
-**Route:** `GET /v1/proposals/paywall`
+**Route:** `GET /v1/user/payments/paywall`
 
 **Params:** none
 
@@ -1058,10 +1145,54 @@ Reply:
 }
 ```
 
+### `Proposal paywall tx details`
+Retrieve paywall details that can be used to purchase proposal credits.
+Proposal paywalls are only valid for one tx.  The user can purchase as many
+proposal credits as they would like with that one tx. Proposal paywalls expire
+after a set duration.  To verify that a payment has been made,
+politeiawww polls the paywall address until the paywall is either paid or it
+expires. A proposal paywall cannot be generated until the user has paid their
+user registration fee.
+
+**Route:** `GET /v1/user/payments/paywalltx`
+
+**Params:**
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| userid | string | The unique id of the user. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| txid | string | Transaction id. |
+| txamount | uint64 | Transaction amount in atoms. |
+| confirmations | uint64 | Confirmations the transaction had on the network |
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "1"
+}
+```
+
+Reply:
+
+```json
+{
+  "txid": "ff0207a03b761cb409c7677c5b5521562302653d2236c92d016dd47e0ae37bf7",
+  "txamount": 10000000,
+  "confirmations": 2
+}
+```
+
 ### `User proposal credits`
 Request a list of the user's unspent and spent proposal credits.
 
-**Route:** `GET /v1/user/proposals/credits`
+**Route:** `GET /v1/user/payments/credits`
 
 **Params:** none
 
