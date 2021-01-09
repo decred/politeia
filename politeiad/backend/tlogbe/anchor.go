@@ -12,14 +12,14 @@ import (
 	"time"
 
 	dcrtime "github.com/decred/dcrtime/api/v2"
+	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
-	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/types"
 	"google.golang.org/grpc/codes"
 )
 
-// TODO handle reorgs. A anchor record may become invalid in the case of a
+// TODO handle reorgs. An anchor record may become invalid in the case of a
 // reorg. We don't create the anchor record until the anchor tx has 6
 // confirmations so the probability of this occurring on mainnet is low, but it
 // still needs to be handled.
@@ -29,6 +29,7 @@ const (
 	// currently drops an anchor on the hour mark so we submit new
 	// anchors a few minutes prior to that.
 	// Seconds Minutes Hours Days Months DayOfWeek
+
 	anchorSchedule = "0 56 * * * *" // At minute 56 of every hour
 
 	// anchorID is included in the timestamp and verify requests as a
@@ -37,8 +38,12 @@ const (
 )
 
 // anchor represents an anchor, i.e. timestamp, of a trillian tree at a
-// specific tree size. A SHA256 digest of the LogRoot is timestamped using
-// dcrtime.
+// specific tree size. The LogRootV1.RootHash is the merkle root hash of a
+// trillian tree. This root hash is submitted to dcrtime to be anchored and is
+// the anchored digest in the VerifyDigest. Only the root hash is anchored, but
+// the full LogRootV1 struct is saved as part of an anchor record so that it
+// can be used to retreive inclusion proofs for any leaves that were included
+// in the root hash.
 type anchor struct {
 	TreeID       int64                 `json:"treeid"`
 	LogRoot      *types.LogRootV1      `json:"logroot"`
@@ -172,7 +177,7 @@ func (t *tlog) anchorLatest(treeID int64) (*anchor, error) {
 // confirmations. Once the timestamp has been dropped, the anchor record is
 // saved to the key-value store and the record histories of the corresponding
 // timestamped trees are updated.
-func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
+func (t *tlog) anchorWait(anchors []anchor, digests []string) {
 	// Ensure we are not reentrant
 	t.Lock()
 	if t.droppingAnchor {
@@ -219,20 +224,35 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 
 		log.Debugf("Verify %v anchor attempt %v/%v", t.id, try+1, retries)
 
-		vbr, err := t.dcrtime.verifyBatch(anchorID, hashes)
+		vbr, err := t.dcrtime.verifyBatch(anchorID, digests)
 		if err != nil {
 			exitErr = fmt.Errorf("verifyBatch: %v", err)
 			return
 		}
 
-		// Make sure we're actually anchored
-		var retry bool
+		// We must wait until all digests have been anchored. Under
+		// normal circumstances this will happen during the same dcrtime
+		// transaction, but its possible for some of the digests to have
+		// already been anchored in previous transactions if politeiad
+		// was shutdown in the middle of the anchoring process.
+		//
+		// Ex: politeiad submits a digest for treeA to dcrtime. politeiad
+		// gets shutdown before an anchor record is added to treeA.
+		// dcrtime timestamps the treeA digest onto block 1000. politeiad
+		// gets turned back on and a new record, treeB, is submitted
+		// prior to an anchor drop attempt. On the next anchor drop,
+		// politeiad will try to drop an anchor for both treeA and treeB
+		// since treeA is still considered unachored, however, when this
+		// part of the code gets hit dcrtime will immediately return a
+		// valid timestamp for treeA since it was already timestamped
+		// into block 1000. In this situation, the verify loop must also
+		// wait for treeB to be timestamped by dcrtime before continuing.
+		anchored := make(map[string]struct{}, len(digests))
 		for _, v := range vbr.Digests {
 			if v.Result != dcrtime.ResultOK {
 				// Something is wrong. Log the error and retry.
 				log.Errorf("Digest %v: %v (%v)",
 					v.Digest, dcrtime.Result[v.Result], v.Result)
-				retry = true
 				break
 			}
 
@@ -241,7 +261,6 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 			b := make([]byte, sha256.Size)
 			if v.ChainInformation.Transaction == hex.EncodeToString(b) {
 				log.Debugf("Anchor tx not sent yet; retry in %v", period)
-				retry = true
 				break
 			}
 
@@ -250,34 +269,61 @@ func (t *tlog) anchorWait(anchors []anchor, hashes []string) {
 			if v.ChainInformation.ChainTimestamp == 0 {
 				log.Debugf("Anchor tx %v not enough confirmations; retry in %v",
 					v.ChainInformation.Transaction, period)
-				retry = true
 				break
 			}
+
+			// This digest has been anchored
+			anchored[v.Digest] = struct{}{}
 		}
-		if retry {
+		if len(anchored) != len(digests) {
+			// There are still digests that are waiting to be anchored.
+			// Retry again after the wait period.
 			continue
 		}
 
 		// Save anchor records
 		for k, v := range anchors {
-			// Sanity checks. Anchor log root digest should match digest
-			// that was anchored.
-			b, err := v.LogRoot.MarshalBinary()
-			if err != nil {
-				log.Errorf("anchorWait: MarshalBinary %v %x: %v",
-					v.TreeID, v.LogRoot.RootHash, err)
-				continue
-			}
-			anchorDigest := hex.EncodeToString(util.Hash(b)[:])
-			dcrtimeDigest := vbr.Digests[k].Digest
-			if anchorDigest != dcrtimeDigest {
+			var (
+				verifyDigest = vbr.Digests[k]
+				digest       = verifyDigest.Digest
+				merkleRoot   = verifyDigest.ChainInformation.MerkleRoot
+				merklePath   = verifyDigest.ChainInformation.MerklePath
+			)
+
+			// Verify the anchored digest matches the root hash
+			if digest != hex.EncodeToString(v.LogRoot.RootHash) {
 				log.Errorf("anchorWait: digest mismatch: got %x, want %v",
-					dcrtimeDigest, anchorDigest)
+					digest, v.LogRoot.RootHash)
 				continue
 			}
 
-			// Add VerifyDigest to anchor before saving it
-			v.VerifyDigest = &vbr.Digests[k]
+			// Verify merkle path
+			mk, err := merkle.VerifyAuthPath(&merklePath)
+			if err != nil {
+				log.Errorf("anchorWait: VerifyAuthPath: %v", err)
+				continue
+			}
+			if hex.EncodeToString(mk[:]) != merkleRoot {
+				log.Errorf("anchorWait: merkle root invalid: got %x, want %v",
+					mk[:], merkleRoot)
+				continue
+			}
+
+			// Verify digest is in the merkle path
+			var found bool
+			for _, v := range merklePath.Hashes {
+				if hex.EncodeToString(v[:]) == digest {
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Errorf("anchorWait: digest %v not found in merkle path", digest)
+				continue
+			}
+
+			// Add VerifyDigest to the anchor record
+			v.VerifyDigest = &verifyDigest
 
 			// Save anchor
 			err = t.anchorSave(v)
@@ -315,9 +361,9 @@ func (t *tlog) anchor() {
 		return
 	}
 
-	// digests contains the SHA256 digests of the log roots of the
-	// trees that need to be anchored. These will be submitted to
-	// dcrtime to be included in a dcrtime timestamp.
+	// digests contains the SHA256 digests of the LogRootV1.RootHash
+	// for all trees that need to be anchored. These will be submitted
+	// to dcrtime to be included in a dcrtime timestamp.
 	digests := make([]string, 0, len(trees))
 
 	// anchors contains an anchor structure for each tree that is being
@@ -382,15 +428,9 @@ func (t *tlog) anchor() {
 			LogRoot: lr,
 		})
 
-		// Collate the log root digest. This is what gets submitted to
+		// Collate the tree's root hash. This is what gets submitted to
 		// dcrtime.
-		lrb, err := lr.MarshalBinary()
-		if err != nil {
-			exitErr = fmt.Errorf("MarshalBinary %v: %v", v.TreeId, err)
-			return
-		}
-		d := hex.EncodeToString(util.Hash(lrb)[:])
-		digests = append(digests, d)
+		digests = append(digests, hex.EncodeToString(lr.RootHash))
 
 		log.Debugf("Anchoring %v tree %v at height %v",
 			t.id, v.TreeId, lr.TreeSize)
@@ -432,11 +472,9 @@ func (t *tlog) anchor() {
 		case dcrtime.ResultOK:
 			// We're good; continue
 		case dcrtime.ResultExistsError:
-			// I don't think this will ever happen, but it's ok if it does
-			// since we'll still be able to retrieve the VerifyDigest from
-			// dcrtime for this digest.
-			//
-			// Log a warning to bring it to our attention. Do not exit.
+			// This can happen if politeiad was shutdown in the middle of
+			// an anchor process. This is ok. The anchor process will pick
+			// up where it left off.
 			log.Warnf("Digest already exists %v: %v (%v)",
 				tbr.Digests[i], dcrtime.Result[v], v)
 		default:
