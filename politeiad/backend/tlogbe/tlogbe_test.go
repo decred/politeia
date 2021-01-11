@@ -62,11 +62,11 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Test all record content verification error through the
@@ -102,7 +102,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 	// test case: Token not full length
 	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Record not found
@@ -111,16 +111,16 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 	// test case: Frozen tree
 	recFrozen, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenFrozen, err := tokenDecode(recFrozen.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	err = tlogBackend.unvetted.treeFreeze(treeIDFromToken(tokenFrozen),
 		backend.RecordMetadata{}, []backend.MetadataStream{}, 0)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Setup UpdateUnvettedRecord tests
@@ -228,18 +228,18 @@ func TestUpdateVettedRecord(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 2, ""))
 
 	// Publish the created record
 	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Test all record content verification error through the
@@ -284,22 +284,22 @@ func TestUpdateVettedRecord(t *testing.T) {
 	// test case: Frozen tree
 	recFrozen, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenFrozen, err := tokenDecode(recFrozen.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 3, ""))
 	err = tlogBackend.unvettedPublish(tokenFrozen, *recFrozen, md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	treeIDFrozenVetted := tlogBackend.vettedTreeIDs[recFrozen.Token]
 	err = tlogBackend.vetted.treeFreeze(treeIDFrozenVetted,
 		backend.RecordMetadata{}, []backend.MetadataStream{}, 0)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Setup UpdateVettedRecord tests
@@ -407,11 +407,11 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Test all record content verification error through the
@@ -438,7 +438,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 	// test case: Token not full length
 	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Record not found
@@ -447,16 +447,16 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 	// test case: Frozen tree
 	recFrozen, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenFrozen, err := tokenDecode(recFrozen.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	err = tlogBackend.unvetted.treeFreeze(treeIDFromToken(tokenFrozen),
 		backend.RecordMetadata{}, []backend.MetadataStream{}, 0)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Setup UpdateUnvettedMetadata tests
@@ -577,16 +577,16 @@ func TestUpdateVettedMetadata(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 2, ""))
 	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Test all record content verification error through the
@@ -613,7 +613,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 	// test case: Token not full length
 	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Record not found
@@ -622,22 +622,22 @@ func TestUpdateVettedMetadata(t *testing.T) {
 	// test case: Frozen tree
 	recFrozen, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenFrozen, err := tokenDecode(recFrozen.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 3, ""))
 	err = tlogBackend.unvettedPublish(tokenFrozen, *recFrozen, md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	treeIDFrozenVetted := tlogBackend.vettedTreeIDs[recFrozen.Token]
 	err = tlogBackend.vetted.treeFreeze(treeIDFrozenVetted,
 		backend.RecordMetadata{}, []backend.MetadataStream{}, 0)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Setup UpdateVettedMetadata tests
@@ -753,11 +753,11 @@ func TestUnvettedExists(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Random token
@@ -790,26 +790,26 @@ func TestVettedExists(t *testing.T) {
 	}
 	unvetted, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenUnvetted, err := tokenDecode(unvetted.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Create vetted record
 	vetted, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenVetted, err := tokenDecode(vetted.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 2, ""))
 	err = tlogBackend.unvettedPublish(tokenVetted, *vetted, md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Run VettedExists test cases
@@ -817,12 +817,12 @@ func TestVettedExists(t *testing.T) {
 	// Record exists
 	result := tlogBackend.VettedExists(tokenVetted)
 	if result == false {
-		t.Errorf("got false, want true")
+		t.Fatal("got false, want true")
 	}
 	// Record does not exist
 	result = tlogBackend.VettedExists(tokenUnvetted)
 	if result == true {
-		t.Errorf("got true, want false")
+		t.Fatal("got true, want false")
 	}
 }
 
@@ -839,11 +839,11 @@ func TestGetUnvetted(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Random token
@@ -881,16 +881,16 @@ func TestGetVetted(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	token, err := tokenDecode(rec.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 2, ""))
 	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Random token
@@ -932,20 +932,20 @@ func TestSetUnvettedStatus(t *testing.T) {
 	// test case: Unvetted to archived
 	recUnvetToArch, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenUnvetToArch, err := tokenDecode(recUnvetToArch.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	// test case: Unvetted to unvetted
 	recUnvetToUnvet, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenUnvetToUnvet, err := tokenDecode(recUnvetToUnvet.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Valid status transitions
@@ -953,27 +953,27 @@ func TestSetUnvettedStatus(t *testing.T) {
 	// test case: Unvetted to vetted
 	recUnvetToVet, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenUnvetToVet, err := tokenDecode(recUnvetToVet.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	// test case: Unvetted to censored
 	recUnvetToCensored, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenUnvetToCensored, err := tokenDecode(recUnvetToCensored.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Token not full length
 	tokenShort, err := util.ConvertStringToken(
 		util.TokenToPrefix(recUnvetToVet.Token))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Record not found
@@ -1097,33 +1097,33 @@ func TestSetVettedStatus(t *testing.T) {
 	// test case: Vetted to unvetted
 	recVetToUnvet, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenVetToUnvet, err := tokenDecode(recVetToUnvet.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	md = append(md, newBackendMetadataStream(t, 2, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToUnvet,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	// test case: Vetted to vetted
 	recVetToVet, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenVetToVet, err := tokenDecode(recVetToVet.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 3, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToVet,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Valid status transitions
@@ -1131,39 +1131,39 @@ func TestSetVettedStatus(t *testing.T) {
 	// test case: Vetted to archived
 	recVetToArch, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenVetToArch, err := tokenDecode(recVetToArch.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 4, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToArch,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	// test case: Vetted to censored
 	recVetToCensored, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	tokenVetToCensored, err := tokenDecode(recVetToCensored.Token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	md = append(md, newBackendMetadataStream(t, 5, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToCensored,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Token not full length
 	tokenShort, err := util.ConvertStringToken(
 		util.TokenToPrefix(recVetToCensored.Token))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// test case: Record not found

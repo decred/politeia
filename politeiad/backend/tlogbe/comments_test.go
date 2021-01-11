@@ -43,7 +43,7 @@ func TestCmdNew(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Helpers
@@ -54,7 +54,7 @@ func TestCmdNew(t *testing.T) {
 
 	uid, err := identity.New()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Setup new comment plugin tests
@@ -200,6 +200,286 @@ func TestCmdNew(t *testing.T) {
 
 			// Execute plugin command
 			_, err = commentsPlugin.cmdNew(string(ncEncoded))
+
+			// Parse plugin user error
+			var pluginUserError backend.PluginUserError
+			if errors.As(err, &pluginUserError) {
+				if test.wantErr == nil {
+					t.Errorf("got error %v, want nil", err)
+					return
+				}
+				if pluginUserError.ErrorCode != test.wantErr.ErrorCode {
+					t.Errorf("got error %v, want %v",
+						pluginUserError.ErrorCode,
+						test.wantErr.ErrorCode)
+				}
+				return
+			}
+
+			// Expecting nil err
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestCmdEdit(t *testing.T) {
+	commentsPlugin, tlogBackend, cleanup := newTestCommentsPlugin(t)
+	defer cleanup()
+
+	// New record
+	md := []backend.MetadataStream{
+		newBackendMetadataStream(t, 1, ""),
+	}
+	fs := []backend.File{
+		newBackendFile(t, "index.md"),
+	}
+	rec, err := tlogBackend.New(md, fs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Helpers
+	comment := "random comment"
+	commentEdit := comment + "more content"
+	parentID := uint32(0)
+	invalidParentID := uint32(3)
+	invalidCommentID := uint32(3)
+	tokenRandom := hex.EncodeToString(tokenFromTreeID(123))
+
+	id, err := identity.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// New comment
+	ncEncoded, err := comments.EncodeNew(
+		comments.New{
+			UserID:    uuid.New().String(),
+			State:     comments.StateUnvetted,
+			Token:     rec.Token,
+			ParentID:  parentID,
+			Comment:   comment,
+			PublicKey: id.Public.String(),
+			Signature: commentSignature(t, id, comments.StateUnvetted,
+				rec.Token, comment, parentID),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := commentsPlugin.cmdNew(string(ncEncoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nr, err := comments.DecodeNewReply([]byte(reply))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Setup edit comment plugin tests
+	var tests = []struct {
+		description string
+		payload     comments.Edit
+		wantErr     *backend.PluginUserError
+	}{
+		{
+			"invalid comment state",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     comments.StateInvalid,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, comments.StateInvalid,
+					rec.Token, commentEdit, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusStateInvalid),
+			},
+		},
+		{
+			"invalid token",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     "invalid",
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State, "invalid",
+					commentEdit, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusTokenInvalid),
+			},
+		},
+		{
+			"invalid signature",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: "invalid",
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusSignatureInvalid),
+			},
+		},
+		{
+			"invalid public key",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: "invalid",
+				Signature: commentSignature(t, id, nr.Comment.State, rec.Token,
+					commentEdit, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusPublicKeyInvalid),
+			},
+		},
+		{
+			"comment max length exceeded",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentMaxLengthExceeded(t),
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State, rec.Token,
+					commentMaxLengthExceeded(t), nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusCommentTextInvalid),
+			},
+		},
+		{
+			"comment id not found",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: invalidCommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State, rec.Token,
+					commentEdit, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusCommentNotFound),
+			},
+		},
+		{
+			"unauthorized user",
+			comments.Edit{
+				UserID:    uuid.New().String(),
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State, rec.Token,
+					commentEdit, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusUserUnauthorized),
+			},
+		},
+		{
+			"invalid parent ID",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  invalidParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State,
+					rec.Token, commentEdit, invalidParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusParentIDInvalid),
+			},
+		},
+		{
+			"comment did not change",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   comment,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State,
+					rec.Token, comment, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusCommentTextInvalid),
+			},
+		},
+		{
+			"record not found",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     tokenRandom,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.ParentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State,
+					tokenRandom, commentEdit, nr.Comment.ParentID),
+			},
+			&backend.PluginUserError{
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
+			},
+		},
+		{
+			"success",
+			comments.Edit{
+				UserID:    nr.Comment.UserID,
+				State:     nr.Comment.State,
+				Token:     rec.Token,
+				ParentID:  nr.Comment.ParentID,
+				CommentID: nr.Comment.CommentID,
+				Comment:   commentEdit,
+				PublicKey: id.Public.String(),
+				Signature: commentSignature(t, id, nr.Comment.State,
+					rec.Token, commentEdit, nr.Comment.ParentID),
+			},
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			// Edit Comment
+			ecEncoded, err := comments.EncodeEdit(test.payload)
+			if err != nil {
+				t.Error(err)
+			}
+
+			// Execute plugin command
+			_, err = commentsPlugin.cmdEdit(string(ecEncoded))
 
 			// Parse plugin user error
 			var pluginUserError backend.PluginUserError

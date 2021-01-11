@@ -60,13 +60,13 @@ func newBackendFileJPEG(t *testing.T) backend.File {
 
 	err := jpeg.Encode(b, img, &jpeg.Options{})
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 
 	// Generate a random name
 	r, err := util.Random(8)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 
 	return backend.File{
@@ -85,13 +85,13 @@ func newBackendFilePNG(t *testing.T) backend.File {
 
 	err := png.Encode(b, img)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 
 	// Generate a random name
 	r, err := util.Random(8)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 
 	return backend.File{
@@ -225,6 +225,49 @@ func newTestTlogBackend(t *testing.T) (*tlogBackend, func()) {
 			t.Fatalf("RemoveAll: %v", err)
 		}
 	}
+}
+
+func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, *tlogBackend, func()) {
+	t.Helper()
+
+	tlogBackend, cleanup := newTestTlogBackend(t)
+
+	id, err := identity.New()
+	if err != nil {
+		t.Fatalf("identity New: %v", err)
+	}
+
+	settings := []backend.PluginSetting{{
+		Key:   pluginSettingDataDir,
+		Value: tlogBackend.dataDir,
+	}}
+
+	commentsPlugin, err := newCommentsPlugin(tlogBackend,
+		newBackendClient(tlogBackend), settings, id)
+	if err != nil {
+		t.Fatalf("newCommentsPlugin: %v", err)
+	}
+
+	return commentsPlugin, tlogBackend, cleanup
+}
+
+func newTestPiPlugin(t *testing.T) (*piPlugin, *tlogBackend, func()) {
+	t.Helper()
+
+	tlogBackend, cleanup := newTestTlogBackend(t)
+
+	settings := []backend.PluginSetting{{
+		Key:   pluginSettingDataDir,
+		Value: tlogBackend.dataDir,
+	}}
+
+	piPlugin, err := newPiPlugin(tlogBackend, newBackendClient(tlogBackend),
+		settings, tlogBackend.activeNetParams)
+	if err != nil {
+		t.Fatalf("newPiPlugin: %v", err)
+	}
+
+	return piPlugin, tlogBackend, cleanup
 }
 
 // recordContentTests defines the type used to describe the content

@@ -17,9 +17,10 @@ import (
 )
 
 func TestCommentNew(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	piPlugin, tlogBackend, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
+	// Register comments plugin
 	id, err := identity.New()
 	if err != nil {
 		t.Fatal(err)
@@ -28,14 +29,6 @@ func TestCommentNew(t *testing.T) {
 		Key:   pluginSettingDataDir,
 		Value: tlogBackend.dataDir,
 	}}
-
-	piPlugin, err := newPiPlugin(tlogBackend, newBackendClient(tlogBackend),
-		settings, tlogBackend.activeNetParams)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Register comments plugin
 	tlogBackend.RegisterPlugin(backend.Plugin{
 		ID:       comments.ID,
 		Version:  comments.Version,
@@ -52,7 +45,7 @@ func TestCommentNew(t *testing.T) {
 	}
 	rec, err := tlogBackend.New(md, fs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Helpers
@@ -62,7 +55,7 @@ func TestCommentNew(t *testing.T) {
 
 	uid, err := identity.New()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Setup comment new pi plugin tests

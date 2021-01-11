@@ -940,7 +940,7 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	default:
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+			ErrorCode: int(comments.ErrorStatusStateInvalid),
 		}
 	}
 
@@ -985,6 +985,12 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	// Get the existing comment
 	cs, err := p.comments(e.State, token, *idx, []uint32{e.CommentID})
 	if err != nil {
+		if errors.Is(err, errRecordNotFound) {
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
+			}
+		}
 		return "", fmt.Errorf("comments %v: %v", e.CommentID, err)
 	}
 	existing, ok := cs[e.CommentID]
@@ -1027,6 +1033,7 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	receipt := p.identity.SignMessage([]byte(e.Signature))
 	ca := comments.CommentAdd{
 		UserID:    e.UserID,
+		State:     e.State,
 		Token:     e.Token,
 		ParentID:  e.ParentID,
 		Comment:   e.Comment,
@@ -1041,12 +1048,6 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	// Save comment
 	merkle, err := p.commentAddSave(ca)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("commentSave: %v", err)
 	}
 
