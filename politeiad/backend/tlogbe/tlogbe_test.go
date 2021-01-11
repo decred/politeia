@@ -198,6 +198,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 			if errors.As(err, &contentError) {
 				if test.wantContentErr == nil {
 					t.Errorf("got error %v, want nil", err)
+					return
 				}
 				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
@@ -233,10 +234,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      2,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 2, ""))
 
 	// Publish the created record
 	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
@@ -292,10 +290,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      3,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 3, ""))
 	err = tlogBackend.unvettedPublish(tokenFrozen, *recFrozen, md, fs)
 	if err != nil {
 		t.Error(err)
@@ -382,6 +377,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 			if errors.As(err, &contentError) {
 				if test.wantContentErr == nil {
 					t.Errorf("got error %v, want nil", err)
+					return
 				}
 				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
@@ -551,6 +547,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 			if errors.As(err, &contentError) {
 				if test.wantContentErr == nil {
 					t.Errorf("got error %v, want nil", err)
+					return
 				}
 				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
@@ -586,10 +583,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      3,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 2, ""))
 	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
 	if err != nil {
 		t.Error(err)
@@ -634,10 +628,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      4,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 3, ""))
 	err = tlogBackend.unvettedPublish(tokenFrozen, *recFrozen, md, fs)
 	if err != nil {
 		t.Error(err)
@@ -670,10 +661,9 @@ func TestUpdateVettedMetadata(t *testing.T) {
 		{
 			"invalid token",
 			tokenShort,
-			[]backend.MetadataStream{{
-				ID:      2,
-				Payload: "random",
-			}},
+			[]backend.MetadataStream{
+				newBackendMetadataStream(t, 2, "random"),
+			},
 			[]backend.MetadataStream{},
 			&backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
@@ -683,10 +673,9 @@ func TestUpdateVettedMetadata(t *testing.T) {
 		{
 			"record not found",
 			tokenRandom,
-			[]backend.MetadataStream{{
-				ID:      2,
-				Payload: "random",
-			}},
+			[]backend.MetadataStream{
+				newBackendMetadataStream(t, 2, "random"),
+			},
 			[]backend.MetadataStream{},
 			nil,
 			backend.ErrRecordNotFound,
@@ -694,10 +683,9 @@ func TestUpdateVettedMetadata(t *testing.T) {
 		{
 			"tree frozen for changes",
 			tokenFrozen,
-			[]backend.MetadataStream{{
-				ID:      2,
-				Payload: "random",
-			}},
+			[]backend.MetadataStream{
+				newBackendMetadataStream(t, 2, "random"),
+			},
 			[]backend.MetadataStream{},
 			nil,
 			backend.ErrRecordLocked,
@@ -706,10 +694,9 @@ func TestUpdateVettedMetadata(t *testing.T) {
 			"no changes to record metadata, same payload",
 			token,
 			[]backend.MetadataStream{},
-			[]backend.MetadataStream{{
-				ID:      3,
-				Payload: "",
-			}},
+			[]backend.MetadataStream{
+				newBackendMetadataStream(t, 2, ""),
+			},
 			nil,
 			backend.ErrNoChanges,
 		},
@@ -717,10 +704,9 @@ func TestUpdateVettedMetadata(t *testing.T) {
 			"success",
 			token,
 			[]backend.MetadataStream{},
-			[]backend.MetadataStream{{
-				ID:      1,
-				Payload: "newdata",
-			}},
+			[]backend.MetadataStream{
+				newBackendMetadataStream(t, 1, "newdata"),
+			},
 			nil,
 			nil,
 		},
@@ -737,6 +723,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 			if errors.As(err, &contentError) {
 				if test.wantContentErr == nil {
 					t.Errorf("got error %v, want nil", err)
+					return
 				}
 				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
@@ -819,10 +806,7 @@ func TestVettedExists(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      2,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 2, ""))
 	err = tlogBackend.unvettedPublish(tokenVetted, *vetted, md, fs)
 	if err != nil {
 		t.Error(err)
@@ -903,10 +887,7 @@ func TestGetVetted(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      2,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 2, ""))
 	err = tlogBackend.unvettedPublish(token, *rec, md, fs)
 	if err != nil {
 		t.Error(err)
@@ -1082,6 +1063,7 @@ func TestSetUnvettedStatus(t *testing.T) {
 			if errors.As(err, &contentError) {
 				if test.wantContentErr == nil {
 					t.Errorf("got error %v, want nil", err)
+					return
 				}
 				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
@@ -1122,10 +1104,7 @@ func TestSetVettedStatus(t *testing.T) {
 		t.Error(err)
 	}
 
-	md = append(md, backend.MetadataStream{
-		ID:      2,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 2, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToUnvet,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
@@ -1140,10 +1119,7 @@ func TestSetVettedStatus(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      3,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 3, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToVet,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
@@ -1161,10 +1137,7 @@ func TestSetVettedStatus(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      4,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 4, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToArch,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
@@ -1179,10 +1152,7 @@ func TestSetVettedStatus(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	md = append(md, backend.MetadataStream{
-		ID:      5,
-		Payload: "",
-	})
+	md = append(md, newBackendMetadataStream(t, 5, ""))
 	_, err = tlogBackend.SetUnvettedStatus(tokenVetToCensored,
 		backend.MDStatusVetted, md, []backend.MetadataStream{})
 	if err != nil {
@@ -1283,6 +1253,7 @@ func TestSetVettedStatus(t *testing.T) {
 			if errors.As(err, &contentError) {
 				if test.wantContentErr == nil {
 					t.Errorf("got error %v, want nil", err)
+					return
 				}
 				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
