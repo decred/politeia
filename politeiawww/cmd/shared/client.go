@@ -129,7 +129,7 @@ func wwwError(body []byte, statusCode int) error {
 
 // TODO recordsError
 func recordsError(body []byte, statusCode int) error {
-	return nil
+	return fmt.Errorf("%v %s", statusCode, body)
 }
 
 // piError unmarshals the response body from makeRequest, and handles any

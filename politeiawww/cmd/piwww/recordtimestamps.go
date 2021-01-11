@@ -5,6 +5,10 @@
 package main
 
 import (
+	"fmt"
+
+	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -57,9 +61,54 @@ func (c *recordTimestampsCmd) Execute(args []string) error {
 		return err
 	}
 
-	// TODO Verify timestamps
+	// Verify timestamps
+	err = verifyTimestamp(tr.RecordMetadata)
+	if err != nil {
+		return fmt.Errorf("verify record metadata timestamp: %v", err)
+	}
+	for k, v := range tr.Metadata {
+		err = verifyTimestamp(v)
+		if err != nil {
+			return fmt.Errorf("verify metadata %v timestamp: %v", k, err)
+		}
+	}
+	for k, v := range tr.Files {
+		err = verifyTimestamp(v)
+		if err != nil {
+			return fmt.Errorf("verify file %v timestamp: %v", k, err)
+		}
+	}
 
 	return nil
+}
+
+func verifyTimestamp(t rcv1.Timestamp) error {
+	ts := convertTimestamp(t)
+	return tlogbe.VerifyTimestamp(ts)
+}
+
+func convertProof(p rcv1.Proof) backend.Proof {
+	return backend.Proof{
+		Type:       p.Type,
+		Digest:     p.Digest,
+		MerkleRoot: p.MerkleRoot,
+		MerklePath: p.MerklePath,
+		ExtraData:  p.ExtraData,
+	}
+}
+
+func convertTimestamp(t rcv1.Timestamp) backend.Timestamp {
+	proofs := make([]backend.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, convertProof(v))
+	}
+	return backend.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}
 }
 
 // recordTimestampsHelpMsg is the output of the help command.

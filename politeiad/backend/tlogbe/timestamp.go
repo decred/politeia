@@ -131,9 +131,13 @@ func verifyProof(p backend.Proof) error {
 	return fmt.Errorf("invalid proof type")
 }
 
-// VerifyTimestamp verifies the inclusion of the data in the timestamped merkle
-// root.
+// VerifyTimestamp verifies the inclusion of the data in the merkle root that
+// was timestamped onto the dcr blockchain.
 func VerifyTimestamp(t backend.Timestamp) error {
+	if t.TxID == "" {
+		return fmt.Errorf("data has not been included in dcr tx yet")
+	}
+
 	// Verify digest
 	d := hex.EncodeToString(util.Digest([]byte(t.Data)))
 	if d != t.Digest {

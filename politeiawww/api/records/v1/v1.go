@@ -82,7 +82,7 @@ type Proof struct {
 }
 
 // Timestamp contains all of the data required to verify that a piece of
-// proposal data was timestamped onto the decred blockchain.
+// record data was timestamped onto the decred blockchain.
 //
 // All digests are hex encoded SHA256 digests. The merkle root can be found in
 // the OP_RETURN of the specified DCR transaction.
@@ -98,8 +98,9 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
-// Timestamps requests the timestamps for for a record version. If the version
-// is omitted, the timestamps for the most recent version will be returned.
+// Timestamps requests the timestamps for a specific record version. If the
+// version is omitted, the timestamps for the most recent version will be
+// returned.
 type Timestamps struct {
 	State   StateT `json:"state"`
 	Token   string `json:"token"`

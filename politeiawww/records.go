@@ -135,11 +135,12 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 	switch {
 	case errors.As(err, &ue):
 		// Record user error
-		errMsg := fmt.Sprintf("Records user error: %v %v %v",
+		m := fmt.Sprintf("Records user error: %v %v %v",
 			remoteAddr(r), ue.ErrorCode, rcv1.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {
-			errMsg += fmt.Sprintf(": %v", ue.ErrorContext)
+			m += fmt.Sprintf(": %v", ue.ErrorContext)
 		}
+		log.Infof(m)
 		util.RespondWithJSON(w, http.StatusBadRequest,
 			rcv1.UserErrorReply{
 				ErrorCode:    ue.ErrorCode,
@@ -185,7 +186,6 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
 			}
 			log.Infof(m)
-
 			util.RespondWithJSON(w, http.StatusBadRequest,
 				rcv1.UserErrorReply{
 					ErrorCode:    e,
