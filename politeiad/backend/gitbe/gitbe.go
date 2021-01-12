@@ -1558,17 +1558,6 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 		return err
 	}
 
-	// Check for authorizevote metadata and delete it if found
-	avFilename := fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
-		defaultMDFilenameSuffix)
-	_, err = os.Stat(pijoin(joinLatest(g.unvetted, id), avFilename))
-	if err == nil {
-		err = g.gitRm(g.unvetted, pijoin(id, version, avFilename), true)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Call plugin hooks
 	f, ok := decredPluginHooks[PluginPostHookEdit]
 	if ok {
@@ -2845,14 +2834,6 @@ func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (strin
 	log.Tracef("Plugin: %v", command)
 	switch command {
 	// Decred plugin
-	case decredplugin.CmdAuthorizeVote:
-		return g.pluginAuthorizeVote(payload)
-	case decredplugin.CmdStartVote:
-		return g.pluginStartVote(payload)
-	case decredplugin.CmdStartVoteRunoff:
-		return g.pluginStartVoteRunoff(payload)
-	case decredplugin.CmdBallot:
-		return g.pluginBallot(payload)
 	case decredplugin.CmdBestBlock:
 		return g.pluginBestBlock()
 	case decredplugin.CmdNewComment:
@@ -3062,21 +3043,6 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
 	setCMSPluginSetting(cmsPluginJournals, g.journals)
 
-	// Setup decred plugin
-	var voteDurationMin, voteDurationMax string
-	switch anp.Name {
-	case chaincfg.MainNetParams().Name:
-		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
-		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
-	case chaincfg.TestNet3Params().Name:
-		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
-		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
-	default:
-		return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
-	}
-
-	setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
-	setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 	setDecredPluginSetting(decredPluginJournals, g.journals)
 	setDecredPluginHook(PluginPostHookEdit, g.decredPluginPostEdit)

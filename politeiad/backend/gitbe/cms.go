@@ -485,6 +485,14 @@ func (g *gitBackEnd) validateCMSVoteBit(token, bit string) error {
 	return _validateCMSVoteBit(options, mask, b)
 }
 
+type invalidVoteBitError struct {
+	err error
+}
+
+func (i invalidVoteBitError) Error() string {
+	return i.err.Error()
+}
+
 // _validateVoteBit iterates over all vote bits and ensure the sent in vote bit
 // exists.
 func _validateCMSVoteBit(options []cmsplugin.VoteOption, mask uint64, bit uint64) error {
