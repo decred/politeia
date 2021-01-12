@@ -18,10 +18,34 @@ const (
 	CmdGetComments   = "getcomments"
 )
 
-// TODO remove this ErrorStatusT once politeiavoter has been updated.
+// ErrorStatusT represents decredplugin errors that result from casting a vote.
+//
+// These are part of the www/v1 API and must stay in until the deprecated cast
+// votes route is removed.
 type ErrorStatusT int
 
-const ErrorStatusVoteHasEnded ErrorStatusT = 4
+const (
+	ErrorStatusInvalid          ErrorStatusT = 0
+	ErrorStatusInternalError    ErrorStatusT = 1
+	ErrorStatusProposalNotFound ErrorStatusT = 2
+	ErrorStatusInvalidVoteBit   ErrorStatusT = 3
+	ErrorStatusVoteHasEnded     ErrorStatusT = 4
+	ErrorStatusDuplicateVote    ErrorStatusT = 5
+	ErrorStatusIneligibleTicket ErrorStatusT = 6
+)
+
+var (
+	// ErrorStatus converts error status codes to human readable text.
+	ErrorStatus = map[ErrorStatusT]string{
+		ErrorStatusInvalid:          "invalid error status",
+		ErrorStatusInternalError:    "internal error",
+		ErrorStatusProposalNotFound: "proposal not found",
+		ErrorStatusInvalidVoteBit:   "invalid vote bit",
+		ErrorStatusVoteHasEnded:     "vote has ended",
+		ErrorStatusDuplicateVote:    "duplicate vote",
+		ErrorStatusIneligibleTicket: "ineligbile ticket",
+	}
+)
 
 // Comment is the structure that describes the full server side content.  It
 // includes server side meta-data as well. Note that the receipt is the server
