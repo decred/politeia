@@ -1447,26 +1447,22 @@ func _main() error {
 			case comments.ID:
 				plugin = backend.Plugin{
 					ID:       comments.ID,
-					Version:  comments.Version,
 					Settings: ps,
 					Identity: p.identity,
 				}
 			case dcrdata.ID:
 				plugin = backend.Plugin{
 					ID:       dcrdata.ID,
-					Version:  dcrdata.Version,
 					Settings: ps,
 				}
 			case pi.ID:
 				plugin = backend.Plugin{
 					ID:       pi.ID,
-					Version:  pi.Version,
 					Settings: ps,
 				}
 			case ticketvote.ID:
 				plugin = backend.Plugin{
 					ID:       ticketvote.ID,
-					Version:  ticketvote.Version,
 					Settings: ps,
 					Identity: p.identity,
 				}

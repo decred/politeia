@@ -13,8 +13,7 @@ import (
 type StatusT int
 
 const (
-	ID      = "dcrdata"
-	Version = "1"
+	ID = "dcrdata"
 
 	// Plugin commands
 	CmdBestBlock    = "bestblock"    // Get best block

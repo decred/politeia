@@ -76,11 +76,12 @@ type piwww struct {
 	RecordTimestamps recordTimestampsCmd `command:"recordtimestamps"`
 
 	// Comments commands
-	CommentNew    commentNewCmd    `command:"commentnew"`
-	CommentVote   commentVoteCmd   `command:"commentvote"`
-	CommentCensor commentCensorCmd `command:"commentcensor"`
-	Comments      commentsCmd      `command:"comments"`
-	CommentVotes  commentVotesCmd  `command:"commentvotes"`
+	CommentNew        commentNewCmd        `command:"commentnew"`
+	CommentVote       commentVoteCmd       `command:"commentvote"`
+	CommentCensor     commentCensorCmd     `command:"commentcensor"`
+	Comments          commentsCmd          `command:"comments"`
+	CommentVotes      commentVotesCmd      `command:"commentvotes"`
+	CommentTimestamps commentTimestampsCmd `command:"commenttimestamps"`
 
 	// Vote commands
 	VoteAuthorize   voteAuthorizeCmd   `command:"voteauthorize"`

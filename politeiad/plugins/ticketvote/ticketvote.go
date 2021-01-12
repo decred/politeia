@@ -20,8 +20,7 @@ type ErrorStatusT int
 // The receipt should be the server signature of Signature+StartBlockHash.
 
 const (
-	ID      = "ticketvote"
-	Version = "1"
+	ID = "ticketvote"
 
 	// Plugin commands
 	CmdAuthorize  = "authorize"  // Authorize a vote

@@ -20,7 +20,7 @@ import (
 )
 
 func (p *politeiawww) processTimestamps(ctx context.Context, t rcv1.Timestamps, isAdmin bool) (*rcv1.TimestampsReply, error) {
-	log.Tracef("processTimestamps: %v %v", t.Token, t.Version)
+	log.Tracef("processTimestamps: %v %v %v", t.State, t.Token, t.Version)
 
 	// Get record timestamps
 	var (
@@ -40,7 +40,7 @@ func (p *politeiawww) processTimestamps(ctx context.Context, t rcv1.Timestamps, 
 		}
 	default:
 		return nil, rcv1.UserErrorReply{
-			ErrorCode: rcv1.ErrorCodeStateInvalid,
+			ErrorCode: rcv1.ErrorCodeRecordStateInvalid,
 		}
 	}
 
@@ -110,20 +110,16 @@ func (p *politeiawww) handleTimestamps(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, tr)
 }
 
-func convertRecordsErrorCode(pluginID string, errCode int) rcv1.ErrorCodeT {
-	switch pluginID {
-	case "":
-		// politeiad v1 API errors
-		switch pdv1.ErrorStatusT(errCode) {
-		case pdv1.ErrorStatusInvalidRequestPayload:
-			// Intentionally omitted. This indicates an internal server error.
-		case pdv1.ErrorStatusInvalidChallenge:
-			// Intentionally omitted. This indicates an internal server error.
-		case pdv1.ErrorStatusRecordNotFound:
-			return rcv1.ErrorCodeRecordNotFound
-		}
+func convertRecordsErrorCode(errCode int) rcv1.ErrorCodeT {
+	switch pdv1.ErrorStatusT(errCode) {
+	case pdv1.ErrorStatusInvalidRequestPayload:
+		// Intentionally omitted. This indicates an internal server error.
+	case pdv1.ErrorStatusInvalidChallenge:
+		// Intentionally omitted. This indicates an internal server error.
+	case pdv1.ErrorStatusRecordNotFound:
+		return rcv1.ErrorCodeRecordNotFound
 	}
-	// No records error code found
+	// No record API error code found
 	return rcv1.ErrorCodeInvalid
 }
 
@@ -155,21 +151,31 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 			errCode    = pe.ErrorReply.ErrorCode
 			errContext = pe.ErrorReply.ErrorContext
 		)
-		e := convertRecordsErrorCode(pluginID, errCode)
-		switch e {
-		case rcv1.ErrorCodeInvalid:
+		e := convertRecordsErrorCode(errCode)
+		switch {
+		case pluginID != "":
+			// politeiad plugin error. Log it and return a 400.
+			m := fmt.Sprintf("Plugin error: %v %v %v",
+				remoteAddr(r), pluginID, errCode)
+			if len(errContext) > 0 {
+				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
+			}
+			log.Infof(m)
+			util.RespondWithJSON(w, http.StatusBadRequest,
+				rcv1.PluginErrorReply{
+					PluginID:     pluginID,
+					ErrorCode:    errCode,
+					ErrorContext: strings.Join(errContext, ", "),
+				})
+			return
+
+		case e == rcv1.ErrorCodeInvalid:
 			// politeiad error does not correspond to a user error. Log it
 			// and return a 500.
 			ts := time.Now().Unix()
-			if pluginID == "" {
-				log.Errorf("%v %v %v %v Internal error %v: error code "+
-					"from politeiad: %v", remoteAddr(r), r.Method, r.URL,
-					r.Proto, ts, errCode)
-			} else {
-				log.Errorf("%v %v %v %v Internal error %v: error code "+
-					"from politeiad plugin %v: %v %v", remoteAddr(r), r.Method,
-					r.URL, r.Proto, ts, pluginID, errCode, errContext)
-			}
+			log.Errorf("%v %v %v %v Internal error %v: error code "+
+				"from politeiad: %v", remoteAddr(r), r.Method, r.URL,
+				r.Proto, ts, errCode)
 
 			util.RespondWithJSON(w, http.StatusInternalServerError,
 				rcv1.ServerErrorReply{
@@ -192,7 +198,6 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 					ErrorContext: strings.Join(errContext, ", "),
 				})
 			return
-
 		}
 
 	default:
@@ -207,6 +212,7 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 			rcv1.ServerErrorReply{
 				ErrorCode: t,
 			})
+		return
 	}
 }
 

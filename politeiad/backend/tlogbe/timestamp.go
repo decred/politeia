@@ -138,10 +138,13 @@ func VerifyTimestamp(t backend.Timestamp) error {
 		return fmt.Errorf("data has not been included in dcr tx yet")
 	}
 
-	// Verify digest
-	d := hex.EncodeToString(util.Digest([]byte(t.Data)))
-	if d != t.Digest {
-		return fmt.Errorf("invalid digest: got %v, want %v", d, t.Digest)
+	// Verify digest. The data blob may not be included in certain
+	// scenerios such as if it has been censored.
+	if t.Data != "" {
+		d := hex.EncodeToString(util.Digest([]byte(t.Data)))
+		if d != t.Digest {
+			return fmt.Errorf("invalid digest: got %v, want %v", d, t.Digest)
+		}
 	}
 
 	// Verify proof ordering. The digest of the first proof should be

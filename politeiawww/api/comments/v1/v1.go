@@ -8,9 +8,8 @@ import "fmt"
 
 const (
 	// APIRoute is prefixed onto all routes defined in this package.
-	APIRoute = "/records/v1"
+	APIRoute = "/comments/v1"
 
-	// Record routes
 	RouteTimestamps = "/timestamps"
 )
 
@@ -19,19 +18,15 @@ type ErrorCodeT int
 
 const (
 	// Error codes
-	ErrorCodeInvalid            ErrorCodeT = 0
-	ErrorCodeInputInvalid       ErrorCodeT = 1
-	ErrorCodeRecordNotFound     ErrorCodeT = 2
-	ErrorCodeRecordStateInvalid ErrorCodeT = 3
+	ErrorCodeInvalid      ErrorCodeT = 0
+	ErrorCodeInputInvalid ErrorCodeT = 1
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:            "error invalid",
-		ErrorCodeInputInvalid:       "input invalid",
-		ErrorCodeRecordNotFound:     "record not found",
-		ErrorCodeRecordStateInvalid: "record state invalid",
+		ErrorCodeInvalid:      "error invalid",
+		ErrorCodeInputInvalid: "input invalid",
 	}
 )
 
@@ -74,18 +69,19 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// StateT represents a record state.
-type StateT int
+// RecordStateT represents a record state.
+type RecordStateT int
 
 const (
-	// StateInvalid indicates an invalid record state.
-	StateInvalid StateT = 0
+	// RecordStateInvalid indicates an invalid record state.
+	RecordStateInvalid RecordStateT = 0
 
-	// StateUnvetted indicates a record has not been made public yet.
-	StateUnvetted StateT = 1
+	// RecordStateUnvetted indicates a record has not been made public
+	// yet.
+	RecordStateUnvetted RecordStateT = 1
 
-	// StateVetted indicates a record has been made public.
-	StateVetted StateT = 2
+	// RecordStateVetted indicates a record has been made public.
+	RecordStateVetted RecordStateT = 2
 )
 
 // Proof contains an inclusion proof for the digest in the merkle root. The
@@ -100,7 +96,7 @@ type Proof struct {
 }
 
 // Timestamp contains all of the data required to verify that a piece of
-// record data was timestamped onto the decred blockchain.
+// data was timestamped onto the decred blockchain.
 //
 // All digests are hex encoded SHA256 digests. The merkle root can be found in
 // the OP_RETURN of the specified DCR transaction.
@@ -116,22 +112,16 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
-// Timestamps requests the timestamps for a specific record version. If the
-// version is omitted, the timestamps for the most recent version will be
+// Timestamps requests the timestamps for the comments of a record. If no
+// comment IDs are provided then the timestamps for all comments will be
 // returned.
 type Timestamps struct {
-	State   StateT `json:"state"`
-	Token   string `json:"token"`
-	Version string `json:"version,omitempty"`
+	State      RecordStateT `json:"state"`
+	Token      string       `json:"token"`
+	CommentIDs []uint32     `json:"commentids,omitempty"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
-	RecordMetadata Timestamp `json:"recordmetadata"`
-
-	// map[metadataID]Timestamp
-	Metadata map[uint64]Timestamp `json:"metadata"`
-
-	// map[filename]Timestamp
-	Files map[string]Timestamp `json:"files"`
+	Comments map[uint32][]Timestamp `json:"comments"` // [commentID]Timestamp
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -2634,6 +2635,9 @@ func (p *politeiawww) setPiRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteCommentVotes, p.handleCommentVotes,
+		permissionPublic)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteTimestamps, p.handleCommentTimestamps,
 		permissionPublic)
 
 	// Vote routes

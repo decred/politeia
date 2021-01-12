@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -119,10 +119,10 @@ data to verify that user submitted record data has been timestamped onto the
 decred blockchain.
 
 Arguments:
-1. token   (string, required) Proposal token
-2. version (string, optional) Proposal version
+1. token   (string, required) Record token
+2. version (string, optional) Record version
 
 Flags:
- --unvetted     (bool, optional) Request is for unvetted records instead of
-																 vetted ones (default: false).
+ --unvetted (bool, optional) Request is for unvetted records instead of vetted
+                             ones (default: false).
 `

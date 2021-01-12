@@ -21,8 +21,7 @@ type ErrorStatusT int
 type CommentVoteT int
 
 const (
-	ID      = "pi"
-	Version = "1"
+	ID = "pi"
 
 	// Plugin commands
 	CmdPassThrough   = "passthrough" // Plugin command pass through

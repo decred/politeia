@@ -1571,6 +1571,7 @@ func (t *tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	ts := backend.Timestamp{
 		Data:   string(data),
 		Digest: hex.EncodeToString(l.LeafValue),
+		Proofs: []backend.Proof{},
 	}
 
 	// Get the anchor record for this leaf

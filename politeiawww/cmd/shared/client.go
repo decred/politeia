@@ -21,6 +21,7 @@ import (
 
 	"decred.org/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -127,8 +128,13 @@ func wwwError(body []byte, statusCode int) error {
 	return nil
 }
 
-// TODO recordsError
+// TODO implement recordsError
 func recordsError(body []byte, statusCode int) error {
+	return fmt.Errorf("%v %s", statusCode, body)
+}
+
+// TODO implement commentsError
+func commentsError(body []byte, statusCode int) error {
 	return fmt.Errorf("%v %s", statusCode, body)
 }
 
@@ -929,7 +935,7 @@ func (c *Client) ProposalSetStatus(pss pi.ProposalSetStatus) (*pi.ProposalSetSta
 	return &pssr, nil
 }
 
-// RecordTimestamps sends the RecordTimestamps command to politeiawww.
+// RecordTimestamps sends the Timestamps command to politeiawww records API.
 func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
 		rcv1.APIRoute, rcv1.RouteTimestamps, t)
@@ -1574,6 +1580,33 @@ func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error)
 	}
 
 	return &cvr, nil
+}
+
+// CommentTimestamps sends the Timestamps command to politeiawww comments API.
+func (c *Client) CommentTimestamps(t cmv1.Timestamps) (*cmv1.TimestampsReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
+		cmv1.APIRoute, cmv1.RouteTimestamps, t)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode != http.StatusOK {
+		return nil, commentsError(respBody, statusCode)
+	}
+
+	var tr cmv1.TimestampsReply
+	err = json.Unmarshal(respBody, &tr)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(tr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &tr, nil
 }
 
 // InvoiceComments retrieves the comments for the specified proposal.

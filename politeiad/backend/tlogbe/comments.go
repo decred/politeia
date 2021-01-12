@@ -36,8 +36,6 @@ import (
 // TODO upvoting a comment twice in the same second causes a duplicate leaf
 // error which causes a 500. Solution: add the timestamp to the vote index.
 
-// TODO verify all writes only accept full length tokens
-
 const (
 	// Blob entry data descriptors
 	dataDescriptorCommentAdd  = "commentadd"
@@ -89,8 +87,8 @@ type voteIndex struct {
 }
 
 type commentIndex struct {
-	Adds map[uint32][]byte `json:"adds"` // [version]merkleHash
-	Del  []byte            `json:"del"`  // Merkle hash of delete record
+	Adds map[uint32][]byte `json:"adds"` // [version]merkleLeafHash
+	Del  []byte            `json:"del"`  // Merkle leaf hash of delete record
 
 	// Votes contains the vote history for each uuid that voted on the
 	// comment. This data is cached because the effect of a new vote
@@ -790,6 +788,34 @@ func (p *commentsPlugin) comment(s comments.StateT, token []byte, idx commentsIn
 		return nil, fmt.Errorf("comment not found")
 	}
 	return &c, nil
+}
+
+func (p *commentsPlugin) timestamp(s comments.StateT, token []byte, merkle []byte) (*comments.Timestamp, error) {
+	// Get timestamp
+	tlogID := tlogIDFromCommentState(s)
+	t, err := p.tlog.timestamp(tlogID, token, merkle)
+	if err != nil {
+		return nil, fmt.Errorf("timestamp %x: %v", merkle, err)
+	}
+
+	// Convert response
+	proofs := make([]comments.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, comments.Proof{
+			Type:       v.Type,
+			Digest:     v.Digest,
+			MerkleRoot: v.MerkleRoot,
+			MerklePath: v.MerklePath,
+			ExtraData:  v.ExtraData,
+		})
+	}
+	return &comments.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}, nil
 }
 
 func (p *commentsPlugin) cmdNew(payload string) (string, error) {
@@ -1773,6 +1799,118 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
+	log.Tracef("comments cmdVotes: %v", payload)
+
+	// Decode payload
+	var t comments.Timestamps
+	err := json.Unmarshal([]byte(payload), &t)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify state
+	switch t.State {
+	case comments.StateUnvetted, comments.StateVetted:
+		// Allowed; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+		}
+	}
+
+	// Verify token
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+		}
+	}
+
+	// Get comments index
+	idx, err := p.commentsIndex(t.State, token)
+	if err != nil {
+		return "", err
+	}
+
+	// If no comment IDs were given then we need to return the
+	// timestamps for all comments.
+	if len(t.CommentIDs) == 0 {
+		commentIDs := make([]uint32, 0, len(idx.Comments))
+		for k := range idx.Comments {
+			commentIDs = append(commentIDs, k)
+		}
+		t.CommentIDs = commentIDs
+	}
+
+	// Get timestamps
+	cmts := make(map[uint32][]comments.Timestamp, len(t.CommentIDs))
+	votes := make(map[uint32][]comments.Timestamp, len(t.CommentIDs))
+	for _, commentID := range t.CommentIDs {
+		cidx, ok := idx.Comments[commentID]
+		if !ok {
+			// Comment ID does not exist. Skip it.
+			continue
+		}
+
+		// Get timestamps for adds
+		ts := make([]comments.Timestamp, 0, len(cidx.Adds)+1)
+		for _, v := range cidx.Adds {
+			t, err := p.timestamp(t.State, token, v)
+			if err != nil {
+				return "", err
+			}
+			ts = append(ts, *t)
+		}
+
+		// Get timestamp for del
+		if cidx.Del != nil {
+			t, err := p.timestamp(t.State, token, cidx.Del)
+			if err != nil {
+				return "", err
+			}
+			ts = append(ts, *t)
+		}
+
+		// Save timestamps
+		cmts[commentID] = ts
+
+		// Only get the comment vote timestamps if specified
+		if !t.IncludeVotes {
+			continue
+		}
+
+		// Get timestamps for votes
+		ts = make([]comments.Timestamp, 0, len(cidx.Votes))
+		for _, votes := range cidx.Votes {
+			for _, v := range votes {
+				t, err := p.timestamp(t.State, token, v.Merkle)
+				if err != nil {
+					return "", err
+				}
+				ts = append(ts, *t)
+			}
+		}
+
+		// Save timestamps
+		votes[commentID] = ts
+	}
+
+	// Prepare reply
+	ts := comments.TimestampsReply{
+		Comments: cmts,
+		Votes:    votes,
+	}
+	reply, err := json.Marshal(ts)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // cmd executes a plugin command.
 //
 // This function satisfies the pluginClient interface.
@@ -1798,6 +1936,8 @@ func (p *commentsPlugin) cmd(cmd, payload string) (string, error) {
 		return p.cmdCount(payload)
 	case comments.CmdVotes:
 		return p.cmdVotes(payload)
+	case comments.CmdTimestamps:
+		return p.cmdTimestamps(payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid

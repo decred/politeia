@@ -361,7 +361,9 @@ type UpdateUnvettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
-// Proof contains an inclusion proof for the digest in the merkle root.
+// Proof contains an inclusion proof for the digest in the merkle root. The
+// ExtraData field is used by certain types of proofs to include additional
+// data that is required to validate the proof.
 type Proof struct {
 	Type       string   `json:"type"`
 	Digest     string   `json:"digest"`

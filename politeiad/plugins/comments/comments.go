@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package comments provides a plugin for adding comment functionality to
+// Package comments provides a plugin for adding comments and comment votes to
 // records.
 package comments
 
@@ -17,8 +17,7 @@ type ErrorStatusT int
 // TODO add a hint to comments that can be used freely by the client. This
 // is how we'll distinguish proposal comments from update comments.
 const (
-	ID      = "comments"
-	Version = "1"
+	ID = "comments"
 
 	// Plugin commands
 	CmdNew        = "new"        // Create a new comment
@@ -30,7 +29,7 @@ const (
 	CmdGetVersion = "getversion" // Get specified version of a comment
 	CmdCount      = "count"      // Get comments count for a record
 	CmdVotes      = "votes"      // Get comment votes
-	CmdProofs     = "proofs"     // Get inclusion proofs
+	CmdTimestamps = "timestamps" // Get timestamps
 
 	// Record states
 	StateInvalid  StateT = 0
@@ -569,4 +568,50 @@ func DecodeVotesReply(payload []byte) (*VotesReply, error) {
 		return nil, err
 	}
 	return &vr, nil
+}
+
+// Proof contains an inclusion proof for the digest in the merkle root. The
+// ExtraData field is used by certain types of proofs to include additional
+// data that is required to validate the proof.
+type Proof struct {
+	Type       string   `json:"type"`
+	Digest     string   `json:"digest"`
+	MerkleRoot string   `json:"merkleroot"`
+	MerklePath []string `json:"merklepath"`
+	ExtraData  string   `json:"extradata"` // JSON encoded
+}
+
+// Timestamp contains all of the data required to verify that a piece of
+// data was timestamped onto the decred blockchain.
+//
+// All digests are hex encoded SHA256 digests. The merkle root can be found in
+// the OP_RETURN of the specified DCR transaction.
+//
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
+// been included in a DCR tx and the tx has 6 confirmations. The Data field
+// will not be populated if the data has been censored.
+type Timestamp struct {
+	Data       string  `json:"data"` // JSON encoded
+	Digest     string  `json:"digest"`
+	TxID       string  `json:"txid"`
+	MerkleRoot string  `json:"merkleroot"`
+	Proofs     []Proof `json:"proofs"`
+}
+
+// Timestamps requests the timestamps for a record's comments. If no comment
+// IDs are provided then timestamps for all comments made on the record will
+// be returned. If IncludeVotes is set to true then the timestamps for the
+// comment votes will also be returned. If a provided comment ID does not
+// exist then it will not be included in the reply.
+type Timestamps struct {
+	State        StateT   `json:"state"`
+	Token        string   `json:"token"`
+	CommentIDs   []uint32 `json:"commentids"`
+	IncludeVotes bool     `json:"includevotes"`
+}
+
+// TimestampsReply is the reply to the timestamps command.
+type TimestampsReply struct {
+	Comments map[uint32][]Timestamp `json:"comments"`
+	Votes    map[uint32][]Timestamp `json:"votes"`
 }
