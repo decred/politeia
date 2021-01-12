@@ -718,7 +718,7 @@ func (p *piPlugin) commentDel(payload string) (string, error) {
 		switch vs.Status {
 		case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
 			ticketvote.VoteStatusStarted:
-			// Deling is allowed on these vote statuses; continue
+			// Deleting is allowed on these vote statuses; continue
 		default:
 			return "", backend.PluginUserError{
 				PluginID:     pi.ID,

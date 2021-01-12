@@ -111,13 +111,13 @@ func newBackendMetadataStream(t *testing.T, id uint64, payload string) backend.M
 	}
 }
 
-func commentSignature(t *testing.T, id *identity.FullIdentity, state comments.StateT, token, comment string, parentID uint32) string {
+func commentSignature(t *testing.T, uid *identity.FullIdentity, state comments.StateT, token, msg string, id uint32) string {
 	t.Helper()
 
 	// Create signature
-	msg := strconv.Itoa(int(state)) + token +
-		strconv.FormatInt(int64(parentID), 10) + comment
-	b := id.SignMessage([]byte(msg))
+	txt := strconv.Itoa(int(state)) + token +
+		strconv.FormatInt(int64(id), 10) + msg
+	b := uid.SignMessage([]byte(txt))
 	return hex.EncodeToString(b[:])
 }
 

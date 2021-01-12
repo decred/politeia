@@ -130,7 +130,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 		mdAppend, mdOverwrite []backend.MetadataStream
 		filesAdd              []backend.File
 		filesDel              []string
-		wantContentErr        *backend.ContentVerificationError
+		wantContentErr        error
 		wantErr               error
 	}{
 		{
@@ -140,7 +140,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 			[]backend.MetadataStream{},
 			[]backend.File{imageRandom},
 			[]string{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
 			},
 			nil,
@@ -200,14 +200,22 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 					t.Errorf("got error %v, want nil", err)
 					return
 				}
-				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+				wantContentErr :=
+					test.wantContentErr.(backend.ContentVerificationError)
+				if contentError.ErrorCode != wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
 						v1.ErrorStatus[contentError.ErrorCode],
-						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+						v1.ErrorStatus[wantContentErr.ErrorCode])
 				}
 				return
 			}
 
+			// Expecting content error, but got none
+			if test.wantContentErr != nil {
+				t.Errorf("got error %v, want %v", err, test.wantContentErr)
+			}
+
+			// Expectations not met
 			if test.wantErr != err {
 				t.Errorf("got error %v, want %v", err, test.wantErr)
 			}
@@ -309,7 +317,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 		mdAppend, mdOverwirte []backend.MetadataStream
 		filesAdd              []backend.File
 		filesDel              []string
-		wantContentErr        *backend.ContentVerificationError
+		wantContentErr        error
 		wantErr               error
 	}{
 		{
@@ -319,7 +327,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 			[]backend.MetadataStream{},
 			[]backend.File{imageRandom},
 			[]string{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
 			},
 			nil,
@@ -379,14 +387,22 @@ func TestUpdateVettedRecord(t *testing.T) {
 					t.Errorf("got error %v, want nil", err)
 					return
 				}
-				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+				wantContentErr :=
+					test.wantContentErr.(backend.ContentVerificationError)
+				if contentError.ErrorCode != wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
 						v1.ErrorStatus[contentError.ErrorCode],
-						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+						v1.ErrorStatus[wantContentErr.ErrorCode])
 				}
 				return
 			}
 
+			// Expecting content error, but got none
+			if test.wantContentErr != nil {
+				t.Errorf("got error %v, want %v", err, test.wantContentErr)
+			}
+
+			// Expectations not met
 			if test.wantErr != err {
 				t.Errorf("got error %v, want %v", err, test.wantErr)
 			}
@@ -464,7 +480,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 		description           string
 		token                 []byte
 		mdAppend, mdOverwrite []backend.MetadataStream
-		wantContentErr        *backend.ContentVerificationError
+		wantContentErr        error
 		wantErr               error
 	}{
 		{
@@ -472,7 +488,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 			token,
 			[]backend.MetadataStream{},
 			[]backend.MetadataStream{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusNoChanges,
 			},
 			nil,
@@ -485,7 +501,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 				Payload: "random",
 			}},
 			[]backend.MetadataStream{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
 			},
 			nil,
@@ -549,14 +565,22 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 					t.Errorf("got error %v, want nil", err)
 					return
 				}
-				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+				wantContentErr :=
+					test.wantContentErr.(backend.ContentVerificationError)
+				if contentError.ErrorCode != wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
 						v1.ErrorStatus[contentError.ErrorCode],
-						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+						v1.ErrorStatus[wantContentErr.ErrorCode])
 				}
 				return
 			}
 
+			// Expecting content error, but got none
+			if test.wantContentErr != nil {
+				t.Errorf("got error %v, want %v", err, test.wantContentErr)
+			}
+
+			// Expectations not met
 			if test.wantErr != err {
 				t.Errorf("got error %v, want %v", err, test.wantErr)
 			}
@@ -645,7 +669,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 		description           string
 		token                 []byte
 		mdAppend, mdOverwrite []backend.MetadataStream
-		wantContentErr        *backend.ContentVerificationError
+		wantContentErr        error
 		wantErr               error
 	}{
 		{
@@ -653,7 +677,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 			token,
 			[]backend.MetadataStream{},
 			[]backend.MetadataStream{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusNoChanges,
 			},
 			nil,
@@ -665,7 +689,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 				newBackendMetadataStream(t, 2, "random"),
 			},
 			[]backend.MetadataStream{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
 			},
 			nil,
@@ -725,14 +749,22 @@ func TestUpdateVettedMetadata(t *testing.T) {
 					t.Errorf("got error %v, want nil", err)
 					return
 				}
-				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+				wantContentErr :=
+					test.wantContentErr.(backend.ContentVerificationError)
+				if contentError.ErrorCode != wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
 						v1.ErrorStatus[contentError.ErrorCode],
-						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+						v1.ErrorStatus[wantContentErr.ErrorCode])
 				}
 				return
 			}
 
+			// Expecting content error, but got none
+			if test.wantContentErr != nil {
+				t.Errorf("got error %v, want %v", err, test.wantContentErr)
+			}
+
+			// Expectations not met
 			if test.wantErr != err {
 				t.Errorf("got error %v, want %v", err, test.wantErr)
 			}
@@ -985,7 +1017,7 @@ func TestSetUnvettedStatus(t *testing.T) {
 		token                 []byte
 		status                backend.MDStatusT
 		mdAppend, mdOverwrite []backend.MetadataStream
-		wantContentErr        *backend.ContentVerificationError
+		wantContentErr        error
 		wantErr               error
 	}{
 		{
@@ -1036,7 +1068,7 @@ func TestSetUnvettedStatus(t *testing.T) {
 			backend.MDStatusCensored,
 			[]backend.MetadataStream{},
 			[]backend.MetadataStream{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
 			},
 			nil,
@@ -1065,14 +1097,22 @@ func TestSetUnvettedStatus(t *testing.T) {
 					t.Errorf("got error %v, want nil", err)
 					return
 				}
-				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+				wantContentErr :=
+					test.wantContentErr.(backend.ContentVerificationError)
+				if contentError.ErrorCode != wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
 						v1.ErrorStatus[contentError.ErrorCode],
-						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+						v1.ErrorStatus[wantContentErr.ErrorCode])
 				}
 				return
 			}
 
+			// Expecting content error, but got none
+			if test.wantContentErr != nil {
+				t.Errorf("got error %v, want %v", err, test.wantContentErr)
+			}
+
+			// Expectations not met
 			if test.wantErr != err {
 				t.Errorf("got error %v, want %v", err, test.wantErr)
 			}
@@ -1175,7 +1215,7 @@ func TestSetVettedStatus(t *testing.T) {
 		token                 []byte
 		status                backend.MDStatusT
 		mdAppend, mdOverwrite []backend.MetadataStream
-		wantContentErr        *backend.ContentVerificationError
+		wantContentErr        error
 		wantErr               error
 	}{
 		{
@@ -1226,7 +1266,7 @@ func TestSetVettedStatus(t *testing.T) {
 			backend.MDStatusCensored,
 			[]backend.MetadataStream{},
 			[]backend.MetadataStream{},
-			&backend.ContentVerificationError{
+			backend.ContentVerificationError{
 				ErrorCode: v1.ErrorStatusInvalidToken,
 			},
 			nil,
@@ -1255,14 +1295,22 @@ func TestSetVettedStatus(t *testing.T) {
 					t.Errorf("got error %v, want nil", err)
 					return
 				}
-				if contentError.ErrorCode != test.wantContentErr.ErrorCode {
+				wantContentErr :=
+					test.wantContentErr.(backend.ContentVerificationError)
+				if contentError.ErrorCode != wantContentErr.ErrorCode {
 					t.Errorf("got error %v, want %v",
 						v1.ErrorStatus[contentError.ErrorCode],
-						v1.ErrorStatus[test.wantContentErr.ErrorCode])
+						v1.ErrorStatus[wantContentErr.ErrorCode])
 				}
 				return
 			}
 
+			// Expecting content error, but got none
+			if test.wantContentErr != nil {
+				t.Errorf("got error %v, want %v", err, test.wantContentErr)
+			}
+
+			// Expectations not met
 			if test.wantErr != err {
 				t.Errorf("got error %v, want %v", err, test.wantErr)
 			}

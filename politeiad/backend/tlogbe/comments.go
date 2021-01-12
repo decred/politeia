@@ -1123,7 +1123,7 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	default:
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+			ErrorCode: int(comments.ErrorStatusStateInvalid),
 		}
 	}
 
@@ -1159,6 +1159,12 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	// Get the existing comment
 	cs, err := p.comments(d.State, token, *idx, []uint32{d.CommentID})
 	if err != nil {
+		if errors.Is(err, errRecordNotFound) {
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
+			}
+		}
 		return "", fmt.Errorf("comments %v: %v", d.CommentID, err)
 	}
 	existing, ok := cs[d.CommentID]
@@ -1187,12 +1193,6 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	// Save comment del
 	merkle, err := p.commentDelSave(cd)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("commentDelSave: %v", err)
 	}
 
@@ -1377,6 +1377,12 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Verify user is not voting on their own comment
 	cs, err := p.comments(v.State, token, *idx, []uint32{v.CommentID})
 	if err != nil {
+		if errors.Is(err, errRecordNotFound) {
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
+			}
+		}
 		return "", fmt.Errorf("comments %v: %v", v.CommentID, err)
 	}
 	c, ok := cs[v.CommentID]
@@ -1408,12 +1414,6 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	// Save comment vote
 	merkle, err := p.commentVoteSave(cv)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("commentVoteSave: %v", err)
 	}
 
@@ -1654,6 +1654,12 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	// Get comment add record
 	adds, err := p.commentAdds(gv.State, token, [][]byte{merkle})
 	if err != nil {
+		if errors.Is(err, errRecordNotFound) {
+			return "", backend.PluginUserError{
+				PluginID:  comments.ID,
+				ErrorCode: int(comments.ErrorStatusRecordNotFound),
+			}
+		}
 		return "", fmt.Errorf("commentAdds: %v", err)
 	}
 	if len(adds) != 1 {
