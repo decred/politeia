@@ -1208,8 +1208,8 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 		}
 		if summary.Status != ticketvote.VoteStatusUnauthorized {
 			e := fmt.Sprintf("vote status got %v, want %v",
-				ticketvote.VoteStatus[summary.Status],
-				ticketvote.VoteStatus[ticketvote.VoteStatusUnauthorized])
+				ticketvote.VoteStatuses[summary.Status],
+				ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized])
 			return backend.PluginUserError{
 				PluginID:     pi.ID,
 				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),

@@ -25,6 +25,7 @@ import (
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
@@ -2600,7 +2601,7 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 
 // setPiRoutes sets the pi API routes.
 func (p *politeiawww) setPiRoutes() {
-	// Proposal routes
+	// Pi routes - proposals
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposalNew, p.handleProposalNew,
 		permissionLogin)
@@ -2610,9 +2611,6 @@ func (p *politeiawww) setPiRoutes() {
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposalSetStatus, p.handleProposalSetStatus,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, rcv1.APIRoute,
-		rcv1.RouteTimestamps, p.handleTimestamps,
-		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposals, p.handleProposals,
 		permissionPublic)
@@ -2620,7 +2618,7 @@ func (p *politeiawww) setPiRoutes() {
 		piv1.RouteProposalInventory, p.handleProposalInventory,
 		permissionPublic)
 
-	// Comment routes
+	// Pi routes - comments
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteCommentNew, p.handleCommentNew,
 		permissionLogin)
@@ -2636,11 +2634,8 @@ func (p *politeiawww) setPiRoutes() {
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteCommentVotes, p.handleCommentVotes,
 		permissionPublic)
-	p.addRoute(http.MethodPost, cmv1.APIRoute,
-		cmv1.RouteTimestamps, p.handleCommentTimestamps,
-		permissionPublic)
 
-	// Vote routes
+	// Pi routes - vote
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteVoteAuthorize, p.handleVoteAuthorize,
 		permissionLogin)
@@ -2661,5 +2656,20 @@ func (p *politeiawww) setPiRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteVoteInventory, p.handleVoteInventory,
+		permissionPublic)
+
+	// Record routes
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteTimestamps, p.handleTimestamps,
+		permissionPublic)
+
+	// Comment routes
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteTimestamps, p.handleCommentTimestamps,
+		permissionPublic)
+
+	// Ticket vote routes
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteTimestamps, p.handleTicketVoteTimestamps,
 		permissionPublic)
 }

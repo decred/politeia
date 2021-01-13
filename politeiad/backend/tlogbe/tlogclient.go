@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -24,14 +24,18 @@ type tlogClient interface {
 	// leaf hashes.
 	del(tlogID string, token []byte, merkleLeafHashes [][]byte) error
 
+	// merklesByKeyPrefix returns the merkle root hashes for all blobs
+	// that match the key prefix.
+	merklesByKeyPrefix(tlogID string, token []byte,
+		keyPrefix string) ([][]byte, error)
+
 	// blobsByMerkle returns the blobs with the provided merkle leaf
 	// hashes. If a blob does not exist it will not be included in the
 	// returned map.
 	blobsByMerkle(tlogID string, token []byte,
 		merkleLeafHashes [][]byte) (map[string][]byte, error)
 
-	// blobsByKeyPrefix returns all blobs that match the provided key
-	// prefix.
+	// blobsByKeyPrefix returns all blobs that match the key prefix.
 	blobsByKeyPrefix(tlogID string, token []byte,
 		keyPrefix string) ([][]byte, error)
 
@@ -142,6 +146,30 @@ func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error
 
 	// Delete blobs
 	return tlog.blobsDel(treeID, merkles)
+}
+
+// merklesByKeyPrefix returns the merkle root hashes for all blobs that match
+// the key prefix.
+//
+// This function satisfies the tlogClient interface.
+func (c *backendClient) merklesByKeyPrefix(tlogID string, token []byte, keyPrefix string) ([][]byte, error) {
+	log.Tracef("backendClient merklesByKeyPrefix: %v %x %x",
+		tlogID, token, keyPrefix)
+
+	// Get tlog instance
+	tlog, err := c.tlogByID(tlogID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get tree ID
+	treeID, err := c.treeIDFromToken(tlogID, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get merkle leaf hashes
+	return tlog.merklesByKeyPrefix(treeID, keyPrefix)
 }
 
 // blobsByMerkle returns the blobs with the provided merkle leaf hashes.

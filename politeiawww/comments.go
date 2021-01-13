@@ -128,9 +128,10 @@ func (p *politeiawww) processCommentTimestamps(ctx context.Context, t cmv1.Times
 
 	// Get timestamps
 	ct := comments.Timestamps{
-		State:      convertCommentState(t.State),
-		Token:      t.Token,
-		CommentIDs: t.CommentIDs,
+		State:        convertCommentState(t.State),
+		Token:        t.Token,
+		CommentIDs:   t.CommentIDs,
+		IncludeVotes: false,
 	}
 	ctr, err := p.commentTimestamps(ctx, ct)
 	if err != nil {
@@ -162,7 +163,7 @@ func (p *politeiawww) handleCommentTimestamps(w http.ResponseWriter, r *http.Req
 	var t cmv1.Timestamps
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
-		respondWithCommentsError(w, r, "handleTimestamps: unmarshal",
+		respondWithCommentsError(w, r, "handleCommentTimestamps: unmarshal",
 			cmv1.UserErrorReply{
 				ErrorCode: cmv1.ErrorCodeInputInvalid,
 			})
@@ -174,7 +175,7 @@ func (p *politeiawww) handleCommentTimestamps(w http.ResponseWriter, r *http.Req
 	usr, err := p.getSessionUser(w, r)
 	if err != nil && err != errSessionNotFound {
 		respondWithCommentsError(w, r,
-			"handleTimestamps: getSessionUser: %v", err)
+			"handleCommentTimestamps: getSessionUser: %v", err)
 		return
 	}
 
@@ -182,7 +183,7 @@ func (p *politeiawww) handleCommentTimestamps(w http.ResponseWriter, r *http.Req
 	tr, err := p.processCommentTimestamps(r.Context(), t, isAdmin)
 	if err != nil {
 		respondWithCommentsError(w, r,
-			"handleTimestamps: processTimestamps: %v", err)
+			"handleCommentTimestamps: processCommentTimestamps: %v", err)
 		return
 	}
 

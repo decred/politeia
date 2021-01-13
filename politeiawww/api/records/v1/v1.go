@@ -99,8 +99,8 @@ type Proof struct {
 	ExtraData  string   `json:"extradata"` // JSON encoded
 }
 
-// Timestamp contains all of the data required to verify that a piece of
-// record data was timestamped onto the decred blockchain.
+// Timestamp contains all of the data required to verify that a piece of record
+// data was timestamped onto the decred blockchain.
 //
 // All digests are hex encoded SHA256 digests. The merkle root can be found in
 // the OP_RETURN of the specified DCR transaction.

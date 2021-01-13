@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -666,7 +666,7 @@ func convertBlobEntryFromCastVoteDetails(cv ticketvote.CastVoteDetails) (*store.
 	return &be, nil
 }
 
-func (p *ticketVotePlugin) authorizeSave(ad ticketvote.AuthDetails) error {
+func (p *ticketVotePlugin) authSave(ad ticketvote.AuthDetails) error {
 	token, err := hex.DecodeString(ad.Token)
 	if err != nil {
 		return err
@@ -700,7 +700,7 @@ func (p *ticketVotePlugin) authorizeSave(ad ticketvote.AuthDetails) error {
 	return nil
 }
 
-func (p *ticketVotePlugin) authorizes(token []byte) ([]ticketvote.AuthDetails, error) {
+func (p *ticketVotePlugin) auths(token []byte) ([]ticketvote.AuthDetails, error) {
 	// Retrieve blobs
 	blobs, err := p.tlog.blobsByKeyPrefix(tlogIDVetted, token,
 		keyPrefixAuthDetails)
@@ -859,6 +859,32 @@ func (p *ticketVotePlugin) castVotes(token []byte) ([]ticketvote.CastVoteDetails
 	})
 
 	return votes, nil
+}
+
+func (p *ticketVotePlugin) timestamp(token []byte, merkle []byte) (*ticketvote.Timestamp, error) {
+	t, err := p.tlog.timestamp(tlogIDVetted, token, merkle)
+	if err != nil {
+		return nil, fmt.Errorf("timestamp %x %x: %v", token, merkle, err)
+	}
+
+	// Convert response
+	proofs := make([]ticketvote.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, ticketvote.Proof{
+			Type:       v.Type,
+			Digest:     v.Digest,
+			MerkleRoot: v.MerkleRoot,
+			MerklePath: v.MerklePath,
+			ExtraData:  v.ExtraData,
+		})
+	}
+	return &ticketvote.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}, nil
 }
 
 // bestBlock fetches the best block from the dcrdata plugin and returns it. If
@@ -1187,7 +1213,7 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 
 	// Get any previous authorizations to verify that the new action
 	// is allowed based on the previous action.
-	auths, err := p.authorizes(token)
+	auths, err := p.auths(token)
 	if err != nil {
 		return "", err
 	}
@@ -1236,7 +1262,7 @@ func (p *ticketVotePlugin) cmdAuthorize(payload string) (string, error) {
 	}
 
 	// Save authorize vote
-	err = p.authorizeSave(auth)
+	err = p.authSave(auth)
 	if err != nil {
 		return "", err
 	}
@@ -1506,7 +1532,7 @@ func (p *ticketVotePlugin) startStandard(s ticketvote.Start) (*ticketvote.StartR
 	}
 
 	// Verify vote authorization
-	auths, err := p.authorizes(token)
+	auths, err := p.auths(token)
 	if err != nil {
 		return nil, err
 	}
@@ -1859,7 +1885,7 @@ func (p *ticketVotePlugin) ballot(votes []ticketvote.CastVote, results chan tick
 				cvr.Ticket = v.Ticket
 				cvr.ErrorCode = e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
-					ticketvote.VoteError[e], t)
+					ticketvote.VoteErrors[e], t)
 				goto sendResult
 			}
 
@@ -1920,7 +1946,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: not hex",
-				ticketvote.VoteError[e])
+				ticketvote.VoteErrors[e])
 			continue
 		}
 		if token == nil {
@@ -1935,7 +1961,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			e := ticketvote.VoteErrorMultipleRecordVotes
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
 	}
@@ -1985,7 +2011,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: vote not started",
-				ticketvote.VoteError[e])
+				ticketvote.VoteErrors[e])
 			continue
 		}
 		if bestBlock >= voteDetails.EndBlockHeight {
@@ -1994,7 +2020,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: vote has ended",
-				ticketvote.VoteError[e])
+				ticketvote.VoteErrors[e])
 			continue
 		}
 
@@ -2004,7 +2030,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			e := ticketvote.VoteErrorVoteBitInvalid
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
 		err = voteBitVerify(voteDetails.Params.Options,
@@ -2014,7 +2040,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
-				ticketvote.VoteError[e], err)
+				ticketvote.VoteErrors[e], err)
 			continue
 		}
 
@@ -2028,7 +2054,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
-				ticketvote.VoteError[e], t)
+				ticketvote.VoteErrors[e], t)
 			continue
 		}
 		if commitmentAddr.err != nil {
@@ -2039,7 +2065,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
-				ticketvote.VoteError[e], t)
+				ticketvote.VoteErrors[e], t)
 			continue
 		}
 		err = p.castVoteSignatureVerify(v, commitmentAddr.addr)
@@ -2048,7 +2074,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
-				ticketvote.VoteError[e], err)
+				ticketvote.VoteErrors[e], err)
 			continue
 		}
 
@@ -2058,7 +2084,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			e := ticketvote.VoteErrorTicketNotEligible
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
 	}
@@ -2083,7 +2109,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteError[e]
+			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
 	}
@@ -2098,7 +2124,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 	// the ballot will take 200 milliseconds since we wait for the leaf
 	// to be fully appended before considering the trillian call
 	// successful. A person casting hundreds of votes in a single ballot
-	// would cause UX issues for the all voting clients since the lock is
+	// would cause UX issues for all the voting clients since the lock is
 	// held during these calls.
 	//
 	// The second variable that we must watch out for is the max trillian
@@ -2180,7 +2206,7 @@ func (p *ticketVotePlugin) cmdCastBallot(payload string) (string, error) {
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
-				ticketvote.VoteError[e], t)
+				ticketvote.VoteErrors[e], t)
 			continue
 		}
 
@@ -2217,7 +2243,7 @@ func (p *ticketVotePlugin) cmdDetails(payload string) (string, error) {
 		}
 
 		// Get authorize votes
-		auths, err := p.authorizes(token)
+		auths, err := p.auths(token)
 		if err != nil {
 			if errors.Is(err, errRecordNotFound) {
 				return "", backend.PluginUserError{
@@ -2225,7 +2251,7 @@ func (p *ticketVotePlugin) cmdDetails(payload string) (string, error) {
 					ErrorCode: int(ticketvote.ErrorStatusRecordNotFound),
 				}
 			}
-			return "", fmt.Errorf("authorizes: %v", err)
+			return "", fmt.Errorf("auths: %v", err)
 		}
 
 		// Get vote details
@@ -2372,14 +2398,14 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	status := ticketvote.VoteStatusUnauthorized
 
 	// Check if the vote has been authorized
-	auths, err := p.authorizes(token)
+	auths, err := p.auths(token)
 	if err != nil {
 		if errors.Is(err, errRecordNotFound) {
 			// Let the calling function decide how to handle when a vetted
 			// record does not exist for the token.
 			return nil, err
 		}
-		return nil, fmt.Errorf("authorizes: %v", err)
+		return nil, fmt.Errorf("auths: %v", err)
 	}
 	if len(auths) > 0 {
 		lastAuth := auths[len(auths)-1]
@@ -2598,6 +2624,113 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (p *ticketVotePlugin) cmdTimestamps(payload string) (string, error) {
+	log.Tracef("ticketvote cmdTicketvote: %v", payload)
+
+	// Decode payload
+	var t ticketvote.Timestamps
+	err := json.Unmarshal([]byte(payload), &t)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify token
+	token, err := tokenDecodeAnyLength(t.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:  ticketvote.ID,
+			ErrorCode: int(ticketvote.ErrorStatusTokenInvalid),
+		}
+	}
+
+	// Get authorization timestamps
+	merkles, err := p.tlog.merklesByKeyPrefix(tlogIDVetted, token,
+		keyPrefixAuthDetails)
+	if err != nil {
+		if errors.Is(err, errRecordNotFound) {
+			return "", backend.PluginUserError{
+				PluginID:  ticketvote.ID,
+				ErrorCode: int(ticketvote.ErrorStatusRecordNotFound),
+			}
+		}
+		return "", fmt.Errorf("merklesByKeyPrefix %x %v: %v",
+			token, keyPrefixAuthDetails, err)
+	}
+
+	auths := make([]ticketvote.Timestamp, 0, len(merkles))
+	for _, v := range merkles {
+		ts, err := p.timestamp(token, v)
+		if err != nil {
+			return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+		}
+		auths = append(auths, *ts)
+	}
+
+	// Get vote details merkle leaf hash. There should never be more
+	// than one vote details.
+	merkles, err = p.tlog.merklesByKeyPrefix(tlogIDVetted, token,
+		keyPrefixVoteDetails)
+	if err != nil {
+		return "", fmt.Errorf("merklesByKeyPrefix %x %v: %v",
+			token, keyPrefixVoteDetails, err)
+	}
+	if len(merkles) > 1 {
+		return "", fmt.Errorf("invalid vote details count: got %v, want 1",
+			len(merkles))
+	}
+
+	var details ticketvote.Timestamp
+	for _, v := range merkles {
+		ts, err := p.timestamp(token, v)
+		if err != nil {
+			return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+		}
+		details = *ts
+	}
+
+	// Get cast vote timestamps
+	merkles, err = p.tlog.merklesByKeyPrefix(tlogIDVetted, token,
+		keyPrefixCastVoteDetails)
+	if err != nil {
+		return "", fmt.Errorf("merklesByKeyPrefix %x %v: %v",
+			token, keyPrefixVoteDetails, err)
+	}
+
+	votes := make(map[string]ticketvote.Timestamp, len(merkles))
+	for _, v := range merkles {
+		ts, err := p.timestamp(token, v)
+		if err != nil {
+			return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+		}
+
+		var cv ticketvote.CastVoteDetails
+		err = json.Unmarshal([]byte(ts.Data), &cv)
+		if err != nil {
+			return "", err
+		}
+
+		votes[cv.Ticket] = *ts
+	}
+
+	b, err := json.Marshal(details)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	tr := ticketvote.TimestampsReply{
+		Auths:   auths,
+		Details: details,
+		Votes:   votes,
+	}
+	reply, err := json.Marshal(tr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // setup performs any plugin setup work that needs to be done.
 //
 // This function satisfies the pluginClient interface.
@@ -2714,6 +2847,8 @@ func (p *ticketVotePlugin) cmd(cmd, payload string) (string, error) {
 		return p.cmdSummaries(payload)
 	case ticketvote.CmdInventory:
 		return p.cmdInventory(payload)
+	case ticketvote.CmdTimestamps:
+		return p.cmdTimestamps(payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid

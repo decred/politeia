@@ -42,7 +42,7 @@ func ConvertStringToken(token string) ([]byte, error) {
 	case len(token) == pd.TokenPrefixLength:
 		// Token prefix; continue
 	default:
-		return nil, fmt.Errorf("invalid censorship token size")
+		return nil, fmt.Errorf("invalid token size")
 	}
 	// If the token length is an odd number of characters, append a
 	// 0 digit as padding to prevent a hex.ErrLenth (odd length hex

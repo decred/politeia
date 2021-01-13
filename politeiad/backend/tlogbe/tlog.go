@@ -1702,8 +1702,6 @@ func (t *tlog) recordTimestamps(treeID int64, version uint32, token []byte) (*ba
 // blobsSave saves the provided blobs to the key-value store then appends them
 // onto the trillian tree. Note, hashes contains the hashes of the data encoded
 // in the blobs. The hashes must share the same ordering as the blobs.
-//
-// This function satisfies the tlogClient interface.
 func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
 	log.Tracef("%v blobsSave: %v %v %v", t.id, treeID, keyPrefix, encrypt)
 
@@ -1791,8 +1789,6 @@ func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 // del deletes the blobs in the kv store that correspond to the provided merkle
 // leaf hashes. The kv store keys in store in the ExtraData field of the leaves
 // specified by the provided merkle leaf hashes.
-//
-// This function satisfies the tlogClient interface.
 func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 	log.Tracef("%v blobsDel: %v", t.id, treeID)
 
@@ -1840,8 +1836,6 @@ func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
 // If a blob does not exist it will not be included in the returned map. It is
 // the responsibility of the caller to check that a blob is returned for each
 // of the provided merkle hashes.
-//
-// This function satisfies the tlogClient interface.
 func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
 	log.Tracef("%v blobsByMerkle: %v", t.id, treeID)
 
@@ -1924,9 +1918,33 @@ func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 	return b, nil
 }
 
+func (t *tlog) merklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
+	log.Tracef("%v merklesByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
+
+	// Verify tree exists
+	if !t.treeExists(treeID) {
+		return nil, errRecordNotFound
+	}
+
+	// Get leaves
+	leaves, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+
+	// Walk leaves and aggregate the merkle leaf hashes with a matching
+	// key prefix.
+	merkles := make([][]byte, 0, len(leaves))
+	for _, v := range leaves {
+		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
+			merkles = append(merkles, v.MerkleLeafHash)
+		}
+	}
+
+	return merkles, nil
+}
+
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
-//
-// This function satisfies the tlogClient interface.
 func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
 	log.Tracef("%v blobsByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
 

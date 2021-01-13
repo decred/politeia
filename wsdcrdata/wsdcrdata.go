@@ -26,10 +26,6 @@ const (
 	StatusReconnecting StatusT = 2 // Websocket is attempting to reconnect
 	StatusShutdown     StatusT = 3 // Websocket client has been shutdown
 
-	// Pending event actions
-	actionSubscribe   = "subscribe"
-	actionUnsubscribe = "unsubscribe"
-
 	// eventAddress is used to subscribe to events for a specific dcr
 	// address. The dcr address must be appended onto the eventAddress
 	// string.
@@ -58,6 +54,12 @@ var (
 	// ErrShutdown is emitted when attempting to use the Client after
 	// it has already been shut down.
 	ErrShutdown = errors.New("client is shutdown")
+)
+
+const (
+	// Pending event actions
+	actionSubscribe   = "subscribe"
+	actionUnsubscribe = "unsubscribe"
 )
 
 // pendingEvent represents an event action (subscribe/unsubscribe) that is

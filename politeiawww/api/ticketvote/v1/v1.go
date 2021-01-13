@@ -8,7 +8,7 @@ import "fmt"
 
 const (
 	// APIRoute is prefixed onto all routes defined in this package.
-	APIRoute = "/comments/v1"
+	APIRoute = "/ticketvote/v1"
 
 	RouteTimestamps = "/timestamps"
 )
@@ -69,21 +69,6 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// RecordStateT represents a record state.
-type RecordStateT int
-
-const (
-	// RecordStateInvalid indicates an invalid record state.
-	RecordStateInvalid RecordStateT = 0
-
-	// RecordStateUnvetted indicates a record has not been made public
-	// yet.
-	RecordStateUnvetted RecordStateT = 1
-
-	// RecordStateVetted indicates a record has been made public.
-	RecordStateVetted RecordStateT = 2
-)
-
 // Proof contains an inclusion proof for the digest in the merkle root. The
 // ExtraData field is used by certain types of proofs to include additional
 // data that is required to validate the proof.
@@ -112,16 +97,14 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
-// Timestamps requests the timestamps for the comments of a record. If no
-// comment IDs are provided then the timestamps for all comments will be
-// returned.
+// Timestamps requests the timestamps for ticket vote data.
 type Timestamps struct {
-	State      RecordStateT `json:"state"`
-	Token      string       `json:"token"`
-	CommentIDs []uint32     `json:"commentids,omitempty"`
+	Token string `json:"token"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
-	Comments map[uint32][]Timestamp `json:"comments"` // [commentID]Timestamp
+	Auths   []Timestamp          `json:"auths,omitempty"`
+	Details Timestamp            `json:"details,omitempty"`
+	Votes   map[string]Timestamp `json:"votes,omitempty"` // [ticket]Timestamp
 }

@@ -92,6 +92,7 @@ type piwww struct {
 	VoteResults     voteResultsCmd     `command:"voteresults"`
 	VoteSummaries   voteSummariesCmd   `command:"votesummaries"`
 	VoteInventory   voteInventoryCmd   `command:"voteinv"`
+	VoteTimestamps  voteTimestampsCmd  `command:"votetimestamps"`
 
 	// Websocket commands
 	Subscribe subscribeCmd `command:"subscribe"`

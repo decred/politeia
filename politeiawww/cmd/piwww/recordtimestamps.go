@@ -111,7 +111,6 @@ func convertTimestamp(t rcv1.Timestamp) backend.Timestamp {
 	}
 }
 
-// recordTimestampsHelpMsg is the output of the help command.
 const recordTimestampsHelpMsg = `recordtimestamps [flags] "token" "version"
 
 Fetch the timestamps a record version. The timestamp contains all necessary

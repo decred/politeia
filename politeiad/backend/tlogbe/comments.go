@@ -795,7 +795,7 @@ func (p *commentsPlugin) timestamp(s comments.StateT, token []byte, merkle []byt
 	tlogID := tlogIDFromCommentState(s)
 	t, err := p.tlog.timestamp(tlogID, token, merkle)
 	if err != nil {
-		return nil, fmt.Errorf("timestamp %x: %v", merkle, err)
+		return nil, fmt.Errorf("timestamp %x %x: %v", token, merkle, err)
 	}
 
 	// Convert response

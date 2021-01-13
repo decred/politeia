@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -581,8 +581,8 @@ type Proof struct {
 	ExtraData  string   `json:"extradata"` // JSON encoded
 }
 
-// Timestamp contains all of the data required to verify that a piece of
-// data was timestamped onto the decred blockchain.
+// Timestamp contains all of the data required to verify that a piece of data
+// was timestamped onto the decred blockchain.
 //
 // All digests are hex encoded SHA256 digests. The merkle root can be found in
 // the OP_RETURN of the specified DCR transaction.
@@ -606,8 +606,8 @@ type Timestamp struct {
 type Timestamps struct {
 	State        StateT   `json:"state"`
 	Token        string   `json:"token"`
-	CommentIDs   []uint32 `json:"commentids"`
-	IncludeVotes bool     `json:"includevotes"`
+	CommentIDs   []uint32 `json:"commentids,omitempty"`
+	IncludeVotes bool     `json:"includevotes,omitempty"`
 }
 
 // TimestampsReply is the reply to the timestamps command.
