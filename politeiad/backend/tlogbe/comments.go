@@ -839,7 +839,7 @@ func (p *commentsPlugin) cmdNew(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(n.Token)
+	token, err := tokenDecodeAnyLength(n.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -971,7 +971,7 @@ func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(e.Token)
+	token, err := tokenDecodeAnyLength(e.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1128,7 +1128,7 @@ func (p *commentsPlugin) cmdDel(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(d.Token)
+	token, err := tokenDecodeAnyLength(d.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1313,7 +1313,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(v.Token)
+	token, err := tokenDecodeAnyLength(v.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1476,7 +1476,7 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(g.Token)
+	token, err := tokenDecodeAnyLength(g.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1535,7 +1535,7 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(ga.Token)
+	token, err := tokenDecodeAnyLength(ga.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1611,7 +1611,7 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(gv.Token)
+	token, err := tokenDecodeAnyLength(gv.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1704,7 +1704,7 @@ func (p *commentsPlugin) cmdCount(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(c.Token)
+	token, err := tokenDecodeAnyLength(c.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1751,7 +1751,7 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(v.Token)
+	token, err := tokenDecodeAnyLength(v.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
@@ -1827,7 +1827,7 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(t.Token)
+	token, err := tokenDecodeAnyLength(t.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,

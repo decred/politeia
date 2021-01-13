@@ -75,7 +75,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 	for _, test := range recordContentTests {
 		t.Run(test.description, func(t *testing.T) {
 			// Convert token
-			token, err := util.ConvertStringToken(rec.Token)
+			token, err := tokenDecodeAnyLength(rec.Token)
 			if err != nil {
 				t.Error(err)
 			}
@@ -100,7 +100,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 	imageRandom := newBackendFilePNG(t)
 
 	// test case: Token not full length
-	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
+	tokenShort, err := tokenDecodeAnyLength(util.TokenToPrefix(rec.Token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 	for _, test := range recordContentTests {
 		t.Run(test.description, func(t *testing.T) {
 			// Convert token
-			token, err := util.ConvertStringToken(rec.Token)
+			token, err := tokenDecodeAnyLength(rec.Token)
 			if err != nil {
 				t.Error(err)
 			}
@@ -281,7 +281,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 	imageRandom := newBackendFilePNG(t)
 
 	// test case: Token not full length
-	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
+	tokenShort, err := tokenDecodeAnyLength(util.TokenToPrefix(rec.Token))
 	if err != nil {
 		t.Error(err)
 	}
@@ -452,7 +452,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 	}
 
 	// test case: Token not full length
-	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
+	tokenShort, err := tokenDecodeAnyLength(util.TokenToPrefix(rec.Token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -635,7 +635,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 	}
 
 	// test case: Token not full length
-	tokenShort, err := util.ConvertStringToken(util.TokenToPrefix(rec.Token))
+	tokenShort, err := tokenDecodeAnyLength(util.TokenToPrefix(rec.Token))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1002,7 +1002,7 @@ func TestSetUnvettedStatus(t *testing.T) {
 	}
 
 	// test case: Token not full length
-	tokenShort, err := util.ConvertStringToken(
+	tokenShort, err := tokenDecodeAnyLength(
 		util.TokenToPrefix(recUnvetToVet.Token))
 	if err != nil {
 		t.Fatal(err)
@@ -1200,7 +1200,7 @@ func TestSetVettedStatus(t *testing.T) {
 	}
 
 	// test case: Token not full length
-	tokenShort, err := util.ConvertStringToken(
+	tokenShort, err := tokenDecodeAnyLength(
 		util.TokenToPrefix(recVetToCensored.Token))
 	if err != nil {
 		t.Fatal(err)

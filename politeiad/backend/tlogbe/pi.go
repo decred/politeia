@@ -22,7 +22,6 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/util"
 )
 
 const (
@@ -330,7 +329,7 @@ func (p *piPlugin) cmdProposals(payload string) (string, error) {
 	// map[token]ProposalPluginData
 	proposals := make(map[string]pi.ProposalPluginData, len(ps.Tokens))
 	for _, v := range ps.Tokens {
-		token, err := util.ConvertStringToken(v)
+		token, err := tokenDecodeAnyLength(v)
 		if err != nil {
 			// Not a valid token
 			continue
@@ -612,7 +611,7 @@ func (p *piPlugin) commentNew(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(n.Token)
+	token, err := tokenDecodeAnyLength(n.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  pi.ID,
@@ -683,7 +682,7 @@ func (p *piPlugin) commentDel(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(d.Token)
+	token, err := tokenDecodeAnyLength(d.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  pi.ID,
@@ -754,7 +753,7 @@ func (p *piPlugin) commentVote(payload string) (string, error) {
 	}
 
 	// Verify token
-	token, err := util.ConvertStringToken(v.Token)
+	token, err := tokenDecodeAnyLength(v.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  pi.ID,

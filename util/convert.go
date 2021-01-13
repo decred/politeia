@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	v1 "github.com/decred/dcrtime/api/v1"
+	dcrtime "github.com/decred/dcrtime/api/v1"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
@@ -31,8 +31,8 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 }
 
 // ConvertStringToken verifies and converts a string token to a proper sized
-// byte slice. This function accepts both the full length token and the token
-// prefix.
+// byte slice. This function accepts both the full length token and token
+// prefixes.
 func ConvertStringToken(token string) ([]byte, error) {
 	switch {
 	case len(token) == pd.TokenSizeTlog*2:
@@ -66,7 +66,7 @@ func Digest(b []byte) []byte {
 
 // IsDigest determines if a string is a valid SHA256 digest.
 func IsDigest(digest string) bool {
-	return v1.RegexpSHA256.MatchString(digest)
+	return dcrtime.RegexpSHA256.MatchString(digest)
 }
 
 // ConvertDigest converts a string into a digest.
