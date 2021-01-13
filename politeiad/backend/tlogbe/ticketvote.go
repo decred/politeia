@@ -2712,11 +2712,6 @@ func (p *ticketVotePlugin) cmdTimestamps(payload string) (string, error) {
 		votes[cv.Ticket] = *ts
 	}
 
-	b, err := json.Marshal(details)
-	if err != nil {
-		return "", err
-	}
-
 	// Prepare reply
 	tr := ticketvote.TimestampsReply{
 		Auths:   auths,
