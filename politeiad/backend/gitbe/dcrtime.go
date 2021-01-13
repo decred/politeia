@@ -1,8 +1,8 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package util
+package gitbe
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -34,11 +35,11 @@ var (
 	}
 )
 
-type ErrNotAnchored struct {
+type errNotAnchored struct {
 	err error
 }
 
-func (e ErrNotAnchored) Error() string {
+func (e errNotAnchored) Error() string {
 	return e.err.Error()
 }
 
@@ -48,11 +49,10 @@ func isDigest(digest string) bool {
 }
 
 func defaultTestnetHost() string {
-	return "https://" + NormalizeAddress(v1.DefaultTestnetTimeHost,
+	return "https://" + util.NormalizeAddress(v1.DefaultTestnetTimeHost,
 		v1.DefaultTestnetTimePort)
 }
 
-// XXX duplicate function
 // getError returns the error that is embedded in a JSON reply.
 func getError(r io.Reader) (string, error) {
 	var e interface{}
@@ -71,20 +71,9 @@ func getError(r io.Reader) (string, error) {
 	return fmt.Sprintf("%v", rError), nil
 }
 
-// Hash returns a pointer to the sha256 hash of data.
-func Hash(data []byte) *[sha256.Size]byte {
-	h := sha256.New()
-	h.Write(data)
-	hash := h.Sum(nil)
-
-	var rh [sha256.Size]byte
-	copy(rh[:], hash)
-	return &rh
-}
-
-// Timestamp sends a Timestamp request to the provided host.  The caller is
+// timestamp sends a Timestamp request to the provided host.  The caller is
 // responsible for assembling the host string based on what net to use.
-func Timestamp(id, host string, digests []*[sha256.Size]byte) error {
+func timestamp(id, host string, digests []*[sha256.Size]byte) error {
 	// batch uploads
 	ts := v1.Timestamp{
 		ID:      id,
@@ -137,18 +126,18 @@ func Timestamp(id, host string, digests []*[sha256.Size]byte) error {
 	return nil
 }
 
-// Verify sends a dcrtime Verify command to the provided host.  It checks and
-// validates the entire reply.  A single failure is considered terminal and an
-// error is returned.  If the reply is valid it is returned to the caller for
-// further processing.  This means that the caller can be assured that all
-// checks have been done and the data is readily usable.
+// verifyTimestamp sends a dcrtime Verify command to the provided host.  It
+// checks and validates the entire reply.  A single failure is considered
+// terminal and an error is returned.  If the reply is valid it is returned to
+// the caller for further processing.  This means that the caller can be
+// assured that all checks have been done and the data is readily usable.
 //
 // Note the Result in the reply will be set to OK as soon as the digest is
 // waiting to be anchored. The ChainInformation will be populated once the
 // digest has been included in a dcr transaction, except for the ChainTimestamp
 // field. The ChainTimestamp field is only populated once the dcr transaction
 // has 6 confirmations.
-func Verify(id, host string, digests []string) (*v1.VerifyReply, error) {
+func verifyTimestamp(id, host string, digests []string) (*v1.VerifyReply, error) {
 	ver := v1.Verify{
 		ID: id,
 	}
@@ -213,7 +202,7 @@ func Verify(id, host string, digests []string) (*v1.VerifyReply, error) {
 				return nil, fmt.Errorf("%v invalid auth path "+
 					"%v", v.Digest, err)
 			}
-			return nil, ErrNotAnchored{
+			return nil, errNotAnchored{
 				err: fmt.Errorf("%v Not anchored", v.Digest),
 			}
 		}

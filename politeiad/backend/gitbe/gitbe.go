@@ -682,7 +682,7 @@ func (g *gitBackEnd) anchor(digests []*[sha256.Size]byte) error {
 		return nil
 	}
 
-	return util.Timestamp("politeia", g.dcrtimeHost, digests)
+	return timestamp("politeia", g.dcrtimeHost, digests)
 }
 
 // appendAuditTrail adds a record to the audit trail.
@@ -1063,7 +1063,7 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 		})
 	} else {
 		// Call dcrtime
-		vr, err = util.Verify("politeia", g.dcrtimeHost,
+		vr, err = verifyTimestamp("politeia", g.dcrtimeHost,
 			[]string{digest})
 		if err != nil {
 			return nil, err
@@ -2287,7 +2287,7 @@ func (g *gitBackEnd) fsck(path string) error {
 	for d := range gitDigests {
 		digests = append(digests, d)
 	}
-	vr, err := util.Verify("politeia", g.dcrtimeHost, digests)
+	vr, err := verifyTimestamp("politeia", g.dcrtimeHost, digests)
 	if err != nil {
 		return err
 	}
