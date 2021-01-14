@@ -1,8 +1,8 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package tlogbe
+package tlog
 
 import (
 	"bytes"
@@ -721,3 +721,25 @@ func (t *testTClient) inclusionProof(treeID int64, merkleLeafHash []byte, lr *ty
 //
 // This function satisfies the trillianClient interface.
 func (t *testTClient) close() {}
+
+// newTestTClient returns a new testTClient.
+func newTestTClient() (*testTClient, error) {
+	// Create trillian private key
+	key, err := keys.NewFromSpec(&keyspb.Specification{
+		Params: &keyspb.Specification_EcdsaParams{},
+	})
+	if err != nil {
+		return nil, err
+	}
+	keyDer, err := der.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, err
+	}
+	return &testTClient{
+		trees:  make(map[int64]*trillian.Tree),
+		leaves: make(map[int64][]*trillian.LogLeaf),
+		privateKey: &keyspb.PrivateKey{
+			Der: keyDer,
+		},
+	}, nil
+}

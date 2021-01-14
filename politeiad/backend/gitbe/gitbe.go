@@ -2796,27 +2796,6 @@ func (g *gitBackEnd) Inventory(vettedCount, vettedStart, branchCount uint, inclu
 	return pr, br, nil
 }
 
-// InventoryByStatus is not implemented.
-//
-// This function satisfies the Backend interface.
-func (g *gitBackEnd) InventoryByStatus() (*backend.InventoryByStatus, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// RegisterPlugin registers a plugin.
-func (g *gitBackEnd) RegisterPlugin(p backend.Plugin) error {
-	log.Tracef("RegisterPlugin: %v", p.ID)
-
-	return nil
-}
-
-// SetupPlugin performs any required plugin setup.
-func (g *gitBackEnd) SetupPlugin(pluginID string) error {
-	log.Tracef("SetupPlugin: %v", pluginID)
-
-	return nil
-}
-
 // GetPlugins returns a list of currently supported plugins and their settings.
 //
 // GetPlugins satisfies the backend interface.
@@ -2859,6 +2838,69 @@ func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (strin
 	}
 
 	return "", fmt.Errorf("invalid payload command")
+}
+
+// InventoryByStatus has not been not implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) InventoryByStatus() (*backend.InventoryByStatus, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// RegisterUnvettedPlugin has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) RegisterUnvettedPlugin(p backend.Plugin) error {
+	return fmt.Errorf("not implemented")
+}
+
+// RegisterVettedPlugin has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) RegisterVettedPlugin(p backend.Plugin) error {
+	return fmt.Errorf("not implemented")
+}
+
+// SetupUnvettedPlugin has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) SetupUnvettedPlugin(pluginID string) error {
+	return fmt.Errorf("not implemented")
+}
+
+// SetupVettedPlugin has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) SetupVettedPlugin(pluginID string) error {
+	return fmt.Errorf("not implemented")
+}
+
+// UnvettedPlugin has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) UnvettedPlugin(token []byte, pluginID, cmd, payload string) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+// VettedPlugin has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) VettedPlugin(token []byte, pluginID, cmd, payload string) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
+// GetUnvettedPlugins has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) GetUnvettedPlugins() []backend.Plugin {
+	return []backend.Plugin{}
+}
+
+// GetVettedPlugins has not been implemented.
+//
+// This function satisfies the backend.Backend interface.
+func (g *gitBackEnd) GetVettedPlugins() []backend.Plugin {
+	return []backend.Plugin{}
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown

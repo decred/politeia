@@ -61,10 +61,12 @@ type ContentVerificationError struct {
 	ErrorContext []string
 }
 
+// Error satisfies the error interface.
 func (c ContentVerificationError) Error() string {
 	return fmt.Sprintf("%v: %v", v1.ErrorStatus[c.ErrorCode], c.ErrorContext)
 }
 
+// File represents a record file.
 type File struct {
 	Name    string `json:"name"`    // Basename of the file
 	MIME    string `json:"mime"`    // MIME type
@@ -72,6 +74,7 @@ type File struct {
 	Payload string `json:"payload"` // base64 encoded file
 }
 
+// MDStatusT represents the status of a backend record.
 type MDStatusT int
 
 const (
@@ -124,6 +127,8 @@ func (e PluginUserError) Error() string {
 // RecordMetadata is the metadata of a record.
 const VersionRecordMD = 1
 
+// RecordMetadata represents metadata that is created by the backend on record
+// submission and updates.
 type RecordMetadata struct {
 	Version   uint64    `json:"version"`   // Version of the scruture
 	Iteration uint64    `json:"iteration"` // Iteration count of record
@@ -133,8 +138,7 @@ type RecordMetadata struct {
 	Token     string    `json:"token"`     // Record authentication token, hex encoded
 }
 
-// MetadataStream describes a single metada stream.  The ID determines how and
-// where it is stored.
+// MetadataStream describes a single metada stream.
 type MetadataStream struct {
 	ID      uint64 `json:"id"`      // Stream identity
 	Payload string `json:"payload"` // String encoded metadata
@@ -186,7 +190,7 @@ type RecordTimestamps struct {
 	Files          map[string]Timestamp // [filename]Timestamp
 }
 
-// PluginSettings
+// PluginSettings are used to specify settings for a plugin at runtime.
 type PluginSetting struct {
 	Key   string // Name of setting
 	Value string // Value of setting
@@ -212,71 +216,101 @@ type InventoryByStatus struct {
 	Vetted   map[MDStatusT][]string
 }
 
+// Backend provides an API for creating and editing records. When a record is
+// first submitted it is considered to be an unvetted, i.e. non-public, record.
+// Once the status of the record is updated to a public status, the record is
+// considered to be vetted.
 type Backend interface {
 	// Create new record
 	New([]MetadataStream, []File) (*RecordMetadata, error)
 
-	// Update unvetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
-	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*Record, error)
+	// Update unvetted record
+	UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []MetadataStream,
+		filesAdd []File, filesDel []string) (*Record, error)
 
-	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
-	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*Record, error)
+	// Update vetted record
+	UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []MetadataStream,
+		filesAdd []File, filesDel []string) (*Record, error)
 
-	// Update unvetted metadata (token, mdAppend, mdOverwrite)
-	UpdateUnvettedMetadata([]byte, []MetadataStream,
-		[]MetadataStream) error
+	// Update unvetted metadata
+	UpdateUnvettedMetadata(token []byte, mdAppend,
+		mdOverwrite []MetadataStream) error
 
-	// Update vetted metadata (token, mdAppend, mdOverwrite)
-	UpdateVettedMetadata([]byte, []MetadataStream,
-		[]MetadataStream) error
+	// Update vetted metadata
+	UpdateVettedMetadata(token []byte, mdAppend,
+		mdOverwrite []MetadataStream) error
 
 	// Set unvetted record status
-	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (*Record, error)
+	SetUnvettedStatus(token []byte, s MDStatusT, mdAppend,
+		mdOverwrite []MetadataStream) (*Record, error)
 
 	// Set vetted record status
-	SetVettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (*Record, error)
+	SetVettedStatus(token []byte, s MDStatusT, mdAppend,
+		mdOverwrite []MetadataStream) (*Record, error)
 
 	// Check if an unvetted record exists
-	UnvettedExists([]byte) bool
+	UnvettedExists(token []byte) bool
 
 	// Check if a vetted record exists
-	VettedExists([]byte) bool
+	VettedExists(token []byte) bool
 
 	// Get unvetted record
-	GetUnvetted([]byte, string) (*Record, error)
+	GetUnvetted(token []byte, version string) (*Record, error)
 
 	// Get vetted record
-	GetVetted([]byte, string) (*Record, error)
+	GetVetted(token []byte, version string) (*Record, error)
 
-	// Get unvetted record content timestamps
-	GetUnvettedTimestamps([]byte, string) (*RecordTimestamps, error)
+	// Get unvetted record timestamps
+	GetUnvettedTimestamps(token []byte,
+		version string) (*RecordTimestamps, error)
 
-	// Get vetted record content timestamps
-	GetVettedTimestamps([]byte, string) (*RecordTimestamps, error)
-
-	// Inventory retrieves various record records.
-	Inventory(uint, uint, uint, bool, bool) ([]Record, []Record, error)
+	// Get vetted record timestamps
+	GetVettedTimestamps(token []byte,
+		version string) (*RecordTimestamps, error)
 
 	// InventoryByStatus returns the record tokens of all records in the
-	// inventory categorized by MDStatusT.
+	// inventory categorized by MDStatusT
 	InventoryByStatus() (*InventoryByStatus, error)
 
-	// Register a plugin with the backend
-	RegisterPlugin(Plugin) error
+	// Register an unvetted plugin with the backend
+	RegisterUnvettedPlugin(Plugin) error
+
+	// Register a vetted plugin with the backend
+	RegisterVettedPlugin(Plugin) error
 
 	// Perform any plugin setup that is required
-	SetupPlugin(pluginID string) error
+	SetupUnvettedPlugin(pluginID string) error
 
-	// Obtain plugin settings
-	GetPlugins() ([]Plugin, error)
+	// Perform any plugin setup that is required
+	SetupVettedPlugin(pluginID string) error
+
+	// Execute a plugin command on an unvetted record
+	UnvettedPlugin(token []byte, pluginID, cmd, payload string) (string, error)
+
+	// Execute a plugin command on a vetted record
+	VettedPlugin(token []byte, pluginID, cmd, payload string) (string, error)
+
+	// Get unvetted plugins
+	GetUnvettedPlugins() []Plugin
+
+	// Get vetted plugins
+	GetVettedPlugins() []Plugin
+
+	// Inventory retrieves various record records
+	//
+	// This method has been DEPRECATED.
+	Inventory(uint, uint, uint, bool, bool) ([]Record, []Record, error)
 
 	// Plugin pass-through command
+	//
+	// This method has been DEPRECATED.
 	Plugin(pluginID, cmd, cmdID, payload string) (string, error)
 
-	// Close performs cleanup of the backend.
+	// Obtain plugin settings
+	//
+	// This method has been DEPRECATED.
+	GetPlugins() ([]Plugin, error)
+
+	// Close performs cleanup of the backend
 	Close()
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -24,21 +25,18 @@ import (
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/plugins/comments"
-	"github.com/decred/politeia/politeiad/plugins/dcrdata"
-	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
 )
 
-// TODO testnet vs mainnet trillian databases. Can I also make different dbs
-// for pi and cms so we can switch back and forth without issues?
+// TODO testnet vs mainnet trillian databases
 // TODO fsck
+// TODO move memory caches to filesystem
 
 const (
-	defaultTrillianKeyFilename   = "trillian.key"
 	defaultEncryptionKeyFilename = "tlogbe.key"
 
 	// Tlog instance IDs
@@ -50,10 +48,6 @@ const (
 	// the plugins for storing plugin data.
 	pluginDataDirname = "plugins"
 
-	// pluginSettingDataDir is the PluginSetting key for the plugin
-	// data directory.
-	pluginSettingDataDir = "datadir"
-
 	// Record states
 	stateUnvetted = "unvetted"
 	stateVetted   = "vetted"
@@ -61,46 +55,17 @@ const (
 
 var (
 	_ backend.Backend = (*tlogBackend)(nil)
-
-	// statusChanges contains the allowed record status changes. If
-	// statusChanges[currentStatus][newStatus] exists then the status
-	// change is allowed.
-	//
-	// Note, the tlog backend does not make use of the status
-	// MDStatusIterationUnvetted. The original purpose of this status
-	// was to show when an unvetted record had been altered since
-	// unvetted records were not versioned in the git backend. The tlog
-	// backend versions unvetted records and thus does not need to use
-	// this additional status.
-	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
-		// Unvetted status changes
-		backend.MDStatusUnvetted: {
-			backend.MDStatusVetted:   {},
-			backend.MDStatusCensored: {},
-		},
-
-		// Vetted status changes
-		backend.MDStatusVetted: {
-			backend.MDStatusCensored: {},
-			backend.MDStatusArchived: {},
-		},
-
-		// Statuses that do not allow any further transitions
-		backend.MDStatusCensored: {},
-		backend.MDStatusArchived: {},
-	}
 )
 
-// tlogBackend implements the Backend interface.
+// tlogBackend implements the backend.Backend interface.
 type tlogBackend struct {
 	sync.RWMutex
 	activeNetParams *chaincfg.Params
 	homeDir         string
 	dataDir         string
 	shutdown        bool
-	unvetted        *tlog
-	vetted          *tlog
-	plugins         map[string]plugin // [pluginID]plugin
+	unvetted        *tlog.Tlog
+	vetted          *tlog.Tlog
 
 	// prefixes contains the prefix to full token mapping for unvetted
 	// records. The prefix is the first n characters of the hex encoded
@@ -128,14 +93,6 @@ type tlogBackend struct {
 type recordInventory struct {
 	unvetted map[backend.MDStatusT][]string
 	vetted   map[backend.MDStatusT][]string
-}
-
-// plugin represents a tlogbe plugin.
-type plugin struct {
-	id       string
-	version  string
-	settings []backend.PluginSetting
-	client   pluginClient
 }
 
 func tokenIsFullLength(token []byte) bool {
@@ -295,7 +252,7 @@ func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 	// unvetted record has a tree pointer. The tree pointer will be
 	// the vetted tree ID.
 	unvettedTreeID := t.unvettedTreeIDFromToken(token)
-	vettedTreeID, ok = t.unvetted.treePointer(unvettedTreeID)
+	vettedTreeID, ok = t.unvetted.TreePointer(unvettedTreeID)
 	if !ok {
 		// No tree pointer. This record either doesn't exist or is an
 		// unvetted record.
@@ -303,7 +260,7 @@ func (t *tlogBackend) vettedTreeIDFromToken(token []byte) (int64, bool) {
 	}
 
 	// Verify the vetted tree exists. This should not fail.
-	if !t.vetted.treeExists(vettedTreeID) {
+	if !t.vetted.TreeExists(vettedTreeID) {
 		// We're in trouble!
 		e := fmt.Sprintf("freeze record of unvetted tree %v points to "+
 			"an invalid vetted tree %v", unvettedTreeID, vettedTreeID)
@@ -602,6 +559,36 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 	return nil
 }
 
+var (
+	// statusChanges contains the allowed record status changes. If
+	// statusChanges[currentStatus][newStatus] exists then the status
+	// change is allowed.
+	//
+	// Note, the tlog backend does not make use of the status
+	// MDStatusIterationUnvetted. The original purpose of this status
+	// was to show when an unvetted record had been altered since
+	// unvetted records were not versioned in the git backend. The tlog
+	// backend versions unvetted records and thus does not need to use
+	// this additional status.
+	statusChanges = map[backend.MDStatusT]map[backend.MDStatusT]struct{}{
+		// Unvetted status changes
+		backend.MDStatusUnvetted: {
+			backend.MDStatusVetted:   {},
+			backend.MDStatusCensored: {},
+		},
+
+		// Vetted status changes
+		backend.MDStatusVetted: {
+			backend.MDStatusCensored: {},
+			backend.MDStatusArchived: {},
+		},
+
+		// Statuses that do not allow any further transitions
+		backend.MDStatusCensored: {},
+		backend.MDStatusArchived: {},
+	}
+)
+
 // statusChangeIsAllowed returns whether the provided status change is allowed
 // by tlogbe.
 func statusChangeIsAllowed(from, to backend.MDStatusT) bool {
@@ -720,9 +707,10 @@ func (t *tlogBackend) isShutdown() bool {
 	return t.shutdown
 }
 
-// New satisfies the Backend interface.
+// New submites a new record. Records are considered unvetted until their
+// status is changed to a public status.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.File) (*backend.RecordMetadata, error) {
 	log.Tracef("New")
 
@@ -733,15 +721,15 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Call pre plugin hooks
-	hnr := hookNewRecord{
+	hnr := plugins.HookNewRecord{
 		Metadata: metadata,
 		Files:    files,
 	}
-	b, err := encodeHookNewRecord(hnr)
+	b, err := json.Marshal(hnr)
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHookPre(hookNewRecordPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookNewRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -750,7 +738,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	var token []byte
 	var treeID int64
 	for retries := 0; retries < 10; retries++ {
-		treeID, err = t.unvetted.treeNew()
+		treeID, err = t.unvetted.TreeNew()
 		if err != nil {
 			return nil, err
 		}
@@ -779,22 +767,22 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	}
 
 	// Save the record
-	err = t.unvetted.recordSave(treeID, *rm, metadata, files)
+	err = t.unvetted.RecordSave(treeID, *rm, metadata, files)
 	if err != nil {
-		return nil, fmt.Errorf("recordSave %x: %v", token, err)
+		return nil, fmt.Errorf("RecordSave %x: %v", token, err)
 	}
 
 	// Call post plugin hooks
-	hnr = hookNewRecord{
+	hnr = plugins.HookNewRecord{
 		Metadata:       metadata,
 		Files:          files,
 		RecordMetadata: rm,
 	}
-	b, err = encodeHookNewRecord(hnr)
+	b, err = json.Marshal(hnr)
 	if err != nil {
 		return nil, err
 	}
-	t.pluginHookPost(hookNewRecordPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookNewRecordPost, string(b))
 
 	// Update the inventory cache
 	t.inventoryAdd(stateUnvetted, token, backend.MDStatusUnvetted)
@@ -802,7 +790,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	return rm, nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("UpdateUnvettedRecord: %x", token)
 
@@ -846,9 +834,9 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 
 	// Get existing record
 	treeID := treeIDFromToken(token)
-	r, err := t.unvetted.recordLatest(treeID)
+	r, err := t.unvetted.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	// Apply changes
@@ -863,7 +851,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call pre plugin hooks
-	her := hookEditRecord{
+	her := plugins.HookEditRecord{
 		Current:        *r,
 		RecordMetadata: *recordMD,
 		MDAppend:       mdAppend,
@@ -871,45 +859,40 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		FilesAdd:       filesAdd,
 		FilesDel:       filesDel,
 	}
-	b, err := encodeHookEditRecord(her)
+	b, err := json.Marshal(her)
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHookPre(hookEditRecordPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
 
 	// Save record
-	err = t.unvetted.recordSave(treeID, *recordMD, metadata, files)
+	err = t.unvetted.RecordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
 		switch err {
-		case errTreeIsFrozen:
+		case tlog.ErrTreeIsFrozen:
 			return nil, backend.ErrRecordLocked
-		case errNoFileChanges:
+		case tlog.ErrNoFileChanges:
 			return nil, backend.ErrNoChanges
 		}
-		return nil, fmt.Errorf("recordSave: %v", err)
+		return nil, fmt.Errorf("RecordSave: %v", err)
 	}
 
 	// Call post plugin hooks
-	t.pluginHookPost(hookEditRecordPost, string(b))
-	if err != nil {
-		e := fmt.Sprintf("UpdateUnvettedRecord %x: pluginHook editRecordPost: %v",
-			token, err)
-		panic(e)
-	}
+	t.unvetted.PluginHookPost(plugins.HookEditRecordPost, string(b))
 
 	// Return updated record
-	r, err = t.unvetted.recordLatest(treeID)
+	r, err = t.unvetted.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("UpdateVettedRecord: %x", token)
 
@@ -953,12 +936,12 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	}
 
 	// Get existing record
-	r, err := t.vetted.recordLatest(treeID)
+	r, err := t.vetted.RecordLatest(treeID)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
+		if errors.Is(err, tlog.ErrRecordNotFound) {
 			return nil, backend.ErrRecordNotFound
 		}
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	// Apply changes
@@ -973,7 +956,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	}
 
 	// Call pre plugin hooks
-	her := hookEditRecord{
+	her := plugins.HookEditRecord{
 		Current:        *r,
 		RecordMetadata: *recordMD,
 		MDAppend:       mdAppend,
@@ -981,40 +964,40 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		FilesAdd:       filesAdd,
 		FilesDel:       filesDel,
 	}
-	b, err := encodeHookEditRecord(her)
+	b, err := json.Marshal(her)
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHookPre(hookEditRecordPre, string(b))
+	err = t.vetted.PluginHookPre(plugins.HookEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
 
 	// Save record
-	err = t.vetted.recordSave(treeID, *recordMD, metadata, files)
+	err = t.vetted.RecordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
 		switch err {
-		case errTreeIsFrozen:
+		case tlog.ErrTreeIsFrozen:
 			return nil, backend.ErrRecordLocked
-		case errNoFileChanges:
+		case tlog.ErrNoFileChanges:
 			return nil, backend.ErrNoChanges
 		}
-		return nil, fmt.Errorf("recordSave: %v", err)
+		return nil, fmt.Errorf("RecordSave: %v", err)
 	}
 
 	// Call post plugin hooks
-	t.pluginHookPost(hookEditRecordPost, string(b))
+	t.vetted.PluginHookPost(plugins.HookEditRecordPost, string(b))
 
 	// Return updated record
-	r, err = t.vetted.recordLatest(treeID)
+	r, err = t.vetted.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
 	// Validate record contents. Send in a single metadata array to
 	// verify there are no dups.
@@ -1061,22 +1044,22 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 
 	// Get existing record
 	treeID := treeIDFromToken(token)
-	r, err := t.unvetted.recordLatest(treeID)
+	r, err := t.unvetted.RecordLatest(treeID)
 	if err != nil {
-		return fmt.Errorf("recordLatest: %v", err)
+		return fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	// Call pre plugin hooks
-	hem := hookEditMetadata{
+	hem := plugins.HookEditMetadata{
 		Current:     *r,
 		MDAppend:    mdAppend,
 		MDOverwrite: mdOverwrite,
 	}
-	b, err := encodeHookEditMetadata(hem)
+	b, err := json.Marshal(hem)
 	if err != nil {
 		return err
 	}
-	err = t.pluginHookPre(hookEditMetadataPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookEditMetadataPre, string(b))
 	if err != nil {
 		return err
 	}
@@ -1085,24 +1068,24 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
-	err = t.unvetted.recordMetadataSave(treeID, r.RecordMetadata, metadata)
+	err = t.unvetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
 		switch err {
-		case errTreeIsFrozen:
+		case tlog.ErrTreeIsFrozen:
 			return backend.ErrRecordLocked
-		case errNoMetadataChanges:
+		case tlog.ErrNoMetadataChanges:
 			return backend.ErrNoChanges
 		}
 		return err
 	}
 
 	// Call post plugin hooks
-	t.pluginHookPost(hookEditMetadataPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookEditMetadataPost, string(b))
 
 	return nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
 	log.Tracef("UpdateVettedMetadata: %x", token)
 
@@ -1151,25 +1134,25 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Get existing record
-	r, err := t.vetted.recordLatest(treeID)
+	r, err := t.vetted.RecordLatest(treeID)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
+		if errors.Is(err, tlog.ErrRecordNotFound) {
 			return backend.ErrRecordNotFound
 		}
-		return fmt.Errorf("recordLatest: %v", err)
+		return fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	// Call pre plugin hooks
-	hem := hookEditMetadata{
+	hem := plugins.HookEditMetadata{
 		Current:     *r,
 		MDAppend:    mdAppend,
 		MDOverwrite: mdOverwrite,
 	}
-	b, err := encodeHookEditMetadata(hem)
+	b, err := json.Marshal(hem)
 	if err != nil {
 		return err
 	}
-	err = t.pluginHookPre(hookEditMetadataPre, string(b))
+	err = t.vetted.PluginHookPre(plugins.HookEditMetadataPre, string(b))
 	if err != nil {
 		return err
 	}
@@ -1178,19 +1161,19 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
-	err = t.vetted.recordMetadataSave(treeID, r.RecordMetadata, metadata)
+	err = t.vetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
 		switch err {
-		case errTreeIsFrozen:
+		case tlog.ErrTreeIsFrozen:
 			return backend.ErrRecordLocked
-		case errNoMetadataChanges:
+		case tlog.ErrNoMetadataChanges:
 			return backend.ErrNoChanges
 		}
-		return fmt.Errorf("recordMetadataSave: %v", err)
+		return fmt.Errorf("RecordMetadataSave: %v", err)
 	}
 
 	// Call post plugin hooks
-	t.pluginHookPost(hookEditMetadataPost, string(b))
+	t.vetted.PluginHookPost(plugins.HookEditMetadataPost, string(b))
 
 	return nil
 }
@@ -1198,7 +1181,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 // UnvettedExists returns whether the provided token corresponds to an unvetted
 // record.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) UnvettedExists(token []byte) bool {
 	log.Tracef("UnvettedExists %x", token)
 
@@ -1212,10 +1195,10 @@ func (t *tlogBackend) UnvettedExists(token []byte) bool {
 
 	// Check for unvetted record
 	treeID := t.unvettedTreeIDFromToken(token)
-	return t.unvetted.recordExists(treeID)
+	return t.unvetted.RecordExists(treeID)
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) VettedExists(token []byte) bool {
 	log.Tracef("VettedExists %x", token)
 
@@ -1223,7 +1206,7 @@ func (t *tlogBackend) VettedExists(token []byte) bool {
 	return ok
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetUnvetted: %x %v", token, version)
 
@@ -1247,7 +1230,7 @@ func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record
 	}
 
 	// Get unvetted record
-	r, err := t.unvetted.record(treeID, v)
+	r, err := t.unvetted.Record(treeID, v)
 	if err != nil {
 		return nil, fmt.Errorf("unvetted record: %v", err)
 	}
@@ -1255,7 +1238,7 @@ func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record
 	return r, nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetVetted: %x %v", token, version)
 
@@ -1279,9 +1262,9 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 		v = uint32(u)
 	}
 
-	r, err := t.vetted.record(treeID, v)
+	r, err := t.vetted.Record(treeID, v)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
+		if errors.Is(err, tlog.ErrRecordNotFound) {
 			err = backend.ErrRecordNotFound
 		}
 		return nil, err
@@ -1290,7 +1273,7 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 	return r, nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) GetUnvettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
 	log.Tracef("GetUnvettedTimestamps: %x %v", token, version)
 
@@ -1314,10 +1297,10 @@ func (t *tlogBackend) GetUnvettedTimestamps(token []byte, version string) (*back
 	}
 
 	// Get timestamps
-	return t.unvetted.recordTimestamps(treeID, v, token)
+	return t.unvetted.RecordTimestamps(treeID, v, token)
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) GetVettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
 	log.Tracef("GetVettedTimestamps: %x %v", token, version)
 
@@ -1342,21 +1325,21 @@ func (t *tlogBackend) GetVettedTimestamps(token []byte, version string) (*backen
 	}
 
 	// Get timestamps
-	return t.vetted.recordTimestamps(treeID, v, token)
+	return t.vetted.RecordTimestamps(treeID, v, token)
 }
 
 // This function must be called WITH the unvetted lock held.
 func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Create a vetted tree
-	vettedTreeID, err := t.vetted.treeNew()
+	vettedTreeID, err := t.vetted.TreeNew()
 	if err != nil {
 		return err
 	}
 
 	// Save the record to the vetted tlog
-	err = t.vetted.recordSave(vettedTreeID, rm, metadata, files)
+	err = t.vetted.RecordSave(vettedTreeID, rm, metadata, files)
 	if err != nil {
-		return fmt.Errorf("vetted recordSave: %v", err)
+		return fmt.Errorf("vetted RecordSave: %v", err)
 	}
 
 	log.Debugf("Unvetted record %x copied to vetted tree %v",
@@ -1364,9 +1347,9 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 
 	// Freeze the unvetted tree
 	treeID := treeIDFromToken(token)
-	err = t.unvetted.treeFreeze(treeID, rm, metadata, vettedTreeID)
+	err = t.unvetted.TreeFreeze(treeID, rm, metadata, vettedTreeID)
 	if err != nil {
-		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Unvetted record frozen %x", token)
@@ -1381,17 +1364,17 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
-	err := t.unvetted.treeFreeze(treeID, rm, metadata, 0)
+	err := t.unvetted.TreeFreeze(treeID, rm, metadata, 0)
 	if err != nil {
-		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Unvetted record frozen %x", token)
 
 	// Delete all record files
-	err = t.unvetted.recordDel(treeID)
+	err = t.unvetted.RecordDel(treeID)
 	if err != nil {
-		return fmt.Errorf("recordDel %v: %v", treeID, err)
+		return fmt.Errorf("RecordDel %v: %v", treeID, err)
 	}
 
 	log.Debugf("Unvetted record files deleted %x", token)
@@ -1426,9 +1409,9 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 
 	// Get existing record
 	treeID := treeIDFromToken(token)
-	r, err := t.unvetted.recordLatest(treeID)
+	r, err := t.unvetted.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 	rm := r.RecordMetadata
 	currStatus := rm.Status
@@ -1450,17 +1433,17 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	hsrs := hookSetRecordStatus{
+	hsrs := plugins.HookSetRecordStatus{
 		Current:        *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
 	}
-	b, err := encodeHookSetRecordStatus(hsrs)
+	b, err := json.Marshal(hsrs)
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHookPre(hookSetRecordStatusPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1483,7 +1466,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Call post plugin hooks
-	t.pluginHookPost(hookSetRecordStatusPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookSetRecordStatusPost, string(b))
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
 		token, backend.MDStatus[currStatus], currStatus,
@@ -1514,17 +1497,17 @@ func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, meta
 	if !ok {
 		return fmt.Errorf("vetted record not found")
 	}
-	err := t.vetted.treeFreeze(treeID, rm, metadata, 0)
+	err := t.vetted.TreeFreeze(treeID, rm, metadata, 0)
 	if err != nil {
-		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Vetted record frozen %x", token)
 
 	// Delete all record files
-	err = t.vetted.recordDel(treeID)
+	err = t.vetted.RecordDel(treeID)
 	if err != nil {
-		return fmt.Errorf("recordDel %v: %v", treeID, err)
+		return fmt.Errorf("RecordDel %v: %v", treeID, err)
 	}
 
 	log.Debugf("Vetted record files deleted %x", token)
@@ -1540,9 +1523,9 @@ func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, met
 	if !ok {
 		return fmt.Errorf("vetted record not found")
 	}
-	err := t.vetted.treeFreeze(treeID, rm, metadata, 0)
+	err := t.vetted.TreeFreeze(treeID, rm, metadata, 0)
 	if err != nil {
-		return fmt.Errorf("treeFreeze %v: %v", treeID, err)
+		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Vetted record frozen %x", token)
@@ -1550,7 +1533,7 @@ func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, met
 	return nil
 }
 
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetVettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
@@ -1578,9 +1561,9 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Get existing record
-	r, err := t.vetted.recordLatest(treeID)
+	r, err := t.vetted.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 	rm := r.RecordMetadata
 	currStatus := rm.Status
@@ -1602,17 +1585,17 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	srs := hookSetRecordStatus{
+	srs := plugins.HookSetRecordStatus{
 		Current:        *r,
 		RecordMetadata: rm,
 		MDAppend:       mdAppend,
 		MDOverwrite:    mdOverwrite,
 	}
-	b, err := encodeHookSetRecordStatus(srs)
+	b, err := json.Marshal(srs)
 	if err != nil {
 		return nil, err
 	}
-	err = t.pluginHookPre(hookSetRecordStatusPre, string(b))
+	err = t.vetted.PluginHookPre(plugins.HookSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1635,7 +1618,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Call post plugin hooks
-	t.pluginHookPost(hookSetRecordStatusPost, string(b))
+	t.vetted.PluginHookPost(plugins.HookSetRecordStatusPost, string(b))
 
 	// Update inventory cache
 	t.inventoryUpdate(stateVetted, token, currStatus, status)
@@ -1645,29 +1628,18 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 		backend.MDStatus[status], status)
 
 	// Return the updated record
-	r, err = t.vetted.recordLatest(treeID)
+	r, err = t.vetted.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("recordLatest: %v", err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
 }
 
-// Inventory is not implemented in tlogbe. If the caller which to pull records
-// from the inventory then they should use the InventoryByStatus call to get
-// the tokens of all records in the inventory and pull the required records
-// individually.
-//
-// This function satisfies the Backend interface.
-func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
-	log.Tracef("Inventory")
-	return nil, nil, fmt.Errorf("not implemented")
-}
-
 // InventoryByStatus returns the record tokens of all records in the inventory
 // categorized by MDStatusT.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	log.Tracef("InventoryByStatus")
 
@@ -1678,147 +1650,142 @@ func (t *tlogBackend) InventoryByStatus() (*backend.InventoryByStatus, error) {
 	}, nil
 }
 
-func (t *tlogBackend) RegisterPlugin(p backend.Plugin) error {
-	log.Tracef("RegisterPlugin: %v", p.ID)
-
-	// Add the plugin data dir to the plugin settings. Plugins should
-	// create their own individual data directories inside of the
-	// plugin data directory.
-	p.Settings = append(p.Settings, backend.PluginSetting{
-		Key:   pluginSettingDataDir,
-		Value: filepath.Join(t.dataDir, pluginDataDirname),
-	})
-
-	var (
-		client pluginClient
-		err    error
-	)
-	switch p.ID {
-	case comments.ID:
-		client, err = newCommentsPlugin(t, newBackendClient(t),
-			p.Settings, p.Identity)
-		if err != nil {
-			return err
-		}
-	case dcrdata.ID:
-		client, err = newDcrdataPlugin(p.Settings, t.activeNetParams)
-		if err != nil {
-			return err
-		}
-	case pi.ID:
-		client, err = newPiPlugin(t, newBackendClient(t), p.Settings,
-			t.activeNetParams)
-		if err != nil {
-			return err
-		}
-	case ticketvote.ID:
-		client, err = newTicketVotePlugin(t, newBackendClient(t),
-			p.Settings, p.Identity, t.activeNetParams)
-		if err != nil {
-			return err
-		}
-	default:
-		return backend.ErrPluginInvalid
-	}
-
-	t.plugins[p.ID] = plugin{
-		id:       p.ID,
-		version:  p.Version,
-		settings: p.Settings,
-		client:   client,
-	}
-
-	return nil
-}
-
-func (t *tlogBackend) SetupPlugin(pluginID string) error {
-	log.Tracef("SetupPlugin: %v", pluginID)
-
-	plugin, ok := t.plugins[pluginID]
-	if !ok {
-		return backend.ErrPluginInvalid
-	}
-
-	return plugin.client.setup()
-}
-
-// GetPlugins returns the backend plugins that have been registered and their
-// settings.
+// RegisterUnvettedPlugin registers a plugin with the unvetted tlog instance.
 //
-// This function satisfies the Backend interface.
-func (t *tlogBackend) GetPlugins() ([]backend.Plugin, error) {
-	log.Tracef("GetPlugins")
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) RegisterUnvettedPlugin(p backend.Plugin) error {
+	log.Tracef("RegisterUnvettedPlugin: %v", p.ID)
 
-	plugins := make([]backend.Plugin, 0, len(t.plugins))
-	for _, v := range t.plugins {
-		plugins = append(plugins, backend.Plugin{
-			ID:       v.id,
-			Version:  v.version,
-			Settings: v.settings,
-		})
+	if t.isShutdown() {
+		return backend.ErrShutdown
 	}
 
-	return plugins, nil
+	return t.unvetted.PluginRegister(p)
 }
 
-// Plugin is a pass-through function for plugin commands.
+// RegisterVettedPlugin has not been implemented.
 //
-// This function satisfies the Backend interface.
-func (t *tlogBackend) Plugin(pluginID, cmd, cmdID, payload string) (string, error) {
-	log.Tracef("Plugin: %v %v", pluginID, cmd)
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) RegisterVettedPlugin(p backend.Plugin) error {
+	log.Tracef("RegisterVettedPlugin: %v", p.ID)
+
+	if t.isShutdown() {
+		return backend.ErrShutdown
+	}
+
+	return t.vetted.PluginRegister(p)
+}
+
+// SetupUnvettedPlugin performs plugin setup for a previously registered
+// unvetted plugin.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) SetupUnvettedPlugin(pluginID string) error {
+	log.Tracef("SetupUnvettedPlugin: %v", pluginID)
+
+	if t.isShutdown() {
+		return backend.ErrShutdown
+	}
+
+	return t.unvetted.PluginSetup(pluginID)
+}
+
+// SetupVettedPlugin performs plugin setup for a previously registered vetted
+// plugin.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) SetupVettedPlugin(pluginID string) error {
+	log.Tracef("SetupVettedPlugin: %v", pluginID)
+
+	if t.isShutdown() {
+		return backend.ErrShutdown
+	}
+
+	return t.vetted.PluginSetup(pluginID)
+}
+
+// UnvettedPlugin executes a plugin command on an unvetted record.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) UnvettedPlugin(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("UnvettedPlugin: %x %v %v", token, pluginID, cmd)
 
 	if t.isShutdown() {
 		return "", backend.ErrShutdown
 	}
 
-	// Get plugin
-	plugin, ok := t.plugins[pluginID]
+	// Get tree ID
+	treeID := t.unvettedTreeIDFromToken(token)
+
+	// Verify record exists and is unvetted
+	if !t.UnvettedExists(token) {
+		return "", backend.ErrRecordNotFound
+	}
+
+	return t.unvetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+}
+
+// VettedPlugin executes a plugin command on an unvetted record.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) VettedPlugin(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("VettedPlugin: %x %v %v", token, pluginID, cmd)
+
+	if t.isShutdown() {
+		return "", backend.ErrShutdown
+	}
+
+	// Get tree ID
+	treeID, ok := t.vettedTreeIDFromToken(token)
 	if !ok {
-		return "", backend.ErrPluginInvalid
+		return "", backend.ErrRecordNotFound
 	}
 
-	// Execute plugin command
-	reply, err := plugin.client.cmd(cmd, payload)
-	if err != nil {
-		return "", err
-	}
-
-	return reply, nil
+	return t.vetted.PluginCmd(treeID, token, pluginID, cmd, payload)
 }
 
-func (t *tlogBackend) pluginHookPre(h hookT, payload string) error {
-	// Pass hook event and payload to each plugin
-	for _, v := range t.plugins {
-		err := v.client.hook(h, payload)
-		if err != nil {
-			var e backend.PluginUserError
-			if errors.As(err, &e) {
-				return err
-			}
-			return fmt.Errorf("hook %v: %v", v.id, err)
-		}
-	}
+// GetUnvettedPlugins returns the unvetted plugins that have been registered.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) GetUnvettedPlugins() []backend.Plugin {
+	log.Tracef("GetUnvettedPlugins")
 
-	return nil
+	return t.unvetted.Plugins()
 }
 
-func (t *tlogBackend) pluginHookPost(h hookT, payload string) {
-	// Pass hook event and payload to each plugin
-	for _, v := range t.plugins {
-		err := v.client.hook(h, payload)
-		if err != nil {
-			// This is the post plugin hook so the data has already been
-			// saved to the tlog backend. We do not have the ability to
-			// unwind. Log the error and continue.
-			log.Criticalf("pluginHookPost %v %v: %v: %v", v.id, h, err, payload)
-			continue
-		}
-	}
+// GetVettedPlugins returns the vetted plugins that have been registered.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) GetVettedPlugins() []backend.Plugin {
+	log.Tracef("GetVettedPlugins")
+
+	return t.vetted.Plugins()
+}
+
+// Inventory has been DEPRECATED.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
+	return nil, nil, fmt.Errorf("not implemented")
+}
+
+// GetPlugins has been DEPRECATED.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) GetPlugins() ([]backend.Plugin, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// Plugin has been DEPRECATED.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) Plugin(pluginID, cmd, cmdID, payload string) (string, error) {
+	return "", fmt.Errorf("not implemented")
 }
 
 // Close shuts the backend down and performs cleanup.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backend.Backend interface.
 func (t *tlogBackend) Close() {
 	log.Tracef("Close")
 
@@ -1828,26 +1795,26 @@ func (t *tlogBackend) Close() {
 	// Shutdown backend
 	t.shutdown = true
 
-	// Close out tlog connections
-	t.unvetted.close()
-	t.vetted.close()
+	// Close tlog connections
+	t.unvetted.Close()
+	t.vetted.Close()
 }
 
-// setup creates the tlog backend in-memory cache.
+// setup creates the tlog backend caches.
 func (t *tlogBackend) setup() error {
 	log.Tracef("setup")
 
 	// Get all trees
-	trees, err := t.unvetted.trillian.treesAll()
+	treeIDs, err := t.unvetted.TreesAll()
 	if err != nil {
-		return fmt.Errorf("unvetted treesAll: %v", err)
+		return fmt.Errorf("unvetted TreesAll: %v", err)
 	}
 
 	log.Infof("Building backend caches")
 
 	// Build all memory caches
-	for _, v := range trees {
-		token := tokenFromTreeID(v.TreeId)
+	for _, v := range treeIDs {
+		token := tokenFromTreeID(v)
 
 		log.Debugf("Building memory caches for %x", token)
 
@@ -1928,17 +1895,17 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 	log.Infof("Anchor host: %v", dcrtimeHost)
 
 	// Setup tlog instances
-	unvetted, err := newTlog(tlogIDUnvetted, homeDir, dataDir,
+	unvetted, err := tlog.New(tlogIDUnvetted, homeDir, dataDir,
 		unvettedTrillianHost, unvettedTrillianKeyFile, encryptionKeyFile,
 		dcrtimeHost, dcrtimeCert)
 	if err != nil {
-		return nil, fmt.Errorf("newTlog unvetted: %v", err)
+		return nil, fmt.Errorf("new tlog unvetted: %v", err)
 	}
-	vetted, err := newTlog(tlogIDVetted, homeDir, dataDir,
+	vetted, err := tlog.New(tlogIDVetted, homeDir, dataDir,
 		vettedTrillianHost, vettedTrillianKeyFile, "",
 		dcrtimeHost, dcrtimeCert)
 	if err != nil {
-		return nil, fmt.Errorf("newTlog vetted: %v", err)
+		return nil, fmt.Errorf("new tlog vetted: %v", err)
 	}
 
 	// Setup tlogbe
@@ -1948,7 +1915,6 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 		dataDir:         dataDir,
 		unvetted:        unvetted,
 		vetted:          vetted,
-		plugins:         make(map[string]plugin),
 		prefixes:        make(map[string][]byte),
 		vettedTreeIDs:   make(map[string]int64),
 		inv: recordInventory{

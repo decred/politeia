@@ -29,16 +29,16 @@ const (
 	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
 	GetUnvettedRoute            = "/v1/getunvetted/"      // Retrieve unvetted record
 	GetVettedRoute              = "/v1/getvetted/"        // Retrieve vetted record
-	GetUnvettedTimestampsRoute  = "/v1/getunvettedts"
-	GetVettedTimestampsRoute    = "/v1/getvettedts"
+	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"
+	GetVettedTimestampsRoute    = "/v1/getvettedts/"
 	InventoryByStatusRoute      = "/v1/inventorybystatus/"
 
 	// Auth required
-	InventoryRoute         = "/v1/inventory/"                  // Inventory records
-	SetUnvettedStatusRoute = "/v1/setunvettedstatus/"          // Set unvetted status
-	SetVettedStatusRoute   = "/v1/setvettedstatus/"            // Set vetted status
-	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
-	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
+	InventoryRoute         = "/v1/inventory/"         // Inventory records
+	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
+	SetVettedStatusRoute   = "/v1/setvettedstatus/"   // Set vetted status
+	PluginCommandRoute     = "/v1/plugin/"            // Send a command to a plugin
+	PluginInventoryRoute   = "/v1/plugin/inventory/"  // Inventory all plugins
 
 	ChallengeSize = 32 // Size of challenge token in bytes
 

@@ -1,8 +1,8 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package tlogbe
+package tlog
 
 import (
 	"bytes"
@@ -58,7 +58,7 @@ var (
 )
 
 // anchorForLeaf returns the anchor for a specific merkle leaf hash.
-func (t *tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
+func (t *Tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
 	// Find the leaf for the provided merkle leaf hash
 	var l *trillian.LogLeaf
 	for i, v := range leaves {
@@ -113,7 +113,7 @@ func (t *tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tril
 
 // anchorLatest returns the most recent anchor for the provided tree. A
 // errAnchorNotFound is returned if no anchor is found for the provided tree.
-func (t *tlog) anchorLatest(treeID int64) (*anchor, error) {
+func (t *Tlog) anchorLatest(treeID int64) (*anchor, error) {
 	// Get tree leaves
 	leavesAll, err := t.trillian.leavesAll(treeID)
 	if err != nil {
@@ -158,7 +158,7 @@ func (t *tlog) anchorLatest(treeID int64) (*anchor, error) {
 
 // anchorSave saves an anchor to the key-value store and appends a log leaf
 // to the trillian tree for the anchor.
-func (t *tlog) anchorSave(a anchor) error {
+func (t *Tlog) anchorSave(a anchor) error {
 	// Sanity checks
 	switch {
 	case a.TreeID == 0:
@@ -227,7 +227,7 @@ func (t *tlog) anchorSave(a anchor) error {
 // confirmations. Once the timestamp has been dropped, the anchor record is
 // saved to the key-value store and the record histories of the corresponding
 // timestamped trees are updated.
-func (t *tlog) anchorWait(anchors []anchor, digests []string) {
+func (t *Tlog) anchorWait(anchors []anchor, digests []string) {
 	// Ensure we are not reentrant
 	t.Lock()
 	if t.droppingAnchor {
@@ -395,7 +395,7 @@ func (t *tlog) anchorWait(anchors []anchor, digests []string) {
 // time of function invocation. A SHA256 digest of the tree's log root at its
 // current height is timestamped onto the decred blockchain using the dcrtime
 // service. The anchor data is saved to the key-value store.
-func (t *tlog) anchorTrees() {
+func (t *Tlog) anchorTrees() {
 	log.Debugf("Start %v anchor process", t.id)
 
 	var exitErr error // Set on exit if there is an error

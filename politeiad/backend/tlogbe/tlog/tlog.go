@@ -1,8 +1,8 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package tlogbe
+package tlog
 
 import (
 	"bytes"
@@ -27,6 +27,8 @@ import (
 )
 
 const (
+	defaultTrillianKeyFilename = "trillian.key"
+
 	// Blob entry data descriptors
 	dataDescriptorFile           = "file"
 	dataDescriptorRecordMetadata = "recordmetadata"
@@ -52,41 +54,44 @@ const (
 )
 
 var (
-	// errRecordNotFound is emitted when a record is not found. This
+	// ErrRecordNotFound is emitted when a record is not found. This
 	// can be because a tree does not exists for the provided tree id
 	// or when a tree does exist but the specified record version does
 	// not exist.
-	errRecordNotFound = errors.New("record not found")
+	// TODO replace this with a backend error. These errors should only
+	// be for when the backend doesn't have one.
+	ErrRecordNotFound = errors.New("record not found")
 
-	// errNoFileChanges is emitted when there are no files being
+	// ErrNoFileChanges is emitted when there are no files being
 	// changed.
-	errNoFileChanges = errors.New("no file changes")
+	ErrNoFileChanges = errors.New("no file changes")
 
-	// errNoMetadataChanges is emitted when there are no metadata
+	// ErrNoMetadataChanges is emitted when there are no metadata
 	// changes being made.
-	errNoMetadataChanges = errors.New("no metadata changes")
+	ErrNoMetadataChanges = errors.New("no metadata changes")
 
-	// errFreezeRecordNotFound is emitted when a freeze record does not
+	// ErrFreezeRecordNotFound is emitted when a freeze record does not
 	// exist for a tree.
-	errFreezeRecordNotFound = errors.New("freeze record not found")
+	ErrFreezeRecordNotFound = errors.New("freeze record not found")
 
-	// errTreeIsFrozen is emitted when a frozen tree is attempted to be
+	// ErrTreeIsFrozen is emitted when a frozen tree is attempted to be
 	// altered.
-	errTreeIsFrozen = errors.New("tree is frozen")
+	ErrTreeIsFrozen = errors.New("tree is frozen")
 
-	// errTreeIsNotFrozen is emitted when a tree is expected to be
+	// ErrTreeIsNotFrozen is emitted when a tree is expected to be
 	// frozen but is actually not frozen.
-	errTreeIsNotFrozen = errors.New("tree is not frozen")
+	ErrTreeIsNotFrozen = errors.New("tree is not frozen")
 )
 
 // We do not unwind.
-type tlog struct {
+type Tlog struct {
 	sync.Mutex
 	id       string
 	trillian trillianClient
 	store    store.Blob
 	dcrtime  *dcrtimeClient
 	cron     *cron.Cron
+	plugins  map[string]plugin // [pluginID]plugin
 
 	// encryptionKey is used to encrypt record blobs before saving them
 	// to the key-value store. This is an optional param. Record blobs
@@ -161,6 +166,7 @@ type recordIndex struct {
 	// allow any additional leaves to be appended onto the tree.
 	Frozen bool `json:"frozen,omitempty"`
 
+	// TODO make this a generic ExtraData field
 	// TreePointer is the tree ID of the tree that is the new location
 	// of this record. A record can be copied to a new tree after
 	// certain status changes, such as when a record is made public and
@@ -376,7 +382,7 @@ func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
 	return &a, nil
 }
 
-func (t *tlog) encrypt(b []byte) ([]byte, error) {
+func (t *Tlog) encrypt(b []byte) ([]byte, error) {
 	if t.encryptionKey == nil {
 		return nil, fmt.Errorf("cannot encrypt blob; encryption key "+
 			"not set for tlog instance %v", t.id)
@@ -384,7 +390,7 @@ func (t *tlog) encrypt(b []byte) ([]byte, error) {
 	return t.encryptionKey.encrypt(0, b)
 }
 
-func (t *tlog) deblob(b []byte) (*store.BlobEntry, error) {
+func (t *Tlog) deblob(b []byte) (*store.BlobEntry, error) {
 	var err error
 	if t.encryptionKey != nil && blobIsEncrypted(b) {
 		b, _, err = t.encryptionKey.decrypt(b)
@@ -404,7 +410,7 @@ func (t *tlog) deblob(b []byte) (*store.BlobEntry, error) {
 	return be, nil
 }
 
-func (t *tlog) treeNew() (int64, error) {
+func (t *Tlog) TreeNew() (int64, error) {
 	log.Tracef("%v treeNew", t.id)
 
 	tree, _, err := t.trillian.treeNew()
@@ -415,14 +421,14 @@ func (t *tlog) treeNew() (int64, error) {
 	return tree.TreeId, nil
 }
 
-func (t *tlog) treeExists(treeID int64) bool {
-	log.Tracef("%v treeExists: %v", t.id, treeID)
+func (t *Tlog) TreeExists(treeID int64) bool {
+	log.Tracef("%v TreeExists: %v", t.id, treeID)
 
 	_, err := t.trillian.tree(treeID)
 	return err == nil
 }
 
-// treeFreeze updates the status of a record and freezes the trillian tree as a
+// TreeFreeze updates the status of a record and freezes the trillian tree as a
 // result of a record status change. The tree pointer is the tree ID of the new
 // location of the record. This is provided on certain status changes such as
 // when a unvetted record is made public and the unvetted record is moved to a
@@ -434,8 +440,8 @@ func (t *tlog) treeExists(treeID int64) bool {
 // anchored, the tlog fsck function will update the status of the tree to
 // frozen in trillian, at which point trillian will not allow any additional
 // leaves to be appended onto the tree.
-func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, treePointer int64) error {
-	log.Tracef("%v treeFreeze: %v", t.id, treeID)
+func (t *Tlog) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, treePointer int64) error {
+	log.Tracef("%v TreeFreeze: %v", t.id, treeID)
 
 	// Save metadata
 	idx, err := t.metadataSave(treeID, rm, metadata)
@@ -496,13 +502,13 @@ func (t *tlog) treeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	return nil
 }
 
-// treePointer returns the tree pointer for the provided tree if one exists.
+// TreePointer returns the tree pointer for the provided tree if one exists.
 // The returned bool will indicate if a tree pointer was found.
-func (t *tlog) treePointer(treeID int64) (int64, bool) {
+func (t *Tlog) TreePointer(treeID int64) (int64, bool) {
 	log.Tracef("%v treePointer: %v", t.id, treeID)
 
 	// Verify tree exists
-	if !t.treeExists(treeID) {
+	if !t.TreeExists(treeID) {
 		return 0, false
 	}
 
@@ -515,7 +521,7 @@ func (t *tlog) treePointer(treeID int64) (int64, bool) {
 	}
 	idx, err = t.recordIndexLatest(leavesAll)
 	if err != nil {
-		if err == errRecordNotFound {
+		if err == ErrRecordNotFound {
 			// This is an empty tree. This can happen sometimes if a error
 			// occurred during record creation. Return gracefully.
 			return 0, false
@@ -538,7 +544,20 @@ printErr:
 	return 0, false
 }
 
-func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
+// TreesAll returns the IDs of all trees in the tlog instance.
+func (t *Tlog) TreesAll() ([]int64, error) {
+	trees, err := t.trillian.treesAll()
+	if err != nil {
+		return nil, err
+	}
+	treeIDs := make([]int64, 0, len(trees))
+	for _, v := range trees {
+		treeIDs = append(treeIDs, v.TreeId)
+	}
+	return treeIDs, nil
+}
+
+func (t *Tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 	// Save record index to the store
 	be, err := convertBlobEntryFromRecordIndex(ri)
 	if err != nil {
@@ -589,7 +608,7 @@ func (t *tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 
 // recordIndexVersion takes a list of record indexes for a record and returns
 // the most recent iteration of the specified version. A version of 0 indicates
-// that the latest version should be returned. A errRecordNotFound is returned
+// that the latest version should be returned. A ErrRecordNotFound is returned
 // if the provided version does not exist.
 func recordIndexVersion(indexes []recordIndex, version uint32) (*recordIndex, error) {
 	// Return the record index for the specified version
@@ -611,13 +630,13 @@ func recordIndexVersion(indexes []recordIndex, version uint32) (*recordIndex, er
 	}
 	if ri == nil {
 		// The specified version does not exist
-		return nil, errRecordNotFound
+		return nil, ErrRecordNotFound
 	}
 
 	return ri, nil
 }
 
-func (t *tlog) recordIndexVersion(leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
+func (t *Tlog) recordIndexVersion(leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
 	indexes, err := t.recordIndexes(leaves)
 	if err != nil {
 		return nil, err
@@ -626,11 +645,11 @@ func (t *tlog) recordIndexVersion(leaves []*trillian.LogLeaf, version uint32) (*
 	return recordIndexVersion(indexes, version)
 }
 
-func (t *tlog) recordIndexLatest(leaves []*trillian.LogLeaf) (*recordIndex, error) {
+func (t *Tlog) recordIndexLatest(leaves []*trillian.LogLeaf) (*recordIndex, error) {
 	return t.recordIndexVersion(leaves, 0)
 }
 
-func (t *tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) {
+func (t *Tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) {
 	// Walk the leaves and compile the keys for all record indexes. It
 	// is possible for multiple indexes to exist for the same record
 	// version (they will have different iterations due to metadata
@@ -647,7 +666,7 @@ func (t *tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) 
 
 	if len(keys) == 0 {
 		// No records have been added to this tree yet
-		return nil, errRecordNotFound
+		return nil, ErrRecordNotFound
 	}
 
 	// Get record indexes from store
@@ -743,7 +762,7 @@ type recordBlobsPrepareReply struct {
 // the blob kv store and appended onto a trillian tree.
 //
 // TODO test this function
-func (t *tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordBlobsPrepareReply, error) {
+func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordBlobsPrepareReply, error) {
 	// Verify there are no duplicate or empty mdstream IDs
 	mdstreamIDs := make(map[uint64]struct{}, len(metadata))
 	for _, v := range metadata {
@@ -933,7 +952,7 @@ func (t *tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 // recordBlobsSave saves the provided blobs to the kv store, appends a leaf
 // to the trillian tree for each blob, then updates the record index with the
 // trillian leaf information and returns it.
-func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*recordIndex, error) {
+func (t *Tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*recordIndex, error) {
 	log.Tracef("recordBlobsSave: %v", t.id, treeID)
 
 	var (
@@ -1014,16 +1033,16 @@ func (t *tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 	return &index, nil
 }
 
-// recordSave saves the provided record to tlog, creating a new version of the
+// RecordSave saves the provided record to tlog, creating a new version of the
 // record (the record iteration also gets incremented on new versions). Once
 // the record contents have been successfully saved to tlog, a recordIndex is
 // created for this version of the record and saved to tlog as well.
-func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	log.Tracef("%v recordSave: %v", t.id, treeID)
+func (t *Tlog) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+	log.Tracef("%v RecordSave: %v", t.id, treeID)
 
 	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return errRecordNotFound
+	if !t.TreeExists(treeID) {
+		return ErrRecordNotFound
 	}
 
 	// Get tree leaves
@@ -1034,7 +1053,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Get the existing record index
 	currIdx, err := t.recordIndexLatest(leavesAll)
-	if errors.Is(err, errRecordNotFound) {
+	if errors.Is(err, ErrRecordNotFound) {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
 			Metadata: make(map[uint64][]byte),
@@ -1046,7 +1065,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Verify tree state
 	if currIdx.Frozen {
-		return errTreeIsFrozen
+		return ErrTreeIsFrozen
 	}
 
 	// Prepare kv store blobs
@@ -1094,7 +1113,7 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		}
 	}
 	if !fileChanges {
-		return errNoFileChanges
+		return ErrNoFileChanges
 	}
 
 	// Save blobs
@@ -1141,10 +1160,10 @@ func (t *tlog) recordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 // trillian tree. This code has been pulled out so that it can be called during
 // normal metadata updates as well as when an update requires a freeze record
 // to be saved along with the record index, such as when a record is censored.
-func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) (*recordIndex, error) {
+func (t *Tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) (*recordIndex, error) {
 	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
+	if !t.TreeExists(treeID) {
+		return nil, ErrRecordNotFound
 	}
 
 	// Get tree leaves
@@ -1159,7 +1178,7 @@ func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 		return nil, err
 	}
 	if currIdx.Frozen {
-		return nil, errTreeIsFrozen
+		return nil, ErrTreeIsFrozen
 	}
 
 	// Prepare kv store blobs
@@ -1170,7 +1189,7 @@ func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 
 	// Verify at least one new blob is being saved to the kv store
 	if len(bpr.blobs) == 0 {
-		return nil, errNoMetadataChanges
+		return nil, ErrNoMetadataChanges
 	}
 
 	// Save the blobs
@@ -1213,12 +1232,12 @@ func (t *tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 	return idx, nil
 }
 
-// recordMetadataSave saves the provided metadata to tlog, creating a new
+// RecordMetadataSave saves the provided metadata to tlog, creating a new
 // iteration of the record while keeping the record version the same. Once the
 // metadata has been successfully saved to tlog, a recordIndex is created for
 // this iteration of the record and saved to tlog as well.
-func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	log.Tracef("%v recordMetadataSave: %v", t.id, treeID)
+func (t *Tlog) RecordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	log.Tracef("%v RecordMetadataSave: %v", t.id, treeID)
 
 	// Save metadata
 	idx, err := t.metadataSave(treeID, rm, metadata)
@@ -1235,16 +1254,16 @@ func (t *tlog) recordMetadataSave(treeID int64, rm backend.RecordMetadata, metad
 	return nil
 }
 
-// recordDel walks the provided tree and deletes all file blobs in the store
+// RecordDel walks the provided tree and deletes all file blobs in the store
 // that correspond to record files. This is done for all versions and all
 // iterations of the record. Record metadata and metadata stream blobs are not
 // deleted.
-func (t *tlog) recordDel(treeID int64) error {
-	log.Tracef("%v recordDel: %v", t.id, treeID)
+func (t *Tlog) RecordDel(treeID int64) error {
+	log.Tracef("%v RecordDel: %v", t.id, treeID)
 
 	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return errRecordNotFound
+	if !t.TreeExists(treeID) {
+		return ErrRecordNotFound
 	}
 
 	// Get all tree leaves
@@ -1260,7 +1279,7 @@ func (t *tlog) recordDel(treeID int64) error {
 		return err
 	}
 	if !currIdx.Frozen {
-		return errTreeIsNotFrozen
+		return ErrTreeIsNotFrozen
 	}
 
 	// Retrieve all the record indexes
@@ -1295,7 +1314,7 @@ func (t *tlog) recordDel(treeID int64) error {
 	return nil
 }
 
-// recordExists returns whether a record exists on the provided tree ID. A
+// RecordExists returns whether a record exists on the provided tree ID. A
 // record is considered to not exist if any of the following conditions are
 // met:
 //
@@ -1311,11 +1330,11 @@ func (t *tlog) recordDel(treeID int64) error {
 //   onto a vetted tree.
 //
 // The tree pointer is also returned if one is found.
-func (t *tlog) recordExists(treeID int64) bool {
-	log.Tracef("%v recordExists: %v", t.id, treeID)
+func (t *Tlog) RecordExists(treeID int64) bool {
+	log.Tracef("%v RecordExists: %v", t.id, treeID)
 
 	// Verify tree exists
-	if !t.treeExists(treeID) {
+	if !t.TreeExists(treeID) {
 		return false
 	}
 
@@ -1328,7 +1347,7 @@ func (t *tlog) recordExists(treeID int64) bool {
 	}
 	idx, err = t.recordIndexLatest(leavesAll)
 	if err != nil {
-		if err == errRecordNotFound {
+		if err == ErrRecordNotFound {
 			// This is an empty tree. This can happen sometimes if a error
 			// occurred during record creation. Return gracefully.
 			return false
@@ -1346,16 +1365,16 @@ func (t *tlog) recordExists(treeID int64) bool {
 	return true
 
 printErr:
-	log.Errorf("%v recordExists: %v", t.id, err)
+	log.Errorf("%v RecordExists: %v", t.id, err)
 	return false
 }
 
-func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
+func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 	log.Tracef("%v record: %v %v", t.id, treeID, version)
 
 	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
+	if !t.TreeExists(treeID) {
+		return nil, ErrRecordNotFound
 	}
 
 	// Get tree leaves
@@ -1369,7 +1388,7 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	// exists on the tree being pointed to, but not on this one. This
 	// happens in situations such as when an unvetted record is made
 	// public and copied to a vetted tree. Querying the unvetted tree
-	// will result in a errRecordNotFound error being returned and the
+	// will result in a ErrRecordNotFound error being returned and the
 	// vetted tree must be queried instead.
 	indexes, err := t.recordIndexes(leaves)
 	if err != nil {
@@ -1380,7 +1399,7 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 		return nil, err
 	}
 	if treePointerExists(*idxLatest) {
-		return nil, errRecordNotFound
+		return nil, ErrRecordNotFound
 	}
 
 	// Use the record index to pull the record content from the store.
@@ -1516,15 +1535,12 @@ func (t *tlog) record(treeID int64, version uint32) (*backend.Record, error) {
 	}, nil
 }
 
-func (t *tlog) recordLatest(treeID int64) (*backend.Record, error) {
-	log.Tracef("%v recordLatest: %v", t.id, treeID)
-
-	return t.record(treeID, 0)
+func (t *Tlog) RecordLatest(treeID int64) (*backend.Record, error) {
+	log.Tracef("%v RecordLatest: %v", t.id, treeID)
+	return t.Record(treeID, 0)
 }
 
-// timestamp returns the timestamp for the data blob that corresponds to the
-// provided merkle leaf hash.
-func (t *tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
+func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
 	// Find the leaf
 	var l *trillian.LogLeaf
 	for _, v := range leaves {
@@ -1646,12 +1662,12 @@ func (t *tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	return &ts, nil
 }
 
-func (t *tlog) recordTimestamps(treeID int64, version uint32, token []byte) (*backend.RecordTimestamps, error) {
-	log.Tracef("%v recordTimestamps: %v %v", t.id, treeID, version)
+func (t *Tlog) RecordTimestamps(treeID int64, version uint32, token []byte) (*backend.RecordTimestamps, error) {
+	log.Tracef("%v RecordTimestamps: %v %v", t.id, treeID, version)
 
 	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
+	if !t.TreeExists(treeID) {
+		return nil, ErrRecordNotFound
 	}
 
 	// Get record index
@@ -1699,322 +1715,16 @@ func (t *tlog) recordTimestamps(treeID int64, version uint32, token []byte) (*ba
 	}, nil
 }
 
-// blobsSave saves the provided blobs to the key-value store then appends them
-// onto the trillian tree. Note, hashes contains the hashes of the data encoded
-// in the blobs. The hashes must share the same ordering as the blobs.
-func (t *tlog) blobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
-	log.Tracef("%v blobsSave: %v %v %v", t.id, treeID, keyPrefix, encrypt)
-
-	// Sanity check
-	if len(blobs) != len(hashes) {
-		return nil, fmt.Errorf("blob count and hashes count mismatch: "+
-			"got %v blobs, %v hashes", len(blobs), len(hashes))
-	}
-
-	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
-	}
-
-	// Verify tree is not frozen
-	leavesAll, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-	idx, err := t.recordIndexLatest(leavesAll)
-	if err != nil {
-		return nil, err
-	}
-	if idx.Frozen {
-		return nil, errTreeIsFrozen
-	}
-
-	// Encrypt blobs if specified
-	if encrypt {
-		for k, v := range blobs {
-			e, err := t.encrypt(v)
-			if err != nil {
-				return nil, err
-			}
-			blobs[k] = e
-		}
-	}
-
-	// Save blobs to store
-	keys, err := t.store.Put(blobs)
-	if err != nil {
-		return nil, fmt.Errorf("store Put: %v", err)
-	}
-	if len(keys) != len(blobs) {
-		return nil, fmt.Errorf("wrong number of keys: got %v, want %v",
-			len(keys), len(blobs))
-	}
-
-	// Prepare log leaves. hashes and keys share the same ordering.
-	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
-	for k := range blobs {
-		pk := []byte(keyPrefix + keys[k])
-		leaves = append(leaves, newLogLeaf(hashes[k], pk))
-	}
-
-	// Append leaves to trillian tree
-	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAppend: %v", err)
-	}
-	if len(queued) != len(leaves) {
-		return nil, fmt.Errorf("wrong number of queued leaves: got %v, want %v",
-			len(queued), len(leaves))
-	}
-	failed := make([]string, 0, len(queued))
-	for _, v := range queued {
-		c := codes.Code(v.QueuedLeaf.GetStatus().GetCode())
-		if c != codes.OK {
-			failed = append(failed, fmt.Sprintf("%v", c))
-		}
-	}
-	if len(failed) > 0 {
-		return nil, fmt.Errorf("append leaves failed: %v", failed)
-	}
-
-	// Parse and return the merkle leaf hashes
-	merkles := make([][]byte, 0, len(blobs))
-	for _, v := range queued {
-		merkles = append(merkles, v.QueuedLeaf.Leaf.MerkleLeafHash)
-	}
-
-	return merkles, nil
-}
-
-// del deletes the blobs in the kv store that correspond to the provided merkle
-// leaf hashes. The kv store keys in store in the ExtraData field of the leaves
-// specified by the provided merkle leaf hashes.
-func (t *tlog) blobsDel(treeID int64, merkles [][]byte) error {
-	log.Tracef("%v blobsDel: %v", t.id, treeID)
-
-	// Verify tree exists. We allow blobs to be deleted from both
-	// frozen and non frozen trees.
-	if !t.treeExists(treeID) {
-		return errRecordNotFound
-	}
-
-	// Get all tree leaves
-	leaves, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return err
-	}
-
-	// Put merkle leaf hashes into a map so that we can tell if a leaf
-	// corresponds to one of the target merkle leaf hashes in O(n)
-	// time.
-	merkleHashes := make(map[string]struct{}, len(leaves))
-	for _, v := range merkles {
-		merkleHashes[hex.EncodeToString(v)] = struct{}{}
-	}
-
-	// Aggregate the key-value store keys for the provided merkle leaf
-	// hashes.
-	keys := make([]string, 0, len(merkles))
-	for _, v := range leaves {
-		_, ok := merkleHashes[hex.EncodeToString(v.MerkleLeafHash)]
-		if ok {
-			keys = append(keys, extractKeyFromLeaf(v))
-		}
-	}
-
-	// Delete file blobs from the store
-	err = t.store.Del(keys)
-	if err != nil {
-		return fmt.Errorf("store Del: %v", err)
-	}
-
-	return nil
-}
-
-// blobsByMerkle returns the blobs with the provided merkle leaf hashes.
-//
-// If a blob does not exist it will not be included in the returned map. It is
-// the responsibility of the caller to check that a blob is returned for each
-// of the provided merkle hashes.
-func (t *tlog) blobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error) {
-	log.Tracef("%v blobsByMerkle: %v", t.id, treeID)
-
-	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
-	}
-
-	// Get leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Aggregate the leaves that correspond to the provided merkle
-	// hashes.
-	// map[merkleHash]*trillian.LogLeaf
-	leaves := make(map[string]*trillian.LogLeaf, len(merkles))
-	for _, v := range merkles {
-		leaves[hex.EncodeToString(v)] = nil
-	}
-	for _, v := range leavesAll {
-		m := hex.EncodeToString(v.MerkleLeafHash)
-		if _, ok := leaves[m]; ok {
-			leaves[m] = v
-		}
-	}
-
-	// Ensure a leaf was found for all provided merkle hashes
-	for k, v := range leaves {
-		if v == nil {
-			return nil, fmt.Errorf("leaf not found for merkle hash: %v", k)
-		}
-	}
-
-	// Extract the key-value store keys. These keys MUST be put in the
-	// same order that the merkle hashes were provided in.
-	keys := make([]string, 0, len(leaves))
-	for _, v := range merkles {
-		l, ok := leaves[hex.EncodeToString(v)]
-		if !ok {
-			return nil, fmt.Errorf("leaf not found for merkle hash: %x", v)
-		}
-		keys = append(keys, extractKeyFromLeaf(l))
-	}
-
-	// Pull the blobs from the store. If is ok if one or more blobs is
-	// not found. It is the responsibility of the caller to decide how
-	// this should be handled.
-	blobs, err := t.store.Get(keys)
-	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
-	}
-
-	// Decrypt any encrypted blobs
-	for k, v := range blobs {
-		if blobIsEncrypted(v) {
-			b, _, err := t.encryptionKey.decrypt(v)
-			if err != nil {
-				return nil, err
-			}
-			blobs[k] = b
-		}
-	}
-
-	// Put blobs in a map so the caller can determine if any of the
-	// provided merkle hashes did not correspond to a blob in the
-	// store.
-	b := make(map[string][]byte, len(blobs)) // [merkleHash]blob
-	for k, v := range keys {
-		// The merkle hashes slice and keys slice share the same order
-		merkleHash := hex.EncodeToString(merkles[k])
-		blob, ok := blobs[v]
-		if !ok {
-			return nil, fmt.Errorf("blob not found for key %v", v)
-		}
-		b[merkleHash] = blob
-	}
-
-	return b, nil
-}
-
-func (t *tlog) merklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
-	log.Tracef("%v merklesByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
-
-	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
-	}
-
-	// Get leaves
-	leaves, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Walk leaves and aggregate the merkle leaf hashes with a matching
-	// key prefix.
-	merkles := make([][]byte, 0, len(leaves))
-	for _, v := range leaves {
-		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
-			merkles = append(merkles, v.MerkleLeafHash)
-		}
-	}
-
-	return merkles, nil
-}
-
-// blobsByKeyPrefix returns all blobs that match the provided key prefix.
-func (t *tlog) blobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
-	log.Tracef("%v blobsByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
-
-	// Verify tree exists
-	if !t.treeExists(treeID) {
-		return nil, errRecordNotFound
-	}
-
-	// Get leaves
-	leaves, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Walk leaves and aggregate the key-value store keys for all
-	// leaves with a matching key prefix.
-	keys := make([]string, 0, len(leaves))
-	for _, v := range leaves {
-		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
-			keys = append(keys, extractKeyFromLeaf(v))
-		}
-	}
-
-	// Pull the blobs from the store
-	blobs, err := t.store.Get(keys)
-	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
-	}
-	if len(blobs) != len(keys) {
-		// One or more blobs were not found
-		missing := make([]string, 0, len(keys))
-		for _, v := range keys {
-			_, ok := blobs[v]
-			if !ok {
-				missing = append(missing, v)
-			}
-		}
-		return nil, fmt.Errorf("blobs not found: %v", missing)
-	}
-
-	// Decrypt any encrypted blobs
-	for k, v := range blobs {
-		if blobIsEncrypted(v) {
-			b, _, err := t.encryptionKey.decrypt(v)
-			if err != nil {
-				return nil, err
-			}
-			blobs[k] = b
-		}
-	}
-
-	// Covert blobs from map to slice
-	b := make([][]byte, 0, len(blobs))
-	for _, v := range blobs {
-		b = append(b, v)
-	}
-
-	return b, nil
-}
-
 // TODO run fsck episodically
-func (t *tlog) fsck() {
+func (t *Tlog) Fsck() {
 	// Set tree status to frozen for any trees that are frozen and have
 	// been anchored one last time.
 	// Failed censor. Ensure all blobs have been deleted from all
 	// record versions of a censored record.
 }
 
-func (t *tlog) close() {
-	log.Tracef("%v close", t.id)
+func (t *Tlog) Close() {
+	log.Tracef("%v Close", t.id)
 
 	// Close connections
 	t.store.Close()
@@ -2026,7 +1736,7 @@ func (t *tlog) close() {
 	}
 }
 
-func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*tlog, error) {
+func New(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tlog, error) {
 	// Load encryption key if provided. An encryption key is optional.
 	var ek *encryptionKey
 	if encryptionKeyFile != "" {
@@ -2078,7 +1788,7 @@ func newTlog(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyF
 	}
 
 	// Setup tlog
-	t := tlog{
+	t := Tlog{
 		id:            id,
 		trillian:      trillianClient,
 		store:         store,

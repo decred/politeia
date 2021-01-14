@@ -112,7 +112,7 @@ var (
 type commentsPlugin struct {
 	sync.Mutex
 	backend backend.Backend
-	tlog    plugins.BackendClient
+	tlog    plugins.TlogClient
 
 	// dataDir is the comments plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
@@ -1975,7 +1975,7 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 // Cmd executes a plugin command.
 //
 // This function satisfies the PluginClient interface.
-func (p *commentsPlugin) Cmd(cmd, payload string) (string, error) {
+func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %v", cmd, payload)
 
 	switch cmd {

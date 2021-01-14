@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package tlogbe
+package pi
 
 import (
 	"encoding/hex"
@@ -15,6 +15,25 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/google/uuid"
 )
+
+func newTestPiPlugin(t *testing.T) (*piPlugin, *tlogBackend, func()) {
+	t.Helper()
+
+	tlogBackend, cleanup := newTestTlogBackend(t)
+
+	settings := []backend.PluginSetting{{
+		Key:   pluginSettingDataDir,
+		Value: tlogBackend.dataDir,
+	}}
+
+	piPlugin, err := newPiPlugin(tlogBackend, newBackendClient(tlogBackend),
+		settings, tlogBackend.activeNetParams)
+	if err != nil {
+		t.Fatalf("newPiPlugin: %v", err)
+	}
+
+	return piPlugin, tlogBackend, cleanup
+}
 
 func TestCommentNew(t *testing.T) {
 	piPlugin, tlogBackend, cleanup := newTestPiPlugin(t)

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 )
 
 // tlogClient provides an API for the plugins to interact with the tlog
@@ -55,7 +56,7 @@ type backendClient struct {
 }
 
 // tlogByID returns the tlog instance that corresponds to the provided ID.
-func (c *backendClient) tlogByID(tlogID string) (*tlog, error) {
+func (c *backendClient) tlogByID(tlogID string) (*tlog.Tlog, error) {
 	switch tlogID {
 	case tlogIDUnvetted:
 		return c.backend.unvetted, nil
@@ -68,36 +69,42 @@ func (c *backendClient) tlogByID(tlogID string) (*tlog, error) {
 // treeIDFromToken returns the treeID for the provided tlog instance ID and
 // token. This function accepts both token prefixes and full length tokens.
 func (c *backendClient) treeIDFromToken(tlogID string, token []byte) (int64, error) {
-	if len(token) == tokenPrefixSize() {
-		// This is a token prefix. Get the full token from the cache.
-		var ok bool
-		token, ok = c.backend.fullLengthToken(token)
-		if !ok {
-			return 0, errRecordNotFound
+	/*
+		if len(token) == tokenPrefixSize() {
+			// This is a token prefix. Get the full token from the cache.
+			var ok bool
+			token, ok = c.backend.fullLengthToken(token)
+			if !ok {
+				return 0, errRecordNotFound
+			}
 		}
-	}
 
-	switch tlogID {
-	case tlogIDUnvetted:
-		return treeIDFromToken(token), nil
-	case tlogIDVetted:
-		treeID, ok := c.backend.vettedTreeIDFromToken(token)
-		if !ok {
-			return 0, errRecordNotFound
+		switch tlogID {
+		case tlogIDUnvetted:
+			return treeIDFromToken(token), nil
+		case tlogIDVetted:
+			treeID, ok := c.backend.vettedTreeIDFromToken(token)
+			if !ok {
+				return 0, errRecordNotFound
+			}
+			return treeID, nil
 		}
-		return treeID, nil
-	}
 
-	return 0, fmt.Errorf("unknown tlog id '%v'", tlogID)
+		return 0, fmt.Errorf("unknown tlog id '%v'", tlogID)
+	*/
+	return 0, nil
 }
 
 // treeIDFromToken returns the treeID for the provided tlog instance ID and
 // token. This function only accepts full length tokens.
 func (c *backendClient) treeIDFromTokenFullLength(tlogID string, token []byte) (int64, error) {
-	if !tokenIsFullLength(token) {
-		return 0, errRecordNotFound
-	}
-	return c.treeIDFromToken(tlogID, token)
+	/*
+		if !tokenIsFullLength(token) {
+			return 0, errRecordNotFound
+		}
+		return c.treeIDFromToken(tlogID, token)
+	*/
+	return 0, nil
 }
 
 // save saves the provided blobs to the tlog backend. Note, hashes contains the
@@ -122,7 +129,7 @@ func (c *backendClient) save(tlogID string, token []byte, keyPrefix string, blob
 	}
 
 	// Save blobs
-	return tlog.blobsSave(treeID, keyPrefix, blobs, hashes, encrypt)
+	return tlog.BlobsSave(treeID, keyPrefix, blobs, hashes, encrypt)
 }
 
 // del deletes the blobs that correspond to the provided merkle leaf hashes.
@@ -145,7 +152,7 @@ func (c *backendClient) del(tlogID string, token []byte, merkles [][]byte) error
 	}
 
 	// Delete blobs
-	return tlog.blobsDel(treeID, merkles)
+	return tlog.BlobsDel(treeID, merkles)
 }
 
 // merklesByKeyPrefix returns the merkle root hashes for all blobs that match
@@ -169,7 +176,7 @@ func (c *backendClient) merklesByKeyPrefix(tlogID string, token []byte, keyPrefi
 	}
 
 	// Get merkle leaf hashes
-	return tlog.merklesByKeyPrefix(treeID, keyPrefix)
+	return tlog.MerklesByKeyPrefix(treeID, keyPrefix)
 }
 
 // blobsByMerkle returns the blobs with the provided merkle leaf hashes.
@@ -195,7 +202,7 @@ func (c *backendClient) blobsByMerkle(tlogID string, token []byte, merkles [][]b
 	}
 
 	// Get blobs
-	return tlog.blobsByMerkle(treeID, merkles)
+	return tlog.BlobsByMerkle(treeID, merkles)
 }
 
 // blobsByKeyPrefix returns all blobs that match the provided key prefix.
@@ -218,7 +225,7 @@ func (c *backendClient) blobsByKeyPrefix(tlogID string, token []byte, keyPrefix 
 	}
 
 	// Get blobs
-	return tlog.blobsByKeyPrefix(treeID, keyPrefix)
+	return tlog.BlobsByKeyPrefix(treeID, keyPrefix)
 }
 
 // timestamp returns the timestamp for a data blob that corresponds to the
@@ -240,14 +247,7 @@ func (c *backendClient) timestamp(tlogID string, token []byte, merkle []byte) (*
 		return nil, err
 	}
 
-	// Get all tree leaves
-	leaves, err := tlog.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Get timestamp
-	return tlog.timestamp(treeID, merkle, leaves)
+	return tlog.Timestamp(treeID, merkle)
 }
 
 // newBackendClient returns a new backendClient.

@@ -12,51 +12,45 @@ const (
 	// PluginSettingDataDir is the PluginSetting key for the plugin
 	// data directory.
 	PluginSettingDataDir = "datadir"
-
-	// Tlog IDs
-	TlogIDUnvetted = "unvetted"
-	TlogIDVetted   = "vetted"
 )
+
+// TODO verify TlogClient implementation does not allow short tokens on writes.
 
 // TlogClient provides an API for the plugins to interact with the tlog backend
 // instances. Plugins are allowed to save, delete, and get plugin data to/from
 // the tlog backend. Editing plugin data is not allowed.
 type TlogClient interface {
-	// Save saves the provided blobs to the tlog backend. Note, hashes
-	// contains the hashes of the data encoded in the blobs. The hashes
-	// must share the same ordering as the blobs.
-	Save(tlogID string, token []byte, keyPrefix string,
-		blobs, hashes [][]byte, encrypt bool) ([][]byte, error)
+	// BlobsSave saves the provided blobs to the tlog backend. Note,
+	// hashes contains the hashes of the data encoded in the blobs. The
+	// hashes must share the same ordering as the blobs.
+	BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
+		encrypt bool) ([][]byte, error)
 
-	// Del deletes the blobs that correspond to the provided merkle
-	// leaf hashes.
-	Del(tlogID string, token []byte, merkleLeafHashes [][]byte) error
+	// BlobsDel deletes the blobs that correspond to the provided
+	// merkle leaf hashes.
+	BlobsDel(treeID int64, merkles [][]byte) error
 
-	// MerklesByKeyPrefix returns the merkle root hashes for all blobs
+	// MerklesByKeyPrefix returns the merkle leaf hashes for all blobs
 	// that match the key prefix.
-	MerklesByKeyPrefix(tlogID string, token []byte,
-		keyPrefix string) ([][]byte, error)
+	MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
 
 	// BlobsByMerkle returns the blobs with the provided merkle leaf
 	// hashes. If a blob does not exist it will not be included in the
 	// returned map.
-	BlobsByMerkle(tlogID string, token []byte,
-		merkleLeafHashes [][]byte) (map[string][]byte, error)
+	BlobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error)
 
 	// BlobsByKeyPrefix returns all blobs that match the key prefix.
-	BlobsByKeyPrefix(tlogID string, token []byte,
-		keyPrefix string) ([][]byte, error)
+	BlobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
 
-	// Timestamp returns the timestamp for a data blob that corresponds
-	// to the provided merkle leaf hash.
-	Timestamp(tlogID string, token []byte,
-		merkleLeafHash []byte) (*backend.Timestamp, error)
+	// Timestamp returns the timestamp for the data blob that
+	// corresponds to the provided merkle leaf hash.
+	Timestamp(treeID int64, merkle []byte) (*backend.Timestamp, error)
 }
 
+// HookT represents the types of plugin hooks.
 type HookT int
 
 const (
-	// Plugin hooks
 	HookInvalid             HookT = 0
 	HookNewRecordPre        HookT = 1
 	HookNewRecordPost       HookT = 2
@@ -139,7 +133,7 @@ type PluginClient interface {
 	Setup() error
 
 	// Cmd executes the provided plugin command.
-	Cmd(cmd, payload string) (string, error)
+	Cmd(treeID int64, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes the provided plugin hook.
 	Hook(h HookT, payload string) error
