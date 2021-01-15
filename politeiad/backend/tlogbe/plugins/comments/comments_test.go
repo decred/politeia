@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient/testclient"
@@ -146,8 +145,7 @@ func TestCmdNew(t *testing.T) {
 					return
 				default:
 					// Unexpected error
-					t.Errorf("got error %v, want error %v",
-						spew.Sdump(err), spew.Sdump(tc.wantErr))
+					t.Errorf("got error %v, want error %v", err, tc.wantErr)
 				}
 			}
 

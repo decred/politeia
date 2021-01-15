@@ -4,18 +4,7 @@
 
 package pi
 
-import (
-	"encoding/hex"
-	"errors"
-	"testing"
-
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/plugins/comments"
-	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/google/uuid"
-)
-
+/*
 func newTestPiPlugin(t *testing.T) (*piPlugin, *tlogBackend, func()) {
 	t.Helper()
 
@@ -351,3 +340,4 @@ func TestCommentDel(t *testing.T) {
 	}
 
 }
+*/

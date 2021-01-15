@@ -56,7 +56,7 @@ var (
 
 // commentsPlugin is the tlog backend implementation of the comments plugin.
 //
-// commentsPlugin satisfies the PluginClient interface.
+// commentsPlugin satisfies the plugins.Client interface.
 type commentsPlugin struct {
 	sync.Mutex
 	tlog tlogclient.Client
@@ -1524,9 +1524,18 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 	return string(reply), nil
 }
 
+// Setup performs any plugin setup work that needs to be done.
+//
+// This function satisfies the plugins.Client interface.
+func (p *commentsPlugin) Setup() error {
+	log.Tracef("Setup")
+
+	return nil
+}
+
 // Cmd executes a plugin command.
 //
-// This function satisfies the PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %v %x %v", treeID, token, cmd, payload)
 
@@ -1558,7 +1567,7 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v", plugins.Hooks[h])
 
@@ -1567,20 +1576,11 @@ func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *commentsPlugin) Fsck() error {
 	log.Tracef("Fsck")
 
 	// TODO Make sure CommentDel blobs were actually deleted
-
-	return nil
-}
-
-// Setup performs any plugin setup work that needs to be done.
-//
-// This function satisfies the PluginClient interface.
-func (p *commentsPlugin) Setup() error {
-	log.Tracef("Setup")
 
 	return nil
 }

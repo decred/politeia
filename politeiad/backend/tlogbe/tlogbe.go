@@ -94,64 +94,6 @@ func tokenIsFullLength(token []byte) bool {
 	return len(token) == v1.TokenSizeTlog
 }
 
-// tokenDecode decodes the provided hex encoded record token. This function
-// requires that the token be the full length. Token prefixes will return an
-// error.
-func tokenDecode(token string) ([]byte, error) {
-	t, err := hex.DecodeString(token)
-	if err != nil {
-		return nil, fmt.Errorf("invalid hex")
-	}
-	if !tokenIsFullLength(t) {
-		return nil, fmt.Errorf("invalid token size")
-	}
-	return t, nil
-}
-
-// tokenDecodeAnyLength decodes the provided hex encoded record token. This
-// function accepts both full length tokens and token prefixes.
-func tokenDecodeAnyLength(token string) ([]byte, error) {
-	// If provided token has odd length add padding
-	if len(token)%2 == 1 {
-		token = token + "0"
-	}
-	t, err := hex.DecodeString(token)
-	if err != nil {
-		return nil, fmt.Errorf("invalid hex")
-	}
-	switch {
-	case tokenIsFullLength(t):
-		// Full length tokens are allowed; continue
-	case len(t) == tokenPrefixSize():
-		// Token prefixes are allowed; continue
-	default:
-		return nil, fmt.Errorf("invalid token size")
-	}
-	return t, nil
-}
-
-// tokenPrefixSize returns the size in bytes of a token prefix.
-func tokenPrefixSize() int {
-	// If the token prefix length is an odd number of characters then
-	// padding would have needed to be added to it prior to decoding it
-	// to hex to prevent a hex.ErrLenth (odd length hex string) error.
-	// Account for this padding in the prefix size.
-	var size int
-	if v1.TokenPrefixLength%2 == 1 {
-		// Add 1 to the length to account for padding
-		size = (v1.TokenPrefixLength + 1) / 2
-	} else {
-		// No padding was required
-		size = v1.TokenPrefixLength / 2
-	}
-	return size
-}
-
-// tokenPrefix returns the token prefix as defined by the politeiad API.
-func tokenPrefix(token []byte) string {
-	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
-}
-
 func tokenFromTreeID(treeID int64) []byte {
 	b := make([]byte, v1.TokenSizeTlog)
 	// Converting between int64 and uint64 doesn't change
@@ -174,7 +116,7 @@ func (t *tlogBackend) fullLengthToken(prefix []byte) ([]byte, bool) {
 	t.Lock()
 	defer t.Unlock()
 
-	token, ok := t.prefixes[tokenPrefix(prefix)]
+	token, ok := t.prefixes[util.TokenPrefix(prefix)]
 	return token, ok
 }
 
@@ -183,7 +125,7 @@ func (t *tlogBackend) fullLengthToken(prefix []byte) ([]byte, bool) {
 //
 // This function must be called WITHOUT the lock held.
 func (t *tlogBackend) unvettedTreeIDFromToken(token []byte) int64 {
-	if len(token) == tokenPrefixSize() {
+	if len(token) == util.TokenPrefixSize() {
 		// This is a token prefix. Get the full token from the cache.
 		var ok bool
 		token, ok = t.fullLengthToken(token)
@@ -198,7 +140,7 @@ func (t *tlogBackend) prefixExists(fullToken []byte) bool {
 	t.RLock()
 	defer t.RUnlock()
 
-	_, ok := t.prefixes[tokenPrefix(fullToken)]
+	_, ok := t.prefixes[util.TokenPrefix(fullToken)]
 	return ok
 }
 
@@ -206,7 +148,7 @@ func (t *tlogBackend) prefixAdd(fullToken []byte) {
 	t.Lock()
 	defer t.Unlock()
 
-	prefix := tokenPrefix(fullToken)
+	prefix := util.TokenPrefix(fullToken)
 	t.prefixes[prefix] = fullToken
 
 	log.Debugf("Add token prefix: %v", prefix)
@@ -752,7 +694,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 		}
 
 		log.Infof("Token prefix collision %v, creating new token",
-			tokenPrefix(token))
+			util.TokenPrefix(token))
 	}
 
 	// Create record metadata

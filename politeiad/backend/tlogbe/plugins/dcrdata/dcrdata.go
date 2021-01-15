@@ -48,7 +48,7 @@ var (
 	_ plugins.Client = (*dcrdataPlugin)(nil)
 )
 
-// dcrdataplugin satisfies the plugins.PluginClient interface.
+// dcrdataplugin satisfies the plugins.Client interface.
 type dcrdataPlugin struct {
 	sync.Mutex
 	activeNetParams *chaincfg.Params
@@ -576,7 +576,7 @@ func (p *dcrdataPlugin) websocketSetup() {
 
 // Setup performs any plugin setup work that needs to be done.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *dcrdataPlugin) Setup() error {
 	log.Tracef("setup")
 
@@ -591,7 +591,7 @@ func (p *dcrdataPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %v", cmd, payload)
 
@@ -611,7 +611,7 @@ func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (st
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v", plugins.Hooks[h])
 
@@ -620,7 +620,7 @@ func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins.Client interface.
 func (p *dcrdataPlugin) Fsck() error {
 	log.Tracef("Fsck")
 

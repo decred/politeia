@@ -28,7 +28,7 @@ func tokenIsFullLength(tokenType string, token []byte) bool {
 	}
 }
 
-func tokenPrefixSize() int {
+func TokenPrefixSize() int {
 	// If the token prefix length is an odd number of characters then
 	// padding would have needed to be added to it prior to decoding it
 	// to hex to prevent a hex.ErrLenth (odd length hex string) error.
@@ -81,7 +81,7 @@ func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
 	// Verify token byte slice is either a token prefix or a valid
 	// full length token.
 	switch {
-	case len(t) == tokenPrefixSize():
+	case len(t) == TokenPrefixSize():
 		// This is a token prefix. Token prefixes are the same size
 		// regardless of token type.
 	case tokenIsFullLength(TokenTypeGit, t):
