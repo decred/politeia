@@ -10,22 +10,37 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
 )
 
-// BlobsSave saves the provided blobs to the tlog backend. Note, hashes
-// contains the hashes of the data encoded in the blobs. The hashes must share
-// the same ordering as the blobs.
+// BlobSave saves a BlobEntry to the tlog backend. The BlobEntry will be
+// encrypted prior to being written to disk if the tlog instance has an
+// encryption key set. The merkle leaf hash for the blob will be returned. This
+// merkle leaf hash can be though of as the blob ID and can be used to retrieve
+// or delete the blob.
 //
 // This function satisfies the plugins.TlogClient interface.
-func (t *Tlog) BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte) ([][]byte, error) {
-	log.Tracef("%v BlobsSave: %v %v", t.id, treeID, keyPrefix)
+func (t *Tlog) BlobSave(treeID int64, keyPrefix string, be store.BlobEntry) ([]byte, error) {
+	log.Tracef("%v BlobSave: %v %v", t.id, treeID, keyPrefix)
 
-	// Sanity check
-	if len(blobs) != len(hashes) {
-		return nil, fmt.Errorf("blob count and hashes count mismatch: "+
-			"got %v blobs, %v hashes", len(blobs), len(hashes))
+	// Prepare blob and digest
+	digest, err := hex.DecodeString(be.Hash)
+	if err != nil {
+		return nil, err
+	}
+	blob, err := store.Blobify(be)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encrypt blob if an encryption key has been set
+	if t.encryptionKey != nil {
+		blob, err = t.encrypt(blob)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Verify tree exists
@@ -46,42 +61,30 @@ func (t *Tlog) BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte)
 		return nil, ErrTreeIsFrozen
 	}
 
-	// Encrypt blobs if an encryption key has been set
-	if t.encryptionKey != nil {
-		for k, v := range blobs {
-			e, err := t.encrypt(v)
-			if err != nil {
-				return nil, err
-			}
-			blobs[k] = e
-		}
-	}
-
 	// Save blobs to store
-	keys, err := t.store.Put(blobs)
+	keys, err := t.store.Put([][]byte{blob})
 	if err != nil {
 		return nil, fmt.Errorf("store Put: %v", err)
 	}
-	if len(keys) != len(blobs) {
-		return nil, fmt.Errorf("wrong number of keys: got %v, want %v",
-			len(keys), len(blobs))
+	if len(keys) != 1 {
+		return nil, fmt.Errorf("wrong number of keys: got %v, want 1",
+			len(keys))
 	}
 
-	// Prepare log leaves. hashes and keys share the same ordering.
-	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
-	for k := range blobs {
-		pk := []byte(keyPrefix + keys[k])
-		leaves = append(leaves, newLogLeaf(hashes[k], pk))
+	// Prepare log leaf
+	extraData := []byte(keyPrefix + keys[0])
+	leaves := []*trillian.LogLeaf{
+		newLogLeaf(digest, extraData),
 	}
 
-	// Append leaves to trillian tree
+	// Append log leaf to trillian tree
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAppend: %v", err)
 	}
-	if len(queued) != len(leaves) {
-		return nil, fmt.Errorf("wrong number of queued leaves: got %v, want %v",
-			len(queued), len(leaves))
+	if len(queued) != 1 {
+		return nil, fmt.Errorf("wrong number of queued leaves: "+
+			"got %v, want 1", len(queued))
 	}
 	failed := make([]string, 0, len(queued))
 	for _, v := range queued {
@@ -94,13 +97,7 @@ func (t *Tlog) BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte)
 		return nil, fmt.Errorf("append leaves failed: %v", failed)
 	}
 
-	// Parse and return the merkle leaf hashes
-	merkles := make([][]byte, 0, len(blobs))
-	for _, v := range queued {
-		merkles = append(merkles, v.QueuedLeaf.Leaf.MerkleLeafHash)
-	}
-
-	return merkles, nil
+	return queued[0].QueuedLeaf.Leaf.MerkleLeafHash, nil
 }
 
 // BlobsDel deletes the blobs in the kv store that correspond to the provided

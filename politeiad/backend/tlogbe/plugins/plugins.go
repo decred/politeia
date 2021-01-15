@@ -6,6 +6,7 @@ package plugins
 
 import (
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 )
 
 const (
@@ -14,19 +15,16 @@ const (
 	PluginSettingDataDir = "datadir"
 )
 
-// TODO verify TlogClient implementation does not allow short tokens on writes.
-
 // TlogClient provides an API for the plugins to interact with the tlog backend
 // instances. Plugins are allowed to save, delete, and get plugin data to/from
 // the tlog backend. Editing plugin data is not allowed.
 type TlogClient interface {
-	// BlobsSave saves the provided blobs to the tlog backend. Note,
-	// hashes contains the hashes of the data encoded in the blobs. The
-	// hashes must share the same ordering as the blobs. The blobs will
-	// be encypted prior to being saved if the tlog instance has an
-	// encryption key set.
-	BlobsSave(treeID int64, keyPrefix string, blobs,
-		hashes [][]byte) ([][]byte, error)
+	// BlobSave saves a BlobEntry to the tlog backend. The BlobEntry
+	// will be encrypted prior to being written to disk if the tlog
+	// instance has an encryption key set. The merkle leaf hash for the
+	// blob will be returned. This merkle leaf hash can be though of as
+	// the blob ID and can be used to retrieve or delete the blob.
+	BlobSave(treeID int64, keyPrefix string, be store.BlobEntry) ([]byte, error)
 
 	// BlobsDel deletes the blobs that correspond to the provided
 	// merkle leaf hashes.
@@ -44,8 +42,8 @@ type TlogClient interface {
 	// that match the key prefix.
 	MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
 
-	// Timestamp returns the timestamp for the data blob that
-	// corresponds to the provided merkle leaf hash.
+	// Timestamp returns the timestamp for the blob that correpsonds
+	// to the merkle leaf hash.
 	Timestamp(treeID int64, merkle []byte) (*backend.Timestamp, error)
 }
 
@@ -129,15 +127,15 @@ type HookSetRecordStatus struct {
 }
 
 // PluginClient provides an API for the tlog backend to use when interacting
-// with plugins. All tlogbe plugins must implement the pluginClient interface.
+// with plugins. All tlogbe plugins must implement the PluginClient interface.
 type PluginClient interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 
-	// Cmd executes the provided plugin command.
+	// Cmd executes a plugin command.
 	Cmd(treeID int64, token []byte, cmd, payload string) (string, error)
 
-	// Hook executes the provided plugin hook.
+	// Hook executes a plugin hook.
 	Hook(h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.

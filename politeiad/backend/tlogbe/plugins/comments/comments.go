@@ -346,32 +346,15 @@ func commentIDLatest(idx recordIndex) uint32 {
 }
 
 func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([]byte, error) {
-	// Prepare blob
 	be, err := convertBlobEntryFromCommentAdd(ca)
 	if err != nil {
 		return nil, err
 	}
-	h, err := hex.DecodeString(be.Hash)
+	merkle, err := p.tlog.BlobSave(treeID, keyPrefixCommentAdd, *be)
 	if err != nil {
 		return nil, err
 	}
-	b, err := store.Blobify(*be)
-	if err != nil {
-		return nil, err
-	}
-
-	// Save blob
-	merkles, err := p.tlog.BlobsSave(treeID, keyPrefixCommentAdd,
-		[][]byte{b}, [][]byte{h})
-	if err != nil {
-		return nil, err
-	}
-	if len(merkles) != 1 {
-		return nil, fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
-			len(merkles))
-	}
-
-	return merkles[0], nil
+	return merkle, nil
 }
 
 // commentAdds returns the commentAdd for all specified merkle hashes.
@@ -411,32 +394,15 @@ func (p *commentsPlugin) commentAdds(treeID int64, merkles [][]byte) ([]comments
 }
 
 func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([]byte, error) {
-	// Prepare blob
 	be, err := convertBlobEntryFromCommentDel(cd)
 	if err != nil {
 		return nil, err
 	}
-	h, err := hex.DecodeString(be.Hash)
+	merkle, err := p.tlog.BlobSave(treeID, keyPrefixCommentDel, *be)
 	if err != nil {
 		return nil, err
 	}
-	b, err := store.Blobify(*be)
-	if err != nil {
-		return nil, err
-	}
-
-	// Save blob
-	merkles, err := p.tlog.BlobsSave(treeID, keyPrefixCommentDel,
-		[][]byte{b}, [][]byte{h})
-	if err != nil {
-		return nil, err
-	}
-	if len(merkles) != 1 {
-		return nil, fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
-			len(merkles))
-	}
-
-	return merkles[0], nil
+	return merkle, nil
 }
 
 func (p *commentsPlugin) commentDels(treeID int64, merkles [][]byte) ([]comments.CommentDel, error) {
@@ -475,32 +441,15 @@ func (p *commentsPlugin) commentDels(treeID int64, merkles [][]byte) ([]comments
 }
 
 func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) ([]byte, error) {
-	// Prepare blob
 	be, err := convertBlobEntryFromCommentVote(cv)
 	if err != nil {
 		return nil, err
 	}
-	h, err := hex.DecodeString(be.Hash)
+	merkle, err := p.tlog.BlobSave(treeID, keyPrefixCommentVote, *be)
 	if err != nil {
 		return nil, err
 	}
-	b, err := store.Blobify(*be)
-	if err != nil {
-		return nil, err
-	}
-
-	// Save blob
-	merkles, err := p.tlog.BlobsSave(treeID, keyPrefixCommentVote,
-		[][]byte{b}, [][]byte{h})
-	if err != nil {
-		return nil, err
-	}
-	if len(merkles) != 1 {
-		return nil, fmt.Errorf("invalid merkle leaf hash count; got %v, want 1",
-			len(merkles))
-	}
-
-	return merkles[0], nil
+	return merkle, nil
 }
 
 func (p *commentsPlugin) commentVotes(treeID int64, merkles [][]byte) ([]comments.CommentVote, error) {

@@ -106,9 +106,9 @@ func merkleLeafHash(leafValue []byte) []byte {
 }
 
 // newLogLeaf returns a trillian LogLeaf.
-func newLogLeaf(value []byte, extraData []byte) *trillian.LogLeaf {
+func newLogLeaf(leafValue []byte, extraData []byte) *trillian.LogLeaf {
 	return &trillian.LogLeaf{
-		LeafValue: value,
+		LeafValue: leafValue,
 		ExtraData: extraData,
 	}
 }
