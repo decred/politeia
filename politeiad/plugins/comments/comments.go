@@ -38,7 +38,6 @@ const (
 type ErrorCodeT int
 
 const (
-	// Error status codes
 	ErrorCodeInvalid            ErrorCodeT = 0
 	ErrorCodeTokenInvalid       ErrorCodeT = 1
 	ErrorCodePublicKeyInvalid   ErrorCodeT = 2

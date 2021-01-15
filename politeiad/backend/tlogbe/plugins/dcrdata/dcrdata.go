@@ -20,6 +20,7 @@ import (
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
@@ -44,10 +45,10 @@ const (
 )
 
 var (
-	_ pluginClient = (*dcrdataPlugin)(nil)
+	_ plugins.PluginClient = (*dcrdataPlugin)(nil)
 )
 
-// dcrdataplugin satisfies the pluginClient interface.
+// dcrdataplugin satisfies the plugins.PluginClient interface.
 type dcrdataPlugin struct {
 	sync.Mutex
 	activeNetParams *chaincfg.Params
@@ -226,7 +227,7 @@ func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v5.TrimmedTx, error) {
 // along with a status of StatusDisconnected. It is the callers responsibility
 // to determine if the stale best block should be used.
 func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
-	log.Tracef("dcrdata cmdBestBlock")
+	log.Tracef("cmdBestBlock")
 
 	// Payload is empty. Nothing to decode.
 
@@ -275,7 +276,7 @@ func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
 		Status: status,
 		Height: bb,
 	}
-	reply, err := dcrdata.EncodeBestBlockReply(bbr)
+	reply, err := json.Marshal(bbr)
 	if err != nil {
 		return "", err
 	}
@@ -314,10 +315,11 @@ func convertBlockDataBasicFromV5(b v5.BlockDataBasic) dcrdata.BlockDataBasic {
 }
 
 func (p *dcrdataPlugin) cmdBlockDetails(payload string) (string, error) {
-	log.Tracef("dcrdata cmdBlockDetails: %v", payload)
+	log.Tracef("cmdBlockDetails: %v", payload)
 
 	// Decode payload
-	bd, err := dcrdata.DecodeBlockDetails([]byte(payload))
+	var bd dcrdata.BlockDetails
+	err := json.Unmarshal([]byte(payload), &bd)
 	if err != nil {
 		return "", err
 	}
@@ -332,7 +334,7 @@ func (p *dcrdataPlugin) cmdBlockDetails(payload string) (string, error) {
 	bdr := dcrdata.BlockDetailsReply{
 		Block: convertBlockDataBasicFromV5(*bdb),
 	}
-	reply, err := dcrdata.EncodeBlockDetailsReply(bdr)
+	reply, err := json.Marshal(bdr)
 	if err != nil {
 		return "", err
 	}
@@ -341,10 +343,11 @@ func (p *dcrdataPlugin) cmdBlockDetails(payload string) (string, error) {
 }
 
 func (p *dcrdataPlugin) cmdTicketPool(payload string) (string, error) {
-	log.Tracef("dcrdata cmdTicketPool: %v", payload)
+	log.Tracef("cmdTicketPool: %v", payload)
 
 	// Decode payload
-	tp, err := dcrdata.DecodeTicketPool([]byte(payload))
+	var tp dcrdata.TicketPool
+	err := json.Unmarshal([]byte(payload), &tp)
 	if err != nil {
 		return "", err
 	}
@@ -359,7 +362,7 @@ func (p *dcrdataPlugin) cmdTicketPool(payload string) (string, error) {
 	tpr := dcrdata.TicketPoolReply{
 		Tickets: tickets,
 	}
-	reply, err := dcrdata.EncodeTicketPoolReply(tpr)
+	reply, err := json.Marshal(tpr)
 	if err != nil {
 		return "", err
 	}
@@ -466,7 +469,8 @@ func (p *dcrdataPlugin) cmdTxsTrimmed(payload string) (string, error) {
 	log.Tracef("cmdTxsTrimmed: %v", payload)
 
 	// Decode payload
-	tt, err := dcrdata.DecodeTxsTrimmed([]byte(payload))
+	var tt dcrdata.TxsTrimmed
+	err := json.Unmarshal([]byte(payload), &tt)
 	if err != nil {
 		return "", err
 	}
@@ -481,7 +485,7 @@ func (p *dcrdataPlugin) cmdTxsTrimmed(payload string) (string, error) {
 	ttr := dcrdata.TxsTrimmedReply{
 		Txs: convertTrimmedTxsFromV5(txs),
 	}
-	reply, err := dcrdata.EncodeTxsTrimmedReply(ttr)
+	reply, err := json.Marshal(ttr)
 	if err != nil {
 		return "", err
 	}
@@ -513,7 +517,7 @@ func (p *dcrdataPlugin) websocketMonitor() {
 		// Handle new message
 		switch m := msg.Message.(type) {
 		case *exptypes.WebsocketBlock:
-			log.Debugf("dcrdata WebsocketBlock: %v", m.Block.Height)
+			log.Debugf("WebsocketBlock: %v", m.Block.Height)
 
 			// Update cached best block
 			p.bestBlockSet(uint32(m.Block.Height))
@@ -570,11 +574,11 @@ func (p *dcrdataPlugin) websocketSetup() {
 	go p.websocketMonitor()
 }
 
-// setup performs any plugin setup work that needs to be done.
+// Setup performs any plugin setup work that needs to be done.
 //
-// This function satisfies the Plugin interface.
-func (p *dcrdataPlugin) setup() error {
-	log.Tracef("dcrdata setup")
+// This function satisfies the plugins.PluginClient interface.
+func (p *dcrdataPlugin) Setup() error {
+	log.Tracef("setup")
 
 	// Setup dcrdata websocket subscriptions and monitoring. This is
 	// done in a go routine so setup will continue in the event that
@@ -585,11 +589,11 @@ func (p *dcrdataPlugin) setup() error {
 	return nil
 }
 
-// cmd executes a plugin command.
+// Cmd executes a plugin command.
 //
-// This function satisfies the pluginClient interface.
-func (p *dcrdataPlugin) cmd(cmd, payload string) (string, error) {
-	log.Tracef("dcrdata cmd: %v", cmd)
+// This function satisfies the plugins.PluginClient interface.
+func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("Cmd: %v %v", cmd, payload)
 
 	switch cmd {
 	case dcrdata.CmdBestBlock:
@@ -605,25 +609,25 @@ func (p *dcrdataPlugin) cmd(cmd, payload string) (string, error) {
 	return "", backend.ErrPluginCmdInvalid
 }
 
-// hook executes a plugin hook.
+// Hook executes a plugin hook.
 //
-// This function satisfies the pluginClient interface.
-func (p *dcrdataPlugin) hook(h hookT, payload string) error {
-	log.Tracef("dcrdata hook: %v", hooks[h])
+// This function satisfies the plugins.PluginClient interface.
+func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
+	log.Tracef("Hook: %v", plugins.Hooks[h])
 
 	return nil
 }
 
-// fsck performs a plugin filesystem check.
+// Fsck performs a plugin filesystem check.
 //
-// This function satisfies the pluginClient interface.
-func (p *dcrdataPlugin) fsck() error {
-	log.Tracef("dcrdata fsck")
+// This function satisfies the plugins.PluginClient interface.
+func (p *dcrdataPlugin) Fsck() error {
+	log.Tracef("Fsck")
 
 	return nil
 }
 
-func newDcrdataPlugin(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
+func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
 	// Unpack plugin settings
 	var (
 		hostHTTP string
@@ -631,9 +635,6 @@ func newDcrdataPlugin(settings []backend.PluginSetting, activeNetParams *chaincf
 	)
 	for _, v := range settings {
 		switch v.Key {
-		case pluginSettingDataDir:
-			// The data dir plugin setting is provided to all plugins. The
-			// dcrdata plugin does not need it. Ignore it.
 		case pluginSettingHostHTTP:
 			hostHTTP = v.Value
 		case pluginSettingHostWS:

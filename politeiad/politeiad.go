@@ -258,11 +258,11 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.Erro
 	})
 }
 
-func (p *politeia) respondWithPluginUserError(w http.ResponseWriter, plugin string, errorCode int, errorContext []string) {
+func (p *politeia) respondWithPluginUserError(w http.ResponseWriter, plugin string, errorCode int, errorContext string) {
 	util.RespondWithJSON(w, http.StatusBadRequest, v1.PluginUserErrorReply{
 		Plugin:       plugin,
 		ErrorCode:    errorCode,
-		ErrorContext: errorContext,
+		ErrorContext: []string{errorContext},
 	})
 }
 

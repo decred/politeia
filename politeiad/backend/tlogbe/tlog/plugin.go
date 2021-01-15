@@ -12,7 +12,9 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
+	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 )
 
 const (
@@ -64,12 +66,12 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		if err != nil {
 			return err
 		}
+	case ddplugin.ID:
+		client, err = dcrdata.New(p.Settings, t.activeNetParams)
+		if err != nil {
+			return err
+		}
 		/*
-			case dcrdata.ID:
-				client, err = newDcrdataPlugin(p.Settings, t.activeNetParams)
-				if err != nil {
-					return err
-				}
 			case pi.ID:
 				client, err = newPiPlugin(t, newBackendClient(t), p.Settings,
 					t.activeNetParams)

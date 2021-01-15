@@ -11,7 +11,10 @@ import (
 
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiad/backend/tlogbe"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
@@ -46,26 +49,35 @@ var (
 
 	log          = backendLog.Logger("POLI")
 	gitbeLog     = backendLog.Logger("GITB")
+	tlogbeLog    = backendLog.Logger("BACK")
 	tlogLog      = backendLog.Logger("TLOG")
 	storeLog     = backendLog.Logger("STOR")
 	wsdcrdataLog = backendLog.Logger("WSDD")
+	commentsLog  = backendLog.Logger("COMM")
+	dcrdataLog   = backendLog.Logger("DCRL")
 )
 
 // Initialize package-global logger variables.
 func init() {
 	gitbe.UseLogger(gitbeLog)
-	tlogbe.UseLogger(tlogLog)
+	tlogbe.UseLogger(tlogbeLog)
+	tlog.UseLogger(tlogLog)
 	filesystem.UseLogger(storeLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
+	comments.UseLogger(commentsLog)
+	dcrdata.UseLogger(dcrdataLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"POLI": log,
 	"GITB": gitbeLog,
+	"BACK": tlogbeLog,
 	"TLOG": tlogLog,
 	"STOR": storeLog,
 	"WSDD": wsdcrdataLog,
+	"COMM": commentsLog,
+	"DCRL": dcrdataLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

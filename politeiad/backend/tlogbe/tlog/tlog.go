@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
@@ -85,13 +86,14 @@ var (
 // We do not unwind.
 type Tlog struct {
 	sync.Mutex
-	id       string
-	dataDir  string
-	trillian trillianClient
-	store    store.Blob
-	dcrtime  *dcrtimeClient
-	cron     *cron.Cron
-	plugins  map[string]plugin // [pluginID]plugin
+	id              string
+	dataDir         string
+	activeNetParams *chaincfg.Params
+	trillian        trillianClient
+	store           store.Blob
+	dcrtime         *dcrtimeClient
+	cron            *cron.Cron
+	plugins         map[string]plugin // [pluginID]plugin
 
 	// encryptionKey is used to encrypt record blobs before saving them
 	// to the key-value store. This is an optional param. Record blobs
@@ -1736,7 +1738,7 @@ func (t *Tlog) Close() {
 	}
 }
 
-func New(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tlog, error) {
+func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tlog, error) {
 	// Load encryption key if provided. An encryption key is optional.
 	var ek *encryptionKey
 	if encryptionKeyFile != "" {
@@ -1796,13 +1798,14 @@ func New(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile,
 
 	// Setup tlog
 	t := Tlog{
-		id:            id,
-		dataDir:       dataDir,
-		trillian:      trillianClient,
-		store:         store,
-		dcrtime:       dcrtimeClient,
-		cron:          cron.New(),
-		encryptionKey: ek,
+		id:              id,
+		dataDir:         dataDir,
+		activeNetParams: anp,
+		trillian:        trillianClient,
+		store:           store,
+		dcrtime:         dcrtimeClient,
+		cron:            cron.New(),
+		encryptionKey:   ek,
 	}
 
 	// Launch cron

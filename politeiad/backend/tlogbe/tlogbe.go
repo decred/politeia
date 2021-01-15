@@ -1881,13 +1881,13 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 	log.Infof("Anchor host: %v", dcrtimeHost)
 
 	// Setup tlog instances
-	unvetted, err := tlog.New(tlogIDUnvetted, homeDir, dataDir,
+	unvetted, err := tlog.New(tlogIDUnvetted, homeDir, dataDir, anp,
 		unvettedTrillianHost, unvettedTrillianKeyFile, encryptionKeyFile,
 		dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tlog unvetted: %v", err)
 	}
-	vetted, err := tlog.New(tlogIDVetted, homeDir, dataDir,
+	vetted, err := tlog.New(tlogIDVetted, homeDir, dataDir, anp,
 		vettedTrillianHost, vettedTrillianKeyFile, "",
 		dcrtimeHost, dcrtimeCert)
 	if err != nil {
