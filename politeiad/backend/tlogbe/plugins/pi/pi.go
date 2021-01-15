@@ -1179,13 +1179,13 @@ func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v %v", plugins.Hooks[h], payload)
 
 	switch h {
-	case plugins.HookNewRecordPre:
+	case plugins.HookTypeNewRecordPre:
 		return p.hookNewRecordPre(payload)
-	case plugins.HookNewRecordPost:
+	case plugins.HookTypeNewRecordPost:
 		return p.hookNewRecordPost(payload)
-	case plugins.HookEditRecordPre:
+	case plugins.HookTypeEditRecordPre:
 		return p.hookEditRecordPre(payload)
-	case plugins.HookSetRecordStatusPost:
+	case plugins.HookTypeSetRecordStatusPost:
 		return p.hookSetRecordStatusPost(payload)
 	}
 

@@ -10,32 +10,32 @@ import "github.com/decred/politeia/politeiad/backend"
 type HookT int
 
 const (
-	HookInvalid             HookT = 0
-	HookNewRecordPre        HookT = 1
-	HookNewRecordPost       HookT = 2
-	HookEditRecordPre       HookT = 3
-	HookEditRecordPost      HookT = 4
-	HookEditMetadataPre     HookT = 5
-	HookEditMetadataPost    HookT = 6
-	HookSetRecordStatusPre  HookT = 7
-	HookSetRecordStatusPost HookT = 8
-	HookPluginPre           HookT = 9
-	HookPluginPost          HookT = 10
+	HookTypeInvalid             HookT = 0
+	HookTypeNewRecordPre        HookT = 1
+	HookTypeNewRecordPost       HookT = 2
+	HookTypeEditRecordPre       HookT = 3
+	HookTypeEditRecordPost      HookT = 4
+	HookTypeEditMetadataPre     HookT = 5
+	HookTypeEditMetadataPost    HookT = 6
+	HookTypeSetRecordStatusPre  HookT = 7
+	HookTypeSetRecordStatusPost HookT = 8
+	HookTypePluginPre           HookT = 9
+	HookTypePluginPost          HookT = 10
 )
 
 var (
 	// Hooks contains human readable descriptions of the plugin hooks.
 	Hooks = map[HookT]string{
-		HookNewRecordPre:        "new record pre",
-		HookNewRecordPost:       "new record post",
-		HookEditRecordPre:       "edit record pre",
-		HookEditRecordPost:      "edit record post",
-		HookEditMetadataPre:     "edit metadata pre",
-		HookEditMetadataPost:    "edit metadata post",
-		HookSetRecordStatusPre:  "set record status pre",
-		HookSetRecordStatusPost: "set record status post",
-		HookPluginPre:           "plugin pre",
-		HookPluginPost:          "plugin post",
+		HookTypeNewRecordPre:        "new record pre",
+		HookTypeNewRecordPost:       "new record post",
+		HookTypeEditRecordPre:       "edit record pre",
+		HookTypeEditRecordPost:      "edit record post",
+		HookTypeEditMetadataPre:     "edit metadata pre",
+		HookTypeEditMetadataPost:    "edit metadata post",
+		HookTypeSetRecordStatusPre:  "set record status pre",
+		HookTypeSetRecordStatusPost: "set record status post",
+		HookTypePluginPre:           "plugin pre",
+		HookTypePluginPost:          "plugin post",
 	}
 )
 
@@ -83,6 +83,21 @@ type HookSetRecordStatus struct {
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
 	MDAppend       []backend.MetadataStream `json:"mdappend"`
 	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
+}
+
+// HookPluginPre is the payload for the plugin pre hook.
+type HookPluginPre struct {
+	PluginID string `json:"pluginid"`
+	Cmd      string `json:"cmd"`
+	Payload  string `json:"payload"`
+}
+
+// HookPluginPost is the payload for the plugin post hook.
+type HookPluginPost struct {
+	PluginID string `json:"pluginid"`
+	Cmd      string `json:"cmd"`
+	Payload  string `json:"payload"`
+	Reply    string `json:"reply"`
 }
 
 // Client provides an API for a tlog instance to use when interacting with a

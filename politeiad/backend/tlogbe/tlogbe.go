@@ -666,7 +666,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	if err != nil {
 		return nil, err
 	}
-	err = t.unvetted.PluginHookPre(plugins.HookNewRecordPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookTypeNewRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -719,7 +719,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	if err != nil {
 		return nil, err
 	}
-	t.unvetted.PluginHookPost(plugins.HookNewRecordPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookTypeNewRecordPost, string(b))
 
 	// Update the inventory cache
 	t.inventoryAdd(stateUnvetted, token, backend.MDStatusUnvetted)
@@ -800,7 +800,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return nil, err
 	}
-	err = t.unvetted.PluginHookPre(plugins.HookEditRecordPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookTypeEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -818,7 +818,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call post plugin hooks
-	t.unvetted.PluginHookPost(plugins.HookEditRecordPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookTypeEditRecordPost, string(b))
 
 	// Return updated record
 	r, err = t.unvetted.RecordLatest(treeID)
@@ -902,7 +902,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	if err != nil {
 		return nil, err
 	}
-	err = t.vetted.PluginHookPre(plugins.HookEditRecordPre, string(b))
+	err = t.vetted.PluginHookPre(plugins.HookTypeEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -920,7 +920,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	}
 
 	// Call post plugin hooks
-	t.vetted.PluginHookPost(plugins.HookEditRecordPost, string(b))
+	t.vetted.PluginHookPost(plugins.HookTypeEditRecordPost, string(b))
 
 	// Return updated record
 	r, err = t.vetted.RecordLatest(treeID)
@@ -993,7 +993,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	if err != nil {
 		return err
 	}
-	err = t.unvetted.PluginHookPre(plugins.HookEditMetadataPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookTypeEditMetadataPre, string(b))
 	if err != nil {
 		return err
 	}
@@ -1014,7 +1014,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	}
 
 	// Call post plugin hooks
-	t.unvetted.PluginHookPost(plugins.HookEditMetadataPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookTypeEditMetadataPost, string(b))
 
 	return nil
 }
@@ -1083,7 +1083,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return err
 	}
-	err = t.vetted.PluginHookPre(plugins.HookEditMetadataPre, string(b))
+	err = t.vetted.PluginHookPre(plugins.HookTypeEditMetadataPre, string(b))
 	if err != nil {
 		return err
 	}
@@ -1104,7 +1104,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call post plugin hooks
-	t.vetted.PluginHookPost(plugins.HookEditMetadataPost, string(b))
+	t.vetted.PluginHookPost(plugins.HookTypeEditMetadataPost, string(b))
 
 	return nil
 }
@@ -1371,7 +1371,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	if err != nil {
 		return nil, err
 	}
-	err = t.unvetted.PluginHookPre(plugins.HookSetRecordStatusPre, string(b))
+	err = t.unvetted.PluginHookPre(plugins.HookTypeSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1394,7 +1394,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Call post plugin hooks
-	t.unvetted.PluginHookPost(plugins.HookSetRecordStatusPost, string(b))
+	t.unvetted.PluginHookPost(plugins.HookTypeSetRecordStatusPost, string(b))
 
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
 		token, backend.MDStatus[currStatus], currStatus,
@@ -1523,7 +1523,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	if err != nil {
 		return nil, err
 	}
-	err = t.vetted.PluginHookPre(plugins.HookSetRecordStatusPre, string(b))
+	err = t.vetted.PluginHookPre(plugins.HookTypeSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -1546,7 +1546,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Call post plugin hooks
-	t.vetted.PluginHookPost(plugins.HookSetRecordStatusPost, string(b))
+	t.vetted.PluginHookPost(plugins.HookTypeSetRecordStatusPost, string(b))
 
 	// Update inventory cache
 	t.inventoryUpdate(stateVetted, token, currStatus, status)
@@ -1650,7 +1650,40 @@ func (t *tlogBackend) UnvettedPlugin(token []byte, pluginID, cmd, payload string
 		return "", backend.ErrRecordNotFound
 	}
 
-	return t.unvetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+	// Call pre plugin hooks
+	hp := plugins.HookPluginPre{
+		PluginID: pluginID,
+		Cmd:      cmd,
+		Payload:  payload,
+	}
+	b, err := json.Marshal(hp)
+	if err != nil {
+		return "", err
+	}
+	err = t.unvetted.PluginHookPre(plugins.HookTypePluginPre, string(b))
+	if err != nil {
+		return "", err
+	}
+
+	reply, err := t.unvetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+	if err != nil {
+		return "", err
+	}
+
+	// Call post plugin hooks
+	hpp := plugins.HookPluginPost{
+		PluginID: pluginID,
+		Cmd:      cmd,
+		Payload:  payload,
+		Reply:    reply,
+	}
+	b, err = json.Marshal(hpp)
+	if err != nil {
+		return "", err
+	}
+	t.unvetted.PluginHookPost(plugins.HookTypePluginPost, string(b))
+
+	return reply, nil
 }
 
 // VettedPlugin executes a plugin command on an unvetted record.
@@ -1669,7 +1702,40 @@ func (t *tlogBackend) VettedPlugin(token []byte, pluginID, cmd, payload string) 
 		return "", backend.ErrRecordNotFound
 	}
 
-	return t.vetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+	// Call pre plugin hooks
+	hp := plugins.HookPluginPre{
+		PluginID: pluginID,
+		Cmd:      cmd,
+		Payload:  payload,
+	}
+	b, err := json.Marshal(hp)
+	if err != nil {
+		return "", err
+	}
+	err = t.vetted.PluginHookPre(plugins.HookTypePluginPre, string(b))
+	if err != nil {
+		return "", err
+	}
+
+	reply, err := t.vetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+	if err != nil {
+		return "", err
+	}
+
+	// Call post plugin hooks
+	hpp := plugins.HookPluginPost{
+		PluginID: pluginID,
+		Cmd:      cmd,
+		Payload:  payload,
+		Reply:    reply,
+	}
+	b, err = json.Marshal(hpp)
+	if err != nil {
+		return "", err
+	}
+	t.vetted.PluginHookPost(plugins.HookTypePluginPost, string(b))
+
+	return reply, nil
 }
 
 // GetUnvettedPlugins returns the unvetted plugins that have been registered.
