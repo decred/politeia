@@ -15,24 +15,24 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 )
 
-// newTestTlogBackend returns a tlog backend for testing. It wraps
-// tlog and trillian client, providing the framework needed for
-// writing tlog backend tests.
-func newTestTlogBackend(t *testing.T) (*tlogBackend, func()) {
+// NewTestTlogBackend returns a tlogBackend that is setup for testing and a
+// closure that cleans up all test data when invoked.
+func NewTestTlogBackend(t *testing.T) (*tlogBackend, func()) {
 	t.Helper()
 
-	testDir, err := ioutil.TempDir("", "tlog.backend.test")
+	// Setup home dir and data dir
+	homeDir, err := ioutil.TempDir("", "tlogbackend.test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	testDataDir := filepath.Join(testDir, "data")
+	dataDir := filepath.Join(homeDir, "data")
 
 	tlogBackend := tlogBackend{
 		activeNetParams: chaincfg.TestNet3Params(),
-		homeDir:         testDir,
-		dataDir:         testDataDir,
-		unvetted:        tlog.NewTestTlog(t, testDir, "unvetted"),
-		vetted:          tlog.NewTestTlog(t, testDir, "vetted"),
+		homeDir:         homeDir,
+		dataDir:         dataDir,
+		unvetted:        tlog.NewTestTlogUnencrypted(t, dataDir, "unvetted"),
+		vetted:          tlog.NewTestTlogEncrypted(t, dataDir, "vetted"),
 		prefixes:        make(map[string][]byte),
 		vettedTreeIDs:   make(map[string]int64),
 		inv: recordInventory{
@@ -41,15 +41,10 @@ func newTestTlogBackend(t *testing.T) (*tlogBackend, func()) {
 		},
 	}
 
-	err = tlogBackend.setup()
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-
 	return &tlogBackend, func() {
-		err = os.RemoveAll(testDir)
+		err = os.RemoveAll(homeDir)
 		if err != nil {
-			t.Fatalf("RemoveAll: %v", err)
+			t.Fatal(err)
 		}
 	}
 }

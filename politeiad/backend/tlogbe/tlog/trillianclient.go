@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/decred/politeia/util"
@@ -570,7 +571,8 @@ type testTClient struct {
 	trees  map[int64]*trillian.Tree      // [treeID]Tree
 	leaves map[int64][]*trillian.LogLeaf // [treeID][]LogLeaf
 
-	privateKey *keyspb.PrivateKey
+	privateKey *keyspb.PrivateKey // Trillian signing key
+	publicKey  crypto.PublicKey   // Trillian public key
 }
 
 // treeNew ceates a new trillian tree in memory.
@@ -723,23 +725,25 @@ func (t *testTClient) inclusionProof(treeID int64, merkleLeafHash []byte, lr *ty
 func (t *testTClient) close() {}
 
 // newTestTClient returns a new testTClient.
-func newTestTClient() (*testTClient, error) {
-	// Create trillian private key
-	key, err := keys.NewFromSpec(&keyspb.Specification{
-		Params: &keyspb.Specification_EcdsaParams{},
-	})
+func newTestTClient(t *testing.T) *testTClient {
+	key, err := newTrillianKey()
 	if err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
-	keyDer, err := der.MarshalPrivateKey(key)
+	b, err := der.MarshalPrivateKey(key)
 	if err != nil {
-		return nil, err
+		t.Fatal(err)
+	}
+	signer, err := der.UnmarshalPrivateKey(b)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return &testTClient{
 		trees:  make(map[int64]*trillian.Tree),
 		leaves: make(map[int64][]*trillian.LogLeaf),
 		privateKey: &keyspb.PrivateKey{
-			Der: keyDer,
+			Der: b,
 		},
-	}, nil
+		publicKey: signer.Public(),
+	}
 }

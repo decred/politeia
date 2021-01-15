@@ -5,35 +5,54 @@
 package tlog
 
 import (
-	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/marcopeereboom/sbox"
 )
 
-// NewTestTlog returns a tlog used for testing.
-func NewTestTlog(t *testing.T, dir, id string) *Tlog {
+func newTestTlog(t *testing.T, tlogID, dataDir string, encrypt bool) *Tlog {
 	t.Helper()
 
-	dir, err := ioutil.TempDir(dir, id)
+	// Setup datadir for this tlog instance
+	dataDir = filepath.Join(dataDir, tlogID)
+	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, err := sbox.NewKey()
+
+	// Setup key-value store
+	fp := filepath.Join(dataDir, defaultStoreDirname)
+	err = os.MkdirAll(fp, 0700)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tclient, err := newTestTClient()
-	if err != nil {
-		t.Fatal(err)
+	store := filesystem.New(fp)
+
+	// Setup encryptin key if specified
+	var ek *encryptionKey
+	if encrypt {
+		key, err := sbox.NewKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ek = newEncryptionKey(key)
 	}
 
 	return &Tlog{
-		id:            id,
-		dcrtime:       nil,
-		encryptionKey: newEncryptionKey(key),
-		trillian:      tclient,
-		store:         filesystem.New(dir),
+		id:            tlogID,
+		encryptionKey: ek,
+		trillian:      newTestTClient(t),
+		store:         store,
 	}
+}
+
+func NewTestTlogEncrypted(t *testing.T, tlogID, dataDir string) *Tlog {
+	return newTestTlog(t, tlogID, dataDir, true)
+}
+
+func NewTestTlogUnencrypted(t *testing.T, tlogID, dataDir string) *Tlog {
+	return newTestTlog(t, tlogID, dataDir, false)
 }

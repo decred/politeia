@@ -4,48 +4,7 @@
 
 package plugins
 
-import (
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
-)
-
-const (
-	// PluginSettingDataDir is the PluginSetting key for the plugin
-	// data directory.
-	PluginSettingDataDir = "datadir"
-)
-
-// TlogClient provides an API for the plugins to interact with the tlog backend
-// instances. Plugins are allowed to save, delete, and get plugin data to/from
-// the tlog backend. Editing plugin data is not allowed.
-type TlogClient interface {
-	// BlobSave saves a BlobEntry to the tlog backend. The BlobEntry
-	// will be encrypted prior to being written to disk if the tlog
-	// instance has an encryption key set. The merkle leaf hash for the
-	// blob will be returned. This merkle leaf hash can be though of as
-	// the blob ID and can be used to retrieve or delete the blob.
-	BlobSave(treeID int64, keyPrefix string, be store.BlobEntry) ([]byte, error)
-
-	// BlobsDel deletes the blobs that correspond to the provided
-	// merkle leaf hashes.
-	BlobsDel(treeID int64, merkles [][]byte) error
-
-	// BlobsByMerkle returns the blobs with the provided merkle leaf
-	// hashes. If a blob does not exist it will not be included in the
-	// returned map.
-	BlobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte, error)
-
-	// BlobsByKeyPrefix returns all blobs that match the key prefix.
-	BlobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
-
-	// MerklesByKeyPrefix returns the merkle leaf hashes for all blobs
-	// that match the key prefix.
-	MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
-
-	// Timestamp returns the timestamp for the blob that correpsonds
-	// to the merkle leaf hash.
-	Timestamp(treeID int64, merkle []byte) (*backend.Timestamp, error)
-}
+import "github.com/decred/politeia/politeiad/backend"
 
 // HookT represents the types of plugin hooks.
 type HookT int
@@ -126,9 +85,9 @@ type HookSetRecordStatus struct {
 	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
 }
 
-// PluginClient provides an API for the tlog backend to use when interacting
-// with plugins. All tlogbe plugins must implement the PluginClient interface.
-type PluginClient interface {
+// Client provides an API for a tlog instance to use when interacting with a
+// plugin. All tlog plugins must implement the Client interface.
+type Client interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 

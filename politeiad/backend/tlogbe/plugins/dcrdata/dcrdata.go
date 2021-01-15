@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	_ plugins.PluginClient = (*dcrdataPlugin)(nil)
+	_ plugins.Client = (*dcrdataPlugin)(nil)
 )
 
 // dcrdataplugin satisfies the plugins.PluginClient interface.

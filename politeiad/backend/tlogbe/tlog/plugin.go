@@ -28,7 +28,7 @@ const (
 type plugin struct {
 	id       string
 	settings []backend.PluginSetting
-	client   plugins.PluginClient
+	client   plugins.Client
 }
 
 func (t *Tlog) plugin(pluginID string) (plugin, bool) {
@@ -55,14 +55,14 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	log.Tracef("%v PluginRegister: %v", t.id, p.ID)
 
 	var (
-		client plugins.PluginClient
+		client plugins.Client
 		err    error
 
 		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
 	switch p.ID {
 	case cmplugin.ID:
-		client, err = comments.New(b, t, p.Settings, p.Identity, dataDir)
+		client, err = comments.New(t, p.Settings, p.Identity, dataDir)
 		if err != nil {
 			return err
 		}

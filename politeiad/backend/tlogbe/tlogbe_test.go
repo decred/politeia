@@ -355,7 +355,7 @@ func setupRecordContentTests(t *testing.T) []recordContentTest {
 }
 
 func TestNewRecord(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Test all record content verification error through the New endpoint
@@ -391,7 +391,7 @@ func TestNewRecord(t *testing.T) {
 }
 
 func TestUpdateUnvettedRecord(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -565,7 +565,7 @@ func TestUpdateUnvettedRecord(t *testing.T) {
 }
 
 func TestUpdateVettedRecord(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -752,7 +752,7 @@ func TestUpdateVettedRecord(t *testing.T) {
 }
 
 func TestUpdateUnvettedMetadata(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -930,7 +930,7 @@ func TestUpdateUnvettedMetadata(t *testing.T) {
 }
 
 func TestUpdateVettedMetadata(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -1114,7 +1114,7 @@ func TestUpdateVettedMetadata(t *testing.T) {
 }
 
 func TestUnvettedExists(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -1151,7 +1151,7 @@ func TestUnvettedExists(t *testing.T) {
 }
 
 func TestVettedExists(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create unvetted record
@@ -1200,7 +1200,7 @@ func TestVettedExists(t *testing.T) {
 }
 
 func TestGetUnvetted(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -1242,7 +1242,7 @@ func TestGetUnvetted(t *testing.T) {
 }
 
 func TestGetVetted(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Create new record
@@ -1289,7 +1289,7 @@ func TestGetVetted(t *testing.T) {
 }
 
 func TestSetUnvettedStatus(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Helpers
@@ -1462,7 +1462,7 @@ func TestSetUnvettedStatus(t *testing.T) {
 }
 
 func TestSetVettedStatus(t *testing.T) {
-	tlogBackend, cleanup := newTestTlogBackend(t)
+	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
 
 	// Helpers

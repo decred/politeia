@@ -23,6 +23,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 )
@@ -50,7 +51,7 @@ const (
 )
 
 var (
-	_ plugins.PluginClient = (*commentsPlugin)(nil)
+	_ plugins.Client = (*commentsPlugin)(nil)
 )
 
 // commentsPlugin is the tlog backend implementation of the comments plugin.
@@ -58,8 +59,7 @@ var (
 // commentsPlugin satisfies the PluginClient interface.
 type commentsPlugin struct {
 	sync.Mutex
-	backend backend.Backend
-	tlog    plugins.TlogClient
+	tlog tlogclient.Client
 
 	// dataDir is the comments plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
@@ -1586,7 +1586,7 @@ func (p *commentsPlugin) Setup() error {
 }
 
 // New returns a new comments plugin.
-func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.PluginSetting, id *identity.FullIdentity, dataDir string) (*commentsPlugin, error) {
+func New(tlog tlogclient.Client, settings []backend.PluginSetting, id *identity.FullIdentity, dataDir string) (*commentsPlugin, error) {
 	// Setup comments plugin data dir
 	dataDir = filepath.Join(dataDir, comments.ID)
 	err := os.MkdirAll(dataDir, 0700)
@@ -1595,7 +1595,6 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 	}
 
 	return &commentsPlugin{
-		backend:  backend,
 		tlog:     tlog,
 		identity: id,
 		dataDir:  dataDir,
