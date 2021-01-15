@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
@@ -29,57 +27,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// TODO get rid of these
-var (
-	errRecordNotFound = errors.New("record not found")
-)
-
-func tokenIsFullLength(token []byte) bool {
-	return len(token) == v1.TokenSizeTlog
-}
-func tokenPrefixSize() int {
-	// If the token prefix length is an odd number of characters then
-	// padding would have needed to be added to it prior to decoding it
-	// to hex to prevent a hex.ErrLenth (odd length hex string) error.
-	// Account for this padding in the prefix size.
-	var size int
-	if v1.TokenPrefixLength%2 == 1 {
-		// Add 1 to the length to account for padding
-		size = (v1.TokenPrefixLength + 1) / 2
-	} else {
-		// No padding was required
-		size = v1.TokenPrefixLength / 2
-	}
-	return size
-}
-func tokenPrefix(token []byte) string {
-	return hex.EncodeToString(token)[:v1.TokenPrefixLength]
-}
-func tokenDecodeAnyLength(token string) ([]byte, error) {
-	// If provided token has odd length add padding
-	if len(token)%2 == 1 {
-		token = token + "0"
-	}
-	t, err := hex.DecodeString(token)
-	if err != nil {
-		return nil, fmt.Errorf("invalid hex")
-	}
-	switch {
-	case tokenIsFullLength(t):
-		// Full length tokens are allowed; continue
-	case len(t) == tokenPrefixSize():
-		// Token prefixes are allowed; continue
-	default:
-		return nil, fmt.Errorf("invalid token size")
-	}
-	return t, nil
-}
-
-// TODO holding the lock before verifying the token can allow the mutexes to
-// be spammed. Create an infinite amount of them with invalid tokens. The fix
-// is to check if the record exists in the mutexes function to ensure a token
-// is valid before holding the lock on it. This is where we can return a
-// record doesn't exist user error too.
 // TODO prevent duplicate comments
 // TODO upvoting a comment twice in the same second causes a duplicate leaf
 // error which causes a 500. Solution: add the timestamp to the vote index.
@@ -99,7 +46,7 @@ const (
 	// Filenames of cached data saved to the plugin data dir. Brackets
 	// are used to indicate a variable that should be replaced in the
 	// filename.
-	filenameCommentsIndex = "{state}-{token}-commentsindex.json"
+	filenameRecordIndex = "{tokenPrefix}-index.json"
 )
 
 var (
@@ -129,172 +76,41 @@ type commentsPlugin struct {
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
-type voteIndex struct {
-	Vote   comments.VoteT `json:"vote"`
-	Merkle []byte         `json:"merkle"` // Log leaf merkle leaf hash
-}
-
-type commentIndex struct {
-	Adds map[uint32][]byte `json:"adds"` // [version]merkleLeafHash
-	Del  []byte            `json:"del"`  // Merkle leaf hash of delete record
-
-	// Votes contains the vote history for each uuid that voted on the
-	// comment. This data is cached because the effect of a new vote
-	// on a comment depends on the previous vote from that uuid.
-	// Example, a user upvotes a comment that they have already
-	// upvoted, the resulting vote score is 0 due to the second upvote
-	// removing the original upvote.
-	Votes map[string][]voteIndex `json:"votes"` // [uuid]votes
-}
-
-// commentsIndex contains the indexes for all comments made on a record.
-type commentsIndex struct {
-	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
-}
-
-// mutex returns the mutex for the specified record.
-func (p *commentsPlugin) mutex(token string) *sync.Mutex {
+// mutex returns the mutex for a record.
+func (p *commentsPlugin) mutex(token []byte) *sync.Mutex {
 	p.Lock()
 	defer p.Unlock()
 
-	m, ok := p.mutexes[token]
+	t := hex.EncodeToString(token)
+	m, ok := p.mutexes[t]
 	if !ok {
 		// Mutexes is lazy loaded
 		m = &sync.Mutex{}
-		p.mutexes[token] = m
+		p.mutexes[t] = m
 	}
 
 	return m
 }
 
-// commentsIndexPath accepts full length token or token prefix but always
-// uses prefix when generating the comments index path string.
-func (p *commentsPlugin) commentsIndexPath(s comments.StateT, token string) (string, error) {
-	// Use token prefix
-	t, err := tokenDecodeAnyLength(token)
-	if err != nil {
-		return "", err
-	}
-	token = tokenPrefix(t)
-	fn := filenameCommentsIndex
-	switch s {
-	case comments.StateUnvetted:
-		fn = strings.Replace(fn, "{state}", "unvetted", 1)
-	case comments.StateVetted:
-		fn = strings.Replace(fn, "{state}", "vetted", 1)
-	default:
-		e := fmt.Errorf("unknown comments state: %v", s)
-		panic(e)
-	}
-	fn = strings.Replace(fn, "{token}", token, 1)
-	return filepath.Join(p.dataDir, fn), nil
+func tokenDecode(token string) ([]byte, error) {
+	return util.TokenDecode(util.TokenTypeTlog, token)
 }
 
-// commentsIndexLocked returns the cached commentsIndex for the provided
-// record. If a cached commentsIndex does not exist, a new one will be
-// returned.
-//
-// This function must be called WITH the lock held.
-func (p *commentsPlugin) commentsIndexLocked(s comments.StateT, token []byte) (*commentsIndex, error) {
-	fp, err := p.commentsIndexPath(s, hex.EncodeToString(token))
-	if err != nil {
-		return nil, err
-	}
-	b, err := ioutil.ReadFile(fp)
-	if err != nil {
-		var e *os.PathError
-		if errors.As(err, &e) && !os.IsExist(err) {
-			// File does't exist. Return a new commentsIndex instead.
-			return &commentsIndex{
-				Comments: make(map[uint32]commentIndex),
-			}, nil
-		}
-		return nil, err
-	}
-
-	var idx commentsIndex
-	err = json.Unmarshal(b, &idx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &idx, nil
-}
-
-// commentsIndex returns the cached commentsIndex for the provided
-// record. If a cached commentsIndex does not exist, a new one will be
-// returned.
-//
-// This function must be called WITHOUT the lock held.
-func (p *commentsPlugin) commentsIndex(s comments.StateT, token []byte) (*commentsIndex, error) {
-	m := p.mutex(hex.EncodeToString(token))
-	m.Lock()
-	defer m.Unlock()
-
-	return p.commentsIndexLocked(s, token)
-}
-
-// commentsIndexSaveLocked saves the provided commentsIndex to the comments
-// plugin data dir.
-//
-// This function must be called WITH the lock held.
-func (p *commentsPlugin) commentsIndexSaveLocked(s comments.StateT, token []byte, idx commentsIndex) error {
-	b, err := json.Marshal(idx)
-	if err != nil {
-		return err
-	}
-
-	fp, err := p.commentsIndexPath(s, hex.EncodeToString(token))
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(fp, b, 0664)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func tlogIDFromCommentState(s comments.StateT) string {
-	switch s {
-	case comments.StateUnvetted:
-		return plugins.TlogIDUnvetted
-	case comments.StateVetted:
-		return plugins.TlogIDVetted
-	default:
-		e := fmt.Sprintf("unknown state %v", s)
-		panic(e)
-	}
-}
-
-func encryptFromCommentState(s comments.StateT) bool {
-	switch s {
-	case comments.StateUnvetted:
-		return true
-	case comments.StateVetted:
-		return false
-	default:
-		e := fmt.Sprintf("unknown state %v", s)
-		panic(e)
-	}
-}
-
-func convertCommentsErrorFromSignatureError(err error) backend.PluginUserError {
+func convertSignatureError(err error) backend.PluginUserError {
 	var e util.SignatureError
-	var s comments.ErrorStatusT
+	var s comments.ErrorCodeT
 	if errors.As(err, &e) {
 		switch e.ErrorCode {
 		case util.ErrorStatusPublicKeyInvalid:
-			s = comments.ErrorStatusPublicKeyInvalid
+			s = comments.ErrorCodePublicKeyInvalid
 		case util.ErrorStatusSignatureInvalid:
-			s = comments.ErrorStatusSignatureInvalid
+			s = comments.ErrorCodeSignatureInvalid
 		}
 	}
 	return backend.PluginUserError{
 		PluginID:     comments.ID,
 		ErrorCode:    int(s),
-		ErrorContext: e.ErrorContext,
+		ErrorContext: strings.Join(e.ErrorContext, ", "),
 	}
 }
 
@@ -466,7 +282,6 @@ func convertCommentVoteFromBlobEntry(be store.BlobEntry) (*comments.CommentVote,
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
 	return comments.Comment{
 		UserID:    ca.UserID,
-		State:     ca.State,
 		Token:     ca.Token,
 		ParentID:  ca.ParentID,
 		Comment:   ca.Comment,
@@ -487,7 +302,6 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 	// Score needs to be filled in separately
 	return comments.Comment{
 		UserID:    cd.UserID,
-		State:     cd.State,
 		Token:     cd.Token,
 		ParentID:  cd.ParentID,
 		Comment:   "",
@@ -515,13 +329,13 @@ func commentVersionLatest(cidx commentIndex) uint32 {
 }
 
 // commentExists returns whether the provided comment ID exists.
-func commentExists(idx commentsIndex, commentID uint32) bool {
-	_, ok := idx.Comments[commentID]
+func commentExists(ridx recordIndex, commentID uint32) bool {
+	_, ok := ridx.Comments[commentID]
 	return ok
 }
 
 // commentIDLatest returns the latest comment ID.
-func commentIDLatest(idx commentsIndex) uint32 {
+func commentIDLatest(idx recordIndex) uint32 {
 	var maxID uint32
 	for id := range idx.Comments {
 		if id > maxID {
@@ -531,7 +345,7 @@ func commentIDLatest(idx commentsIndex) uint32 {
 	return maxID
 }
 
-func (p *commentsPlugin) commentAddSave(ca comments.CommentAdd) ([]byte, error) {
+func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([]byte, error) {
 	// Prepare blob
 	be, err := convertBlobEntryFromCommentAdd(ca)
 	if err != nil {
@@ -546,17 +360,9 @@ func (p *commentsPlugin) commentAddSave(ca comments.CommentAdd) ([]byte, error) 
 		return nil, err
 	}
 
-	// Prepare tlog args
-	tlogID := tlogIDFromCommentState(ca.State)
-	encrypt := encryptFromCommentState(ca.State)
-	token, err := hex.DecodeString(ca.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	// Save blob
-	merkles, err := p.tlog.Save(tlogID, token, keyPrefixCommentAdd,
-		[][]byte{b}, [][]byte{h}, encrypt)
+	merkles, err := p.tlog.BlobsSave(treeID, keyPrefixCommentAdd,
+		[][]byte{b}, [][]byte{h})
 	if err != nil {
 		return nil, err
 	}
@@ -569,11 +375,9 @@ func (p *commentsPlugin) commentAddSave(ca comments.CommentAdd) ([]byte, error) 
 }
 
 // commentAdds returns the commentAdd for all specified merkle hashes.
-func (p *commentsPlugin) commentAdds(s comments.StateT, token []byte, merkles [][]byte) ([]comments.CommentAdd, error) {
+func (p *commentsPlugin) commentAdds(treeID int64, merkles [][]byte) ([]comments.CommentAdd, error) {
 	// Retrieve blobs
-	tlogID := tlogIDFromCommentState(s)
-	_ = tlogID
-	blobs, err := p.tlog.BlobsByMerkle(tlogID, token, merkles)
+	blobs, err := p.tlog.BlobsByMerkle(treeID, merkles)
 	if err != nil {
 		return nil, err
 	}
@@ -606,7 +410,7 @@ func (p *commentsPlugin) commentAdds(s comments.StateT, token []byte, merkles []
 	return adds, nil
 }
 
-func (p *commentsPlugin) commentDelSave(cd comments.CommentDel) ([]byte, error) {
+func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([]byte, error) {
 	// Prepare blob
 	be, err := convertBlobEntryFromCommentDel(cd)
 	if err != nil {
@@ -621,17 +425,9 @@ func (p *commentsPlugin) commentDelSave(cd comments.CommentDel) ([]byte, error) 
 		return nil, err
 	}
 
-	// Prepare tlog args
-	tlogID := tlogIDFromCommentState(cd.State)
-	token, err := hex.DecodeString(cd.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	// Save blob
-	_ = tlogID
-	merkles, err := p.tlog.Save(tlogID, token, keyPrefixCommentDel,
-		[][]byte{b}, [][]byte{h}, false)
+	merkles, err := p.tlog.BlobsSave(treeID, keyPrefixCommentDel,
+		[][]byte{b}, [][]byte{h})
 	if err != nil {
 		return nil, err
 	}
@@ -643,11 +439,9 @@ func (p *commentsPlugin) commentDelSave(cd comments.CommentDel) ([]byte, error) 
 	return merkles[0], nil
 }
 
-func (p *commentsPlugin) commentDels(s comments.StateT, token []byte, merkles [][]byte) ([]comments.CommentDel, error) {
+func (p *commentsPlugin) commentDels(treeID int64, merkles [][]byte) ([]comments.CommentDel, error) {
 	// Retrieve blobs
-	tlogID := tlogIDFromCommentState(s)
-	_ = tlogID
-	blobs, err := p.tlog.BlobsByMerkle(tlogID, token, merkles)
+	blobs, err := p.tlog.BlobsByMerkle(treeID, merkles)
 	if err != nil {
 		return nil, err
 	}
@@ -680,7 +474,7 @@ func (p *commentsPlugin) commentDels(s comments.StateT, token []byte, merkles []
 	return dels, nil
 }
 
-func (p *commentsPlugin) commentVoteSave(cv comments.CommentVote) ([]byte, error) {
+func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) ([]byte, error) {
 	// Prepare blob
 	be, err := convertBlobEntryFromCommentVote(cv)
 	if err != nil {
@@ -695,17 +489,9 @@ func (p *commentsPlugin) commentVoteSave(cv comments.CommentVote) ([]byte, error
 		return nil, err
 	}
 
-	// Prepare tlog args
-	tlogID := tlogIDFromCommentState(cv.State)
-	token, err := hex.DecodeString(cv.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	// Save blob
-	_ = tlogID
-	merkles, err := p.tlog.Save(tlogID, token, keyPrefixCommentVote,
-		[][]byte{b}, [][]byte{h}, false)
+	merkles, err := p.tlog.BlobsSave(treeID, keyPrefixCommentVote,
+		[][]byte{b}, [][]byte{h})
 	if err != nil {
 		return nil, err
 	}
@@ -717,11 +503,9 @@ func (p *commentsPlugin) commentVoteSave(cv comments.CommentVote) ([]byte, error
 	return merkles[0], nil
 }
 
-func (p *commentsPlugin) commentVotes(s comments.StateT, token []byte, merkles [][]byte) ([]comments.CommentVote, error) {
+func (p *commentsPlugin) commentVotes(treeID int64, merkles [][]byte) ([]comments.CommentVote, error) {
 	// Retrieve blobs
-	tlogID := tlogIDFromCommentState(s)
-	_ = tlogID
-	blobs, err := p.tlog.BlobsByMerkle(tlogID, token, merkles)
+	blobs, err := p.tlog.BlobsByMerkle(treeID, merkles)
 	if err != nil {
 		return nil, err
 	}
@@ -758,9 +542,8 @@ func (p *commentsPlugin) commentVotes(s comments.StateT, token []byte, merkles [
 // comments are returned with limited data. Comment IDs that do not correspond
 // to an actual comment are not included in the returned map. It is the
 // responsibility of the caller to ensure a comment is returned for each of the
-// provided comment IDs. The comments index that was looked up during this
-// process is also returned.
-func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsIndex, commentIDs []uint32) (map[uint32]comments.Comment, error) {
+// provided comment IDs.
+func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []uint32) (map[uint32]comments.Comment, error) {
 	// Aggregate the merkle hashes for all records that need to be
 	// looked up. If a comment has been deleted then the only record
 	// that will still exist is the comment del record. If the comment
@@ -771,7 +554,7 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 		merkleDels = make([][]byte, 0, len(commentIDs))
 	)
 	for _, v := range commentIDs {
-		cidx, ok := idx.Comments[v]
+		cidx, ok := ridx.Comments[v]
 		if !ok {
 			// Comment does not exist
 			continue
@@ -789,11 +572,8 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 	}
 
 	// Get comment add records
-	adds, err := p.commentAdds(s, token, merkleAdds)
+	adds, err := p.commentAdds(treeID, merkleAdds)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return nil, err
-		}
 		return nil, fmt.Errorf("commentAdds: %v", err)
 	}
 	if len(adds) != len(merkleAdds) {
@@ -802,7 +582,7 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 	}
 
 	// Get comment del records
-	dels, err := p.commentDels(s, token, merkleDels)
+	dels, err := p.commentDels(treeID, merkleDels)
 	if err != nil {
 		return nil, fmt.Errorf("commentDels: %v", err)
 	}
@@ -815,7 +595,7 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 	cs := make(map[uint32]comments.Comment, len(commentIDs))
 	for _, v := range adds {
 		c := convertCommentFromCommentAdd(v)
-		cidx, ok := idx.Comments[c.CommentID]
+		cidx, ok := ridx.Comments[c.CommentID]
 		if !ok {
 			return nil, fmt.Errorf("comment index not found %v", c.CommentID)
 		}
@@ -831,8 +611,8 @@ func (p *commentsPlugin) comments(s comments.StateT, token []byte, idx commentsI
 }
 
 // comment returns the latest version of the provided comment.
-func (p *commentsPlugin) comment(s comments.StateT, token []byte, idx commentsIndex, commentID uint32) (*comments.Comment, error) {
-	cs, err := p.comments(s, token, idx, []uint32{commentID})
+func (p *commentsPlugin) comment(treeID int64, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
+	cs, err := p.comments(treeID, ridx, []uint32{commentID})
 	if err != nil {
 		return nil, fmt.Errorf("comments: %v", err)
 	}
@@ -843,13 +623,11 @@ func (p *commentsPlugin) comment(s comments.StateT, token []byte, idx commentsIn
 	return &c, nil
 }
 
-func (p *commentsPlugin) timestamp(s comments.StateT, token []byte, merkle []byte) (*comments.Timestamp, error) {
+func (p *commentsPlugin) timestamp(treeID int64, merkle []byte) (*comments.Timestamp, error) {
 	// Get timestamp
-	tlogID := tlogIDFromCommentState(s)
-	_ = tlogID
-	t, err := p.tlog.Timestamp(tlogID, token, merkle)
+	t, err := p.tlog.Timestamp(treeID, merkle)
 	if err != nil {
-		return nil, fmt.Errorf("timestamp %x %x: %v", token, merkle, err)
+		return nil, err
 	}
 
 	// Convert response
@@ -870,430 +648,6 @@ func (p *commentsPlugin) timestamp(s comments.StateT, token []byte, merkle []byt
 		MerkleRoot: t.MerkleRoot,
 		Proofs:     proofs,
 	}, nil
-}
-
-func (p *commentsPlugin) cmdNew(payload string) (string, error) {
-	log.Tracef("comments cmdNew: %v", payload)
-
-	// Decode payload
-	n, err := comments.DecodeNew([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verify state
-	switch n.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusStateInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(n.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify signature
-	msg := strconv.Itoa(int(n.State)) + n.Token +
-		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
-	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
-	if err != nil {
-		return "", convertCommentsErrorFromSignatureError(err)
-	}
-
-	// Verify comment
-	if len(n.Comment) > comments.PolicyCommentLengthMax {
-		return "", backend.PluginUserError{
-			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusCommentTextInvalid),
-			ErrorContext: []string{"exceeds max length"},
-		}
-	}
-
-	// The comments index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(n.Token)
-	m.Lock()
-	defer m.Unlock()
-
-	// Get comments index
-	idx, err := p.commentsIndexLocked(n.State, token)
-	if err != nil {
-		return "", err
-	}
-
-	// Verify parent comment exists if set. A parent ID of 0 means that
-	// this is a base level comment, not a reply to another comment.
-	if n.ParentID > 0 && !commentExists(*idx, n.ParentID) {
-		return "", backend.PluginUserError{
-			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusParentIDInvalid),
-			ErrorContext: []string{"parent ID comment not found"},
-		}
-	}
-
-	// Setup comment
-	receipt := p.identity.SignMessage([]byte(n.Signature))
-	ca := comments.CommentAdd{
-		UserID:    n.UserID,
-		State:     n.State,
-		Token:     n.Token,
-		ParentID:  n.ParentID,
-		Comment:   n.Comment,
-		PublicKey: n.PublicKey,
-		Signature: n.Signature,
-		CommentID: commentIDLatest(*idx) + 1,
-		Version:   1,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
-	}
-
-	// Save comment
-	merkleHash, err := p.commentAddSave(ca)
-	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
-		return "", fmt.Errorf("commentAddSave: %v", err)
-	}
-
-	// Update index
-	idx.Comments[ca.CommentID] = commentIndex{
-		Adds: map[uint32][]byte{
-			1: merkleHash,
-		},
-		Del:   nil,
-		Votes: make(map[string][]voteIndex),
-	}
-
-	// Save index
-	err = p.commentsIndexSaveLocked(n.State, token, *idx)
-	if err != nil {
-		return "", err
-	}
-
-	log.Debugf("Comment saved to record %v comment ID %v",
-		ca.Token, ca.CommentID)
-
-	// Return new comment
-	c, err := p.comment(ca.State, token, *idx, ca.CommentID)
-	if err != nil {
-		return "", fmt.Errorf("comment %x %v: %v", token, ca.CommentID, err)
-	}
-
-	// Prepare reply
-	nr := comments.NewReply{
-		Comment: *c,
-	}
-	reply, err := comments.EncodeNewReply(nr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-func (p *commentsPlugin) cmdEdit(payload string) (string, error) {
-	log.Tracef("comments cmdEdit: %v", payload)
-
-	// Decode payload
-	e, err := comments.DecodeEdit([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verify state
-	switch e.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusStateInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(e.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify signature
-	msg := strconv.Itoa(int(e.State)) + e.Token +
-		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
-	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
-	if err != nil {
-		return "", convertCommentsErrorFromSignatureError(err)
-	}
-
-	// Verify comment
-	if len(e.Comment) > comments.PolicyCommentLengthMax {
-		return "", backend.PluginUserError{
-			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusCommentTextInvalid),
-			ErrorContext: []string{"exceeds max length"},
-		}
-	}
-
-	// The comments index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(e.Token)
-	m.Lock()
-	defer m.Unlock()
-
-	// Get comments index
-	idx, err := p.commentsIndexLocked(e.State, token)
-	if err != nil {
-		return "", err
-	}
-
-	// Get the existing comment
-	cs, err := p.comments(e.State, token, *idx, []uint32{e.CommentID})
-	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
-		return "", fmt.Errorf("comments %v: %v", e.CommentID, err)
-	}
-	existing, ok := cs[e.CommentID]
-	if !ok {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusCommentNotFound),
-		}
-	}
-
-	// Verify the user ID
-	if e.UserID != existing.UserID {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusUserUnauthorized),
-		}
-	}
-
-	// Verify the parent ID
-	if e.ParentID != existing.ParentID {
-		e := fmt.Sprintf("parent id cannot change; got %v, want %v",
-			e.ParentID, existing.ParentID)
-		return "", backend.PluginUserError{
-			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusParentIDInvalid),
-			ErrorContext: []string{e},
-		}
-	}
-
-	// Verify comment changes
-	if e.Comment == existing.Comment {
-		return "", backend.PluginUserError{
-			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusCommentTextInvalid),
-			ErrorContext: []string{"comment did not change"},
-		}
-	}
-
-	// Create a new comment version
-	receipt := p.identity.SignMessage([]byte(e.Signature))
-	ca := comments.CommentAdd{
-		UserID:    e.UserID,
-		State:     e.State,
-		Token:     e.Token,
-		ParentID:  e.ParentID,
-		Comment:   e.Comment,
-		PublicKey: e.PublicKey,
-		Signature: e.Signature,
-		CommentID: e.CommentID,
-		Version:   existing.Version + 1,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
-	}
-
-	// Save comment
-	merkle, err := p.commentAddSave(ca)
-	if err != nil {
-		return "", fmt.Errorf("commentSave: %v", err)
-	}
-
-	// Update index
-	idx.Comments[ca.CommentID].Adds[ca.Version] = merkle
-
-	// Save index
-	err = p.commentsIndexSaveLocked(e.State, token, *idx)
-	if err != nil {
-		return "", err
-	}
-
-	log.Debugf("Comment edited on record %v comment ID %v",
-		ca.Token, ca.CommentID)
-
-	// Return updated comment
-	c, err := p.comment(e.State, token, *idx, e.CommentID)
-	if err != nil {
-		return "", fmt.Errorf("comment %x %v: %v", token, e.CommentID, err)
-	}
-
-	// Prepare reply
-	er := comments.EditReply{
-		Comment: *c,
-	}
-	reply, err := comments.EncodeEditReply(er)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-func (p *commentsPlugin) cmdDel(payload string) (string, error) {
-	log.Tracef("comments cmdDel: %v", payload)
-
-	// Decode payload
-	d, err := comments.DecodeDel([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verify state
-	switch d.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusStateInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(d.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify signature
-	msg := strconv.Itoa(int(d.State)) + d.Token +
-		strconv.FormatUint(uint64(d.CommentID), 10) + d.Reason
-	err = util.VerifySignature(d.Signature, d.PublicKey, msg)
-	if err != nil {
-		return "", convertCommentsErrorFromSignatureError(err)
-	}
-
-	// The comments index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(d.Token)
-	m.Lock()
-	defer m.Unlock()
-
-	// Get comments index
-	idx, err := p.commentsIndexLocked(d.State, token)
-	if err != nil {
-		return "", err
-	}
-
-	// Get the existing comment
-	cs, err := p.comments(d.State, token, *idx, []uint32{d.CommentID})
-	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
-		return "", fmt.Errorf("comments %v: %v", d.CommentID, err)
-	}
-	existing, ok := cs[d.CommentID]
-	if !ok {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusCommentNotFound),
-		}
-	}
-
-	// Prepare comment delete
-	receipt := p.identity.SignMessage([]byte(d.Signature))
-	cd := comments.CommentDel{
-		State:     d.State,
-		Token:     d.Token,
-		CommentID: d.CommentID,
-		Reason:    d.Reason,
-		PublicKey: d.PublicKey,
-		Signature: d.Signature,
-		ParentID:  existing.ParentID,
-		UserID:    existing.UserID,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
-	}
-
-	// Save comment del
-	merkle, err := p.commentDelSave(cd)
-	if err != nil {
-		return "", fmt.Errorf("commentDelSave: %v", err)
-	}
-
-	// Update index
-	cidx, ok := idx.Comments[d.CommentID]
-	if !ok {
-		// This should not be possible
-		e := fmt.Sprintf("comment not found in index: %v", d.CommentID)
-		panic(e)
-	}
-	cidx.Del = merkle
-	idx.Comments[d.CommentID] = cidx
-
-	// Save index
-	err = p.commentsIndexSaveLocked(d.State, token, *idx)
-	if err != nil {
-		return "", err
-	}
-
-	// Delete all comment versions
-	merkles := make([][]byte, 0, len(cidx.Adds))
-	for _, v := range cidx.Adds {
-		merkles = append(merkles, v)
-	}
-	tlogID := tlogIDFromCommentState(d.State)
-	_ = tlogID
-	err = p.tlog.Del(tlogID, token, merkles)
-	if err != nil {
-		return "", fmt.Errorf("del: %v", err)
-	}
-
-	// Return updated comment
-	c, err := p.comment(d.State, token, *idx, d.CommentID)
-	if err != nil {
-		return "", fmt.Errorf("comment %x %v: %v", token, d.CommentID, err)
-	}
-
-	// Prepare reply
-	dr := comments.DelReply{
-		Comment: *c,
-	}
-	reply, err := comments.EncodeDelReply(dr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
 }
 
 // calcVoteScore returns the vote score for the provided comment index. The
@@ -1347,32 +701,430 @@ func calcVoteScore(cidx commentIndex) (uint64, uint64) {
 	return downvotes, upvotes
 }
 
-func (p *commentsPlugin) cmdVote(payload string) (string, error) {
-	log.Tracef("comments cmdVote: %v", payload)
+func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdNew: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	v, err := comments.DecodeVote([]byte(payload))
+	var n comments.New
+	err := json.Unmarshal([]byte(payload), &n)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify state
-	switch v.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
+	// Verify token
+	t, err := tokenDecode(n.Token)
+	if err != nil {
 		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: err.Error(),
+		}
+	}
+	if !bytes.Equal(t, token) {
+		e := fmt.Sprintf("comment token does not match route token: "+
+			"got %x, want %x", t, token)
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: e,
 		}
 	}
 
+	// Verify signature
+	msg := n.Token + strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
+	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
+	if err != nil {
+		return "", convertSignatureError(err)
+	}
+
+	// Verify comment
+	if len(n.Comment) > comments.PolicyCommentLengthMax {
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
+			ErrorContext: "exceeds max length",
+		}
+	}
+
+	// The record index must be pulled and updated. The record lock
+	// must be held for the remainder of this function.
+	m := p.mutex(token)
+	m.Lock()
+	defer m.Unlock()
+
+	// Get record index
+	ridx, err := p.recordIndexLocked(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify parent comment exists if set. A parent ID of 0 means that
+	// this is a base level comment, not a reply to another comment.
+	if n.ParentID > 0 && !commentExists(*ridx, n.ParentID) {
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeParentIDInvalid),
+			ErrorContext: "parent ID comment not found",
+		}
+	}
+
+	// Setup comment
+	receipt := p.identity.SignMessage([]byte(n.Signature))
+	ca := comments.CommentAdd{
+		UserID:    n.UserID,
+		Token:     n.Token,
+		ParentID:  n.ParentID,
+		Comment:   n.Comment,
+		PublicKey: n.PublicKey,
+		Signature: n.Signature,
+		CommentID: commentIDLatest(*ridx) + 1,
+		Version:   1,
+		Timestamp: time.Now().Unix(),
+		Receipt:   hex.EncodeToString(receipt[:]),
+	}
+
+	// Save comment
+	merkleHash, err := p.commentAddSave(treeID, ca)
+	if err != nil {
+		return "", fmt.Errorf("commentAddSave: %v", err)
+	}
+
+	// Update index
+	ridx.Comments[ca.CommentID] = commentIndex{
+		Adds: map[uint32][]byte{
+			1: merkleHash,
+		},
+		Del:   nil,
+		Votes: make(map[string][]voteIndex),
+	}
+
+	// Save index
+	err = p.recordIndexSaveLocked(token, *ridx)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debugf("Comment saved to record %v comment ID %v",
+		ca.Token, ca.CommentID)
+
+	// Return new comment
+	c, err := p.comment(treeID, *ridx, ca.CommentID)
+	if err != nil {
+		return "", fmt.Errorf("comment %x %v: %v", token, ca.CommentID, err)
+	}
+
+	// Prepare reply
+	nr := comments.NewReply{
+		Comment: *c,
+	}
+	reply, err := json.Marshal(nr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdEdit: %v %x %v", treeID, token, payload)
+
+	// Decode payload
+	var e comments.Edit
+	err := json.Unmarshal([]byte(payload), &e)
+	if err != nil {
+		return "", err
+	}
+
 	// Verify token
-	token, err := tokenDecodeAnyLength(v.Token)
+	t, err := tokenDecode(e.Token)
 	if err != nil {
 		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: err.Error(),
+		}
+	}
+	if !bytes.Equal(t, token) {
+		e := fmt.Sprintf("comment token does not match route token: "+
+			"got %x, want %x", t, token)
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify signature
+	msg := e.Token + strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
+	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
+	if err != nil {
+		return "", convertSignatureError(err)
+	}
+
+	// Verify comment
+	if len(e.Comment) > comments.PolicyCommentLengthMax {
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
+			ErrorContext: "exceeds max length",
+		}
+	}
+
+	// The record index must be pulled and updated. The record lock
+	// must be held for the remainder of this function.
+	m := p.mutex(token)
+	m.Lock()
+	defer m.Unlock()
+
+	// Get record index
+	ridx, err := p.recordIndexLocked(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the existing comment
+	cs, err := p.comments(treeID, *ridx, []uint32{e.CommentID})
+	if err != nil {
+		return "", fmt.Errorf("comments %v: %v", e.CommentID, err)
+	}
+	existing, ok := cs[e.CommentID]
+	if !ok {
+		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
+			ErrorCode: int(comments.ErrorCodeCommentNotFound),
+		}
+	}
+
+	// Verify the user ID
+	if e.UserID != existing.UserID {
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorCodeUserUnauthorized),
+		}
+	}
+
+	// Verify the parent ID
+	if e.ParentID != existing.ParentID {
+		e := fmt.Sprintf("parent id cannot change; got %v, want %v",
+			e.ParentID, existing.ParentID)
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeParentIDInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify comment changes
+	if e.Comment == existing.Comment {
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
+			ErrorContext: "comment did not change",
+		}
+	}
+
+	// Create a new comment version
+	receipt := p.identity.SignMessage([]byte(e.Signature))
+	ca := comments.CommentAdd{
+		UserID:    e.UserID,
+		Token:     e.Token,
+		ParentID:  e.ParentID,
+		Comment:   e.Comment,
+		PublicKey: e.PublicKey,
+		Signature: e.Signature,
+		CommentID: e.CommentID,
+		Version:   existing.Version + 1,
+		Timestamp: time.Now().Unix(),
+		Receipt:   hex.EncodeToString(receipt[:]),
+	}
+
+	// Save comment
+	merkle, err := p.commentAddSave(treeID, ca)
+	if err != nil {
+		return "", fmt.Errorf("commentAddSave: %v", err)
+	}
+
+	// Update index
+	ridx.Comments[ca.CommentID].Adds[ca.Version] = merkle
+
+	// Save index
+	err = p.recordIndexSaveLocked(token, *ridx)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debugf("Comment edited on record %v comment ID %v",
+		ca.Token, ca.CommentID)
+
+	// Return updated comment
+	c, err := p.comment(treeID, *ridx, e.CommentID)
+	if err != nil {
+		return "", fmt.Errorf("comment %x %v: %v", token, e.CommentID, err)
+	}
+
+	// Prepare reply
+	er := comments.EditReply{
+		Comment: *c,
+	}
+	reply, err := json.Marshal(er)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdDel: %v %x %v", treeID, token, payload)
+
+	// Decode payload
+	var d comments.Del
+	err := json.Unmarshal([]byte(payload), &d)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify token
+	t, err := tokenDecode(d.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: err.Error(),
+		}
+	}
+	if !bytes.Equal(t, token) {
+		e := fmt.Sprintf("comment token does not match route token: "+
+			"got %x, want %x", t, token)
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify signature
+	msg := d.Token + strconv.FormatUint(uint64(d.CommentID), 10) + d.Reason
+	err = util.VerifySignature(d.Signature, d.PublicKey, msg)
+	if err != nil {
+		return "", convertSignatureError(err)
+	}
+
+	// The record index must be pulled and updated. The record lock
+	// must be held for the remainder of this function.
+	m := p.mutex(token)
+	m.Lock()
+	defer m.Unlock()
+
+	// Get record index
+	ridx, err := p.recordIndexLocked(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the existing comment
+	cs, err := p.comments(treeID, *ridx, []uint32{d.CommentID})
+	if err != nil {
+		return "", fmt.Errorf("comments %v: %v", d.CommentID, err)
+	}
+	existing, ok := cs[d.CommentID]
+	if !ok {
+		return "", backend.PluginUserError{
+			PluginID:  comments.ID,
+			ErrorCode: int(comments.ErrorCodeCommentNotFound),
+		}
+	}
+
+	// Prepare comment delete
+	receipt := p.identity.SignMessage([]byte(d.Signature))
+	cd := comments.CommentDel{
+		Token:     d.Token,
+		CommentID: d.CommentID,
+		Reason:    d.Reason,
+		PublicKey: d.PublicKey,
+		Signature: d.Signature,
+		ParentID:  existing.ParentID,
+		UserID:    existing.UserID,
+		Timestamp: time.Now().Unix(),
+		Receipt:   hex.EncodeToString(receipt[:]),
+	}
+
+	// Save comment del
+	merkle, err := p.commentDelSave(treeID, cd)
+	if err != nil {
+		return "", fmt.Errorf("commentDelSave: %v", err)
+	}
+
+	// Update index
+	cidx, ok := ridx.Comments[d.CommentID]
+	if !ok {
+		// This should not be possible
+		e := fmt.Sprintf("comment not found in index: %v", d.CommentID)
+		panic(e)
+	}
+	cidx.Del = merkle
+	ridx.Comments[d.CommentID] = cidx
+
+	// Save index
+	err = p.recordIndexSaveLocked(token, *ridx)
+	if err != nil {
+		return "", err
+	}
+
+	// Delete all comment versions
+	merkles := make([][]byte, 0, len(cidx.Adds))
+	for _, v := range cidx.Adds {
+		merkles = append(merkles, v)
+	}
+	err = p.tlog.BlobsDel(treeID, merkles)
+	if err != nil {
+		return "", fmt.Errorf("del: %v", err)
+	}
+
+	// Return updated comment
+	c, err := p.comment(treeID, *ridx, d.CommentID)
+	if err != nil {
+		return "", fmt.Errorf("comment %v: %v", d.CommentID, err)
+	}
+
+	// Prepare reply
+	dr := comments.DelReply{
+		Comment: *c,
+	}
+	reply, err := json.Marshal(dr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdVote: %v %x %v", treeID, token, payload)
+
+	// Decode payload
+	var v comments.Vote
+	err := json.Unmarshal([]byte(payload), &v)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify token
+	t, err := tokenDecode(v.Token)
+	if err != nil {
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: err.Error(),
+		}
+	}
+	if !bytes.Equal(t, token) {
+		e := fmt.Sprintf("comment token does not match route token: "+
+			"got %x, want %x", t, token)
+		return "", backend.PluginUserError{
+			PluginID:     comments.ID,
+			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorContext: e,
 		}
 	}
 
@@ -1383,37 +1135,36 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	default:
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusVoteInvalid),
+			ErrorCode: int(comments.ErrorCodeVoteInvalid),
 		}
 	}
 
 	// Verify signature
-	msg := strconv.Itoa(int(v.State)) + v.Token +
-		strconv.FormatUint(uint64(v.CommentID), 10) +
+	msg := v.Token + strconv.FormatUint(uint64(v.CommentID), 10) +
 		strconv.FormatInt(int64(v.Vote), 10)
 	err = util.VerifySignature(v.Signature, v.PublicKey, msg)
 	if err != nil {
-		return "", convertCommentsErrorFromSignatureError(err)
+		return "", convertSignatureError(err)
 	}
 
-	// The comments index must be pulled and updated. The record lock
+	// The record index must be pulled and updated. The record lock
 	// must be held for the remainder of this function.
-	m := p.mutex(v.Token)
+	m := p.mutex(token)
 	m.Lock()
 	defer m.Unlock()
 
-	// Get comments index
-	idx, err := p.commentsIndexLocked(v.State, token)
+	// Get record index
+	ridx, err := p.recordIndexLocked(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Verify comment exists
-	cidx, ok := idx.Comments[v.CommentID]
+	cidx, ok := ridx.Comments[v.CommentID]
 	if !ok {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusCommentNotFound),
+			ErrorCode: int(comments.ErrorCodeCommentNotFound),
 		}
 	}
 
@@ -1425,19 +1176,13 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	if len(uvotes) > comments.PolicyVoteChangesMax {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusVoteChangesMax),
+			ErrorCode: int(comments.ErrorCodeVoteChangesMax),
 		}
 	}
 
 	// Verify user is not voting on their own comment
-	cs, err := p.comments(v.State, token, *idx, []uint32{v.CommentID})
+	cs, err := p.comments(treeID, *ridx, []uint32{v.CommentID})
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("comments %v: %v", v.CommentID, err)
 	}
 	c, ok := cs[v.CommentID]
@@ -1447,15 +1192,14 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	if v.UserID == c.UserID {
 		return "", backend.PluginUserError{
 			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusVoteInvalid),
-			ErrorContext: []string{"user cannot vote on their own comment"},
+			ErrorCode:    int(comments.ErrorCodeVoteInvalid),
+			ErrorContext: "user cannot vote on their own comment",
 		}
 	}
 
 	// Prepare comment vote
 	receipt := p.identity.SignMessage([]byte(v.Signature))
 	cv := comments.CommentVote{
-		State:     v.State,
 		UserID:    v.UserID,
 		Token:     v.Token,
 		CommentID: v.CommentID,
@@ -1467,7 +1211,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	}
 
 	// Save comment vote
-	merkle, err := p.commentVoteSave(cv)
+	merkle, err := p.commentVoteSave(treeID, cv)
 	if err != nil {
 		return "", fmt.Errorf("commentVoteSave: %v", err)
 	}
@@ -1483,11 +1227,11 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	})
 	cidx.Votes[cv.UserID] = votes
 
-	// Update the comments index
-	idx.Comments[cv.CommentID] = cidx
+	// Update the record index
+	ridx.Comments[cv.CommentID] = cidx
 
 	// Save index
-	err = p.commentsIndexSaveLocked(cv.State, token, *idx)
+	err = p.recordIndexSaveLocked(token, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -1502,7 +1246,7 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 		Timestamp: cv.Timestamp,
 		Receipt:   cv.Receipt,
 	}
-	reply, err := comments.EncodeVoteReply(vr)
+	reply, err := json.Marshal(vr)
 	if err != nil {
 		return "", err
 	}
@@ -1510,50 +1254,25 @@ func (p *commentsPlugin) cmdVote(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdGet(payload string) (string, error) {
-	log.Tracef("comments cmdGet: %v", payload)
+func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdGet: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	g, err := comments.DecodeGet([]byte(payload))
+	var g comments.Get
+	err := json.Unmarshal([]byte(payload), &g)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify state
-	switch g.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(g.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Get comments index
-	idx, err := p.commentsIndex(g.State, token)
+	// Get record index
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Get comments
-	cs, err := p.comments(g.State, token, *idx, g.CommentIDs)
+	cs, err := p.comments(treeID, *ridx, g.CommentIDs)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("comments: %v", err)
 	}
 
@@ -1561,7 +1280,7 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	gr := comments.GetReply{
 		Comments: cs,
 	}
-	reply, err := comments.EncodeGetReply(gr)
+	reply, err := json.Marshal(gr)
 	if err != nil {
 		return "", err
 	}
@@ -1569,56 +1288,29 @@ func (p *commentsPlugin) cmdGet(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
-	log.Tracef("comments cmdGetAll: %v", payload)
+func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdGetAll: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	ga, err := comments.DecodeGetAll([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Verify state
-	switch ga.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(ga.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Get comments index
-	idx, err := p.commentsIndex(ga.State, token)
+	var ga comments.GetAll
+	err := json.Unmarshal([]byte(payload), &ga)
 	if err != nil {
 		return "", err
 	}
 
 	// Compile comment IDs
-	commentIDs := make([]uint32, 0, len(idx.Comments))
-	for k := range idx.Comments {
+	ridx, err := p.recordIndex(token)
+	if err != nil {
+		return "", err
+	}
+	commentIDs := make([]uint32, 0, len(ridx.Comments))
+	for k := range ridx.Comments {
 		commentIDs = append(commentIDs, k)
 	}
 
 	// Get comments
-	c, err := p.comments(ga.State, token, *idx, commentIDs)
+	c, err := p.comments(treeID, *ridx, commentIDs)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("comments: %v", err)
 	}
 
@@ -1637,7 +1329,7 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	gar := comments.GetAllReply{
 		Comments: cs,
 	}
-	reply, err := comments.EncodeGetAllReply(gar)
+	reply, err := json.Marshal(gar)
 	if err != nil {
 		return "", err
 	}
@@ -1645,54 +1337,35 @@ func (p *commentsPlugin) cmdGetAll(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
-	log.Tracef("comments cmdGetVersion: %v", payload)
+func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdGetVersion: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	gv, err := comments.DecodeGetVersion([]byte(payload))
+	var gv comments.GetVersion
+	err := json.Unmarshal([]byte(payload), &gv)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify state
-	switch gv.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(gv.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Get comments index
-	idx, err := p.commentsIndex(gv.State, token)
+	// Get record index
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Verify comment exists
-	cidx, ok := idx.Comments[gv.CommentID]
+	cidx, ok := ridx.Comments[gv.CommentID]
 	if !ok {
 		return "", backend.PluginUserError{
 			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusCommentNotFound),
+			ErrorCode: int(comments.ErrorCodeCommentNotFound),
 		}
 	}
 	if cidx.Del != nil {
 		return "", backend.PluginUserError{
 			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusCommentNotFound),
-			ErrorContext: []string{"comment has been deleted"},
+			ErrorCode:    int(comments.ErrorCodeCommentNotFound),
+			ErrorContext: "comment has been deleted",
 		}
 	}
 	merkle, ok := cidx.Adds[gv.Version]
@@ -1701,20 +1374,14 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 			gv.CommentID, gv.Version)
 		return "", backend.PluginUserError{
 			PluginID:     comments.ID,
-			ErrorCode:    int(comments.ErrorStatusCommentNotFound),
-			ErrorContext: []string{e},
+			ErrorCode:    int(comments.ErrorCodeCommentNotFound),
+			ErrorContext: e,
 		}
 	}
 
 	// Get comment add record
-	adds, err := p.commentAdds(gv.State, token, [][]byte{merkle})
+	adds, err := p.commentAdds(treeID, [][]byte{merkle})
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("commentAdds: %v", err)
 	}
 	if len(adds) != 1 {
@@ -1730,7 +1397,7 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	gvr := comments.GetVersionReply{
 		Comment: c,
 	}
-	reply, err := comments.EncodeGetVersionReply(gvr)
+	reply, err := json.Marshal(gvr)
 	if err != nil {
 		return "", err
 	}
@@ -1738,46 +1405,27 @@ func (p *commentsPlugin) cmdGetVersion(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdCount(payload string) (string, error) {
-	log.Tracef("comments cmdCount: %v", payload)
+func (p *commentsPlugin) cmdCount(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdCount: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	c, err := comments.DecodeCount([]byte(payload))
+	var c comments.Count
+	err := json.Unmarshal([]byte(payload), &c)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify state
-	switch c.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(c.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Get comments index
-	idx, err := p.commentsIndex(c.State, token)
+	// Get record index
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Prepare reply
 	cr := comments.CountReply{
-		Count: uint64(len(idx.Comments)),
+		Count: uint32(len(ridx.Comments)),
 	}
-	reply, err := comments.EncodeCountReply(cr)
+	reply, err := json.Marshal(cr)
 	if err != nil {
 		return "", err
 	}
@@ -1785,37 +1433,18 @@ func (p *commentsPlugin) cmdCount(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
-	log.Tracef("comments cmdVotes: %v", payload)
+func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdVotes: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	v, err := comments.DecodeVotes([]byte(payload))
+	var v comments.Votes
+	err := json.Unmarshal([]byte(payload), &v)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify state
-	switch v.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(v.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Get comments index
-	idx, err := p.commentsIndex(v.State, token)
+	// Get record index
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
@@ -1823,7 +1452,7 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	// Compile the comment vote merkles for all votes that were cast
 	// by the specified user.
 	merkles := make([][]byte, 0, 256)
-	for _, cidx := range idx.Comments {
+	for _, cidx := range ridx.Comments {
 		voteIdxs, ok := cidx.Votes[v.UserID]
 		if !ok {
 			// User has not cast any votes for this comment
@@ -1837,14 +1466,8 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	}
 
 	// Lookup votes
-	votes, err := p.commentVotes(v.State, token, merkles)
+	votes, err := p.commentVotes(treeID, merkles)
 	if err != nil {
-		if errors.Is(err, errRecordNotFound) {
-			return "", backend.PluginUserError{
-				PluginID:  comments.ID,
-				ErrorCode: int(comments.ErrorStatusRecordNotFound),
-			}
-		}
 		return "", fmt.Errorf("commentVotes: %v", err)
 	}
 
@@ -1852,7 +1475,7 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	vr := comments.VotesReply{
 		Votes: votes,
 	}
-	reply, err := comments.EncodeVotesReply(vr)
+	reply, err := json.Marshal(vr)
 	if err != nil {
 		return "", err
 	}
@@ -1860,8 +1483,8 @@ func (p *commentsPlugin) cmdVotes(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
-	log.Tracef("comments cmdVotes: %v", payload)
+func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdTimestamps: %v %x %v", treeID, token, payload)
 
 	// Decode payload
 	var t comments.Timestamps
@@ -1870,28 +1493,8 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 		return "", err
 	}
 
-	// Verify state
-	switch t.State {
-	case comments.StateUnvetted, comments.StateVetted:
-		// Allowed; continue
-	default:
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Verify token
-	token, err := tokenDecodeAnyLength(t.Token)
-	if err != nil {
-		return "", backend.PluginUserError{
-			PluginID:  comments.ID,
-			ErrorCode: int(comments.ErrorStatusTokenInvalid),
-		}
-	}
-
-	// Get comments index
-	idx, err := p.commentsIndex(t.State, token)
+	// Get record index
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
@@ -1899,8 +1502,8 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 	// If no comment IDs were given then we need to return the
 	// timestamps for all comments.
 	if len(t.CommentIDs) == 0 {
-		commentIDs := make([]uint32, 0, len(idx.Comments))
-		for k := range idx.Comments {
+		commentIDs := make([]uint32, 0, len(ridx.Comments))
+		for k := range ridx.Comments {
 			commentIDs = append(commentIDs, k)
 		}
 		t.CommentIDs = commentIDs
@@ -1910,7 +1513,7 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 	cmts := make(map[uint32][]comments.Timestamp, len(t.CommentIDs))
 	votes := make(map[uint32][]comments.Timestamp, len(t.CommentIDs))
 	for _, commentID := range t.CommentIDs {
-		cidx, ok := idx.Comments[commentID]
+		cidx, ok := ridx.Comments[commentID]
 		if !ok {
 			// Comment ID does not exist. Skip it.
 			continue
@@ -1919,7 +1522,7 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 		// Get timestamps for adds
 		ts := make([]comments.Timestamp, 0, len(cidx.Adds)+1)
 		for _, v := range cidx.Adds {
-			t, err := p.timestamp(t.State, token, v)
+			t, err := p.timestamp(treeID, v)
 			if err != nil {
 				return "", err
 			}
@@ -1928,7 +1531,7 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 
 		// Get timestamp for del
 		if cidx.Del != nil {
-			t, err := p.timestamp(t.State, token, cidx.Del)
+			t, err := p.timestamp(treeID, cidx.Del)
 			if err != nil {
 				return "", err
 			}
@@ -1947,7 +1550,7 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 		ts = make([]comments.Timestamp, 0, len(cidx.Votes))
 		for _, votes := range cidx.Votes {
 			for _, v := range votes {
-				t, err := p.timestamp(t.State, token, v.Merkle)
+				t, err := p.timestamp(treeID, v.Merkle)
 				if err != nil {
 					return "", err
 				}
@@ -1976,29 +1579,29 @@ func (p *commentsPlugin) cmdTimestamps(payload string) (string, error) {
 //
 // This function satisfies the PluginClient interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %v", cmd, payload)
+	log.Tracef("Cmd: %v %v %x %v", treeID, token, cmd, payload)
 
 	switch cmd {
 	case comments.CmdNew:
-		return p.cmdNew(payload)
+		return p.cmdNew(treeID, token, payload)
 	case comments.CmdEdit:
-		return p.cmdEdit(payload)
+		return p.cmdEdit(treeID, token, payload)
 	case comments.CmdDel:
-		return p.cmdDel(payload)
+		return p.cmdDel(treeID, token, payload)
 	case comments.CmdVote:
-		return p.cmdVote(payload)
+		return p.cmdVote(treeID, token, payload)
 	case comments.CmdGet:
-		return p.cmdGet(payload)
+		return p.cmdGet(treeID, token, payload)
 	case comments.CmdGetAll:
-		return p.cmdGetAll(payload)
+		return p.cmdGetAll(treeID, token, payload)
 	case comments.CmdGetVersion:
-		return p.cmdGetVersion(payload)
+		return p.cmdGetVersion(treeID, token, payload)
 	case comments.CmdCount:
-		return p.cmdCount(payload)
+		return p.cmdCount(treeID, token, payload)
 	case comments.CmdVotes:
-		return p.cmdVotes(payload)
+		return p.cmdVotes(treeID, token, payload)
 	case comments.CmdTimestamps:
-		return p.cmdTimestamps(payload)
+		return p.cmdTimestamps(treeID, token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid

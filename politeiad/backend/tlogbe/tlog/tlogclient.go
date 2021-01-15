@@ -19,8 +19,8 @@ import (
 // the same ordering as the blobs.
 //
 // This function satisfies the plugins.TlogClient interface.
-func (t *Tlog) BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte, encrypt bool) ([][]byte, error) {
-	log.Tracef("%v BlobsSave: %v %v %v", t.id, treeID, keyPrefix, encrypt)
+func (t *Tlog) BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte) ([][]byte, error) {
+	log.Tracef("%v BlobsSave: %v %v", t.id, treeID, keyPrefix)
 
 	// Sanity check
 	if len(blobs) != len(hashes) {
@@ -46,8 +46,8 @@ func (t *Tlog) BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
 		return nil, ErrTreeIsFrozen
 	}
 
-	// Encrypt blobs if specified
-	if encrypt {
+	// Encrypt blobs if an encryption key has been set
+	if t.encryptionKey != nil {
 		for k, v := range blobs {
 			e, err := t.encrypt(v)
 			if err != nil {
@@ -239,36 +239,6 @@ func (t *Tlog) BlobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 	return b, nil
 }
 
-// MerklesByKeyPrefix returns the merkle leaf hashes for all blobs that match
-// the key prefix.
-//
-// This function satisfies the plugins.TlogClient interface.
-func (t *Tlog) MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
-	log.Tracef("%v MerklesByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
-	}
-
-	// Get leaves
-	leaves, err := t.trillian.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Walk leaves and aggregate the merkle leaf hashes with a matching
-	// key prefix.
-	merkles := make([][]byte, 0, len(leaves))
-	for _, v := range leaves {
-		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
-			merkles = append(merkles, v.MerkleLeafHash)
-		}
-	}
-
-	return merkles, nil
-}
-
 // BlobsByKeyPrefix returns all blobs that match the provided key prefix.
 //
 // This function satisfies the plugins.TlogClient interface.
@@ -330,6 +300,36 @@ func (t *Tlog) BlobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error
 	}
 
 	return b, nil
+}
+
+// MerklesByKeyPrefix returns the merkle leaf hashes for all blobs that match
+// the key prefix.
+//
+// This function satisfies the plugins.TlogClient interface.
+func (t *Tlog) MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error) {
+	log.Tracef("%v MerklesByKeyPrefix: %v %v", t.id, treeID, keyPrefix)
+
+	// Verify tree exists
+	if !t.TreeExists(treeID) {
+		return nil, ErrRecordNotFound
+	}
+
+	// Get leaves
+	leaves, err := t.trillian.leavesAll(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("leavesAll: %v", err)
+	}
+
+	// Walk leaves and aggregate the merkle leaf hashes with a matching
+	// key prefix.
+	merkles := make([][]byte, 0, len(leaves))
+	for _, v := range leaves {
+		if bytes.HasPrefix(v.ExtraData, []byte(keyPrefix)) {
+			merkles = append(merkles, v.MerkleLeafHash)
+		}
+	}
+
+	return merkles, nil
 }
 
 // Timestamp returns the timestamp for the data blob that corresponds to the

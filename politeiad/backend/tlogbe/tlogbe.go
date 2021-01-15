@@ -938,9 +938,6 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	// Get existing record
 	r, err := t.vetted.RecordLatest(treeID)
 	if err != nil {
-		if errors.Is(err, tlog.ErrRecordNotFound) {
-			return nil, backend.ErrRecordNotFound
-		}
 		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
@@ -1136,9 +1133,6 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	// Get existing record
 	r, err := t.vetted.RecordLatest(treeID)
 	if err != nil {
-		if errors.Is(err, tlog.ErrRecordNotFound) {
-			return backend.ErrRecordNotFound
-		}
 		return fmt.Errorf("RecordLatest: %v", err)
 	}
 
@@ -1264,9 +1258,6 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 
 	r, err := t.vetted.Record(treeID, v)
 	if err != nil {
-		if errors.Is(err, tlog.ErrRecordNotFound) {
-			err = backend.ErrRecordNotFound
-		}
 		return nil, err
 	}
 

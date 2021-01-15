@@ -115,7 +115,7 @@ func (s StateTransitionError) Error() string {
 type PluginUserError struct {
 	PluginID     string
 	ErrorCode    int
-	ErrorContext []string
+	ErrorContext string
 }
 
 // Error satisfies the error interface.

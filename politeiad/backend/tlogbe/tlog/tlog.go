@@ -58,8 +58,6 @@ var (
 	// can be because a tree does not exists for the provided tree id
 	// or when a tree does exist but the specified record version does
 	// not exist.
-	// TODO replace this with a backend error. These errors should only
-	// be for when the backend doesn't have one.
 	ErrRecordNotFound = errors.New("record not found")
 
 	// ErrNoFileChanges is emitted when there are no files being

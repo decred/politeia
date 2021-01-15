@@ -22,17 +22,15 @@ const (
 type TlogClient interface {
 	// BlobsSave saves the provided blobs to the tlog backend. Note,
 	// hashes contains the hashes of the data encoded in the blobs. The
-	// hashes must share the same ordering as the blobs.
-	BlobsSave(treeID int64, keyPrefix string, blobs, hashes [][]byte,
-		encrypt bool) ([][]byte, error)
+	// hashes must share the same ordering as the blobs. The blobs will
+	// be encypted prior to being saved if the tlog instance has an
+	// encryption key set.
+	BlobsSave(treeID int64, keyPrefix string, blobs,
+		hashes [][]byte) ([][]byte, error)
 
 	// BlobsDel deletes the blobs that correspond to the provided
 	// merkle leaf hashes.
 	BlobsDel(treeID int64, merkles [][]byte) error
-
-	// MerklesByKeyPrefix returns the merkle leaf hashes for all blobs
-	// that match the key prefix.
-	MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
 
 	// BlobsByMerkle returns the blobs with the provided merkle leaf
 	// hashes. If a blob does not exist it will not be included in the
@@ -41,6 +39,10 @@ type TlogClient interface {
 
 	// BlobsByKeyPrefix returns all blobs that match the key prefix.
 	BlobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
+
+	// MerklesByKeyPrefix returns the merkle leaf hashes for all blobs
+	// that match the key prefix.
+	MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error)
 
 	// Timestamp returns the timestamp for the data blob that
 	// corresponds to the provided merkle leaf hash.
