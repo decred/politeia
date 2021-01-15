@@ -28,6 +28,7 @@ import (
 
 const (
 	defaultTrillianKeyFilename = "trillian.key"
+	defaultStoreDirname        = "store"
 
 	// Blob entry data descriptors
 	dataDescriptorFile           = "file"
@@ -85,6 +86,7 @@ var (
 type Tlog struct {
 	sync.Mutex
 	id       string
+	dataDir  string
 	trillian trillianClient
 	store    store.Blob
 	dcrtime  *dcrtimeClient
@@ -1756,9 +1758,16 @@ func New(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile,
 		log.Infof("Encryption key %v: %v", id, encryptionKeyFile)
 	}
 
+	// Setup datadir for this tlog instance
+	dataDir = filepath.Join(dataDir, id)
+	err := os.MkdirAll(dataDir, 0700)
+	if err != nil {
+		return nil, err
+	}
+
 	// Setup key-value store
-	fp := filepath.Join(dataDir, id)
-	err := os.MkdirAll(fp, 0700)
+	fp := filepath.Join(dataDir, defaultStoreDirname)
+	err = os.MkdirAll(fp, 0700)
 	if err != nil {
 		return nil, err
 	}
@@ -1788,6 +1797,7 @@ func New(id, homeDir, dataDir, trillianHost, trillianKeyFile, encryptionKeyFile,
 	// Setup tlog
 	t := Tlog{
 		id:            id,
+		dataDir:       dataDir,
 		trillian:      trillianClient,
 		store:         store,
 		dcrtime:       dcrtimeClient,

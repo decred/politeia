@@ -7,16 +7,19 @@ package tlog
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 )
 
 const (
-	// pluginSettingDataDir is the PluginSetting key for the plugin
-	// data directory.
-	pluginSettingDataDir = "datadir"
+	// pluginDataDirname is the plugin data directory name. It is
+	// located in the tlog instance data directory and is provided to
+	// the plugins for storing plugin data.
+	pluginDataDirname = "plugins"
 )
 
 // plugin represents a tlog plugin.
@@ -46,33 +49,22 @@ func (t *Tlog) pluginIDs() []string {
 	return ids
 }
 
-func (t *Tlog) PluginRegister(p backend.Plugin) error {
+func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	log.Tracef("%v PluginRegister: %v", t.id, p.ID)
-
-	// TODO this shouldn'e be a plugin setting. Pass it in directly.
-	/*
-		// Add the plugin data dir to the plugin settings. Plugins should
-		// create their own individual data directories inside of the
-		// plugin data directory.
-		p.Settings = append(p.Settings, backend.PluginSetting{
-			Key: pluginSettingDataDir,
-			// Value: filepath.Join(t.dataDir, pluginDataDirname),
-		})
-	*/
 
 	var (
 		client plugins.PluginClient
 		err    error
+
+		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
-	_ = err
 	switch p.ID {
 	case cmplugin.ID:
+		client, err = comments.New(b, t, p.Settings, p.Identity, dataDir)
+		if err != nil {
+			return err
+		}
 		/*
-			client, err = comments.New(t, newBackendClient(t),
-				p.Settings, p.Identity)
-			if err != nil {
-				return err
-			}
 			case dcrdata.ID:
 				client, err = newDcrdataPlugin(p.Settings, t.activeNetParams)
 				if err != nil {

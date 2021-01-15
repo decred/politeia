@@ -1586,28 +1586,8 @@ func (p *commentsPlugin) Setup() error {
 }
 
 // New returns a new comments plugin.
-func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.PluginSetting, id *identity.FullIdentity) (*commentsPlugin, error) {
-	// Unpack plugin settings
-	var (
-		dataDir string
-	)
-	for _, v := range settings {
-		switch v.Key {
-		case plugins.PluginSettingDataDir:
-			dataDir = v.Value
-		default:
-			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
-		}
-	}
-
-	// Verify plugin settings
-	switch {
-	case dataDir == "":
-		return nil, fmt.Errorf("plugin setting not found: %v",
-			plugins.PluginSettingDataDir)
-	}
-
-	// Create the plugin data directory
+func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.PluginSetting, id *identity.FullIdentity, dataDir string) (*commentsPlugin, error) {
+	// Setup comments plugin data dir
 	dataDir = filepath.Join(dataDir, comments.ID)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {

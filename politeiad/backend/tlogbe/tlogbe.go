@@ -43,11 +43,6 @@ const (
 	tlogIDUnvetted = "unvetted"
 	tlogIDVetted   = "vetted"
 
-	// pluginDataDirname is the plugin data directory name. It is
-	// located in the tlog backend data directory and is provided to
-	// the plugins for storing plugin data.
-	pluginDataDirname = "plugins"
-
 	// Record states
 	stateUnvetted = "unvetted"
 	stateVetted   = "vetted"
@@ -1651,7 +1646,7 @@ func (t *tlogBackend) RegisterUnvettedPlugin(p backend.Plugin) error {
 		return backend.ErrShutdown
 	}
 
-	return t.unvetted.PluginRegister(p)
+	return t.unvetted.PluginRegister(t, p)
 }
 
 // RegisterVettedPlugin has not been implemented.
@@ -1664,7 +1659,7 @@ func (t *tlogBackend) RegisterVettedPlugin(p backend.Plugin) error {
 		return backend.ErrShutdown
 	}
 
-	return t.vetted.PluginRegister(p)
+	return t.vetted.PluginRegister(t, p)
 }
 
 // SetupUnvettedPlugin performs plugin setup for a previously registered
