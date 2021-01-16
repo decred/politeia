@@ -15,7 +15,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient/testclient"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/clients"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/google/uuid"
 )
@@ -47,8 +47,9 @@ func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, func()) {
 		t.Fatal(err)
 	}
 
+	// TODO Implement a test clients.TlogClient
 	// Setup tlog client
-	client := testclient.New()
+	var tlog clients.TlogClient
 
 	// Setup plugin identity
 	fid, err := identity.New()
@@ -57,7 +58,7 @@ func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, func()) {
 	}
 
 	// Setup comment plugins
-	c, err := New(client, []backend.PluginSetting{}, fid, dataDir)
+	c, err := New(tlog, []backend.PluginSetting{}, fid, dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}

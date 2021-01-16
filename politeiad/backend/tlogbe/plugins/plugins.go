@@ -39,22 +39,46 @@ var (
 	}
 )
 
-// HookNewRecord is the payload for the new record hooks.
-type HookNewRecord struct {
+// RecordStateT represents a record state. The record state is included in all
+// hook payloads so that a plugin has the ability to implement different
+// behaviors for different states.
+type RecordStateT int
+
+const (
+	// RecordStateInvalid is an invalid record state.
+	RecordStateInvalid RecordStateT = 0
+
+	// RecordStateUnvetted represents an unvetted record.
+	RecordStateUnvetted RecordStateT = 1
+
+	// RecordStateVetted represents a vetted record.
+	RecordStateVetted RecordStateT = 2
+)
+
+// HookNewRecordPre is the payload for the pre new record hook. The record
+// state is not inlcuded since all new records will have a record state of
+// unvetted.
+type HookNewRecordPre struct {
 	Metadata []backend.MetadataStream `json:"metadata"`
 	Files    []backend.File           `json:"files"`
-
-	// RecordMetadata will only be present on the post new record hook.
-	// This is because the record metadata requires the creation of a
-	// trillian tree and the pre new record hook should execute before
-	// any politeiad state is changed in case of validation errors.
-	RecordMetadata *backend.RecordMetadata `json:"recordmetadata"`
 }
 
-// HookEditRecord is the payload for the edit record hooks.
+// HookNewRecordPost is the payload for the post new record hook. The record
+// state is not inlcuded since all new records will have a record state of
+// unvetted.  RecordMetadata is only be present on the post new record hook
+// since the record metadata requires the creation of a trillian tree and the
+// pre new record hook should execute before any politeiad state is changed in
+// case of validation errors.
+type HookNewRecordPost struct {
+	Metadata       []backend.MetadataStream `json:"metadata"`
+	Files          []backend.File           `json:"files"`
+	RecordMetadata *backend.RecordMetadata  `json:"recordmetadata"`
+}
+
+// HookEditRecord is the payload for the pre and post edit record hooks.
 type HookEditRecord struct {
-	// Current record
-	Current backend.Record `json:"record"`
+	State   RecordStateT   `json:"state"`
+	Current backend.Record `json:"record"` // Current record
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -64,20 +88,21 @@ type HookEditRecord struct {
 	FilesDel       []string                 `json:"filesdel"`
 }
 
-// HookEditMetadata is the payload for the edit metadata hooks.
+// HookEditMetadata is the payload for the pre and post edit metadata hooks.
 type HookEditMetadata struct {
-	// Current record
-	Current backend.Record `json:"record"`
+	State   RecordStateT   `json:"state"`
+	Current backend.Record `json:"record"` // Current record
 
 	// Updated fields
 	MDAppend    []backend.MetadataStream `json:"mdappend"`
 	MDOverwrite []backend.MetadataStream `json:"mdoverwrite"`
 }
 
-// HookSetRecordStatus is the payload for the set record status hooks.
+// HookSetRecordStatus is the payload for the pre and post set record status
+// hooks.
 type HookSetRecordStatus struct {
-	// Current record
-	Current backend.Record `json:"record"`
+	State   RecordStateT   `json:"state"`
+	Current backend.Record `json:"record"` // Current record
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -85,19 +110,23 @@ type HookSetRecordStatus struct {
 	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
 }
 
-// HookPluginPre is the payload for the plugin pre hook.
+// HookPluginPre is the payload for the pre plugin hook.
 type HookPluginPre struct {
-	PluginID string `json:"pluginid"`
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"`
+	State    RecordStateT `json:"state"`
+	Token    string       `json:"token"`
+	PluginID string       `json:"pluginid"`
+	Cmd      string       `json:"cmd"`
+	Payload  string       `json:"payload"`
 }
 
-// HookPluginPost is the payload for the plugin post hook.
+// HookPluginPost is the payload for the post plugin hook. The post plugin hook
+// includes the plugin reply.
 type HookPluginPost struct {
-	PluginID string `json:"pluginid"`
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"`
-	Reply    string `json:"reply"`
+	State    RecordStateT `json:"state"`
+	PluginID string       `json:"pluginid"`
+	Cmd      string       `json:"cmd"`
+	Payload  string       `json:"payload"`
+	Reply    string       `json:"reply"`
 }
 
 // Client provides an API for a tlog instance to use when interacting with a
@@ -110,7 +139,7 @@ type Client interface {
 	Cmd(treeID int64, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook.
-	Hook(h HookT, payload string) error
+	Hook(treeID int64, token []byte, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
 	Fsck() error

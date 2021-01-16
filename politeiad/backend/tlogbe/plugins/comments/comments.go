@@ -21,9 +21,9 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/clients"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 )
@@ -59,7 +59,7 @@ var (
 // commentsPlugin satisfies the plugins.Client interface.
 type commentsPlugin struct {
 	sync.Mutex
-	tlog tlogclient.Client
+	tlog clients.TlogClient
 
 	// dataDir is the comments plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
@@ -1568,8 +1568,8 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins.Client interface.
-func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v", plugins.Hooks[h])
+func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
+	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	return nil
 }
@@ -1586,7 +1586,7 @@ func (p *commentsPlugin) Fsck() error {
 }
 
 // New returns a new comments plugin.
-func New(tlog tlogclient.Client, settings []backend.PluginSetting, id *identity.FullIdentity, dataDir string) (*commentsPlugin, error) {
+func New(tlog clients.TlogClient, settings []backend.PluginSetting, id *identity.FullIdentity, dataDir string) (*commentsPlugin, error) {
 	// Setup comments plugin data dir
 	dataDir = filepath.Join(dataDir, comments.ID)
 	err := os.MkdirAll(dataDir, 0700)

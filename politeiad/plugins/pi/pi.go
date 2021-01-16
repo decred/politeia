@@ -41,8 +41,6 @@ const (
 	// TODO number error codes and add human readable error messages
 	ErrorStatusInvalid          ErrorStatusT = 0
 	ErrorStatusPageSizeExceeded ErrorStatusT = iota
-	ErrorStatusPropNotFound
-	ErrorStatusPropStateInvalid
 	ErrorStatusPropTokenInvalid
 	ErrorStatusPropStatusInvalid
 	ErrorStatusPropVersionInvalid

@@ -13,10 +13,8 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/pi"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
-	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 )
 
 const (
@@ -73,12 +71,12 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		if err != nil {
 			return err
 		}
-	case piplugin.ID:
-		client, err = pi.New(b, t, p.Settings, dataDir, t.activeNetParams)
-		if err != nil {
-			return err
-		}
 		/*
+			case piplugin.ID:
+				client, err = pi.New(b, t, p.Settings, dataDir, t.activeNetParams)
+				if err != nil {
+					return err
+				}
 			case ticketvote.ID:
 				client, err = newTicketVotePlugin(t, newBackendClient(t),
 					p.Settings, p.Identity, t.activeNetParams)
@@ -113,13 +111,13 @@ func (t *Tlog) PluginSetup(pluginID string) error {
 	return p.client.Setup()
 }
 
-func (t *Tlog) PluginHookPre(h plugins.HookT, payload string) error {
-	log.Tracef("%v PluginHookPre: %v %v", t.id, h, payload)
+func (t *Tlog) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payload string) error {
+	log.Tracef("%v PluginHookPre: %v %x %v", t.id, plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
 		p, _ := t.plugin(v)
-		err := p.client.Hook(h, payload)
+		err := p.client.Hook(treeID, token, h, payload)
 		if err != nil {
 			var e backend.PluginUserError
 			if errors.As(err, &e) {
@@ -132,8 +130,8 @@ func (t *Tlog) PluginHookPre(h plugins.HookT, payload string) error {
 	return nil
 }
 
-func (t *Tlog) PluginHookPost(h plugins.HookT, payload string) {
-	log.Tracef("%v PluginHookPost: %v %v", t.id, h, payload)
+func (t *Tlog) PluginHookPost(treeID int64, token []byte, h plugins.HookT, payload string) {
+	log.Tracef("%v PluginHookPost: %v %x %v", t.id, plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
@@ -142,13 +140,13 @@ func (t *Tlog) PluginHookPost(h plugins.HookT, payload string) {
 			log.Errorf("%v PluginHookPost: plugin not found %v", t.id, v)
 			continue
 		}
-		err := p.client.Hook(h, payload)
+		err := p.client.Hook(treeID, token, h, payload)
 		if err != nil {
 			// This is the post plugin hook so the data has already been
 			// saved to tlog. We do not have the ability to unwind. Log
 			// the error and continue.
-			log.Criticalf("%v PluginHookPost %v %v: %v: %v",
-				t.id, v, h, err, payload)
+			log.Criticalf("%v PluginHookPost %v %v %v %x %v: %v",
+				t.id, v, treeID, token, h, err, payload)
 			continue
 		}
 	}

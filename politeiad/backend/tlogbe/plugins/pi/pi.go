@@ -19,8 +19,8 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/clients"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -33,8 +33,8 @@ var (
 // piPlugin satisfies the plugins.Client interface.
 type piPlugin struct {
 	sync.Mutex
-	backend         backend.Backend
-	tlog            tlogclient.Client
+	backend         clients.BackendClient
+	tlog            clients.TlogClient
 	activeNetParams *chaincfg.Params
 
 	// dataDir is the pi plugin data directory. The only data that is
@@ -227,9 +227,10 @@ func (p *piPlugin) cmdProposals(payload string) (string, error) {
 	return "", nil
 }
 
-func (p *piPlugin) voteSummary(token string) (*ticketvote.Summary, error) {
+func (p *piPlugin) voteSummary(token []byte) (*ticketvote.Summary, error) {
+	t := hex.EncodeToString(token)
 	s := ticketvote.Summaries{
-		Tokens: []string{token},
+		Tokens: []string{t},
 	}
 	b, err := ticketvote.EncodeSummaries(s)
 	if err != nil {
@@ -244,7 +245,7 @@ func (p *piPlugin) voteSummary(token string) (*ticketvote.Summary, error) {
 	if err != nil {
 		return nil, err
 	}
-	summary, ok := sr.Summaries[token]
+	summary, ok := sr.Summaries[t]
 	if !ok {
 		return nil, fmt.Errorf("proposal not found %v", token)
 	}
@@ -413,82 +414,34 @@ func (p *piPlugin) cmdVoteInventory(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *piPlugin) commentNew(payload string) (string, error) {
-	// TODO
-	/*
-		n, err := comments.DecodeNew([]byte(payload))
-		if err != nil {
-			return "", err
-		}
+func (p *piPlugin) hookCommentNew(treeID int64, token []byte, payload string) error {
+	var n comments.New
+	err := json.Unmarshal([]byte(payload), &n)
+	if err != nil {
+		return err
+	}
 
-		// Verifying the state, token, and that the record exists is also
-		// done in the comments plugin but we duplicate it here so that the
-		// vote summary request can complete successfully.
-
-		// Verify state
-		switch n.State {
-		case comments.StateUnvetted, comments.StateVetted:
-			// Allowed; continue
-		default:
-			return "", backend.PluginUserError{
-				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropStateInvalid),
-			}
+	// Verify vote status
+	vs, err := p.voteSummary(treeID, token)
+	if err != nil {
+		return fmt.Errorf("voteSummary: %v", err)
+	}
+	switch vs.Status {
+	case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
+		ticketvote.VoteStatusStarted:
+		// Comments are allowed on these vote statuses; continue
+	default:
+		return "", backend.PluginUserError{
+			PluginID:     pi.ID,
+			ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+			ErrorContext: "vote has ended; proposal is locked",
 		}
+	}
 
-		// Verify token
-		token, err := tokenDecodeAnyLength(n.Token)
-		if err != nil {
-			return "", backend.PluginUserError{
-				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
-			}
-		}
-
-		// Verify record exists
-		var exists bool
-		switch n.State {
-		case comments.StateUnvetted:
-			exists = p.backend.UnvettedExists(token)
-		case comments.StateVetted:
-			exists = p.backend.VettedExists(token)
-		default:
-			// Should not happen. State has already been validated.
-			return "", fmt.Errorf("invalid state %v", n.State)
-		}
-		if !exists {
-			return "", backend.PluginUserError{
-				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropNotFound),
-			}
-		}
-
-		// Verify vote status
-		if n.State == comments.StateVetted {
-			vs, err := p.voteSummary(n.Token)
-			if err != nil {
-				return "", fmt.Errorf("voteSummary: %v", err)
-			}
-			switch vs.Status {
-			case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
-				ticketvote.VoteStatusStarted:
-				// Comments are allowed on these vote statuses; continue
-			default:
-				return "", backend.PluginUserError{
-					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
-					ErrorContext: []string{"vote has ended; proposal is locked"},
-				}
-			}
-		}
-
-		// Send plugin command
-		return p.backend.Plugin(comments.ID, comments.CmdNew, "", payload)
-	*/
-	return "", nil
+	return nil
 }
 
-func (p *piPlugin) commentDel(payload string) (string, error) {
+func (p *piPlugin) commentDel(payload string) error {
 	// TODO
 	/*
 		d, err := comments.DecodeDel([]byte(payload))
@@ -560,10 +513,10 @@ func (p *piPlugin) commentDel(payload string) (string, error) {
 		// Send plugin command
 		return p.backend.Plugin(comments.ID, comments.CmdDel, "", payload)
 	*/
-	return "", nil
+	return nil
 }
 
-func (p *piPlugin) commentVote(payload string) (string, error) {
+func (p *piPlugin) commentVote(payload string) error {
 	// TODO
 	/*
 		v, err := comments.DecodeVote([]byte(payload))
@@ -649,10 +602,10 @@ func (p *piPlugin) commentVote(payload string) (string, error) {
 		// Send plugin command
 		return p.backend.Plugin(comments.ID, comments.CmdVote, "", payload)
 	*/
-	return "", nil
+	return nil
 }
 
-func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
+func (p *piPlugin) ticketVoteStart(payload string) error {
 	// TODO
 	/*
 		// Decode payload
@@ -803,34 +756,36 @@ func (p *piPlugin) ticketVoteStart(payload string) (string, error) {
 		// ticketvote plugin.
 		return p.backend.Plugin(ticketvote.ID, ticketvote.CmdStart, "", payload)
 	*/
-	return "", nil
+	return nil
 }
 
-func (p *piPlugin) passThrough(pluginID, cmd, payload string) (string, error) {
-	switch pluginID {
+func (p *piPlugin) hookPluginPre(payload string) error {
+	// Decode payload
+	var hpp plugins.HookPluginPre
+	err := json.Unmarshal([]byte(payload), &hpp)
+	if err != nil {
+		return err
+	}
+
+	// Call plugin hook
+	switch hpp.PluginID {
 	case comments.ID:
-		switch cmd {
+		switch hpp.Cmd {
 		case comments.CmdNew:
-			return p.commentNew(payload)
-		case comments.CmdDel:
-			return p.commentDel(payload)
-		case comments.CmdVote:
-			return p.commentVote(payload)
-		default:
-			return "", fmt.Errorf("invalid %v plugin cmd '%v'",
-				pluginID, cmd)
+			return p.hookCommentNew(hpp.Payload)
+			// case comments.CmdDel:
+			// return p.commentDel(hpp.Payload)
+			// case comments.CmdVote:
+			// return p.commentVote(hpp.Payload)
 		}
 	case ticketvote.ID:
-		switch cmd {
-		case ticketvote.CmdStart:
-			return p.ticketVoteStart(payload)
-		default:
-			return "", fmt.Errorf("invalid %v plugin cmd '%v'",
-				pluginID, cmd)
+		switch hpp.Cmd {
+		// case ticketvote.CmdStart:
+		// return p.ticketVoteStart(hpp.Payload)
 		}
-	default:
-		return "", fmt.Errorf("invalid plugin id '%v'", pluginID)
 	}
+
+	return nil
 }
 
 func (p *piPlugin) hookNewRecordPre(payload string) error {
@@ -1175,8 +1130,8 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins.Client interface.
-func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v %v", plugins.Hooks[h], payload)
+func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
+	log.Tracef("Hook: %v %x %v", treeID, plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -1187,6 +1142,8 @@ func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
 		return p.hookEditRecordPre(payload)
 	case plugins.HookTypeSetRecordStatusPost:
 		return p.hookSetRecordStatusPost(payload)
+	case plugins.HookTypePluginPre:
+		return p.hookPluginPre(payload)
 	}
 
 	return nil
@@ -1203,7 +1160,7 @@ func (p *piPlugin) Fsck() error {
 	return nil
 }
 
-func New(backend backend.Backend, tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, activeNetParams *chaincfg.Params) (*piPlugin, error) {
+func New(backend clients.BackendClient, tlog clients.TlogClient, settings []backend.PluginSetting, dataDir string, activeNetParams *chaincfg.Params) (*piPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, pi.ID)
 	err := os.MkdirAll(dataDir, 0700)

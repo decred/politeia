@@ -2,17 +2,37 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package tlogclient
+package clients
 
 import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 )
 
-// Client provides an API for the plugins to interact with a tlog instance.
+// BackendClient provides an API for plugins to interact with backend records.
+// This an abridged version of the backend.Backend interface.
+type BackendClient interface {
+	// Check if an unvetted record exists
+	UnvettedExists(token []byte) bool
+
+	// Check if a vetted record exists
+	VettedExists(token []byte) bool
+
+	// Get unvetted record
+	GetUnvetted(token []byte, version string) (*backend.Record, error)
+
+	// Get vetted record
+	GetVetted(token []byte, version string) (*backend.Record, error)
+
+	// InventoryByStatus returns the record tokens of all records in the
+	// inventory categorized by MDStatusT
+	InventoryByStatus() (*backend.InventoryByStatus, error)
+}
+
+// TlogClient provides an API for plugins to interact with a tlog instance.
 // Plugins are allowed to save, delete, and get plugin data to/from the tlog
 // backend. Editing plugin data is not allowed.
-type Client interface {
+type TlogClient interface {
 	// BlobSave saves a BlobEntry to the tlog backend. The BlobEntry
 	// will be encrypted prior to being written to disk if the tlog
 	// instance has an encryption key set. The merkle leaf hash for the
