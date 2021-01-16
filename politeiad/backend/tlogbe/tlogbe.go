@@ -1739,6 +1739,7 @@ func (t *tlogBackend) VettedPlugin(token []byte, pluginID, cmd, payload string) 
 		return "", err
 	}
 
+	// Execute plugin command
 	reply, err := t.vetted.PluginCmd(treeID, token, pluginID, cmd, payload)
 	if err != nil {
 		return "", err

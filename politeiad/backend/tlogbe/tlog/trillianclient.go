@@ -475,7 +475,12 @@ func (t *tclient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	}
 
 	// Get all leaves
-	return t.leavesByRange(treeID, 0, int64(lr.TreeSize))
+	leaves, err := t.leavesByRange(treeID, 0, int64(lr.TreeSize))
+	if err != nil {
+		return nil, fmt.Errorf("leavesByRange: %v", err)
+	}
+
+	return leaves, nil
 }
 
 // close closes the trillian grpc connection.

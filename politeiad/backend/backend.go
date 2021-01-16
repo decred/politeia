@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -313,4 +313,24 @@ type Backend interface {
 
 	// Close performs cleanup of the backend
 	Close()
+}
+
+// BackendReadOnly provides a read only version of the Backend interface.
+// Plugins interact with backend records using this interface.
+type BackendReadOnly interface {
+	// Unvetted exists returns whether an unvetted record exists.
+	UnvettedExists(token []byte) bool
+
+	// Vetted exists returns whether a vetted record exists.
+	VettedExists(token []byte) bool
+
+	// GetUnvetted returns an unvetted record.
+	GetUnvetted(token []byte, version string) (*Record, error)
+
+	// GetVetted returns a vetted record.
+	GetVetted(token []byte, version string) (*Record, error)
+
+	// InventoryByStatus returns the record tokens of all records in the
+	// inventory categorized by MDStatusT.
+	InventoryByStatus() (*InventoryByStatus, error)
 }

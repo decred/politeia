@@ -185,6 +185,20 @@ func leafIsAnchor(l *trillian.LogLeaf) bool {
 	return bytes.HasPrefix(l.ExtraData, []byte(keyPrefixAnchorRecord))
 }
 
+func leafExtraData(dataType, storeKey string) []byte {
+	return []byte(dataType + ":" + storeKey)
+}
+
+func leafDataType(l *trillian.LogLeaf) string {
+	s := bytes.SplitAfter(l.ExtraData, []byte(":"))
+	if len(s) != 2 {
+		e := fmt.Sprintf("invalid key '%s' for leaf %x",
+			l.ExtraData, l.MerkleLeafHash)
+		panic(e)
+	}
+	return string(s[0])
+}
+
 func extractKeyFromLeaf(l *trillian.LogLeaf) string {
 	s := bytes.SplitAfter(l.ExtraData, []byte(":"))
 	if len(s) != 2 {
@@ -529,6 +543,14 @@ func (t *Tlog) TreesAll() ([]int64, error) {
 		treeIDs = append(treeIDs, v.TreeId)
 	}
 	return treeIDs, nil
+}
+
+func (t *Tlog) treeIsFrozen(leaves []*trillian.LogLeaf) bool {
+	r, err := t.recordIndexLatest(leaves)
+	if err != nil {
+		panic(err)
+	}
+	return r.Frozen
 }
 
 func (t *Tlog) recordIndexSave(treeID int64, ri recordIndex) error {

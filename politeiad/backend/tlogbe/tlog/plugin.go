@@ -11,10 +11,6 @@ import (
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
-	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
-	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 )
 
 const (
@@ -59,31 +55,34 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		err    error
 
 		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
+
+		_ = err
+		_ = dataDir
 	)
 	switch p.ID {
-	case cmplugin.ID:
-		client, err = comments.New(t, p.Settings, p.Identity, dataDir)
-		if err != nil {
-			return err
-		}
-	case ddplugin.ID:
-		client, err = dcrdata.New(p.Settings, t.activeNetParams)
-		if err != nil {
-			return err
-		}
-		/*
-			case piplugin.ID:
-				client, err = pi.New(b, t, p.Settings, dataDir, t.activeNetParams)
-				if err != nil {
-					return err
-				}
-			case ticketvote.ID:
-				client, err = newTicketVotePlugin(t, newBackendClient(t),
-					p.Settings, p.Identity, t.activeNetParams)
-				if err != nil {
-					return err
-				}
-		*/
+	/*
+		case cmplugin.ID:
+			client, err = comments.New(t, p.Settings, p.Identity, dataDir)
+			if err != nil {
+				return err
+			}
+		case ddplugin.ID:
+			client, err = dcrdata.New(p.Settings, t.activeNetParams)
+			if err != nil {
+				return err
+			}
+		case piplugin.ID:
+			client, err = pi.New(b, t, p.Settings, dataDir, t.activeNetParams)
+			if err != nil {
+				return err
+			}
+		case ticketvote.ID:
+			client, err = newTicketVotePlugin(t, newBackendClient(t),
+				p.Settings, p.Identity, t.activeNetParams)
+			if err != nil {
+				return err
+			}
+	*/
 	default:
 		return backend.ErrPluginInvalid
 	}
