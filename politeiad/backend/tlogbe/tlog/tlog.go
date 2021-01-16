@@ -55,34 +55,6 @@ const (
 	keyPrefixAnchorRecord  = "anchor:"
 )
 
-var (
-	// ErrRecordNotFound is emitted when a record is not found. This
-	// can be because a tree does not exists for the provided tree id
-	// or when a tree does exist but the specified record version does
-	// not exist.
-	ErrRecordNotFound = errors.New("record not found")
-
-	// ErrNoFileChanges is emitted when there are no files being
-	// changed.
-	ErrNoFileChanges = errors.New("no file changes")
-
-	// ErrNoMetadataChanges is emitted when there are no metadata
-	// changes being made.
-	ErrNoMetadataChanges = errors.New("no metadata changes")
-
-	// ErrFreezeRecordNotFound is emitted when a freeze record does not
-	// exist for a tree.
-	ErrFreezeRecordNotFound = errors.New("freeze record not found")
-
-	// ErrTreeIsFrozen is emitted when a frozen tree is attempted to be
-	// altered.
-	ErrTreeIsFrozen = errors.New("tree is frozen")
-
-	// ErrTreeIsNotFrozen is emitted when a tree is expected to be
-	// frozen but is actually not frozen.
-	ErrTreeIsNotFrozen = errors.New("tree is not frozen")
-)
-
 // We do not unwind.
 type Tlog struct {
 	sync.Mutex
@@ -523,7 +495,7 @@ func (t *Tlog) TreePointer(treeID int64) (int64, bool) {
 	}
 	idx, err = t.recordIndexLatest(leavesAll)
 	if err != nil {
-		if err == ErrRecordNotFound {
+		if err == backend.ErrRecordNotFound {
 			// This is an empty tree. This can happen sometimes if a error
 			// occurred during record creation. Return gracefully.
 			return 0, false
@@ -610,8 +582,8 @@ func (t *Tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 
 // recordIndexVersion takes a list of record indexes for a record and returns
 // the most recent iteration of the specified version. A version of 0 indicates
-// that the latest version should be returned. A ErrRecordNotFound is returned
-// if the provided version does not exist.
+// that the latest version should be returned. A backend.ErrRecordNotFound is
+// returned if the provided version does not exist.
 func recordIndexVersion(indexes []recordIndex, version uint32) (*recordIndex, error) {
 	// Return the record index for the specified version
 	var ri *recordIndex
@@ -632,7 +604,7 @@ func recordIndexVersion(indexes []recordIndex, version uint32) (*recordIndex, er
 	}
 	if ri == nil {
 		// The specified version does not exist
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	return ri, nil
@@ -668,7 +640,7 @@ func (t *Tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) 
 
 	if len(keys) == 0 {
 		// No records have been added to this tree yet
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get record indexes from store
@@ -1044,7 +1016,7 @@ func (t *Tlog) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return ErrRecordNotFound
+		return backend.ErrRecordNotFound
 	}
 
 	// Get tree leaves
@@ -1055,7 +1027,7 @@ func (t *Tlog) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Get the existing record index
 	currIdx, err := t.recordIndexLatest(leavesAll)
-	if errors.Is(err, ErrRecordNotFound) {
+	if errors.Is(err, backend.ErrRecordNotFound) {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
 			Metadata: make(map[uint64][]byte),
@@ -1067,7 +1039,7 @@ func (t *Tlog) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 
 	// Verify tree state
 	if currIdx.Frozen {
-		return ErrTreeIsFrozen
+		return backend.ErrRecordLocked
 	}
 
 	// Prepare kv store blobs
@@ -1115,7 +1087,7 @@ func (t *Tlog) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 		}
 	}
 	if !fileChanges {
-		return ErrNoFileChanges
+		return backend.ErrNoChanges
 	}
 
 	// Save blobs
@@ -1165,7 +1137,7 @@ func (t *Tlog) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []ba
 func (t *Tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) (*recordIndex, error) {
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get tree leaves
@@ -1180,7 +1152,7 @@ func (t *Tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 		return nil, err
 	}
 	if currIdx.Frozen {
-		return nil, ErrTreeIsFrozen
+		return nil, backend.ErrRecordLocked
 	}
 
 	// Prepare kv store blobs
@@ -1191,7 +1163,7 @@ func (t *Tlog) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []
 
 	// Verify at least one new blob is being saved to the kv store
 	if len(bpr.blobs) == 0 {
-		return nil, ErrNoMetadataChanges
+		return nil, backend.ErrNoChanges
 	}
 
 	// Save the blobs
@@ -1265,7 +1237,7 @@ func (t *Tlog) RecordDel(treeID int64) error {
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return ErrRecordNotFound
+		return backend.ErrRecordNotFound
 	}
 
 	// Get all tree leaves
@@ -1281,7 +1253,7 @@ func (t *Tlog) RecordDel(treeID int64) error {
 		return err
 	}
 	if !currIdx.Frozen {
-		return ErrTreeIsNotFrozen
+		return fmt.Errorf("tree is not frozen")
 	}
 
 	// Retrieve all the record indexes
@@ -1349,7 +1321,7 @@ func (t *Tlog) RecordExists(treeID int64) bool {
 	}
 	idx, err = t.recordIndexLatest(leavesAll)
 	if err != nil {
-		if err == ErrRecordNotFound {
+		if err == backend.ErrRecordNotFound {
 			// This is an empty tree. This can happen sometimes if a error
 			// occurred during record creation. Return gracefully.
 			return false
@@ -1376,7 +1348,7 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get tree leaves
@@ -1390,8 +1362,8 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 	// exists on the tree being pointed to, but not on this one. This
 	// happens in situations such as when an unvetted record is made
 	// public and copied to a vetted tree. Querying the unvetted tree
-	// will result in a ErrRecordNotFound error being returned and the
-	// vetted tree must be queried instead.
+	// will result in a backend.ErrRecordNotFound error being returned
+	// and the vetted tree must be queried instead.
 	indexes, err := t.recordIndexes(leaves)
 	if err != nil {
 		return nil, err
@@ -1401,7 +1373,7 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 		return nil, err
 	}
 	if treePointerExists(*idxLatest) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Use the record index to pull the record content from the store.
@@ -1669,7 +1641,7 @@ func (t *Tlog) RecordTimestamps(treeID int64, version uint32, token []byte) (*ba
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get record index

@@ -813,12 +813,11 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	err = t.unvetted.RecordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
 		switch err {
-		case tlog.ErrTreeIsFrozen:
-			return nil, backend.ErrRecordLocked
-		case tlog.ErrNoFileChanges:
-			return nil, backend.ErrNoChanges
+		case backend.ErrRecordLocked, backend.ErrNoChanges:
+			return nil, err
+		default:
+			return nil, fmt.Errorf("RecordSave: %v", err)
 		}
-		return nil, fmt.Errorf("RecordSave: %v", err)
 	}
 
 	// Call post plugin hooks
@@ -918,12 +917,11 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	err = t.vetted.RecordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
 		switch err {
-		case tlog.ErrTreeIsFrozen:
-			return nil, backend.ErrRecordLocked
-		case tlog.ErrNoFileChanges:
-			return nil, backend.ErrNoChanges
+		case backend.ErrRecordLocked, backend.ErrNoChanges:
+			return nil, err
+		default:
+			return nil, fmt.Errorf("RecordSave: %v", err)
 		}
-		return nil, fmt.Errorf("RecordSave: %v", err)
 	}
 
 	// Call post plugin hooks
@@ -1015,12 +1013,11 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	err = t.unvetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
 		switch err {
-		case tlog.ErrTreeIsFrozen:
-			return backend.ErrRecordLocked
-		case tlog.ErrNoMetadataChanges:
-			return backend.ErrNoChanges
+		case backend.ErrRecordLocked, backend.ErrNoChanges:
+			return err
+		default:
+			return fmt.Errorf("RecordMetadataSave: %v", err)
 		}
-		return err
 	}
 
 	// Call post plugin hooks
@@ -1108,12 +1105,11 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	err = t.vetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
 	if err != nil {
 		switch err {
-		case tlog.ErrTreeIsFrozen:
-			return backend.ErrRecordLocked
-		case tlog.ErrNoMetadataChanges:
-			return backend.ErrNoChanges
+		case backend.ErrRecordLocked, backend.ErrNoChanges:
+			return err
+		default:
+			return fmt.Errorf("RecordMetadataSave: %v", err)
 		}
-		return fmt.Errorf("RecordMetadataSave: %v", err)
 	}
 
 	// Call post plugin hooks

@@ -45,7 +45,7 @@ func (t *Tlog) BlobSave(treeID int64, keyPrefix string, be store.BlobEntry) ([]b
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Verify tree is not frozen
@@ -58,7 +58,7 @@ func (t *Tlog) BlobSave(treeID int64, keyPrefix string, be store.BlobEntry) ([]b
 		return nil, err
 	}
 	if idx.Frozen {
-		return nil, ErrTreeIsFrozen
+		return nil, backend.ErrRecordLocked
 	}
 
 	// Save blobs to store
@@ -111,7 +111,7 @@ func (t *Tlog) BlobsDel(treeID int64, merkles [][]byte) error {
 	// Verify tree exists. We allow blobs to be deleted from both
 	// frozen and non frozen trees.
 	if !t.TreeExists(treeID) {
-		return ErrRecordNotFound
+		return backend.ErrRecordNotFound
 	}
 
 	// Get all tree leaves
@@ -159,7 +159,7 @@ func (t *Tlog) BlobsByMerkle(treeID int64, merkles [][]byte) (map[string][]byte,
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get leaves
@@ -244,7 +244,7 @@ func (t *Tlog) BlobsByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, error
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get leaves
@@ -308,7 +308,7 @@ func (t *Tlog) MerklesByKeyPrefix(treeID int64, keyPrefix string) ([][]byte, err
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return nil, ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get leaves
