@@ -156,13 +156,13 @@ func (t *Tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 	}
 
 	// Append record index leaf to trillian tree
-	h, err := hex.DecodeString(be.Hash)
+	d, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
 	}
 	extraData := leafExtraData(dataTypeRecordIndex, keys[0])
 	leaves := []*trillian.LogLeaf{
-		newLogLeaf(h, extraData),
+		newLogLeaf(d, extraData),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {

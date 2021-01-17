@@ -16,17 +16,22 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// voteIndex contains the comment vote and the merkle leaf hash of the vote
-// record.
+const (
+	// filenameRecordIndex is the file name of the record index that
+	// is saved to the comments plugin data dir.
+	filenameRecordIndex = "{tokenPrefix}-index.json"
+)
+
+// voteIndex contains the comment vote and the digest of the vote record.
 type voteIndex struct {
 	Vote   comments.VoteT `json:"vote"`
-	Merkle []byte         `json:"merkle"` // Merkle leaf hash
+	Digest []byte         `json:"digest"`
 }
 
-// commentIndex contains the merkle leaf hashes of all comment add, dels, and
-// votes for a comment ID.
+// commentIndex contains the digests of all comment add, dels, and votes for a
+// comment ID.
 type commentIndex struct {
-	Adds map[uint32][]byte `json:"adds"` // [version]merkleLeafHash
+	Adds map[uint32][]byte `json:"adds"` // [version]digest
 	Del  []byte            `json:"del"`
 
 	// Votes contains the vote history for each uuid that voted on the

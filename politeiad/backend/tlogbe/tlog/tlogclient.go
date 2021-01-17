@@ -35,7 +35,7 @@ func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error
 	}
 
 	// Prepare blob and digest
-	digest, err := hex.DecodeString(be.Hash)
+	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
 	}

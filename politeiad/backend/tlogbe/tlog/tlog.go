@@ -32,9 +32,9 @@ const (
 
 	// Blob entry data descriptors
 	dataDescriptorFile           = "file_v1"
-	dataDescriptorRecordMetadata = "recordmetadata_v1"
-	dataDescriptorMetadataStream = "metadatastream_v1"
-	dataDescriptorRecordIndex    = "recordindex_v1"
+	dataDescriptorRecordMetadata = "recordmd_v1"
+	dataDescriptorMetadataStream = "mdstream_v1"
+	dataDescriptorRecordIndex    = "rindex_v1"
 	dataDescriptorAnchor         = "anchor_v1"
 
 	// The keys for kv store blobs are saved by stuffing them into the
@@ -213,13 +213,13 @@ func convertRecordIndexFromBlobEntry(be store.BlobEntry) (*recordIndex, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode Data: %v", err)
 	}
-	hash, err := hex.DecodeString(be.Hash)
+	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode hash: %v", err)
+		return nil, fmt.Errorf("decode digest: %v", err)
 	}
-	if !bytes.Equal(util.Digest(b), hash) {
+	if !bytes.Equal(util.Digest(b), digest) {
 		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), hash)
+			util.Digest(b), digest)
 	}
 	var ri recordIndex
 	err = json.Unmarshal(b, &ri)
@@ -251,13 +251,13 @@ func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode Data: %v", err)
 	}
-	hash, err := hex.DecodeString(be.Hash)
+	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode hash: %v", err)
+		return nil, fmt.Errorf("decode digest: %v", err)
 	}
-	if !bytes.Equal(util.Digest(b), hash) {
+	if !bytes.Equal(util.Digest(b), digest) {
 		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), hash)
+			util.Digest(b), digest)
 	}
 	var a anchor
 	err = json.Unmarshal(b, &a)
@@ -348,7 +348,7 @@ func (t *Tlog) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	if err != nil {
 		return err
 	}
-	idxHash, err := hex.DecodeString(be.Hash)
+	idxDigest, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,7 @@ func (t *Tlog) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	// Append record index leaf to the trillian tree
 	extraData := leafExtraData(dataTypeRecordIndex, keys[0])
 	leaves := []*trillian.LogLeaf{
-		newLogLeaf(idxHash, extraData),
+		newLogLeaf(idxDigest, extraData),
 	}
 	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
 	if err != nil {
@@ -604,7 +604,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 	if err != nil {
 		return nil, err
 	}
-	h, err := hex.DecodeString(be.Hash)
+	h, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +612,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 	if err != nil {
 		return nil, err
 	}
-	_, ok := dups[be.Hash]
+	_, ok := dups[be.Digest]
 	if !ok {
 		// Not a duplicate. Save blob to the store.
 		hashes = append(hashes, h)
@@ -625,7 +625,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 		if err != nil {
 			return nil, err
 		}
-		h, err := hex.DecodeString(be.Hash)
+		h, err := hex.DecodeString(be.Digest)
 		if err != nil {
 			return nil, err
 		}
@@ -633,7 +633,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 		if err != nil {
 			return nil, err
 		}
-		_, ok := dups[be.Hash]
+		_, ok := dups[be.Digest]
 		if !ok {
 			// Not a duplicate. Save blob to the store.
 			hashes = append(hashes, h)
@@ -647,7 +647,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 		if err != nil {
 			return nil, err
 		}
-		h, err := hex.DecodeString(be.Hash)
+		h, err := hex.DecodeString(be.Digest)
 		if err != nil {
 			return nil, err
 		}
@@ -655,7 +655,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 		if err != nil {
 			return nil, err
 		}
-		_, ok := dups[be.Hash]
+		_, ok := dups[be.Digest]
 		if !ok {
 			// Not a duplicate. Save blob to the store.
 			hashes = append(hashes, h)
@@ -1205,13 +1205,13 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 		if err != nil {
 			return nil, fmt.Errorf("decode Data: %v", err)
 		}
-		hash, err := hex.DecodeString(v.Hash)
+		digest, err := hex.DecodeString(v.Digest)
 		if err != nil {
 			return nil, fmt.Errorf("decode Hash: %v", err)
 		}
-		if !bytes.Equal(util.Digest(b), hash) {
+		if !bytes.Equal(util.Digest(b), digest) {
 			return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-				util.Digest(b), hash)
+				util.Digest(b), digest)
 		}
 		switch dd.Descriptor {
 		case dataDescriptorRecordMetadata:

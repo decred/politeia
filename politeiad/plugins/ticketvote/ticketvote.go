@@ -6,10 +6,6 @@
 // tickets to participate.
 package ticketvote
 
-import (
-	"encoding/json"
-)
-
 // TODO VoteDetails, StartReply, StartRunoffReply should contain a receipt.
 // The receipt should be the server signature of Signature+StartBlockHash.
 // TODO Update politeiavoter
@@ -54,14 +50,13 @@ const (
 	ErrorStatusTokenInvalid         ErrorStatusT = 1
 	ErrorStatusPublicKeyInvalid     ErrorStatusT = 2
 	ErrorStatusSignatureInvalid     ErrorStatusT = 3
-	ErrorStatusRecordNotFound       ErrorStatusT = 4
-	ErrorStatusRecordVersionInvalid ErrorStatusT = 5
-	ErrorStatusRecordStatusInvalid  ErrorStatusT = 6
-	ErrorStatusAuthorizationInvalid ErrorStatusT = 7
-	ErrorStatusStartDetailsInvalid  ErrorStatusT = 8
-	ErrorStatusVoteParamsInvalid    ErrorStatusT = 9
-	ErrorStatusVoteStatusInvalid    ErrorStatusT = 10
-	ErrorStatusPageSizeExceeded     ErrorStatusT = 11
+	ErrorStatusRecordVersionInvalid ErrorStatusT = 4
+	ErrorStatusRecordStatusInvalid  ErrorStatusT = 5
+	ErrorStatusAuthorizationInvalid ErrorStatusT = 6
+	ErrorStatusStartDetailsInvalid  ErrorStatusT = 7
+	ErrorStatusVoteParamsInvalid    ErrorStatusT = 8
+	ErrorStatusVoteStatusInvalid    ErrorStatusT = 9
+	ErrorStatusPageSizeExceeded     ErrorStatusT = 10
 )
 
 // AuthDetails is the structure that is saved to disk when a vote is authorized
@@ -207,40 +202,10 @@ type Authorize struct {
 	Signature string      `json:"signature"` // Client signature
 }
 
-// EncodeAuthorize encodes an Authorize into a JSON byte slice.
-func EncodeAuthorize(a Authorize) ([]byte, error) {
-	return json.Marshal(a)
-}
-
-// DecodeAuthorize decodes a JSON byte slice into a Authorize.
-func DecodeAuthorize(payload []byte) (*Authorize, error) {
-	var a Authorize
-	err := json.Unmarshal(payload, &a)
-	if err != nil {
-		return nil, err
-	}
-	return &a, nil
-}
-
 // AuthorizeReply is the reply to the Authorize command.
 type AuthorizeReply struct {
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
 	Receipt   string `json:"receipt"`   // Server signature of client signature
-}
-
-// EncodeAuthorizeReply encodes an AuthorizeReply into a JSON byte slice.
-func EncodeAuthorizeReply(ar AuthorizeReply) ([]byte, error) {
-	return json.Marshal(ar)
-}
-
-// DecodeAuthorizeReply decodes a JSON byte slice into a AuthorizeReply.
-func DecodeAuthorizeReply(payload []byte) (*AuthorizeReply, error) {
-	var ar AuthorizeReply
-	err := json.Unmarshal(payload, &ar)
-	if err != nil {
-		return nil, err
-	}
-	return &ar, nil
 }
 
 // StartDetails is the structure that is provided when starting a ticket vote.
@@ -261,42 +226,12 @@ type Start struct {
 	Starts []StartDetails `json:"starts"`
 }
 
-// EncodeStart encodes a Start into a JSON byte slice.
-func EncodeStart(s Start) ([]byte, error) {
-	return json.Marshal(s)
-}
-
-// DecodeStart decodes a JSON byte slice into a Start.
-func DecodeStart(payload []byte) (*Start, error) {
-	var s Start
-	err := json.Unmarshal(payload, &s)
-	if err != nil {
-		return nil, err
-	}
-	return &s, nil
-}
-
 // StartReply is the reply to the Start command.
 type StartReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"`
 	StartBlockHash   string   `json:"startblockhash"`
 	EndBlockHeight   uint32   `json:"endblockheight"`
 	EligibleTickets  []string `json:"eligibletickets"`
-}
-
-// EncodeStartReply encodes a StartReply into a JSON byte slice.
-func EncodeStartReply(sr StartReply) ([]byte, error) {
-	return json.Marshal(sr)
-}
-
-// DecodeStartReply decodes a JSON byte slice into a StartReply.
-func DecodeStartReply(payload []byte) (*StartReply, error) {
-	var sr StartReply
-	err := json.Unmarshal(payload, &sr)
-	if err != nil {
-		return nil, err
-	}
-	return &sr, nil
 }
 
 // VoteErrorT represents errors that can occur while attempting to cast ticket
@@ -388,59 +323,14 @@ type CastBallot struct {
 	Ballot []CastVote `json:"ballot"`
 }
 
-// EncodeCastBallot encodes a CastBallot into a JSON byte slice.
-func EncodeCastBallot(b CastBallot) ([]byte, error) {
-	return json.Marshal(b)
-}
-
-// DecodeCastBallot decodes a JSON byte slice into a CastBallot.
-func DecodeCastBallot(payload []byte) (*CastBallot, error) {
-	var b CastBallot
-	err := json.Unmarshal(payload, &b)
-	if err != nil {
-		return nil, err
-	}
-	return &b, nil
-}
-
 // CastBallotReply is a reply to a batched list of votes.
 type CastBallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
 
-// EncodeCastBallotReply encodes a CastBallot into a JSON byte slice.
-func EncodeCastBallotReply(b CastBallotReply) ([]byte, error) {
-	return json.Marshal(b)
-}
-
-// DecodeCastBallotReply decodes a JSON byte slice into a CastBallotReply.
-func DecodeCastBallotReply(payload []byte) (*CastBallotReply, error) {
-	var b CastBallotReply
-	err := json.Unmarshal(payload, &b)
-	if err != nil {
-		return nil, err
-	}
-	return &b, nil
-}
-
 // Details returns the vote details for each of the provided record tokens.
 type Details struct {
 	Tokens []string `json:"tokens"`
-}
-
-// EncodeDetails encodes a Details into a JSON byte slice.
-func EncodeDetails(d Details) ([]byte, error) {
-	return json.Marshal(d)
-}
-
-// DecodeDetails decodes a JSON byte slice into a Details.
-func DecodeDetails(payload []byte) (*Details, error) {
-	var d Details
-	err := json.Unmarshal(payload, &d)
-	if err != nil {
-		return nil, err
-	}
-	return &d, nil
 }
 
 // RecordVote contains all vote authorizations and the vote details for a
@@ -458,39 +348,9 @@ type DetailsReply struct {
 	Votes map[string]RecordVote `json:"votes"`
 }
 
-// EncodeDetailsReply encodes a DetailsReply into a JSON byte slice.
-func EncodeDetailsReply(dr DetailsReply) ([]byte, error) {
-	return json.Marshal(dr)
-}
-
-// DecodeDetailsReply decodes a JSON byte slice into a DetailsReply.
-func DecodeDetailsReply(payload []byte) (*DetailsReply, error) {
-	var dr DetailsReply
-	err := json.Unmarshal(payload, &dr)
-	if err != nil {
-		return nil, err
-	}
-	return &dr, nil
-}
-
 // Results requests the results of a vote.
 type Results struct {
 	Token string `json:"token"`
-}
-
-// EncodeResults encodes a Results into a JSON byte slice.
-func EncodeResults(r Results) ([]byte, error) {
-	return json.Marshal(r)
-}
-
-// DecodeResults decodes a JSON byte slice into a Results.
-func DecodeResults(payload []byte) (*Results, error) {
-	var r Results
-	err := json.Unmarshal(payload, &r)
-	if err != nil {
-		return nil, err
-	}
-	return &r, nil
 }
 
 // ResultsReply is the rely to the Results command.
@@ -498,39 +358,9 @@ type ResultsReply struct {
 	Votes []CastVoteDetails `json:"votes"`
 }
 
-// EncodeResultsReply encodes a ResultsReply into a JSON byte slice.
-func EncodeResultsReply(rr ResultsReply) ([]byte, error) {
-	return json.Marshal(rr)
-}
-
-// DecodeResultsReply decodes a JSON byte slice into a ResultsReply.
-func DecodeResultsReply(payload []byte) (*ResultsReply, error) {
-	var rr ResultsReply
-	err := json.Unmarshal(payload, &rr)
-	if err != nil {
-		return nil, err
-	}
-	return &rr, nil
-}
-
 // Summaries requests the vote summaries for the provided record tokens.
 type Summaries struct {
 	Tokens []string `json:"tokens"`
-}
-
-// EncodeSummaries encodes a Summaries into a JSON byte slice.
-func EncodeSummaries(s Summaries) ([]byte, error) {
-	return json.Marshal(s)
-}
-
-// DecodeSummaries decodes a JSON byte slice into a Summaries.
-func DecodeSummaries(payload []byte) (*Summaries, error) {
-	var s Summaries
-	err := json.Unmarshal(payload, &s)
-	if err != nil {
-		return nil, err
-	}
-	return &s, nil
 }
 
 // VoteStatusT represents the status of a ticket vote.
@@ -609,39 +439,9 @@ type SummariesReply struct {
 	BestBlock uint32 `json:"bestblock"`
 }
 
-// EncodeSummariesReply encodes a SummariesReply into a JSON byte slice.
-func EncodeSummariesReply(sr SummariesReply) ([]byte, error) {
-	return json.Marshal(sr)
-}
-
-// DecodeSummariesReply decodes a JSON byte slice into a SummariesReply.
-func DecodeSummariesReply(payload []byte) (*SummariesReply, error) {
-	var sr SummariesReply
-	err := json.Unmarshal(payload, &sr)
-	if err != nil {
-		return nil, err
-	}
-	return &sr, nil
-}
-
 // Inventory requests the tokens of all public, non-abandoned records
 // categorized by vote status.
 type Inventory struct{}
-
-// EncodeInventory encodes a Inventory into a JSON byte slice.
-func EncodeInventory(i Inventory) ([]byte, error) {
-	return json.Marshal(i)
-}
-
-// DecodeInventory decodes a JSON byte slice into a Inventory.
-func DecodeInventory(payload []byte) (*Inventory, error) {
-	var i Inventory
-	err := json.Unmarshal(payload, &i)
-	if err != nil {
-		return nil, err
-	}
-	return &i, nil
-}
 
 // InventoryReply is the reply to the Inventory command. It contains the tokens
 // of all public, non-abandoned records categorized by vote status.
@@ -660,21 +460,6 @@ type InventoryReply struct {
 	// BestBlock is the best block value that was used to prepare the
 	// inventory.
 	BestBlock uint32 `json:"bestblock"`
-}
-
-// EncodeInventoryReply encodes a InventoryReply into a JSON byte slice.
-func EncodeInventoryReply(ir InventoryReply) ([]byte, error) {
-	return json.Marshal(ir)
-}
-
-// DecodeInventoryReply decodes a JSON byte slice into a InventoryReply.
-func DecodeInventoryReply(payload []byte) (*InventoryReply, error) {
-	var ir InventoryReply
-	err := json.Unmarshal(payload, &ir)
-	if err != nil {
-		return nil, err
-	}
-	return &ir, nil
 }
 
 // Proof contains an inclusion proof for the digest in the merkle root. The
@@ -706,9 +491,7 @@ type Timestamp struct {
 }
 
 // Timestamps requests the timestamps for ticket vote data.
-type Timestamps struct {
-	Token string `json:"token"`
-}
+type Timestamps struct{}
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {

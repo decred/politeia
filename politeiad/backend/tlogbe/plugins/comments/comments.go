@@ -15,15 +15,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/clients"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 )
@@ -34,20 +33,14 @@ import (
 
 const (
 	// Blob entry data descriptors
-	dataDescriptorCommentAdd  = "commentadd"
-	dataDescriptorCommentDel  = "commentdel"
-	dataDescriptorCommentVote = "commentvote"
+	dataDescriptorCommentAdd  = "cadd_v1"
+	dataDescriptorCommentDel  = "cdel_v1"
+	dataDescriptorCommentVote = "cvote_v1"
 
-	// Prefixes that are appended to key-value store keys before
-	// storing them in the log leaf ExtraData field.
-	keyPrefixCommentAdd  = "commentadd:"
-	keyPrefixCommentDel  = "commentdel:"
-	keyPrefixCommentVote = "commentvote:"
-
-	// Filenames of cached data saved to the plugin data dir. Brackets
-	// are used to indicate a variable that should be replaced in the
-	// filename.
-	filenameRecordIndex = "{tokenPrefix}-index.json"
+	// Data types
+	dataTypeCommentAdd  = "cadd"
+	dataTypeCommentDel  = "cdel"
+	dataTypeCommentVote = "cvote"
 )
 
 var (
@@ -59,7 +52,7 @@ var (
 // commentsPlugin satisfies the plugins.Client interface.
 type commentsPlugin struct {
 	sync.Mutex
-	tlog clients.TlogClient
+	tlog tlogclient.Client
 
 	// dataDir is the comments plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
@@ -110,7 +103,7 @@ func convertSignatureError(err error) backend.PluginUserError {
 	return backend.PluginUserError{
 		PluginID:     comments.ID,
 		ErrorCode:    int(s),
-		ErrorContext: strings.Join(e.ErrorContext, ", "),
+		ErrorContext: e.ErrorContext,
 	}
 }
 
@@ -186,13 +179,13 @@ func convertCommentAddFromBlobEntry(be store.BlobEntry) (*comments.CommentAdd, e
 	if err != nil {
 		return nil, fmt.Errorf("decode Data: %v", err)
 	}
-	hash, err := hex.DecodeString(be.Hash)
+	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode hash: %v", err)
+		return nil, fmt.Errorf("decode digest: %v", err)
 	}
-	if !bytes.Equal(util.Digest(b), hash) {
+	if !bytes.Equal(util.Digest(b), digest) {
 		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), hash)
+			util.Digest(b), digest)
 	}
 	var c comments.CommentAdd
 	err = json.Unmarshal(b, &c)
@@ -224,13 +217,13 @@ func convertCommentDelFromBlobEntry(be store.BlobEntry) (*comments.CommentDel, e
 	if err != nil {
 		return nil, fmt.Errorf("decode Data: %v", err)
 	}
-	hash, err := hex.DecodeString(be.Hash)
+	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode hash: %v", err)
+		return nil, fmt.Errorf("decode digest: %v", err)
 	}
-	if !bytes.Equal(util.Digest(b), hash) {
+	if !bytes.Equal(util.Digest(b), digest) {
 		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), hash)
+			util.Digest(b), digest)
 	}
 	var c comments.CommentDel
 	err = json.Unmarshal(b, &c)
@@ -262,13 +255,13 @@ func convertCommentVoteFromBlobEntry(be store.BlobEntry) (*comments.CommentVote,
 	if err != nil {
 		return nil, fmt.Errorf("decode Data: %v", err)
 	}
-	hash, err := hex.DecodeString(be.Hash)
+	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode hash: %v", err)
+		return nil, fmt.Errorf("decode digest: %v", err)
 	}
-	if !bytes.Equal(util.Digest(b), hash) {
+	if !bytes.Equal(util.Digest(b), digest) {
 		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), hash)
+			util.Digest(b), digest)
 	}
 	var cv comments.CommentVote
 	err = json.Unmarshal(b, &cv)
@@ -350,23 +343,27 @@ func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([
 	if err != nil {
 		return nil, err
 	}
-	merkle, err := p.tlog.BlobSave(treeID, keyPrefixCommentAdd, *be)
+	d, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return nil, err
 	}
-	return merkle, nil
+	err = p.tlog.BlobSave(treeID, dataTypeCommentAdd, *be)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
-// commentAdds returns the commentAdd for all specified merkle hashes.
-func (p *commentsPlugin) commentAdds(treeID int64, merkles [][]byte) ([]comments.CommentAdd, error) {
+// commentAdds returns the commentAdd for all specified digests.
+func (p *commentsPlugin) commentAdds(treeID int64, digests [][]byte) ([]comments.CommentAdd, error) {
 	// Retrieve blobs
-	blobs, err := p.tlog.BlobsByMerkle(treeID, merkles)
+	blobs, err := p.tlog.Blobs(treeID, digests)
 	if err != nil {
 		return nil, err
 	}
-	if len(blobs) != len(merkles) {
+	if len(blobs) != len(digests) {
 		notFound := make([]string, 0, len(blobs))
-		for _, v := range merkles {
+		for _, v := range digests {
 			m := hex.EncodeToString(v)
 			_, ok := blobs[m]
 			if !ok {
@@ -379,11 +376,7 @@ func (p *commentsPlugin) commentAdds(treeID int64, merkles [][]byte) ([]comments
 	// Decode blobs
 	adds := make([]comments.CommentAdd, 0, len(blobs))
 	for _, v := range blobs {
-		be, err := store.Deblob(v)
-		if err != nil {
-			return nil, err
-		}
-		c, err := convertCommentAddFromBlobEntry(*be)
+		c, err := convertCommentAddFromBlobEntry(v)
 		if err != nil {
 			return nil, err
 		}
@@ -398,22 +391,26 @@ func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([
 	if err != nil {
 		return nil, err
 	}
-	merkle, err := p.tlog.BlobSave(treeID, keyPrefixCommentDel, *be)
+	d, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return nil, err
 	}
-	return merkle, nil
+	err = p.tlog.BlobSave(treeID, dataTypeCommentDel, *be)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
-func (p *commentsPlugin) commentDels(treeID int64, merkles [][]byte) ([]comments.CommentDel, error) {
+func (p *commentsPlugin) commentDels(treeID int64, digests [][]byte) ([]comments.CommentDel, error) {
 	// Retrieve blobs
-	blobs, err := p.tlog.BlobsByMerkle(treeID, merkles)
+	blobs, err := p.tlog.Blobs(treeID, digests)
 	if err != nil {
 		return nil, err
 	}
-	if len(blobs) != len(merkles) {
+	if len(blobs) != len(digests) {
 		notFound := make([]string, 0, len(blobs))
-		for _, v := range merkles {
+		for _, v := range digests {
 			m := hex.EncodeToString(v)
 			_, ok := blobs[m]
 			if !ok {
@@ -426,15 +423,11 @@ func (p *commentsPlugin) commentDels(treeID int64, merkles [][]byte) ([]comments
 	// Decode blobs
 	dels := make([]comments.CommentDel, 0, len(blobs))
 	for _, v := range blobs {
-		be, err := store.Deblob(v)
+		d, err := convertCommentDelFromBlobEntry(v)
 		if err != nil {
 			return nil, err
 		}
-		c, err := convertCommentDelFromBlobEntry(*be)
-		if err != nil {
-			return nil, err
-		}
-		dels = append(dels, *c)
+		dels = append(dels, *d)
 	}
 
 	return dels, nil
@@ -445,22 +438,26 @@ func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) 
 	if err != nil {
 		return nil, err
 	}
-	merkle, err := p.tlog.BlobSave(treeID, keyPrefixCommentVote, *be)
+	d, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return nil, err
 	}
-	return merkle, nil
+	err = p.tlog.BlobSave(treeID, dataTypeCommentVote, *be)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
-func (p *commentsPlugin) commentVotes(treeID int64, merkles [][]byte) ([]comments.CommentVote, error) {
+func (p *commentsPlugin) commentVotes(treeID int64, digests [][]byte) ([]comments.CommentVote, error) {
 	// Retrieve blobs
-	blobs, err := p.tlog.BlobsByMerkle(treeID, merkles)
+	blobs, err := p.tlog.Blobs(treeID, digests)
 	if err != nil {
 		return nil, err
 	}
-	if len(blobs) != len(merkles) {
+	if len(blobs) != len(digests) {
 		notFound := make([]string, 0, len(blobs))
-		for _, v := range merkles {
+		for _, v := range digests {
 			m := hex.EncodeToString(v)
 			_, ok := blobs[m]
 			if !ok {
@@ -473,11 +470,7 @@ func (p *commentsPlugin) commentVotes(treeID int64, merkles [][]byte) ([]comment
 	// Decode blobs
 	votes := make([]comments.CommentVote, 0, len(blobs))
 	for _, v := range blobs {
-		be, err := store.Deblob(v)
-		if err != nil {
-			return nil, err
-		}
-		c, err := convertCommentVoteFromBlobEntry(*be)
+		c, err := convertCommentVoteFromBlobEntry(v)
 		if err != nil {
 			return nil, err
 		}
@@ -493,14 +486,14 @@ func (p *commentsPlugin) commentVotes(treeID int64, merkles [][]byte) ([]comment
 // responsibility of the caller to ensure a comment is returned for each of the
 // provided comment IDs.
 func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []uint32) (map[uint32]comments.Comment, error) {
-	// Aggregate the merkle hashes for all records that need to be
-	// looked up. If a comment has been deleted then the only record
-	// that will still exist is the comment del record. If the comment
-	// has not been deleted then the comment add record will need to be
+	// Aggregate the digests for all records that need to be looked up.
+	// If a comment has been deleted then the only record that will
+	// still exist is the comment del record. If the comment has not
+	// been deleted then the comment add record will need to be
 	// retrieved for the latest version of the comment.
 	var (
-		merkleAdds = make([][]byte, 0, len(commentIDs))
-		merkleDels = make([][]byte, 0, len(commentIDs))
+		digestAdds = make([][]byte, 0, len(commentIDs))
+		digestDels = make([][]byte, 0, len(commentIDs))
 	)
 	for _, v := range commentIDs {
 		cidx, ok := ridx.Comments[v]
@@ -511,33 +504,33 @@ func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []u
 
 		// Comment del record
 		if cidx.Del != nil {
-			merkleDels = append(merkleDels, cidx.Del)
+			digestDels = append(digestDels, cidx.Del)
 			continue
 		}
 
 		// Comment add record
 		version := commentVersionLatest(cidx)
-		merkleAdds = append(merkleAdds, cidx.Adds[version])
+		digestAdds = append(digestAdds, cidx.Adds[version])
 	}
 
 	// Get comment add records
-	adds, err := p.commentAdds(treeID, merkleAdds)
+	adds, err := p.commentAdds(treeID, digestAdds)
 	if err != nil {
 		return nil, fmt.Errorf("commentAdds: %v", err)
 	}
-	if len(adds) != len(merkleAdds) {
+	if len(adds) != len(digestAdds) {
 		return nil, fmt.Errorf("wrong comment adds count; got %v, want %v",
-			len(adds), len(merkleAdds))
+			len(adds), len(digestAdds))
 	}
 
 	// Get comment del records
-	dels, err := p.commentDels(treeID, merkleDels)
+	dels, err := p.commentDels(treeID, digestDels)
 	if err != nil {
 		return nil, fmt.Errorf("commentDels: %v", err)
 	}
-	if len(dels) != len(merkleDels) {
+	if len(dels) != len(digestDels) {
 		return nil, fmt.Errorf("wrong comment dels count; got %v, want %v",
-			len(dels), len(merkleDels))
+			len(dels), len(digestDels))
 	}
 
 	// Prepare comments
@@ -572,9 +565,9 @@ func (p *commentsPlugin) comment(treeID int64, ridx recordIndex, commentID uint3
 	return &c, nil
 }
 
-func (p *commentsPlugin) timestamp(treeID int64, merkle []byte) (*comments.Timestamp, error) {
+func (p *commentsPlugin) timestamp(treeID int64, digest []byte) (*comments.Timestamp, error) {
 	// Get timestamp
-	t, err := p.tlog.Timestamp(treeID, merkle)
+	t, err := p.tlog.Timestamp(treeID, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -733,7 +726,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Save comment
-	merkleHash, err := p.commentAddSave(treeID, ca)
+	digest, err := p.commentAddSave(treeID, ca)
 	if err != nil {
 		return "", fmt.Errorf("commentAddSave: %v", err)
 	}
@@ -741,7 +734,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	// Update index
 	ridx.Comments[ca.CommentID] = commentIndex{
 		Adds: map[uint32][]byte{
-			1: merkleHash,
+			1: digest,
 		},
 		Del:   nil,
 		Votes: make(map[string][]voteIndex),
@@ -888,13 +881,13 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Save comment
-	merkle, err := p.commentAddSave(treeID, ca)
+	digest, err := p.commentAddSave(treeID, ca)
 	if err != nil {
 		return "", fmt.Errorf("commentAddSave: %v", err)
 	}
 
 	// Update index
-	ridx.Comments[ca.CommentID].Adds[ca.Version] = merkle
+	ridx.Comments[ca.CommentID].Adds[ca.Version] = digest
 
 	// Save index
 	err = p.recordIndexSaveLocked(token, *ridx)
@@ -999,7 +992,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Save comment del
-	merkle, err := p.commentDelSave(treeID, cd)
+	digest, err := p.commentDelSave(treeID, cd)
 	if err != nil {
 		return "", fmt.Errorf("commentDelSave: %v", err)
 	}
@@ -1011,7 +1004,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 		e := fmt.Sprintf("comment not found in index: %v", d.CommentID)
 		panic(e)
 	}
-	cidx.Del = merkle
+	cidx.Del = digest
 	ridx.Comments[d.CommentID] = cidx
 
 	// Save index
@@ -1021,11 +1014,11 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Delete all comment versions
-	merkles := make([][]byte, 0, len(cidx.Adds))
+	digests := make([][]byte, 0, len(cidx.Adds))
 	for _, v := range cidx.Adds {
-		merkles = append(merkles, v)
+		digests = append(digests, v)
 	}
-	err = p.tlog.BlobsDel(treeID, merkles)
+	err = p.tlog.BlobsDel(treeID, digests)
 	if err != nil {
 		return "", fmt.Errorf("del: %v", err)
 	}
@@ -1160,7 +1153,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 
 	// Save comment vote
-	merkle, err := p.commentVoteSave(treeID, cv)
+	digest, err := p.commentVoteSave(treeID, cv)
 	if err != nil {
 		return "", fmt.Errorf("commentVoteSave: %v", err)
 	}
@@ -1172,7 +1165,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 	votes = append(votes, voteIndex{
 		Vote:   cv.Vote,
-		Merkle: merkle,
+		Digest: digest,
 	})
 	cidx.Votes[cv.UserID] = votes
 
@@ -1317,7 +1310,7 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 			ErrorContext: "comment has been deleted",
 		}
 	}
-	merkle, ok := cidx.Adds[gv.Version]
+	digest, ok := cidx.Adds[gv.Version]
 	if !ok {
 		e := fmt.Sprintf("comment %v does not have version %v",
 			gv.CommentID, gv.Version)
@@ -1329,7 +1322,7 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	}
 
 	// Get comment add record
-	adds, err := p.commentAdds(treeID, [][]byte{merkle})
+	adds, err := p.commentAdds(treeID, [][]byte{digest})
 	if err != nil {
 		return "", fmt.Errorf("commentAdds: %v", err)
 	}
@@ -1398,9 +1391,9 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 		return "", err
 	}
 
-	// Compile the comment vote merkles for all votes that were cast
+	// Compile the comment vote digests for all votes that were cast
 	// by the specified user.
-	merkles := make([][]byte, 0, 256)
+	digests := make([][]byte, 0, 256)
 	for _, cidx := range ridx.Comments {
 		voteIdxs, ok := cidx.Votes[v.UserID]
 		if !ok {
@@ -1410,12 +1403,12 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 
 		// User has cast votes on this comment
 		for _, vidx := range voteIdxs {
-			merkles = append(merkles, vidx.Merkle)
+			digests = append(digests, vidx.Digest)
 		}
 	}
 
 	// Lookup votes
-	votes, err := p.commentVotes(treeID, merkles)
+	votes, err := p.commentVotes(treeID, digests)
 	if err != nil {
 		return "", fmt.Errorf("commentVotes: %v", err)
 	}
@@ -1499,7 +1492,7 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 		ts = make([]comments.Timestamp, 0, len(cidx.Votes))
 		for _, votes := range cidx.Votes {
 			for _, v := range votes {
-				t, err := p.timestamp(treeID, v.Merkle)
+				t, err := p.timestamp(treeID, v.Digest)
 				if err != nil {
 					return "", err
 				}
@@ -1537,7 +1530,7 @@ func (p *commentsPlugin) Setup() error {
 //
 // This function satisfies the plugins.Client interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %v %x %v", treeID, token, cmd, payload)
+	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
 
 	switch cmd {
 	case comments.CmdNew:
@@ -1586,7 +1579,7 @@ func (p *commentsPlugin) Fsck() error {
 }
 
 // New returns a new comments plugin.
-func New(tlog clients.TlogClient, settings []backend.PluginSetting, id *identity.FullIdentity, dataDir string) (*commentsPlugin, error) {
+func New(tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*commentsPlugin, error) {
 	// Setup comments plugin data dir
 	dataDir = filepath.Join(dataDir, comments.ID)
 	err := os.MkdirAll(dataDir, 0700)

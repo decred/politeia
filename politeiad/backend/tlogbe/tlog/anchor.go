@@ -189,13 +189,13 @@ func (t *Tlog) anchorSave(a anchor) error {
 	}
 
 	// Append anchor leaf to trillian tree
-	h, err := hex.DecodeString(be.Hash)
+	d, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
 	}
 	extraData := leafExtraData(dataTypeAnchorRecord, keys[0])
 	leaves := []*trillian.LogLeaf{
-		newLogLeaf(h, extraData),
+		newLogLeaf(d, extraData),
 	}
 	queued, _, err := t.trillian.leavesAppend(a.TreeID, leaves)
 	if err != nil {

@@ -87,9 +87,9 @@ func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
 	case len(t) == TokenPrefixSize():
 		// This is a token prefix. Token prefixes are the same size
 		// regardless of token type.
-	case TokenIsFullLength(TokenTypeGit, t):
+	case tokenType == TokenTypeGit && TokenIsFullLength(TokenTypeGit, t):
 		// Token is a valid git backend token
-	case TokenIsFullLength(TokenTypeTlog, t):
+	case tokenType == TokenTypeTlog && TokenIsFullLength(TokenTypeTlog, t):
 		// Token is a valid tlog backend token
 	default:
 		return nil, fmt.Errorf("invalid token size")

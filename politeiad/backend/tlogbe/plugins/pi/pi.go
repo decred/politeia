@@ -19,11 +19,12 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/clients"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -33,8 +34,8 @@ var (
 // piPlugin satisfies the plugins.Client interface.
 type piPlugin struct {
 	sync.Mutex
-	backend         clients.BackendClient
-	tlog            clients.TlogClient
+	backend         backend.Backend
+	tlog            tlogclient.Client
 	activeNetParams *chaincfg.Params
 
 	// dataDir is the pi plugin data directory. The only data that is
@@ -47,6 +48,11 @@ type piPlugin struct {
 // proposal.
 func isRFP(pm pi.ProposalMetadata) bool {
 	return pm.LinkBy != 0
+}
+
+// tokenDecode decodes a token string.
+func tokenDecode(token string) ([]byte, error) {
+	return util.TokenDecode(util.TokenTypeTlog, token)
 }
 
 // decodeProposalMetadata decodes and returns the ProposalMetadata from the
@@ -1160,7 +1166,7 @@ func (p *piPlugin) Fsck() error {
 	return nil
 }
 
-func New(backend clients.BackendClient, tlog clients.TlogClient, settings []backend.PluginSetting, dataDir string, activeNetParams *chaincfg.Params) (*piPlugin, error) {
+func New(backend backend.Backend, tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, activeNetParams *chaincfg.Params) (*piPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, pi.ID)
 	err := os.MkdirAll(dataDir, 0700)

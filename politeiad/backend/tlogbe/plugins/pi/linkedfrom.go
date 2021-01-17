@@ -103,11 +103,11 @@ func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
 	defer p.Unlock()
 
 	// Verify tokens
-	parent, err := util.TokenDecode(util.TokenTypeTlog, parentToken)
+	parent, err := tokenDecode(parentToken)
 	if err != nil {
 		return err
 	}
-	_, err = util.TokenDecode(util.TokenTypeTlog, childToken)
+	_, err = tokenDecode(childToken)
 	if err != nil {
 		return err
 	}
@@ -134,11 +134,11 @@ func (p *piPlugin) linkedFromDel(parentToken, childToken string) error {
 	defer p.Unlock()
 
 	// Verify tokens
-	parent, err := util.TokenDecode(util.TokenTypeTlog, parentToken)
+	parent, err := tokenDecode(parentToken)
 	if err != nil {
 		return err
 	}
-	_, err = util.TokenDecode(util.TokenTypeTlog, childToken)
+	_, err = tokenDecode(childToken)
 	if err != nil {
 		return err
 	}

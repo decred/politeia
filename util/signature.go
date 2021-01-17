@@ -24,7 +24,7 @@ const (
 // signature.
 type SignatureError struct {
 	ErrorCode    ErrorStatusT
-	ErrorContext []string
+	ErrorContext string
 }
 
 // Error satisfies the error interface.
@@ -38,21 +38,21 @@ func VerifySignature(signature, pubKey, msg string) error {
 	if err != nil {
 		return SignatureError{
 			ErrorCode:    ErrorStatusSignatureInvalid,
-			ErrorContext: []string{err.Error()},
+			ErrorContext: err.Error(),
 		}
 	}
 	b, err := hex.DecodeString(pubKey)
 	if err != nil {
 		return SignatureError{
 			ErrorCode:    ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"key is not hex"},
+			ErrorContext: "key is not hex",
 		}
 	}
 	pk, err := identity.PublicIdentityFromBytes(b)
 	if err != nil {
 		return SignatureError{
 			ErrorCode:    ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{err.Error()},
+			ErrorContext: err.Error(),
 		}
 	}
 	if !pk.VerifyMessage([]byte(msg), sig) {

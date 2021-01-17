@@ -36,9 +36,7 @@ type DataDescriptor struct {
 // BlobEntry is the structure used to store data in the Blob key-value store.
 // All data in the Blob key-value store will be encoded as a BlobEntry.
 type BlobEntry struct {
-	// TODO change this to digest so that we are consistent with the
-	// terminology used throughout the backend.
-	Hash     string `json:"hash"`     // SHA256 hash of data payload, hex encoded
+	Digest   string `json:"digest"`   // SHA256 digest of data, hex encoded
 	DataHint string `json:"datahint"` // Hint that describes data, base64 encoded
 	Data     string `json:"data"`     // Data payload, base64 encoded
 }
@@ -46,7 +44,7 @@ type BlobEntry struct {
 // NewBlobEntry returns a new BlobEntry.
 func NewBlobEntry(dataHint, data []byte) BlobEntry {
 	return BlobEntry{
-		Hash:     hex.EncodeToString(util.Digest(data)),
+		Digest:   hex.EncodeToString(util.Digest(data)),
 		DataHint: base64.StdEncoding.EncodeToString(dataHint),
 		Data:     base64.StdEncoding.EncodeToString(data),
 	}

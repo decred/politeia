@@ -29,7 +29,8 @@ type Client interface {
 	// map.
 	Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error)
 
-	// BlobsByDataType returns all blobs that match the data type.
+	// BlobsByDataType returns all blobs that match the data type. The
+	// blobs will be ordered from oldest to newest.
 	BlobsByDataType(treeID int64, keyPrefix string) ([]store.BlobEntry, error)
 
 	// DigestsByDataType returns the digests of all blobs that match

@@ -227,7 +227,7 @@ func (p *dcrdataPlugin) txsTrimmedHTTP(txIDs []string) ([]v5.TrimmedTx, error) {
 // along with a status of StatusDisconnected. It is the callers responsibility
 // to determine if the stale best block should be used.
 func (p *dcrdataPlugin) cmdBestBlock(payload string) (string, error) {
-	log.Tracef("cmdBestBlock")
+	log.Tracef("cmdBestBlock: %v", payload)
 
 	// Payload is empty. Nothing to decode.
 
@@ -593,7 +593,7 @@ func (p *dcrdataPlugin) Setup() error {
 //
 // This function satisfies the plugins.Client interface.
 func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %v", cmd, payload)
+	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
 
 	switch cmd {
 	case dcrdata.CmdBestBlock:

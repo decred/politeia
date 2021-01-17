@@ -98,8 +98,12 @@ func tokenFromTreeID(treeID int64) []byte {
 	return b
 }
 
+func tokenIsFullLength(token []byte) bool {
+	return util.TokenIsFullLength(util.TokenTypeTlog, token)
+}
+
 func treeIDFromToken(token []byte) int64 {
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return 0
 	}
 	return int64(binary.LittleEndian.Uint64(token))
@@ -748,7 +752,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -852,7 +856,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -959,7 +963,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1051,7 +1055,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1203,7 +1207,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1358,7 +1362,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
+	if !tokenIsFullLength(token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1654,12 +1658,17 @@ func (t *tlogBackend) UnvettedPlugin(token []byte, pluginID, cmd, payload string
 		return "", backend.ErrShutdown
 	}
 
-	// Get tree ID
-	treeID := t.unvettedTreeIDFromToken(token)
+	// The token is optional. If a token is not provided then a tree ID
+	// will not be provided to the plugin.
+	var treeID int64
+	if token != nil {
+		// Get tree ID
+		treeID = t.unvettedTreeIDFromToken(token)
 
-	// Verify record exists and is unvetted
-	if !t.UnvettedExists(token) {
-		return "", backend.ErrRecordNotFound
+		// Verify record exists and is unvetted
+		if !t.UnvettedExists(token) {
+			return "", backend.ErrRecordNotFound
+		}
 	}
 
 	// Call pre plugin hooks
@@ -1712,10 +1721,16 @@ func (t *tlogBackend) VettedPlugin(token []byte, pluginID, cmd, payload string) 
 		return "", backend.ErrShutdown
 	}
 
-	// Get tree ID
-	treeID, ok := t.vettedTreeIDFromToken(token)
-	if !ok {
-		return "", backend.ErrRecordNotFound
+	// The token is optional. If a token is not provided then a tree ID
+	// will not be provided to the plugin.
+	var treeID int64
+	var ok bool
+	if token != nil {
+		// Get tree ID
+		treeID, ok = t.vettedTreeIDFromToken(token)
+		if !ok {
+			return "", backend.ErrRecordNotFound
+		}
 	}
 
 	// Call pre plugin hooks
