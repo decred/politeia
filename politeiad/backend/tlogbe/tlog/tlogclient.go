@@ -7,6 +7,7 @@ package tlog
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
@@ -28,22 +29,19 @@ var (
 func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error {
 	log.Tracef("%v BlobSave: %v %v", t.id, treeID, dataType)
 
+	// Verify data type
+	if strings.Contains(dataType, dataTypeSeperator) {
+		return fmt.Errorf("data type cannot contain '%v'", dataTypeSeperator)
+	}
+
 	// Prepare blob and digest
 	digest, err := hex.DecodeString(be.Hash)
 	if err != nil {
 		return err
 	}
-	blob, err := store.Blobify(be)
+	blob, err := t.blobify(be)
 	if err != nil {
 		return err
-	}
-
-	// Encrypt blob if an encryption key has been set
-	if t.encryptionKey != nil {
-		blob, err = t.encrypt(blob)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Verify tree exists

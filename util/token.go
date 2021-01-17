@@ -16,7 +16,9 @@ var (
 	TokenTypeTlog = "tlog"
 )
 
-func tokenIsFullLength(tokenType string, token []byte) bool {
+// TokenIsFullLength returns whether a token is a valid, full length politeiad
+// censorship token.
+func TokenIsFullLength(tokenType string, token []byte) bool {
 	switch tokenType {
 	case TokenTypeTlog:
 		return len(token) == pdv1.TokenSizeTlog
@@ -28,6 +30,7 @@ func tokenIsFullLength(tokenType string, token []byte) bool {
 	}
 }
 
+// TokenPrefixSize returns the size (in bytes) of a politeiad token prefix.
 func TokenPrefixSize() int {
 	// If the token prefix length is an odd number of characters then
 	// padding would have needed to be added to it prior to decoding it
@@ -59,7 +62,7 @@ func TokenDecode(tokenType, token string) ([]byte, error) {
 	}
 
 	// Verify token is full length
-	if !tokenIsFullLength(tokenType, t) {
+	if !TokenIsFullLength(tokenType, t) {
 		return nil, fmt.Errorf("invalid token size")
 	}
 
@@ -84,9 +87,9 @@ func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
 	case len(t) == TokenPrefixSize():
 		// This is a token prefix. Token prefixes are the same size
 		// regardless of token type.
-	case tokenIsFullLength(TokenTypeGit, t):
+	case TokenIsFullLength(TokenTypeGit, t):
 		// Token is a valid git backend token
-	case tokenIsFullLength(TokenTypeTlog, t):
+	case TokenIsFullLength(TokenTypeTlog, t):
 		// Token is a valid tlog backend token
 	default:
 		return nil, fmt.Errorf("invalid token size")

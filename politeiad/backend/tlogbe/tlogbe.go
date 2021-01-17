@@ -90,10 +90,6 @@ type recordInventory struct {
 	vetted   map[backend.MDStatusT][]string
 }
 
-func tokenIsFullLength(token []byte) bool {
-	return len(token) == v1.TokenSizeTlog
-}
-
 func tokenFromTreeID(treeID int64) []byte {
 	b := make([]byte, v1.TokenSizeTlog)
 	// Converting between int64 and uint64 doesn't change
@@ -103,7 +99,7 @@ func tokenFromTreeID(treeID int64) []byte {
 }
 
 func treeIDFromToken(token []byte) int64 {
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return 0
 	}
 	return int64(binary.LittleEndian.Uint64(token))
@@ -752,7 +748,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -856,7 +852,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -963,7 +959,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1055,7 +1051,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1207,7 +1203,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
@@ -1362,7 +1358,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 
 	// Verify token is valid. The full length token must be used when
 	// writing data.
-	if !tokenIsFullLength(token) {
+	if !util.TokenIsFullLength(util.TokenTypeTlog, token) {
 		return nil, backend.ContentVerificationError{
 			ErrorCode: v1.ErrorStatusInvalidToken,
 		}
