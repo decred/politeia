@@ -10,11 +10,11 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
-// voteInventory contains the record inventory categorized by vote status. The
+// inventory contains the record inventory categorized by vote status. The
 // authorized and started lists are updated in real-time since ticket vote
 // plugin commands initiate those actions. The unauthorized and finished lists
 // are lazy loaded since those lists depends on external state.
-type voteInventory struct {
+type inventory struct {
 	unauthorized []string          // Unauthorized tokens
 	authorized   []string          // Authorized tokens
 	started      map[string]uint32 // [token]endHeight
@@ -152,7 +152,7 @@ func (p *ticketVotePlugin) inventorySetToStarted(token string, t ticketvote.Vote
 	log.Debugf("ticketvote: added to started inv: %v", token)
 }
 
-func (p *ticketVotePlugin) inventory(bestBlock uint32) (*voteInventory, error) {
+func (p *ticketVotePlugin) inventory(bestBlock uint32) (*inventory, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -259,7 +259,7 @@ reply:
 		started[k] = v
 	}
 
-	return &voteInventory{
+	return &inventory{
 		unauthorized: unauthorized,
 		authorized:   authorized,
 		started:      started,

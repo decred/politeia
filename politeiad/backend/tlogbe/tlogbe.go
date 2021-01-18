@@ -1648,11 +1648,11 @@ func (t *tlogBackend) SetupVettedPlugin(pluginID string) error {
 	return t.vetted.PluginSetup(pluginID)
 }
 
-// UnvettedPlugin executes a plugin command on an unvetted record.
+// UnvettedPluginCmd executes a plugin command on an unvetted record.
 //
 // This function satisfies the backend.Backend interface.
-func (t *tlogBackend) UnvettedPlugin(token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("UnvettedPlugin: %x %v %v", token, pluginID, cmd)
+func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("UnvettedPluginCmd: %x %v %v", token, pluginID, cmd)
 
 	if t.isShutdown() {
 		return "", backend.ErrShutdown
@@ -1711,11 +1711,11 @@ func (t *tlogBackend) UnvettedPlugin(token []byte, pluginID, cmd, payload string
 	return reply, nil
 }
 
-// VettedPlugin executes a plugin command on an unvetted record.
+// VettedPluginCmd executes a plugin command on an unvetted record.
 //
 // This function satisfies the backend.Backend interface.
-func (t *tlogBackend) VettedPlugin(token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("VettedPlugin: %x %v %v", token, pluginID, cmd)
+func (t *tlogBackend) VettedPluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("VettedPluginCmd: %x %v %v", token, pluginID, cmd)
 
 	if t.isShutdown() {
 		return "", backend.ErrShutdown

@@ -5,7 +5,7 @@
 package pi
 
 import (
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,15 +42,31 @@ type piPlugin struct {
 	dataDir string
 }
 
-// isRFP returns whether the provided proposal metadata belongs to an RFP
-// proposal.
-func isRFP(pm pi.ProposalMetadata) bool {
-	return pm.LinkBy != 0
-}
-
 // tokenDecode decodes a token string.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
+}
+
+// decodeProposalMetadata decodes and returns the ProposalMetadata from the
+// provided backend files. If a ProposalMetadata is not found, nil is returned.
+func decodeProposalMetadata(files []backend.File) (*pi.ProposalMetadata, error) {
+	var propMD *pi.ProposalMetadata
+	for _, v := range files {
+		if v.Name == pi.FileNameProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			var m pi.ProposalMetadata
+			err = json.Unmarshal(b, &m)
+			if err != nil {
+				return nil, err
+			}
+			propMD = &m
+			break
+		}
+	}
+	return propMD, nil
 }
 
 // decodeGeneralMetadata decodes and returns the GeneralMetadata from the
@@ -123,7 +139,7 @@ func (p *piPlugin) cmdProposals(payload string) (string, error) {
 		default:
 			return "", backend.PluginUserError{
 				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropStateInvalid),
+				ErrorCode: int(pi.ErrorCodePropStateInvalid),
 			}
 		}
 
@@ -209,29 +225,18 @@ func (p *piPlugin) cmdProposals(payload string) (string, error) {
 	return "", nil
 }
 
-func (p *piPlugin) voteSummary(token []byte) (*ticketvote.Summary, error) {
-	t := hex.EncodeToString(token)
-	s := ticketvote.Summaries{
-		Tokens: []string{t},
-	}
-	b, err := ticketvote.EncodeSummaries(s)
+func (p *piPlugin) voteSummary(token []byte) (*ticketvote.VoteSummary, error) {
+	reply, err := p.backend.VettedPluginCmd(token,
+		ticketvote.ID, ticketvote.CmdSummary, "")
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.backend.Plugin(ticketvote.ID,
-		ticketvote.CmdSummaries, "", string(b))
+	var sr ticketvote.SummaryReply
+	err = json.Unmarshal([]byte(reply), &sr)
 	if err != nil {
 		return nil, err
 	}
-	sr, err := ticketvote.DecodeSummariesReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-	summary, ok := sr.Summaries[t]
-	if !ok {
-		return nil, fmt.Errorf("proposal not found %v", token)
-	}
-	return &summary, nil
+	return &sr.Summary, nil
 }
 
 func (p *piPlugin) cmdProposalInv(payload string) (string, error) {
@@ -333,49 +338,37 @@ func (p *piPlugin) cmdProposalInv(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *piPlugin) cmdVoteInventory(payload string) (string, error) {
-	// Payload is empty. Nothing to decode.
-
+func (p *piPlugin) cmdVoteInventory() (string, error) {
 	// Get ticketvote inventory
-	r, err := p.backend.Plugin(ticketvote.ID, ticketvote.CmdInventory, "", "")
+	r, err := p.backend.VettedPluginCmd([]byte{},
+		ticketvote.ID, ticketvote.CmdInventory, "")
 	if err != nil {
-		return "", fmt.Errorf("ticketvote inventory: %v", err)
+		return "", fmt.Errorf("VettedPluginCmd %v %v: %v",
+			ticketvote.ID, ticketvote.CmdInventory, err)
 	}
-	ir, err := ticketvote.DecodeInventoryReply([]byte(r))
+	var ir ticketvote.InventoryReply
+	err = json.Unmarshal([]byte(r), &ir)
 	if err != nil {
 		return "", err
 	}
 
-	// Get vote summaries for all finished proposal votes
-	s := ticketvote.Summaries{
-		Tokens: ir.Finished,
-	}
-	b, err := ticketvote.EncodeSummaries(s)
-	if err != nil {
-		return "", err
-	}
-	r, err = p.backend.Plugin(ticketvote.ID, ticketvote.CmdSummaries,
-		"", string(b))
-	if err != nil {
-		return "", fmt.Errorf("ticketvote summaries: %v", err)
-	}
-	sr, err := ticketvote.DecodeSummariesReply([]byte(r))
-	if err != nil {
-		return "", err
-	}
-	if len(sr.Summaries) != len(ir.Finished) {
-		return "", fmt.Errorf("unexpected number of summaries: got %v, want %v",
-			len(sr.Summaries), len(ir.Finished))
-	}
-
-	// Categorize votes
-	approved := make([]string, 0, len(sr.Summaries))
-	rejected := make([]string, 0, len(sr.Summaries))
-	for token, v := range sr.Summaries {
-		if v.Approved {
-			approved = append(approved, token)
+	// Get vote summaries for all finished proposal votes and
+	// categorize by approved/rejected.
+	approved := make([]string, 0, len(ir.Finished))
+	rejected := make([]string, 0, len(ir.Finished))
+	for _, v := range ir.Finished {
+		t, err := tokenDecode(v)
+		if err != nil {
+			return "", err
+		}
+		vs, err := p.voteSummary(t)
+		if err != nil {
+			return "", err
+		}
+		if vs.Approved {
+			approved = append(approved, v)
 		} else {
-			rejected = append(rejected, token)
+			rejected = append(rejected, v)
 		}
 	}
 
@@ -404,7 +397,7 @@ func (p *piPlugin) hookCommentNew(treeID int64, token []byte, payload string) er
 	}
 
 	// Verify vote status
-	vs, err := p.voteSummary(treeID, token)
+	vs, err := p.voteSummary(token)
 	if err != nil {
 		return fmt.Errorf("voteSummary: %v", err)
 	}
@@ -413,9 +406,9 @@ func (p *piPlugin) hookCommentNew(treeID int64, token []byte, payload string) er
 		ticketvote.VoteStatusStarted:
 		// Comments are allowed on these vote statuses; continue
 	default:
-		return "", backend.PluginUserError{
+		return backend.PluginUserError{
 			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+			ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote has ended; proposal is locked",
 		}
 	}
@@ -442,7 +435,7 @@ func (p *piPlugin) commentDel(payload string) error {
 		default:
 			return "", backend.PluginUserError{
 				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropStateInvalid),
+				ErrorCode: int(pi.ErrorCodePropStateInvalid),
 			}
 		}
 
@@ -451,7 +444,7 @@ func (p *piPlugin) commentDel(payload string) error {
 		if err != nil {
 			return "", backend.PluginUserError{
 				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
+				ErrorCode: int(pi.ErrorCodePropTokenInvalid),
 			}
 		}
 
@@ -469,7 +462,7 @@ func (p *piPlugin) commentDel(payload string) error {
 		if !exists {
 			return "", backend.PluginUserError{
 				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropNotFound),
+				ErrorCode: int(pi.ErrorCodePropNotFound),
 			}
 		}
 
@@ -486,7 +479,7 @@ func (p *piPlugin) commentDel(payload string) error {
 			default:
 				return "", backend.PluginUserError{
 					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+					ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 					ErrorContext: []string{"vote has ended; proposal is locked"},
 				}
 			}
@@ -515,7 +508,7 @@ func (p *piPlugin) commentVote(payload string) error {
 		if err != nil {
 			return "", backend.PluginUserError{
 				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropTokenInvalid),
+				ErrorCode: int(pi.ErrorCodePropTokenInvalid),
 			}
 		}
 
@@ -534,7 +527,7 @@ func (p *piPlugin) commentVote(payload string) error {
 			if errors.Is(err, backend.ErrRecordNotFound) {
 				return "", backend.PluginUserError{
 					PluginID:  pi.ID,
-					ErrorCode: int(pi.ErrorStatusPropNotFound),
+					ErrorCode: int(pi.ErrorCodePropNotFound),
 				}
 			}
 			return "", fmt.Errorf("get record: %v", err)
@@ -548,7 +541,7 @@ func (p *piPlugin) commentVote(payload string) error {
 		default:
 			return "", backend.PluginUserError{
 				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropStatusInvalid),
+				ErrorCode:    int(pi.ErrorCodePropStatusInvalid),
 				ErrorContext: []string{"proposal is not public"},
 			}
 		}
@@ -565,7 +558,7 @@ func (p *piPlugin) commentVote(payload string) error {
 		default:
 			return "", backend.PluginUserError{
 				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+				ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 				ErrorContext: []string{"vote has ended; proposal is locked"},
 			}
 		}
@@ -580,17 +573,10 @@ func (p *piPlugin) ticketVoteStart(payload string) error {
 	// TODO If runoff vote, verify that parent record has passed a
 	// vote itself. This functionality is specific to pi.
 
-	// Decode payload
-	s, err := ticketvote.DecodeStart([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-	_ = s
-
 	return nil
 }
 
-func (p *piPlugin) hookPluginPre(payload string) error {
+func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
 	// Decode payload
 	var hpp plugins.HookPluginPre
 	err := json.Unmarshal([]byte(payload), &hpp)
@@ -603,7 +589,7 @@ func (p *piPlugin) hookPluginPre(payload string) error {
 	case comments.ID:
 		switch hpp.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(hpp.Payload)
+			return p.hookCommentNew(treeID, token, hpp.Payload)
 			// case comments.CmdDel:
 			// return p.commentDel(hpp.Payload)
 			// case comments.CmdVote:
@@ -641,7 +627,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 }
 
 func (p *piPlugin) hookNewRecordPost(payload string) error {
-	var nr plugins.HookNewRecord
+	var nr plugins.HookNewRecordPost
 	err := json.Unmarshal([]byte(payload), &nr)
 	if err != nil {
 		return err
@@ -705,7 +691,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 					ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized])
 				return backend.PluginUserError{
 					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+					ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 					ErrorContext: e,
 				}
 			}
@@ -760,7 +746,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 			sc.Version, srs.Current.Version)
 		return backend.PluginUserError{
 			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusPropVersionInvalid),
+			ErrorCode:    int(pi.ErrorCodePropVersionInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -779,7 +765,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 			from, sc.Status)
 		return backend.PluginUserError{
 			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorStatusPropStatusChangeInvalid),
+			ErrorCode:    int(pi.ErrorCodePropStatusChangeInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -805,12 +791,10 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 	log.Tracef("Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
-	case pi.CmdProposals:
-		return p.cmdProposals(payload)
 	case pi.CmdProposalInv:
 		return p.cmdProposalInv(payload)
 	case pi.CmdVoteInventory:
-		return p.cmdVoteInventory(payload)
+		return p.cmdVoteInventory()
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -832,7 +816,7 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 	case plugins.HookTypeSetRecordStatusPost:
 		return p.hookSetRecordStatusPost(payload)
 	case plugins.HookTypePluginPre:
-		return p.hookPluginPre(payload)
+		return p.hookPluginPre(treeID, token, payload)
 	}
 
 	return nil

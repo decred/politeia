@@ -28,6 +28,10 @@ const (
 	CmdInventory  = "inventory"  // Get inventory by vote status
 	CmdTimestamps = "timestamps" // Get vote data timestamps
 
+	// Plugin setting keys
+	SettingKeyVoteDurationMin = "votedurationmin"
+	SettingKeyVoteDurationMax = "votedurationmax"
+
 	// Default plugin settings
 	DefaultMainNetVoteDurationMin = 2016
 	DefaultMainNetVoteDurationMax = 4032
