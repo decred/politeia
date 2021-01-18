@@ -16,9 +16,9 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
-// decodeVoteMetadata decodes and returns the VoteMetadata from the
+// voteMetadataDecode decodes and returns the VoteMetadata from the
 // provided backend files. If a VoteMetadata is not found, nil is returned.
-func decodeVoteMetadata(files []backend.File) (*ticketvote.VoteMetadata, error) {
+func voteMetadataDecode(files []backend.File) (*ticketvote.VoteMetadata, error) {
 	var voteMD *ticketvote.VoteMetadata
 	for _, v := range files {
 		if v.Name == ticketvote.FileNameVoteMetadata {
@@ -67,8 +67,7 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 }
 
 func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
-	// LinkTo must be a public record that is the parent of a runoff
-	// vote, i.e. has the VoteMetadata.LinkBy field set.
+	// LinkTo must be a public record
 	token, err := tokenDecode(linkTo)
 	if err != nil {
 		return backend.PluginUserError{
@@ -95,7 +94,10 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 			ErrorContext: "record is censored",
 		}
 	}
-	parentVM, err := decodeVoteMetadata(r.Files)
+
+	// LinkTo must be a runoff vote parent record, i.e. has specified
+	// a LinkBy deadline.
+	parentVM, err := voteMetadataDecode(r.Files)
 	if err != nil {
 		return err
 	}
@@ -106,14 +108,29 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 			ErrorContext: "record not a runoff vote parent",
 		}
 	}
+
+	// The LinkBy deadline must not be expired
 	if time.Now().Unix() > parentVM.LinkBy {
-		// Linkby deadline has expired. New links are not allowed.
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "parent record linkby deadline has expired",
 		}
 	}
+
+	// The runoff vote parent record must have been approved in a vote.
+	vs, err := p.summaryByToken(token)
+	if err != nil {
+		return err
+	}
+	if !vs.Approved {
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorContext: "parent record vote is not approved",
+		}
+	}
+
 	return nil
 }
 
@@ -159,7 +176,7 @@ func (p *ticketVotePlugin) hookNewRecordPre(payload string) error {
 	}
 
 	// Verify the vote metadata if the record contains one
-	vm, err := decodeVoteMetadata(nr.Files)
+	vm, err := voteMetadataDecode(nr.Files)
 	if err != nil {
 		return err
 	}
@@ -188,14 +205,14 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 			oldLinkTo string
 			newLinkTo string
 		)
-		vm, err := decodeVoteMetadata(er.Current.Files)
+		vm, err := voteMetadataDecode(er.Current.Files)
 		if err != nil {
 			return err
 		}
 		if vm != nil {
 			oldLinkTo = vm.LinkTo
 		}
-		vm, err = decodeVoteMetadata(er.FilesAdd)
+		vm, err = voteMetadataDecode(er.FilesAdd)
 		if err != nil {
 			return err
 		}
@@ -215,7 +232,7 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 
 	// Verify LinkBy if one was included. The VoteMetadata is optional
 	// so the record may not contain one.
-	vm, err := decodeVoteMetadata(er.FilesAdd)
+	vm, err := voteMetadataDecode(er.FilesAdd)
 	if err != nil {
 		return err
 	}
@@ -237,7 +254,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 	}
 
 	// Check if the LinkTo has been set
-	vm, err := decodeVoteMetadata(srs.Current.Files)
+	vm, err := voteMetadataDecode(srs.Current.Files)
 	if err != nil {
 		return err
 	}
@@ -252,16 +269,16 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 		case backend.MDStatusVetted:
 			// Record has been made public. Add child token to parent's
 			// linked from list.
-			err := p.linkedFromAdd(parentToken, childToken)
+			err := p.linkedFromCacheAdd(parentToken, childToken)
 			if err != nil {
-				return fmt.Errorf("linkedFromAdd: %v", err)
+				return fmt.Errorf("linkedFromCacheAdd: %v", err)
 			}
 		case backend.MDStatusCensored:
 			// Record has been censored. Delete child token from parent's
 			// linked from list.
-			err := p.linkedFromDel(parentToken, childToken)
+			err := p.linkedFromCacheDel(parentToken, childToken)
 			if err != nil {
-				return fmt.Errorf("linkedFromDel: %v", err)
+				return fmt.Errorf("linkedFromCacheDel: %v", err)
 			}
 		}
 	}

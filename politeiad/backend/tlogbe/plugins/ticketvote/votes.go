@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 )
 
-func (p *ticketVotePlugin) cachedVotes(token []byte) map[string]string {
+func (p *ticketVotePlugin) votesCache(token []byte) map[string]string {
 	p.Lock()
 	defer p.Unlock()
 
@@ -25,7 +25,7 @@ func (p *ticketVotePlugin) cachedVotes(token []byte) map[string]string {
 	return c
 }
 
-func (p *ticketVotePlugin) cachedVotesSet(token, ticket, voteBit string) {
+func (p *ticketVotePlugin) votesCacheSet(token, ticket, voteBit string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -40,7 +40,7 @@ func (p *ticketVotePlugin) cachedVotesSet(token, ticket, voteBit string) {
 		token, ticket, voteBit)
 }
 
-func (p *ticketVotePlugin) cachedVotesDel(token string) {
+func (p *ticketVotePlugin) votesCacheDel(token string) {
 	p.Lock()
 	defer p.Unlock()
 

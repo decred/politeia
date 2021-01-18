@@ -43,7 +43,8 @@ const (
 	dataTypeStartRunoff     = "startrunoff"
 
 	// Internal plugin commands
-	cmdStartRunoffSub = "startrunoffsub"
+	cmdStartRunoffSubmission = "startrunoffsub"
+	cmdRunoffDetails         = "runoffdetails"
 )
 
 // tokenDecode decodes a record token and only accepts full length tokens.
@@ -371,6 +372,20 @@ func (p *ticketVotePlugin) voteDetails(treeID int64) (*ticketvote.VoteDetails, e
 	return vd, nil
 }
 
+func (p *ticketVotePlugin) voteDetailsByToken(token []byte) (*ticketvote.VoteDetails, error) {
+	reply, err := p.backend.VettedPluginCmd(token, ticketvote.ID,
+		ticketvote.CmdDetails, "")
+	if err != nil {
+		return nil, err
+	}
+	var dr ticketvote.DetailsReply
+	err = json.Unmarshal([]byte(reply), &dr)
+	if err != nil {
+		return nil, err
+	}
+	return dr.Vote, nil
+}
+
 func (p *ticketVotePlugin) castVoteSave(treeID int64, cv ticketvote.CastVoteDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromCastVoteDetails(cv)
@@ -407,16 +422,176 @@ func (p *ticketVotePlugin) castVotes(treeID int64) ([]ticketvote.CastVoteDetails
 	return votes, nil
 }
 
+func (p *ticketVotePlugin) voteOptionResults(token []byte, options []ticketvote.VoteOption) ([]ticketvote.VoteOptionResult, error) {
+	// Ongoing votes will have the cast votes cached. Calculate the
+	// results using the cached votes if we can since it will be much
+	// faster.
+	var (
+		tally = make(map[string]int, len(options))
+		votes = p.votesCache(token)
+	)
+	switch {
+	case len(votes) > 0:
+		// Vote are in the cache. Tally the results.
+		for _, voteBit := range votes {
+			tally[voteBit]++
+		}
+
+	default:
+		// Votes are not in the cache. Pull them from the backend.
+		reply, err := p.backend.VettedPluginCmd(token, ticketvote.ID,
+			ticketvote.CmdResults, "")
+		var rr ticketvote.ResultsReply
+		err = json.Unmarshal([]byte(reply), &rr)
+		if err != nil {
+			return nil, err
+		}
+
+		// Tally the results
+		for _, v := range rr.Votes {
+			tally[v.VoteBit]++
+		}
+	}
+
+	// Prepare reply
+	results := make([]ticketvote.VoteOptionResult, 0, len(options))
+	for _, v := range options {
+		bit := strconv.FormatUint(v.Bit, 16)
+		results = append(results, ticketvote.VoteOptionResult{
+			ID:          v.ID,
+			Description: v.Description,
+			VoteBit:     v.Bit,
+			Votes:       uint64(tally[bit]),
+		})
+	}
+
+	return results, nil
+}
+
+// voteSummariesForRunoff returns the vote summaries of all submissions in a
+// runoff vote. This should only be called once the vote has finished.
+func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ticketvote.VoteSummary, error) {
+	// Get runoff vote details
+	parent, err := tokenDecode(parentToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := p.backend.VettedPluginCmd(parent, ticketvote.ID,
+		cmdRunoffDetails, "")
+	if err != nil {
+		return nil, fmt.Errorf("VettedPluginCmd %x %v %v: %v",
+			parent, ticketvote.ID, cmdRunoffDetails, err)
+	}
+	var rdr runoffDetailsReply
+	err = json.Unmarshal([]byte(reply), &rdr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify submissions exist
+	subs := rdr.Runoff.Submissions
+	if len(subs) == 0 {
+		return map[string]ticketvote.VoteSummary{}, nil
+	}
+
+	// Compile summaries for all submissions
+	var (
+		summaries        = make(map[string]ticketvote.VoteSummary, len(subs))
+		winnerNetApprove int    // Net number of approve votes of the winner
+		winnerToken      string // Token of the winner
+	)
+	for _, v := range subs {
+		token, err := tokenDecode(v)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get vote details
+		vd, err := p.voteDetailsByToken(token)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get vote options results
+		results, err := p.voteOptionResults(token, vd.Params.Options)
+		if err != nil {
+			return nil, err
+		}
+
+		// Save summary
+		s := ticketvote.VoteSummary{
+			Type:             vd.Params.Type,
+			Status:           ticketvote.VoteStatusFinished,
+			Duration:         vd.Params.Duration,
+			StartBlockHeight: vd.StartBlockHeight,
+			StartBlockHash:   vd.StartBlockHash,
+			EndBlockHeight:   vd.EndBlockHeight,
+			EligibleTickets:  uint32(len(vd.EligibleTickets)),
+			QuorumPercentage: vd.Params.QuorumPercentage,
+			PassPercentage:   vd.Params.PassPercentage,
+			Results:          results,
+			Approved:         false,
+		}
+		summaries[v] = s
+
+		// We now check if this record has the most net yes votes.
+
+		// Verify the vote met quorum and pass requirements
+		approved := voteIsApproved(*vd, results)
+		if !approved {
+			// Vote did not meet quorum and pass requirements. Nothing
+			// else to do. Record vote is not approved.
+			continue
+		}
+
+		// Check if this record has more net approved votes then current
+		// highest.
+		var (
+			votesApprove uint64 // Number of approve votes
+			votesReject  uint64 // Number of reject votes
+		)
+		for _, vor := range s.Results {
+			switch vor.ID {
+			case ticketvote.VoteOptionIDApprove:
+				votesApprove = vor.Votes
+			case ticketvote.VoteOptionIDReject:
+				votesReject = vor.Votes
+			default:
+				// Runoff vote options can only be approve/reject
+				return nil, fmt.Errorf("unknown runoff vote option %v", vor.ID)
+			}
+
+			netApprove := int(votesApprove) - int(votesReject)
+			if netApprove > winnerNetApprove {
+				// New winner!
+				winnerToken = v
+				winnerNetApprove = netApprove
+			}
+
+			// This function doesn't handle the unlikely case that the
+			// runoff vote results in a tie.
+		}
+	}
+	if winnerToken != "" {
+		// A winner was found. Mark their summary as approved.
+		s := summaries[winnerToken]
+		s.Approved = true
+		summaries[winnerToken] = s
+	}
+
+	return summaries, nil
+}
+
 // summary returns the vote summary for a record.
 func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32) (*ticketvote.VoteSummary, error) {
 	// Check if the summary has been cached
-	s, err := p.cachedSummary(hex.EncodeToString(token))
+	s, err := p.summaryCache(hex.EncodeToString(token))
 	switch {
 	case errors.Is(err, errSummaryNotFound):
 		// Cached summary not found. Continue.
 	case err != nil:
 		// Some other error
-		return nil, fmt.Errorf("cachedSummary: %v", err)
+		return nil, fmt.Errorf("summaryCache: %v", err)
 	default:
 		// Caches summary was found. Return it.
 		return s, nil
@@ -428,7 +603,8 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	// appropriate record has been found that proves otherwise.
 	status := ticketvote.VoteStatusUnauthorized
 
-	// Check if the vote has been authorized
+	// Check if the vote has been authorized. Not all vote types
+	// require an authorization.
 	auths, err := p.auths(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("auths: %v", err)
@@ -470,21 +646,10 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 		status = ticketvote.VoteStatusFinished
 	}
 
-	// Pull the cast votes from the cache and tally the results
-	votes := p.cachedVotes(token)
-	tally := make(map[string]int, len(vd.Params.Options))
-	for _, voteBit := range votes {
-		tally[voteBit]++
-	}
-	results := make([]ticketvote.VoteOptionResult, 0, len(vd.Params.Options))
-	for _, v := range vd.Params.Options {
-		bit := strconv.FormatUint(v.Bit, 16)
-		results = append(results, ticketvote.VoteOptionResult{
-			ID:          v.ID,
-			Description: v.Description,
-			VoteBit:     v.Bit,
-			Votes:       uint64(tally[bit]),
-		})
+	// Tally vote results
+	results, err := p.voteOptionResults(token, vd.Params.Options)
+	if err != nil {
+		return nil, err
 	}
 
 	// Prepare summary
@@ -506,36 +671,47 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 		return &summary, nil
 	}
 
-	// The vote has finished. We can calculate if the vote was approved
-	// for certain vote types and cache the results.
+	// The vote has finished. Find whether the vote was approved and
+	// cache the vote summary.
 	switch vd.Params.Type {
-	case ticketvote.VoteTypeStandard, ticketvote.VoteTypeRunoff:
-		// These vote types are strictly approve/reject votes so we can
-		// calculate the vote approval. Continue.
+	case ticketvote.VoteTypeStandard:
+		// Standard vote uses a simple approve/reject result
+		summary.Approved = voteIsApproved(*vd, results)
+
+		// Cache summary
+		err = p.summaryCacheSave(vd.Params.Token, summary)
+		if err != nil {
+			return nil, err
+		}
+
+		// Remove record from votes cache. The votes cache is only for
+		// records with ongoing votes.
+		p.votesCacheDel(vd.Params.Token)
+
+	case ticketvote.VoteTypeRunoff:
+		// A runoff vote requires that we pull all other runoff vote
+		// submissions to determine if the vote actually passed.
+		summaries, err := p.summariesForRunoff(vd.Params.Parent)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range summaries {
+			// Cache summary
+			err = p.summaryCacheSave(k, v)
+			if err != nil {
+				return nil, err
+			}
+
+			// Remove record from votes cache. The votes cache is only for
+			// records with ongoing votes.
+			p.votesCacheDel(k)
+		}
+
+		summary = summaries[vd.Params.Token]
+
 	default:
-		// Nothing else to do for all other vote types
-		return &summary, nil
+		return nil, fmt.Errorf("unknown vote type")
 	}
-
-	// Calculate vote approval
-	approved := voteIsApproved(*vd, results)
-
-	// If this is a standard vote then we can take the results as is.
-	// A runoff vote requires that we pull all other runoff vote
-	// submissions to determine if the vote actually passed.
-	// TODO make summary for runoff vote submissions
-	summary.Approved = approved
-
-	// Cache the summary
-	err = p.cachedSummarySave(vd.Params.Token, summary)
-	if err != nil {
-		return nil, fmt.Errorf("cachedSummarySave %v: %v %v",
-			vd.Params.Token, err, summary)
-	}
-
-	// Remove record from the votes cache now that a summary has been
-	// saved for it.
-	p.cachedVotesDel(vd.Params.Token)
 
 	return &summary, nil
 }
@@ -589,8 +765,8 @@ func (p *ticketVotePlugin) bestBlock() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	reply, err := p.backend.Plugin(dcrdata.ID,
-		dcrdata.CmdBestBlock, "", string(payload))
+	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.ID,
+		dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
 		return 0, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.ID, dcrdata.CmdBestBlock, err)
@@ -625,8 +801,8 @@ func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	reply, err := p.backend.Plugin(dcrdata.ID,
-		dcrdata.CmdBestBlock, "", string(payload))
+	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.ID,
+		dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
 		return 0, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.ID, dcrdata.CmdBestBlock, err)
@@ -660,8 +836,8 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmen
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.Plugin(dcrdata.ID,
-		dcrdata.CmdTxsTrimmed, "", string(payload))
+	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.ID,
+		dcrdata.CmdTxsTrimmed, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.ID, dcrdata.CmdTxsTrimmed, err)
@@ -730,8 +906,8 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.Plugin(dcrdata.ID,
-		dcrdata.CmdBlockDetails, "", string(payload))
+	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.ID,
+		dcrdata.CmdBlockDetails, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.ID, dcrdata.CmdBlockDetails, err)
@@ -754,8 +930,8 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	reply, err = p.backend.Plugin(dcrdata.ID,
-		dcrdata.CmdTicketPool, "", string(payload))
+	reply, err = p.backend.VettedPluginCmd([]byte{}, dcrdata.ID,
+		dcrdata.CmdTicketPool, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.ID, dcrdata.CmdTicketPool, err)
@@ -901,9 +1077,9 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	// Update inventory
 	switch a.Action {
 	case ticketvote.AuthActionAuthorize:
-		p.inventorySetToAuthorized(a.Token)
+		p.invCacheSetToAuthorized(a.Token)
 	case ticketvote.AuthActionRevoke:
-		p.inventorySetToUnauthorized(a.Token)
+		p.invCacheSetToUnauthorized(a.Token)
 	default:
 		// Should not happen
 		e := fmt.Sprintf("invalid authorize action: %v", a.Action)
@@ -947,7 +1123,6 @@ func voteBitVerify(options []ticketvote.VoteOption, mask, bit uint64) error {
 	return fmt.Errorf("bit 0x%x not found in vote options", bit)
 }
 
-// TODO test this function
 func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationMax uint32) error {
 	// Verify vote type
 	switch vote.Type {
@@ -1218,7 +1393,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Update inventory
-	p.inventorySetToStarted(vd.Params.Token, ticketvote.VoteTypeStandard,
+	p.invCacheSetToStarted(vd.Params.Token, ticketvote.VoteTypeStandard,
 		vd.EndBlockHeight)
 
 	return &ticketvote.StartReply{
@@ -1290,14 +1465,37 @@ func (p *ticketVotePlugin) startRunoffRecord(treeID int64) (*startRunoffRecord, 
 	return srr, nil
 }
 
-// startRunoffSub is an internal plugin command that is used to start the
-// voting period on a runoff vote submission.
-type startRunoffSub struct {
-	ParentTreeID int64                   `json:"parenttreeid"`
-	StartDetails ticketvote.StartDetails `json:"startdetails"`
+// runoffDetails is an internal plugin command that requests the details of a
+// runoff vote.
+type runoffDetails struct{}
+
+// runoffDetailsReply is the reply to the runoffDetails command.
+type runoffDetailsReply struct {
+	Runoff startRunoffRecord `json:"runoff"`
 }
 
-func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs startRunoffSub) error {
+func (p *ticketVotePlugin) cmdRunoffDetails(treeID int64) (string, error) {
+	log.Tracef("cmdRunoffDetails: %x", treeID)
+
+	// Get start runoff record
+	srs, err := p.startRunoffRecord(treeID)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	r := runoffDetailsReply{
+		Runoff: *srs,
+	}
+	reply, err := json.Marshal(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs startRunoffSubmission) error {
 	// Sanity check
 	s := srs.StartDetails
 	t, err := tokenDecode(s.Params.Token)
@@ -1377,7 +1575,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	}
 
 	// Update inventory
-	p.inventorySetToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
+	p.invCacheSetToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
 		vd.EndBlockHeight)
 
 	return nil
@@ -1427,7 +1625,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 			}
 		}
 	}
-	vm, err := decodeVoteMetadata(r.Files)
+	vm, err := voteMetadataDecode(r.Files)
 	if err != nil {
 		return nil, err
 	}
@@ -1461,7 +1659,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 	// linked to the parent record. The parent record's linked from
 	// list will include abandoned proposals that need to be filtered
 	// out.
-	lf, err := p.linkedFrom(token)
+	lf, err := p.linkedFromCache(token)
 	if err != nil {
 		return nil, err
 	}
@@ -1674,13 +1872,13 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 	}
 
 	// Start the voting period of each runoff vote submissions by
-	// using the internal plugin command startRunoffSub.
+	// using the internal plugin command startRunoffSubmission.
 	for _, v := range s.Starts {
 		token, err = tokenDecode(v.Params.Token)
 		if err != nil {
 			return nil, err
 		}
-		srs := startRunoffSub{
+		srs := startRunoffSubmission{
 			ParentTreeID: treeID,
 			StartDetails: v,
 		}
@@ -1689,14 +1887,14 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 			return nil, err
 		}
 		_, err = p.backend.VettedPluginCmd(token, ticketvote.ID,
-			cmdStartRunoffSub, string(b))
+			cmdStartRunoffSubmission, string(b))
 		if err != nil {
 			var ue backend.PluginUserError
 			if errors.As(err, &ue) {
 				return nil, err
 			}
 			return nil, fmt.Errorf("VettedPluginCmd %x %v %v %v: %v",
-				token, ticketvote.ID, cmdStartRunoffSub, b, err)
+				token, ticketvote.ID, cmdStartRunoffSubmission, b, err)
 		}
 	}
 
@@ -1708,11 +1906,18 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 	}, nil
 }
 
-func (p *ticketVotePlugin) cmdStartRunoffSub(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdStartRunoffSub: %v %x %v", treeID, token, payload)
+// startRunoffSubmission is an internal plugin command that is used to start
+// the voting period on a runoff vote submission.
+type startRunoffSubmission struct {
+	ParentTreeID int64                   `json:"parenttreeid"`
+	StartDetails ticketvote.StartDetails `json:"startdetails"`
+}
+
+func (p *ticketVotePlugin) cmdStartRunoffSubmission(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdStartRunoffSubmission: %v %x %v", treeID, token, payload)
 
 	// Decode payload
-	var srs startRunoffSub
+	var srs startRunoffSubmission
 	err := json.Unmarshal([]byte(payload), &srs)
 	if err != nil {
 		return "", err
@@ -1903,7 +2108,7 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 			cvr.Receipt = cv.Receipt
 
 			// Update cast votes cache
-			p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
+			p.votesCacheSet(v.Token, v.Ticket, v.VoteBit)
 
 		sendResult:
 			// Send result back to calling function
@@ -2098,8 +2303,8 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	m.Lock()
 	defer m.Unlock()
 
-	// cachedVotes contains the tickets that have alread voted
-	cachedVotes := p.cachedVotes(token)
+	// votesCache contains the tickets that have alread voted
+	votesCache := p.votesCache(token)
 	for k, v := range votes {
 		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
 			// Vote has an error. Skip it.
@@ -2107,7 +2312,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		}
 
 		// Verify ticket has not already vote
-		_, ok := cachedVotes[v.Ticket]
+		_, ok := votesCache[v.Ticket]
 		if ok {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
@@ -2412,7 +2617,7 @@ func (p *ticketVotePlugin) cmdInventory() (string, error) {
 	}
 
 	// Get the inventory
-	inv, err := p.inventory(bb)
+	inv, err := p.invCache(bb)
 	if err != nil {
 		return "", fmt.Errorf("inventory: %v", err)
 	}
@@ -2515,7 +2720,7 @@ func (p *ticketVotePlugin) cmdLinkedFrom(token []byte) (string, error) {
 	log.Tracef("cmdLinkedFrom: %x", token)
 
 	// Get linked from list
-	lf, err := p.linkedFrom(token)
+	lf, err := p.linkedFromCache(token)
 	if err != nil {
 		return "", err
 	}

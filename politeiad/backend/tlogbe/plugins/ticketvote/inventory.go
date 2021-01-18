@@ -22,7 +22,7 @@ type inventory struct {
 	bestBlock    uint32            // Height of last inventory update
 }
 
-func (p *ticketVotePlugin) inventorySetToAuthorized(token string) {
+func (p *ticketVotePlugin) invCacheSetToAuthorized(token string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -54,7 +54,7 @@ func (p *ticketVotePlugin) inventorySetToAuthorized(token string) {
 	log.Debugf("ticketvote: added to authorized inv: %v", token)
 }
 
-func (p *ticketVotePlugin) inventorySetToUnauthorized(token string) {
+func (p *ticketVotePlugin) invCacheSetToUnauthorized(token string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -87,7 +87,7 @@ func (p *ticketVotePlugin) inventorySetToUnauthorized(token string) {
 	log.Debugf("ticketvote: added to unauthorized inv: %v", token)
 }
 
-func (p *ticketVotePlugin) inventorySetToStarted(token string, t ticketvote.VoteT, endHeight uint32) {
+func (p *ticketVotePlugin) invCacheSetToStarted(token string, t ticketvote.VoteT, endHeight uint32) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -152,7 +152,7 @@ func (p *ticketVotePlugin) inventorySetToStarted(token string, t ticketvote.Vote
 	log.Debugf("ticketvote: added to started inv: %v", token)
 }
 
-func (p *ticketVotePlugin) inventory(bestBlock uint32) (*inventory, error) {
+func (p *ticketVotePlugin) invCache(bestBlock uint32) (*inventory, error) {
 	p.Lock()
 	defer p.Unlock()
 

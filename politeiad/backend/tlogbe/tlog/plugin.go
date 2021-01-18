@@ -165,6 +165,9 @@ func (t *Tlog) PluginCmd(treeID int64, token []byte, pluginID, cmd, payload stri
 	return p.client.Cmd(treeID, token, cmd, payload)
 }
 
+// Plugins returns all registered plugins for the tlog instance.
+//
+// This function satisfies the tlogclient.Client interface.
 func (t *Tlog) Plugins() []backend.Plugin {
 	log.Tracef("%v Plugins", t.id)
 

@@ -174,7 +174,7 @@ func (p *ticketVotePlugin) Setup() error {
 			return err
 		}
 		for _, v := range rr.Votes {
-			p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
+			p.votesCacheSet(v.Token, v.Ticket, v.VoteBit)
 		}
 	}
 
@@ -208,8 +208,10 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 		return p.cmdLinkedFrom(token)
 
 		// Internal plugin commands
-	case cmdStartRunoffSub:
-		return p.cmdStartRunoffSub(treeID, token, payload)
+	case cmdStartRunoffSubmission:
+		return p.cmdStartRunoffSubmission(treeID, token, payload)
+	case cmdRunoffDetails:
+		return p.cmdRunoffDetails(treeID)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -238,6 +240,8 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 // This function satisfies the plugins.Client interface.
 func (p *ticketVotePlugin) Fsck() error {
 	log.Tracef("Fsck")
+
+	// Verify all caches
 
 	return nil
 }

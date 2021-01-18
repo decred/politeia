@@ -9,6 +9,13 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 )
 
+// TODO plugins should only have access to the backend methods for the tlog
+// instance that they're registered on.
+// TODO the plugin hook state should not really be required. This issue is that
+// some vetted plugins require unvetted hooks, ex. verifying the linkto in
+// vote metadata. Possile solution, keep the layer violations in the
+// application plugin (pi) instead of the functionality plugin (ticketvote).
+
 // Client provides an API for plugins to interact with a tlog instance.
 // Plugins are allowed to save, delete, and get plugin data to/from the tlog
 // backend. Editing plugin data is not allowed.
@@ -40,4 +47,7 @@ type Client interface {
 	// Timestamp returns the timestamp for the blob that correpsonds
 	// to the digest.
 	Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error)
+
+	// Plugins returns all registered plugins for the tlog instance.
+	Plugins() []backend.Plugin
 }

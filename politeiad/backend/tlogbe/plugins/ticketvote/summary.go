@@ -23,9 +23,9 @@ const (
 	filenameSummary = "{tokenprefix}-summary.json"
 )
 
-// cachedSummaryPath accepts both full tokens and token prefixes, however it
+// summaryCachePath accepts both full tokens and token prefixes, however it
 // always uses the token prefix when generatig the path.
-func (p *ticketVotePlugin) cachedSummaryPath(token string) (string, error) {
+func (p *ticketVotePlugin) summaryCachePath(token string) (string, error) {
 	// Use token prefix
 	t, err := tokenDecodeAnyLength(token)
 	if err != nil {
@@ -40,11 +40,11 @@ var (
 	errSummaryNotFound = errors.New("summary not found")
 )
 
-func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.VoteSummary, error) {
+func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.VoteSummary, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	fp, err := p.cachedSummaryPath(token)
+	fp, err := p.summaryCachePath(token)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.VoteSummary,
 	return &vs, nil
 }
 
-func (p *ticketVotePlugin) cachedSummarySave(token string, vs ticketvote.VoteSummary) error {
+func (p *ticketVotePlugin) summaryCacheSave(token string, vs ticketvote.VoteSummary) error {
 	b, err := json.Marshal(vs)
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ func (p *ticketVotePlugin) cachedSummarySave(token string, vs ticketvote.VoteSum
 	p.Lock()
 	defer p.Unlock()
 
-	fp, err := p.cachedSummaryPath(token)
+	fp, err := p.summaryCachePath(token)
 	if err != nil {
 		return err
 	}

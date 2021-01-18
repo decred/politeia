@@ -34,22 +34,22 @@ type linkedFrom struct {
 	Tokens map[string]struct{} `json:"tokens"`
 }
 
-// linkedFromPath returns the path to the linkedFrom list for the provided
+// linkedFromCachePath returns the path to the linked fromlist for the provided
 // record token. The token prefix is used in the file path so that the linked
 // from list can be retrieved using either the full token or the token prefix.
-func (p *ticketVotePlugin) linkedFromPath(token []byte) string {
+func (p *ticketVotePlugin) linkedFromCachePath(token []byte) string {
 	t := util.TokenPrefix(token)
 	fn := strings.Replace(fnLinkedFrom, "{tokenprefix}", t, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
-// linkedFromWithLock return the linked from list for a record token. If a
+// linkedFromCacheWithLock return the linked from list for a record token. If a
 // linked from list does not exist for the token then an empty list will be
 // returned.
 //
 // This function must be called WITH the lock held.
-func (p *ticketVotePlugin) linkedFromWithLock(token []byte) (*linkedFrom, error) {
-	fp := p.linkedFromPath(token)
+func (p *ticketVotePlugin) linkedFromCacheWithLock(token []byte) (*linkedFrom, error) {
+	fp := p.linkedFromCachePath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -70,34 +70,34 @@ func (p *ticketVotePlugin) linkedFromWithLock(token []byte) (*linkedFrom, error)
 	return &lf, nil
 }
 
-// linkedFrom return the linked from list for a record token. If a linked from
-// list does not exist for the token then an empty list will be returned.
+// linkedFromCache return the linked from list for a record token. If a linked
+// from list does not exist for the token then an empty list will be returned.
 //
 // This function must be called WITHOUT the lock held.
-func (p *ticketVotePlugin) linkedFrom(token []byte) (*linkedFrom, error) {
+func (p *ticketVotePlugin) linkedFromCache(token []byte) (*linkedFrom, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.linkedFromWithLock(token)
+	return p.linkedFromCacheWithLock(token)
 }
 
-// linkedFromSaveWithLock saves a linkedFrom to the plugin data dir.
+// linkedFromCacheSaveWithLock saves a linkedFrom to the plugin data dir.
 //
 // This function must be called WITH the lock held.
-func (p *ticketVotePlugin) linkedFromSaveWithLock(token []byte, lf linkedFrom) error {
+func (p *ticketVotePlugin) linkedFromCacheSaveWithLock(token []byte, lf linkedFrom) error {
 	b, err := json.Marshal(lf)
 	if err != nil {
 		return err
 	}
-	fp := p.linkedFromPath(token)
+	fp := p.linkedFromCachePath(token)
 	return ioutil.WriteFile(fp, b, 0664)
 }
 
-// linkedFromAdd updates the cached linkedFrom list for the parentToken, adding
-// the childToken to the list. The full length token MUST be used.
+// linkedFromCacheAdd updates the cached linkedFrom list for the parentToken,
+// adding the childToken to the list. The full length token MUST be used.
 //
 // This function must be called WITHOUT the lock held.
-func (p *ticketVotePlugin) linkedFromAdd(parentToken, childToken string) error {
+func (p *ticketVotePlugin) linkedFromCacheAdd(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -112,7 +112,7 @@ func (p *ticketVotePlugin) linkedFromAdd(parentToken, childToken string) error {
 	}
 
 	// Get existing linked from list
-	lf, err := p.linkedFromWithLock(parent)
+	lf, err := p.linkedFromCacheWithLock(parent)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (p *ticketVotePlugin) linkedFromAdd(parentToken, childToken string) error {
 	lf.Tokens[childToken] = struct{}{}
 
 	// Save list
-	err = p.linkedFromSaveWithLock(parent, *lf)
+	err = p.linkedFromCacheSaveWithLock(parent, *lf)
 	if err != nil {
 		return err
 	}
@@ -132,11 +132,11 @@ func (p *ticketVotePlugin) linkedFromAdd(parentToken, childToken string) error {
 	return nil
 }
 
-// linkedFromDel updates the cached linkedFrom list for the parentToken,
+// linkedFromCacheDel updates the cached linkedFrom list for the parentToken,
 // deleting the childToken from the list.
 //
 // This function must be called WITHOUT the lock held.
-func (p *ticketVotePlugin) linkedFromDel(parentToken, childToken string) error {
+func (p *ticketVotePlugin) linkedFromCacheDel(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -151,7 +151,7 @@ func (p *ticketVotePlugin) linkedFromDel(parentToken, childToken string) error {
 	}
 
 	// Get existing linked from list
-	lf, err := p.linkedFromWithLock(parent)
+	lf, err := p.linkedFromCacheWithLock(parent)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (p *ticketVotePlugin) linkedFromDel(parentToken, childToken string) error {
 	delete(lf.Tokens, childToken)
 
 	// Save list
-	err = p.linkedFromSaveWithLock(parent, *lf)
+	err = p.linkedFromCacheSaveWithLock(parent, *lf)
 	if err != nil {
 		return err
 	}
