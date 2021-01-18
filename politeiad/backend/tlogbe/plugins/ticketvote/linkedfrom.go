@@ -43,7 +43,9 @@ func (p *ticketVotePlugin) linkedFromPath(token []byte) string {
 	return filepath.Join(p.dataDir, fn)
 }
 
-// linkedFromWithLock return the linkedFrom list for a record token.
+// linkedFromWithLock return the linked from list for a record token. If a
+// linked from list does not exist for the token then an empty list will be
+// returned.
 //
 // This function must be called WITH the lock held.
 func (p *ticketVotePlugin) linkedFromWithLock(token []byte) (*linkedFrom, error) {
@@ -68,7 +70,8 @@ func (p *ticketVotePlugin) linkedFromWithLock(token []byte) (*linkedFrom, error)
 	return &lf, nil
 }
 
-// linkedFrom return the linkedFrom list for a record token.
+// linkedFrom return the linked from list for a record token. If a linked from
+// list does not exist for the token then an empty list will be returned.
 //
 // This function must be called WITHOUT the lock held.
 func (p *ticketVotePlugin) linkedFrom(token []byte) (*linkedFrom, error) {

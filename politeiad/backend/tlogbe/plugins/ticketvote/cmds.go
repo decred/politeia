@@ -75,6 +75,226 @@ func convertSignatureError(err error) backend.PluginUserError {
 	}
 }
 
+func convertAuthDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.AuthDetails, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorAuthDetails {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorAuthDetails)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), digest)
+	}
+	var ad ticketvote.AuthDetails
+	err = json.Unmarshal(b, &ad)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal AuthDetails: %v", err)
+	}
+
+	return &ad, nil
+}
+
+func convertVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.VoteDetails, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorVoteDetails {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorVoteDetails)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), digest)
+	}
+	var vd ticketvote.VoteDetails
+	err = json.Unmarshal(b, &vd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteDetails: %v", err)
+	}
+
+	return &vd, nil
+}
+
+func convertCastVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.CastVoteDetails, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorCastVoteDetails {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorCastVoteDetails)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), digest)
+	}
+	var cv ticketvote.CastVoteDetails
+	err = json.Unmarshal(b, &cv)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CastVoteDetails: %v", err)
+	}
+
+	return &cv, nil
+}
+
+func convertStartRunoffFromBlobEntry(be store.BlobEntry) (*startRunoffRecord, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorStartRunoff {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorStartRunoff)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), digest)
+	}
+	var srr startRunoffRecord
+	err = json.Unmarshal(b, &srr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal StartRunoffRecord: %v", err)
+	}
+
+	return &srr, nil
+}
+
+func convertBlobEntryFromAuthDetails(ad ticketvote.AuthDetails) (*store.BlobEntry, error) {
+	data, err := json.Marshal(ad)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorAuthDetails,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
+func convertBlobEntryFromVoteDetails(vd ticketvote.VoteDetails) (*store.BlobEntry, error) {
+	data, err := json.Marshal(vd)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorVoteDetails,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
+func convertBlobEntryFromCastVoteDetails(cv ticketvote.CastVoteDetails) (*store.BlobEntry, error) {
+	data, err := json.Marshal(cv)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCastVoteDetails,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
+func convertBlobEntryFromStartRunoff(srr startRunoffRecord) (*store.BlobEntry, error) {
+	data, err := json.Marshal(srr)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorStartRunoff,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
 func (p *ticketVotePlugin) authSave(treeID int64, ad ticketvote.AuthDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromAuthDetails(ad)
@@ -2291,222 +2511,27 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 	return string(reply), nil
 }
 
-func convertAuthDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.AuthDetails, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+func (p *ticketVotePlugin) cmdLinkedFrom(token []byte) (string, error) {
+	log.Tracef("cmdLinkedFrom: %x", token)
+
+	// Get linked from list
+	lf, err := p.linkedFrom(token)
 	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorAuthDetails {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorAuthDetails)
+		return "", err
 	}
 
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
+	// Prepare reply
+	tokens := make([]string, 0, len(lf.Tokens))
+	for k := range lf.Tokens {
+		tokens = append(tokens, k)
 	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
+	lfr := ticketvote.LinkedFromReply{
+		Tokens: tokens,
 	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var ad ticketvote.AuthDetails
-	err = json.Unmarshal(b, &ad)
+	reply, err := json.Marshal(lfr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal AuthDetails: %v", err)
+		return "", err
 	}
 
-	return &ad, nil
-}
-
-func convertVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.VoteDetails, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorVoteDetails {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorVoteDetails)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var vd ticketvote.VoteDetails
-	err = json.Unmarshal(b, &vd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal VoteDetails: %v", err)
-	}
-
-	return &vd, nil
-}
-
-func convertCastVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.CastVoteDetails, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorCastVoteDetails {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorCastVoteDetails)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var cv ticketvote.CastVoteDetails
-	err = json.Unmarshal(b, &cv)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CastVoteDetails: %v", err)
-	}
-
-	return &cv, nil
-}
-
-func convertStartRunoffFromBlobEntry(be store.BlobEntry) (*startRunoffRecord, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorStartRunoff {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorStartRunoff)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var srr startRunoffRecord
-	err = json.Unmarshal(b, &srr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal StartRunoffRecord: %v", err)
-	}
-
-	return &srr, nil
-}
-
-func convertBlobEntryFromAuthDetails(ad ticketvote.AuthDetails) (*store.BlobEntry, error) {
-	data, err := json.Marshal(ad)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorAuthDetails,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
-func convertBlobEntryFromVoteDetails(vd ticketvote.VoteDetails) (*store.BlobEntry, error) {
-	data, err := json.Marshal(vd)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorVoteDetails,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
-func convertBlobEntryFromCastVoteDetails(cv ticketvote.CastVoteDetails) (*store.BlobEntry, error) {
-	data, err := json.Marshal(cv)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorCastVoteDetails,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
-func convertBlobEntryFromStartRunoff(srr startRunoffRecord) (*store.BlobEntry, error) {
-	data, err := json.Marshal(srr)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorStartRunoff,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return string(reply), nil
 }

@@ -27,6 +27,7 @@ const (
 	CmdSummary    = "summary"    // Get vote summary
 	CmdInventory  = "inventory"  // Get inventory by vote status
 	CmdTimestamps = "timestamps" // Get vote data timestamps
+	CmdLinkedFrom = "linkedfrom" // Get record linked from list
 
 	// Plugin setting keys
 	SettingKeyVoteDurationMin = "votedurationmin"
@@ -512,4 +513,15 @@ type TimestampsReply struct {
 	Auths   []Timestamp          `json:"auths,omitempty"`
 	Details Timestamp            `json:"details,omitempty"`
 	Votes   map[string]Timestamp `json:"votes,omitempty"` // [ticket]Timestamp
+}
+
+// LinkedFrom requests the linked from list for a record. The only records that
+// will have a linked from list are the parent records in a runoff vote. The
+// linked from list will contain all runoff vote submissions, i.e. records that
+// linked to the runoff parent record using the VoteMetadata.LinkTo field.
+type LinkedFrom struct{}
+
+// LinkedFromReply is the reply to the LinkedFrom command.
+type LinkedFromReply struct {
+	Tokens []string `json:"tokens"`
 }
