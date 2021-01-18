@@ -2,12 +2,11 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package pi
+package ticketvote
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -22,34 +21,32 @@ const (
 	fnLinkedFrom = "{tokenprefix}-linkedfrom.json"
 )
 
-// linkedFrom is the the structure that is updated and cached for proposal A
-// when proposal B links to proposal A. Proposals can link to one another using
-// the ProposalMetadata LinkTo field. The linkedFrom list contains all
-// proposals that have linked to proposal A. The list will only contain public
-// proposals. The linkedFrom list is saved to disk in the pi plugin data dir,
-// specifying the parent proposal token in the filename.
+// linkedFrom is the the structure that is updated and cached for record A when
+// record B links to record A. Recordss can link to one another using the
+// VoteMetadata LinkTo field. The linkedFrom list contains all records that
+// have linked to record A. The list will only contain public records. The
+// linkedFrom list is saved to disk in the ticketvote plugin data dir, with the
+// parent record token in the filename.
 //
-// Example: the linked from list for an RFP proposal will contain all public
-// RFP submissions. The cached list can be found in the pi plugin data dir
-// at the path specified by linkedFromPath().
+// Example: the linked from list for a runoff vote parent record will contain
+// all public runoff vote submissions.
 type linkedFrom struct {
 	Tokens map[string]struct{} `json:"tokens"`
 }
 
 // linkedFromPath returns the path to the linkedFrom list for the provided
-// proposal token. The token prefix is used in the file path so that the linked
+// record token. The token prefix is used in the file path so that the linked
 // from list can be retrieved using either the full token or the token prefix.
-func (p *piPlugin) linkedFromPath(token []byte) string {
+func (p *ticketVotePlugin) linkedFromPath(token []byte) string {
 	t := util.TokenPrefix(token)
 	fn := strings.Replace(fnLinkedFrom, "{tokenprefix}", t, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
-// linkedFromWithLock return the linkedFrom list for the provided proposal
-// token.
+// linkedFromWithLock return the linkedFrom list for a record token.
 //
 // This function must be called WITH the lock held.
-func (p *piPlugin) linkedFromWithLock(token []byte) (*linkedFrom, error) {
+func (p *ticketVotePlugin) linkedFromWithLock(token []byte) (*linkedFrom, error) {
 	fp := p.linkedFromPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
@@ -71,21 +68,20 @@ func (p *piPlugin) linkedFromWithLock(token []byte) (*linkedFrom, error) {
 	return &lf, nil
 }
 
-// linkedFrom return the linkedFrom list for the provided proposal token.
+// linkedFrom return the linkedFrom list for a record token.
 //
 // This function must be called WITHOUT the lock held.
-func (p *piPlugin) linkedFrom(token []byte) (*linkedFrom, error) {
+func (p *ticketVotePlugin) linkedFrom(token []byte) (*linkedFrom, error) {
 	p.Lock()
 	defer p.Unlock()
 
 	return p.linkedFromWithLock(token)
 }
 
-// linkedFromSaveWithLock saves the provided linkedFrom list to the pi plugin
-// data dir.
+// linkedFromSaveWithLock saves a linkedFrom to the plugin data dir.
 //
 // This function must be called WITH the lock held.
-func (p *piPlugin) linkedFromSaveWithLock(token []byte, lf linkedFrom) error {
+func (p *ticketVotePlugin) linkedFromSaveWithLock(token []byte, lf linkedFrom) error {
 	b, err := json.Marshal(lf)
 	if err != nil {
 		return err
@@ -95,10 +91,10 @@ func (p *piPlugin) linkedFromSaveWithLock(token []byte, lf linkedFrom) error {
 }
 
 // linkedFromAdd updates the cached linkedFrom list for the parentToken, adding
-// the childToken to the list.
+// the childToken to the list. The full length token MUST be used.
 //
 // This function must be called WITHOUT the lock held.
-func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
+func (p *ticketVotePlugin) linkedFromAdd(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -115,21 +111,29 @@ func (p *piPlugin) linkedFromAdd(parentToken, childToken string) error {
 	// Get existing linked from list
 	lf, err := p.linkedFromWithLock(parent)
 	if err != nil {
-		return fmt.Errorf("linkedFromWithLock %x: %v", parent, err)
+		return err
 	}
 
 	// Update list
 	lf.Tokens[childToken] = struct{}{}
 
 	// Save list
-	return p.linkedFromSaveWithLock(parent, *lf)
+	err = p.linkedFromSaveWithLock(parent, *lf)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Linked from list updated. Child %v added to parent %v",
+		childToken, parentToken)
+
+	return nil
 }
 
 // linkedFromDel updates the cached linkedFrom list for the parentToken,
 // deleting the childToken from the list.
 //
 // This function must be called WITHOUT the lock held.
-func (p *piPlugin) linkedFromDel(parentToken, childToken string) error {
+func (p *ticketVotePlugin) linkedFromDel(parentToken, childToken string) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -146,12 +150,20 @@ func (p *piPlugin) linkedFromDel(parentToken, childToken string) error {
 	// Get existing linked from list
 	lf, err := p.linkedFromWithLock(parent)
 	if err != nil {
-		return fmt.Errorf("linkedFromWithLock %x: %v", parent, err)
+		return err
 	}
 
 	// Update list
 	delete(lf.Tokens, childToken)
 
 	// Save list
-	return p.linkedFromSaveWithLock(parent, *lf)
+	err = p.linkedFromSaveWithLock(parent, *lf)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Linked from list updated. Child %v deleted from parent %v",
+		childToken, parentToken)
+
+	return nil
 }

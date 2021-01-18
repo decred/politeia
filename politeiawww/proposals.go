@@ -417,27 +417,3 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 		Abandoned:  archived,
 	}, nil
 }
-
-/*
-func (p *politeiawww) linkByValidate(linkBy int64) error {
-	min := time.Now().Unix() + p.linkByPeriodMin()
-	max := time.Now().Unix() + p.linkByPeriodMax()
-	switch {
-	case linkBy < min:
-		e := fmt.Sprintf("linkby %v is less than min required of %v",
-			linkBy, min)
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidLinkBy,
-			ErrorContext: []string{e},
-		}
-	case linkBy > max:
-		e := fmt.Sprintf("linkby %v is more than max allowed of %v",
-			linkBy, max)
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidLinkBy,
-			ErrorContext: []string{e},
-		}
-	}
-	return nil
-}
-*/

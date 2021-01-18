@@ -49,21 +49,18 @@ const (
 	dataDescriptorAuthDetails     = "authdetails_v1"
 	dataDescriptorVoteDetails     = "votedetails_v1"
 	dataDescriptorCastVoteDetails = "castvotedetails_v1"
+	dataDescriptorStartRunoff     = "startrunoff_v1"
 
 	// Data types
 	dataTypeAuthDetails     = "authdetails"
 	dataTypeVoteDetails     = "votedetails"
 	dataTypeCastVoteDetails = "castvotedetails"
+	dataTypeStartRunoff     = "startrunoff"
 )
 
 var (
 	_ plugins.Client = (*ticketVotePlugin)(nil)
 )
-
-// TODO holding the lock before verifying the token can allow the mutexes to
-// be spammed. Create an infinite amount of them with invalid tokens. The fix
-// is to check if the record exists in the mutexes function to ensure a token
-// is valid before holding the lock on it.
 
 // TODO verify all writes only accept full length tokens
 
@@ -83,6 +80,8 @@ type ticketVotePlugin struct {
 	// Plugin settings
 	voteDurationMin uint32 // In blocks
 	voteDurationMax uint32 // In blocks
+	linkByPeriodMin int64  // In seconds
+	linkByPeriodMax int64  // In seconds
 
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
@@ -96,23 +95,42 @@ type ticketVotePlugin struct {
 
 	// votes contains the cast votes of ongoing record votes. This
 	// cache is built on startup and record entries are removed once
-	// the vote has ended and the vote summary has been saved.
+	// the vote has ended and a vote summary has been cached.
 	votes map[string]map[string]string // [token][ticket]voteBit
 
 	// Mutexes contains a mutex for each record and are used to lock
 	// the trillian tree for a given record to prevent concurrent
-	// ticket vote plugin updates to the same tree. They are not used
-	// to update any of the ticket vote plugin memory caches. These
-	// mutexes are lazy loaded.
+	// ticket vote plugin updates on the same tree. These mutexes are
+	// lazy loaded and should only be used for tree updates, not for
+	// cache updates.
 	mutexes map[string]*sync.Mutex // [string]mutex
 }
 
+// tokenDecode decodes a record token and only accepts full length tokens.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
 }
 
+// tokenDecode decodes a record token and accepts both full length tokens and
+// token prefixes.
 func tokenDecodeAnyLength(token string) ([]byte, error) {
 	return util.TokenDecodeAnyLength(util.TokenTypeTlog, token)
+}
+
+// mutex returns the mutex for the specified record.
+func (p *ticketVotePlugin) mutex(token []byte) *sync.Mutex {
+	p.Lock()
+	defer p.Unlock()
+
+	t := hex.EncodeToString(token)
+	m, ok := p.mutexes[t]
+	if !ok {
+		// Mutexes is lazy loaded
+		m = &sync.Mutex{}
+		p.mutexes[t] = m
+	}
+
+	return m
 }
 
 func (p *ticketVotePlugin) cachedVotes(token []byte) map[string]string {
@@ -143,7 +161,7 @@ func (p *ticketVotePlugin) cachedVotesSet(token, ticket, voteBit string) {
 
 	p.votes[token][ticket] = voteBit
 
-	log.Debugf("ticketvote: added vote to cache: %v %v %v",
+	log.Debugf("Added vote to cache: %v %v %v",
 		token, ticket, voteBit)
 }
 
@@ -153,7 +171,7 @@ func (p *ticketVotePlugin) cachedVotesDel(token string) {
 
 	delete(p.votes, token)
 
-	log.Debugf("ticketvote: deleted votes cache: %v", token)
+	log.Debugf("Deleted votes cache: %v", token)
 }
 
 // cachedSummaryPath accepts both full tokens and token prefixes, however it
@@ -173,7 +191,7 @@ var (
 	errSummaryNotFound = errors.New("summary not found")
 )
 
-func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.Summary, error) {
+func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.VoteSummary, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -191,17 +209,17 @@ func (p *ticketVotePlugin) cachedSummary(token string) (*ticketvote.Summary, err
 		return nil, err
 	}
 
-	var s ticketvote.Summary
-	err = json.Unmarshal(b, &s)
+	var vs ticketvote.VoteSummary
+	err = json.Unmarshal(b, &vs)
 	if err != nil {
 		return nil, err
 	}
 
-	return &s, nil
+	return &vs, nil
 }
 
-func (p *ticketVotePlugin) cachedSummarySave(token string, s ticketvote.Summary) error {
-	b, err := json.Marshal(s)
+func (p *ticketVotePlugin) cachedSummarySave(token string, vs ticketvote.VoteSummary) error {
+	b, err := json.Marshal(vs)
 	if err != nil {
 		return err
 	}
@@ -218,35 +236,20 @@ func (p *ticketVotePlugin) cachedSummarySave(token string, s ticketvote.Summary)
 		return err
 	}
 
-	log.Debugf("ticketvote: saved votes summary: %v", token)
+	log.Debugf("Saved votes summary: %v", token)
 
 	return nil
 }
 
-// mutex returns the mutex for the specified record.
-func (p *ticketVotePlugin) mutex(token string) *sync.Mutex {
-	p.Lock()
-	defer p.Unlock()
-
-	m, ok := p.mutexes[token]
-	if !ok {
-		// Mutexes is lazy loaded
-		m = &sync.Mutex{}
-		p.mutexes[token] = m
-	}
-
-	return m
-}
-
 func convertSignatureError(err error) backend.PluginUserError {
 	var e util.SignatureError
-	var s ticketvote.ErrorStatusT
+	var s ticketvote.ErrorCodeT
 	if errors.As(err, &e) {
 		switch e.ErrorCode {
 		case util.ErrorStatusPublicKeyInvalid:
-			s = ticketvote.ErrorStatusPublicKeyInvalid
+			s = ticketvote.ErrorCodePublicKeyInvalid
 		case util.ErrorStatusSignatureInvalid:
-			s = ticketvote.ErrorStatusSignatureInvalid
+			s = ticketvote.ErrorCodeSignatureInvalid
 		}
 	}
 	return backend.PluginUserError{
@@ -370,6 +373,44 @@ func convertCastVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.CastVo
 	return &cv, nil
 }
 
+func convertStartRunoffFromBlobEntry(be store.BlobEntry) (*startRunoffRecord, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorStartRunoff {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorStartRunoff)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), digest)
+	}
+	var srr startRunoffRecord
+	err = json.Unmarshal(b, &srr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal StartRunoffRecord: %v", err)
+	}
+
+	return &srr, nil
+}
+
 func convertBlobEntryFromAuthDetails(ad ticketvote.AuthDetails) (*store.BlobEntry, error) {
 	data, err := json.Marshal(ad)
 	if err != nil {
@@ -413,6 +454,23 @@ func convertBlobEntryFromCastVoteDetails(cv ticketvote.CastVoteDetails) (*store.
 		store.DataDescriptor{
 			Type:       store.DataTypeStructure,
 			Descriptor: dataDescriptorCastVoteDetails,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
+func convertBlobEntryFromStartRunoff(srr startRunoffRecord) (*store.BlobEntry, error) {
+	data, err := json.Marshal(srr)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorStartRunoff,
 		})
 	if err != nil {
 		return nil, err
@@ -531,6 +589,154 @@ func (p *ticketVotePlugin) castVotes(treeID int64) ([]ticketvote.CastVoteDetails
 	})
 
 	return votes, nil
+}
+
+// summary returns the vote summary for a record.
+func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32) (*ticketvote.VoteSummary, error) {
+	// Check if the summary has been cached
+	s, err := p.cachedSummary(hex.EncodeToString(token))
+	switch {
+	case errors.Is(err, errSummaryNotFound):
+		// Cached summary not found. Continue.
+	case err != nil:
+		// Some other error
+		return nil, fmt.Errorf("cachedSummary: %v", err)
+	default:
+		// Caches summary was found. Return it.
+		return s, nil
+	}
+
+	// Summary has not been cached. Get it manually.
+
+	// Assume vote is unauthorized. Only update the status when the
+	// appropriate record has been found that proves otherwise.
+	status := ticketvote.VoteStatusUnauthorized
+
+	// Check if the vote has been authorized
+	auths, err := p.auths(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("auths: %v", err)
+	}
+	if len(auths) > 0 {
+		lastAuth := auths[len(auths)-1]
+		switch ticketvote.AuthActionT(lastAuth.Action) {
+		case ticketvote.AuthActionAuthorize:
+			// Vote has been authorized; continue
+			status = ticketvote.VoteStatusAuthorized
+		case ticketvote.AuthActionRevoke:
+			// Vote authorization has been revoked. Its not possible for
+			// the vote to have been started. We can stop looking.
+			return &ticketvote.VoteSummary{
+				Status:  status,
+				Results: []ticketvote.VoteOptionResult{},
+			}, nil
+		}
+	}
+
+	// Check if the vote has been started
+	vd, err := p.voteDetails(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("startDetails: %v", err)
+	}
+	if vd == nil {
+		// Vote has not been started yet
+		return &ticketvote.VoteSummary{
+			Status:  status,
+			Results: []ticketvote.VoteOptionResult{},
+		}, nil
+	}
+
+	// Vote has been started. Check if it is still in progress or has
+	// already ended.
+	if bestBlock < vd.EndBlockHeight {
+		status = ticketvote.VoteStatusStarted
+	} else {
+		status = ticketvote.VoteStatusFinished
+	}
+
+	// Pull the cast votes from the cache and tally the results
+	votes := p.cachedVotes(token)
+	tally := make(map[string]int, len(vd.Params.Options))
+	for _, voteBit := range votes {
+		tally[voteBit]++
+	}
+	results := make([]ticketvote.VoteOptionResult, 0, len(vd.Params.Options))
+	for _, v := range vd.Params.Options {
+		bit := strconv.FormatUint(v.Bit, 16)
+		results = append(results, ticketvote.VoteOptionResult{
+			ID:          v.ID,
+			Description: v.Description,
+			VoteBit:     v.Bit,
+			Votes:       uint64(tally[bit]),
+		})
+	}
+
+	// Prepare summary
+	summary := ticketvote.VoteSummary{
+		Type:             vd.Params.Type,
+		Status:           status,
+		Duration:         vd.Params.Duration,
+		StartBlockHeight: vd.StartBlockHeight,
+		StartBlockHash:   vd.StartBlockHash,
+		EndBlockHeight:   vd.EndBlockHeight,
+		EligibleTickets:  uint32(len(vd.EligibleTickets)),
+		QuorumPercentage: vd.Params.QuorumPercentage,
+		PassPercentage:   vd.Params.PassPercentage,
+		Results:          results,
+	}
+
+	// If the vote has not finished yet then we are done for now.
+	if status == ticketvote.VoteStatusStarted {
+		return &summary, nil
+	}
+
+	// The vote has finished. We can calculate if the vote was approved
+	// for certain vote types and cache the results.
+	switch vd.Params.Type {
+	case ticketvote.VoteTypeStandard, ticketvote.VoteTypeRunoff:
+		// These vote types are strictly approve/reject votes so we can
+		// calculate the vote approval. Continue.
+	default:
+		// Nothing else to do for all other vote types
+		return &summary, nil
+	}
+
+	// Calculate vote approval
+	approved := voteIsApproved(*vd, results)
+
+	// If this is a standard vote then we can take the results as is.
+	// A runoff vote requires that we pull all other runoff vote
+	// submissions to determine if the vote actually passed.
+	// TODO make summary for runoff vote submissions
+	summary.Approved = approved
+
+	// Cache the summary
+	err = p.cachedSummarySave(vd.Params.Token, summary)
+	if err != nil {
+		return nil, fmt.Errorf("cachedSummarySave %v: %v %v",
+			vd.Params.Token, err, summary)
+	}
+
+	// Remove record from the votes cache now that a summary has been
+	// saved for it.
+	p.cachedVotesDel(vd.Params.Token)
+
+	return &summary, nil
+}
+
+func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.VoteSummary, error) {
+	reply, err := p.backend.VettedPluginCmd(token, ticketvote.ID,
+		ticketvote.CmdSummary, "")
+	if err != nil {
+		return nil, fmt.Errorf("VettedPluginCmd %x %v %v: %v",
+			token, ticketvote.ID, ticketvote.CmdSummary, err)
+	}
+	var sr ticketvote.SummaryReply
+	err = json.Unmarshal([]byte(reply), &sr)
+	if err != nil {
+		return nil, err
+	}
+	return &sr.Summary, nil
 }
 
 func (p *ticketVotePlugin) timestamp(treeID int64, digest []byte) (*ticketvote.Timestamp, error) {
@@ -855,7 +1061,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	if err != nil {
 		return "", backend.PluginUserError{
 			PluginID:  ticketvote.ID,
-			ErrorCode: int(ticketvote.ErrorStatusTokenInvalid),
+			ErrorCode: int(ticketvote.ErrorCodeTokenInvalid),
 		}
 	}
 	if !bytes.Equal(t, token) {
@@ -863,7 +1069,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 			"got %x, want %x", t, token)
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusTokenInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -886,7 +1092,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		e := fmt.Sprintf("%v not a valid action", a.Action)
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -894,7 +1100,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	// The previous authorize votes must be retrieved to validate the
 	// new autorize vote. The lock must be held for the remainder of
 	// this function.
-	m := p.mutex(a.Token)
+	m := p.mutex(token)
 	m.Lock()
 	defer m.Unlock()
 
@@ -914,7 +1120,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		if a.Action != ticketvote.AuthActionAuthorize {
 			return "", backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
 				ErrorContext: "no prev action; action must be authorize",
 			}
 		}
@@ -923,7 +1129,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		// Previous action was a authorize. This action must be revoke.
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: "prev action was authorize",
 		}
 	case prevAction == ticketvote.AuthActionRevoke &&
@@ -931,7 +1137,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		// Previous action was a revoke. This action must be authorize.
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: "prev action was revoke",
 		}
 	}
@@ -1015,7 +1221,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		e := fmt.Sprintf("invalid type %v", vote.Type)
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1027,7 +1233,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.Duration, voteDurationMax)
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	case vote.Duration < voteDurationMin:
@@ -1035,7 +1241,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.Duration, voteDurationMin)
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	case vote.QuorumPercentage > 100:
@@ -1043,7 +1249,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.QuorumPercentage)
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	case vote.PassPercentage > 100:
@@ -1051,7 +1257,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.PassPercentage)
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1061,7 +1267,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 	if len(vote.Options) == 0 {
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: "no vote options found",
 		}
 	}
@@ -1075,7 +1281,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 				len(vote.Options))
 			return backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1104,7 +1310,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 				strings.Join(missing, ","))
 			return backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1116,7 +1322,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		if err != nil {
 			return backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: err.Error(),
 			}
 		}
@@ -1128,7 +1334,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		e := "parent token should not be provided for a standard vote"
 		return backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	case vote.Type == ticketvote.VoteTypeRunoff:
@@ -1137,7 +1343,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			e := fmt.Sprintf("invalid parent %v", vote.Parent)
 			return backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1147,23 +1353,32 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 }
 
 // startStandard starts a standard vote.
-func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*ticketvote.StartReply, error) {
+func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
 	// Verify there is only one start details
 	if len(s.Starts) != 1 {
 		return nil, backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusStartDetailsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeStartDetailsInvalid),
 			ErrorContext: "more than one start details found",
 		}
 	}
 	sd := s.Starts[0]
 
 	// Verify token
-	token, err := tokenDecode(sd.Params.Token)
+	t, err := tokenDecode(sd.Params.Token)
 	if err != nil {
 		return nil, backend.PluginUserError{
 			PluginID:  ticketvote.ID,
-			ErrorCode: int(ticketvote.ErrorStatusTokenInvalid),
+			ErrorCode: int(ticketvote.ErrorCodeTokenInvalid),
+		}
+	}
+	if !bytes.Equal(t, token) {
+		e := fmt.Sprintf("plugin token does not match route token: "+
+			"got %x, want %x", t, token)
+		return nil, backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
+			ErrorContext: e,
 		}
 	}
 
@@ -1192,7 +1407,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*tic
 
 	// Validate existing record state. The lock for this record must be
 	// held for the remainder of this function.
-	m := p.mutex(sd.Params.Token)
+	m := p.mutex(token)
 	m.Lock()
 	defer m.Unlock()
 
@@ -1207,7 +1422,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*tic
 			sd.Params.Version, r.Version)
 		return nil, backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusRecordVersionInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeRecordVersionInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1220,7 +1435,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*tic
 	if len(auths) == 0 {
 		return nil, backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: "authorization not found",
 		}
 	}
@@ -1228,7 +1443,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*tic
 	if action != ticketvote.AuthActionAuthorize {
 		return nil, backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusAuthorizationInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: "not authorized",
 		}
 	}
@@ -1242,7 +1457,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*tic
 		// Vote has already been started
 		return nil, backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteStatusInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote already started",
 		}
 	}
@@ -1276,8 +1491,317 @@ func (p *ticketVotePlugin) startStandard(treeID int64, s ticketvote.Start) (*tic
 	}, nil
 }
 
+// startRunoffRecord is the record that is saved to the runoff vote's parent
+// tree as the first step in starting a runoff vote. Plugins are not able to
+// update multiple records atomically, so if this call gets interrupted before
+// if can start the voting period on all runoff vote submissions, subsequent
+// calls will use this record to pick up where the previous call left off. This
+// allows us to recover from unexpected errors, such as network errors, and not
+// leave a runoff vote in a weird state.
+type startRunoffRecord struct {
+	Submissions      []string `json:"submissions"`
+	Mask             uint64   `json:"mask"`
+	Duration         uint32   `json:"duration"`
+	QuorumPercentage uint32   `json:"quorumpercentage"`
+	PassPercentage   uint32   `json:"passpercentage"`
+	StartBlockHeight uint32   `json:"startblockheight"`
+	StartBlockHash   string   `json:"startblockhash"`
+	EndBlockHeight   uint32   `json:"endblockheight"`
+	EligibleTickets  []string `json:"eligibletickets"`
+}
+
+func (p *ticketVotePlugin) startRunoffRecordSave(treeID int64, srr startRunoffRecord) error {
+	be, err := convertBlobEntryFromStartRunoff(srr)
+	if err != nil {
+		return err
+	}
+	err = p.tlog.BlobSave(treeID, dataTypeStartRunoff, *be)
+	if err != nil {
+		return fmt.Errorf("BlobSave %v %v: %v",
+			treeID, dataTypeStartRunoff, err)
+	}
+	return nil
+}
+
+// startRunoffRecord returns the startRunoff record if one exists on a tree.
+// nil will be returned if a startRunoff record is not found.
+func (p *ticketVotePlugin) startRunoffRecord(treeID int64) (*startRunoffRecord, error) {
+	blobs, err := p.tlog.BlobsByDataType(treeID, dataTypeStartRunoff)
+	if err != nil {
+		return nil, fmt.Errorf("BlobsByDataType %v %v: %v",
+			treeID, dataTypeStartRunoff, err)
+	}
+
+	var srr *startRunoffRecord
+	switch len(blobs) {
+	case 0:
+		// Nothing found
+		return nil, nil
+	case 1:
+		// A start runoff record was found
+		srr, err = convertStartRunoffFromBlobEntry(blobs[0])
+		if err != nil {
+			return nil, err
+		}
+	default:
+		// This should not be possible
+		e := fmt.Sprintf("%v start runoff blobs found", len(blobs))
+		panic(e)
+	}
+
+	return srr, nil
+}
+
+func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs startRunoffSub) error {
+	// Sanity check
+	s := srs.StartDetails
+	t, err := tokenDecode(s.Params.Token)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(token, t) {
+		return fmt.Errorf("invalid token")
+	}
+
+	// Get the start runoff record from the parent tree
+	srr, err := p.startRunoffRecord(srs.ParentTreeID)
+	if err != nil {
+		return err
+	}
+
+	// Sanity check. Verify token is part of the start runoff record
+	// submissions.
+	var found bool
+	for _, v := range srr.Submissions {
+		if hex.EncodeToString(token) == v {
+			found = true
+			break
+		}
+	}
+	if !found {
+		// This submission should not be here
+		return fmt.Errorf("record not in submission list")
+	}
+
+	// If the vote has already been started, exit gracefully. This
+	// allows us to recover from unexpected errors to the start runoff
+	// vote call as it updates the state of multiple records. If the
+	// call were to fail before completing, we can simply call the
+	// command again with the same arguments and it will pick up where
+	// it left off.
+	svp, err := p.voteDetails(treeID)
+	if err != nil {
+		return err
+	}
+	if svp != nil {
+		// Vote has already been started. Exit gracefully.
+		return nil
+	}
+
+	// Verify record version
+	r, err := p.backend.GetVetted(token, "")
+	if err != nil {
+		return fmt.Errorf("GetVetted: %v", err)
+	}
+	version := strconv.FormatUint(uint64(s.Params.Version), 10)
+	if r.Version != version {
+		e := fmt.Sprintf("version is not latest %v: got %v, want %v",
+			s.Params.Token, s.Params.Version, r.Version)
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Prepare vote details
+	vd := ticketvote.VoteDetails{
+		Params:           s.Params,
+		PublicKey:        s.PublicKey,
+		Signature:        s.Signature,
+		StartBlockHeight: srr.StartBlockHeight,
+		StartBlockHash:   srr.StartBlockHash,
+		EndBlockHeight:   srr.EndBlockHeight,
+		EligibleTickets:  srr.EligibleTickets,
+	}
+
+	// Save vote details
+	err = p.voteDetailsSave(treeID, vd)
+	if err != nil {
+		return fmt.Errorf("voteDetailsSave: %v", err)
+	}
+
+	// Update inventory
+	p.inventorySetToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
+		vd.EndBlockHeight)
+
+	return nil
+}
+
+func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ticketvote.Start) (*startRunoffRecord, error) {
+	// Check if the runoff vote data already exists on the parent tree.
+	srr, err := p.startRunoffRecord(treeID)
+	if err != nil {
+		return nil, err
+	}
+	if srr != nil {
+		// We already have a start runoff record for this runoff vote.
+		// This can happen if the previous call failed due to an
+		// unexpected error such as a network error. Return the start
+		// runoff record so we can pick up where we left off.
+		return srr, nil
+	}
+
+	// Get blockchain data
+	var (
+		mask     = s.Starts[0].Params.Mask
+		duration = s.Starts[0].Params.Duration
+		quorum   = s.Starts[0].Params.QuorumPercentage
+		pass     = s.Starts[0].Params.PassPercentage
+	)
+	sr, err := p.startReply(duration)
+	if err != nil {
+		return nil, err
+	}
+
+	// The parent record must be validated. Hold the lock on the parent
+	// record for the remainder of this function.
+	m := p.mutex(token)
+	m.Lock()
+	defer m.Unlock()
+
+	// Verify parent has a LinkBy and the LinkBy deadline is expired.
+	r, err := p.backend.GetVetted(token, "")
+	if err != nil {
+		if errors.Is(err, backend.ErrRecordNotFound) {
+			e := fmt.Sprintf("parent record not found %x", token)
+			return nil, backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
+				ErrorContext: e,
+			}
+		}
+	}
+	vm, err := decodeVoteMetadata(r.Files)
+	if err != nil {
+		return nil, err
+	}
+	if vm == nil || vm.LinkBy == 0 {
+		return nil, backend.PluginUserError{
+			PluginID:  ticketvote.ID,
+			ErrorCode: int(ticketvote.ErrorCodeRunoffVoteParentInvalid),
+		}
+	}
+	isExpired := vm.LinkBy < time.Now().Unix()
+	isMainNet := p.activeNetParams.Name == chaincfg.MainNetParams().Name
+	switch {
+	case !isExpired && isMainNet:
+		e := fmt.Sprintf("parent record %x linkby deadline not met %v",
+			token, vm.LinkBy)
+		return nil, backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkByNotExpired),
+			ErrorContext: e,
+		}
+	case !isExpired:
+		// Allow the vote to be started before the link by deadline
+		// expires on testnet and simnet only. This makes testing the
+		// runoff vote process easier.
+		log.Warnf("Parent record linkby deadline has not been met; " +
+			"disregarding deadline since this is not mainnet")
+	}
+
+	// Compile a list of the expected submissions that should be in the
+	// runoff vote. This will be all of the public records that have
+	// linked to the parent record. The parent records' linked from
+	// list will include abandoned proposals that need to be filtered
+	// out.
+	lf, err := p.linkedFrom(token)
+	if err != nil {
+		return nil, err
+	}
+	expected := make(map[string]struct{}, len(lf.Tokens)) // [token]struct{}
+	for k := range lf.Tokens {
+		token, err := tokenDecode(k)
+		if err != nil {
+			return nil, err
+		}
+		r, err := p.backend.GetVetted(token, "")
+		if err != nil {
+			return nil, err
+		}
+		if r.RecordMetadata.Status != backend.MDStatusVetted {
+			// This record is not public and should not be included
+			// in the runoff vote.
+			continue
+		}
+
+		// This is a public record that is part of the parent record's
+		// linked from list. It is required to be in the runoff vote.
+		expected[k] = struct{}{}
+	}
+
+	// Verify that there are no extra submissions in the runoff vote
+	for _, v := range s.Starts {
+		_, ok := expected[v.Params.Token]
+		if !ok {
+			// This submission should not be here
+			e := fmt.Sprintf("record %v should not be included",
+				v.Params.Token)
+			return nil, backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorCodeStartDetailsInvalid),
+				ErrorContext: e,
+			}
+		}
+	}
+
+	// Verify that the runoff vote is not missing any submissions
+	subs := make(map[string]struct{}, len(s.Starts))
+	for _, v := range s.Starts {
+		subs[v.Params.Token] = struct{}{}
+	}
+	for k := range expected {
+		_, ok := subs[k]
+		if !ok {
+			// This records is missing from the runoff vote
+			return nil, backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorCodeStartDetailsMissing),
+				ErrorContext: k,
+			}
+		}
+	}
+
+	// Prepare start runoff record
+	submissions := make([]string, 0, len(subs))
+	for k := range subs {
+		submissions = append(submissions, k)
+	}
+	srr = &startRunoffRecord{
+		Submissions:      submissions,
+		Mask:             mask,
+		Duration:         duration,
+		QuorumPercentage: quorum,
+		PassPercentage:   pass,
+		StartBlockHeight: sr.StartBlockHeight,
+		StartBlockHash:   sr.StartBlockHash,
+		EndBlockHeight:   sr.EndBlockHeight,
+		EligibleTickets:  sr.EligibleTickets,
+	}
+
+	// Save start runoff record
+	err = p.startRunoffRecordSave(treeID, *srr)
+	if err != nil {
+		return nil, fmt.Errorf("startRunoffRecordSave %v: %v",
+			treeID, err)
+	}
+
+	return srr, nil
+}
+
 // startRunoff starts a runoff vote.
-func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartReply, error) {
+func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
 	// Sanity check
 	if len(s.Starts) == 0 {
 		return nil, fmt.Errorf("no start details found")
@@ -1300,7 +1824,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				v.Params.Token, v.Params.Type, ticketvote.VoteTypeRunoff)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.Mask != mask:
@@ -1308,7 +1832,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.Duration != duration:
@@ -1316,7 +1840,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.QuorumPercentage != quorum:
@@ -1324,7 +1848,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.PassPercentage != pass:
@@ -1332,7 +1856,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.Parent != parent:
@@ -1340,7 +1864,7 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 				v.Params.Token)
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1350,8 +1874,19 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 		if err != nil {
 			return nil, backend.PluginUserError{
 				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusTokenInvalid),
+				ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
 				ErrorContext: v.Params.Token,
+			}
+		}
+
+		// Verify parent token
+		_, err = tokenDecode(v.Params.Parent)
+		if err != nil {
+			e := fmt.Sprintf("parent token %v", v.Params.Parent)
+			return nil, backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
+				ErrorContext: e,
 			}
 		}
 
@@ -1374,107 +1909,83 @@ func (p *ticketVotePlugin) startRunoff(s ticketvote.Start) (*ticketvote.StartRep
 		}
 	}
 
-	// Get vote blockchain data
-	sr, err := p.startReply(duration)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify parent exists
-	parentb, err := tokenDecode(parent)
-	if err != nil {
-		return nil, err
-	}
-	if !p.backend.VettedExists(parentb) {
-		e := fmt.Sprintf("parent record not found %v", parent)
+	// Verify plugin command is being executed on the parent record
+	if hex.EncodeToString(token) != parent {
+		e := fmt.Sprintf("runoff vote must be started on parent record %v",
+			parent)
 		return nil, backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeRunoffVoteParentInvalid),
 			ErrorContext: e,
 		}
 	}
 
-	// TODO handle the case where part of the votes are started but
-	// not all.
-
-	// Validate existing record state. The lock for each record must
-	// be held for the remainder of this function.
-	for _, v := range s.Starts {
-		m := p.mutex(v.Params.Token)
-		m.Lock()
-		defer m.Unlock()
-
-		token, err := tokenDecode(v.Params.Token)
-		if err != nil {
-			return nil, err
-		}
-
-		// Verify record version
-		r, err := p.backend.GetVetted(token, "")
-		if err != nil {
-			return nil, fmt.Errorf("GetVetted: %v", err)
-		}
-		version := strconv.FormatUint(uint64(v.Params.Version), 10)
-		if r.Version != version {
-			e := fmt.Sprintf("version is not latest %v: got %v, want %v",
-				v.Params.Token, v.Params.Version, r.Version)
-			return nil, backend.PluginUserError{
-				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusRecordVersionInvalid),
-				ErrorContext: e,
-			}
-		}
-
-		// TODO figure this out
-		var treeID int64
-
-		// Verify vote has not already been started
-		svp, err := p.voteDetails(treeID)
-		if err != nil {
-			return nil, err
-		}
-		if svp != nil {
-			// Vote has already been started
-			return nil, backend.PluginUserError{
-				PluginID:     ticketvote.ID,
-				ErrorCode:    int(ticketvote.ErrorStatusVoteStatusInvalid),
-				ErrorContext: "vote already started",
-			}
-		}
+	// This function is being invoked on the runoff vote parent record.
+	// Create and save a start runoff record onto the parent record's
+	// tree.
+	srr, err := p.startRunoffForParent(treeID, token, s)
+	if err != nil {
+		return nil, err
 	}
 
+	// Start the voting period of each runoff vote submissions by
+	// using the internal plugin command startRunoffSub.
 	for _, v := range s.Starts {
-		// Prepare vote details
-		vd := ticketvote.VoteDetails{
-			Params:           v.Params,
-			PublicKey:        v.PublicKey,
-			Signature:        v.Signature,
-			StartBlockHeight: sr.StartBlockHeight,
-			StartBlockHash:   sr.StartBlockHash,
-			EndBlockHeight:   sr.EndBlockHeight,
-			EligibleTickets:  sr.EligibleTickets,
-		}
-
-		// TODO figure this out
-		var treeID int64
-
-		// Save vote details
-		err = p.voteDetailsSave(treeID, vd)
+		token, err = tokenDecode(v.Params.Token)
 		if err != nil {
-			return nil, fmt.Errorf("voteDetailsSave: %v", err)
+			return nil, err
 		}
-
-		// Update inventory
-		p.inventorySetToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
-			vd.EndBlockHeight)
+		srs := startRunoffSub{
+			ParentTreeID: treeID,
+			StartDetails: v,
+		}
+		b, err := json.Marshal(srs)
+		if err != nil {
+			return nil, err
+		}
+		_, err = p.backend.VettedPluginCmd(token, ticketvote.ID,
+			cmdStartRunoffSub, string(b))
+		if err != nil {
+			var ue backend.PluginUserError
+			if errors.As(err, &ue) {
+				return nil, err
+			}
+			return nil, fmt.Errorf("VettedPluginCmd %x %v %v %v: %v",
+				token, ticketvote.ID, cmdStartRunoffSub, b, err)
+		}
 	}
 
 	return &ticketvote.StartReply{
-		StartBlockHeight: sr.StartBlockHeight,
-		StartBlockHash:   sr.StartBlockHash,
-		EndBlockHeight:   sr.EndBlockHeight,
-		EligibleTickets:  sr.EligibleTickets,
+		StartBlockHeight: srr.StartBlockHeight,
+		StartBlockHash:   srr.StartBlockHash,
+		EndBlockHeight:   srr.EndBlockHeight,
+		EligibleTickets:  srr.EligibleTickets,
 	}, nil
+}
+
+func (p *ticketVotePlugin) cmdStartRunoffSub(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdStartRunoffSub: %v %x %v", treeID, token, payload)
+
+	// Decode payload
+	var srs startRunoffSub
+	err := json.Unmarshal([]byte(payload), &srs)
+	if err != nil {
+		return "", err
+	}
+
+	// Start voting period on runoff vote submission
+	err = p.startRunoffForSub(treeID, token, srs)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	reply, err := json.Marshal(startRunoffSubReply{})
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
 }
 
 func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) (string, error) {
@@ -1491,7 +2002,7 @@ func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) 
 	if len(s.Starts) == 0 {
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusStartDetailsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeStartDetailsMissing),
 			ErrorContext: "no start details found",
 		}
 	}
@@ -1503,12 +2014,12 @@ func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) 
 	var sr *ticketvote.StartReply
 	switch vtype {
 	case ticketvote.VoteTypeStandard:
-		sr, err = p.startStandard(treeID, s)
+		sr, err = p.startStandard(treeID, token, s)
 		if err != nil {
 			return "", err
 		}
 	case ticketvote.VoteTypeRunoff:
-		sr, err = p.startRunoff(s)
+		sr, err = p.startRunoff(treeID, token, s)
 		if err != nil {
 			return "", err
 		}
@@ -1516,7 +2027,7 @@ func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) 
 		e := fmt.Sprintf("invalid vote type %v", vtype)
 		return "", backend.PluginUserError{
 			PluginID:     ticketvote.ID,
-			ErrorCode:    int(ticketvote.ErrorStatusVoteParamsInvalid),
+			ErrorCode:    int(ticketvote.ErrorCodeVoteParamsInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1766,7 +2277,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 
 	// The record lock must be held for the remainder of the function to
 	// ensure duplicate votes cannot be cast.
-	m := p.mutex(hex.EncodeToString(token))
+	m := p.mutex(token)
 	m.Lock()
 	defer m.Unlock()
 
@@ -1910,39 +2421,22 @@ func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte, payload string
 		return "", err
 	}
 
-	// TODO this needs to be for a single record
+	// Get vote authorizations
+	auths, err := p.auths(treeID)
+	if err != nil {
+		return "", fmt.Errorf("auths: %v", err)
+	}
 
-	votes := make(map[string]ticketvote.RecordVote, len(d.Tokens))
-	for _, v := range d.Tokens {
-		// Verify token
-		token, err := tokenDecodeAnyLength(v)
-		if err != nil {
-			continue
-		}
-		_ = token
-
-		// Get authorize votes
-		auths, err := p.auths(treeID)
-		if err != nil {
-			return "", fmt.Errorf("auths: %v", err)
-		}
-
-		// Get vote details
-		vd, err := p.voteDetails(treeID)
-		if err != nil {
-			return "", fmt.Errorf("startDetails: %v", err)
-		}
-
-		// Add record vote
-		votes[v] = ticketvote.RecordVote{
-			Auths: auths,
-			Vote:  vd,
-		}
+	// Get vote details
+	vd, err := p.voteDetails(treeID)
+	if err != nil {
+		return "", fmt.Errorf("voteDetails: %v", err)
 	}
 
 	// Prepare rely
 	dr := ticketvote.DetailsReply{
-		Votes: votes,
+		Auths: auths,
+		Vote:  vd,
 	}
 	reply, err := json.Marshal(dr)
 	if err != nil {
@@ -2027,148 +2521,8 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 	return approved
 }
 
-// summary returns the vote summary for a record.
-func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32) (*ticketvote.Summary, error) {
-	// Check if the summary has been cached
-	s, err := p.cachedSummary(hex.EncodeToString(token))
-	switch {
-	case errors.Is(err, errSummaryNotFound):
-		// Cached summary not found. Continue.
-	case err != nil:
-		// Some other error
-		return nil, fmt.Errorf("cachedSummary: %v", err)
-	default:
-		// Caches summary was found. Return it.
-		return s, nil
-	}
-
-	// Summary has not been cached. Get it manually.
-
-	// Assume vote is unauthorized. Only update the status when the
-	// appropriate record has been found that proves otherwise.
-	status := ticketvote.VoteStatusUnauthorized
-
-	// Check if the vote has been authorized
-	auths, err := p.auths(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("auths: %v", err)
-	}
-	if len(auths) > 0 {
-		lastAuth := auths[len(auths)-1]
-		switch ticketvote.AuthActionT(lastAuth.Action) {
-		case ticketvote.AuthActionAuthorize:
-			// Vote has been authorized; continue
-			status = ticketvote.VoteStatusAuthorized
-		case ticketvote.AuthActionRevoke:
-			// Vote authorization has been revoked. Its not possible for
-			// the vote to have been started. We can stop looking.
-			return &ticketvote.Summary{
-				Status:  status,
-				Results: []ticketvote.VoteOptionResult{},
-			}, nil
-		}
-	}
-
-	// Check if the vote has been started
-	vd, err := p.voteDetails(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("startDetails: %v", err)
-	}
-	if vd == nil {
-		// Vote has not been started yet
-		return &ticketvote.Summary{
-			Status:  status,
-			Results: []ticketvote.VoteOptionResult{},
-		}, nil
-	}
-
-	// Vote has been started. Check if it is still in progress or has
-	// already ended.
-	if bestBlock < vd.EndBlockHeight {
-		status = ticketvote.VoteStatusStarted
-	} else {
-		status = ticketvote.VoteStatusFinished
-	}
-
-	// Pull the cast votes from the cache and tally the results
-	votes := p.cachedVotes(token)
-	tally := make(map[string]int, len(vd.Params.Options))
-	for _, voteBit := range votes {
-		tally[voteBit]++
-	}
-	results := make([]ticketvote.VoteOptionResult, 0, len(vd.Params.Options))
-	for _, v := range vd.Params.Options {
-		bit := strconv.FormatUint(v.Bit, 16)
-		results = append(results, ticketvote.VoteOptionResult{
-			ID:          v.ID,
-			Description: v.Description,
-			VoteBit:     v.Bit,
-			Votes:       uint64(tally[bit]),
-		})
-	}
-
-	// Prepare summary
-	summary := ticketvote.Summary{
-		Type:             vd.Params.Type,
-		Status:           status,
-		Duration:         vd.Params.Duration,
-		StartBlockHeight: vd.StartBlockHeight,
-		StartBlockHash:   vd.StartBlockHash,
-		EndBlockHeight:   vd.EndBlockHeight,
-		EligibleTickets:  uint32(len(vd.EligibleTickets)),
-		QuorumPercentage: vd.Params.QuorumPercentage,
-		PassPercentage:   vd.Params.PassPercentage,
-		Results:          results,
-	}
-
-	// If the vote has not finished yet then we are done for now.
-	if status == ticketvote.VoteStatusStarted {
-		return &summary, nil
-	}
-
-	// The vote has finished. We can calculate if the vote was approved
-	// for certain vote types and cache the results.
-	switch vd.Params.Type {
-	case ticketvote.VoteTypeStandard, ticketvote.VoteTypeRunoff:
-		// These vote types are strictly approve/reject votes so we can
-		// calculate the vote approval. Continue.
-	default:
-		// Nothing else to do for all other vote types
-		return &summary, nil
-	}
-
-	// Calculate vote approval
-	approved := voteIsApproved(*vd, results)
-
-	// If this is a standard vote then we can take the results as is. A
-	// runoff vote requires that we pull all other runoff vote
-	// submissions to determine if the vote actually passed.
-	// TODO
-	summary.Approved = approved
-
-	// Cache the summary
-	err = p.cachedSummarySave(vd.Params.Token, summary)
-	if err != nil {
-		return nil, fmt.Errorf("cachedSummarySave %v: %v %v",
-			vd.Params.Token, err, summary)
-	}
-
-	// Remove record from the votes cache now that a summary has been
-	// saved for it.
-	p.cachedVotesDel(vd.Params.Token)
-
-	return &summary, nil
-}
-
-func (p *ticketVotePlugin) cmdSummaries(treeID int64, token []byte, payload string) (string, error) {
+func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte, payload string) (string, error) {
 	log.Tracef("cmdSummaries: %v %x %v", treeID, token, payload)
-
-	// Decode payload
-	var s ticketvote.Summaries
-	err := json.Unmarshal([]byte(payload), &s)
-	if err != nil {
-		return "", err
-	}
 
 	// Get best block. This cmd does not write any data so we do not
 	// have to use the safe best block.
@@ -2177,24 +2531,15 @@ func (p *ticketVotePlugin) cmdSummaries(treeID int64, token []byte, payload stri
 		return "", fmt.Errorf("bestBlockUnsafe: %v", err)
 	}
 
-	// TODO this route can only be for one summary
-	// Get summaries
-	summaries := make(map[string]ticketvote.Summary, len(s.Tokens))
-	for _, v := range s.Tokens {
-		token, err := tokenDecodeAnyLength(v)
-		if err != nil {
-			return "", err
-		}
-		s, err := p.summary(treeID, token, bb)
-		if err != nil {
-			return "", fmt.Errorf("summary %v: %v", v, err)
-		}
-		summaries[v] = *s
+	// Get summary
+	s, err := p.summary(treeID, token, bb)
+	if err != nil {
+		return "", fmt.Errorf("summary: %v", err)
 	}
 
 	// Prepare reply
-	sr := ticketvote.SummariesReply{
-		Summaries: summaries,
+	sr := ticketvote.SummaryReply{
+		Summary:   *s,
 		BestBlock: bb,
 	}
 	reply, err := json.Marshal(sr)
@@ -2349,6 +2694,260 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 	return string(reply), nil
 }
 
+// decodeVoteMetadata decodes and returns the VoteMetadata from the
+// provided backend files. If a VoteMetadata is not found, nil is returned.
+func decodeVoteMetadata(files []backend.File) (*ticketvote.VoteMetadata, error) {
+	var voteMD *ticketvote.VoteMetadata
+	for _, v := range files {
+		if v.Name == ticketvote.FileNameVoteMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			var pm ticketvote.VoteMetadata
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, err
+			}
+			voteMD = &pm
+			break
+		}
+	}
+	return voteMD, nil
+}
+
+func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
+	if linkBy == 0 {
+		// LinkBy as not been set
+		return nil
+	}
+	min := time.Now().Unix() + p.linkByPeriodMin
+	max := time.Now().Unix() + p.linkByPeriodMax
+	switch {
+	case linkBy < min:
+		e := fmt.Sprintf("linkby %v is less than min required of %v",
+			linkBy, min)
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkByInvalid),
+			ErrorContext: e,
+		}
+	case linkBy > max:
+		e := fmt.Sprintf("linkby %v is more than max allowed of %v",
+			linkBy, max)
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkByInvalid),
+			ErrorContext: e,
+		}
+	}
+	return nil
+}
+
+func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
+	// LinkTo must be a public record that is the parent of a runoff
+	// vote, i.e. has the VoteMetadata.LinkBy field set.
+	token, err := tokenDecode(linkTo)
+	if err != nil {
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorContext: "invalid hex",
+		}
+	}
+	r, err := p.backend.GetVetted(token, "")
+	if err != nil {
+		if errors.Is(err, backend.ErrRecordNotFound) {
+			return backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+				ErrorContext: "record not found",
+			}
+		}
+		return err
+	}
+	if r.RecordMetadata.Status != backend.MDStatusCensored {
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorContext: "record is censored",
+		}
+	}
+	parentVM, err := decodeVoteMetadata(r.Files)
+	if err != nil {
+		return err
+	}
+	if parentVM == nil || parentVM.LinkBy == 0 {
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorContext: "record not a runoff vote parent",
+		}
+	}
+	if time.Now().Unix() > parentVM.LinkBy {
+		// Linkby deadline has expired. New links are not allowed.
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorContext: "parent record linkby deadline has expired",
+		}
+	}
+	return nil
+}
+
+func (p *ticketVotePlugin) voteMetadataVerify(vm ticketvote.VoteMetadata) error {
+	switch {
+	case vm.LinkBy == 0 && vm.LinkTo == "":
+		// Vote metadata is empty
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
+			ErrorContext: "md is empty",
+		}
+
+	case vm.LinkBy != 0 && vm.LinkTo != "":
+		// LinkBy and LinkTo cannot both be set
+		return backend.PluginUserError{
+			PluginID:     ticketvote.ID,
+			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
+			ErrorContext: "cannot set both linkby and linkto",
+		}
+
+	case vm.LinkBy != 0:
+		err := p.linkByVerify(vm.LinkBy)
+		if err != nil {
+			return err
+		}
+
+	case vm.LinkTo != "":
+		err := p.linkToVerify(vm.LinkTo)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// TODO this save validation needs to be done in the edit record hook too
+func (p *ticketVotePlugin) hookNewRecordPre(payload string) error {
+	var nr plugins.HookNewRecordPre
+	err := json.Unmarshal([]byte(payload), &nr)
+	if err != nil {
+		return err
+	}
+
+	// Verify the vote metadata if the record contains one
+	vm, err := decodeVoteMetadata(nr.Files)
+	if err != nil {
+		return err
+	}
+	if vm != nil {
+		err = p.voteMetadataVerify(*vm)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
+	var er plugins.HookEditRecord
+	err := json.Unmarshal([]byte(payload), &er)
+	if err != nil {
+		return err
+	}
+
+	// The LinkTo field is not allowed to change once the record has
+	// become public. If this is a vetted record, verify that any
+	// previously set LinkTo has not changed.
+	if er.State == plugins.RecordStateVetted {
+		var (
+			oldLinkTo string
+			newLinkTo string
+		)
+		vm, err := decodeVoteMetadata(er.Current.Files)
+		if err != nil {
+			return err
+		}
+		if vm != nil {
+			oldLinkTo = vm.LinkTo
+		}
+		vm, err = decodeVoteMetadata(er.FilesAdd)
+		if err != nil {
+			return err
+		}
+		if vm != nil {
+			newLinkTo = vm.LinkTo
+		}
+		if newLinkTo != oldLinkTo {
+			e := fmt.Sprintf("linkto cannot change on vetted record: "+
+				"got '%v', want '%v'", newLinkTo, oldLinkTo)
+			return backend.PluginUserError{
+				PluginID:     ticketvote.ID,
+				ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+				ErrorContext: e,
+			}
+		}
+	}
+
+	// Verify LinkBy if one was included. The VoteMetadata is optional
+	// so the record may not contain one.
+	vm, err := decodeVoteMetadata(er.FilesAdd)
+	if err != nil {
+		return err
+	}
+	if vm != nil {
+		err = p.linkByVerify(vm.LinkBy)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
+	var srs plugins.HookSetRecordStatus
+	err := json.Unmarshal([]byte(payload), &srs)
+	if err != nil {
+		return err
+	}
+
+	// Check if the LinkTo has been set
+	vm, err := decodeVoteMetadata(srs.Current.Files)
+	if err != nil {
+		return err
+	}
+	if vm != nil && vm.LinkTo != "" {
+		// LinkTo has been set. Check if the status change requires the
+		// linked from list of the linked record to be updated.
+		var (
+			parentToken = vm.LinkTo
+			childToken  = srs.RecordMetadata.Token
+		)
+		switch srs.RecordMetadata.Status {
+		case backend.MDStatusVetted:
+			// Record has been made public. Add child token to parent's
+			// linked from list.
+			err := p.linkedFromAdd(parentToken, childToken)
+			if err != nil {
+				return fmt.Errorf("linkedFromAdd: %v", err)
+			}
+		case backend.MDStatusCensored:
+			// Record has been censored. Delete child token from parent's
+			// linked from list.
+			err := p.linkedFromDel(parentToken, childToken)
+			if err != nil {
+				return fmt.Errorf("linkedFromDel: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // Setup performs any plugin setup work that needs to be done.
 //
 // This function satisfies the plugins.Client interface.
@@ -2356,12 +2955,8 @@ func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("Setup")
 
 	// Verify plugin dependencies
-	plugins, err := p.backend.GetPlugins()
-	if err != nil {
-		return fmt.Errorf("Plugins: %v", err)
-	}
 	var dcrdataFound bool
-	for _, v := range plugins {
+	for _, v := range p.backend.GetVettedPlugins() {
 		if v.ID == dcrdata.ID {
 			dcrdataFound = true
 		}
@@ -2371,7 +2966,7 @@ func (p *ticketVotePlugin) Setup() error {
 	}
 
 	// Build inventory cache
-	log.Infof("ticketvote: building inventory cache")
+	log.Infof("Building inventory cache")
 
 	ibs, err := p.backend.InventoryByStatus()
 	if err != nil {
@@ -2395,12 +2990,7 @@ func (p *ticketVotePlugin) Setup() error {
 			if err != nil {
 				return err
 			}
-			// TODO this needs to use the summary plugin command
-			var treeID int64
-			s, err := p.summary(treeID, token, bestBlock)
-			if err != nil {
-				return fmt.Errorf("summary %v: %v", v, err)
-			}
+			s, err := p.summaryByToken(token)
 			switch s.Status {
 			case ticketvote.VoteStatusUnauthorized:
 				unauthorized = append(unauthorized, v)
@@ -2427,20 +3017,25 @@ func (p *ticketVotePlugin) Setup() error {
 	p.Unlock()
 
 	// Build votes cache
-	log.Infof("ticketvote: building votes cache")
+	log.Infof("Building votes cache")
 
 	for k := range started {
 		token, err := tokenDecode(k)
 		if err != nil {
 			return err
 		}
-		// TODO this needs to use the results plugin command
-		var treeID int64
-		votes, err := p.castVotes(treeID)
+		reply, err := p.backend.VettedPluginCmd(token, ticketvote.ID,
+			ticketvote.CmdResults, "")
 		if err != nil {
-			return fmt.Errorf("castVotes %v: %v", token, err)
+			return fmt.Errorf("VettedPluginCmd %x %v %v: %v",
+				token, ticketvote.ID, ticketvote.CmdResults, err)
 		}
-		for _, v := range votes {
+		var rr ticketvote.ResultsReply
+		err = json.Unmarshal([]byte(reply), &rr)
+		if err != nil {
+			return err
+		}
+		for _, v := range rr.Votes {
 			p.cachedVotesSet(v.Token, v.Ticket, v.VoteBit)
 		}
 	}
@@ -2465,12 +3060,16 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 		return p.cmdDetails(treeID, token, payload)
 	case ticketvote.CmdResults:
 		return p.cmdResults(treeID, token, payload)
-	case ticketvote.CmdSummaries:
-		return p.cmdSummaries(treeID, token, payload)
+	case ticketvote.CmdSummary:
+		return p.cmdSummary(treeID, token, payload)
 	case ticketvote.CmdInventory:
 		return p.cmdInventory()
 	case ticketvote.CmdTimestamps:
 		return p.cmdTimestamps(treeID, token, payload)
+
+		// Internal plugin commands
+	case cmdStartRunoffSub:
+		return p.cmdStartRunoffSub(treeID, token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -2481,6 +3080,15 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 // This function satisfies the plugins.Client interface.
 func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+
+	switch h {
+	case plugins.HookTypeNewRecordPre:
+		return p.hookNewRecordPre(payload)
+	case plugins.HookTypeEditRecordPre:
+		return p.hookEditRecordPre(payload)
+	case plugins.HookTypeSetRecordStatusPost:
+		return p.hookSetRecordStatusPost(payload)
+	}
 
 	return nil
 }
@@ -2493,6 +3101,36 @@ func (p *ticketVotePlugin) Fsck() error {
 
 	return nil
 }
+
+/*
+// linkByPeriodMin returns the minimum amount of time, in seconds, that the
+// LinkBy period must be set to. This is determined by adding 1 week onto the
+// minimum voting period so that RFP proposal submissions have at least one
+// week to be submitted after the proposal vote ends.
+func (p *politeiawww) linkByPeriodMin() int64 {
+	var (
+		submissionPeriod int64 = 604800 // One week in seconds
+		blockTime        int64          // In seconds
+	)
+	switch {
+	case p.cfg.TestNet:
+		blockTime = int64(testNet3Params.TargetTimePerBlock.Seconds())
+	case p.cfg.SimNet:
+		blockTime = int64(simNetParams.TargetTimePerBlock.Seconds())
+	default:
+		blockTime = int64(mainNetParams.TargetTimePerBlock.Seconds())
+	}
+	return (int64(p.cfg.VoteDurationMin) * blockTime) + submissionPeriod
+}
+
+// linkByPeriodMax returns the maximum amount of time, in seconds, that the
+// LinkBy period can be set to. 3 months is currently hard coded with no real
+// reason for deciding on 3 months besides that it sounds like a sufficient
+// amount of time.  This can be changed if there is a valid reason to.
+func (p *politeiawww) linkByPeriodMax() int64 {
+	return 7776000 // 3 months in seconds
+}
+*/
 
 func newTicketVotePlugin(backend backend.Backend, tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
 	// Plugin settings

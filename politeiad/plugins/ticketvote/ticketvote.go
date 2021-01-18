@@ -24,7 +24,7 @@ const (
 	CmdCastBallot = "castballot" // Cast a ballot of votes
 	CmdDetails    = "details"    // Get vote details
 	CmdResults    = "results"    // Get vote results
-	CmdSummaries  = "summaries"  // Get vote summaries
+	CmdSummary    = "summary"    // Get vote summary
 	CmdInventory  = "inventory"  // Get inventory by vote status
 	CmdTimestamps = "timestamps" // Get vote data timestamps
 
@@ -42,22 +42,55 @@ const (
 	PolicyVotesPageSize = 20
 )
 
-// ErrorStatusT represents and error that is caused by the user.
-type ErrorStatusT int
+// ErrorCodeT represents and error that is caused by the user.
+type ErrorCodeT int
 
 const (
-	ErrorStatusInvalid              ErrorStatusT = 0
-	ErrorStatusTokenInvalid         ErrorStatusT = 1
-	ErrorStatusPublicKeyInvalid     ErrorStatusT = 2
-	ErrorStatusSignatureInvalid     ErrorStatusT = 3
-	ErrorStatusRecordVersionInvalid ErrorStatusT = 4
-	ErrorStatusRecordStatusInvalid  ErrorStatusT = 5
-	ErrorStatusAuthorizationInvalid ErrorStatusT = 6
-	ErrorStatusStartDetailsInvalid  ErrorStatusT = 7
-	ErrorStatusVoteParamsInvalid    ErrorStatusT = 8
-	ErrorStatusVoteStatusInvalid    ErrorStatusT = 9
-	ErrorStatusPageSizeExceeded     ErrorStatusT = 10
+	// TODO number these
+	ErrorCodeInvalid      ErrorCodeT = 0
+	ErrorCodeTokenInvalid ErrorCodeT = iota
+	ErrorCodePublicKeyInvalid
+	ErrorCodeSignatureInvalid
+	ErrorCodeRecordVersionInvalid
+	ErrorCodeRecordStatusInvalid
+	ErrorCodeAuthorizationInvalid
+	ErrorCodeStartDetailsMissing
+	ErrorCodeStartDetailsInvalid
+	ErrorCodeVoteParamsInvalid
+	ErrorCodeVoteStatusInvalid
+	ErrorCodePageSizeExceeded
+	ErrorCodeVoteMetadataInvalid
+	ErrorCodeLinkByInvalid
+	ErrorCodeLinkToInvalid
+
+	ErrorCodeRunoffVoteParentInvalid
+	ErrorCodeLinkByNotExpired
 )
+
+const (
+	// FileNameVoteMetadata is the filename of the VoteMetadata file
+	// that is saved to politeiad. VoteMetadata is saved to politeiad
+	// as a file, not as a metadata stream, since it contains user
+	// provided metadata and needs to be included in the merkle root
+	// that politeiad signs.
+	FileNameVoteMetadata = "votemetadata.json"
+)
+
+// VoteMetadata is metadata that is specified by the user and attached to
+// a record on submission. This metadata is required for certain types of
+// votes.
+type VoteMetadata struct {
+	// LinkBy is set when the user intends for the record to be the
+	// parent record in a runoff vote. It is a UNIX timestamp that
+	// serves as the deadline for other records to declare their intent
+	// to participate in the runoff vote.
+	LinkBy int64 `json:"linkby,omitempty"`
+
+	// LinkTo is the censorship token of a runoff vote parent record.
+	// It is set when a record is being submitted as a vote options in
+	// the runoff vote.
+	LinkTo string `json:"linkto,omitempty"`
+}
 
 // AuthDetails is the structure that is saved to disk when a vote is authorized
 // or a previous authorization is revoked. It contains all the fields from a
@@ -219,9 +252,6 @@ type StartDetails struct {
 }
 
 // Start starts a ticket vote.
-//
-// Signature is the signature of a SHA256 digest of the JSON encoded VoteParams
-// structure.
 type Start struct {
 	Starts []StartDetails `json:"starts"`
 }
@@ -328,39 +358,21 @@ type CastBallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
 
-// Details returns the vote details for each of the provided record tokens.
-type Details struct {
-	Tokens []string `json:"tokens"`
-}
+// Details returns the vote details for a record.
+type Details struct{}
 
-// RecordVote contains all vote authorizations and the vote details for a
-// record. The VoteDetails will be nil if the vote has been started.
-type RecordVote struct {
+// DetailsReply is the reply to the Details command.
+type DetailsReply struct {
 	Auths []AuthDetails `json:"auths"`
 	Vote  *VoteDetails  `json:"vote"`
 }
 
-// DetailsReply is the reply to the Details command. The returned map will not
-// contain an entry for any tokens that did not correspond to an actual record.
-// It is the callers responsibility to ensure that a entry is returned for all
-// of the provided tokens.
-type DetailsReply struct {
-	Votes map[string]RecordVote `json:"votes"`
-}
-
 // Results requests the results of a vote.
-type Results struct {
-	Token string `json:"token"`
-}
+type Results struct{}
 
 // ResultsReply is the rely to the Results command.
 type ResultsReply struct {
 	Votes []CastVoteDetails `json:"votes"`
-}
-
-// Summaries requests the vote summaries for the provided record tokens.
-type Summaries struct {
-	Tokens []string `json:"tokens"`
 }
 
 // VoteStatusT represents the status of a ticket vote.
@@ -405,8 +417,8 @@ type VoteOptionResult struct {
 	Votes       uint64 `json:"votes"`       // Votes cast for this option
 }
 
-// Summary summarizes the vote params and results for a ticket vote.
-type Summary struct {
+// VoteSummary contains a summary of a record vote.
+type VoteSummary struct {
 	Type             VoteT              `json:"type"`
 	Status           VoteStatusT        `json:"status"`
 	Duration         uint32             `json:"duration"`
@@ -425,17 +437,15 @@ type Summary struct {
 	Approved bool `json:"approved,omitempty"`
 }
 
-// SummariesReply is the reply to the Summaries command.
-type SummariesReply struct {
-	// Summaries contains a vote summary for each of the provided
-	// tokens. The map will not contain an entry for any tokens that
-	// did not correspond to an actual record. It is the callers
-	// responsibility to ensure that a summary is returned for all of
-	// the provided tokens.
-	Summaries map[string]Summary `json:"summaries"` // [token]Summary
+// Summary requests the vote summaries for a record.
+type Summary struct{}
 
-	// BestBlock is the best block value that was used to prepare the
-	// summaries.
+// SummaryReply is the reply to the Summary command.
+type SummaryReply struct {
+	Summary VoteSummary `json:"summary"`
+
+	// BestBlock is the best block value that was used to
+	// prepare this summary.
 	BestBlock uint32 `json:"bestblock"`
 }
 

@@ -5,7 +5,6 @@
 package pi
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
@@ -53,28 +51,6 @@ func isRFP(pm pi.ProposalMetadata) bool {
 // tokenDecode decodes a token string.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
-}
-
-// decodeProposalMetadata decodes and returns the ProposalMetadata from the
-// provided backend files. If a ProposalMetadata is not found, nil is returned.
-func decodeProposalMetadata(files []backend.File) (*pi.ProposalMetadata, error) {
-	var propMD *pi.ProposalMetadata
-	for _, v := range files {
-		if v.Name == pi.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-			var pm pi.ProposalMetadata
-			err = json.Unmarshal(b, &pm)
-			if err != nil {
-				return nil, err
-			}
-			propMD = &pm
-			break
-		}
-	}
-	return propMD, nil
 }
 
 // decodeGeneralMetadata decodes and returns the GeneralMetadata from the
@@ -534,17 +510,6 @@ func (p *piPlugin) commentVote(payload string) error {
 		// done in the comments plugin but we duplicate it here so that the
 		// vote summary request can complete successfully.
 
-		// Verify state
-		switch v.State {
-		case comments.StateUnvetted, comments.StateVetted:
-			// Allowed; continue
-		default:
-			return "", backend.PluginUserError{
-				PluginID:  pi.ID,
-				ErrorCode: int(pi.ErrorStatusPropStateInvalid),
-			}
-		}
-
 		// Verify token
 		token, err := tokenDecodeAnyLength(v.Token)
 		if err != nil {
@@ -612,156 +577,16 @@ func (p *piPlugin) commentVote(payload string) error {
 }
 
 func (p *piPlugin) ticketVoteStart(payload string) error {
-	// TODO
-	/*
-		// Decode payload
-		s, err := ticketvote.DecodeStart([]byte(payload))
-		if err != nil {
-			return "", err
-		}
+	// TODO If runoff vote, verify that parent record has passed a
+	// vote itself. This functionality is specific to pi.
 
-		// Verify work needs to be done
-		if len(s.Starts) == 0 {
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusStartDetailsInvalid),
-				ErrorContext: []string{"no start details found"},
-			}
-		}
+	// Decode payload
+	s, err := ticketvote.DecodeStart([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	_ = s
 
-		// Sanity check. This pass through command should only be used for
-		// RFP runoff votes.
-		if s.Starts[0].Params.Type != ticketvote.VoteTypeRunoff {
-			return "", fmt.Errorf("not a runoff vote")
-		}
-
-		// Get RFP token. Just use the parent token from the first vote
-		// params. If the different vote params use different parent
-		// tokens, the ticketvote plugin will catch it.
-		rfpToken := s.Starts[0].Params.Parent
-		rfpTokenb, err := tokenDecode(rfpToken)
-		if err != nil {
-			e := fmt.Sprintf("invalid rfp token '%v'", rfpToken)
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusVoteParentInvalid),
-				ErrorContext: []string{e},
-			}
-		}
-
-		// Get RFP record
-		rfp, err := p.backend.GetVetted(rfpTokenb, "")
-		if err != nil {
-			if errors.Is(err, errRecordNotFound) {
-				e := fmt.Sprintf("rfp not found %x", rfpToken)
-				return "", backend.PluginUserError{
-					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusVoteParentInvalid),
-					ErrorContext: []string{e},
-				}
-			}
-			return "", fmt.Errorf("GetVetted %x: %v", rfpToken, err)
-		}
-
-		// Verify RFP linkby has expired. The runoff vote is not allowed to
-		// start until after the linkby deadline has passed.
-		rfpPM, err := decodeProposalMetadata(rfp.Files)
-		if err != nil {
-			return "", err
-		}
-		if rfpPM == nil {
-			e := fmt.Sprintf("rfp is not a proposal %v", rfpToken)
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusVoteParentInvalid),
-				ErrorContext: []string{e},
-			}
-		}
-		isExpired := rfpPM.LinkBy < time.Now().Unix()
-		isMainNet := p.activeNetParams.Name == chaincfg.MainNetParams().Name
-		switch {
-		case !isExpired && isMainNet:
-			e := fmt.Sprintf("rfp %v linkby deadline not met %v",
-				rfpToken, rfpPM.LinkBy)
-			return "", backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusLinkByNotExpired),
-				ErrorContext: []string{e},
-			}
-		case !isExpired:
-			// Allow the vote to be started before the link by deadline
-			// expires on testnet and simnet only. This makes testing the
-			// RFP process easier.
-			log.Warnf("RFP linkby deadline has not been met; disregarding " +
-				"since this is not mainnet")
-		}
-
-		// Compile a list of the expected RFP submissions that should be in
-		// the runoff vote. This will be all of the public proposals that
-		// have linked to the RFP. The RFP's linked from list will include
-		// abandoned proposals that need to be filtered out.
-		linkedFrom, err := p.linkedFrom(rfpToken)
-		if err != nil {
-			return "", err
-		}
-		// map[token]struct{}
-		expected := make(map[string]struct{}, len(linkedFrom.Tokens))
-		for k := range linkedFrom.Tokens {
-			token, err := tokenDecode(k)
-			if err != nil {
-				return "", err
-			}
-			r, err := p.backend.GetVetted(token, "")
-			if err != nil {
-				return "", err
-			}
-			if r.RecordMetadata.Status != backend.MDStatusVetted {
-				// This proposal is not public and should not be included in
-				// the runoff vote.
-				continue
-			}
-
-			// This is a public proposal that is part of the RFP linked from
-			// list. It is required to be in the runoff vote.
-			expected[k] = struct{}{}
-		}
-
-		// Verify that there are no extra submissions in the runoff vote
-		for _, v := range s.Starts {
-			_, ok := expected[v.Params.Token]
-			if !ok {
-				// This submission should not be here.
-				e := fmt.Sprintf("found token that should not be included: %v",
-					v.Params.Token)
-				return "", backend.PluginUserError{
-					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusStartDetailsInvalid),
-					ErrorContext: []string{e},
-				}
-			}
-		}
-
-		// Verify that the runoff vote is not missing any submissions
-		subs := make(map[string]struct{}, len(s.Starts))
-		for _, v := range s.Starts {
-			subs[v.Params.Token] = struct{}{}
-		}
-		for token := range expected {
-			_, ok := subs[token]
-			if !ok {
-				// This proposal is missing from the runoff vote
-				return "", backend.PluginUserError{
-					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusStartDetailsMissing),
-					ErrorContext: []string{token},
-				}
-			}
-		}
-
-		// Pi plugin validation complete! Pass the plugin command to the
-		// ticketvote plugin.
-		return p.backend.Plugin(ticketvote.ID, ticketvote.CmdStart, "", payload)
-	*/
 	return nil
 }
 
@@ -795,13 +620,13 @@ func (p *piPlugin) hookPluginPre(payload string) error {
 }
 
 func (p *piPlugin) hookNewRecordPre(payload string) error {
-	var nr plugins.HookNewRecord
+	var nr plugins.HookNewRecordPre
 	err := json.Unmarshal([]byte(payload), &nr)
 	if err != nil {
 		return err
 	}
 
-	// Decode ProposalMetadata
+	// Verify a proposal metadata has been included
 	pm, err := decodeProposalMetadata(nr.Files)
 	if err != nil {
 		return err
@@ -810,95 +635,7 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		return fmt.Errorf("proposal metadata not found")
 	}
 
-	// TODO is linkby validated anywhere? It should be validated here
-	// and in the edit proposal.
-
-	// Verify the linkto is an RFP and that the RFP is eligible to be
-	// linked to. We currently only allow linking to RFP proposals that
-	// have been approved by a ticket vote.
-	if pm.LinkTo != "" {
-		if isRFP(*pm) {
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "an rfp cannot have linkto set",
-			}
-		}
-		tokenb, err := hex.DecodeString(pm.LinkTo)
-		if err != nil {
-			return backend.PluginUserError{
-
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "invalid hex",
-			}
-		}
-		r, err := p.backend.GetVetted(tokenb, "")
-		if err != nil {
-			if errors.Is(err, backend.ErrRecordNotFound) {
-				return backend.PluginUserError{
-					PluginID:     pi.ID,
-					ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-					ErrorContext: "proposal not found",
-				}
-			}
-			return err
-		}
-		linkToPM, err := decodeProposalMetadata(r.Files)
-		if err != nil {
-			return err
-		}
-		if linkToPM == nil {
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "proposal not an rfp",
-			}
-		}
-		if !isRFP(*linkToPM) {
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "proposal not an rfp",
-			}
-		}
-		if time.Now().Unix() > linkToPM.LinkBy {
-			// Link by deadline has expired. New links are not allowed.
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "rfp link by deadline expired",
-			}
-		}
-		s := ticketvote.Summaries{
-			Tokens: []string{pm.LinkTo},
-		}
-		b, err := ticketvote.EncodeSummaries(s)
-		if err != nil {
-			return err
-		}
-		reply, err := p.backend.Plugin(ticketvote.ID,
-			ticketvote.CmdSummaries, "", string(b))
-		if err != nil {
-			return fmt.Errorf("Plugin %v %v: %v",
-				ticketvote.ID, ticketvote.CmdSummaries, err)
-		}
-		sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
-		if err != nil {
-			return err
-		}
-		summary, ok := sr.Summaries[pm.LinkTo]
-		if !ok {
-			return fmt.Errorf("summary not found %v", pm.LinkTo)
-		}
-		if !summary.Approved {
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "rfp vote not approved",
-			}
-		}
-	}
+	// TODO Verify proposal name
 
 	return nil
 }
@@ -929,73 +666,51 @@ func (p *piPlugin) hookNewRecordPost(payload string) error {
 }
 
 func (p *piPlugin) hookEditRecordPre(payload string) error {
-	var er plugins.HookEditRecord
-	err := json.Unmarshal([]byte(payload), &er)
-	if err != nil {
-		return err
-	}
-
-	// TODO verify files were changed. Before adding this, verify that
-	// politeiad will also error if no files were changed.
-
-	// Verify that the linkto has not changed. This only applies to
-	// public proposal. Unvetted proposals are allowed to change their
-	// linkto.
-	status := convertPropStatusFromMDStatus(er.Current.RecordMetadata.Status)
-	if status == pi.PropStatusPublic {
-		pmCurr, err := decodeProposalMetadata(er.Current.Files)
+	/*
+		var er plugins.HookEditRecord
+		err := json.Unmarshal([]byte(payload), &er)
 		if err != nil {
 			return err
 		}
-		pmNew, err := decodeProposalMetadata(er.FilesAdd)
-		if err != nil {
-			return err
-		}
-		if pmCurr.LinkTo != pmNew.LinkTo {
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusPropLinkToInvalid),
-				ErrorContext: "linkto cannot change on public proposal",
+
+		// TODO verify files were changed. Before adding this, verify that
+		// politeiad will also error if no files were changed.
+
+		// Verify vote status. This is only required for public proposals.
+		if status == pi.PropStatusPublic {
+			token := er.RecordMetadata.Token
+			s := ticketvote.Summaries{
+				Tokens: []string{token},
+			}
+			b, err := ticketvote.EncodeSummaries(s)
+			if err != nil {
+				return err
+			}
+			reply, err := p.backend.Plugin(ticketvote.ID,
+				ticketvote.CmdSummaries, "", string(b))
+			if err != nil {
+				return fmt.Errorf("ticketvote Summaries: %v", err)
+			}
+			sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
+			if err != nil {
+				return err
+			}
+			summary, ok := sr.Summaries[token]
+			if !ok {
+				return fmt.Errorf("ticketvote summmary not found")
+			}
+			if summary.Status != ticketvote.VoteStatusUnauthorized {
+				e := fmt.Sprintf("vote status got %v, want %v",
+					ticketvote.VoteStatuses[summary.Status],
+					ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized])
+				return backend.PluginUserError{
+					PluginID:     pi.ID,
+					ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
+					ErrorContext: e,
+				}
 			}
 		}
-	}
-
-	// TODO verify linkto is allowed
-
-	// Verify vote status. This is only required for public proposals.
-	if status == pi.PropStatusPublic {
-		token := er.RecordMetadata.Token
-		s := ticketvote.Summaries{
-			Tokens: []string{token},
-		}
-		b, err := ticketvote.EncodeSummaries(s)
-		if err != nil {
-			return err
-		}
-		reply, err := p.backend.Plugin(ticketvote.ID,
-			ticketvote.CmdSummaries, "", string(b))
-		if err != nil {
-			return fmt.Errorf("ticketvote Summaries: %v", err)
-		}
-		sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
-		if err != nil {
-			return err
-		}
-		summary, ok := sr.Summaries[token]
-		if !ok {
-			return fmt.Errorf("ticketvote summmary not found")
-		}
-		if summary.Status != ticketvote.VoteStatusUnauthorized {
-			e := fmt.Sprintf("vote status got %v, want %v",
-				ticketvote.VoteStatuses[summary.Status],
-				ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized])
-			return backend.PluginUserError{
-				PluginID:     pi.ID,
-				ErrorCode:    int(pi.ErrorStatusVoteStatusInvalid),
-				ErrorContext: e,
-			}
-		}
-	}
+	*/
 
 	return nil
 }
@@ -1066,38 +781,6 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 			PluginID:     pi.ID,
 			ErrorCode:    int(pi.ErrorStatusPropStatusChangeInvalid),
 			ErrorContext: e,
-		}
-	}
-
-	// If the LinkTo field has been set then the linkedFrom
-	// list might need to be updated for the proposal that is being
-	// linked to, depending on the status change that is being made.
-	pm, err := decodeProposalMetadata(srs.Current.Files)
-	if err != nil {
-		return err
-	}
-	if pm != nil && pm.LinkTo != "" {
-		// Link from has been set. Check if the status change requires
-		// the parent proposal's linked from list to be updated.
-		var (
-			parentToken = pm.LinkTo
-			childToken  = srs.RecordMetadata.Token
-		)
-		switch srs.RecordMetadata.Status {
-		case backend.MDStatusVetted:
-			// Proposal has been made public. Add child token to parent
-			// token's linked from list.
-			err := p.linkedFromAdd(parentToken, childToken)
-			if err != nil {
-				return fmt.Errorf("linkedFromAdd: %v", err)
-			}
-		case backend.MDStatusCensored:
-			// Proposal has been censored. Delete child token from parent
-			// token's linked from list.
-			err := p.linkedFromDel(parentToken, childToken)
-			if err != nil {
-				return fmt.Errorf("linkedFromDel: %v", err)
-			}
 		}
 	}
 

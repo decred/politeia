@@ -284,11 +284,13 @@ type Backend interface {
 	// Perform any plugin setup that is required
 	SetupVettedPlugin(pluginID string) error
 
-	// Execute a plugin command on an unvetted record
-	UnvettedPlugin(token []byte, pluginID, cmd, payload string) (string, error)
+	// Execute a unvetted plugin command
+	UnvettedPluginCmd(token []byte, pluginID,
+		cmd, payload string) (string, error)
 
-	// Execute a plugin command on a vetted record
-	VettedPlugin(token []byte, pluginID, cmd, payload string) (string, error)
+	// Execute a vetted plugin command
+	VettedPluginCmd(token []byte, pluginID,
+		cmd, payload string) (string, error)
 
 	// Get unvetted plugins
 	GetUnvettedPlugins() []Plugin
