@@ -35,7 +35,7 @@ func NewTestTlogBackend(t *testing.T) (*tlogBackend, func()) {
 		vetted:          tlog.NewTestTlogEncrypted(t, dataDir, "vetted"),
 		prefixes:        make(map[string][]byte),
 		vettedTreeIDs:   make(map[string]int64),
-		inv: recordInventory{
+		inv: inventory{
 			unvetted: make(map[backend.MDStatusT][]string),
 			vetted:   make(map[backend.MDStatusT][]string),
 		},

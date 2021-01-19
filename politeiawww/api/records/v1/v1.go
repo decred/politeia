@@ -58,7 +58,7 @@ type PluginErrorReply struct {
 
 // Error satisfies the error interface.
 func (e PluginErrorReply) Error() string {
-	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+	return fmt.Sprintf("plugin user error code: %v", e.ErrorCode)
 }
 
 // ServerErrorReply is the reply that the server returns when it encounters an

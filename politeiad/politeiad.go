@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -258,9 +258,9 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.Erro
 	})
 }
 
-func (p *politeia) respondWithPluginUserError(w http.ResponseWriter, plugin string, errorCode int, errorContext string) {
-	util.RespondWithJSON(w, http.StatusBadRequest, v1.PluginUserErrorReply{
-		Plugin:       plugin,
+func (p *politeia) respondWithPluginError(w http.ResponseWriter, plugin string, errorCode int, errorContext string) {
+	util.RespondWithJSON(w, http.StatusBadRequest, v1.PluginErrorReply{
+		PluginID:     plugin,
 		ErrorCode:    errorCode,
 		ErrorContext: []string{errorContext},
 	})
@@ -328,11 +328,11 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check for plugin error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Debugf("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -438,11 +438,11 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 			return
 		}
 		// Check for plugin error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Debugf("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -889,11 +889,11 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Check for plugin error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Debugf("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -961,11 +961,11 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Check for plugin error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Debugf("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -1036,11 +1036,11 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		// Check for plugin error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Debugf("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -1106,11 +1106,11 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 			return
 		}
 		// Check for plugin error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Debugf("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -1179,11 +1179,11 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		pc.CommandID, pc.Payload)
 	if err != nil {
 		// Check for a user error
-		var e backend.PluginUserError
+		var e backend.PluginError
 		if errors.As(err, &e) {
 			log.Infof("%v plugin user error: %v %v",
 				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginUserError(w, e.PluginID, e.ErrorCode,
+			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
 				e.ErrorContext)
 			return
 		}
@@ -1207,6 +1207,144 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("%v Plugin cmd executed: %v %v", remoteAddr(r), pc.ID, pc.Command)
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func convertBackendError(e error) error {
+	// Check for a plugin error
+	var pe backend.PluginError
+	if errors.As(e, &pe) {
+		return v1.PluginErrorReply{
+			PluginID:     pe.PluginID,
+			ErrorCode:    pe.ErrorCode,
+			ErrorContext: []string{pe.ErrorContext},
+		}
+	}
+
+	// Check for a backend error
+	var s v1.ErrorStatusT
+	switch e {
+	case backend.ErrRecordNotFound:
+		s = v1.ErrorStatusRecordNotFound
+	case backend.ErrRecordFound:
+		// Intentionally omitted
+	case backend.ErrFileNotFound:
+		// Intentionally omitted
+	case backend.ErrNoChanges:
+		s = v1.ErrorStatusNoChanges
+	case backend.ErrChangesRecord:
+		// Intentionally omitted
+	case backend.ErrRecordLocked:
+		s = v1.ErrorStatusRecordLocked
+	case backend.ErrJournalsNotReplayed:
+		// Intentionally omitted
+	case backend.ErrPluginInvalid:
+		// Intentionally omitted
+	case backend.ErrPluginCmdInvalid:
+		// Intentionally omitted
+	}
+	if s != v1.ErrorStatusInvalid {
+		return v1.UserErrorReply{
+			ErrorCode: s,
+		}
+	}
+
+	return v1.ServerErrorReply{
+		ErrorCode: time.Now().Unix(),
+	}
+}
+
+func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
+	var pcb v1.PluginCommandBatch
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pcb); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
+		return
+	}
+
+	// Verify challenge
+	challenge, err := hex.DecodeString(pcb.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	// Execute plugin commands
+	replies := make([]v1.PluginCommandReplyV2, len(pcb.Commands))
+	for k, pc := range pcb.Commands {
+		// Verify token
+		token, err := util.ConvertStringToken(pc.Token)
+		if err != nil {
+			replies[k] = v1.PluginCommandReplyV2{
+				Error: v1.UserErrorReply{
+					ErrorCode: v1.ErrorStatusInvalidToken,
+				},
+			}
+			continue
+		}
+
+		// Execute plugin command
+		var payload string
+		switch pc.State {
+		case v1.RecordStateUnvetted:
+			payload, err = p.backend.UnvettedPluginCmd(token,
+				pc.ID, pc.Command, pc.Payload)
+		case v1.RecordStateVetted:
+			payload, err = p.backend.VettedPluginCmd(token,
+				pc.ID, pc.Command, pc.Payload)
+		default:
+			replies[k] = v1.PluginCommandReplyV2{
+				Error: v1.UserErrorReply{
+					ErrorCode: v1.ErrorStatusInvalidRecordState,
+				},
+			}
+			continue
+		}
+		if err != nil {
+			// Add error to reply
+			e := convertBackendError(err)
+			replies[k] = v1.PluginCommandReplyV2{
+				Error: e,
+			}
+
+			// Log any internal server errors
+			var se v1.ServerErrorReply
+			if errors.As(e, &se) {
+				log.Errorf("%v %v: backend plugin failed: pluginID:%v cmd:%v "+
+					"payload:%v err:%v", remoteAddr(r), se.ErrorCode, pc.ID,
+					pc.Command, pc.Payload, err)
+			}
+
+			continue
+		}
+
+		// Update reply
+		replies[k] = v1.PluginCommandReplyV2{
+			Payload: payload,
+		}
+	}
+
+	// Fill in remaining data for the replies
+	for k, v := range replies {
+		replies[k] = v1.PluginCommandReplyV2{
+			State:   pcb.Commands[k].State,
+			Token:   pcb.Commands[k].Token,
+			ID:      pcb.Commands[k].ID,
+			Command: pcb.Commands[k].Command,
+			Payload: v.Payload,
+			Error:   v.Error,
+		}
+	}
+
+	response := p.identity.SignMessage(challenge)
+	reply := v1.PluginCommandBatchReply{
+		Response: hex.EncodeToString(response[:]),
+		Replies:  replies,
+	}
+
+	log.Infof("%v Plugin cmd batch executed", remoteAddr(r))
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -1474,10 +1612,14 @@ func _main() error {
 				return fmt.Errorf("unknown plugin '%v'", v)
 			}
 
-			// Register with backend
-			err := p.backend.RegisterPlugin(plugin)
+			// Register plugin
+			err = p.backend.RegisterUnvettedPlugin(plugin)
 			if err != nil {
-				return fmt.Errorf("RegisterPlugin %v: %v", v, err)
+				return fmt.Errorf("register unvetted plugin %v: %v", v, err)
+			}
+			err = p.backend.RegisterVettedPlugin(plugin)
+			if err != nil {
+				return fmt.Errorf("register vetted plugin %v: %v", v, err)
 			}
 
 			// Add plugin to politeiad context
@@ -1489,9 +1631,13 @@ func _main() error {
 		// Setup plugins
 		for _, v := range cfg.Plugins {
 			log.Infof("Setting up plugin: %v", v)
-			err := p.backend.SetupPlugin(v)
+			err = p.backend.SetupUnvettedPlugin(v)
 			if err != nil {
-				return fmt.Errorf("SetupPlugin %v: %v", v, err)
+				return fmt.Errorf("setup unvetted plugin %v: %v", v, err)
+			}
+			err = p.backend.SetupVettedPlugin(v)
+			if err != nil {
+				return fmt.Errorf("setup vetted plugin %v: %v", v, err)
 			}
 		}
 	}

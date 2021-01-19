@@ -249,19 +249,6 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 // commentWritesVerify verifies that a record's vote status allows writes from
 // the comments plugin.
 func (p *piPlugin) commentWritesVerify(token []byte) error {
-	// Verify the ticketvote plugin is registered
-	var found bool
-	for _, v := range p.tlog.Plugins() {
-		if v.ID == ticketvote.ID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		// Ticket vote plugin is not registered. Nothing to verify.
-		return nil
-	}
-
 	// Verify that the vote status allows comment writes
 	vs, err := p.voteSummary(token)
 	if err != nil {

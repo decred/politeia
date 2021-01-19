@@ -119,7 +119,7 @@ func (t *Tlog) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payloa
 		p, _ := t.plugin(v)
 		err := p.client.Hook(treeID, token, h, payload)
 		if err != nil {
-			var e backend.PluginUserError
+			var e backend.PluginError
 			if errors.As(err, &e) {
 				return err
 			}
@@ -166,8 +166,6 @@ func (t *Tlog) PluginCmd(treeID int64, token []byte, pluginID, cmd, payload stri
 }
 
 // Plugins returns all registered plugins for the tlog instance.
-//
-// This function satisfies the tlogclient.Client interface.
 func (t *Tlog) Plugins() []backend.Plugin {
 	log.Tracef("%v Plugins", t.id)
 

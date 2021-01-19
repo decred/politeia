@@ -89,7 +89,7 @@ func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
 }
 
-func convertSignatureError(err error) backend.PluginUserError {
+func convertSignatureError(err error) backend.PluginError {
 	var e util.SignatureError
 	var s comments.ErrorCodeT
 	if errors.As(err, &e) {
@@ -100,7 +100,7 @@ func convertSignatureError(err error) backend.PluginUserError {
 			s = comments.ErrorCodeSignatureInvalid
 		}
 	}
-	return backend.PluginUserError{
+	return backend.PluginError{
 		PluginID:     comments.ID,
 		ErrorCode:    int(s),
 		ErrorContext: e.ErrorContext,
@@ -656,7 +656,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	// Verify token
 	t, err := tokenDecode(n.Token)
 	if err != nil {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
@@ -665,7 +665,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	if !bytes.Equal(t, token) {
 		e := fmt.Sprintf("comment token does not match route token: "+
 			"got %x, want %x", t, token)
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
@@ -681,7 +681,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 
 	// Verify comment
 	if len(n.Comment) > comments.PolicyCommentLengthMax {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
 			ErrorContext: "exceeds max length",
@@ -703,7 +703,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	// Verify parent comment exists if set. A parent ID of 0 means that
 	// this is a base level comment, not a reply to another comment.
 	if n.ParentID > 0 && !commentExists(*ridx, n.ParentID) {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeParentIDInvalid),
 			ErrorContext: "parent ID comment not found",
@@ -780,7 +780,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	// Verify token
 	t, err := tokenDecode(e.Token)
 	if err != nil {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
@@ -789,7 +789,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	if !bytes.Equal(t, token) {
 		e := fmt.Sprintf("comment token does not match route token: "+
 			"got %x, want %x", t, token)
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
@@ -805,7 +805,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 
 	// Verify comment
 	if len(e.Comment) > comments.PolicyCommentLengthMax {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
 			ErrorContext: "exceeds max length",
@@ -831,7 +831,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 	existing, ok := cs[e.CommentID]
 	if !ok {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeCommentNotFound),
 		}
@@ -839,7 +839,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 
 	// Verify the user ID
 	if e.UserID != existing.UserID {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeUserUnauthorized),
 		}
@@ -849,7 +849,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	if e.ParentID != existing.ParentID {
 		e := fmt.Sprintf("parent id cannot change; got %v, want %v",
 			e.ParentID, existing.ParentID)
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeParentIDInvalid),
 			ErrorContext: e,
@@ -858,7 +858,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 
 	// Verify comment changes
 	if e.Comment == existing.Comment {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
 			ErrorContext: "comment did not change",
@@ -929,7 +929,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	// Verify token
 	t, err := tokenDecode(d.Token)
 	if err != nil {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
@@ -938,7 +938,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	if !bytes.Equal(t, token) {
 		e := fmt.Sprintf("comment token does not match route token: "+
 			"got %x, want %x", t, token)
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
@@ -971,7 +971,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 	existing, ok := cs[d.CommentID]
 	if !ok {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeCommentNotFound),
 		}
@@ -1054,7 +1054,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	// Verify token
 	t, err := tokenDecode(v.Token)
 	if err != nil {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
@@ -1063,7 +1063,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	if !bytes.Equal(t, token) {
 		e := fmt.Sprintf("comment token does not match route token: "+
 			"got %x, want %x", t, token)
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
@@ -1075,7 +1075,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	case comments.VoteDownvote, comments.VoteUpvote:
 		// These are allowed
 	default:
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeVoteInvalid),
 		}
@@ -1104,7 +1104,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	// Verify comment exists
 	cidx, ok := ridx.Comments[v.CommentID]
 	if !ok {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeCommentNotFound),
 		}
@@ -1116,7 +1116,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 		uvotes = make([]voteIndex, 0)
 	}
 	if len(uvotes) > comments.PolicyVoteChangesMax {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeVoteChangesMax),
 		}
@@ -1132,7 +1132,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 		return "", fmt.Errorf("comment not found %v", v.CommentID)
 	}
 	if v.UserID == c.UserID {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeVoteInvalid),
 			ErrorContext: "user cannot vote on their own comment",
@@ -1298,13 +1298,13 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	// Verify comment exists
 	cidx, ok := ridx.Comments[gv.CommentID]
 	if !ok {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:  comments.ID,
 			ErrorCode: int(comments.ErrorCodeCommentNotFound),
 		}
 	}
 	if cidx.Del != nil {
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeCommentNotFound),
 			ErrorContext: "comment has been deleted",
@@ -1314,7 +1314,7 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	if !ok {
 		e := fmt.Sprintf("comment %v does not have version %v",
 			gv.CommentID, gv.Version)
-		return "", backend.PluginUserError{
+		return "", backend.PluginError{
 			PluginID:     comments.ID,
 			ErrorCode:    int(comments.ErrorCodeCommentNotFound),
 			ErrorContext: e,

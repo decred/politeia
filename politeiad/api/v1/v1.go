@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"regexp"
 
 	"github.com/decred/dcrtime/merkle"
@@ -21,24 +22,25 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute               = "/v1/identity/"         // Retrieve identity
-	NewRecordRoute              = "/v1/newrecord/"        // New record
-	UpdateUnvettedRoute         = "/v1/updateunvetted/"   // Update unvetted record
-	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/" // Update unvetted metadata
-	UpdateVettedRoute           = "/v1/updatevetted/"     // Update vetted record
-	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
-	GetUnvettedRoute            = "/v1/getunvetted/"      // Retrieve unvetted record
-	GetVettedRoute              = "/v1/getvetted/"        // Retrieve vetted record
-	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"
-	GetVettedTimestampsRoute    = "/v1/getvettedts/"
-	InventoryByStatusRoute      = "/v1/inventorybystatus/"
+	IdentityRoute               = "/v1/identity/"          // Retrieve identity
+	NewRecordRoute              = "/v1/newrecord/"         // New record
+	UpdateUnvettedRoute         = "/v1/updateunvetted/"    // Update unvetted record
+	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
+	UpdateVettedRoute           = "/v1/updatevetted/"      // Update vetted record
+	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"    // Update vetted metadata
+	GetUnvettedRoute            = "/v1/getunvetted/"       // Retrieve unvetted record
+	GetVettedRoute              = "/v1/getvetted/"         // Retrieve vetted record
+	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"     // Get unvetted timestamps
+	GetVettedTimestampsRoute    = "/v1/getvettedts/"       // Get vetted timestamps
+	InventoryByStatusRoute      = "/v1/inventorybystatus/" // Get token inventory
 
 	// Auth required
-	InventoryRoute         = "/v1/inventory/"         // Inventory records
-	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
-	SetVettedStatusRoute   = "/v1/setvettedstatus/"   // Set vetted status
-	PluginCommandRoute     = "/v1/plugin/"            // Send a command to a plugin
-	PluginInventoryRoute   = "/v1/plugin/inventory/"  // Inventory all plugins
+	InventoryRoute          = "/v1/inventory/"         // Inventory records
+	SetUnvettedStatusRoute  = "/v1/setunvettedstatus/" // Set unvetted status
+	SetVettedStatusRoute    = "/v1/setvettedstatus/"   // Set vetted status
+	PluginCommandRoute      = "/v1/plugin/"            // Send a command to a plugin
+	PluginCommandBatchRoute = "/v1/plugin/batch"       // Send a batch of plugin cmds
+	PluginInventoryRoute    = "/v1/plugin/inventory/"  // Inventory all plugins
 
 	ChallengeSize = 32 // Size of challenge token in bytes
 
@@ -69,6 +71,12 @@ const (
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
 	ErrorStatusRecordNotFound                ErrorStatusT = 17
 	ErrorStatusInvalidToken                  ErrorStatusT = 18
+	ErrorStatusRecordLocked                  ErrorStatusT = 19
+	ErrorStatusInvalidRecordState            ErrorStatusT = 20
+
+	// Record states
+	RecordStateUnvetted = "unvetted"
+	RecordStateVetted   = "vetted"
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -478,18 +486,33 @@ type UserErrorReply struct {
 	ErrorContext []string     `json:"errorcontext,omitempty"` // Additional error information
 }
 
+// Error satisfies the error interface.
+func (e UserErrorReply) Error() string {
+	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+}
+
 // PluginUserErrorReply returns details about a plugin error that occurred
 // while trying to execute a command due to bad input from the client.
-type PluginUserErrorReply struct {
-	Plugin       string   `json:"plugin"`
+type PluginErrorReply struct {
+	PluginID     string   `json:"plugin"`
 	ErrorCode    int      `json:"errorcode"`
 	ErrorContext []string `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e PluginErrorReply) Error() string {
+	return fmt.Sprintf("plugin user error code: %v", e.ErrorCode)
 }
 
 // ServerErrorReply returns an error code that can be correlated with
 // server logs.
 type ServerErrorReply struct {
 	ErrorCode int64 `json:"code"` // Server error code
+}
+
+// Error satisfies the error interface.
+func (e ServerErrorReply) Error() string {
+	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
 // PluginSetting is a structure that holds key/value pairs of a plugin setting.
@@ -532,4 +555,38 @@ type PluginCommandReply struct {
 	Command   string `json:"command"`   // Command identifier
 	CommandID string `json:"commandid"` // User setable command identifier
 	Payload   string `json:"payload"`   // Actual command reply
+}
+
+// PluginCommandV2 sends a command to a plugin.
+type PluginCommandV2 struct {
+	State   string `json:"state"`   // Unvetted or vetted
+	Token   string `json:"token"`   // Censorship token
+	ID      string `json:"id"`      // Plugin identifier
+	Command string `json:"command"` // Plugin command
+	Payload string `json:"payload"` // Command payload
+}
+
+// PluginCommandReplyV2 is the reply to a PluginCommandV2.
+type PluginCommandReplyV2 struct {
+	State   string `json:"state"`   // Unvetted or vetted
+	Token   string `json:"token"`   // Censorship token
+	ID      string `json:"id"`      // Plugin identifier
+	Command string `json:"command"` // Plugin command
+	Payload string `json:"payload"` // Response payload
+
+	// Error will only be present if an error occured while executing
+	// the plugin command on a batched request.
+	Error error `json:"error,omitempty"`
+}
+
+// PluginCommandBatch executes a batch of plugin commands.
+type PluginCommandBatch struct {
+	Challenge string            `json:"challenge"` // Random challenge
+	Commands  []PluginCommandV2 `json:"commands"`
+}
+
+// PluginCommandBatchReply is the reply to a PluginCommandBatch.
+type PluginCommandBatchReply struct {
+	Response string                 `json:"response"` // Challenge response
+	Replies  []PluginCommandReplyV2 `json:"replies"`
 }

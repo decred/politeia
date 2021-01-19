@@ -47,7 +47,4 @@ type Client interface {
 	// Timestamp returns the timestamp for the blob that correpsonds
 	// to the digest.
 	Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error)
-
-	// Plugins returns all registered plugins for the tlog instance.
-	Plugins() []backend.Plugin
 }

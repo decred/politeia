@@ -111,15 +111,15 @@ func (s StateTransitionError) Error() string {
 		s.From, MDStatus[s.From], s.To, MDStatus[s.To])
 }
 
-// PluginUserError represents a plugin error that is caused by the user.
-type PluginUserError struct {
+// PluginError represents a plugin error that is caused by the user.
+type PluginError struct {
 	PluginID     string
 	ErrorCode    int
 	ErrorContext string
 }
 
 // Error satisfies the error interface.
-func (e PluginUserError) Error() string {
+func (e PluginError) Error() string {
 	return fmt.Sprintf("plugin id '%v' error code %v",
 		e.PluginID, e.ErrorCode)
 }
