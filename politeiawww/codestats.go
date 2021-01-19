@@ -133,15 +133,16 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}, nil
 }
 
-func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int64) error {
+func (p *politeiawww) updateCodeStats(skipStartupSync bool, repos []string, start, end int64) error {
 
 	// make sure tracker was created, if not alert for them to check github api
 	// token config
 	if p.tracker == nil {
 		return fmt.Errorf("code tracker not running")
 	}
-
-	p.tracker.Update(org, repos, start, end)
+	if !skipStartupSync {
+		p.tracker.Update(repos, start, end)
+	}
 
 	// Go fetch all Development contractors to update their stats
 	cu := user.CMSUsersByDomain{
@@ -219,8 +220,8 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 			continue
 		}
 
-		githubUserInfo, err := p.tracker.UserInfo(org,
-			u.GitHubName, currentYear, currentMonth)
+		githubUserInfo, err := p.tracker.UserInfo(u.GitHubName, currentYear,
+			currentMonth)
 		if err != nil {
 			log.Errorf("github user information failed: %v %v %v %v",
 				u.GitHubName, currentYear, currentMonth, err)
@@ -288,9 +289,14 @@ func (p *politeiawww) checkUpdateCodeStats(existing, new []user.CodeStats) error
 				if ucs.MergedAdditions != cs.MergedAdditions ||
 					ucs.MergedDeletions != cs.MergedDeletions ||
 					ucs.ReviewDeletions != cs.ReviewDeletions ||
-					ucs.ReviewAdditions != ucs.ReviewAdditions ||
+					ucs.ReviewAdditions != cs.ReviewAdditions ||
+					ucs.UpdatedAdditions != cs.UpdatedAdditions ||
+					ucs.UpdatedDeletions != cs.UpdatedDeletions ||
+					ucs.CommitAdditions != cs.CommitAdditions ||
+					ucs.CommitDeletions != cs.CommitDeletions ||
 					len(ucs.PRs) != len(cs.PRs) ||
-					len(ucs.Reviews) != len(cs.Reviews) {
+					len(ucs.Reviews) != len(cs.Reviews) ||
+					len(ucs.Commits) != len(cs.Commits) {
 					updated = true
 					break
 				}
@@ -343,8 +349,8 @@ func (p *politeiawww) startCodeStatsCron() {
 		// Start time is 1 month and 1 day prior to the current time.
 		start := time.Date(end.Year(), end.Month()-1, end.Day()-1, end.Hour(),
 			end.Minute(), end.Second(), 0, end.Location())
-		err := p.updateCodeStats(p.cfg.CodeStatOrganization,
-			p.cfg.CodeStatRepos, start.Unix(), end.Unix())
+		err := p.updateCodeStats(false, p.cfg.CodeStatRepos, start.Unix(),
+			end.Unix())
 		if err != nil {
 			log.Errorf("erroring updating code stats %v", err)
 		}
