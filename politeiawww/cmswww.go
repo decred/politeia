@@ -1025,7 +1025,6 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	var (
 		requestBody  []byte
 		responseBody []byte
-		cookies      []*http.Cookie
 		err          error
 	)
 	if v != nil {
