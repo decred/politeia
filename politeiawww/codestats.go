@@ -232,6 +232,7 @@ func (p *politeiawww) updateCodeStats(skipStartupSync bool, repos []string, star
 			if err != nil {
 				return err
 			}
+			return nil
 		}
 
 		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, currentYear,
@@ -276,9 +277,14 @@ func (p *politeiawww) checkUpdateCodeStats(existing, new []user.CodeStats) error
 				if ucs.MergedAdditions != cs.MergedAdditions ||
 					ucs.MergedDeletions != cs.MergedDeletions ||
 					ucs.ReviewDeletions != cs.ReviewDeletions ||
-					ucs.ReviewAdditions != ucs.ReviewAdditions ||
+					ucs.ReviewAdditions != cs.ReviewAdditions ||
+					ucs.UpdatedAdditions != cs.UpdatedAdditions ||
+					ucs.UpdatedDeletions != cs.UpdatedDeletions ||
+					ucs.CommitAdditions != cs.CommitAdditions ||
+					ucs.CommitDeletions != cs.CommitDeletions ||
 					len(ucs.PRs) != len(cs.PRs) ||
-					len(ucs.Reviews) != len(cs.Reviews) {
+					len(ucs.Reviews) != len(cs.Reviews) ||
+					len(ucs.Commits) != len(cs.Commits) {
 					updated = true
 					break
 				}
