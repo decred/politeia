@@ -69,7 +69,6 @@ type GeneralMetadata struct {
 	UserID    string `json:"userid"`    // Author user ID
 	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
-	Timestamp int64  `json:"timestamp"` // Submission UNIX timestamp
 }
 
 // PropStatusT represents a proposal status.

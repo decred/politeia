@@ -22,7 +22,6 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 )
@@ -52,7 +51,7 @@ var (
 // commentsPlugin satisfies the plugins.Client interface.
 type commentsPlugin struct {
 	sync.Mutex
-	tlog tlogclient.Client
+	tlog plugins.TlogClient
 
 	// dataDir is the comments plugin data directory. The only data
 	// that is stored here is cached data that can be re-created at any
@@ -274,20 +273,22 @@ func convertCommentVoteFromBlobEntry(be store.BlobEntry) (*comments.CommentVote,
 
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
 	return comments.Comment{
-		UserID:    ca.UserID,
-		Token:     ca.Token,
-		ParentID:  ca.ParentID,
-		Comment:   ca.Comment,
-		PublicKey: ca.PublicKey,
-		Signature: ca.Signature,
-		CommentID: ca.CommentID,
-		Version:   ca.Version,
-		Timestamp: ca.Timestamp,
-		Receipt:   ca.Receipt,
-		Downvotes: 0, // Not part of commentAdd data
-		Upvotes:   0, // Not part of commentAdd data
-		Deleted:   false,
-		Reason:    "",
+		UserID:        ca.UserID,
+		Token:         ca.Token,
+		ParentID:      ca.ParentID,
+		Comment:       ca.Comment,
+		PublicKey:     ca.PublicKey,
+		Signature:     ca.Signature,
+		CommentID:     ca.CommentID,
+		Version:       ca.Version,
+		Timestamp:     ca.Timestamp,
+		Receipt:       ca.Receipt,
+		Downvotes:     0, // Not part of commentAdd data
+		Upvotes:       0, // Not part of commentAdd data
+		Deleted:       false,
+		Reason:        "",
+		ExtraData:     ca.ExtraData,
+		ExtraDataHint: ca.ExtraDataHint,
 	}
 }
 
@@ -713,16 +714,18 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	// Setup comment
 	receipt := p.identity.SignMessage([]byte(n.Signature))
 	ca := comments.CommentAdd{
-		UserID:    n.UserID,
-		Token:     n.Token,
-		ParentID:  n.ParentID,
-		Comment:   n.Comment,
-		PublicKey: n.PublicKey,
-		Signature: n.Signature,
-		CommentID: commentIDLatest(*ridx) + 1,
-		Version:   1,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
+		UserID:        n.UserID,
+		Token:         n.Token,
+		ParentID:      n.ParentID,
+		Comment:       n.Comment,
+		PublicKey:     n.PublicKey,
+		Signature:     n.Signature,
+		CommentID:     commentIDLatest(*ridx) + 1,
+		Version:       1,
+		Timestamp:     time.Now().Unix(),
+		Receipt:       hex.EncodeToString(receipt[:]),
+		ExtraData:     n.ExtraData,
+		ExtraDataHint: n.ExtraDataHint,
 	}
 
 	// Save comment
@@ -868,16 +871,18 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	// Create a new comment version
 	receipt := p.identity.SignMessage([]byte(e.Signature))
 	ca := comments.CommentAdd{
-		UserID:    e.UserID,
-		Token:     e.Token,
-		ParentID:  e.ParentID,
-		Comment:   e.Comment,
-		PublicKey: e.PublicKey,
-		Signature: e.Signature,
-		CommentID: e.CommentID,
-		Version:   existing.Version + 1,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
+		UserID:        e.UserID,
+		Token:         e.Token,
+		ParentID:      e.ParentID,
+		Comment:       e.Comment,
+		PublicKey:     e.PublicKey,
+		Signature:     e.Signature,
+		CommentID:     e.CommentID,
+		Version:       existing.Version + 1,
+		Timestamp:     time.Now().Unix(),
+		Receipt:       hex.EncodeToString(receipt[:]),
+		ExtraData:     e.ExtraData,
+		ExtraDataHint: e.ExtraDataHint,
 	}
 
 	// Save comment
@@ -1579,7 +1584,7 @@ func (p *commentsPlugin) Fsck() error {
 }
 
 // New returns a new comments plugin.
-func New(tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*commentsPlugin, error) {
+func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*commentsPlugin, error) {
 	// Setup comments plugin data dir
 	dataDir = filepath.Join(dataDir, comments.ID)
 	err := os.MkdirAll(dataDir, 0700)

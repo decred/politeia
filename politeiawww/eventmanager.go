@@ -380,11 +380,10 @@ func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment, proposa
 
 	// Lookup the parent comment author to check if they should receive
 	// a reply notification.
-	parentComment, err := p.commentsGet(context.Background(), comments.Get{
-		State:      convertCommentsStateFromPi(d.state),
-		Token:      d.token,
+	g := comments.Get{
 		CommentIDs: []uint32{d.parentID},
-	})
+	}
+	parentComment, err := p.commentsGet(context.Background(), g)
 	if err != nil {
 		return err
 	}

@@ -85,45 +85,35 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 
 // TODO verify all plugin errors have been added to these www conversion
 // functions
-func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) www.ErrorStatusT {
-	switch e {
-	case piplugin.ErrorStatusPropLinkToInvalid:
-		return www.ErrorStatusInvalidLinkTo
-	case piplugin.ErrorStatusVoteStatusInvalid:
-		return www.ErrorStatusWrongVoteStatus
-	}
+func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorCodeT) www.ErrorStatusT {
 	return www.ErrorStatusInvalid
 }
 
-func convertWWWErrorStatusFromComments(e comments.ErrorStatusT) www.ErrorStatusT {
+func convertWWWErrorStatusFromComments(e comments.ErrorCodeT) www.ErrorStatusT {
 	switch e {
-	case comments.ErrorStatusTokenInvalid:
+	case comments.ErrorCodeTokenInvalid:
 		return www.ErrorStatusInvalidCensorshipToken
-	case comments.ErrorStatusRecordNotFound:
-		return www.ErrorStatusProposalNotFound
-	case comments.ErrorStatusCommentNotFound:
+	case comments.ErrorCodeCommentNotFound:
 		return www.ErrorStatusCommentNotFound
-	case comments.ErrorStatusParentIDInvalid:
+	case comments.ErrorCodeParentIDInvalid:
 		return www.ErrorStatusCommentNotFound
 	}
 	return www.ErrorStatusInvalid
 }
 
-func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) www.ErrorStatusT {
+func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) www.ErrorStatusT {
 	switch e {
-	case ticketvote.ErrorStatusTokenInvalid:
+	case ticketvote.ErrorCodeTokenInvalid:
 		return www.ErrorStatusInvalidCensorshipToken
-	case ticketvote.ErrorStatusPublicKeyInvalid:
+	case ticketvote.ErrorCodePublicKeyInvalid:
 		return www.ErrorStatusInvalidPublicKey
-	case ticketvote.ErrorStatusSignatureInvalid:
+	case ticketvote.ErrorCodeSignatureInvalid:
 		return www.ErrorStatusInvalidSignature
-	case ticketvote.ErrorStatusRecordNotFound:
-		return www.ErrorStatusProposalNotFound
-	case ticketvote.ErrorStatusRecordStatusInvalid:
+	case ticketvote.ErrorCodeRecordStatusInvalid:
 		return www.ErrorStatusWrongStatus
-	case ticketvote.ErrorStatusVoteParamsInvalid:
+	case ticketvote.ErrorCodeVoteParamsInvalid:
 		return www.ErrorStatusInvalidPropVoteParams
-	case ticketvote.ErrorStatusVoteStatusInvalid:
+	case ticketvote.ErrorCodeVoteStatusInvalid:
 		return www.ErrorStatusInvalidPropVoteStatus
 	}
 	return www.ErrorStatusInvalid
@@ -142,15 +132,15 @@ func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
 		return convertWWWErrorStatusFromPD(e)
 	case piplugin.ID:
 		// Pi plugin
-		e := piplugin.ErrorStatusT(errCode)
+		e := piplugin.ErrorCodeT(errCode)
 		return convertWWWErrorStatusFromPiPlugin(e)
 	case comments.ID:
 		// Comments plugin
-		e := comments.ErrorStatusT(errCode)
+		e := comments.ErrorCodeT(errCode)
 		return convertWWWErrorStatusFromComments(e)
 	case ticketvote.ID:
 		// Ticket vote plugin
-		e := ticketvote.ErrorStatusT(errCode)
+		e := ticketvote.ErrorCodeT(errCode)
 		return convertWWWErrorStatusFromTicketVote(e)
 	}
 
@@ -188,83 +178,71 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 	return pi.ErrorStatusInvalid
 }
 
-func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorStatusT) pi.ErrorStatusT {
+func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorCodeT) pi.ErrorStatusT {
 	switch e {
-	case piplugin.ErrorStatusPageSizeExceeded:
+	case piplugin.ErrorCodePageSizeExceeded:
 		return pi.ErrorStatusPageSizeExceeded
-	case piplugin.ErrorStatusPropNotFound:
-		return pi.ErrorStatusPropNotFound
-	case piplugin.ErrorStatusPropStateInvalid:
-		return pi.ErrorStatusPropStateInvalid
-	case piplugin.ErrorStatusPropTokenInvalid:
+	case piplugin.ErrorCodePropTokenInvalid:
 		return pi.ErrorStatusPropTokenInvalid
-	case piplugin.ErrorStatusPropStatusInvalid:
+	case piplugin.ErrorCodePropStatusInvalid:
 		return pi.ErrorStatusPropStatusInvalid
-	case piplugin.ErrorStatusPropVersionInvalid:
+	case piplugin.ErrorCodePropVersionInvalid:
 		return pi.ErrorStatusPropVersionInvalid
-	case piplugin.ErrorStatusPropStatusChangeInvalid:
+	case piplugin.ErrorCodePropStatusChangeInvalid:
 		return pi.ErrorStatusPropStatusChangeInvalid
-	case piplugin.ErrorStatusPropLinkToInvalid:
+	case piplugin.ErrorCodePropLinkToInvalid:
 		return pi.ErrorStatusPropLinkToInvalid
-	case piplugin.ErrorStatusVoteStatusInvalid:
+	case piplugin.ErrorCodeVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
-	case piplugin.ErrorStatusStartDetailsInvalid:
+	case piplugin.ErrorCodeStartDetailsInvalid:
 		return pi.ErrorStatusStartDetailsInvalid
-	case piplugin.ErrorStatusStartDetailsMissing:
+	case piplugin.ErrorCodeStartDetailsMissing:
 		return pi.ErrorStatusStartDetailsMissing
-	case piplugin.ErrorStatusVoteParentInvalid:
+	case piplugin.ErrorCodeVoteParentInvalid:
 		return pi.ErroStatusVoteParentInvalid
-	case piplugin.ErrorStatusLinkByNotExpired:
-		return pi.ErrorStatusLinkByNotExpired
 	}
 	return pi.ErrorStatusInvalid
 }
 
-func convertPiErrorStatusFromComments(e comments.ErrorStatusT) pi.ErrorStatusT {
+func convertPiErrorStatusFromComments(e comments.ErrorCodeT) pi.ErrorStatusT {
 	switch e {
-	case comments.ErrorStatusStateInvalid:
-		return pi.ErrorStatusPropStateInvalid
-	case comments.ErrorStatusTokenInvalid:
+	case comments.ErrorCodeTokenInvalid:
 		return pi.ErrorStatusPropTokenInvalid
-	case comments.ErrorStatusPublicKeyInvalid:
+	case comments.ErrorCodePublicKeyInvalid:
 		return pi.ErrorStatusPublicKeyInvalid
-	case comments.ErrorStatusSignatureInvalid:
+	case comments.ErrorCodeSignatureInvalid:
 		return pi.ErrorStatusSignatureInvalid
-	case comments.ErrorStatusCommentTextInvalid:
+	case comments.ErrorCodeCommentTextInvalid:
 		return pi.ErrorStatusCommentTextInvalid
-	case comments.ErrorStatusRecordNotFound:
-		return pi.ErrorStatusPropNotFound
-	case comments.ErrorStatusCommentNotFound:
+	case comments.ErrorCodeCommentNotFound:
 		return pi.ErrorStatusCommentNotFound
-	case comments.ErrorStatusUserUnauthorized:
+	case comments.ErrorCodeUserUnauthorized:
 		return pi.ErrorStatusUnauthorized
-	case comments.ErrorStatusParentIDInvalid:
+	case comments.ErrorCodeParentIDInvalid:
 		return pi.ErrorStatusCommentParentIDInvalid
-	case comments.ErrorStatusVoteInvalid:
+	case comments.ErrorCodeVoteInvalid:
 		return pi.ErrorStatusCommentVoteInvalid
-	case comments.ErrorStatusVoteChangesMax:
+	case comments.ErrorCodeVoteChangesMax:
 		return pi.ErrorStatusCommentVoteChangesMax
 	}
 	return pi.ErrorStatusInvalid
 }
 
-func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorStatusT) pi.ErrorStatusT {
+func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) pi.ErrorStatusT {
 	switch e {
-	case ticketvote.ErrorStatusTokenInvalid:
+	case ticketvote.ErrorCodeTokenInvalid:
 		return pi.ErrorStatusPropTokenInvalid
-	case ticketvote.ErrorStatusPublicKeyInvalid:
+	case ticketvote.ErrorCodePublicKeyInvalid:
 		return pi.ErrorStatusPublicKeyInvalid
-	case ticketvote.ErrorStatusSignatureInvalid:
+	case ticketvote.ErrorCodeSignatureInvalid:
 		return pi.ErrorStatusSignatureInvalid
-	case ticketvote.ErrorStatusRecordNotFound:
-		return pi.ErrorStatusPropNotFound
-	case ticketvote.ErrorStatusRecordStatusInvalid:
+	case ticketvote.ErrorCodeRecordStatusInvalid:
 		return pi.ErrorStatusPropStatusInvalid
-	case ticketvote.ErrorStatusAuthorizationInvalid:
+	case ticketvote.ErrorCodeAuthorizationInvalid:
 		return pi.ErrorStatusVoteAuthInvalid
-	case ticketvote.ErrorStatusVoteParamsInvalid:
+	case ticketvote.ErrorCodeVoteParamsInvalid:
 		return pi.ErrorStatusVoteParamsInvalid
-	case ticketvote.ErrorStatusVoteStatusInvalid:
+	case ticketvote.ErrorCodeVoteStatusInvalid:
 		return pi.ErrorStatusVoteStatusInvalid
 	}
 	return pi.ErrorStatusInvalid
@@ -283,15 +261,15 @@ func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
 		return convertPiErrorStatusFromPD(e)
 	case piplugin.ID:
 		// Pi plugin
-		e := piplugin.ErrorStatusT(errCode)
+		e := piplugin.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromPiPlugin(e)
 	case comments.ID:
 		// Comments plugin
-		e := comments.ErrorStatusT(errCode)
+		e := comments.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromComments(e)
 	case ticketvote.ID:
 		// Ticket vote plugin
-		e := ticketvote.ErrorStatusT(errCode)
+		e := ticketvote.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromTicketVote(e)
 	}
 
@@ -355,8 +333,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 		} else {
 			log.Errorf("Pi user error: %v %v %v: %v",
 				remoteAddr(r), int64(ue.ErrorCode),
-				pi.ErrorStatus[ue.ErrorCode],
-				strings.Join(ue.ErrorContext, ", "))
+				pi.ErrorStatus[ue.ErrorCode], ue.ErrorContext)
 		}
 
 		util.RespondWithJSON(w, http.StatusBadRequest,
@@ -415,7 +392,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 		util.RespondWithJSON(w, http.StatusBadRequest,
 			pi.UserErrorReply{
 				ErrorCode:    piErrCode,
-				ErrorContext: errContext,
+				ErrorContext: strings.Join(errContext, ", "),
 			})
 		return
 

@@ -14,7 +14,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
@@ -28,7 +27,7 @@ var (
 type piPlugin struct {
 	sync.Mutex
 	backend         backend.Backend
-	tlog            tlogclient.Client
+	tlog            plugins.TlogClient
 	activeNetParams *chaincfg.Params
 
 	// dataDir is the pi plugin data directory. The only data that is
@@ -279,7 +278,7 @@ func (p *piPlugin) Fsck() error {
 	return nil
 }
 
-func New(backend backend.Backend, tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, activeNetParams *chaincfg.Params) (*piPlugin, error) {
+func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string, activeNetParams *chaincfg.Params) (*piPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, pi.ID)
 	err := os.MkdirAll(dataDir, 0700)

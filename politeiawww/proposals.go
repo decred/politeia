@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
@@ -55,7 +56,8 @@ func convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
 			if err != nil {
 				return nil, err
 			}
-			pm, err = piplugin.DecodeProposalMetadata(b)
+			var pm pi.ProposalMetadata
+			err = json.Unmarshal(b, &pm)
 			if err != nil {
 				return nil, err
 			}
@@ -112,15 +114,11 @@ func convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
 		Username:            pr.Username,
 		PublicKey:           pr.PublicKey,
 		Signature:           pr.Signature,
-		NumComments:         uint(pr.Comments),
 		Version:             pr.Version,
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
-		LinkTo:              pm.LinkTo,
-		LinkBy:              pm.LinkBy,
-		LinkedFrom:          pr.LinkedFrom,
 		Files:               files,
 		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
@@ -235,22 +233,16 @@ func (p *politeiawww) processVoteResultsWWW(ctx context.Context, token string) (
 	log.Tracef("processVoteResultsWWW: %v", token)
 
 	// Get vote details
-	vd, err := p.voteDetails(ctx, []string{token})
+	vd, err := p.voteDetails(ctx, token)
 	if err != nil {
 		return nil, err
 	}
-	vote, ok := vd.Votes[token]
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
 
 	// Convert to www
-	startHeight := strconv.FormatUint(uint64(vote.Vote.StartBlockHeight), 10)
-	endHeight := strconv.FormatUint(uint64(vote.Vote.EndBlockHeight), 10)
-	options := make([]www.VoteOption, 0, len(vote.Vote.Params.Options))
-	for _, o := range vote.Vote.Params.Options {
+	startHeight := strconv.FormatUint(uint64(vd.Vote.StartBlockHeight), 10)
+	endHeight := strconv.FormatUint(uint64(vd.Vote.EndBlockHeight), 10)
+	options := make([]www.VoteOption, 0, len(vd.Vote.Params.Options))
+	for _, o := range vd.Vote.Params.Options {
 		options = append(options, www.VoteOption{
 			Id:          o.ID,
 			Description: o.Description,
@@ -277,22 +269,22 @@ func (p *politeiawww) processVoteResultsWWW(ctx context.Context, token string) (
 
 	return &www.VoteResultsReply{
 		StartVote: www.StartVote{
-			PublicKey: vote.Vote.PublicKey,
-			Signature: vote.Vote.Signature,
+			PublicKey: vd.Vote.PublicKey,
+			Signature: vd.Vote.Signature,
 			Vote: www.Vote{
-				Token:            vote.Vote.Params.Token,
-				Mask:             vote.Vote.Params.Mask,
-				Duration:         vote.Vote.Params.Duration,
-				QuorumPercentage: vote.Vote.Params.QuorumPercentage,
-				PassPercentage:   vote.Vote.Params.PassPercentage,
+				Token:            vd.Vote.Params.Token,
+				Mask:             vd.Vote.Params.Mask,
+				Duration:         vd.Vote.Params.Duration,
+				QuorumPercentage: vd.Vote.Params.QuorumPercentage,
+				PassPercentage:   vd.Vote.Params.PassPercentage,
 				Options:          options,
 			},
 		},
 		StartVoteReply: www.StartVoteReply{
 			StartBlockHeight: startHeight,
-			StartBlockHash:   vote.Vote.StartBlockHash,
+			StartBlockHash:   vd.Vote.StartBlockHash,
 			EndHeight:        endHeight,
-			EligibleTickets:  vote.Vote.EligibleTickets,
+			EligibleTickets:  vd.Vote.EligibleTickets,
 		},
 		CastVotes: votes,
 	}, nil
@@ -302,14 +294,14 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
 	// Get vote summaries
-	sm, err := p.voteSummaries(ctx, bvs.Tokens)
+	vs, err := p.voteSummaries(ctx, bvs.Tokens)
 	if err != nil {
 		return nil, err
 	}
 
 	// Prepare reply
-	summaries := make(map[string]www.VoteSummary, len(sm.Summaries))
-	for k, v := range sm.Summaries {
+	summaries := make(map[string]www.VoteSummary, len(vs))
+	for k, v := range vs {
 		results := make([]www.VoteOptionResult, 0, len(v.Results))
 		for _, r := range v.Results {
 			results = append(results, www.VoteOptionResult{
@@ -336,7 +328,8 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 
 	return &www.BatchVoteSummaryReply{
 		Summaries: summaries,
-		BestBlock: uint64(sm.BestBlock),
+		// TODO
+		// BestBlock: uint64(sm.BestBlock),
 	}, nil
 }
 

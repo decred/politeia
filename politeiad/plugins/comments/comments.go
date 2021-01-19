@@ -6,8 +6,6 @@
 // records.
 package comments
 
-// TODO add a hint to comments that can be used freely by the client. This
-// is how we'll distinguish proposal comments from update comments.
 const (
 	ID = "comments"
 
@@ -69,6 +67,10 @@ type Comment struct {
 
 	Deleted bool   `json:"deleted,omitempty"` // Comment has been deleted
 	Reason  string `json:"reason,omitempty"`  // Reason for deletion
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
 }
 
 // CommentAdd is the structure that is saved to disk when a comment is created
@@ -89,6 +91,10 @@ type CommentAdd struct {
 	Version   uint32 `json:"version"`   // Comment version
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
 	Receipt   string `json:"receipt"`   // Server signature of client signature
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
 }
 
 // CommentDel is the structure that is saved to disk when a comment is deleted.
@@ -158,6 +164,10 @@ type New struct {
 	Comment   string `json:"comment"`   // Comment text
 	PublicKey string `json:"publickey"` // Pubkey used for Signature
 	Signature string `json:"signature"` // Client signature
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
 }
 
 // NewReply is the reply to the New command.
@@ -176,6 +186,10 @@ type Edit struct {
 	Comment   string `json:"comment"`   // Comment text
 	PublicKey string `json:"publickey"` // Pubkey used for Signature
 	Signature string `json:"signature"` // Client signature
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
 }
 
 // EditReply is the reply to the Edit command.

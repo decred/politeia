@@ -17,7 +17,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
@@ -32,7 +31,7 @@ var (
 type ticketVotePlugin struct {
 	sync.Mutex
 	backend         backend.Backend
-	tlog            tlogclient.Client
+	tlog            plugins.TlogClient
 	activeNetParams *chaincfg.Params
 
 	// dataDir is the ticket vote plugin data directory. The only data
@@ -276,7 +275,7 @@ func (p *politeiawww) linkByPeriodMax() int64 {
 }
 */
 
-func New(backend backend.Backend, tlog tlogclient.Client, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
+func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
 	// Plugin settings
 	var (
 		voteDurationMin uint32

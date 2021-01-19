@@ -12,10 +12,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
@@ -30,7 +32,6 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
-	"github.com/google/uuid"
 )
 
 // TODO www package references should be completely gone from this file
@@ -138,7 +139,8 @@ func proposalName(pr piv1.ProposalRecord) string {
 			if err != nil {
 				return ""
 			}
-			pm, err := pi.DecodeProposalMetadata(b)
+			var pm pi.ProposalMetadata
+			err = json.Unmarshal(b, &pm)
 			if err != nil {
 				return ""
 			}
@@ -156,14 +158,6 @@ func proposalRecordFillInUser(pr piv1.ProposalRecord, u user.User) piv1.Proposal
 	return pr
 }
 
-// commentFillInUser populates the provided comment with user data that is not
-// store in politeiad and must be populated separately after pulling the
-// comment from politeiad.
-func commentFillInUser(c piv1.Comment, u user.User) piv1.Comment {
-	c.Username = u.Username
-	return c
-}
-
 func convertUserErrorFromSignatureError(err error) piv1.UserErrorReply {
 	var e util.SignatureError
 	var s piv1.ErrorStatusT
@@ -179,16 +173,6 @@ func convertUserErrorFromSignatureError(err error) piv1.UserErrorReply {
 		ErrorCode:    s,
 		ErrorContext: e.ErrorContext,
 	}
-}
-
-func convertPropStateFromPi(s piv1.PropStateT) pi.PropStateT {
-	switch s {
-	case piv1.PropStateUnvetted:
-		return pi.PropStateUnvetted
-	case piv1.PropStateVetted:
-		return pi.PropStateVetted
-	}
-	return pi.PropStateInvalid
 }
 
 func convertRecordStatusFromPropStatus(s piv1.PropStatusT) pdv1.RecordStatusT {
@@ -285,6 +269,23 @@ func convertFilesFromPD(f []pdv1.File) ([]piv1.File, []piv1.Metadata) {
 	return files, metadata
 }
 
+func statusChangesDecode(payload []byte) ([]pi.StatusChange, error) {
+	var statuses []pi.StatusChange
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var sc pi.StatusChange
+		err := d.Decode(&sc)
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, sc)
+	}
+
+	return statuses, nil
+}
+
 func convertProposalRecordFromPD(r pdv1.Record, state piv1.PropStateT) (*piv1.ProposalRecord, error) {
 	// Decode metadata streams
 	var (
@@ -295,12 +296,13 @@ func convertProposalRecordFromPD(r pdv1.Record, state piv1.PropStateT) (*piv1.Pr
 	for _, v := range r.Metadata {
 		switch v.ID {
 		case pi.MDStreamIDGeneralMetadata:
-			gm, err = pi.DecodeGeneralMetadata([]byte(v.Payload))
+			var gm pi.GeneralMetadata
+			err = json.Unmarshal([]byte(v.Payload), &gm)
 			if err != nil {
 				return nil, err
 			}
 		case pi.MDStreamIDStatusChanges:
-			sc, err = pi.DecodeStatusChanges([]byte(v.Payload))
+			sc, err = statusChangesDecode([]byte(v.Payload))
 			if err != nil {
 				return nil, err
 			}
@@ -337,43 +339,11 @@ func convertProposalRecordFromPD(r pdv1.Record, state piv1.PropStateT) (*piv1.Pr
 		Username:         "", // Intentionally omitted
 		PublicKey:        gm.PublicKey,
 		Signature:        gm.Signature,
-		Comments:         0, // Intentionally omitted
 		Statuses:         statuses,
 		Files:            files,
 		Metadata:         metadata,
-		LinkedFrom:       []string{}, // Intentionally omitted
 		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
 	}, nil
-}
-
-func convertCommentsStateFromPi(s piv1.PropStateT) comments.StateT {
-	switch s {
-	case piv1.PropStateUnvetted:
-		return comments.StateUnvetted
-	case piv1.PropStateVetted:
-		return comments.StateVetted
-	}
-	return comments.StateInvalid
-}
-
-func convertPropStateFromComments(s comments.StateT) piv1.PropStateT {
-	switch s {
-	case comments.StateUnvetted:
-		return piv1.PropStateUnvetted
-	case comments.StateVetted:
-		return piv1.PropStateVetted
-	}
-	return piv1.PropStateInvalid
-}
-
-func convertCommentStateFromPi(s piv1.PropStateT) comments.StateT {
-	switch s {
-	case piv1.PropStateUnvetted:
-		return comments.StateUnvetted
-	case piv1.PropStateVetted:
-		return comments.StateVetted
-	}
-	return comments.StateInvalid
 }
 
 func convertCommentVoteFromPi(cv piv1.CommentVoteT) comments.VoteT {
@@ -390,7 +360,6 @@ func convertCommentFromPlugin(c comments.Comment) piv1.Comment {
 	return piv1.Comment{
 		UserID:    c.UserID,
 		Username:  "", // Intentionally omitted, needs to be pulled from userdb
-		State:     convertPropStateFromComments(c.State),
 		Token:     c.Token,
 		ParentID:  c.ParentID,
 		Comment:   c.Comment,
@@ -421,7 +390,6 @@ func convertCommentVoteDetailsFromPlugin(cv []comments.CommentVote) []piv1.Comme
 	for _, v := range cv {
 		c = append(c, piv1.CommentVoteDetails{
 			UserID:    v.UserID,
-			State:     convertPropStateFromComments(v.State),
 			Token:     v.Token,
 			CommentID: v.CommentID,
 			Vote:      convertCommentVoteFromPlugin(v.Vote),
@@ -647,22 +615,6 @@ func convertCastVoteDetailsFromPlugin(votes []ticketvote.CastVoteDetails) []piv1
 	return vs
 }
 
-func convertProposalVotesFromPlugin(votes map[string]ticketvote.RecordVote) map[string]piv1.ProposalVote {
-	pv := make(map[string]piv1.ProposalVote, len(votes))
-	for k, v := range votes {
-		var vdp *piv1.VoteDetails
-		if v.Vote != nil {
-			vd := convertVoteDetailsFromPlugin(*v.Vote)
-			vdp = &vd
-		}
-		pv[k] = piv1.ProposalVote{
-			Auths: convertAuthDetailsFromPlugin(v.Auths),
-			Vote:  vdp,
-		}
-	}
-	return pv
-}
-
 func convertVoteStatusFromPlugin(s ticketvote.VoteStatusT) piv1.VoteStatusT {
 	switch s {
 	case ticketvote.VoteStatusInvalid:
@@ -680,7 +632,7 @@ func convertVoteStatusFromPlugin(s ticketvote.VoteStatusT) piv1.VoteStatusT {
 	}
 }
 
-func convertVoteSummaryFromPlugin(s ticketvote.Summary) piv1.VoteSummary {
+func convertVoteSummaryFromPlugin(s ticketvote.VoteSummary) piv1.VoteSummary {
 	results := make([]piv1.VoteResult, 0, len(s.Results))
 	for _, v := range s.Results {
 		results = append(results, piv1.VoteResult{
@@ -703,42 +655,6 @@ func convertVoteSummaryFromPlugin(s ticketvote.Summary) piv1.VoteSummary {
 		Results:          results,
 		Approved:         s.Approved,
 	}
-}
-
-func convertVoteSummariesFromPlugin(ts map[string]ticketvote.Summary) map[string]piv1.VoteSummary {
-	s := make(map[string]piv1.VoteSummary, len(ts))
-	for k, v := range ts {
-		s[k] = convertVoteSummaryFromPlugin(v)
-	}
-	return s
-}
-
-// linkByPeriodMin returns the minimum amount of time, in seconds, that the
-// LinkBy period must be set to. This is determined by adding 1 week onto the
-// minimum voting period so that RFP proposal submissions have at least one
-// week to be submitted after the proposal vote ends.
-func (p *politeiawww) linkByPeriodMin() int64 {
-	var (
-		submissionPeriod int64 = 604800 // One week in seconds
-		blockTime        int64          // In seconds
-	)
-	switch {
-	case p.cfg.TestNet:
-		blockTime = int64(testNet3Params.TargetTimePerBlock.Seconds())
-	case p.cfg.SimNet:
-		blockTime = int64(simNetParams.TargetTimePerBlock.Seconds())
-	default:
-		blockTime = int64(mainNetParams.TargetTimePerBlock.Seconds())
-	}
-	return (int64(p.cfg.VoteDurationMin) * blockTime) + submissionPeriod
-}
-
-// linkByPeriodMax returns the maximum amount of time, in seconds, that the
-// LinkBy period can be set to. 3 months is currently hard coded with no real
-// reason for deciding on 3 months besides that it sounds like a sufficient
-// amount of time.  This can be changed if there is a valid reason to.
-func (p *politeiawww) linkByPeriodMax() int64 {
-	return 7776000 // 3 months in seconds
 }
 
 // proposalRecords returns the ProposalRecord for each of the provided proposal
@@ -789,29 +705,6 @@ func (p *politeiawww) proposalRecords(ctx context.Context, state piv1.PropStateT
 	// Verify we've got some results
 	if len(props) == 0 {
 		return map[string]piv1.ProposalRecord{}, nil
-	}
-
-	// Get proposal plugin data
-	tokens := make([]string, 0, len(props))
-	for _, v := range props {
-		tokens = append(tokens, v.CensorshipRecord.Token)
-	}
-	ps := pi.Proposals{
-		State:  convertPropStateFromPi(state),
-		Tokens: tokens,
-	}
-	psr, err := p.piProposals(ctx, ps)
-	if err != nil {
-		return nil, fmt.Errorf("proposalPluginData: %v", err)
-	}
-	for k, v := range props {
-		token := v.CensorshipRecord.Token
-		d, ok := psr.Proposals[token]
-		if !ok {
-			return nil, fmt.Errorf("proposal plugin data not found %v", token)
-		}
-		props[k].Comments = d.Comments
-		props[k].LinkedFrom = d.LinkedFrom
 	}
 
 	// Get user data
@@ -870,12 +763,20 @@ func (p *politeiawww) proposalRecordLatest(ctx context.Context, state piv1.PropS
 	return p.proposalRecord(ctx, state, token, "")
 }
 
+func (p *politeiawww) linkByPeriodMin() int64 {
+	return 0
+}
+
+func (p *politeiawww) linkByPeriodMax() int64 {
+	return 0
+}
+
 func (p *politeiawww) verifyProposalMetadata(pm piv1.ProposalMetadata) error {
 	// Verify name
 	if !proposalNameIsValid(pm.Name) {
 		return piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusPropNameInvalid,
-			ErrorContext: []string{proposalNameRegex()},
+			ErrorContext: proposalNameRegex(),
 		}
 	}
 
@@ -884,7 +785,7 @@ func (p *politeiawww) verifyProposalMetadata(pm piv1.ProposalMetadata) error {
 		if !tokenIsFullLength(pm.LinkTo) {
 			return piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusPropLinkToInvalid,
-				ErrorContext: []string{"invalid token"},
+				ErrorContext: "invalid token",
 			}
 		}
 	}
@@ -899,14 +800,14 @@ func (p *politeiawww) verifyProposalMetadata(pm piv1.ProposalMetadata) error {
 				pm.LinkBy, min)
 			return piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusPropLinkByInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		case pm.LinkBy > max:
 			e := fmt.Sprintf("linkby %v is more than max allowed of %v",
 				pm.LinkBy, max)
 			return piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusPropLinkByInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 	}
@@ -918,7 +819,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 	if len(files) == 0 {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusFileCountInvalid,
-			ErrorContext: []string{"no files found"},
+			ErrorContext: "no files found",
 		}
 	}
 
@@ -936,7 +837,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			e := fmt.Sprintf("duplicate name %v", v.Name)
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFileNameInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 		filenames[v.Name] = struct{}{}
@@ -946,7 +847,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			e := fmt.Sprintf("file %v empty payload", v.Name)
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFilePayloadInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 		payloadb, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -954,7 +855,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			e := fmt.Sprintf("file %v invalid base64", v.Name)
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFilePayloadInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 
@@ -964,7 +865,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 		if !ok {
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFileDigestInvalid,
-				ErrorContext: []string{v.Name},
+				ErrorContext: v.Name,
 			}
 		}
 		if !bytes.Equal(digest, d[:]) {
@@ -972,7 +873,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 				v.Name, v.Digest, digest)
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFileDigestInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 
@@ -987,7 +888,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			e := fmt.Sprintf("file %v mime '%v' not parsable", v.Name, v.MIME)
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFileMIMEInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 		if mimeFile != mimePayload {
@@ -995,7 +896,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 				v.Name, mimeFile, mimePayload)
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFileMIMEInvalid,
-				ErrorContext: []string{e},
+				ErrorContext: e,
 			}
 		}
 
@@ -1010,7 +911,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 					v.Name, len(payloadb), www.PolicyMaxMDSize)
 				return nil, piv1.UserErrorReply{
 					ErrorCode:    piv1.ErrorStatusIndexFileSizeInvalid,
-					ErrorContext: []string{e},
+					ErrorContext: e,
 				}
 			}
 
@@ -1020,7 +921,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 				e := fmt.Sprintf("want %v, got %v", www.PolicyIndexFilename, v.Name)
 				return nil, piv1.UserErrorReply{
 					ErrorCode:    piv1.ErrorStatusIndexFileNameInvalid,
-					ErrorContext: []string{e},
+					ErrorContext: e,
 				}
 			}
 			if foundIndexFile {
@@ -1028,7 +929,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 					www.PolicyIndexFilename)
 				return nil, piv1.UserErrorReply{
 					ErrorCode:    piv1.ErrorStatusIndexFileCountInvalid,
-					ErrorContext: []string{e},
+					ErrorContext: e,
 				}
 			}
 
@@ -1044,14 +945,14 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 					v.Name, len(payloadb), www.PolicyMaxImageSize)
 				return nil, piv1.UserErrorReply{
 					ErrorCode:    piv1.ErrorStatusImageFileSizeInvalid,
-					ErrorContext: []string{e},
+					ErrorContext: e,
 				}
 			}
 
 		default:
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusFileMIMEInvalid,
-				ErrorContext: []string{v.MIME},
+				ErrorContext: v.MIME,
 			}
 		}
 	}
@@ -1061,7 +962,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusIndexFileCountInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 
@@ -1071,7 +972,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			countTextFiles, www.PolicyMaxMDs)
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusTextFileCountInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 	if countImageFiles > www.PolicyMaxImages {
@@ -1079,7 +980,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			countImageFiles, www.PolicyMaxImages)
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusImageFileCountInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 
@@ -1095,7 +996,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			www.HintProposalMetadata)
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusMetadataCountInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 	md := metadata[0]
@@ -1111,7 +1012,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 		e := fmt.Sprintf("metadata with hint %v invalid base64 payload", md.Hint)
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusMetadataPayloadInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 	digest := util.Digest(b)
@@ -1120,7 +1021,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 			md.Hint, md.Digest, hex.EncodeToString(digest))
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusMetadataDigestInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 
@@ -1133,7 +1034,7 @@ func (p *politeiawww) verifyProposal(files []piv1.File, metadata []piv1.Metadata
 		e := fmt.Sprintf("unable to decode %v payload", md.Hint)
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusMetadataPayloadInvalid,
-			ErrorContext: []string{e},
+			ErrorContext: e,
 		}
 	}
 
@@ -1177,7 +1078,7 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn piv1.ProposalNe
 	if usr.PublicKey() != pn.PublicKey {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
+			ErrorContext: "not active identity",
 		}
 	}
 
@@ -1207,7 +1108,7 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn piv1.ProposalNe
 		Signature: pn.Signature,
 		Timestamp: timestamp,
 	}
-	b, err := pi.EncodeGeneralMetadata(gm)
+	b, err := json.Marshal(gm)
 	if err != nil {
 		return nil, err
 	}
@@ -1319,7 +1220,7 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe piv1.ProposalE
 	if usr.PublicKey() != pe.PublicKey {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
+			ErrorContext: "not active identity",
 		}
 	}
 
@@ -1339,7 +1240,7 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe piv1.ProposalE
 	if curr.UserID != usr.ID.String() {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusUnauthorized,
-			ErrorContext: []string{"user is not author"},
+			ErrorContext: "user is not author",
 		}
 	}
 
@@ -1379,7 +1280,7 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe piv1.ProposalE
 		Signature: pe.Signature,
 		Timestamp: timestamp,
 	}
-	b, err := pi.EncodeGeneralMetadata(gm)
+	b, err := json.Marshal(gm)
 	if err != nil {
 		return nil, err
 	}
@@ -1467,7 +1368,7 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 	if required && pss.Reason == "" {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusPropStatusChangeReasonInvalid,
-			ErrorContext: []string{"reason not given"},
+			ErrorContext: "reason not given",
 		}
 	}
 
@@ -1475,7 +1376,7 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 	if !usr.Admin {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusUnauthorized,
-			ErrorContext: []string{"user is not an admin"},
+			ErrorContext: "user is not an admin",
 		}
 	}
 
@@ -1483,7 +1384,7 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 	if usr.PublicKey() != pss.PublicKey {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
+			ErrorContext: "not active identity",
 		}
 	}
 
@@ -1513,7 +1414,7 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 		Signature: pss.Signature,
 		Timestamp: timestamp,
 	}
-	b, err := pi.EncodeStatusChange(sc)
+	b, err := json.Marshal(sc)
 	if err != nil {
 		return nil, err
 	}
@@ -1640,308 +1541,6 @@ func (p *politeiawww) processProposalInventory(ctx context.Context, inv piv1.Pro
 	}, nil
 }
 
-func (p *politeiawww) processCommentNew(ctx context.Context, cn piv1.CommentNew, usr user.User) (*piv1.CommentNewReply, error) {
-	log.Tracef("processCommentNew: %v", usr.Username)
-
-	// Verify user has paid registration paywall
-	if !p.userHasPaid(usr) {
-		return nil, piv1.UserErrorReply{
-			ErrorCode: piv1.ErrorStatusUserRegistrationNotPaid,
-		}
-	}
-
-	// Verify user signed using active identity
-	if usr.PublicKey() != cn.PublicKey {
-		return nil, piv1.UserErrorReply{
-			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
-		}
-	}
-
-	// Only admins and the proposal author are allowed to comment on
-	// unvetted proposals.
-	if cn.State == piv1.PropStateUnvetted && !usr.Admin {
-		// Fetch the proposal so we can see who the author is
-		pr, err := p.proposalRecordLatest(ctx, cn.State, cn.Token)
-		if err != nil {
-			if errors.Is(err, errProposalNotFound) {
-				return nil, piv1.UserErrorReply{
-					ErrorCode: piv1.ErrorStatusPropNotFound,
-				}
-			}
-			return nil, fmt.Errorf("proposalRecordLatest: %v", err)
-		}
-		if usr.ID.String() != pr.UserID {
-			return nil, piv1.UserErrorReply{
-				ErrorCode:    piv1.ErrorStatusUnauthorized,
-				ErrorContext: []string{"user is not author or admin"},
-			}
-		}
-	}
-
-	// Send plugin command
-	n := comments.New{
-		UserID:    usr.ID.String(),
-		State:     convertCommentStateFromPi(cn.State),
-		Token:     cn.Token,
-		ParentID:  cn.ParentID,
-		Comment:   cn.Comment,
-		PublicKey: cn.PublicKey,
-		Signature: cn.Signature,
-	}
-	b, err := comments.EncodeNew(n)
-	if err != nil {
-		return nil, err
-	}
-	pt := pi.PassThrough{
-		PluginID:  comments.ID,
-		PluginCmd: comments.CmdNew,
-		Payload:   string(b),
-	}
-	ptr, err := p.piPassThrough(ctx, pt)
-	if err != nil {
-		return nil, err
-	}
-	nr, err := comments.DecodeNewReply([]byte(ptr.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare reply
-	c := convertCommentFromPlugin(nr.Comment)
-	c = commentFillInUser(c, usr)
-
-	// Emit event
-	p.eventManager.emit(eventProposalComment,
-		dataProposalComment{
-			state:     c.State,
-			token:     c.Token,
-			commentID: c.CommentID,
-			parentID:  c.ParentID,
-			username:  c.Username,
-		})
-
-	return &piv1.CommentNewReply{
-		Comment: c,
-	}, nil
-}
-
-func (p *politeiawww) processCommentVote(ctx context.Context, cv piv1.CommentVote, usr user.User) (*piv1.CommentVoteReply, error) {
-	log.Tracef("processCommentVote: %v %v %v", cv.Token, cv.CommentID, cv.Vote)
-
-	// Verify state
-	if cv.State != piv1.PropStateVetted {
-		return nil, piv1.UserErrorReply{
-			ErrorCode:    piv1.ErrorStatusPropStateInvalid,
-			ErrorContext: []string{"proposal must be vetted"},
-		}
-	}
-
-	// Verify user has paid registration paywall
-	if !p.userHasPaid(usr) {
-		return nil, piv1.UserErrorReply{
-			ErrorCode: piv1.ErrorStatusUserRegistrationNotPaid,
-		}
-	}
-
-	// Verify user signed using active identity
-	if usr.PublicKey() != cv.PublicKey {
-		return nil, piv1.UserErrorReply{
-			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
-		}
-	}
-
-	// Send plugin command
-	v := comments.Vote{
-		UserID:    usr.ID.String(),
-		State:     convertCommentStateFromPi(cv.State),
-		Token:     cv.Token,
-		CommentID: cv.CommentID,
-		Vote:      convertCommentVoteFromPi(cv.Vote),
-		PublicKey: cv.PublicKey,
-		Signature: cv.Signature,
-	}
-	b, err := comments.EncodeVote(v)
-	if err != nil {
-		return nil, err
-	}
-	pt := pi.PassThrough{
-		PluginID:  comments.ID,
-		PluginCmd: comments.CmdVote,
-		Payload:   string(b),
-	}
-	ptr, err := p.piPassThrough(ctx, pt)
-	if err != nil {
-		return nil, err
-	}
-	vr, err := comments.DecodeVoteReply([]byte(ptr.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	return &piv1.CommentVoteReply{
-		Downvotes: vr.Downvotes,
-		Upvotes:   vr.Upvotes,
-		Timestamp: vr.Timestamp,
-		Receipt:   vr.Receipt,
-	}, nil
-}
-
-func (p *politeiawww) processCommentCensor(ctx context.Context, cc piv1.CommentCensor, usr user.User) (*piv1.CommentCensorReply, error) {
-	log.Tracef("processCommentCensor: %v %v", cc.Token, cc.CommentID)
-
-	// Sanity check
-	if !usr.Admin {
-		return nil, fmt.Errorf("not an admin")
-	}
-
-	// Verify user signed with their active identity
-	if usr.PublicKey() != cc.PublicKey {
-		return nil, piv1.UserErrorReply{
-			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
-		}
-	}
-
-	// Send plugin command
-	d := comments.Del{
-		State:     convertCommentStateFromPi(cc.State),
-		Token:     cc.Token,
-		CommentID: cc.CommentID,
-		Reason:    cc.Reason,
-		PublicKey: cc.PublicKey,
-		Signature: cc.Signature,
-	}
-	b, err := comments.EncodeDel(d)
-	if err != nil {
-		return nil, err
-	}
-	pt := pi.PassThrough{
-		PluginID:  comments.ID,
-		PluginCmd: comments.CmdDel,
-		Payload:   string(b),
-	}
-	ptr, err := p.piPassThrough(ctx, pt)
-	if err != nil {
-		return nil, err
-	}
-	dr, err := comments.DecodeDelReply([]byte(ptr.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare reply
-	c := convertCommentFromPlugin(dr.Comment)
-	c = commentFillInUser(c, usr)
-
-	return &piv1.CommentCensorReply{
-		Comment: c,
-	}, nil
-}
-
-func (p *politeiawww) processComments(ctx context.Context, c piv1.Comments, usr *user.User) (*piv1.CommentsReply, error) {
-	log.Tracef("processComments: %v", c.Token)
-
-	// Only admins and the proposal author are allowed to retrieve
-	// unvetted comments. This is a public route so a user might not
-	// exist.
-	if c.State == piv1.PropStateUnvetted {
-		var isAllowed bool
-		switch {
-		case usr == nil:
-		// No logged in user. Unvetted not allowed.
-		case usr.Admin:
-			// User is an admin. Unvetted is allowed.
-			isAllowed = true
-		default:
-			// Logged in user is not an admin. Check if they are the
-			// proposal author.
-			pr, err := p.proposalRecordLatest(ctx, c.State, c.Token)
-			if err != nil {
-				if errors.Is(err, errProposalNotFound) {
-					return nil, piv1.UserErrorReply{
-						ErrorCode: piv1.ErrorStatusPropNotFound,
-					}
-				}
-				return nil, fmt.Errorf("proposalRecordLatest: %v", err)
-			}
-			if usr.ID.String() == pr.UserID {
-				// User is the proposal author. Unvetted is allowed.
-				isAllowed = true
-			}
-		}
-		if !isAllowed {
-			return nil, piv1.UserErrorReply{
-				ErrorCode:    piv1.ErrorStatusUnauthorized,
-				ErrorContext: []string{"user is not author or admin"},
-			}
-		}
-	}
-
-	// Send plugin command
-	reply, err := p.commentsAll(ctx, comments.GetAll{
-		State: convertCommentsStateFromPi(c.State),
-		Token: c.Token,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare reply. Comments contain user data that needs to be
-	// pulled from the user database.
-	cs := make([]piv1.Comment, 0, len(reply.Comments))
-	for _, cm := range reply.Comments {
-		// Convert comment
-		pic := convertCommentFromPlugin(cm)
-
-		// Get comment user data
-		uuid, err := uuid.Parse(cm.UserID)
-		if err != nil {
-			return nil, err
-		}
-		u, err := p.db.UserGetById(uuid)
-		if err != nil {
-			return nil, err
-		}
-		pic.Username = u.Username
-
-		// Add comment
-		cs = append(cs, pic)
-	}
-
-	return &piv1.CommentsReply{
-		Comments: cs,
-	}, nil
-}
-
-func (p *politeiawww) processCommentVotes(ctx context.Context, cv piv1.CommentVotes) (*piv1.CommentVotesReply, error) {
-	log.Tracef("processCommentVotes: %v %v", cv.Token, cv.UserID)
-
-	// Verify state
-	if cv.State != piv1.PropStateVetted {
-		return nil, piv1.UserErrorReply{
-			ErrorCode:    piv1.ErrorStatusPropStateInvalid,
-			ErrorContext: []string{"proposal must be vetted"},
-		}
-	}
-
-	// Send plugin command
-	v := comments.Votes{
-		State:  convertCommentsStateFromPi(cv.State),
-		Token:  cv.Token,
-		UserID: cv.UserID,
-	}
-	cvr, err := p.commentVotes(ctx, v)
-	if err != nil {
-		return nil, err
-	}
-
-	return &piv1.CommentVotesReply{
-		Votes: convertCommentVoteDetailsFromPlugin(cvr.Votes),
-	}, nil
-}
-
 func (p *politeiawww) processVoteAuthorize(ctx context.Context, va piv1.VoteAuthorize, usr user.User) (*piv1.VoteAuthorizeReply, error) {
 	log.Tracef("processVoteAuthorize: %v", va.Token)
 
@@ -1949,7 +1548,7 @@ func (p *politeiawww) processVoteAuthorize(ctx context.Context, va piv1.VoteAuth
 	if usr.PublicKey() != va.PublicKey {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-			ErrorContext: []string{"not active identity"},
+			ErrorContext: "not active identity",
 		}
 	}
 
@@ -1982,7 +1581,7 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs piv1.VoteStart, u
 	if len(vs.Starts) == 0 {
 		return nil, piv1.UserErrorReply{
 			ErrorCode:    piv1.ErrorStatusStartDetailsInvalid,
-			ErrorContext: []string{"no start details found"},
+			ErrorContext: "no start details found",
 		}
 	}
 
@@ -1991,7 +1590,7 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs piv1.VoteStart, u
 		if usr.PublicKey() != v.PublicKey {
 			return nil, piv1.UserErrorReply{
 				ErrorCode:    piv1.ErrorStatusPublicKeyInvalid,
-				ErrorContext: []string{"not active identity"},
+				ErrorContext: "not active identity",
 			}
 		}
 	}
@@ -2016,23 +1615,7 @@ func (p *politeiawww) processVoteStart(ctx context.Context, vs piv1.VoteStart, u
 		// through the pi plugin so that it can perform this additional
 		// validation.
 		s := convertVoteStartFromPi(vs)
-		payload, err := ticketvote.EncodeStart(s)
-		if err != nil {
-			return nil, err
-		}
-		pt := pi.PassThrough{
-			PluginID:  ticketvote.ID,
-			PluginCmd: ticketvote.CmdStart,
-			Payload:   string(payload),
-		}
-		ptr, err := p.piPassThrough(ctx, pt)
-		if err != nil {
-			return nil, err
-		}
-		sr, err = ticketvote.DecodeStartReply([]byte(ptr.Payload))
-		if err != nil {
-			return nil, err
-		}
+		_ = s
 
 	default:
 		return nil, piv1.UserErrorReply{
@@ -2069,14 +1652,9 @@ func (p *politeiawww) processCastBallot(ctx context.Context, vc piv1.CastBallot)
 func (p *politeiawww) processVotes(ctx context.Context, v piv1.Votes) (*piv1.VotesReply, error) {
 	log.Tracef("processVotes: %v", v.Tokens)
 
-	vd, err := p.voteDetails(ctx, v.Tokens)
-	if err != nil {
-		return nil, err
-	}
+	// TODO
 
-	return &piv1.VotesReply{
-		Votes: convertProposalVotesFromPlugin(vd.Votes),
-	}, nil
+	return nil, nil
 }
 
 func (p *politeiawww) processVoteResults(ctx context.Context, vr piv1.VoteResults) (*piv1.VoteResultsReply, error) {
@@ -2095,15 +1673,19 @@ func (p *politeiawww) processVoteResults(ctx context.Context, vr piv1.VoteResult
 func (p *politeiawww) processVoteSummaries(ctx context.Context, vs piv1.VoteSummaries) (*piv1.VoteSummariesReply, error) {
 	log.Tracef("processVoteSummaries: %v", vs.Tokens)
 
-	r, err := p.voteSummaries(ctx, vs.Tokens)
-	if err != nil {
-		return nil, err
-	}
+	/*
+		r, err := p.voteSummaries(ctx, vs.Tokens)
+		if err != nil {
+			return nil, err
+		}
 
-	return &piv1.VoteSummariesReply{
-		Summaries: convertVoteSummariesFromPlugin(r.Summaries),
-		BestBlock: r.BestBlock,
-	}, nil
+		return &piv1.VoteSummariesReply{
+			Summaries: convertVoteSummariesFromPlugin(r.Summaries),
+			BestBlock: r.BestBlock,
+		}, nil
+	*/
+
+	return nil, nil
 }
 
 func (p *politeiawww) processVoteInventory(ctx context.Context) (*piv1.VoteInventoryReply, error) {
@@ -2277,151 +1859,6 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, pir)
-}
-
-func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentNew")
-
-	var cn piv1.CommentNew
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cn); err != nil {
-		respondWithPiError(w, r, "handleCommentNew: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.getSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentNew: getSessionUser: %v", err)
-		return
-	}
-
-	cnr, err := p.processCommentNew(r.Context(), cn, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentNew: processCommentNew: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, cnr)
-}
-
-func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentVote")
-
-	var cv piv1.CommentVote
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cv); err != nil {
-		respondWithPiError(w, r, "handleCommentVote: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.getSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentVote: getSessionUser: %v", err)
-		return
-	}
-
-	vcr, err := p.processCommentVote(r.Context(), cv, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentVote: processCommentVote: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vcr)
-}
-
-func (p *politeiawww) handleCommentCensor(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentCensor")
-
-	var cc piv1.CommentCensor
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cc); err != nil {
-		respondWithPiError(w, r, "handleCommentCensor: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.getSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentCensor: getSessionUser: %v", err)
-		return
-	}
-
-	ccr, err := p.processCommentCensor(r.Context(), cc, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentCensor: processCommentCensor: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, ccr)
-}
-
-func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleComments")
-
-	var c piv1.Comments
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&c); err != nil {
-		respondWithPiError(w, r, "handleComments: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	// Lookup session user. This is a public route so a session may not
-	// exist. Ignore any session not found errors.
-	usr, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
-		respondWithPiError(w, r,
-			"handleProposalInventory: getSessionUser: %v", err)
-		return
-	}
-
-	cr, err := p.processComments(r.Context(), c, usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentVote: processComments: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, cr)
-}
-
-func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentVotes")
-
-	var cv piv1.CommentVotes
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cv); err != nil {
-		respondWithPiError(w, r, "handleCommentVotes: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	cvr, err := p.processCommentVotes(r.Context(), cv)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCommentVotes: processCommentVotes: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, cvr)
 }
 
 func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request) {

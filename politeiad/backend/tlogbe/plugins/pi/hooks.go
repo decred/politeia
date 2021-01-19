@@ -217,7 +217,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	if sc.Version != srs.Current.Version {
 		e := fmt.Sprintf("version not current: got %v, want %v",
 			sc.Version, srs.Current.Version)
-		return backend.PluginUserError{
+		return backend.PluginError{
 			PluginID:     pi.ID,
 			ErrorCode:    int(pi.ErrorCodePropVersionInvalid),
 			ErrorContext: e,
@@ -236,7 +236,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 	if !isAllowed {
 		e := fmt.Sprintf("from %v to %v status change not allowed",
 			from, sc.Status)
-		return backend.PluginUserError{
+		return backend.PluginError{
 			PluginID:     pi.ID,
 			ErrorCode:    int(pi.ErrorCodePropStatusChangeInvalid),
 			ErrorContext: e,
@@ -260,7 +260,7 @@ func (p *piPlugin) commentWritesVerify(token []byte) error {
 		// Writes are allowed on these vote statuses
 		return nil
 	default:
-		return backend.PluginUserError{
+		return backend.PluginError{
 			PluginID:     pi.ID,
 			ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote has ended; proposal is locked",

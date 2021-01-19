@@ -16,18 +16,11 @@ import (
 
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
-
-func convertCommentState(s cmv1.RecordStateT) comments.StateT {
-	switch s {
-	case cmv1.RecordStateUnvetted:
-		return comments.StateUnvetted
-	case cmv1.RecordStateVetted:
-		return comments.StateVetted
-	}
-	return comments.StateInvalid
-}
 
 func convertProofFromCommentsPlugin(p comments.Proof) cmv1.Proof {
 	return cmv1.Proof{
@@ -53,73 +46,294 @@ func convertTimestampFromCommentsPlugin(t comments.Timestamp) cmv1.Timestamp {
 	}
 }
 
-// commentsAll returns all comments for the provided record.
-func (p *politeiawww) commentsAll(ctx context.Context, cp comments.GetAll) (*comments.GetAllReply, error) {
-	b, err := comments.EncodeGetAll(cp)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, comments.ID, comments.CmdGetAll, string(b))
-	if err != nil {
-		return nil, err
-	}
-	cr, err := comments.DecodeGetAllReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-	return cr, nil
+func (p *politeiawww) commentsAll(ctx context.Context, ga comments.GetAll) (*comments.GetAllReply, error) {
+	return nil, nil
 }
 
-// commentsGet returns the set of comments specified in the comment's id slice.
 func (p *politeiawww) commentsGet(ctx context.Context, cg comments.Get) (*comments.GetReply, error) {
-	b, err := comments.EncodeGet(cg)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, comments.ID, comments.CmdGet, string(b))
-	if err != nil {
-		return nil, err
-	}
-	cgr, err := comments.DecodeGetReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-	return cgr, nil
+	return nil, nil
 }
 
-// commentVotes returns the comment votes that meet the provided criteria.
 func (p *politeiawww) commentVotes(ctx context.Context, vs comments.Votes) (*comments.VotesReply, error) {
-	b, err := comments.EncodeVotes(vs)
-	if err != nil {
-		return nil, err
-	}
-	r, err := p.pluginCommand(ctx, comments.ID, comments.CmdVotes, string(b))
-	if err != nil {
-		return nil, err
-	}
-	vsr, err := comments.DecodeVotesReply([]byte(r))
-	if err != nil {
-		return nil, err
-	}
-	return vsr, nil
+	return nil, nil
 }
 
 func (p *politeiawww) commentTimestamps(ctx context.Context, t comments.Timestamps) (*comments.TimestampsReply, error) {
-	b, err := json.Marshal(t)
+	return nil, nil
+}
+
+// commentPopulateUser populates the provided comment with user data that is
+// not stored in politeiad.
+func commentPopulateUser(c piv1.Comment, u user.User) cmv1.Comment {
+	c.Username = u.Username
+	return c
+}
+
+func (p *politeiawww) piCommentNew(ctx context.Context, n cmv1.CommentNew, u user.User) error {
+	// Verify user has paid registration paywall
+	if !p.userHasPaid(u) {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode: cmv1.ErrorCodeUserRegistrationNotPaid,
+		}
+	}
+
+}
+
+func (p *politeiawww) processCommentNew(ctx context.Context, n cmv1.CommentNew, u user.User) (*cmv1.CommentNewReply, error) {
+	log.Tracef("processCommentNew: %v %v", n.Token, u.Username)
+
+	// This is temporary until user plugins are implemented.
+	switch p.mode {
+	case politeiaWWWMode:
+		err := piCommentNew(ctx, n, u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Verify user signed using active identity
+	if u.PublicKey() != n.PublicKey {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode:    cmv1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Only admins and the record author are allowed to comment on
+	// unvetted records.
+	if n.State == cmv1.PropStateUnvetted && !u.Admin {
+		// Get the record author
+		// TODO create a user politeiad plugin
+		// TODO add command to get author for record
+		// Fetch the proposal so we can see who the author is
+		pr, err := p.proposalRecordLatest(ctx, n.State, n.Token)
+		if err != nil {
+			if errors.Is(err, errProposalNotFound) {
+				return nil, cmv1.UserErrorReply{
+					ErrorCode: cmv1.ErrorCodeRecordNotFound,
+				}
+			}
+			return nil, fmt.Errorf("proposalRecordLatest: %v", err)
+		}
+		if u.ID.String() != pr.UserID {
+			return nil, cmv1.UserErrorReply{
+				ErrorCode:    cmv1.ErrorCodeUnauthorized,
+				ErrorContext: "user is not author or admin",
+			}
+		}
+	}
+
+	// Send plugin command
+	n := comments.New{
+		UserID:    usr.ID.String(),
+		Token:     n.Token,
+		ParentID:  n.ParentID,
+		Comment:   n.Comment,
+		PublicKey: n.PublicKey,
+		Signature: n.Signature,
+	}
+	// TODO
+	_ = n
+	var nr comments.NewReply
+
+	// Prepare reply
+	c := convertCommentFromPlugin(nr.Comment)
+	c = commentPopulateUser(c, u)
+
+	// Emit event
+	p.eventManager.emit(eventProposalComment,
+		dataProposalComment{
+			state:     c.State,
+			token:     c.Token,
+			commentID: c.CommentID,
+			parentID:  c.ParentID,
+			username:  c.Username,
+		})
+
+	return &cmv1.CommentNewReply{
+		Comment: c,
+	}, nil
+}
+
+func (p *politeiawww) processCommentVote(ctx context.Context, cv cmv1.CommentVote, usr user.User) (*cmv1.CommentVoteReply, error) {
+	log.Tracef("processCommentVote: %v %v %v", cv.Token, cv.CommentID, cv.Vote)
+
+	// Verify state
+	if cv.State != cmv1.PropStateVetted {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode:    cmv1.ErrorCodePropStateInvalid,
+			ErrorContext: "proposal must be vetted",
+		}
+	}
+
+	// Verify user has paid registration paywall
+	if !p.userHasPaid(usr) {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode: cmv1.ErrorCodeUserRegistrationNotPaid,
+		}
+	}
+
+	// Verify user signed using active identity
+	if usr.PublicKey() != cv.PublicKey {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode:    cmv1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Send plugin command
+	v := comments.Vote{
+		UserID:    usr.ID.String(),
+		Token:     cv.Token,
+		CommentID: cv.CommentID,
+		Vote:      convertCommentVoteFromPi(cv.Vote),
+		PublicKey: cv.PublicKey,
+		Signature: cv.Signature,
+	}
+	// TODO
+	_ = v
+	var vr comments.VoteReply
+
+	return &cmv1.CommentVoteReply{
+		Downvotes: vr.Downvotes,
+		Upvotes:   vr.Upvotes,
+		Timestamp: vr.Timestamp,
+		Receipt:   vr.Receipt,
+	}, nil
+}
+
+func (p *politeiawww) processCommentCensor(ctx context.Context, cc cmv1.CommentCensor, usr user.User) (*cmv1.CommentCensorReply, error) {
+	log.Tracef("processCommentCensor: %v %v", cc.Token, cc.CommentID)
+
+	// Sanity check
+	if !usr.Admin {
+		return nil, fmt.Errorf("not an admin")
+	}
+
+	// Verify user signed with their active identity
+	if usr.PublicKey() != cc.PublicKey {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode:    cmv1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Send plugin command
+	d := comments.Del{
+		Token:     cc.Token,
+		CommentID: cc.CommentID,
+		Reason:    cc.Reason,
+		PublicKey: cc.PublicKey,
+		Signature: cc.Signature,
+	}
+	// TODO
+	_ = d
+	var dr comments.DelReply
+
+	// Prepare reply
+	c := convertCommentFromPlugin(dr.Comment)
+	c = commentPopulateUser(c, usr)
+
+	return &cmv1.CommentCensorReply{
+		Comment: c,
+	}, nil
+}
+
+func (p *politeiawww) processComments(ctx context.Context, c cmv1.Comments, usr *user.User) (*cmv1.CommentsReply, error) {
+	log.Tracef("processComments: %v", c.Token)
+
+	// Only admins and the proposal author are allowed to retrieve
+	// unvetted comments. This is a public route so a user might not
+	// exist.
+	if c.State == cmv1.PropStateUnvetted {
+		var isAllowed bool
+		switch {
+		case usr == nil:
+		// No logged in user. Unvetted not allowed.
+		case usr.Admin:
+			// User is an admin. Unvetted is allowed.
+			isAllowed = true
+		default:
+			// Logged in user is not an admin. Check if they are the
+			// proposal author.
+			pr, err := p.proposalRecordLatest(ctx, c.State, c.Token)
+			if err != nil {
+				if errors.Is(err, errProposalNotFound) {
+					return nil, cmv1.UserErrorReply{
+						ErrorCode: cmv1.ErrorCodePropNotFound,
+					}
+				}
+				return nil, fmt.Errorf("proposalRecordLatest: %v", err)
+			}
+			if usr.ID.String() == pr.UserID {
+				// User is the proposal author. Unvetted is allowed.
+				isAllowed = true
+			}
+		}
+		if !isAllowed {
+			return nil, cmv1.UserErrorReply{
+				ErrorCode:    cmv1.ErrorCodeUnauthorized,
+				ErrorContext: "user is not author or admin",
+			}
+		}
+	}
+
+	// Send plugin command
+	reply, err := p.commentsAll(ctx, comments.GetAll{})
 	if err != nil {
 		return nil, err
 	}
-	r, err := p.pluginCommand(ctx, comments.ID,
-		comments.CmdTimestamps, string(b))
+
+	// Prepare reply. Comments contain user data that needs to be
+	// pulled from the user database.
+	cs := make([]cmv1.Comment, 0, len(reply.Comments))
+	for _, cm := range reply.Comments {
+		// Convert comment
+		pic := convertCommentFromPlugin(cm)
+
+		// Get comment user data
+		uuid, err := uuid.Parse(cm.UserID)
+		if err != nil {
+			return nil, err
+		}
+		u, err := p.db.UserGetById(uuid)
+		if err != nil {
+			return nil, err
+		}
+		pic.Username = u.Username
+
+		// Add comment
+		cs = append(cs, pic)
+	}
+
+	return &cmv1.CommentsReply{
+		Comments: cs,
+	}, nil
+}
+
+func (p *politeiawww) processCommentVotes(ctx context.Context, cv cmv1.CommentVotes) (*cmv1.CommentVotesReply, error) {
+	log.Tracef("processCommentVotes: %v %v", cv.Token, cv.UserID)
+
+	// Verify state
+	if cv.State != cmv1.PropStateVetted {
+		return nil, cmv1.UserErrorReply{
+			ErrorCode:    cmv1.ErrorCodePropStateInvalid,
+			ErrorContext: "proposal must be vetted",
+		}
+	}
+
+	// Send plugin command
+	v := comments.Votes{
+		UserID: cv.UserID,
+	}
+	cvr, err := p.commentVotes(ctx, v)
 	if err != nil {
 		return nil, err
 	}
-	var tr comments.TimestampsReply
-	err = json.Unmarshal([]byte(r), &tr)
-	if err != nil {
-		return nil, err
-	}
-	return &tr, nil
+
+	return &cmv1.CommentVotesReply{
+		Votes: convertCommentVoteDetailsFromPlugin(cvr.Votes),
+	}, nil
 }
 
 func (p *politeiawww) processCommentTimestamps(ctx context.Context, t cmv1.Timestamps, isAdmin bool) (*cmv1.TimestampsReply, error) {
@@ -128,8 +342,6 @@ func (p *politeiawww) processCommentTimestamps(ctx context.Context, t cmv1.Times
 
 	// Get timestamps
 	ct := comments.Timestamps{
-		State:        convertCommentState(t.State),
-		Token:        t.Token,
 		CommentIDs:   t.CommentIDs,
 		IncludeVotes: false,
 	}
@@ -155,6 +367,183 @@ func (p *politeiawww) processCommentTimestamps(ctx context.Context, t cmv1.Times
 	return &cmv1.TimestampsReply{
 		Comments: comments,
 	}, nil
+}
+
+func (p *politeiawww) handleCommentNew(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentNew")
+
+	var n cmv1.New
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&n); err != nil {
+		respondWithPiError(w, r, "handleCommentNew: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	usr, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentNew: getSessionUser: %v", err)
+		return
+	}
+
+	nr, err := p.processCommentNew(r.Context(), n, *usr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentNew: processCommentNew: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, nr)
+}
+
+func (p *politeiawww) handleCommentVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentVote")
+
+	var v cmv1.Vote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&v); err != nil {
+		respondWithPiError(w, r, "handleCommentVote: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	usr, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: getSessionUser: %v", err)
+		return
+	}
+
+	vr, err := p.processCommentVote(r.Context(), v, *usr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: processCommentVote: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
+}
+
+func (p *politeiawww) handleCommentDel(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentDel")
+
+	var d cmv1.Del
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&d); err != nil {
+		respondWithPiError(w, r, "handleCommentDel: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	usr, err := p.getSessionUser(w, r)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentDel: getSessionUser: %v", err)
+		return
+	}
+
+	dr, err := p.processCommentDel(r.Context(), d, *usr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentDel: processCommentDel: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, dr)
+}
+
+func (p *politeiawww) handleCommentsCount(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentsCount")
+
+	var c cmv1.Comments
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&c); err != nil {
+		respondWithPiError(w, r, "handleCommentsCount: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
+	usr, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		respondWithPiError(w, r,
+			"handleProposalInventory: getSessionUser: %v", err)
+		return
+	}
+
+	cr, err := p.processCommentsCount(r.Context(), c, usr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: processCommentsCount: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+func (p *politeiawww) handleComments(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleComments")
+
+	var c cmv1.Comments
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&c); err != nil {
+		respondWithPiError(w, r, "handleComments: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
+	usr, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		respondWithPiError(w, r,
+			"handleProposalInventory: getSessionUser: %v", err)
+		return
+	}
+
+	cr, err := p.processComments(r.Context(), c, usr)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVote: processComments: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+func (p *politeiawww) handleCommentVotes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentVotes")
+
+	var v cmv1.Votes
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cv); err != nil {
+		respondWithPiError(w, r, "handleCommentVotes: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	vr, err := p.processCommentVotes(r.Context(), v)
+	if err != nil {
+		respondWithPiError(w, r,
+			"handleCommentVotes: processCommentVotes: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
 func (p *politeiawww) handleCommentTimestamps(w http.ResponseWriter, r *http.Request) {

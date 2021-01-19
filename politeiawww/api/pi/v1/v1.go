@@ -8,7 +8,6 @@ import (
 	"fmt"
 )
 
-type CommentVoteT int
 type VoteStatusT int
 type VoteAuthActionT string
 type VoteT int
@@ -16,11 +15,7 @@ type VoteT int
 // TODO verify that all batched request have a page size limit
 // TODO comments count and linked from should be pulled out of the proposal
 // record struct. These should be separate endpoints:
-// /comments/count
-// /proposal/linkedfrom
-// TODO routes that map directly to plugin commands (comment and vote routes)
-// should be added to their own API package so that they can be used by
-// multiple politeia applications (pi, cms, forum).
+// /ticketvote/linkedfrom
 // TODO make RouteVoteResults a batched route but that only currently allows
 // for 1 result to be returned so that we have the option to change this if
 // we want to.
@@ -39,13 +34,6 @@ const (
 	RouteProposals         = "/proposals"
 	RouteProposalInventory = "/proposals/inventory"
 
-	// Comment routes
-	RouteCommentNew    = "/comment/new"
-	RouteCommentVote   = "/comment/vote"
-	RouteCommentCensor = "/comment/censor"
-	RouteComments      = "/comments"
-	RouteCommentVotes  = "/comments/votes"
-
 	// Vote routes
 	RouteVoteAuthorize = "/vote/authorize"
 	RouteVoteStart     = "/vote/start"
@@ -54,11 +42,6 @@ const (
 	RouteVoteResults   = "/votes/results"
 	RouteVoteSummaries = "/votes/summaries"
 	RouteVoteInventory = "/votes/inventory"
-
-	// Comment vote types
-	CommentVoteInvalid  CommentVoteT = 0
-	CommentVoteDownvote CommentVoteT = -1
-	CommentVoteUpvote   CommentVoteT = 1
 
 	// Vote statuses
 	VoteStatusInvalid      VoteStatusT = 0 // Invalid status
@@ -151,13 +134,6 @@ const (
 	ErrorStatusPropStatusChangeReasonInvalid
 	ErrorStatusNoPropChanges
 
-	// Comment errors
-	ErrorStatusCommentTextInvalid
-	ErrorStatusCommentParentIDInvalid
-	ErrorStatusCommentVoteInvalid
-	ErrorStatusCommentNotFound
-	ErrorStatusCommentVoteChangesMax
-
 	// Vote errors
 	ErrorStatusVoteAuthInvalid
 	ErrorStatusVoteStatusInvalid
@@ -213,13 +189,6 @@ var (
 		ErrorStatusPropStatusChangeReasonInvalid: "proposal status reason invalid",
 		ErrorStatusNoPropChanges:                 "no proposal changes",
 
-		// Comment errors
-		ErrorStatusCommentTextInvalid:     "comment text invalid",
-		ErrorStatusCommentParentIDInvalid: "comment parent ID invalid",
-		ErrorStatusCommentVoteInvalid:     "comment vote invalid",
-		ErrorStatusCommentNotFound:        "comment not found",
-		ErrorStatusCommentVoteChangesMax:  "comment vote changes exceeded max",
-
 		// Vote errors
 		ErrorStatusVoteStatusInvalid: "vote status invalid",
 		ErrorStatusVoteParamsInvalid: "vote params invalid",
@@ -231,7 +200,7 @@ var (
 // timing, etc). The HTTP status code will be 400.
 type UserErrorReply struct {
 	ErrorCode    ErrorStatusT `json:"errorcode"`
-	ErrorContext []string     `json:"errorcontext"`
+	ErrorContext string       `json:"errorcontext"`
 }
 
 // Error satisfies the error interface.
@@ -337,7 +306,12 @@ const (
 // submission. It is attached to a proposal submission as a Metadata object.
 type ProposalMetadata struct {
 	Name string `json:"name"` // Proposal name
+}
 
+// VoteMetadata that is specified by the user on proposal submission in order
+// to host or participate in certain types of votes. It is attached to a
+// proposal submission as a Metadata object.
+type VoteMetadata struct {
 	// LinkBy is a UNIX timestamp that serves as a deadline for other
 	// proposals to link to this proposal. Ex, an RFP submission cannot
 	// link to an RFP proposal once the RFP's LinkBy deadline is past.
@@ -389,16 +363,9 @@ type ProposalRecord struct {
 	Username  string         `json:"username"`  // Author username
 	PublicKey string         `json:"publickey"` // Key used in signature
 	Signature string         `json:"signature"` // Signature of merkle root
-	Comments  uint64         `json:"comments"`  // Number of comments
-	Statuses  []StatusChange `json:"statuses"`  // Status change history
 	Files     []File         `json:"files"`     // Proposal files
 	Metadata  []Metadata     `json:"metadata"`  // User defined metadata
-
-	// LinkedFrom contains a list of public proposals that have linked
-	// to this proposal. A link is established when a child proposal
-	// specifies this proposal using the LinkTo field of the
-	// ProposalMetadata.
-	LinkedFrom []string `json:"linkedfrom"`
+	Statuses  []StatusChange `json:"statuses"`  // Status change history
 
 	// CensorshipRecord contains cryptographic proof that the proposal
 	// was received and processed by the server.
@@ -506,146 +473,6 @@ type ProposalInventory struct {
 type ProposalInventoryReply struct {
 	Unvetted map[string][]string `json:"unvetted"`
 	Vetted   map[string][]string `json:"vetted"`
-}
-
-// Comment represent a proposal comment.
-//
-// The parent ID is used to reply to an existing comment. A parent ID of 0
-// indicates that the comment is a base level comment and not a reply commment.
-//
-// Signature is the client signature of State+Token+ParentID+Comment.
-type Comment struct {
-	UserID    string     `json:"userid"`    // User ID
-	Username  string     `json:"username"`  // Username
-	State     PropStateT `json:"state"`     // Proposal state
-	Token     string     `json:"token"`     // Proposal token
-	ParentID  uint32     `json:"parentid"`  // Parent comment ID
-	Comment   string     `json:"comment"`   // Comment text
-	PublicKey string     `json:"publickey"` // Public key used for Signature
-	Signature string     `json:"signature"` // Client signature
-	CommentID uint32     `json:"commentid"` // Comment ID
-	Timestamp int64      `json:"timestamp"` // UNIX timestamp of last edit
-	Receipt   string     `json:"receipt"`   // Server sig of client sig
-	Downvotes uint64     `json:"downvotes"` // Tolal downvotes
-	Upvotes   uint64     `json:"upvotes"`   // Total upvotes
-
-	Censored bool   `json:"censored,omitempty"` // Comment has been censored
-	Reason   string `json:"reason,omitempty"`   // Reason for censoring
-}
-
-// CommentNew creates a new comment. Only the proposal author and admins can
-// comment on unvetted proposals. All users can comment on public proposals.
-//
-// The parent ID is used to reply to an existing comment. A parent ID of 0
-// indicates that the comment is a base level comment and not a reply commment.
-//
-// Signature is the client signature of State+Token+ParentID+Comment.
-type CommentNew struct {
-	State     PropStateT `json:"state"`
-	Token     string     `json:"token"`
-	ParentID  uint32     `json:"parentid"`
-	Comment   string     `json:"comment"`
-	PublicKey string     `json:"publickey"`
-	Signature string     `json:"signature"`
-}
-
-// CommentNewReply is the reply to the CommentNew command.
-//
-// Receipt is the server signature of the client signature. This is proof that
-// the server received and processed the CommentNew command.
-type CommentNewReply struct {
-	Comment Comment `json:"comment"`
-}
-
-// CommentCensor permanently censors a comment. The comment will be deleted
-// and cannot be retrieved once censored. Only admins can censor a comment.
-//
-// Reason contains the reason why the comment is being censored and must always
-// be included.
-type CommentCensor struct {
-	State     PropStateT `json:"state"`
-	Token     string     `json:"token"`
-	CommentID uint32     `json:"commentid"`
-	Reason    string     `json:"reason"`
-	PublicKey string     `json:"publickey"`
-	Signature string     `json:"signature"`
-}
-
-// CommentCensorReply is the reply to the CommentCensor command.
-//
-// Receipt is the server signature of the client signature. This is proof that
-// the server received and processed the CommentCensor command.
-type CommentCensorReply struct {
-	Comment Comment `json:"comment"`
-}
-
-// CommentVote casts a comment vote (upvote or downvote). Only allowed on
-// vetted proposals.
-//
-// The effect of a new vote on a comment score depends on the previous vote
-// from that uuid. Example, a user upvotes a comment that they have already
-// upvoted, the resulting vote score is 0 due to the second upvote removing the
-// original upvote.
-//
-// Signature is the client signature of the State+Token+CommentID+Vote.
-type CommentVote struct {
-	State     PropStateT   `json:"state"`
-	Token     string       `json:"token"`
-	CommentID uint32       `json:"commentid"`
-	Vote      CommentVoteT `json:"vote"`
-	PublicKey string       `json:"publickey"`
-	Signature string       `json:"signature"`
-}
-
-// CommentVoteReply is the reply to the CommentVote command.
-//
-// Receipt is the server signature of the client signature. This is proof that
-// the server received and processed the CommentVote command.
-type CommentVoteReply struct {
-	Downvotes uint64 `json:"downvotes"` // Total downvotes
-	Upvotes   uint64 `json:"upvotes"`   // Total upvotes
-	Timestamp int64  `json:"timestamp"`
-	Receipt   string `json:"receipt"`
-}
-
-// Comments returns all comments for a proposal. Unvetted proposal comments
-// are only returned to the proposal author and admins. Retrieving proposal
-// comments on vetted proposals does not require a user to be logged in.
-type Comments struct {
-	State PropStateT `json:"state"`
-	Token string     `json:"token"`
-}
-
-// CommentsReply is the reply to the comments command.
-type CommentsReply struct {
-	Comments []Comment `json:"comments"`
-}
-
-// CommentVoteDetails represents all user generated data and server generated
-// metadata for a comment vote.
-type CommentVoteDetails struct {
-	UserID    string       `json:"userid"`
-	State     PropStateT   `json:"state"`
-	Token     string       `json:"token"`
-	CommentID uint32       `json:"commentid"`
-	Vote      CommentVoteT `json:"vote"`
-	PublicKey string       `json:"publickey"`
-	Signature string       `json:"signature"`
-	Timestamp int64        `json:"timestamp"`
-	Receipt   string       `json:"receipt"`
-}
-
-// CommentVotes returns all comment votes that meet the provided filtering
-// criteria. Comment votes are only allowed on vetted proposals.
-type CommentVotes struct {
-	State  PropStateT `json:"state"`
-	Token  string     `json:"token"`
-	UserID string     `json:"userid"`
-}
-
-// CommentVotesReply is the reply to the CommentVotes command.
-type CommentVotesReply struct {
-	Votes []CommentVoteDetails `json:"votes"`
 }
 
 // AuthDetails contains the details of a vote authorization.

@@ -10,6 +10,12 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/comments/v1"
 
+	RouteNew        = "/new"
+	RouteVote       = "/vote"
+	RouteDel        = "/del"
+	RouteCount      = "/count"
+	RouteComments   = "/comments"
+	RouteVotes      = "/votes"
 	RouteTimestamps = "/timestamps"
 )
 
@@ -19,14 +25,17 @@ type ErrorCodeT int
 const (
 	// Error codes
 	ErrorCodeInvalid      ErrorCodeT = 0
-	ErrorCodeInputInvalid ErrorCodeT = 1
+	ErrorCodeInputInvalid ErrorCodeT = iota
+	ErrorStatusPublicKeyInvalid
+	ErrorStatusSignatureInvalid
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:      "error invalid",
-		ErrorCodeInputInvalid: "input invalid",
+		ErrorCodeInvalid:            "error invalid",
+		ErrorCodeInputInvalid:       "input invalid",
+		ErrorStatusPublicKeyInvalid: "public key invalid",
 	}
 )
 
@@ -83,6 +92,162 @@ const (
 	// RecordStateVetted indicates a record has been made public.
 	RecordStateVetted RecordStateT = 2
 )
+
+// Comment represent a record comment.
+//
+// Signature is the client signature of Token+ParentID+Comment.
+type Comment struct {
+	UserID    string `json:"userid"`    // Unique user ID
+	Username  string `json:"username"`  // Username
+	Token     string `json:"token"`     // Record token
+	ParentID  uint32 `json:"parentid"`  // Parent comment ID if reply
+	Comment   string `json:"comment"`   // Comment text
+	PublicKey string `json:"publickey"` // Public key used for Signature
+	Signature string `json:"signature"` // Client signature
+	CommentID uint32 `json:"commentid"` // Comment ID
+	Timestamp int64  `json:"timestamp"` // UNIX timestamp of last edit
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
+	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
+
+	Deleted bool   `json:"deleted,omitempty"` // Comment has been deleted
+	Reason  string `json:"reason,omitempty"`  // Reason for deletion
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
+}
+
+// CommentVote represents a comment vote (upvote/downvote).
+//
+// Signature is the client signature of the Token+CommentID+Vote.
+type CommentVote struct {
+	UserID    string `json:"userid"`    // Unique user ID
+	Username  string `json:"username"`  // Username
+	Token     string `json:"token"`     // Record token
+	CommentID uint32 `json:"commentid"` // Comment ID
+	Vote      VoteT  `json:"vote"`      // Upvote or downvote
+	PublicKey string `json:"publickey"` // Public key used for signature
+	Signature string `json:"signature"` // Client signature
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// New creates a new comment.
+//
+// The parent ID is used to reply to an existing comment. A parent ID of 0
+// indicates that the comment is a base level comment and not a reply commment.
+//
+// Signature is the client signature of Token+ParentID+Comment.
+type New struct {
+	State     RecordStateT `json:"state"`
+	Token     string       `json:"token"`
+	ParentID  uint32       `json:"parentid"`
+	Comment   string       `json:"comment"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
+}
+
+// NewReply is the reply to the New command.
+type NewReply struct {
+	Comment Comment `json:"comment"`
+}
+
+// VoteT represents a comment upvote/downvote.
+type VoteT int
+
+const (
+	// VoteInvalid is an invalid comment vote.
+	VoteInvalid VoteT = 0
+
+	// VoteDownvote represents a comment downvote.
+	VoteDownvote VoteT = -1
+
+	// VoteUpvote represents a comment upvote.
+	VoteUpvote VoteT = 1
+)
+
+// Vote casts a comment vote (upvote or downvote).
+//
+// The effect of a new vote on a comment score depends on the previous vote
+// from that user ID. Example, a user upvotes a comment that they have already
+// upvoted, the resulting vote score is 0 due to the second upvote removing the
+// original upvote.
+//
+// Signature is the client signature of the Token+CommentID+Vote.
+type Vote struct {
+	State     RecordStateT `json:"state"`
+	Token     string       `json:"token"`
+	CommentID uint32       `json:"commentid"`
+	Vote      VoteT        `json:"vote"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
+}
+
+// VoteReply is the reply to the Vote command.
+type VoteReply struct {
+	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
+	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string `json:"receipt"`   // Server signature of client signature
+}
+
+// Del permanently deletes the provided comment. Only admins can delete
+// comments. A reason must be given for the deletion.
+//
+// Signature is the client signature of the Token+CommentID+Reason
+type Del struct {
+	State     RecordStateT `json:"state"`
+	Token     string       `json:"token"`
+	CommentID uint32       `json:"commentid"`
+	Reason    string       `json:"reason"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
+}
+
+// DelReply is the reply to the Del command.
+type DelReply struct {
+	Comment Comment `json:"comment"`
+}
+
+// Count requests the number of comments on that have been made on the given
+// records. If a record is not found for a token then it will not be included
+// in the reply.
+type Count struct {
+	State  RecordStateT `json:"state"`
+	Tokens []string     `json:"tokens"`
+}
+
+// CountReply is the reply to the count command.
+type CountReply struct {
+	Count map[string]uint32 `json:"count"`
+}
+
+// Comments requests a record's comments.
+type Comments struct {
+	State RecordStateT `json:"state"`
+	Token string       `json:"token"`
+}
+
+// CommentsReply is the reply to the comments command.
+type CommentsReply struct {
+	Comments []Comment `json:"comments"`
+}
+
+// Votes returns the comment votes that meet the provided filtering criteria.
+type Votes struct {
+	State  RecordStateT `json:"state"`
+	UserID string       `json:"userid"`
+}
+
+// VotesReply is the reply to the Votes command.
+type VotesReply struct {
+	Votes []CommentVote `json:"votes"`
+}
 
 // Proof contains an inclusion proof for the digest in the merkle root. The
 // ExtraData field is used by certain types of proofs to include additional

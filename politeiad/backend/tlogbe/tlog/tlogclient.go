@@ -10,14 +10,14 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlogclient"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
 )
 
 var (
-	_ tlogclient.Client = (*Tlog)(nil)
+	_ plugins.TlogClient = (*Tlog)(nil)
 )
 
 // BlobSave saves a BlobEntry to the tlog instance. The BlobEntry will be
@@ -25,7 +25,7 @@ var (
 // encryption key set. The digest of the data, i.e. BlobEntry.Digest, can be
 // thought of as the blob ID and can be used to get/del the blob from tlog.
 //
-// This function satisfies the tlogclient.Client interface.
+// This function satisfies the plugins.TlogClient interface.
 func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error {
 	log.Tracef("%v BlobSave: %v %v", t.id, treeID, dataType)
 
@@ -93,7 +93,7 @@ func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error
 
 // BlobsDel deletes the blobs that correspond to the provided digests.
 //
-// This function satisfies the tlogclient.Client interface.
+// This function satisfies the plugins.TlogClient interface.
 func (t *Tlog) BlobsDel(treeID int64, digests [][]byte) error {
 	log.Tracef("%v BlobsDel: %v %x", t.id, treeID, digests)
 
@@ -140,7 +140,7 @@ func (t *Tlog) BlobsDel(treeID int64, digests [][]byte) error {
 // Blobs returns the blobs that correspond to the provided digests. If a blob
 // does not exist it will not be included in the returned map.
 //
-// This function satisfies the tlogclient.Client interface.
+// This function satisfies the plugins.TlogClient interface.
 func (t *Tlog) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error) {
 	log.Tracef("%v Blobs: %v %x", t.id, treeID, digests)
 
@@ -219,7 +219,7 @@ func (t *Tlog) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry
 
 // BlobsByDataType returns all blobs that match the data type.
 //
-// This function satisfies the tlogclient.Client interface.
+// This function satisfies the plugins.TlogClient interface.
 func (t *Tlog) BlobsByDataType(treeID int64, dataType string) ([]store.BlobEntry, error) {
 	log.Tracef("%v BlobsByDataType: %v %v", t.id, treeID, dataType)
 
@@ -280,7 +280,7 @@ func (t *Tlog) BlobsByDataType(treeID int64, dataType string) ([]store.BlobEntry
 
 // DigestsByDataType returns the digests of all blobs that match the data type.
 //
-// This function satisfies the tlogclient.Client interface.
+// This function satisfies the plugins.TlogClient interface.
 func (t *Tlog) DigestsByDataType(treeID int64, dataType string) ([][]byte, error) {
 	log.Tracef("%v DigestsByDataType: %v %v", t.id, treeID, dataType)
 
@@ -310,7 +310,7 @@ func (t *Tlog) DigestsByDataType(treeID int64, dataType string) ([][]byte, error
 // Timestamp returns the timestamp for the data blob that corresponds to the
 // provided digest.
 //
-// This function satisfies the tlogclient.Client interface.
+// This function satisfies the plugins.TlogClient interface.
 func (t *Tlog) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error) {
 	log.Tracef("%v Timestamp: %v %x", t.id, treeID, digest)
 
