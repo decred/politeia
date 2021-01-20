@@ -872,6 +872,13 @@ func _main() error {
 	auth := router.NewRoute().Subrouter()
 	auth.Use(csrfMiddleware)
 
+	// Setup the politeiad client
+	pdc, err := pdclient.New(loadedCfg.RPCHost, loadedCfg.RPCUser,
+		loadedCfg.RPCPass, loadedCfg.Identity)
+	if err != nil {
+		return err
+	}
+
 	// Setup user database
 	log.Infof("User db: %v", loadedCfg.UserDB)
 
@@ -953,6 +960,7 @@ func _main() error {
 		params:       activeNetParams.Params,
 		router:       router,
 		auth:         auth,
+		politeiad:    pdc,
 		client:       client,
 		smtp:         smtp,
 		db:           userDB,
