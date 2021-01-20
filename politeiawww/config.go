@@ -25,10 +25,10 @@ import (
 
 	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/util/version"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -79,11 +79,11 @@ const (
 )
 
 var (
-	defaultHTTPSKeyFile  = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
-	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
-	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
-	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
-	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+	defaultHTTPSKeyFile  = filepath.Join(config.DefaultHomeDir, "https.key")
+	defaultHTTPSCertFile = filepath.Join(config.DefaultHomeDir, "https.cert")
+	defaultRPCCertFile   = filepath.Join(config.DefaultHomeDir, "rpc.cert")
+	defaultCookieKeyFile = filepath.Join(config.DefaultHomeDir, "cookie.key")
+	defaultLogDir        = filepath.Join(config.DefaultHomeDir, defaultLogDirname)
 
 	// Default start date to start pulling code statistics if none specified.
 	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
@@ -98,72 +98,6 @@ var (
 // runServiceCommand is only set to a real function on Windows.  It is used
 // to parse and execute service commands specified via the -s flag.
 var runServiceCommand func(string) error
-
-// config defines the configuration options for politeiawww.
-//
-// See loadConfig for details on the configuration load process.
-type config struct {
-	HomeDir         string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion     bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile      string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir         string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir          string   `long:"logdir" description:"Directory to log output."`
-	TestNet         bool     `long:"testnet" description:"Use the test network"`
-	SimNet          bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile         string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CookieKeyFile   string   `long:"cookiekey" description:"File containing the secret cookies key"`
-	DebugLevel      string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners       []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
-	HTTPSCert       string   `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey        string   `long:"httpskey" description:"File containing the https certificate key"`
-	RPCHost         string   `long:"rpchost" description:"Host for politeiad in this format"`
-	RPCCert         string   `long:"rpccert" description:"File containing the https certificate file"`
-	RPCIdentityFile string   `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
-	RPCUser         string   `long:"rpcuser" description:"RPC user name for privileged politeaid commands"`
-	RPCPass         string   `long:"rpcpass" description:"RPC password for privileged politeiad commands"`
-	FetchIdentity   bool     `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	Interactive     string   `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
-	AdminLogFile    string   `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
-	Mode            string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
-
-	// User database settings
-	UserDB           string `long:"userdb" description:"Database choice for the user database"`
-	DBHost           string `long:"dbhost" description:"Database ip:port"`
-	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
-	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	EncryptionKey    string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
-	OldEncryptionKey string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
-
-	// SMTP settings
-	MailHost         string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
-	MailUser         string `long:"mailuser" description:"Email server username"`
-	MailPass         string `long:"mailpass" description:"Email server password"`
-	MailAddress      string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
-	SMTPCert         string `long:"smtpcert" description:"File containing the smtp certificate file"`
-	SMTPSkipVerify   bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
-	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
-
-	// XXX These should be plugin settings
-	DcrdataHost              string   `long:"dcrdatahost" description:"Dcrdata ip:port"`
-	PaywallAmount            uint64   `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
-	PaywallXpub              string   `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
-	MinConfirmationsRequired uint64   `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
-	BuildCMSDB               bool     `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
-	GithubAPIToken           string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
-	CodeStatRepos            []string `long:"codestatrepos" description:"Repositories under the organization to crawl for code statistics"`
-	CodeStatOrganization     string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
-	CodeStatStart            int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
-	CodeStatEnd              int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
-
-	// TODO these need to be removed
-	VoteDurationMin uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
-	VoteDurationMax uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
-
-	Version     string
-	Identity    *identity.PublicIdentity
-	SystemCerts *x509.CertPool
-}
 
 // serviceOptions defines the configuration options for the rpc as a service
 // on Windows.
@@ -290,7 +224,7 @@ func fileExists(name string) bool {
 }
 
 // newConfigParser returns a new command line flags parser.
-func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *flags.Parser {
+func newConfigParser(cfg *config.Config, so *serviceOptions, options flags.Options) *flags.Parser {
 	parser := flags.NewParser(cfg, options)
 	if runtime.GOOS == "windows" {
 		parser.AddGroup("Service Options", "Service Options", so)
@@ -299,7 +233,7 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 }
 
 // loadIdentity fetches an identity from politeiad if necessary.
-func loadIdentity(cfg *config) error {
+func loadIdentity(cfg *config.Config) error {
 	// Set up the path to the politeiad identity file.
 	if cfg.RPCIdentityFile == "" {
 		cfg.RPCIdentityFile = filepath.Join(cfg.HomeDir,
@@ -342,13 +276,13 @@ func loadIdentity(cfg *config) error {
 // The above results in rpc functioning properly without any config settings
 // while still allowing the user to override settings with config files and
 // command line options.  Command line options always take precedence.
-func loadConfig() (*config, []string, error) {
+func loadConfig() (*config.Config, []string, error) {
 	// Default config.
-	cfg := config{
-		HomeDir:                  sharedconfig.DefaultHomeDir,
-		ConfigFile:               sharedconfig.DefaultConfigFile,
+	cfg := config.Config{
+		HomeDir:                  config.DefaultHomeDir,
+		ConfigFile:               config.DefaultConfigFile,
 		DebugLevel:               defaultLogLevel,
-		DataDir:                  sharedconfig.DefaultDataDir,
+		DataDir:                  config.DefaultDataDir,
 		LogDir:                   defaultLogDir,
 		HTTPSKey:                 defaultHTTPSKeyFile,
 		HTTPSCert:                defaultHTTPSCertFile,
@@ -409,13 +343,13 @@ func loadConfig() (*config, []string, error) {
 	if preCfg.HomeDir != "" {
 		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
 
-		if preCfg.ConfigFile == sharedconfig.DefaultConfigFile {
-			cfg.ConfigFile = filepath.Join(cfg.HomeDir, sharedconfig.DefaultConfigFilename)
+		if preCfg.ConfigFile == config.DefaultConfigFile {
+			cfg.ConfigFile = filepath.Join(cfg.HomeDir, config.DefaultConfigFilename)
 		} else {
 			cfg.ConfigFile = preCfg.ConfigFile
 		}
-		if preCfg.DataDir == sharedconfig.DefaultDataDir {
-			cfg.DataDir = filepath.Join(cfg.HomeDir, sharedconfig.DefaultDataDirname)
+		if preCfg.DataDir == config.DefaultDataDir {
+			cfg.DataDir = filepath.Join(cfg.HomeDir, config.DefaultDataDirname)
 		} else {
 			cfg.DataDir = preCfg.DataDir
 		}
@@ -449,7 +383,7 @@ func loadConfig() (*config, []string, error) {
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if !(preCfg.SimNet) || cfg.ConfigFile != sharedconfig.DefaultConfigFile {
+	if !(preCfg.SimNet) || cfg.ConfigFile != config.DefaultConfigFile {
 		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
 		if err != nil {
 			var e *os.PathError
@@ -498,7 +432,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Create the home directory if it doesn't already exist.
 	funcName := "loadConfig"
-	err = os.MkdirAll(sharedconfig.DefaultHomeDir, 0700)
+	err = os.MkdirAll(config.DefaultHomeDir, 0700)
 	if err != nil {
 		// Show a nicer error message if it's because a symlink is
 		// linked to a directory that does not exist (probably because

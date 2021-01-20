@@ -21,6 +21,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/codetracker"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
@@ -63,7 +64,7 @@ func (w *wsContext) isAuthenticated() bool {
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
 	sync.RWMutex
-	cfg          *config
+	cfg          *config.Config
 	params       *chaincfg.Params
 	router       *mux.Router
 	auth         *mux.Router // CSRF protected subrouter

@@ -26,6 +26,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -316,7 +317,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	// Setup config
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
 		"uMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx"
-	cfg := &config{
+	cfg := &config.Config{
 		DataDir:         dataDir,
 		PaywallAmount:   1e7,
 		PaywallXpub:     xpub,
@@ -405,7 +406,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 	// Setup config
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
 		"uMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx"
-	cfg := &config{
+	cfg := &config.Config{
 		DataDir:         dataDir,
 		PaywallAmount:   1e7,
 		PaywallXpub:     xpub,
