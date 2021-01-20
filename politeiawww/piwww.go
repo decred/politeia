@@ -28,6 +28,7 @@ import (
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
@@ -1627,7 +1628,7 @@ func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalNew: getSessionUser: %v", err)
@@ -1657,7 +1658,7 @@ func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalEdit: getSessionUser: %v", err)
@@ -1687,7 +1688,7 @@ func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	usr, err := p.getSessionUser(w, r)
+	usr, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleProposalSetStatus: getSessionUser: %v", err)
@@ -1719,8 +1720,8 @@ func (p *politeiawww) handleProposals(w http.ResponseWriter, r *http.Request) {
 
 	// Lookup session user. This is a public route so a session may not
 	// exist. Ignore any session not found errors.
-	usr, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	usr, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
 		respondWithPiError(w, r,
 			"handleProposals: getSessionUser: %v", err)
 		return
@@ -1752,8 +1753,8 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 
 	// Lookup session user. This is a public route so a session may not
 	// exist. Ignore any session not found errors.
-	usr, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	usr, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
 		respondWithPiError(w, r,
 			"handleProposalInventory: getSessionUser: %v", err)
 		return
@@ -1782,7 +1783,7 @@ func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	usr, err := p.getSessionUser(w, r)
+	usr, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteAuthorize: getSessionUser: %v", err)
@@ -1812,7 +1813,7 @@ func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usr, err := p.getSessionUser(w, r)
+	usr, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteStart: getSessionUser: %v", err)

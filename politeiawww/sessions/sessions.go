@@ -1,8 +1,8 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package sessions
 
 import (
 	"errors"
@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	sessionMaxAge = 86400 // One day
+	// SessionMaxAge is the max age for a session in seconds.
+	SessionMaxAge = 86400 // One day
 
 	// Session value keys. A user session contains a map that is used
 	// for application specific values. The following is a list of the
@@ -26,10 +27,16 @@ const (
 )
 
 var (
-	// errSessionNotFound is emitted when a session is not found in the
+	// ErrSessionNotFound is emitted when a session is not found in the
 	// session store.
-	errSessionNotFound = errors.New("session not found")
+	ErrSessionNotFound = errors.New("session not found")
 )
+
+// Sessions manages politeiawww sessions.
+type Sessions struct {
+	store  sessions.Store
+	userdb user.Database
+}
 
 func sessionIsExpired(session *sessions.Session) bool {
 	createdAt := session.Values[sessionValueCreatedAt].(int64)
@@ -37,44 +44,48 @@ func sessionIsExpired(session *sessions.Session) bool {
 	return time.Now().Unix() > expiresAt
 }
 
-// getSession returns the Session for the session ID from the given http
+// GetSession returns the Session for the session ID from the given http
 // request cookie. If no session exists then a new session object is returned.
 // Access IsNew on the session to check if it is an existing session or a new
 // one. The new session will not have any sessions values set, such as user_id,
 // and will not have been saved to the session store yet.
-func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
-	return p.sessions.Get(r, www.CookieSession)
+func (s *Sessions) GetSession(r *http.Request) (*sessions.Session, error) {
+	log.Tracef("GetSession")
+
+	return s.store.Get(r, www.CookieSession)
 }
 
-// getSessionUserID returns the user ID of the user for the given session. A
-// errSessionNotFound error is returned if a user session does not exist or
+// GetSessionUserID returns the user ID of the user for the given session. A
+// ErrSessionNotFound error is returned if a user session does not exist or
 // has expired.
-func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
-	session, err := p.getSession(r)
+func (s *Sessions) GetSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
+	log.Tracef("GetSessionUserID")
+
+	session, err := s.GetSession(r)
 	if err != nil {
 		return "", err
 	}
 	if session.IsNew {
-		return "", errSessionNotFound
+		return "", ErrSessionNotFound
 	}
 
 	// Delete the session if its expired. Setting the MaxAge
 	// to <= 0 and then saving it will trigger a deletion.
 	if sessionIsExpired(session) {
 		session.Options.MaxAge = -1
-		p.sessions.Save(r, w, session)
-		return "", errSessionNotFound
+		s.store.Save(r, w, session)
+		return "", ErrSessionNotFound
 	}
 
 	return session.Values[sessionValueUserID].(string), nil
 }
 
-// getSessionUser returns the User for the given session. A errSessionFound
+// GetSessionUser returns the User for the given session. A errSessionFound
 // error is returned if a user session does not exist or has expired.
-func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
-	log.Tracef("getSessionUser")
+func (s *Sessions) GetSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
+	log.Tracef("GetSessionUser")
 
-	uid, err := p.getSessionUserID(w, r)
+	uid, err := s.GetSessionUserID(w, r)
 	if err != nil {
 		return nil, err
 	}
@@ -84,32 +95,32 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 		return nil, err
 	}
 
-	user, err := p.db.UserGetById(pid)
+	user, err := s.userdb.UserGetById(pid)
 	if err != nil {
 		return nil, err
 	}
 
 	if user.Deactivated {
-		err := p.removeSession(w, r)
+		err := s.DelSession(w, r)
 		if err != nil {
 			return nil, err
 		}
-		return nil, errSessionNotFound
+		return nil, ErrSessionNotFound
 	}
 
 	return user, nil
 }
 
-// removeSession removes the given session from the session store.
-func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
-	log.Tracef("removeSession")
+// DelSession removes the given session from the session store.
+func (s *Sessions) DelSession(w http.ResponseWriter, r *http.Request) error {
+	log.Tracef("DelSession")
 
-	session, err := p.getSession(r)
+	session, err := s.GetSession(r)
 	if err != nil {
 		return err
 	}
 	if session.IsNew {
-		return errSessionNotFound
+		return ErrSessionNotFound
 	}
 
 	log.Debugf("Deleting user session: %v %v",
@@ -118,18 +129,18 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 	// Saving the session with a negative MaxAge will cause it to be
 	// deleted.
 	session.Options.MaxAge = -1
-	return p.sessions.Save(r, w, session)
+	return s.store.Save(r, w, session)
 }
 
-// initSession creates a new session, adds it to the given http response
+// NewSession creates a new session, adds it to the given http response
 // session cookie, and saves it to the session store. If the http request
 // already contains a session cookie then the session values will be updated
 // and the session will be updated in the session store.
-func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, userID string) error {
-	log.Tracef("initSession: %v", userID)
+func (s *Sessions) NewSession(w http.ResponseWriter, r *http.Request, userID string) error {
+	log.Tracef("NewSession: %v", userID)
 
 	// Init session
-	session, err := p.getSession(r)
+	session, err := s.GetSession(r)
 	if err != nil {
 		return err
 	}
@@ -139,5 +150,13 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, userID
 	session.Values[sessionValueUserID] = userID
 
 	// Update session in the store and update the response cookie
-	return p.sessions.Save(r, w, session)
+	return s.store.Save(r, w, session)
+}
+
+// New returns a new Sessions context.
+func New(userdb user.Database, keyPairs ...[]byte) *Sessions {
+	return &Sessions{
+		store:  newSessionStore(userdb, keyPairs...),
+		userdb: userdb,
+	}
 }

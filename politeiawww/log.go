@@ -12,6 +12,7 @@ import (
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/codetracker/github"
 	ghdb "github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/wsdcrdata"
@@ -52,6 +53,7 @@ var (
 	wsdcrdataLog     = backendLog.Logger("WSDD")
 	githubTrackerLog = backendLog.Logger("GHTR")
 	githubdbLog      = backendLog.Logger("GHDB")
+	sessionsLog      = backendLog.Logger("SESS")
 )
 
 // Initialize package-global logger variables.
@@ -62,6 +64,7 @@ func init() {
 	wsdcrdata.UseLogger(wsdcrdataLog)
 	github.UseLogger(githubTrackerLog)
 	ghdb.UseLogger(githubdbLog)
+	sessions.UseLogger(sessionsLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -72,6 +75,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"WSDD": wsdcrdataLog,
 	"GHTR": githubTrackerLog,
 	"GHDB": githubdbLog,
+	"SESS": sessionsLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

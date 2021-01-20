@@ -27,6 +27,7 @@ import (
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -350,7 +351,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		params:          chaincfg.TestNet3Params(),
 		router:          mux.NewRouter(),
 		auth:            mux.NewRouter(),
-		sessions:        newSessionStore(db, sessionMaxAge, cookieKey),
+		sessions:        sessions.New(db, cookieKey),
 		smtp:            smtp,
 		db:              db,
 		test:            true,
@@ -454,7 +455,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		params:          chaincfg.TestNet3Params(),
 		router:          mux.NewRouter(),
 		auth:            mux.NewRouter(),
-		sessions:        newSessionStore(db, sessionMaxAge, cookieKey),
+		sessions:        sessions.New(db, cookieKey),
 		smtp:            smtp,
 		test:            true,
 		userEmails:      make(map[string]uuid.UUID),

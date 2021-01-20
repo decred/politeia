@@ -16,6 +16,7 @@ import (
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 )
 
@@ -92,8 +93,8 @@ func (p *politeiawww) handleTimestamps(w http.ResponseWriter, r *http.Request) {
 
 	// Lookup session user. This is a public route so a session may not
 	// exist. Ignore any session not found errors.
-	usr, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	usr, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
 		respondWithRecordError(w, r,
 			"handleTimestamps: getSessionUser: %v", err)
 		return

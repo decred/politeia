@@ -36,6 +36,7 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -829,7 +830,7 @@ func _main() error {
 	csrfMiddleware := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
-		csrf.MaxAge(sessionMaxAge),
+		csrf.MaxAge(sessions.SessionMaxAge),
 	)
 
 	// Setup router
@@ -911,7 +912,6 @@ func _main() error {
 		}
 		log.Infof("Cookie key generated")
 	}
-	sessions := newSessionStore(userDB, sessionMaxAge, cookieKey)
 
 	// Setup smtp client
 	smtp, err := newSMTP(loadedCfg.MailHost, loadedCfg.MailUser,
@@ -937,7 +937,7 @@ func _main() error {
 		client:       client,
 		smtp:         smtp,
 		db:           userDB,
-		sessions:     sessions,
+		sessions:     sessions.New(userDB, cookieKey),
 		eventManager: newEventManager(),
 		ws:           make(map[string]map[string]*wsContext),
 		userEmails:   make(map[string]uuid.UUID),

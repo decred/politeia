@@ -31,7 +31,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
 
-		id, err := p.getSessionUserID(w, r)
+		id, err := p.sessions.GetSessionUserID(w, r)
 		if err != nil {
 			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
 				ErrorCode: www.ErrorStatusNotLoggedIn,
@@ -53,7 +53,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 
 // isAdmin returns true if the current session has admin privileges.
 func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		return false, err
 	}

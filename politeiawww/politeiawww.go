@@ -22,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
@@ -30,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 )
@@ -72,7 +72,7 @@ type politeiawww struct {
 	client       *http.Client
 	smtp         *smtp
 	db           user.Database
-	sessions     sessions.Store
+	sessions     *sessions.Sessions
 	eventManager *eventManager
 	plugins      []plugin
 
@@ -134,7 +134,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Mode:         p.cfg.Mode,
 	}
 
-	_, err := p.getSessionUser(w, r)
+	_, err := p.sessions.GetSessionUser(w, r)
 	if err == nil {
 		versionReply.ActiveUserSession = true
 	}
@@ -196,8 +196,8 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 	log.Tracef("handleTokenInventory")
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && !errors.Is(err, errSessionNotFound) {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleTokenInventory: getSessionUser %v", err)
 		return
@@ -234,8 +234,8 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	pd.Token = pathParams["token"]
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
 		RespondWithError(w, r, 0,
 			"handleProposalDetails: getSessionUser %v", err)
 		return
@@ -268,8 +268,8 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
 		RespondWithError(w, r, 0,
 			"handleBatchProposals: getSessionUser %v", err)
 		return
@@ -561,8 +561,8 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
-	id, err := p.getSessionUserID(w, r)
-	if err != nil && !errors.Is(err, errSessionNotFound) {
+	id, err := p.sessions.GetSessionUserID(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
@@ -580,7 +580,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 // handleAuthenticatedWebsocket attempts to upgrade the current authenticated
 // connection to a websocket connection.
 func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
-	id, err := p.getSessionUserID(w, r)
+	id, err := p.sessions.GetSessionUserID(w, r)
 	if err != nil {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)

@@ -12,6 +12,7 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -137,7 +138,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Initialize a session for the logged in user
-	err = p.initSession(w, r, reply.UserID)
+	err = p.sessions.NewSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogin: initSession: %v", err)
@@ -145,7 +146,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set session max age
-	reply.SessionMaxAge = sessionMaxAge
+	reply.SessionMaxAge = sessions.SessionMaxAge
 
 	// Reply with the user information.
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -155,7 +156,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
-	_, err := p.getSessionUser(w, r)
+	_, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleLogout: getSessionUser", www.UserError{
 			ErrorCode: www.ErrorStatusNotLoggedIn,
@@ -163,7 +164,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = p.removeSession(w, r)
+	err = p.sessions.DelSession(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogout: removeSession %v", err)
@@ -259,8 +260,8 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && !errors.Is(err, errSessionNotFound) {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleUserDetails: getSessionUser %v", err)
 		return
@@ -292,7 +293,7 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleMe")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleMe: getSessionUser %v", err)
@@ -307,7 +308,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set session max age
-	reply.SessionMaxAge = sessionMaxAge
+	reply.SessionMaxAge = sessions.SessionMaxAge
 
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
@@ -328,7 +329,7 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUpdateUserKey: getSessionUser %v", err)
@@ -362,7 +363,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyUpdateUserKey: getSessionUser %v", err)
@@ -394,7 +395,7 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangeUsername: getSessionUser %v", err)
@@ -427,13 +428,13 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	session, err := p.getSession(r)
+	session, err := p.sessions.GetSession(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: getSession %v", err)
 		return
 	}
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: getSessionUser %v", err)
@@ -474,7 +475,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminUser, err := p.getSessionUser(w, r)
+	adminUser, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleEditUser: getSessionUser %v",
 			err)
@@ -506,8 +507,8 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && !errors.Is(err, errSessionNotFound) {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleUsers: getSessionUser %v", err)
 		return
@@ -563,7 +564,7 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminUser, err := p.getSessionUser(w, r)
+	adminUser, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleManageUser: getSessionUser %v",
 			err)
@@ -586,7 +587,7 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserRegistrationPayment")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserRegistrationPayment: getSessionUser %v", err)
@@ -609,7 +610,7 @@ func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *ht
 func (p *politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalPaywall")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalPaywall: getSessionUser %v", err)
@@ -631,7 +632,7 @@ func (p *politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.R
 func (p *politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalPaywallTx")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalPaywallTx: getSessionUser %v", err)
@@ -654,7 +655,7 @@ func (p *politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http
 func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalCredits")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalCredits: getSessionUser %v", err)
@@ -736,7 +737,7 @@ func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetTOTP: getSessionUser %v", err)
@@ -767,7 +768,7 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyTOTP: getSessionUser %v", err)

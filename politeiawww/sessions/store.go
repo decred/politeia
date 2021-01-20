@@ -1,8 +1,8 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package sessions
 
 import (
 	"encoding/base32"
@@ -16,10 +16,14 @@ import (
 	"github.com/gorilla/sessions"
 )
 
-// SessionStore is a session store backed by the user database.
+var (
+	_ sessions.Store = (*sessionStore)(nil)
+)
+
+// sessionStore is a session store backed by the user database.
 //
-// SessionStore impelements the sessions.Store interface.
-type SessionStore struct {
+// sessionStore impelements the sessions.Store interface.
+type sessionStore struct {
 	Codecs  []securecookie.Codec
 	Options *sessions.Options
 	db      user.Database
@@ -44,8 +48,8 @@ func newSessionID() string {
 // be decoded.
 //
 // This function satisfies the sessions.Store interface.
-func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
-	log.Tracef("SessionStore.Get: %v", name)
+func (s *sessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
+	log.Tracef("Get: %v", name)
 
 	return sessions.GetRegistry(r).Get(s, name)
 }
@@ -61,8 +65,8 @@ func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, err
 // decoded session after the first call.
 //
 // This function satisfies the sessions.Store interface.
-func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
-	log.Tracef("SessStore.New: %v", name)
+func (s *sessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
+	log.Tracef("New: %v", name)
 
 	// Setup new session
 	session := sessions.NewSession(s, name)
@@ -128,8 +132,8 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 // browser.
 //
 // This function satisfies the sessions.Store interface.
-func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
-	log.Tracef("SessionStore.Save: %v", session.ID)
+func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
+	log.Tracef("Save: %v", session.ID)
 
 	// Delete session if max-age is <= 0
 	if session.Options.MaxAge <= 0 {
@@ -183,18 +187,7 @@ func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 	return nil
 }
 
-// newSessionOptions returns the default session configuration for politeiawww.
-func newSessionOptions() *sessions.Options {
-	return &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge, // Max age for the store
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
-}
-
-// newSessionStore returns a new SessionStore.
+// new returns a new sessionStore.
 //
 // Keys are defined in pairs to allow key rotation, but the common case is
 // to set a single authentication key and optionally an encryption key.
@@ -206,18 +199,24 @@ func newSessionOptions() *sessions.Options {
 // It is recommended to use an authentication key with 32 or 64 bytes.
 // The encryption key, if set, must be either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256 modes.
-func newSessionStore(db user.Database, sessionMaxAge int, keyPairs ...[]byte) *SessionStore {
+func newSessionStore(db user.Database, keyPairs ...[]byte) *sessionStore {
 	// Set the maxAge for each securecookie instance
 	codecs := securecookie.CodecsFromPairs(keyPairs...)
 	for _, codec := range codecs {
 		if sc, ok := codec.(*securecookie.SecureCookie); ok {
-			sc.MaxAge(sessionMaxAge)
+			sc.MaxAge(SessionMaxAge)
 		}
 	}
 
-	return &SessionStore{
-		Codecs:  codecs,
-		Options: newSessionOptions(),
-		db:      db,
+	return &sessionStore{
+		Codecs: codecs,
+		Options: &sessions.Options{
+			Path:     "/",
+			MaxAge:   SessionMaxAge, // Max age for the store
+			Secure:   true,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		},
+		db: db,
 	}
 }
