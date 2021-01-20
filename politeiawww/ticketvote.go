@@ -72,7 +72,7 @@ func (p *politeiawww) voteSummaries(ctx context.Context, tokens []string) (map[s
 func (p *politeiawww) voteTimestamps(ctx context.Context, token string) (*ticketvote.TimestampsReply, error) {
 	_ = token
 	var b []byte
-	r, err := p.pluginCommand(ctx, ticketvote.ID,
+	r, err := p.politeiad.PluginCommand(ctx, ticketvote.ID,
 		ticketvote.CmdTimestamps, string(b))
 	if err != nil {
 		return nil, err

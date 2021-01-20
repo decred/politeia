@@ -383,10 +383,15 @@ func (p *politeiawww) notifyParentAuthorOnComment(d dataProposalComment, proposa
 	g := comments.Get{
 		CommentIDs: []uint32{d.parentID},
 	}
-	parentComment, err := p.commentsGet(context.Background(), g)
-	if err != nil {
-		return err
-	}
+	// TODO
+	_ = g
+	var parentComment comments.GetReply
+	/*
+		parentComment, err := p.commentsGet(context.Background(), g)
+		if err != nil {
+			return err
+		}
+	*/
 	userID, err := uuid.Parse(parentComment.Comments[0].UserID)
 	if err != nil {
 		return err

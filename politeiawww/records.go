@@ -29,12 +29,12 @@ func (p *politeiawww) processTimestamps(ctx context.Context, t rcv1.Timestamps, 
 	)
 	switch t.State {
 	case rcv1.StateUnvetted:
-		rt, err = p.getUnvettedTimestamps(ctx, t.Token, t.Version)
+		rt, err = p.politeiad.GetUnvettedTimestamps(ctx, t.Token, t.Version)
 		if err != nil {
 			return nil, err
 		}
 	case rcv1.StateVetted:
-		rt, err = p.getVettedTimestamps(ctx, t.Token, t.Version)
+		rt, err = p.politeiad.GetVettedTimestamps(ctx, t.Token, t.Version)
 		if err != nil {
 			return nil, err
 		}

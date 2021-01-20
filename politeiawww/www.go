@@ -26,6 +26,7 @@ import (
 
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -204,30 +205,6 @@ func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorCodeT) pi.ErrorStatusT {
 	return pi.ErrorStatusInvalid
 }
 
-func convertPiErrorStatusFromComments(e comments.ErrorCodeT) pi.ErrorStatusT {
-	switch e {
-	case comments.ErrorCodeTokenInvalid:
-		return pi.ErrorStatusPropTokenInvalid
-	case comments.ErrorCodePublicKeyInvalid:
-		return pi.ErrorStatusPublicKeyInvalid
-	case comments.ErrorCodeSignatureInvalid:
-		return pi.ErrorStatusSignatureInvalid
-	case comments.ErrorCodeCommentTextInvalid:
-		return pi.ErrorStatusCommentTextInvalid
-	case comments.ErrorCodeCommentNotFound:
-		return pi.ErrorStatusCommentNotFound
-	case comments.ErrorCodeUserUnauthorized:
-		return pi.ErrorStatusUnauthorized
-	case comments.ErrorCodeParentIDInvalid:
-		return pi.ErrorStatusCommentParentIDInvalid
-	case comments.ErrorCodeVoteInvalid:
-		return pi.ErrorStatusCommentVoteInvalid
-	case comments.ErrorCodeVoteChangesMax:
-		return pi.ErrorStatusCommentVoteChangesMax
-	}
-	return pi.ErrorStatusInvalid
-}
-
 func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) pi.ErrorStatusT {
 	switch e {
 	case ticketvote.ErrorCodeTokenInvalid:
@@ -263,10 +240,6 @@ func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
 		// Pi plugin
 		e := piplugin.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromPiPlugin(e)
-	case comments.ID:
-		// Comments plugin
-		e := comments.ErrorCodeT(errCode)
-		return convertPiErrorStatusFromComments(e)
 	case ticketvote.ID:
 		// Ticket vote plugin
 		e := ticketvote.ErrorCodeT(errCode)

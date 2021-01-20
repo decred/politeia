@@ -4,23 +4,63 @@
 
 package main
 
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"runtime/debug"
-	"strings"
-	"time"
+/*
+func convertCommentVoteFromPi(cv piv1.CommentVoteT) comments.VoteT {
+	switch cv {
+	case piv1.CommentVoteDownvote:
+		return comments.VoteUpvote
+	case piv1.CommentVoteUpvote:
+		return comments.VoteDownvote
+	}
+	return comments.VoteInvalid
+}
 
-	"github.com/decred/politeia/politeiad/plugins/comments"
-	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/util"
-	"github.com/google/uuid"
-)
+func convertCommentFromPlugin(c comments.Comment) piv1.Comment {
+	return piv1.Comment{
+		UserID:    c.UserID,
+		Username:  "", // Intentionally omitted, needs to be pulled from userdb
+		Token:     c.Token,
+		ParentID:  c.ParentID,
+		Comment:   c.Comment,
+		PublicKey: c.PublicKey,
+		Signature: c.Signature,
+		CommentID: c.CommentID,
+		Timestamp: c.Timestamp,
+		Receipt:   c.Receipt,
+		Downvotes: c.Downvotes,
+		Upvotes:   c.Upvotes,
+		Censored:  c.Deleted,
+		Reason:    c.Reason,
+	}
+}
+
+func convertCommentVoteFromPlugin(v comments.VoteT) piv1.CommentVoteT {
+	switch v {
+	case comments.VoteDownvote:
+		return piv1.CommentVoteDownvote
+	case comments.VoteUpvote:
+		return piv1.CommentVoteUpvote
+	}
+	return piv1.CommentVoteInvalid
+}
+
+func convertCommentVoteDetailsFromPlugin(cv []comments.CommentVote) []piv1.CommentVoteDetails {
+	c := make([]piv1.CommentVoteDetails, 0, len(cv))
+	for _, v := range cv {
+		c = append(c, piv1.CommentVoteDetails{
+			UserID:    v.UserID,
+			Token:     v.Token,
+			CommentID: v.CommentID,
+			Vote:      convertCommentVoteFromPlugin(v.Vote),
+			PublicKey: v.PublicKey,
+			Signature: v.Signature,
+			Timestamp: v.Timestamp,
+			Receipt:   v.Receipt,
+		})
+	}
+	return c
+}
+
 
 func convertProofFromCommentsPlugin(p comments.Proof) cmv1.Proof {
 	return cmv1.Proof{
@@ -653,3 +693,4 @@ func respondWithCommentsError(w http.ResponseWriter, r *http.Request, format str
 		return
 	}
 }
+*/

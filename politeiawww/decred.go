@@ -24,10 +24,10 @@ func (p *politeiawww) decredGetComments(ctx context.Context, token string) ([]de
 	}
 
 	// Execute plugin command
-	reply, err := p.pluginCommand(ctx, decredplugin.ID, decredplugin.CmdGetComments,
-		string(payload))
+	reply, err := p.politeiad.PluginCommand(ctx, decredplugin.ID,
+		decredplugin.CmdGetComments, string(payload))
 	if err != nil {
-		return nil, fmt.Errorf("pluginCommand %v %v: %v",
+		return nil, fmt.Errorf("PluginCommand %v %v: %v",
 			decredplugin.ID, decredplugin.CmdGetComments, err)
 	}
 
@@ -48,10 +48,10 @@ func (p *politeiawww) decredBestBlock(ctx context.Context) (uint32, error) {
 	}
 
 	// Execute plugin command
-	reply, err := p.pluginCommand(ctx, decredplugin.ID, decredplugin.CmdBestBlock,
-		string(payload))
+	reply, err := p.politeiad.PluginCommand(ctx, decredplugin.ID,
+		decredplugin.CmdBestBlock, string(payload))
 	if err != nil {
-		return 0, fmt.Errorf("pluginCommand %v %v: %v",
+		return 0, fmt.Errorf("PluginCommand %v %v: %v",
 			decredplugin.ID, decredplugin.CmdBestBlock, err)
 	}
 

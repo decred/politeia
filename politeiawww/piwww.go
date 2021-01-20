@@ -21,10 +21,9 @@ import (
 	"time"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	usermd "github.com/decred/politeia/politeiad/plugins/user"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
@@ -289,15 +288,15 @@ func statusChangesDecode(payload []byte) ([]pi.StatusChange, error) {
 func convertProposalRecordFromPD(r pdv1.Record, state piv1.PropStateT) (*piv1.ProposalRecord, error) {
 	// Decode metadata streams
 	var (
-		gm  *pi.GeneralMetadata
+		um  *usermd.UserMetadata
 		sc  = make([]pi.StatusChange, 0, 16)
 		err error
 	)
 	for _, v := range r.Metadata {
 		switch v.ID {
-		case pi.MDStreamIDGeneralMetadata:
-			var gm pi.GeneralMetadata
-			err = json.Unmarshal([]byte(v.Payload), &gm)
+		case usermd.MDStreamIDUserMetadata:
+			var um usermd.UserMetadata
+			err = json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err
 			}
@@ -332,74 +331,18 @@ func convertProposalRecordFromPD(r pdv1.Record, state piv1.PropStateT) (*piv1.Pr
 	// plugin command.
 	return &piv1.ProposalRecord{
 		Version:          r.Version,
-		Timestamp:        gm.Timestamp,
+		Timestamp:        r.Timestamp,
 		State:            state,
 		Status:           status,
 		UserID:           "", // Intentionally omitted
 		Username:         "", // Intentionally omitted
-		PublicKey:        gm.PublicKey,
-		Signature:        gm.Signature,
+		PublicKey:        um.PublicKey,
+		Signature:        um.Signature,
 		Statuses:         statuses,
 		Files:            files,
 		Metadata:         metadata,
 		CensorshipRecord: convertCensorshipRecordFromPD(r.CensorshipRecord),
 	}, nil
-}
-
-func convertCommentVoteFromPi(cv piv1.CommentVoteT) comments.VoteT {
-	switch cv {
-	case piv1.CommentVoteDownvote:
-		return comments.VoteUpvote
-	case piv1.CommentVoteUpvote:
-		return comments.VoteDownvote
-	}
-	return comments.VoteInvalid
-}
-
-func convertCommentFromPlugin(c comments.Comment) piv1.Comment {
-	return piv1.Comment{
-		UserID:    c.UserID,
-		Username:  "", // Intentionally omitted, needs to be pulled from userdb
-		Token:     c.Token,
-		ParentID:  c.ParentID,
-		Comment:   c.Comment,
-		PublicKey: c.PublicKey,
-		Signature: c.Signature,
-		CommentID: c.CommentID,
-		Timestamp: c.Timestamp,
-		Receipt:   c.Receipt,
-		Downvotes: c.Downvotes,
-		Upvotes:   c.Upvotes,
-		Censored:  c.Deleted,
-		Reason:    c.Reason,
-	}
-}
-
-func convertCommentVoteFromPlugin(v comments.VoteT) piv1.CommentVoteT {
-	switch v {
-	case comments.VoteDownvote:
-		return piv1.CommentVoteDownvote
-	case comments.VoteUpvote:
-		return piv1.CommentVoteUpvote
-	}
-	return piv1.CommentVoteInvalid
-}
-
-func convertCommentVoteDetailsFromPlugin(cv []comments.CommentVote) []piv1.CommentVoteDetails {
-	c := make([]piv1.CommentVoteDetails, 0, len(cv))
-	for _, v := range cv {
-		c = append(c, piv1.CommentVoteDetails{
-			UserID:    v.UserID,
-			Token:     v.Token,
-			CommentID: v.CommentID,
-			Vote:      convertCommentVoteFromPlugin(v.Vote),
-			PublicKey: v.PublicKey,
-			Signature: v.Signature,
-			Timestamp: v.Timestamp,
-			Receipt:   v.Receipt,
-		})
-	}
-	return c
 }
 
 func convertVoteAuthActionFromPi(a piv1.VoteAuthActionT) ticketvote.AuthActionT {
@@ -669,13 +612,13 @@ func (p *politeiawww) proposalRecords(ctx context.Context, state piv1.PropStateT
 		switch state {
 		case piv1.PropStateUnvetted:
 			// Unvetted politeiad record
-			r, err = p.getUnvetted(ctx, v.Token, v.Version)
+			r, err = p.politeiad.GetUnvetted(ctx, v.Token, v.Version)
 			if err != nil {
 				return nil, err
 			}
 		case piv1.PropStateVetted:
 			// Vetted politeiad record
-			r, err = p.getVetted(ctx, v.Token, v.Version)
+			r, err = p.politeiad.GetVetted(ctx, v.Token, v.Version)
 			if err != nil {
 				return nil, err
 			}
@@ -779,39 +722,6 @@ func (p *politeiawww) verifyProposalMetadata(pm piv1.ProposalMetadata) error {
 			ErrorContext: proposalNameRegex(),
 		}
 	}
-
-	// Verify linkto
-	if pm.LinkTo != "" {
-		if !tokenIsFullLength(pm.LinkTo) {
-			return piv1.UserErrorReply{
-				ErrorCode:    piv1.ErrorStatusPropLinkToInvalid,
-				ErrorContext: "invalid token",
-			}
-		}
-	}
-
-	// Verify linkby
-	if pm.LinkBy != 0 {
-		min := time.Now().Unix() + p.linkByPeriodMin()
-		max := time.Now().Unix() + p.linkByPeriodMax()
-		switch {
-		case pm.LinkBy < min:
-			e := fmt.Sprintf("linkby %v is less than min required of %v",
-				pm.LinkBy, min)
-			return piv1.UserErrorReply{
-				ErrorCode:    piv1.ErrorStatusPropLinkByInvalid,
-				ErrorContext: e,
-			}
-		case pm.LinkBy > max:
-			e := fmt.Sprintf("linkby %v is more than max allowed of %v",
-				pm.LinkBy, max)
-			return piv1.UserErrorReply{
-				ErrorCode:    piv1.ErrorStatusPropLinkByInvalid,
-				ErrorContext: e,
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -1101,26 +1011,24 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn piv1.ProposalNe
 	}
 
 	// Setup metadata stream
-	timestamp := time.Now().Unix()
-	gm := pi.GeneralMetadata{
+	um := usermd.UserMetadata{
 		UserID:    usr.ID.String(),
 		PublicKey: pn.PublicKey,
 		Signature: pn.Signature,
-		Timestamp: timestamp,
 	}
-	b, err := json.Marshal(gm)
+	b, err := json.Marshal(um)
 	if err != nil {
 		return nil, err
 	}
 	metadata := []pdv1.MetadataStream{
 		{
-			ID:      pi.MDStreamIDGeneralMetadata,
+			ID:      usermd.MDStreamIDUserMetadata,
 			Payload: string(b),
 		},
 	}
 
 	// Send politeiad request
-	dcr, err := p.newRecord(ctx, metadata, files)
+	dcr, err := p.politeiad.NewRecord(ctx, metadata, files)
 	if err != nil {
 		return nil, err
 	}
@@ -1273,20 +1181,18 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe piv1.ProposalE
 	filesDel := filesToDel(curr.Files, pe.Files)
 
 	// Setup politeiad metadata
-	timestamp := time.Now().Unix()
-	gm := pi.GeneralMetadata{
+	um := usermd.UserMetadata{
 		UserID:    usr.ID.String(),
 		PublicKey: pe.PublicKey,
 		Signature: pe.Signature,
-		Timestamp: timestamp,
 	}
-	b, err := json.Marshal(gm)
+	b, err := json.Marshal(um)
 	if err != nil {
 		return nil, err
 	}
 	mdOverwrite := []pdv1.MetadataStream{
 		{
-			ID:      pi.MDStreamIDGeneralMetadata,
+			ID:      usermd.MDStreamIDUserMetadata,
 			Payload: string(b),
 		},
 	}
@@ -1298,14 +1204,14 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe piv1.ProposalE
 	var r *pdv1.Record
 	switch pe.State {
 	case piv1.PropStateUnvetted:
-		r, err = p.updateUnvetted(ctx, pe.Token, mdAppend, mdOverwrite,
-			filesAdd, filesDel)
+		r, err = p.politeiad.UpdateUnvetted(ctx, pe.Token,
+			mdAppend, mdOverwrite, filesAdd, filesDel)
 		if err != nil {
 			return nil, err
 		}
 	case piv1.PropStateVetted:
-		r, err = p.updateVetted(ctx, pe.Token, mdAppend, mdOverwrite,
-			filesAdd, filesDel)
+		r, err = p.politeiad.UpdateVetted(ctx, pe.Token,
+			mdAppend, mdOverwrite, filesAdd, filesDel)
 		if err != nil {
 			return nil, err
 		}
@@ -1431,12 +1337,14 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 	status := convertRecordStatusFromPropStatus(pss.Status)
 	switch pss.State {
 	case piv1.PropStateUnvetted:
-		r, err = p.setUnvettedStatus(ctx, pss.Token, status, mdAppend, mdOverwrite)
+		r, err = p.politeiad.SetUnvettedStatus(ctx, pss.Token,
+			status, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
 	case piv1.PropStateVetted:
-		r, err = p.setVettedStatus(ctx, pss.Token, status, mdAppend, mdOverwrite)
+		r, err = p.politeiad.SetVettedStatus(ctx, pss.Token,
+			status, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
@@ -2056,21 +1964,28 @@ func (p *politeiawww) setPiRoutes() {
 		permissionPublic)
 
 	// Pi routes - comments
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteCommentNew, p.handleCommentNew,
-		permissionLogin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteCommentVote, p.handleCommentVote,
-		permissionLogin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteCommentCensor, p.handleCommentCensor,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteComments, p.handleComments,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteCommentVotes, p.handleCommentVotes,
-		permissionPublic)
+	/*
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteCommentNew, p.handleCommentNew,
+			permissionLogin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteCommentVote, p.handleCommentVote,
+			permissionLogin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteCommentCensor, p.handleCommentCensor,
+			permissionAdmin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteComments, p.handleComments,
+			permissionPublic)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteCommentVotes, p.handleCommentVotes,
+			permissionPublic)
+
+		// Comment routes
+		p.addRoute(http.MethodPost, cmv1.APIRoute,
+			cmv1.RouteTimestamps, p.handleCommentTimestamps,
+			permissionPublic)
+	*/
 
 	// Pi routes - vote
 	p.addRoute(http.MethodPost, piv1.APIRoute,
@@ -2098,11 +2013,6 @@ func (p *politeiawww) setPiRoutes() {
 	// Record routes
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteTimestamps, p.handleTimestamps,
-		permissionPublic)
-
-	// Comment routes
-	p.addRoute(http.MethodPost, cmv1.APIRoute,
-		cmv1.RouteTimestamps, p.handleCommentTimestamps,
 		permissionPublic)
 
 	// Ticket vote routes
