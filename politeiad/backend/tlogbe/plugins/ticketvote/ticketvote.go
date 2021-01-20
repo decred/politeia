@@ -85,7 +85,7 @@ func (p *ticketVotePlugin) mutex(token []byte) *sync.Mutex {
 	return m
 }
 
-// Setup performs any plugin setup work that needs to be done.
+// Setup performs any plugin setup that is required.
 //
 // This function satisfies the plugins.Client interface.
 func (p *ticketVotePlugin) Setup() error {
@@ -237,7 +237,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins.Client interface.
-func (p *ticketVotePlugin) Fsck() error {
+func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("Fsck")
 
 	// Verify all caches

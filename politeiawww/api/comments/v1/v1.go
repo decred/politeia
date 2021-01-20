@@ -36,6 +36,7 @@ var (
 		ErrorCodeInvalid:            "error invalid",
 		ErrorCodeInputInvalid:       "input invalid",
 		ErrorStatusPublicKeyInvalid: "public key invalid",
+		ErrorStatusSignatureInvalid: "signature invalid",
 	}
 )
 

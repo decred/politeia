@@ -14,6 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/user"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	"github.com/decred/politeia/wsdcrdata"
@@ -54,9 +55,10 @@ var (
 	tlogLog       = backendLog.Logger("TLOG")
 	storeLog      = backendLog.Logger("STOR")
 	wsdcrdataLog  = backendLog.Logger("WSDD")
-	commentsLog   = backendLog.Logger("COMM")
-	dcrdataLog    = backendLog.Logger("DCRL")
-	ticketvoteLog = backendLog.Logger("TIKV")
+	commentsLog   = backendLog.Logger("COMT")
+	dcrdataLog    = backendLog.Logger("DCDA")
+	ticketvoteLog = backendLog.Logger("TICK")
+	userLog       = backendLog.Logger("USER")
 )
 
 // Initialize package-global logger variables.
@@ -69,6 +71,7 @@ func init() {
 	comments.UseLogger(commentsLog)
 	dcrdata.UseLogger(dcrdataLog)
 	ticketvote.UseLogger(ticketvoteLog)
+	user.UseLogger(userLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -79,9 +82,10 @@ var subsystemLoggers = map[string]slog.Logger{
 	"TLOG": tlogLog,
 	"STOR": storeLog,
 	"WSDD": wsdcrdataLog,
-	"COMM": commentsLog,
-	"DCRL": dcrdataLog,
-	"TIKV": ticketvoteLog,
+	"COMT": commentsLog,
+	"DCDA": dcrdataLog,
+	"TICK": ticketvoteLog,
+	"USER": userLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

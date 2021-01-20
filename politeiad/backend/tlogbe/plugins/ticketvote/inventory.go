@@ -43,7 +43,7 @@ func (p *ticketVotePlugin) invCacheSetToAuthorized(token string) {
 		u = append(u[:i], u[i+1:]...)
 		p.inv.unauthorized = u
 
-		log.Debugf("ticketvote: removed from unauthorized inv: %v", token)
+		log.Debugf("Removed from unauthorized inv: %v", token)
 	}
 
 	// Prepend the token to the authorized list
@@ -51,7 +51,7 @@ func (p *ticketVotePlugin) invCacheSetToAuthorized(token string) {
 	a = append([]string{token}, a...)
 	p.inv.authorized = a
 
-	log.Debugf("ticketvote: added to authorized inv: %v", token)
+	log.Debugf("Added to authorized inv: %v", token)
 }
 
 func (p *ticketVotePlugin) invCacheSetToUnauthorized(token string) {
@@ -76,7 +76,7 @@ func (p *ticketVotePlugin) invCacheSetToUnauthorized(token string) {
 		a = append(a[:i], a[i+1:]...)
 		p.inv.authorized = a
 
-		log.Debugf("ticketvote: removed from authorized inv: %v", token)
+		log.Debugf("Removed from authorized inv: %v", token)
 	}
 
 	// Prepend the token to the unauthorized list
@@ -84,7 +84,7 @@ func (p *ticketVotePlugin) invCacheSetToUnauthorized(token string) {
 	u = append([]string{token}, u...)
 	p.inv.unauthorized = u
 
-	log.Debugf("ticketvote: added to unauthorized inv: %v", token)
+	log.Debugf("Added to unauthorized inv: %v", token)
 }
 
 func (p *ticketVotePlugin) invCacheSetToStarted(token string, t ticketvote.VoteT, endHeight uint32) {
@@ -115,7 +115,7 @@ func (p *ticketVotePlugin) invCacheSetToStarted(token string, t ticketvote.VoteT
 		a = append(a[:i], a[i+1:]...)
 		p.inv.authorized = a
 
-		log.Debugf("ticketvote: removed from authorized inv: %v", token)
+		log.Debugf("Removed from authorized inv: %v", token)
 
 	case ticketvote.VoteTypeRunoff:
 		// A runoff vote does not require the submission votes be
@@ -138,7 +138,7 @@ func (p *ticketVotePlugin) invCacheSetToStarted(token string, t ticketvote.VoteT
 			u = append(u[:i], u[i+1:]...)
 			p.inv.unauthorized = u
 
-			log.Debugf("ticketvote: removed from unauthorized inv: %v", token)
+			log.Debugf("Removed from unauthorized inv: %v", token)
 		}
 
 	default:
@@ -149,7 +149,7 @@ func (p *ticketVotePlugin) invCacheSetToStarted(token string, t ticketvote.VoteT
 	// Add the token to the started list
 	p.inv.started[token] = endHeight
 
-	log.Debugf("ticketvote: added to started inv: %v", token)
+	log.Debugf("Added to started inv: %v", token)
 }
 
 func (p *ticketVotePlugin) invCache(bestBlock uint32) (*inventory, error) {
@@ -206,7 +206,7 @@ func (p *ticketVotePlugin) invCache(bestBlock uint32) (*inventory, error) {
 				// occurred.
 				p.inv.unauthorized = append(p.inv.unauthorized, v)
 
-				log.Debugf("ticketvote: added to unauthorized inv: %v", v)
+				log.Debugf("Added to unauthorized inv: %v", v)
 			}
 		}
 	}
@@ -230,19 +230,19 @@ func (p *ticketVotePlugin) invCache(bestBlock uint32) (*inventory, error) {
 			// Vote has finished. Remove it from the started list.
 			delete(p.inv.started, token)
 
-			log.Debugf("ticketvote: removed from started inv: %v", token)
+			log.Debugf("Removed from started inv: %v", token)
 
 			// Add it to the finished list
 			p.inv.finished = append(p.inv.finished, token)
 
-			log.Debugf("ticketvote: added to finished inv: %v", token)
+			log.Debugf("Added to finished inv: %v", token)
 		}
 	}
 
 	// Update best block
 	p.inv.bestBlock = bestBlock
 
-	log.Debugf("ticketvote: inv updated for best block %v", bestBlock)
+	log.Debugf("Inv updated for best block %v", bestBlock)
 
 reply:
 	// Return a copy of the inventory

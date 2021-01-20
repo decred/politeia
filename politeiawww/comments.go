@@ -69,14 +69,14 @@ func commentPopulateUser(c piv1.Comment, u user.User) cmv1.Comment {
 	return c
 }
 
-func (p *politeiawww) piCommentNew(ctx context.Context, n cmv1.CommentNew, u user.User) error {
+func (p *politeiawww) commentNewPi(ctx context.Context, n cmv1.CommentNew, u user.User) error {
 	// Verify user has paid registration paywall
 	if !p.userHasPaid(u) {
 		return nil, cmv1.UserErrorReply{
 			ErrorCode: cmv1.ErrorCodeUserRegistrationNotPaid,
 		}
 	}
-
+	return nil
 }
 
 func (p *politeiawww) processCommentNew(ctx context.Context, n cmv1.CommentNew, u user.User) (*cmv1.CommentNewReply, error) {
@@ -85,7 +85,7 @@ func (p *politeiawww) processCommentNew(ctx context.Context, n cmv1.CommentNew, 
 	// This is temporary until user plugins are implemented.
 	switch p.mode {
 	case politeiaWWWMode:
-		err := piCommentNew(ctx, n, u)
+		err := p.commentNewPi(ctx, n, u)
 		if err != nil {
 			return nil, err
 		}

@@ -9,21 +9,50 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 )
 
-// HookT represents the types of plugin hooks.
+// HookT represents a plugin hook.
 type HookT int
 
 const (
-	HookTypeInvalid             HookT = 0
-	HookTypeNewRecordPre        HookT = 1
-	HookTypeNewRecordPost       HookT = 2
-	HookTypeEditRecordPre       HookT = 3
-	HookTypeEditRecordPost      HookT = 4
-	HookTypeEditMetadataPre     HookT = 5
-	HookTypeEditMetadataPost    HookT = 6
-	HookTypeSetRecordStatusPre  HookT = 7
+	// HookTypeInvalid is an invalid plugin hook.
+	HookTypeInvalid HookT = 0
+
+	// HootTypeNewRecordPre is called before new record is saved to
+	// disk.
+	HookTypeNewRecordPre HookT = 1
+
+	// HootTypeNewRecordPost is called after a new record is saved to
+	// disk.
+	HookTypeNewRecordPost HookT = 2
+
+	// HookTypeEditRecordPre is called before a record update is saved
+	// to disk.
+	HookTypeEditRecordPre HookT = 3
+
+	// HookTypeEditRecordPost is called after a record update is saved
+	// to disk.
+	HookTypeEditRecordPost HookT = 4
+
+	// HookTypeEditMetadataPre is called before a metadata update is
+	// saved to disk.
+	HookTypeEditMetadataPre HookT = 5
+
+	// HookTypeEditMetadataPost is called after a metadata update is
+	// saved to disk.
+	HookTypeEditMetadataPost HookT = 6
+
+	// HookTypeSetRecordStatusPre is called before a record status
+	// change is saved to disk.
+	HookTypeSetRecordStatusPre HookT = 7
+
+	// HookTypeSetRecordStatusPost is called after a record status
+	// change is saved to disk.
 	HookTypeSetRecordStatusPost HookT = 8
-	HookTypePluginPre           HookT = 9
-	HookTypePluginPost          HookT = 10
+
+	// HookTypePluginPre is called before a plugin command is executed.
+	HookTypePluginPre HookT = 9
+
+	// HookTypePluginPost is called after a plugin command is executed.
+	HookTypePluginPost HookT = 10
 )
 
 var (
@@ -85,10 +114,8 @@ type HookEditRecord struct {
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-	MDAppend       []backend.MetadataStream `json:"mdappend"`
-	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
-	FilesAdd       []backend.File           `json:"filesadd"`
-	FilesDel       []string                 `json:"filesdel"`
+	Metadata       []backend.MetadataStream `json:"metadata"`
+	Files          []backend.File           `json:"files"`
 }
 
 // HookEditMetadata is the payload for the pre and post edit metadata hooks.
@@ -97,8 +124,7 @@ type HookEditMetadata struct {
 	Current backend.Record `json:"record"` // Current record
 
 	// Updated fields
-	MDAppend    []backend.MetadataStream `json:"mdappend"`
-	MDOverwrite []backend.MetadataStream `json:"mdoverwrite"`
+	Metadata []backend.MetadataStream `json:"metadata"`
 }
 
 // HookSetRecordStatus is the payload for the pre and post set record status
@@ -109,8 +135,7 @@ type HookSetRecordStatus struct {
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-	MDAppend       []backend.MetadataStream `json:"mdappend"`
-	MDOverwrite    []backend.MetadataStream `json:"mdoverwrite"`
+	Metadata       []backend.MetadataStream `json:"metadata"`
 }
 
 // HookPluginPre is the payload for the pre plugin hook.
@@ -145,15 +170,8 @@ type Client interface {
 	Hook(treeID int64, token []byte, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
-	Fsck() error
+	Fsck(treeIDs []int64) error
 }
-
-// TODO plugins should only have access to the backend methods for the tlog
-// instance that they're registered on.
-// TODO the plugin hook state should not really be required. This issue is that
-// some vetted plugins require unvetted hooks, ex. verifying the linkto in
-// vote metadata. Possile solution, keep the layer violations in the
-// application plugin (pi) instead of the functionality plugin (ticketvote).
 
 // TlogClient provides an API for plugins to interact with a tlog instance.
 // Plugins are allowed to save, delete, and get plugin data to/from the tlog
@@ -186,4 +204,10 @@ type TlogClient interface {
 	// Timestamp returns the timestamp for the blob that correpsonds
 	// to the digest.
 	Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error)
+
+	// Record returns a version of a record.
+	Record(treeID int64, version uint32) (*backend.Record, error)
+
+	// RecordLatest returns the most recent version of a record.
+	RecordLatest(treeID int64) (*backend.Record, error)
 }

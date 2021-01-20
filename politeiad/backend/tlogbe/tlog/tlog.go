@@ -18,6 +18,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
 	"github.com/decred/politeia/util"
@@ -54,6 +55,11 @@ const (
 	dataTypeAnchorRecord  = "anchor"
 )
 
+var (
+	_ plugins.TlogClient = (*Tlog)(nil)
+)
+
+// TODO change tlog name to tstore.
 // We do not unwind.
 type Tlog struct {
 	sync.Mutex

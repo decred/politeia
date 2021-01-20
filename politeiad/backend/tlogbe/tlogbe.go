@@ -6,7 +6,6 @@ package tlogbe
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -21,12 +20,12 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrtime/merkle"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
+	pdutil "github.com/decred/politeia/politeiad/util"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
@@ -397,22 +396,8 @@ func statusChangeIsAllowed(from, to backend.MDStatusT) bool {
 	return ok
 }
 
-func merkleRoot(files []backend.File) (*[sha256.Size]byte, error) {
-	hashes := make([]*[sha256.Size]byte, 0, len(files))
-	for _, v := range files {
-		b, err := hex.DecodeString(v.Digest)
-		if err != nil {
-			return nil, err
-		}
-		var d [sha256.Size]byte
-		copy(d[:], b)
-		hashes = append(hashes, &d)
-	}
-	return merkle.Root(hashes), nil
-}
-
 func recordMetadataNew(token []byte, files []backend.File, status backend.MDStatusT, iteration uint64) (*backend.RecordMetadata, error) {
-	m, err := merkleRoot(files)
+	m, err := pdutil.MerkleRoot(files)
 	if err != nil {
 		return nil, err
 	}
@@ -654,10 +639,8 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		State:          plugins.RecordStateUnvetted,
 		Current:        *r,
 		RecordMetadata: *recordMD,
-		MDAppend:       mdAppend,
-		MDOverwrite:    mdOverwrite,
-		FilesAdd:       filesAdd,
-		FilesDel:       filesDel,
+		Metadata:       metadata,
+		Files:          files,
 	}
 	b, err := json.Marshal(her)
 	if err != nil {
@@ -758,10 +741,8 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		State:          plugins.RecordStateVetted,
 		Current:        *r,
 		RecordMetadata: *recordMD,
-		MDAppend:       mdAppend,
-		MDOverwrite:    mdOverwrite,
-		FilesAdd:       filesAdd,
-		FilesDel:       filesDel,
+		Metadata:       metadata,
+		Files:          files,
 	}
 	b, err := json.Marshal(her)
 	if err != nil {
@@ -1116,8 +1097,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 		State:          plugins.RecordStateUnvetted,
 		Current:        *r,
 		RecordMetadata: rm,
-		MDAppend:       mdAppend,
-		MDOverwrite:    mdOverwrite,
+		Metadata:       metadata,
 	}
 	b, err := json.Marshal(hsrs)
 	if err != nil {
@@ -1271,8 +1251,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 		State:          plugins.RecordStateVetted,
 		Current:        *r,
 		RecordMetadata: rm,
-		MDAppend:       mdAppend,
-		MDOverwrite:    mdOverwrite,
+		Metadata:       metadata,
 	}
 	b, err := json.Marshal(srs)
 	if err != nil {

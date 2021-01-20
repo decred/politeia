@@ -41,25 +41,6 @@ func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) 
 	return propMD, nil
 }
 
-// generalMetadataDecode decodes and returns the GeneralMetadata from the
-// provided backend metadata streams. If a GeneralMetadata is not found, nil is
-// returned.
-func generalMetadataDecode(metadata []backend.MetadataStream) (*pi.GeneralMetadata, error) {
-	var generalMD *pi.GeneralMetadata
-	for _, v := range metadata {
-		if v.ID == pi.MDStreamIDGeneralMetadata {
-			var gm pi.GeneralMetadata
-			err := json.Unmarshal([]byte(v.Payload), &gm)
-			if err != nil {
-				return nil, err
-			}
-			generalMD = &gm
-			break
-		}
-	}
-	return generalMD, nil
-}
-
 // statusChangesDecode decodes a JSON byte slice into a []StatusChange slice.
 func statusChangesDecode(payload []byte) ([]pi.StatusChange, error) {
 	var statuses []pi.StatusChange
@@ -95,31 +76,6 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	}
 
 	// TODO Verify proposal name
-
-	return nil
-}
-
-func (p *piPlugin) hookNewRecordPost(payload string) error {
-	var nr plugins.HookNewRecordPost
-	err := json.Unmarshal([]byte(payload), &nr)
-	if err != nil {
-		return err
-	}
-
-	// Decode GeneralMetadata
-	gm, err := generalMetadataDecode(nr.Metadata)
-	if err != nil {
-		return err
-	}
-	if gm == nil {
-		panic("general metadata not found")
-	}
-
-	// Add token to the user data cache
-	err = p.userDataAddToken(gm.UserID, nr.RecordMetadata.Token)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -181,67 +137,69 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 		return err
 	}
 
-	// Parse the status change metadata
-	var sc *pi.StatusChange
-	for _, v := range srs.MDAppend {
-		if v.ID != pi.MDStreamIDStatusChanges {
-			continue
+	/*
+		// Parse the status change metadata
+		var sc *pi.StatusChange
+		for _, v := range srs.MDAppend {
+			if v.ID != pi.MDStreamIDStatusChanges {
+				continue
+			}
+
+			var sc pi.StatusChange
+			err := json.Unmarshal([]byte(v.Payload), &sc)
+			if err != nil {
+				return err
+			}
+			break
+		}
+		if sc == nil {
+			return fmt.Errorf("status change append metadata not found")
 		}
 
-		var sc pi.StatusChange
-		err := json.Unmarshal([]byte(v.Payload), &sc)
-		if err != nil {
-			return err
-		}
-		break
-	}
-	if sc == nil {
-		return fmt.Errorf("status change append metadata not found")
-	}
+		// Parse the existing status changes metadata stream
+		var statuses []pi.StatusChange
+		for _, v := range srs.Current.Metadata {
+			if v.ID != pi.MDStreamIDStatusChanges {
+				continue
+			}
 
-	// Parse the existing status changes metadata stream
-	var statuses []pi.StatusChange
-	for _, v := range srs.Current.Metadata {
-		if v.ID != pi.MDStreamIDStatusChanges {
-			continue
+			statuses, err = statusChangesDecode([]byte(v.Payload))
+			if err != nil {
+				return err
+			}
+			break
 		}
 
-		statuses, err = statusChangesDecode([]byte(v.Payload))
-		if err != nil {
-			return err
+		// Verify version is the latest version
+		if sc.Version != srs.Current.Version {
+			e := fmt.Sprintf("version not current: got %v, want %v",
+				sc.Version, srs.Current.Version)
+			return backend.PluginError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorCodePropVersionInvalid),
+				ErrorContext: e,
+			}
 		}
-		break
-	}
 
-	// Verify version is the latest version
-	if sc.Version != srs.Current.Version {
-		e := fmt.Sprintf("version not current: got %v, want %v",
-			sc.Version, srs.Current.Version)
-		return backend.PluginError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorCodePropVersionInvalid),
-			ErrorContext: e,
+		// Verify status change is allowed
+		var from pi.PropStatusT
+		if len(statuses) == 0 {
+			// No previous status changes exist. Proposal is unvetted.
+			from = pi.PropStatusUnvetted
+		} else {
+			from = statuses[len(statuses)-1].Status
 		}
-	}
-
-	// Verify status change is allowed
-	var from pi.PropStatusT
-	if len(statuses) == 0 {
-		// No previous status changes exist. Proposal is unvetted.
-		from = pi.PropStatusUnvetted
-	} else {
-		from = statuses[len(statuses)-1].Status
-	}
-	_, isAllowed := pi.StatusChanges[from][sc.Status]
-	if !isAllowed {
-		e := fmt.Sprintf("from %v to %v status change not allowed",
-			from, sc.Status)
-		return backend.PluginError{
-			PluginID:     pi.ID,
-			ErrorCode:    int(pi.ErrorCodePropStatusChangeInvalid),
-			ErrorContext: e,
+		_, isAllowed := pi.StatusChanges[from][sc.Status]
+		if !isAllowed {
+			e := fmt.Sprintf("from %v to %v status change not allowed",
+				from, sc.Status)
+			return backend.PluginError{
+				PluginID:     pi.ID,
+				ErrorCode:    int(pi.ErrorCodePropStatusChangeInvalid),
+				ErrorContext: e,
+			}
 		}
-	}
+	*/
 
 	return nil
 }

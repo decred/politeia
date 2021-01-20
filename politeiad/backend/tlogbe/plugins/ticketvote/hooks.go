@@ -212,7 +212,7 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 		if vm != nil {
 			oldLinkTo = vm.LinkTo
 		}
-		vm, err = voteMetadataDecode(er.FilesAdd)
+		vm, err = voteMetadataDecode(er.Files)
 		if err != nil {
 			return err
 		}
@@ -232,7 +232,7 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 
 	// Verify LinkBy if one was included. The VoteMetadata is optional
 	// so the record may not contain one.
-	vm, err := voteMetadataDecode(er.FilesAdd)
+	vm, err := voteMetadataDecode(er.Files)
 	if err != nil {
 		return err
 	}

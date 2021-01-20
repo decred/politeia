@@ -10,14 +10,9 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
-)
-
-var (
-	_ plugins.TlogClient = (*Tlog)(nil)
 )
 
 // BlobSave saves a BlobEntry to the tlog instance. The BlobEntry will be

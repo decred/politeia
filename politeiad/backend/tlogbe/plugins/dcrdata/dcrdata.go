@@ -574,7 +574,7 @@ func (p *dcrdataPlugin) websocketSetup() {
 	go p.websocketMonitor()
 }
 
-// Setup performs any plugin setup work that needs to be done.
+// Setup performs any plugin setup that is required.
 //
 // This function satisfies the plugins.Client interface.
 func (p *dcrdataPlugin) Setup() error {
@@ -621,7 +621,7 @@ func (p *dcrdataPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payloa
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins.Client interface.
-func (p *dcrdataPlugin) Fsck() error {
+func (p *dcrdataPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("Fsck")
 
 	return nil

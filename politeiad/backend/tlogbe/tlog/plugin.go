@@ -13,8 +13,14 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/pi"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/user"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
+	userplugin "github.com/decred/politeia/politeiad/plugins/user"
 )
 
 const (
@@ -71,19 +77,19 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		if err != nil {
 			return err
 		}
-	/*
-		case piplugin.ID:
-			client, err = pi.New(b, t, p.Settings, dataDir, t.activeNetParams)
-			if err != nil {
-				return err
-			}
-		case ticketvote.ID:
-			client, err = newTicketVotePlugin(t, newBackendClient(t),
-				p.Settings, p.Identity, t.activeNetParams)
-			if err != nil {
-				return err
-			}
-	*/
+	case piplugin.ID:
+		client, err = pi.New(b, p.Settings, dataDir)
+		if err != nil {
+			return err
+		}
+	case tkplugin.ID:
+		client, err = ticketvote.New(b, t, p.Settings, dataDir,
+			p.Identity, t.activeNetParams)
+		if err != nil {
+			return err
+		}
+	case userplugin.PluginID:
+		client, err = user.New(t, p.Settings, dataDir)
 	default:
 		return backend.ErrPluginInvalid
 	}
