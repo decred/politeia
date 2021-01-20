@@ -1025,8 +1025,6 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	var (
 		requestBody  []byte
 		responseBody []byte
-		cookies      []*http.Cookie
-		csrf         string
 		err          error
 	)
 	if v != nil {
@@ -1048,36 +1046,11 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 
 	route = dest + "/api/v1" + route
 
-	// We have to special case post requests since they require to first get
-	// cookies and csrf headers from a Version GET request.
-	if method == http.MethodPost {
-		versionRoute := dest + "/api/v1" + www.RouteVersion
-		req, err := http.NewRequest(http.MethodGet, versionRoute, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		r, err := client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer r.Body.Close()
-
-		cookies = r.Cookies()
-		csrf = r.Header.Get(www.CsrfToken)
-	}
-
 	req, err := http.NewRequest(method, route,
 		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
-
-	for _, cookie := range cookies {
-		req.AddCookie(cookie)
-	}
-
-	req.Header.Set(www.CsrfToken, csrf)
 
 	r, err := client.Do(req)
 	if err != nil {
