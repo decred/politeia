@@ -54,18 +54,17 @@ const (
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
 
-	// The following routes have been DEPRECATED and support will be
-	// removed in the near future.
+	// The following routes have been DEPRECATED.
 	RouteTokenInventory   = "/proposals/tokeninventory"
 	RouteProposalDetails  = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
+	RouteAllVetted        = "/proposals/vetted"
 	RouteBatchProposals   = "/proposals/batch"
+	RouteActiveVote       = "/proposals/activevote"
 	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
 	RouteCastVotes        = "/proposals/castvotes"
 	RouteBatchVoteSummary = "/proposals/batchvotesummary"
 
 	// The following routes are NO LONGER SUPPORTED.
-	RouteActiveVote        = "/proposals/activevote"
-	RouteAllVetted         = "/proposals/vetted"
 	RouteNewProposal       = "/proposals/new"
 	RouteEditProposal      = "/proposals/edit"
 	RouteAuthorizeVote     = "/proposals/authorizevote"
@@ -956,7 +955,7 @@ type SetProposalStatusReply struct {
 // If Before is specified, the "page" returned starts before the provided
 // proposal censorship token, when sorted in reverse chronological order.
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type GetAllVetted struct {
 	Before string `schema:"before"`
 	After  string `schema:"after"`
@@ -964,7 +963,7 @@ type GetAllVetted struct {
 
 // GetAllVettedReply is used to reply with a list of vetted proposals.
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type GetAllVettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }

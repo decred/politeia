@@ -34,7 +34,7 @@ func (c *Comments) HandleNew(w http.ResponseWriter, r *http.Request) {
 	usr, err := c.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithError(w, r,
-			"handleNew: getSessionUser: %v", err)
+			"handleNew: GetSessionUser: %v", err)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (c *Comments) HandleVote(w http.ResponseWriter, r *http.Request) {
 	usr, err := c.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithError(w, r,
-			"handleVote: getSessionUser: %v", err)
+			"handleVote: GetSessionUser: %v", err)
 		return
 	}
 

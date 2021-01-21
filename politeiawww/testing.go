@@ -360,7 +360,6 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup routes
-	p.setPoliteiaWWWRoutes()
 	p.setUserWWWRoutes()
 	p.setPiRoutes()
 

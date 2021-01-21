@@ -1566,7 +1566,7 @@ func (p *politeiawww) processVotes(ctx context.Context, v piv1.Votes) (*piv1.Vot
 	return nil, nil
 }
 
-func (p *politeiawww) processVoteResults(ctx context.Context, vr piv1.VoteResults) (*piv1.VoteResultsReply, error) {
+func (p *politeiawww) processVoteResultsPi(ctx context.Context, vr piv1.VoteResults) (*piv1.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", vr.Token)
 
 	cvr, err := p.voteResults(ctx, vr.Token)
@@ -1876,7 +1876,7 @@ func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
-func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
+func (p *politeiawww) handleVoteResultsPi(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVoteResults")
 
 	var vr piv1.VoteResults
@@ -1889,7 +1889,7 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	vrr, err := p.processVoteResults(r.Context(), vr)
+	vrr, err := p.processVoteResultsPi(r.Context(), vr)
 	if err != nil {
 		respondWithPiError(w, r,
 			"handleVoteResults: prcoessVoteResults: %v", err)
@@ -1947,6 +1947,46 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 
 // setPiRoutes sets the pi API routes.
 func (p *politeiawww) setPiRoutes() {
+	// Return a 404 when a route is not found
+	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
+
+	// The version routes set the CSRF token and thus need to be part
+	// of the CSRF protected auth router.
+	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
+	p.auth.StrictSlash(true).
+		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
+		Methods(http.MethodGet)
+
+	// www routes. These routes have been deprecated and support will
+	// be removed in the future.
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RoutePolicy, p.handlePolicy,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteTokenInventory, p.handleTokenInventory,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVetted, p.handleAllVetted,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalDetails, p.handleProposalDetails,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handleBatchProposals,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteActiveVote, p.handleActiveVote,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCastVotes, p.handleCastVotes,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVoteResults, p.handleVoteResults,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchVoteSummary, p.handleBatchVoteSummary,
+		permissionPublic)
+
 	// Pi routes - proposals
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposalNew, p.handleProposalNew,

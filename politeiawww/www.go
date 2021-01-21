@@ -537,7 +537,6 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 
 func (p *politeiawww) setupPi() error {
 	// Setup routes
-	p.setPoliteiaWWWRoutes()
 	p.setUserWWWRoutes()
 	p.setPiRoutes()
 
