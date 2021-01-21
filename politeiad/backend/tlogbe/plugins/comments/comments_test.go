@@ -15,7 +15,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/clients"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/google/uuid"
 )
@@ -49,7 +49,7 @@ func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, func()) {
 
 	// TODO Implement a test clients.TlogClient
 	// Setup tlog client
-	var tlog clients.TlogClient
+	var tlog plugins.TlogClient
 
 	// Setup plugin identity
 	fid, err := identity.New()
@@ -58,7 +58,7 @@ func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, func()) {
 	}
 
 	// Setup comment plugins
-	c, err := New(tlog, []backend.PluginSetting{}, fid, dataDir)
+	c, err := New(tlog, []backend.PluginSetting{}, dataDir, fid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,8 +113,8 @@ func TestCmdNew(t *testing.T) {
 				PublicKey: publicKey,
 				Signature: commentSignature(t, fid, token, parentIDZero, comment),
 			},
-			backend.PluginUserError{
-				PluginID:  comments.ID,
+			backend.PluginError{
+				PluginID:  comments.PluginID,
 				ErrorCode: int(comments.ErrorCodeTokenInvalid),
 			},
 			"",
@@ -136,8 +136,8 @@ func TestCmdNew(t *testing.T) {
 			if tc.wantErr != nil {
 				// We expect an error. Verify that the returned error is
 				// correct.
-				want := tc.wantErr.(backend.PluginUserError)
-				var ue backend.PluginUserError
+				want := tc.wantErr.(backend.PluginError)
+				var ue backend.PluginError
 				switch {
 				case errors.As(err, &ue) &&
 					want.PluginID == ue.PluginID &&

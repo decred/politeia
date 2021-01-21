@@ -1582,25 +1582,25 @@ func _main() error {
 			// Setup plugin
 			var plugin backend.Plugin
 			switch v {
-			case comments.ID:
+			case comments.PluginID:
 				plugin = backend.Plugin{
-					ID:       comments.ID,
+					ID:       comments.PluginID,
 					Settings: ps,
 					Identity: p.identity,
 				}
-			case dcrdata.ID:
+			case dcrdata.PluginID:
 				plugin = backend.Plugin{
-					ID:       dcrdata.ID,
+					ID:       dcrdata.PluginID,
 					Settings: ps,
 				}
-			case pi.ID:
+			case pi.PluginID:
 				plugin = backend.Plugin{
-					ID:       pi.ID,
+					ID:       pi.PluginID,
 					Settings: ps,
 				}
-			case ticketvote.ID:
+			case ticketvote.PluginID:
 				plugin = backend.Plugin{
-					ID:       ticketvote.ID,
+					ID:       ticketvote.PluginID,
 					Settings: ps,
 					Identity: p.identity,
 				}

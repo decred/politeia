@@ -390,6 +390,7 @@ func TestNewRecord(t *testing.T) {
 	}
 }
 
+/*
 func TestUpdateUnvettedRecord(t *testing.T) {
 	tlogBackend, cleanup := NewTestTlogBackend(t)
 	defer cleanup()
@@ -1658,3 +1659,4 @@ func TestSetVettedStatus(t *testing.T) {
 		})
 	}
 }
+*/

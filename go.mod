@@ -47,7 +47,7 @@ require (
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
-	github.com/prometheus/common v0.10.0
+	github.com/prometheus/common v0.10.0 // indirect
 	github.com/robfig/cron v1.2.0
 	github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636
 	github.com/syndtr/goleveldb v1.0.0

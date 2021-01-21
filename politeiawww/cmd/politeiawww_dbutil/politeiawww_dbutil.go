@@ -28,7 +28,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -54,8 +54,8 @@ const (
 )
 
 var (
-	defaultHomeDir       = sharedconfig.DefaultHomeDir
-	defaultDataDir       = sharedconfig.DefaultDataDir
+	defaultHomeDir       = config.DefaultHomeDir
+	defaultDataDir       = config.DefaultDataDir
 	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
 
 	// Database options
