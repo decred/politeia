@@ -1137,7 +1137,7 @@ func (c *ctx) _vote(token, voteId string) error {
 
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := vs.EndHeight - uint64(bestBlock)
+			blocksLeft := vs.EndHeight - bestBlock
 			if blocksLeft < c.cfg.blocksPerDay {
 				return fmt.Errorf("less than a day left to " +
 					"vote, please set --voteduration " +
