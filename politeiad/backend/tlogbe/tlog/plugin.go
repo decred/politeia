@@ -67,22 +67,22 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
 	switch p.ID {
-	case cmplugin.ID:
+	case cmplugin.PluginID:
 		client, err = comments.New(t, p.Settings, dataDir, p.Identity)
 		if err != nil {
 			return err
 		}
-	case ddplugin.ID:
+	case ddplugin.PluginID:
 		client, err = dcrdata.New(p.Settings, t.activeNetParams)
 		if err != nil {
 			return err
 		}
-	case piplugin.ID:
+	case piplugin.PluginID:
 		client, err = pi.New(b, p.Settings, dataDir)
 		if err != nil {
 			return err
 		}
-	case tkplugin.ID:
+	case tkplugin.PluginID:
 		client, err = ticketvote.New(b, t, p.Settings, dataDir,
 			p.Identity, t.activeNetParams)
 		if err != nil {

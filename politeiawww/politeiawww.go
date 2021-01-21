@@ -104,8 +104,8 @@ type politeiawww struct {
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
-	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
-		r.Proto)
+	log.Debugf("Invalid route: %v %v %v %v",
+		util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 	// Trace incoming request
 	log.Tracef("%v", newLogClosure(func() string {

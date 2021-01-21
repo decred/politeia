@@ -133,7 +133,7 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 	case errors.As(err, &ue):
 		// Record user error
 		m := fmt.Sprintf("Records user error: %v %v %v",
-			remoteAddr(r), ue.ErrorCode, rcv1.ErrorCodes[ue.ErrorCode])
+			util.RemoteAddr(r), ue.ErrorCode, rcv1.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {
 			m += fmt.Sprintf(": %v", ue.ErrorContext)
 		}
@@ -157,7 +157,7 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 		case pluginID != "":
 			// politeiad plugin error. Log it and return a 400.
 			m := fmt.Sprintf("Plugin error: %v %v %v",
-				remoteAddr(r), pluginID, errCode)
+				util.RemoteAddr(r), pluginID, errCode)
 			if len(errContext) > 0 {
 				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
 			}
@@ -175,7 +175,7 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 			// and return a 500.
 			ts := time.Now().Unix()
 			log.Errorf("%v %v %v %v Internal error %v: error code "+
-				"from politeiad: %v", remoteAddr(r), r.Method, r.URL,
+				"from politeiad: %v", util.RemoteAddr(r), r.Method, r.URL,
 				r.Proto, ts, errCode)
 
 			util.RespondWithJSON(w, http.StatusInternalServerError,
@@ -188,7 +188,7 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 			// politeiad error does correspond to a user error. Log it and
 			// return a 400.
 			m := fmt.Sprintf("Records user error: %v %v %v",
-				remoteAddr(r), e, rcv1.ErrorCodes[e])
+				util.RemoteAddr(r), e, rcv1.ErrorCodes[e])
 			if len(errContext) > 0 {
 				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
 			}
@@ -206,7 +206,7 @@ func respondWithRecordError(w http.ResponseWriter, r *http.Request, format strin
 		t := time.Now().Unix()
 		e := fmt.Sprintf(format, err)
 		log.Errorf("%v %v %v %v Internal error %v: %v",
-			remoteAddr(r), r.Method, r.URL, r.Proto, t, e)
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
 		log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 		util.RespondWithJSON(w, http.StatusInternalServerError,

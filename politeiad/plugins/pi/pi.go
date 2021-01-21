@@ -7,7 +7,7 @@
 package pi
 
 const (
-	ID = "pi"
+	PluginID = "pi"
 
 	// Plugin commands
 	// TODO I might not need the ProposalInv command

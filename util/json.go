@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,9 +6,11 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/gorilla/schema"
 )
 
@@ -64,4 +66,15 @@ func ParseGetParams(r *http.Request, dst interface{}) error {
 	}
 
 	return schema.NewDecoder().Decode(dst, r.Form)
+}
+
+// RemoteAddr returns a string of the remote address, i.e. the address that
+// sent the request.
+func RemoteAddr(r *http.Request) string {
+	via := r.RemoteAddr
+	xff := r.Header.Get(pdv1.Forward)
+	if xff != "" {
+		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
+	}
+	return via
 }

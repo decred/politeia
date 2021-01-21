@@ -527,14 +527,12 @@ func (c *Client) PluginInventory(ctx context.Context) ([]pdv1.Plugin, error) {
 		return nil, err
 	}
 
-	// Receive reply
+	// Decode reply
 	var pir pdv1.PluginInventoryReply
 	err = json.Unmarshal(resBody, &pir)
 	if err != nil {
 		return nil, err
 	}
-
-	// Verify challenge
 	err = util.VerifyChallenge(c.pid, challenge, pir.Response)
 	if err != nil {
 		return nil, err

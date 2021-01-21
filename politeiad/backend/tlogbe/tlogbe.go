@@ -830,12 +830,14 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 		return fmt.Errorf("RecordLatest: %v", err)
 	}
 
+	// Apply changes
+	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+
 	// Call pre plugin hooks
 	hem := plugins.HookEditMetadata{
-		State:       plugins.RecordStateUnvetted,
-		Current:     *r,
-		MDAppend:    mdAppend,
-		MDOverwrite: mdOverwrite,
+		State:    plugins.RecordStateUnvetted,
+		Current:  *r,
+		Metadata: metadata,
 	}
 	b, err := json.Marshal(hem)
 	if err != nil {
@@ -846,9 +848,6 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	if err != nil {
 		return err
 	}
-
-	// Apply changes
-	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
 	err = t.unvetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
@@ -922,12 +921,14 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 		return fmt.Errorf("RecordLatest: %v", err)
 	}
 
+	// Apply changes
+	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+
 	// Call pre plugin hooks
 	hem := plugins.HookEditMetadata{
-		State:       plugins.RecordStateVetted,
-		Current:     *r,
-		MDAppend:    mdAppend,
-		MDOverwrite: mdOverwrite,
+		State:    plugins.RecordStateVetted,
+		Current:  *r,
+		Metadata: metadata,
 	}
 	b, err := json.Marshal(hem)
 	if err != nil {
@@ -938,9 +939,6 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return err
 	}
-
-	// Apply changes
-	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Update metadata
 	err = t.vetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)

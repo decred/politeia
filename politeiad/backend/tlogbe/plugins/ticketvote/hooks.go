@@ -50,7 +50,7 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 		e := fmt.Sprintf("linkby %v is less than min required of %v",
 			linkBy, min)
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkByInvalid),
 			ErrorContext: e,
 		}
@@ -58,7 +58,7 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 		e := fmt.Sprintf("linkby %v is more than max allowed of %v",
 			linkBy, max)
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkByInvalid),
 			ErrorContext: e,
 		}
@@ -71,7 +71,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	token, err := tokenDecode(linkTo)
 	if err != nil {
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "invalid hex",
 		}
@@ -80,7 +80,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			return backend.PluginError{
-				PluginID:     ticketvote.ID,
+				PluginID:     ticketvote.PluginID,
 				ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 				ErrorContext: "record not found",
 			}
@@ -89,7 +89,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	}
 	if r.RecordMetadata.Status != backend.MDStatusCensored {
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "record is censored",
 		}
@@ -103,7 +103,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	}
 	if parentVM == nil || parentVM.LinkBy == 0 {
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "record not a runoff vote parent",
 		}
@@ -112,7 +112,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	// The LinkBy deadline must not be expired
 	if time.Now().Unix() > parentVM.LinkBy {
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "parent record linkby deadline has expired",
 		}
@@ -125,7 +125,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	}
 	if !vs.Approved {
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "parent record vote is not approved",
 		}
@@ -139,7 +139,7 @@ func (p *ticketVotePlugin) voteMetadataVerify(vm ticketvote.VoteMetadata) error 
 	case vm.LinkBy == 0 && vm.LinkTo == "":
 		// Vote metadata is empty
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
 			ErrorContext: "md is empty",
 		}
@@ -147,7 +147,7 @@ func (p *ticketVotePlugin) voteMetadataVerify(vm ticketvote.VoteMetadata) error 
 	case vm.LinkBy != 0 && vm.LinkTo != "":
 		// LinkBy and LinkTo cannot both be set
 		return backend.PluginError{
-			PluginID:     ticketvote.ID,
+			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
 			ErrorContext: "cannot set both linkby and linkto",
 		}
@@ -223,7 +223,7 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 			e := fmt.Sprintf("linkto cannot change on vetted record: "+
 				"got '%v', want '%v'", newLinkTo, oldLinkTo)
 			return backend.PluginError{
-				PluginID:     ticketvote.ID,
+				PluginID:     ticketvote.PluginID,
 				ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
 				ErrorContext: e,
 			}

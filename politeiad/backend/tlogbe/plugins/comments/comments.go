@@ -20,18 +20,6 @@ import (
 // TODO upvoting a comment twice in the same second causes a duplicate leaf
 // error which causes a 500. Solution: add the timestamp to the vote index.
 
-const (
-	// Blob entry data descriptors
-	dataDescriptorCommentAdd  = "cadd_v1"
-	dataDescriptorCommentDel  = "cdel_v1"
-	dataDescriptorCommentVote = "cvote_v1"
-
-	// Data types
-	dataTypeCommentAdd  = "cadd"
-	dataTypeCommentDel  = "cdel"
-	dataTypeCommentVote = "cvote"
-)
-
 var (
 	_ plugins.Client = (*commentsPlugin)(nil)
 )
@@ -138,7 +126,7 @@ func (p *commentsPlugin) Fsck(treeIDs []int64) error {
 // New returns a new comments plugin.
 func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*commentsPlugin, error) {
 	// Setup comments plugin data dir
-	dataDir = filepath.Join(dataDir, comments.ID)
+	dataDir = filepath.Join(dataDir, comments.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err

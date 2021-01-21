@@ -9,7 +9,7 @@ package dcrdata
 type StatusT int
 
 const (
-	ID = "dcrdata"
+	PluginID = "dcrdata"
 
 	// Plugin commands
 	CmdBestBlock    = "bestblock"    // Get best block

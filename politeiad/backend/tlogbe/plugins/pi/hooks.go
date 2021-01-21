@@ -101,7 +101,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			if err != nil {
 				return err
 			}
-			reply, err := p.backend.Plugin(ticketvote.ID,
+			reply, err := p.backend.Plugin(ticketvote.PluginID,
 				ticketvote.CmdSummaries, "", string(b))
 			if err != nil {
 				return fmt.Errorf("ticketvote Summaries: %v", err)
@@ -119,7 +119,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 					ticketvote.VoteStatuses[summary.Status],
 					ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized])
 				return backend.PluginUserError{
-					PluginID:     pi.ID,
+					PluginID:     pi.PluginID,
 					ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 					ErrorContext: e,
 				}
@@ -175,7 +175,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 			e := fmt.Sprintf("version not current: got %v, want %v",
 				sc.Version, srs.Current.Version)
 			return backend.PluginError{
-				PluginID:     pi.ID,
+				PluginID:     pi.PluginID,
 				ErrorCode:    int(pi.ErrorCodePropVersionInvalid),
 				ErrorContext: e,
 			}
@@ -194,7 +194,7 @@ func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
 			e := fmt.Sprintf("from %v to %v status change not allowed",
 				from, sc.Status)
 			return backend.PluginError{
-				PluginID:     pi.ID,
+				PluginID:     pi.PluginID,
 				ErrorCode:    int(pi.ErrorCodePropStatusChangeInvalid),
 				ErrorContext: e,
 			}
@@ -219,7 +219,7 @@ func (p *piPlugin) commentWritesVerify(token []byte) error {
 		return nil
 	default:
 		return backend.PluginError{
-			PluginID:     pi.ID,
+			PluginID:     pi.PluginID,
 			ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote has ended; proposal is locked",
 		}
@@ -248,7 +248,7 @@ func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) err
 
 	// Call plugin hook
 	switch hpp.PluginID {
-	case comments.ID:
+	case comments.PluginID:
 		switch hpp.Cmd {
 		case comments.CmdNew:
 			return p.hookCommentNew(token)

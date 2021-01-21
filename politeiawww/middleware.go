@@ -15,21 +15,12 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func remoteAddr(r *http.Request) string {
-	via := r.RemoteAddr
-	xff := r.Header.Get(www.Forward)
-	if xff != "" {
-		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
-	}
-	return via
-}
-
 // isLoggedIn ensures that a user is logged in before calling the next
 // function.
 func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
-			r.URL, r.Proto)
+		log.Debugf("isLoggedIn: %v %v %v %v",
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 		id, err := p.sessions.GetSessionUserID(w, r)
 		if err != nil {
@@ -65,8 +56,8 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 // before calling the next function.
 func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedInAsAdmin: %v %v %v %v", remoteAddr(r),
-			r.Method, r.URL, r.Proto)
+		log.Debugf("isLoggedInAsAdmin: %v %v %v %v",
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 		// Check if user is admin
 		isAdmin, err := p.isAdmin(w, r)
@@ -112,7 +103,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		}))
 
 		// Log incoming connection
-		log.Infof("%v %v %v %v", remoteAddr(r), r.Method, r.URL, r.Proto)
+		log.Infof("%v %v %v %v", util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 		// Call next handler
 		next.ServeHTTP(w, r)
@@ -126,8 +117,9 @@ func recoverMiddleware(next http.Handler) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				errorCode := time.Now().Unix()
-				log.Criticalf("%v %v %v %v Internal error %v: %v", remoteAddr(r),
-					r.Method, r.URL, r.Proto, errorCode, err)
+				log.Criticalf("%v %v %v %v Internal error %v: %v",
+					util.RemoteAddr(r), r.Method, r.URL, r.Proto, errorCode, err)
+
 				log.Criticalf("Stacktrace (THIS IS AN ACTUAL PANIC): %s",
 					debug.Stack())
 

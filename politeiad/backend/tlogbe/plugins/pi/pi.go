@@ -87,7 +87,7 @@ func (p *piPlugin) Fsck(treeIDs []int64) error {
 
 func New(backend backend.Backend, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
 	// Create plugin data directory
-	dataDir = filepath.Join(dataDir, pi.ID)
+	dataDir = filepath.Join(dataDir, pi.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err

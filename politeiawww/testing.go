@@ -414,7 +414,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		TestNet:         true,
 		VoteDurationMin: 2016,
 		VoteDurationMax: 4032,
-		Mode:            cmsWWWMode,
+		Mode:            config.CMSWWWMode,
 	}
 
 	// Setup database

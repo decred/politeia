@@ -16,7 +16,7 @@ package ticketvote
 // Max   (41k votes): 82MB
 
 const (
-	ID = "ticketvote"
+	PluginID = "ticketvote"
 
 	// Plugin commands
 	CmdAuthorize  = "authorize"  // Authorize a vote

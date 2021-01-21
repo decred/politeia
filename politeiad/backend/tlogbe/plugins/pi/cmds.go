@@ -69,7 +69,7 @@ func (p *piPlugin) cmdProposalInv() (string, error) {
 
 func (p *piPlugin) voteSummary(token []byte) (*ticketvote.VoteSummary, error) {
 	reply, err := p.backend.VettedPluginCmd(token,
-		ticketvote.ID, ticketvote.CmdSummary, "")
+		ticketvote.PluginID, ticketvote.CmdSummary, "")
 	if err != nil {
 		return nil, err
 	}
@@ -84,10 +84,10 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.VoteSummary, error) {
 func (p *piPlugin) cmdVoteInv() (string, error) {
 	// Get ticketvote inventory
 	r, err := p.backend.VettedPluginCmd([]byte{},
-		ticketvote.ID, ticketvote.CmdInventory, "")
+		ticketvote.PluginID, ticketvote.CmdInventory, "")
 	if err != nil {
 		return "", fmt.Errorf("VettedPluginCmd %v %v: %v",
-			ticketvote.ID, ticketvote.CmdInventory, err)
+			ticketvote.PluginID, ticketvote.CmdInventory, err)
 	}
 	var ir ticketvote.InventoryReply
 	err = json.Unmarshal([]byte(r), &ir)

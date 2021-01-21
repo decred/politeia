@@ -65,11 +65,7 @@ const (
 	// }
 	dust = 60300
 
-	// Currently available modes to run politeia, by default piwww, is used.
-	politeiaWWWMode = "piwww"
-	cmsWWWMode      = "cmswww"
-
-	defaultWWWMode = politeiaWWWMode
+	defaultWWWMode = config.PoliteiaWWWMode
 
 	// User database options
 	userDBLevel     = "leveldb"
@@ -409,11 +405,11 @@ func loadConfig() (*config.Config, []string, error) {
 
 	// Verify mode and set mode specific defaults
 	switch cfg.Mode {
-	case cmsWWWMode:
+	case config.CMSWWWMode:
 		if cfg.MailAddress == "" {
 			cfg.MailAddress = defaultMailAddressCMS
 		}
-	case politeiaWWWMode:
+	case config.PoliteiaWWWMode:
 		if cfg.MailAddress == "" {
 			cfg.MailAddress = defaultMailAddressPi
 		}

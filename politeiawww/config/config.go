@@ -20,6 +20,11 @@ const (
 	// DefaultDataDirname is the default data directory name. The data
 	// directory is located in the application home directory.
 	DefaultDataDirname = "data"
+
+	// Currently available modes to run politeia, by default piwww, is
+	// used.
+	PoliteiaWWWMode = "piwww"
+	CMSWWWMode      = "cmswww"
 )
 
 var (

@@ -7,7 +7,7 @@
 package comments
 
 const (
-	ID = "comments"
+	PluginID = "comments"
 
 	// Plugin commands
 	CmdNew        = "new"        // Create a new comment

@@ -94,12 +94,13 @@ func (p *ticketVotePlugin) Setup() error {
 	// Verify plugin dependencies
 	var dcrdataFound bool
 	for _, v := range p.backend.GetVettedPlugins() {
-		if v.ID == dcrdata.ID {
+		if v.ID == dcrdata.PluginID {
 			dcrdataFound = true
 		}
 	}
 	if !dcrdataFound {
-		return fmt.Errorf("plugin dependency not registered: %v", dcrdata.ID)
+		return fmt.Errorf("plugin dependency not registered: %v",
+			dcrdata.PluginID)
 	}
 
 	// Build inventory cache
@@ -161,11 +162,11 @@ func (p *ticketVotePlugin) Setup() error {
 		if err != nil {
 			return err
 		}
-		reply, err := p.backend.VettedPluginCmd(token, ticketvote.ID,
+		reply, err := p.backend.VettedPluginCmd(token, ticketvote.PluginID,
 			ticketvote.CmdResults, "")
 		if err != nil {
 			return fmt.Errorf("VettedPluginCmd %x %v %v: %v",
-				token, ticketvote.ID, ticketvote.CmdResults, err)
+				token, ticketvote.PluginID, ticketvote.CmdResults, err)
 		}
 		var rr ticketvote.ResultsReply
 		err = json.Unmarshal([]byte(reply), &rr)
@@ -321,7 +322,7 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 	}
 
 	// Create the plugin data directory
-	dataDir = filepath.Join(dataDir, ticketvote.ID)
+	dataDir = filepath.Join(dataDir, ticketvote.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err

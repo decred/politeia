@@ -10,6 +10,7 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/comments/v1"
 
+	// Routes
 	RouteNew        = "/new"
 	RouteVote       = "/vote"
 	RouteDel        = "/del"
@@ -17,6 +18,10 @@ const (
 	RouteComments   = "/comments"
 	RouteVotes      = "/votes"
 	RouteTimestamps = "/timestamps"
+
+	// Record states
+	RecordStateUnvetted = "unvetted"
+	RecordStateVetted   = "vetted"
 )
 
 // ErrorCodeT represents a user error code.
@@ -26,17 +31,18 @@ const (
 	// Error codes
 	ErrorCodeInvalid      ErrorCodeT = 0
 	ErrorCodeInputInvalid ErrorCodeT = iota
-	ErrorStatusPublicKeyInvalid
-	ErrorStatusSignatureInvalid
+	ErrorCodePublicKeyInvalid
+	ErrorCodeSignatureInvalid
+	ErrorCodeRecordStateInvalid
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:            "error invalid",
-		ErrorCodeInputInvalid:       "input invalid",
-		ErrorStatusPublicKeyInvalid: "public key invalid",
-		ErrorStatusSignatureInvalid: "signature invalid",
+		ErrorCodeInvalid:          "error invalid",
+		ErrorCodeInputInvalid:     "input invalid",
+		ErrorCodePublicKeyInvalid: "public key invalid",
+		ErrorCodeSignatureInvalid: "signature invalid",
 	}
 )
 
@@ -78,21 +84,6 @@ type ServerErrorReply struct {
 func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
-
-// RecordStateT represents a record state.
-type RecordStateT int
-
-const (
-	// RecordStateInvalid indicates an invalid record state.
-	RecordStateInvalid RecordStateT = 0
-
-	// RecordStateUnvetted indicates a record has not been made public
-	// yet.
-	RecordStateUnvetted RecordStateT = 1
-
-	// RecordStateVetted indicates a record has been made public.
-	RecordStateVetted RecordStateT = 2
-)
 
 // Comment represent a record comment.
 //
@@ -141,12 +132,12 @@ type CommentVote struct {
 //
 // Signature is the client signature of Token+ParentID+Comment.
 type New struct {
-	State     RecordStateT `json:"state"`
-	Token     string       `json:"token"`
-	ParentID  uint32       `json:"parentid"`
-	Comment   string       `json:"comment"`
-	PublicKey string       `json:"publickey"`
-	Signature string       `json:"signature"`
+	State     string `json:"state"`
+	Token     string `json:"token"`
+	ParentID  uint32 `json:"parentid"`
+	Comment   string `json:"comment"`
+	PublicKey string `json:"publickey"`
+	Signature string `json:"signature"`
 
 	// Optional fields to be used freely
 	ExtraData     string `json:"extradata,omitempty"`
@@ -181,12 +172,12 @@ const (
 //
 // Signature is the client signature of the Token+CommentID+Vote.
 type Vote struct {
-	State     RecordStateT `json:"state"`
-	Token     string       `json:"token"`
-	CommentID uint32       `json:"commentid"`
-	Vote      VoteT        `json:"vote"`
-	PublicKey string       `json:"publickey"`
-	Signature string       `json:"signature"`
+	State     string `json:"state"`
+	Token     string `json:"token"`
+	CommentID uint32 `json:"commentid"`
+	Vote      VoteT  `json:"vote"`
+	PublicKey string `json:"publickey"`
+	Signature string `json:"signature"`
 }
 
 // VoteReply is the reply to the Vote command.
@@ -202,12 +193,12 @@ type VoteReply struct {
 //
 // Signature is the client signature of the Token+CommentID+Reason
 type Del struct {
-	State     RecordStateT `json:"state"`
-	Token     string       `json:"token"`
-	CommentID uint32       `json:"commentid"`
-	Reason    string       `json:"reason"`
-	PublicKey string       `json:"publickey"`
-	Signature string       `json:"signature"`
+	State     string `json:"state"`
+	Token     string `json:"token"`
+	CommentID uint32 `json:"commentid"`
+	Reason    string `json:"reason"`
+	PublicKey string `json:"publickey"`
+	Signature string `json:"signature"`
 }
 
 // DelReply is the reply to the Del command.
@@ -219,8 +210,8 @@ type DelReply struct {
 // records. If a record is not found for a token then it will not be included
 // in the reply.
 type Count struct {
-	State  RecordStateT `json:"state"`
-	Tokens []string     `json:"tokens"`
+	State  string   `json:"state"`
+	Tokens []string `json:"tokens"`
 }
 
 // CountReply is the reply to the count command.
@@ -230,8 +221,8 @@ type CountReply struct {
 
 // Comments requests a record's comments.
 type Comments struct {
-	State RecordStateT `json:"state"`
-	Token string       `json:"token"`
+	State string `json:"state"`
+	Token string `json:"token"`
 }
 
 // CommentsReply is the reply to the comments command.
@@ -241,8 +232,8 @@ type CommentsReply struct {
 
 // Votes returns the comment votes that meet the provided filtering criteria.
 type Votes struct {
-	State  RecordStateT `json:"state"`
-	UserID string       `json:"userid"`
+	State  string `json:"state"`
+	UserID string `json:"userid"`
 }
 
 // VotesReply is the reply to the Votes command.
@@ -282,9 +273,9 @@ type Timestamp struct {
 // comment IDs are provided then the timestamps for all comments will be
 // returned.
 type Timestamps struct {
-	State      RecordStateT `json:"state"`
-	Token      string       `json:"token"`
-	CommentIDs []uint32     `json:"commentids,omitempty"`
+	State      string   `json:"state"`
+	Token      string   `json:"token"`
+	CommentIDs []uint32 `json:"commentids,omitempty"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.

@@ -36,6 +36,7 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -132,15 +133,15 @@ func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
 		// politeiad API
 		e := pd.ErrorStatusT(errCode)
 		return convertWWWErrorStatusFromPD(e)
-	case piplugin.ID:
+	case piplugin.PluginID:
 		// Pi plugin
 		e := piplugin.ErrorCodeT(errCode)
 		return convertWWWErrorStatusFromPiPlugin(e)
-	case comments.ID:
+	case comments.PluginID:
 		// Comments plugin
 		e := comments.ErrorCodeT(errCode)
 		return convertWWWErrorStatusFromComments(e)
-	case ticketvote.ID:
+	case ticketvote.PluginID:
 		// Ticket vote plugin
 		e := ticketvote.ErrorCodeT(errCode)
 		return convertWWWErrorStatusFromTicketVote(e)
@@ -237,11 +238,11 @@ func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
 		// politeiad API
 		e := pd.ErrorStatusT(errCode)
 		return convertPiErrorStatusFromPD(e)
-	case piplugin.ID:
+	case piplugin.PluginID:
 		// Pi plugin
 		e := piplugin.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromPiPlugin(e)
-	case ticketvote.ID:
+	case ticketvote.PluginID:
 		// Ticket vote plugin
 		e := ticketvote.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromTicketVote(e)
@@ -302,11 +303,11 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 		// Error is a pi user error. Log it and return a 400.
 		if len(ue.ErrorContext) == 0 {
 			log.Infof("Pi user error: %v %v %v",
-				remoteAddr(r), int64(ue.ErrorCode),
+				util.RemoteAddr(r), int64(ue.ErrorCode),
 				pi.ErrorStatus[ue.ErrorCode])
 		} else {
 			log.Errorf("Pi user error: %v %v %v: %v",
-				remoteAddr(r), int64(ue.ErrorCode),
+				util.RemoteAddr(r), int64(ue.ErrorCode),
 				pi.ErrorStatus[ue.ErrorCode], ue.ErrorContext)
 		}
 
@@ -335,11 +336,11 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 			t := time.Now().Unix()
 			if pluginID == "" {
 				log.Errorf("%v %v %v %v Internal error %v: error "+
-					"code from politeiad: %v", remoteAddr(r), r.Method,
+					"code from politeiad: %v", util.RemoteAddr(r), r.Method,
 					r.URL, r.Proto, t, errCode)
 			} else {
 				log.Errorf("%v %v %v %v Internal error %v: error "+
-					"code from politeiad plugin %v: %v %v", remoteAddr(r),
+					"code from politeiad plugin %v: %v %v", util.RemoteAddr(r),
 					r.Method, r.URL, r.Proto, t, pluginID, errCode, errContext)
 			}
 
@@ -354,11 +355,11 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 		// return a 400.
 		if len(errContext) == 0 {
 			log.Infof("Pi user error: %v %v %v",
-				remoteAddr(r), int64(piErrCode),
+				util.RemoteAddr(r), int64(piErrCode),
 				pi.ErrorStatus[piErrCode])
 		} else {
 			log.Infof("Pi user error: %v %v %v: %v",
-				remoteAddr(r), int64(piErrCode),
+				util.RemoteAddr(r), int64(piErrCode),
 				pi.ErrorStatus[piErrCode],
 				strings.Join(errContext, ", "))
 		}
@@ -376,7 +377,7 @@ func respondWithPiError(w http.ResponseWriter, r *http.Request, format string, e
 	t := time.Now().Unix()
 	e := fmt.Sprintf(format, err)
 	log.Errorf("%v %v %v %v Internal error %v: %v",
-		remoteAddr(r), r.Method, r.URL, r.Proto, t, e)
+		util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
@@ -421,11 +422,11 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 		if len(userErr.ErrorContext) == 0 {
 			log.Infof("WWW user error: %v %v %v",
-				remoteAddr(r), int64(userErr.ErrorCode),
+				util.RemoteAddr(r), int64(userErr.ErrorCode),
 				userErrorStatus(userErr.ErrorCode))
 		} else {
 			log.Infof("WWW user error: %v %v %v: %v",
-				remoteAddr(r), int64(userErr.ErrorCode),
+				util.RemoteAddr(r), int64(userErr.ErrorCode),
 				userErrorStatus(userErr.ErrorCode),
 				strings.Join(userErr.ErrorContext, ", "))
 		}
@@ -454,11 +455,11 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 			t := time.Now().Unix()
 			if pluginID == "" {
 				log.Errorf("%v %v %v %v Internal error %v: error "+
-					"code from politeiad: %v", remoteAddr(r), r.Method,
+					"code from politeiad: %v", util.RemoteAddr(r), r.Method,
 					r.URL, r.Proto, t, errCode)
 			} else {
 				log.Errorf("%v %v %v %v Internal error %v: error "+
-					"code from politeiad plugin %v: %v", remoteAddr(r),
+					"code from politeiad plugin %v: %v", util.RemoteAddr(r),
 					r.Method, r.URL, r.Proto, t, pluginID, errCode)
 			}
 
@@ -473,11 +474,11 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		// and return a 400.
 		if len(errContext) == 0 {
 			log.Infof("WWW user error: %v %v %v",
-				remoteAddr(r), int64(wwwErrCode),
+				util.RemoteAddr(r), int64(wwwErrCode),
 				userErrorStatus(wwwErrCode))
 		} else {
 			log.Infof("WWW user error: %v %v %v: %v",
-				remoteAddr(r), int64(wwwErrCode),
+				util.RemoteAddr(r), int64(wwwErrCode),
 				userErrorStatus(wwwErrCode),
 				strings.Join(errContext, ", "))
 		}
@@ -492,7 +493,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 	// Error is a politeiawww server error. Log it and return a 500.
 	t := time.Now().Unix()
-	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
+	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", util.RemoteAddr(r),
 		r.Method, r.URL, r.Proto, t)
 	log.Errorf(ec+format, args...)
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
@@ -957,12 +958,12 @@ func _main() error {
 
 	// Perform application specific setup
 	switch p.cfg.Mode {
-	case politeiaWWWMode:
+	case config.PoliteiaWWWMode:
 		err = p.setupPi()
 		if err != nil {
 			return fmt.Errorf("setupPi: %v", err)
 		}
-	case cmsWWWMode:
+	case config.CMSWWWMode:
 		err = p.setupCMS()
 		if err != nil {
 			return fmt.Errorf("setupCMS: %v", err)
@@ -1030,9 +1031,9 @@ done:
 
 	// Perform application specific shutdown
 	switch p.cfg.Mode {
-	case politeiaWWWMode:
+	case config.PoliteiaWWWMode:
 		// Nothing to do
-	case cmsWWWMode:
+	case config.CMSWWWMode:
 		p.wsDcrdata.Close()
 	}
 
