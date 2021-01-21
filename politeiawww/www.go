@@ -37,6 +37,7 @@ import (
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -930,18 +931,18 @@ func _main() error {
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:          loadedCfg,
-		params:       activeNetParams.Params,
-		router:       router,
-		auth:         auth,
-		politeiad:    pdc,
-		client:       client,
-		smtp:         smtp,
-		db:           userDB,
-		sessions:     sessions.New(userDB, cookieKey),
-		eventManager: newEventManager(),
-		ws:           make(map[string]map[string]*wsContext),
-		userEmails:   make(map[string]uuid.UUID),
+		cfg:        loadedCfg,
+		params:     activeNetParams.Params,
+		router:     router,
+		auth:       auth,
+		politeiad:  pdc,
+		client:     client,
+		smtp:       smtp,
+		db:         userDB,
+		sessions:   sessions.New(userDB, cookieKey),
+		events:     events.NewManager(),
+		ws:         make(map[string]map[string]*wsContext),
+		userEmails: make(map[string]uuid.UUID),
 	}
 
 	// Setup politeiad plugins

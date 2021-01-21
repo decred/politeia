@@ -1042,7 +1042,7 @@ func (p *politeiawww) processProposalNew(ctx context.Context, pn piv1.ProposalNe
 	}
 
 	// Emit a new proposal event
-	p.eventManager.emit(eventProposalSubmitted,
+	p.events.Emit(eventProposalSubmitted,
 		dataProposalSubmitted{
 			token:    cr.Token,
 			name:     pm.Name,
@@ -1221,7 +1221,7 @@ func (p *politeiawww) processProposalEdit(ctx context.Context, pe piv1.ProposalE
 	}
 
 	// Emit an edit proposal event
-	p.eventManager.emit(eventProposalEdited, dataProposalEdited{
+	p.events.Emit(eventProposalEdited, dataProposalEdited{
 		userID:   usr.ID.String(),
 		username: usr.Username,
 		token:    pe.Token,
@@ -1359,7 +1359,7 @@ func (p *politeiawww) processProposalSetStatus(ctx context.Context, pss piv1.Pro
 	}
 
 	// Emit status change event
-	p.eventManager.emit(eventProposalStatusChange,
+	p.events.Emit(eventProposalStatusChange,
 		dataProposalStatusChange{
 			token:   pss.Token,
 			state:   state,

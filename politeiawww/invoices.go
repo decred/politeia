@@ -1337,7 +1337,7 @@ func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetIn
 		}
 
 		// Emit event notification for invoice status update
-		p.eventManager.emit(eventInvoiceStatusUpdate,
+		p.events.Emit(eventInvoiceStatusUpdate,
 			dataInvoiceStatusUpdate{
 				token: dbInvoice.Token,
 				email: invoiceUser.Email,
@@ -2025,7 +2025,7 @@ func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewCo
 				ir.Username, err)
 		}
 		// Emit event notification for a invoice comment
-		p.eventManager.emit(eventInvoiceComment,
+		p.events.Emit(eventInvoiceComment,
 			dataInvoiceComment{
 				token: nc.Token,
 				email: invoiceUser.Email,

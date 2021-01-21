@@ -7,6 +7,7 @@ package comments
 import (
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 )
@@ -17,7 +18,7 @@ type Comments struct {
 	politeiad *pdclient.Client
 	userdb    user.Database
 	sessions  sessions.Sessions
-	// events    *events.Manager
+	events    *events.Manager
 }
 
 // New returns a new Comments context.

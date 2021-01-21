@@ -577,7 +577,7 @@ func (p *politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.
 	}
 
 	// Emit event notification for new DCC being submitted
-	p.eventManager.emit(eventDCCNew,
+	p.events.Emit(eventDCCNew,
 		dataDCCNew{
 			token: pdReply.CensorshipRecord.Token,
 		})
@@ -1016,7 +1016,7 @@ func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.Suppor
 	}
 
 	// Emit event notification for a DCC being supported/opposed
-	p.eventManager.emit(eventDCCSupportOppose,
+	p.events.Emit(eventDCCSupportOppose,
 		dataDCCSupportOppose{
 			token: sd.Token,
 		})

@@ -13,61 +13,6 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-func convertComment(c comments.Comment) cmv1.Comment {
-	// Fields that are intentionally omitted are not stored in
-	// politeiad. They need to be pulled from the userdb.
-	return cmv1.Comment{
-		UserID:        c.UserID,
-		Username:      "", // Intentionally omitted
-		Token:         c.Token,
-		ParentID:      c.ParentID,
-		Comment:       c.Comment,
-		PublicKey:     c.PublicKey,
-		Signature:     c.Signature,
-		CommentID:     c.CommentID,
-		Timestamp:     c.Timestamp,
-		Receipt:       c.Receipt,
-		Downvotes:     c.Downvotes,
-		Upvotes:       c.Upvotes,
-		Deleted:       c.Deleted,
-		Reason:        c.Reason,
-		ExtraData:     c.ExtraData,
-		ExtraDataHint: c.ExtraDataHint,
-	}
-}
-
-func convertVote(v cmv1.VoteT) comments.VoteT {
-	switch v {
-	case cmv1.VoteDownvote:
-		return comments.VoteUpvote
-	case cmv1.VoteUpvote:
-		return comments.VoteDownvote
-	}
-	return comments.VoteInvalid
-}
-
-// commentPopulateUserData populates the comment with user data that is not
-// stored in politeiad.
-func commentPopulateUser(c cmv1.Comment, u user.User) cmv1.Comment {
-	c.Username = u.Username
-	return c
-}
-
-// This function is a temporary function that will be removed once user plugins
-// have been implemented.
-func (c *Comments) paywallIsEnabled() bool {
-	return c.cfg.PaywallAmount != 0 && c.cfg.PaywallXpub != ""
-}
-
-// This function is a temporary function that will be removed once user plugins
-// have been implemented.
-func (c *Comments) userHasPaid(u user.User) bool {
-	if !c.paywallIsEnabled() {
-		return true
-	}
-	return u.NewUserPaywallTx != ""
-}
-
 func (c *Comments) processNew(ctx context.Context, n cmv1.New, u user.User) (*cmv1.NewReply, error) {
 	log.Tracef("processNew: %v %v %v", n.Token, n.ParentID, u.Username)
 
@@ -125,18 +70,15 @@ func (c *Comments) processNew(ctx context.Context, n cmv1.New, u user.User) (*cm
 	cm := convertComment(cnr.Comment)
 	cm = commentPopulateUser(cm, u)
 
-	/*
-		// TODO
-		// Emit event
-		c.eventManager.emit(eventProposalComment,
-			dataProposalComment{
-				state:     c.State,
-				token:     c.Token,
-				commentID: c.CommentID,
-				parentID:  c.ParentID,
-				username:  c.Username,
-			})
-	*/
+	// Emit event
+	c.events.Emit(EventNew,
+		EventDataNew{
+			State:     n.State,
+			Token:     cm.Token,
+			CommentID: cm.CommentID,
+			ParentID:  cm.ParentID,
+			Username:  cm.Username,
+		})
 
 	return &cmv1.NewReply{
 		Comment: cm,
@@ -194,4 +136,59 @@ func (c *Comments) processVote(ctx context.Context, v cmv1.Vote, u user.User) (*
 		Timestamp: vr.Timestamp,
 		Receipt:   vr.Receipt,
 	}, nil
+}
+
+func convertComment(c comments.Comment) cmv1.Comment {
+	// Fields that are intentionally omitted are not stored in
+	// politeiad. They need to be pulled from the userdb.
+	return cmv1.Comment{
+		UserID:        c.UserID,
+		Username:      "", // Intentionally omitted
+		Token:         c.Token,
+		ParentID:      c.ParentID,
+		Comment:       c.Comment,
+		PublicKey:     c.PublicKey,
+		Signature:     c.Signature,
+		CommentID:     c.CommentID,
+		Timestamp:     c.Timestamp,
+		Receipt:       c.Receipt,
+		Downvotes:     c.Downvotes,
+		Upvotes:       c.Upvotes,
+		Deleted:       c.Deleted,
+		Reason:        c.Reason,
+		ExtraData:     c.ExtraData,
+		ExtraDataHint: c.ExtraDataHint,
+	}
+}
+
+func convertVote(v cmv1.VoteT) comments.VoteT {
+	switch v {
+	case cmv1.VoteDownvote:
+		return comments.VoteUpvote
+	case cmv1.VoteUpvote:
+		return comments.VoteDownvote
+	}
+	return comments.VoteInvalid
+}
+
+// commentPopulateUserData populates the comment with user data that is not
+// stored in politeiad.
+func commentPopulateUser(c cmv1.Comment, u user.User) cmv1.Comment {
+	c.Username = u.Username
+	return c
+}
+
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (c *Comments) paywallIsEnabled() bool {
+	return c.cfg.PaywallAmount != 0 && c.cfg.PaywallXpub != ""
+}
+
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (c *Comments) userHasPaid(u user.User) bool {
+	if !c.paywallIsEnabled() {
+		return true
+	}
+	return u.NewUserPaywallTx != ""
 }

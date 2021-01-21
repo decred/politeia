@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
@@ -17,71 +16,21 @@ import (
 	"github.com/google/uuid"
 )
 
-type eventT int
-
 const (
-	// Event types
-	eventTypeInvalid eventT = iota
-
 	// Pi events
-	eventProposalSubmitted
-	eventProposalEdited
-	eventProposalStatusChange
-	eventProposalComment
-	eventProposalVoteAuthorized
-	eventProposalVoteStarted
+	eventProposalSubmitted      = "eventProposalSubmitted"
+	eventProposalEdited         = "eventProposalEdited"
+	eventProposalStatusChange   = "eventProposalStatusChange"
+	eventProposalComment        = "eventProposalComment"
+	eventProposalVoteAuthorized = "eventProposalVoteAuthorized"
+	eventProposalVoteStarted    = "eventProposalVoteStarted"
 
 	// CMS events
-	eventInvoiceComment
-	eventInvoiceStatusUpdate
-	eventDCCNew
-	eventDCCSupportOppose
+	eventInvoiceComment      = "eventInvoiceComment"
+	eventInvoiceStatusUpdate = "eventInvoiceStatusUpdate"
+	eventDCCNew              = "eventDCCNew"
+	eventDCCSupportOppose    = "eventDCCSupportOppose"
 )
-
-// eventManager manages event listeners for different event types.
-type eventManager struct {
-	sync.Mutex
-	listeners map[eventT][]chan interface{}
-}
-
-// register registers an event listener (channel) to listen for the provided
-// event type.
-func (e *eventManager) register(event eventT, listener chan interface{}) {
-	e.Lock()
-	defer e.Unlock()
-
-	l, ok := e.listeners[event]
-	if !ok {
-		l = make([]chan interface{}, 0)
-	}
-
-	l = append(l, listener)
-	e.listeners[event] = l
-}
-
-// emit emits an event by passing it to all channels that have been registered
-// to listen for the event.
-func (e *eventManager) emit(event eventT, data interface{}) {
-	e.Lock()
-	defer e.Unlock()
-
-	listeners, ok := e.listeners[event]
-	if !ok {
-		log.Errorf("fire: unregistered event %v", event)
-		return
-	}
-
-	for _, ch := range listeners {
-		ch <- data
-	}
-}
-
-// newEventManager returns a new eventManager context.
-func newEventManager() *eventManager {
-	return &eventManager{
-		listeners: make(map[eventT][]chan interface{}),
-	}
-}
 
 func (p *politeiawww) setupEventListenersPi() {
 	// Setup process for each event:
@@ -91,54 +40,54 @@ func (p *politeiawww) setupEventListenersPi() {
 
 	// Setup proposal submitted event
 	ch := make(chan interface{})
-	p.eventManager.register(eventProposalSubmitted, ch)
+	p.events.Register(eventProposalSubmitted, ch)
 	go p.handleEventProposalSubmitted(ch)
 
 	// Setup proposal edit event
 	ch = make(chan interface{})
-	p.eventManager.register(eventProposalEdited, ch)
+	p.events.Register(eventProposalEdited, ch)
 	go p.handleEventProposalEdited(ch)
 
 	// Setup proposal status change event
 	ch = make(chan interface{})
-	p.eventManager.register(eventProposalStatusChange, ch)
+	p.events.Register(eventProposalStatusChange, ch)
 	go p.handleEventProposalStatusChange(ch)
 
 	// Setup proposal comment event
 	ch = make(chan interface{})
-	p.eventManager.register(eventProposalComment, ch)
+	p.events.Register(eventProposalComment, ch)
 	go p.handleEventProposalComment(ch)
 
 	// Setup proposal vote authorized event
 	ch = make(chan interface{})
-	p.eventManager.register(eventProposalVoteAuthorized, ch)
+	p.events.Register(eventProposalVoteAuthorized, ch)
 	go p.handleEventProposalVoteAuthorized(ch)
 
 	// Setup proposal vote started event
 	ch = make(chan interface{})
-	p.eventManager.register(eventProposalVoteStarted, ch)
+	p.events.Register(eventProposalVoteStarted, ch)
 	go p.handleEventProposalVoteStarted(ch)
 }
 
 func (p *politeiawww) setupEventListenersCMS() {
 	// Setup invoice comment event
 	ch := make(chan interface{})
-	p.eventManager.register(eventInvoiceComment, ch)
+	p.events.Register(eventInvoiceComment, ch)
 	go p.handleEventInvoiceComment(ch)
 
 	// Setup invoice status update event
 	ch = make(chan interface{})
-	p.eventManager.register(eventInvoiceStatusUpdate, ch)
+	p.events.Register(eventInvoiceStatusUpdate, ch)
 	go p.handleEventInvoiceStatusUpdate(ch)
 
 	// Setup DCC new update event
 	ch = make(chan interface{})
-	p.eventManager.register(eventDCCNew, ch)
+	p.events.Register(eventDCCNew, ch)
 	go p.handleEventDCCNew(ch)
 
 	// Setup DCC support/oppose event
 	ch = make(chan interface{})
-	p.eventManager.register(eventDCCSupportOppose, ch)
+	p.events.Register(eventDCCSupportOppose, ch)
 	go p.handleEventDCCSupportOppose(ch)
 }
 
