@@ -254,7 +254,11 @@ func (c *Comments) processComments(ctx context.Context, cs cmv1.Comments, u *use
 func (c *Comments) processVotes(ctx context.Context, v cmv1.Votes) (*cmv1.VotesReply, error) {
 	log.Tracef("processVotes: %v %v", v.Token, v.UserID)
 
-	votes, err := c.politeiad.CommentVotes(ctx, v.State, v.Token, v.UserID)
+	// Get comment votes
+	cm := comments.Votes{
+		UserID: v.UserID,
+	}
+	votes, err := c.politeiad.CommentVotes(ctx, v.State, v.Token, cm)
 	if err != nil {
 		return nil, err
 	}
@@ -262,6 +266,44 @@ func (c *Comments) processVotes(ctx context.Context, v cmv1.Votes) (*cmv1.VotesR
 	return &cmv1.VotesReply{
 		Votes: convertCommentVotes(votes),
 	}, nil
+}
+
+func (c *Comments) processTimestamps(ctx context.Context, t cmv1.Timestamps, isAdmin bool) (*cmv1.TimestampsReply, error) {
+	log.Tracef("processTimestamps: %v %v", t.Token, t.CommentIDs)
+
+	// Get timestamps
+	ct := comments.Timestamps{
+		CommentIDs: t.CommentIDs,
+	}
+	ctr, err := c.politeiad.CommentTimestamps(ctx, t.State, t.Token, ct)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare reply
+	comments := make(map[uint32][]cmv1.Timestamp, len(ctr.Comments))
+	for commentID, timestamps := range ctr.Comments {
+		ts := make([]cmv1.Timestamp, 0, len(timestamps))
+		for _, v := range timestamps {
+			// Strip unvetted data blobs if the user is not an admin
+			if t.State == cmv1.RecordStateUnvetted && !isAdmin {
+				v.Data = ""
+			}
+			ts = append(ts, convertTimestamp(v))
+		}
+		comments[commentID] = ts
+	}
+
+	return &cmv1.TimestampsReply{
+		Comments: comments,
+	}, nil
+}
+
+// commentPopulateUserData populates the comment with user data that is not
+// stored in politeiad.
+func commentPopulateUser(c cmv1.Comment, u user.User) cmv1.Comment {
+	c.Username = u.Username
+	return c
 }
 
 func convertComment(c comments.Comment) cmv1.Comment {
@@ -304,11 +346,28 @@ func convertCommentVotes(cv []comments.CommentVote) []cmv1.CommentVote {
 	return c
 }
 
-// commentPopulateUserData populates the comment with user data that is not
-// stored in politeiad.
-func commentPopulateUser(c cmv1.Comment, u user.User) cmv1.Comment {
-	c.Username = u.Username
-	return c
+func convertProof(p comments.Proof) cmv1.Proof {
+	return cmv1.Proof{
+		Type:       p.Type,
+		Digest:     p.Digest,
+		MerkleRoot: p.MerkleRoot,
+		MerklePath: p.MerklePath,
+		ExtraData:  p.ExtraData,
+	}
+}
+
+func convertTimestamp(t comments.Timestamp) cmv1.Timestamp {
+	proofs := make([]cmv1.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, convertProof(v))
+	}
+	return cmv1.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}
 }
 
 // This function is a temporary function that will be removed once user plugins

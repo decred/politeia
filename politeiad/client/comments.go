@@ -215,12 +215,9 @@ func (c *Client) CommentGetAll(ctx context.Context, state, token string) ([]comm
 
 // CommentVotes sends the comments plugin Votes command to the politeiad v1
 // API.
-func (c *Client) CommentVotes(ctx context.Context, state, token, userID string) ([]comments.CommentVote, error) {
+func (c *Client) CommentVotes(ctx context.Context, state, token string, v comments.Votes) ([]comments.CommentVote, error) {
 	// Setup request
-	cm := comments.Votes{
-		UserID: userID,
-	}
-	b, err := json.Marshal(cm)
+	b, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
@@ -255,4 +252,45 @@ func (c *Client) CommentVotes(ctx context.Context, state, token, userID string) 
 	}
 
 	return vr.Votes, nil
+}
+
+// CommentTimestamps sends the comments plugin Timestamps command to the
+// politeiad v1 API.
+func (c *Client) CommentTimestamps(ctx context.Context, state, token string, t comments.Timestamps) (*comments.TimestampsReply, error) {
+	// Setup request
+	b, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+	cmds := []pdv1.PluginCommandV2{
+		{
+			State:   state,
+			Token:   token,
+			ID:      comments.PluginID,
+			Command: comments.CmdTimestamps,
+			Payload: string(b),
+		},
+	}
+
+	// Send request
+	replies, err := c.PluginCommandBatch(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	if pcr.Error != nil {
+		return nil, pcr.Error
+	}
+
+	// Decode reply
+	var tr comments.TimestampsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &tr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tr, nil
 }

@@ -25,7 +25,8 @@ type Client struct {
 }
 
 // ErrorReply represents the request body that is returned from politeaid when
-// an error occurs. PluginID will only be populated if this is a plugin error.
+// an error occurs. PluginID will only be populated if the error occured during
+// execution of a plugin command.
 type ErrorReply struct {
 	PluginID     string
 	ErrorCode    int
@@ -33,7 +34,7 @@ type ErrorReply struct {
 }
 
 // Error represents a politeiad error. Error is returned anytime the politeiad
-// is not a 200.
+// response is not a 200.
 type Error struct {
 	HTTPCode   int
 	ErrorReply ErrorReply

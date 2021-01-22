@@ -200,6 +200,41 @@ func (c *Comments) HandleVotes(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
+// HandleTimestamps is the request handler for the comments v1 Timestamps
+// route.
+func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleTimestamps")
+
+	var t cmv1.Timestamps
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		respondWithError(w, r, "HandleTimestamps: unmarshal",
+			cmv1.UserErrorReply{
+				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
+	u, err := c.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
+		respondWithError(w, r,
+			"HandleTimestamps: GetSessionUser: %v", err)
+		return
+	}
+
+	isAdmin := u != nil && u.Admin
+	tr, err := c.processTimestamps(r.Context(), t, isAdmin)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleTimestamps: processTimestamps: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, tr)
+}
+
 // New returns a new Comments context.
 func New(cfg *config.Config, politeiad *pdclient.Client, userdb user.Database) *Comments {
 	return &Comments{
