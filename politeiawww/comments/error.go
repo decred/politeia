@@ -5,7 +5,6 @@
 package comments
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,66 +16,6 @@ import (
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/util"
 )
-
-func (c *Comments) HandleNew(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleNew")
-
-	var n cmv1.New
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&n); err != nil {
-		respondWithError(w, r, "handleNew: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
-			})
-		return
-	}
-
-	usr, err := c.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithError(w, r,
-			"handleNew: GetSessionUser: %v", err)
-		return
-	}
-
-	nr, err := c.processNew(r.Context(), n, *usr)
-	if err != nil {
-		respondWithError(w, r,
-			"handleNew: processNew: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, nr)
-}
-
-func (c *Comments) HandleVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleVote")
-
-	var v cmv1.Vote
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&v); err != nil {
-		respondWithError(w, r, "handleVote: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
-			})
-		return
-	}
-
-	usr, err := c.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithError(w, r,
-			"handleVote: GetSessionUser: %v", err)
-		return
-	}
-
-	vr, err := c.processVote(r.Context(), v, *usr)
-	if err != nil {
-		respondWithError(w, r,
-			"handleVote: processVote: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vr)
-}
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	var (

@@ -208,7 +208,7 @@ type DelReply struct {
 
 // Count requests the number of comments on that have been made on the given
 // records. If a record is not found for a token then it will not be included
-// in the reply.
+// in the returned map.
 type Count struct {
 	State  string   `json:"state"`
 	Tokens []string `json:"tokens"`
@@ -216,7 +216,7 @@ type Count struct {
 
 // CountReply is the reply to the count command.
 type CountReply struct {
-	Count map[string]uint32 `json:"count"`
+	Counts map[string]uint32 `json:"counts"`
 }
 
 // Comments requests a record's comments.
@@ -233,6 +233,7 @@ type CommentsReply struct {
 // Votes returns the comment votes that meet the provided filtering criteria.
 type Votes struct {
 	State  string `json:"state"`
+	Token  string `json:"token"`
 	UserID string `json:"userid"`
 }
 

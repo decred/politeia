@@ -5,13 +5,13 @@
 package comments
 
 const (
-	// EventNew is the event that is emitted when a new comment is
+	// EventTypeNew is the event that is emitted when a new comment is
 	// made.
-	EventNew = "commentnew"
+	EventTypeNew = "commentnew"
 )
 
-// EventDataNew is the event data that is emitted when a new comment is made.
-type EventDataNew struct {
+// EventNew is the event data that is emitted when a new comment is made.
+type EventNew struct {
 	State     string
 	Token     string
 	CommentID uint32
