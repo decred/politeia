@@ -295,15 +295,14 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 		t.Fatalf("%v", err)
 	}
 
-	// Add the user to the politeiawww in-memory [email]userID
-	// cache. Since the userID is generated in the database layer
+	// Add the user to the politeiawww userdb lookup table.
+	// Since the userID is generated in the database layer
 	// we need to lookup the user in order to get the userID.
 	usr, err := p.db.UserGetByUsername(u.Username)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	p.setUserEmailsCache(usr.Email, usr.ID)
-
+	p.db.UserSetLookup(usr.Email, usr.ID)
 	// Add paywall info to the user record
 	err = p.GenerateNewUserPaywall(usr)
 	if err != nil {
@@ -359,7 +358,7 @@ func newCMSUser(t *testing.T, p *politeiawww, isAdmin bool, setGithubname bool, 
 	if err != nil {
 		t.Fatalf("error getting user by username %v", err)
 	}
-	p.setUserEmailsCache(usr.Email, usr.ID)
+	p.db.UserSetLookup(usr.Email, usr.ID)
 
 	if isAdmin {
 		usr.Admin = true
@@ -398,7 +397,7 @@ func newCMSUser(t *testing.T, p *politeiawww, isAdmin bool, setGithubname bool, 
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	p.setUserEmailsCache(usr.Email, usr.ID)
+	p.db.UserSetLookup(usr.Email, usr.ID)
 
 	cmsUser, err := p.getCMSUserByIDRaw(usr.ID.String())
 	if err != nil {
@@ -786,7 +785,6 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
 		smtp:            smtp,
 		test:            true,
-		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
 		voteSummaries:   make(map[string]www.VoteSummary),
@@ -894,7 +892,6 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
 		smtp:            smtp,
 		test:            true,
-		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
 		voteSummaries:   make(map[string]www.VoteSummary),

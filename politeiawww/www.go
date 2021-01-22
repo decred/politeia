@@ -334,7 +334,6 @@ func _main() error {
 		templates: make(map[string]*template.Template),
 
 		// XXX reevaluate where this goes
-		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
 		voteSummaries:   make(map[string]www.VoteSummary),

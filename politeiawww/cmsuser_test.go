@@ -169,7 +169,7 @@ func TestInviteNewUser(t *testing.T) {
 				t.Errorf("error inviting user %v %v", v.email, err)
 				return
 			}
-			u, err := p.userByEmail(v.email)
+			u, err := p.db.UserGetByEmail(v.email)
 			if err != nil {
 				t.Errorf("error getting user by email %v %v", v.email, err)
 				return
@@ -266,7 +266,8 @@ func TestRegisterUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting user by username %v", err)
 	}
-	p.setUserEmailsCache(usr.Email, usr.ID)
+	p.db.UserSetLookup(usr.Email, usr.ID)
+
 	var tests = []struct {
 		name      string
 		email     string

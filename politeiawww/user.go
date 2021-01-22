@@ -278,48 +278,12 @@ func newVerificationTokenAndExpiry() ([]byte, int64, error) {
 	return tokenb, expiry, nil
 }
 
-// initUserEmailsCache initializes the userEmails cache by iterating through
+// initUserEmailsCache initializes the user lookup table by iterating through
 // all the users in the database and adding a email-userID mapping for them.
-//
-// This function must be called WITHOUT the lock held.
 func (p *politeiawww) initUserEmailsCache() error {
-	p.Lock()
-	defer p.Unlock()
-
 	return p.db.AllUsers(func(u *user.User) {
-		p.userEmails[u.Email] = u.ID
+		p.db.UserSetLookup(u.Email, u.ID)
 	})
-}
-
-// setUserEmailsCache sets a email-userID mapping in the user emails cache.
-//
-// This function must be called WITHOUT the lock held.
-func (p *politeiawww) setUserEmailsCache(email string, id uuid.UUID) {
-	p.Lock()
-	defer p.Unlock()
-	p.userEmails[email] = id
-}
-
-// userIDByEmail returns a userID given their email address.
-//
-// This function must be called WITHOUT the lock held.
-func (p *politeiawww) userIDByEmail(email string) (uuid.UUID, bool) {
-	p.RLock()
-	defer p.RUnlock()
-	id, ok := p.userEmails[email]
-	return id, ok
-}
-
-// userByEmail returns a User object given their email address.
-//
-// This function must be called WITHOUT the lock held.
-func (p *politeiawww) userByEmail(email string) (*user.User, error) {
-	id, ok := p.userIDByEmail(email)
-	if !ok {
-		log.Debugf("userByEmail: email lookup failed for '%v'", email)
-		return nil, user.ErrUserNotFound
-	}
-	return p.db.UserGetById(id)
 }
 
 // userByIDStr converts the provided userIDStr to a uuid and returns the
@@ -395,7 +359,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 	}
 
 	// Check if user already exists
-	u, err := p.userByEmail(nu.Email)
+	u, err := p.db.UserGetByEmail(nu.Email)
 	switch err {
 	case nil:
 		// User exists
@@ -581,8 +545,8 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		return nil, err
 	}
 
-	// Update memory cache
-	p.setUserEmailsCache(u.Email, u.ID)
+	// Update lookup table
+	p.db.UserSetLookup(u.Email, u.ID)
 
 	log.Infof("New user created: %v", u.Username)
 
@@ -751,7 +715,7 @@ func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.
 // hasn't expired.  On success it returns database user record.
 func (p *politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, error) {
 	// Check that the user already exists.
-	u, err := p.userByEmail(usr.Email)
+	u, err := p.db.UserGetByEmail(usr.Email)
 	if err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("VerifyNewUser failure for %v: user not found",
@@ -846,7 +810,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	rvr := www.ResendVerificationReply{}
 
 	// Get user from db.
-	u, err := p.userByEmail(rv.Email)
+	u, err := p.db.UserGetByEmail(rv.Email)
 	if err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("ResendVerification failure for %v: user not found",
@@ -1100,9 +1064,12 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 
 func (p *politeiawww) login(l www.Login) loginResult {
 	// Get user record
-	u, err := p.userByEmail(l.Email)
+	u, err := p.db.UserGetByEmail(l.Email)
 	if err != nil {
+		fmt.Println("failing here")
+		fmt.Println(u)
 		if errors.Is(err, user.ErrUserNotFound) {
+			fmt.Println("user not found??")
 			log.Debugf("login: user not found for email '%v'",
 				l.Email)
 			err = www.UserError{
@@ -1326,7 +1293,7 @@ func (p *politeiawww) processChangeUsername(email string, cu www.ChangeUsername)
 	var reply www.ChangeUsernameReply
 
 	// Get user from db.
-	u, err := p.userByEmail(email)
+	u, err := p.db.UserGetByEmail(email)
 	if err != nil {
 		return nil, err
 	}
@@ -1378,7 +1345,7 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 	var reply www.ChangePasswordReply
 
 	// Get user from db.
-	u, err := p.userByEmail(email)
+	u, err := p.db.UserGetByEmail(email)
 	if err != nil {
 		return nil, err
 	}
@@ -2026,7 +1993,7 @@ func (p *politeiawww) processUserPaymentsRescan(ctx context.Context, upr www.Use
 	// credits since the start of this request. Failure to relookup the
 	// user record here could result in adding proposal credits to the
 	// user's account that have already been spent.
-	u, err = p.userByEmail(u.Email)
+	u, err = p.db.UserGetByEmail(u.Email)
 	if err != nil {
 		return nil, fmt.Errorf("UserGet %v", err)
 	}

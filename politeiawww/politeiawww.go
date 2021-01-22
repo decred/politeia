@@ -131,7 +131,7 @@ type politeiawww struct {
 
 	// XXX userEmails is a temporary measure until the user by email
 	// lookups are completely removed from politeiawww.
-	userEmails map[string]uuid.UUID // [email]userID
+	// userEmails map[string]uuid.UUID // [email]userID
 
 	// Following entries are use only during cmswww mode
 	cmsDB   cmsdatabase.Database

@@ -460,11 +460,17 @@ type Database interface {
 	// Return user record given its id
 	UserGetById(uuid.UUID) (*User, error)
 
+	// Return user record given its email
+	UserGetByEmail(string) (*User, error)
+
 	// Return user record given a public key
 	UserGetByPubKey(string) (*User, error)
 
 	// Return a map of public key to user record
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
+
+	// Set email/uuid entry for user lookup by email
+	UserSetLookup(string, uuid.UUID) error
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error

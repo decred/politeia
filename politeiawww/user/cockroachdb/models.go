@@ -48,6 +48,17 @@ func (User) TableName() string {
 	return tableUsers
 }
 
+// UserLookup .
+type UserLookup struct {
+	Email string    `gorm:"primary_key"`
+	ID    uuid.UUID `gorm:"not null"`
+}
+
+// TableName returns the table name of the UserLookup table.
+func (UserLookup) TableName() string {
+	return tableUserLookup
+}
+
 // Session represents a user session.
 //
 // Key is a SHA256 hash of the decoded session ID. The session Store handles

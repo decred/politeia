@@ -69,7 +69,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	}
 
 	// Check if the user is already verified.
-	existingUser, err := p.userByEmail(u.Email)
+	existingUser, err := p.db.UserGetByEmail(u.Email)
 	if err == nil {
 		if existingUser.NewUserVerificationToken == nil {
 			return &cms.InviteNewUserReply{}, nil
@@ -151,7 +151,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	if err != nil {
 		return nil, err
 	}
-	p.setUserEmailsCache(usr.Email, usr.ID)
+	p.db.UserSetLookup(usr.Email, usr.ID)
 
 	return &cms.InviteNewUserReply{
 		VerificationToken: hex.EncodeToString(token),
@@ -166,7 +166,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	var reply cms.RegisterUserReply
 
 	// Check that the user already exists.
-	existingUser, err := p.userByEmail(u.Email)
+	existingUser, err := p.db.UserGetByEmail(u.Email)
 	if err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
 			log.Debugf("RegisterUser failure for %v: user not found",
@@ -293,7 +293,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Even if user is non-nil, this will bring it up-to-date
 	// with the new information inserted via newUser.
-	existingUser, err = p.userByEmail(newUser.Email)
+	existingUser, err = p.db.UserGetByEmail(newUser.Email)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve account info for %v: %v",
 			newUser.Email, err)

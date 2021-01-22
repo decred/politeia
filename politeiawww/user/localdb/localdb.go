@@ -309,6 +309,15 @@ func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
+// UserGetByEmail is a stub to satisfy the interface. The lookup function
+// is not needed on leveldb because it already implements UserGet, which
+// fetches user by email.
+//
+// UserGetByEmail satisfies the Database interface.
+func (l *localdb) UserGetByEmail(email string) (*user.User, error) {
+	return nil, nil
+}
+
 // Update existing user.
 //
 // UserUpdate satisfies the Database interface.
@@ -338,9 +347,18 @@ func (l *localdb) UserUpdate(u user.User) error {
 	return l.userdb.Put([]byte(u.Email), payload, nil)
 }
 
-// Update existing user.
+// UserSetLookup is a stub to satisfy the interface. The lookup function
+// is not needed on leveldb because it already implements UserGet, which
+// fetches user by email.
 //
-// UserUpdate satisfies the Database interface.
+// UserSetLoopUp
+func (l *localdb) UserSetLookup(email string, id uuid.UUID) error {
+	return nil
+}
+
+// Get all users from db.
+//
+// AllUsers satisfies the Database interface.
 func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	l.Lock()
 	defer l.Unlock()
@@ -417,18 +435,6 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	l.pluginSettings[p.ID] = p.Settings
 
 	return nil
-}
-
-// Close shuts down the database.  All interface functions MUST return with
-// errShutdown if the backend is shutting down.
-//
-// Close satisfies the Database interface.
-func (l *localdb) Close() error {
-	l.Lock()
-	defer l.Unlock()
-
-	l.shutdown = true
-	return l.userdb.Close()
 }
 
 // SessionSave saves the given session to the database. New sessions are
@@ -544,6 +550,18 @@ func (l *localdb) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []strin
 	iter.Release()
 
 	return l.userdb.Write(batch, nil)
+}
+
+// Close shuts down the database.  All interface functions MUST return with
+// errShutdown if the backend is shutting down.
+//
+// Close satisfies the Database interface.
+func (l *localdb) Close() error {
+	l.Lock()
+	defer l.Unlock()
+
+	l.shutdown = true
+	return l.userdb.Close()
 }
 
 // New creates a new localdb instance.
