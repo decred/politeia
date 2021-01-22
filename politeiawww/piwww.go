@@ -1633,7 +1633,7 @@ func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) 
 	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalNew: getSessionUser: %v", err)
+			"handleProposalNew: GetSessionUser: %v", err)
 		return
 	}
 
@@ -1663,7 +1663,7 @@ func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request)
 	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalEdit: getSessionUser: %v", err)
+			"handleProposalEdit: GetSessionUser: %v", err)
 		return
 	}
 
@@ -1693,7 +1693,7 @@ func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Req
 	usr, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithPiError(w, r,
-			"handleProposalSetStatus: getSessionUser: %v", err)
+			"handleProposalSetStatus: GetSessionUser: %v", err)
 		return
 	}
 
@@ -1725,7 +1725,7 @@ func (p *politeiawww) handleProposals(w http.ResponseWriter, r *http.Request) {
 	usr, err := p.sessions.GetSessionUser(w, r)
 	if err != nil && err != sessions.ErrSessionNotFound {
 		respondWithPiError(w, r,
-			"handleProposals: getSessionUser: %v", err)
+			"handleProposals: GetSessionUser: %v", err)
 		return
 	}
 
@@ -1758,7 +1758,7 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 	usr, err := p.sessions.GetSessionUser(w, r)
 	if err != nil && err != sessions.ErrSessionNotFound {
 		respondWithPiError(w, r,
-			"handleProposalInventory: getSessionUser: %v", err)
+			"handleProposalInventory: GetSessionUser: %v", err)
 		return
 	}
 
@@ -1770,181 +1770,6 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, pir)
-}
-
-func (p *politeiawww) handleVoteAuthorize(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteAuthorize")
-
-	var va piv1.VoteAuthorize
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&va); err != nil {
-		respondWithPiError(w, r, "handleVoteAuthorize: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteAuthorize: getSessionUser: %v", err)
-		return
-	}
-
-	vr, err := p.processVoteAuthorize(r.Context(), va, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteAuthorize: processVoteAuthorize: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vr)
-}
-
-func (p *politeiawww) handleVoteStart(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteStart")
-
-	var vs piv1.VoteStart
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vs); err != nil {
-		respondWithPiError(w, r, "handleVoteStart: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteStart: getSessionUser: %v", err)
-		return
-	}
-
-	vsr, err := p.processVoteStart(r.Context(), vs, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteStart: processVoteStart: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vsr)
-}
-
-func (p *politeiawww) handleCastBallot(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCastBallot")
-
-	var vb piv1.CastBallot
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vb); err != nil {
-		respondWithPiError(w, r, "handleCastBallot: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	vbr, err := p.processCastBallot(r.Context(), vb)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleCastBallot: processCastBallot: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vbr)
-}
-
-func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVotes")
-
-	var v piv1.Votes
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&v); err != nil {
-		respondWithPiError(w, r, "handleVotes: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	vr, err := p.processVotes(r.Context(), v)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVotes: processVotes: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vr)
-}
-
-func (p *politeiawww) handleVoteResultsPi(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteResults")
-
-	var vr piv1.VoteResults
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vr); err != nil {
-		respondWithPiError(w, r, "handleVoteResults: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	vrr, err := p.processVoteResultsPi(r.Context(), vr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteResults: prcoessVoteResults: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vrr)
-}
-
-func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteSummaries")
-
-	var vs piv1.VoteSummaries
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vs); err != nil {
-		respondWithPiError(w, r, "handleVoteSummaries: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	vsr, err := p.processVoteSummaries(r.Context(), vs)
-	if err != nil {
-		respondWithPiError(w, r, "handleVoteSummaries: processVoteSummaries: %v",
-			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vsr)
-}
-
-func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteInventory")
-
-	var vi piv1.VoteInventory
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vi); err != nil {
-		respondWithPiError(w, r, "handleVoteInventory: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	vir, err := p.processVoteInventory(r.Context())
-	if err != nil {
-		respondWithPiError(w, r, "handleVoteInventory: processVoteInventory: %v",
-			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vir)
 }
 
 // setPiRoutes sets the pi API routes.
@@ -2025,28 +1850,30 @@ func (p *politeiawww) setPiRoutes(c *comments.Comments) {
 		cmv1.RouteTimestamps, c.HandleTimestamps,
 		permissionPublic)
 
-	// Pi routes - vote
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVoteAuthorize, p.handleVoteAuthorize,
-		permissionLogin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVoteStart, p.handleVoteStart,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteCastBallot, p.handleCastBallot,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVotes, p.handleVotes,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVoteResults, p.handleVoteResults,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVoteSummaries, p.handleVoteSummaries,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVoteInventory, p.handleVoteInventory,
-		permissionPublic)
+	/*
+		// Voute routes
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteVoteAuthorize, p.handleVoteAuthorize,
+			permissionLogin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteVoteStart, p.handleVoteStart,
+			permissionAdmin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteCastBallot, p.handleCastBallot,
+			permissionPublic)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteVotes, p.handleVotes,
+			permissionPublic)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteVoteResults, p.handleVoteResults,
+			permissionPublic)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteVoteSummaries, p.handleVoteSummaries,
+			permissionPublic)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteVoteInventory, p.handleVoteInventory,
+			permissionPublic)
+	*/
 
 	// Record routes
 	p.addRoute(http.MethodPost, rcv1.APIRoute,

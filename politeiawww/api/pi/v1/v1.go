@@ -8,19 +8,11 @@ import (
 	"fmt"
 )
 
-type VoteStatusT int
-type VoteAuthActionT string
-type VoteT int
-
 // TODO verify that all batched request have a page size limit
-// TODO comments count and linked from should be pulled out of the proposal
-// record struct. These should be separate endpoints:
-// /ticketvote/linkedfrom
-// TODO make RouteVoteResults a batched route but that only currently allows
-// for 1 result to be returned so that we have the option to change this if
-// we want to.
-// TODO pi needs a Version route and a Policy route. The policies should be
-// defined in the plugin packages and returned in the policy route.
+// TODO pi needs a Version route that returns the APIs and versions that pi
+// uses.
+// TODO new APIs need a Policy route. The policies should be defined in the
+// plugin packages as plugin settings and returned in a policy command.
 // TODO module these API packages
 
 const (
@@ -35,56 +27,7 @@ const (
 	RouteProposalInventory = "/proposals/inventory"
 
 	// Vote routes
-	RouteVoteAuthorize = "/vote/authorize"
-	RouteVoteStart     = "/vote/start"
-	RouteCastBallot    = "/vote/castballot"
-	RouteVotes         = "/votes"
-	RouteVoteResults   = "/votes/results"
-	RouteVoteSummaries = "/votes/summaries"
 	RouteVoteInventory = "/votes/inventory"
-
-	// Vote statuses
-	VoteStatusInvalid      VoteStatusT = 0 // Invalid status
-	VoteStatusUnauthorized VoteStatusT = 1 // Vote has not been authorized
-	VoteStatusAuthorized   VoteStatusT = 2 // Vote has been authorized
-	VoteStatusStarted      VoteStatusT = 3 // Vote has been started
-	VoteStatusFinished     VoteStatusT = 4 // Vote has finished
-
-	// Vote authorization actions
-	VoteAuthActionAuthorize VoteAuthActionT = "authorize"
-	VoteAuthActionRevoke    VoteAuthActionT = "revoke"
-
-	// VoteTypeInvalid represents and invalid vote type.
-	VoteTypeInvalid VoteT = 0
-
-	// VoteTypeStandard is used to indicate a simple approve or reject
-	// vote where the winner is the voting option that has met the
-	// specified quorum and pass requirements.
-	VoteTypeStandard VoteT = 1
-
-	// VoteTypeRunoff specifies a runoff vote that multiple proposals
-	// compete in. All proposals are voted on like normal and all votes
-	// are simple approve/reject votes, but there can only be one
-	// winner in a runoff vote. The winner is the proposal that meets
-	// the quorum requirement, meets the pass requirement, and that has
-	// the most net yes votes. The winning proposal is considered
-	// approved and all other proposals are considered to be rejected.
-	// If no proposals meet the quorum and pass requirements then all
-	// proposals are considered rejected. Note, in a runoff vote it is
-	// possible for a proposal to meet both the quorum and pass
-	// requirements but still be rejected if it does not have the most
-	// net yes votes.
-	VoteTypeRunoff VoteT = 2
-
-	// VoteOptionIDApprove is the vote option ID that indicates the
-	// proposal should be approved. Proposal votes are required to use
-	// this vote option ID.
-	VoteOptionIDApprove = "yes"
-
-	// VoteOptionIDReject is the vote option ID that indicates the
-	// proposal should be rejected. Proposal votes are required to use
-	// this vote option ID.
-	VoteOptionIDReject = "no"
 )
 
 // ErrorStatusT represents a user error status code.
@@ -133,16 +76,6 @@ const (
 	ErrorStatusPropStatusChangeInvalid
 	ErrorStatusPropStatusChangeReasonInvalid
 	ErrorStatusNoPropChanges
-
-	// Vote errors
-	ErrorStatusVoteAuthInvalid
-	ErrorStatusVoteStatusInvalid
-	ErrorStatusStartDetailsInvalid
-	ErrorStatusStartDetailsMissing
-	ErrorStatusVoteParamsInvalid
-	ErrorStatusVoteTypeInvalid
-	ErroStatusVoteParentInvalid
-	ErrorStatusLinkByNotExpired
 )
 
 var (
@@ -188,10 +121,6 @@ var (
 		ErrorStatusPropStatusChangeInvalid:       "proposal status change invalid",
 		ErrorStatusPropStatusChangeReasonInvalid: "proposal status reason invalid",
 		ErrorStatusNoPropChanges:                 "no proposal changes",
-
-		// Vote errors
-		ErrorStatusVoteStatusInvalid: "vote status invalid",
-		ErrorStatusVoteParamsInvalid: "vote params invalid",
 	}
 )
 
@@ -296,10 +225,14 @@ type Metadata struct {
 	Payload string `json:"payload"` // JSON metadata content, base64 encoded
 }
 
-// Metadata hints
 const (
-	// HintProposalMetadata is the proposal metadata hint
-	HintProposalMetadata = "proposalmetadata"
+	// HintProposalMetadata is the Metadata object hint that is used
+	// when the payload contains a ProposalMetadata.
+	HintProposalMetadata = "proposalmd"
+
+	// HintVoteMetadata is the Metadata object hint that is used when
+	// the payload contains a VoteMetadata.
+	HintVoteMetadata = "votemd"
 )
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
@@ -308,17 +241,19 @@ type ProposalMetadata struct {
 	Name string `json:"name"` // Proposal name
 }
 
-// VoteMetadata that is specified by the user on proposal submission in order
-// to host or participate in certain types of votes. It is attached to a
-// proposal submission as a Metadata object.
+// VoteMetadata that is specified by the user on proposal submission in order to
+// host or participate in certain types of votes. It is attached to a proposal
+// submission as a Metadata object.
 type VoteMetadata struct {
-	// LinkBy is a UNIX timestamp that serves as a deadline for other
-	// proposals to link to this proposal. Ex, an RFP submission cannot
-	// link to an RFP proposal once the RFP's LinkBy deadline is past.
+	// LinkBy is set when the user intends for the proposal to be the
+	// parent proposal in a runoff vote. It is a UNIX timestamp that
+	// serves as the deadline for other proposals to declare their
+	// intent to participate in the runoff vote.
 	LinkBy int64 `json:"linkby,omitempty"`
 
-	// LinkTo specifies a public proposal token to link this proposal
-	// to. Ex, an RFP submission must link to the RFP proposal.
+	// LinkTo is the censorship token of a runoff vote parent proposal.
+	// It is set when a proposal is being submitted as a vote options
+	// in the runoff vote.
 	LinkTo string `json:"linkto,omitempty"`
 }
 
@@ -473,263 +408,6 @@ type ProposalInventory struct {
 type ProposalInventoryReply struct {
 	Unvetted map[string][]string `json:"unvetted"`
 	Vetted   map[string][]string `json:"vetted"`
-}
-
-// AuthDetails contains the details of a vote authorization.
-type AuthDetails struct {
-	Token     string `json:"token"`     // Proposal token
-	Version   uint32 `json:"version"`   // Proposal version
-	Action    string `json:"action"`    // Authorize or revoke
-	PublicKey string `json:"publickey"` // Public key used for signature
-	Signature string `json:"signature"` // Signature of token+version+action
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server signature of client signature
-}
-
-// VoteOption describes a single vote option.
-type VoteOption struct {
-	ID          string `json:"id"`          // Single, unique word (e.g. yes)
-	Description string `json:"description"` // Longer description of the vote
-	Bit         uint64 `json:"bit"`         // Bit used for this option
-}
-
-// VoteParams contains all client defined vote params required by server to
-// start a proposal vote.
-type VoteParams struct {
-	Token    string `json:"token"`    // Proposal token
-	Version  uint32 `json:"version"`  // Proposal version
-	Type     VoteT  `json:"type"`     // Vote type
-	Mask     uint64 `json:"mask"`     // Valid vote bits
-	Duration uint32 `json:"duration"` // Duration in blocks
-
-	// QuorumPercentage is the percent of elligible votes required for
-	// the vote to meet a quorum.
-	QuorumPercentage uint32 `json:"quorumpercentage"`
-
-	// PassPercentage is the percent of total votes that are required
-	// to consider a vote option as passed.
-	PassPercentage uint32 `json:"passpercentage"`
-
-	Options []VoteOption `json:"options"`
-
-	// Parent is the token of the parent proposal. This field will only
-	// be populated for runoff votes.
-	Parent string `json:"parent,omitempty"`
-}
-
-// VoteDetails contains the details of a proposal vote.
-//
-// Signature is the client signature of the SHA256 digest of the JSON encoded
-// Vote struct.
-type VoteDetails struct {
-	Params           VoteParams `json:"params"`
-	PublicKey        string     `json:"publickey"`
-	Signature        string     `json:"signature"`
-	StartBlockHeight uint32     `json:"startblockheight"`
-	StartBlockHash   string     `json:"startblockhash"`
-	EndBlockHeight   uint32     `json:"endblockheight"`
-	EligibleTickets  []string   `json:"eligibletickets"` // Ticket hashes
-}
-
-// CastVoteDetails contains the details of a cast vote.
-type CastVoteDetails struct {
-	Token     string `json:"token"`     // Proposal token
-	Ticket    string `json:"ticket"`    // Ticket hash
-	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
-	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
-	Receipt   string `json:"receipt"`   // Server signature of client signature
-}
-
-// VoteResult describes a vote option and the total number of votes that have
-// been cast for this option.
-type VoteResult struct {
-	ID          string `json:"id"`          // Single unique word (e.g. yes)
-	Description string `json:"description"` // Longer description of the vote
-	VoteBit     uint64 `json:"votebit"`     // Bits used for this option
-	Votes       uint64 `json:"votes"`       // Votes cast for this option
-}
-
-// VoteSummary summarizes the vote params and results of a proposal vote.
-type VoteSummary struct {
-	Type             VoteT       `json:"type"`
-	Status           VoteStatusT `json:"status"`
-	Duration         uint32      `json:"duration"` // In blocks
-	StartBlockHeight uint32      `json:"startblockheight"`
-	StartBlockHash   string      `json:"startblockhash"`
-	EndBlockHeight   uint32      `json:"endblockheight"`
-
-	// EligibleTickets is the number of tickets that are eligible to
-	// cast a vote.
-	EligibleTickets uint32 `json:"eligibletickets"`
-
-	// QuorumPercentage is the percent of eligible tickets required to
-	// vote in order to have a quorum.
-	QuorumPercentage uint32 `json:"quorumpercentage"`
-
-	// PassPercentage is the percent of total votes required to approve
-	// the vote in order for the vote to pass.
-	PassPercentage uint32 `json:"passpercentage"`
-
-	Results  []VoteResult `json:"results"`
-	Approved bool         `json:"approved"` // Was the vote approved
-}
-
-// VoteAuthorize authorizes a proposal vote or revokes a previous vote
-// authorization.  All proposal votes must be authorized by the proposal author
-// before an admin is able to start the voting process.
-//
-// Signature contains the client signature of the Token+Version+Action.
-type VoteAuthorize struct {
-	Token     string          `json:"token"`
-	Version   uint32          `json:"version"`
-	Action    VoteAuthActionT `json:"action"`
-	PublicKey string          `json:"publickey"`
-	Signature string          `json:"signature"`
-}
-
-// VoteAuthorizeReply is the reply to the VoteAuthorize command.
-//
-// Receipt is the server signature of the client signature. This is proof that
-// the server received and processed the VoteAuthorize command.
-type VoteAuthorizeReply struct {
-	Timestamp int64  `json:"timestamp"`
-	Receipt   string `json:"receipt"`
-}
-
-// StartDetails is the structure that is provided when starting a proposal vote.
-//
-// Signature is the signature of a SHA256 digest of the JSON encoded VoteParams
-// structure.
-type StartDetails struct {
-	Params    VoteParams `json:"params"`
-	PublicKey string     `json:"publickey"`
-	Signature string     `json:"signature"`
-}
-
-// VoteStart starts a proposal vote or multiple proposal votes if the vote is
-// a runoff vote.
-//
-// Standard votes require that the vote have been authorized by the proposal
-// author before an admin will able to start the voting process. The
-// StartDetails list should only contain a single StartDetails.
-//
-// Runoff votes can be started by an admin at any point once the RFP link by
-// deadline has expired. Runoff votes DO NOT require the votes to have been
-// authorized by the submission authors prior to an admin starting the runoff
-// vote. All public, non-abandoned RFP submissions should be included in the
-// list of StartDetails.
-type VoteStart struct {
-	Starts []StartDetails `json:"starts"`
-}
-
-// VoteStartReply is the reply to the VoteStart command.
-type VoteStartReply struct {
-	StartBlockHeight uint32   `json:"startblockheight"`
-	StartBlockHash   string   `json:"startblockhash"`
-	EndBlockHeight   uint32   `json:"endblockheight"`
-	EligibleTickets  []string `json:"eligibletickets"`
-}
-
-// VoteErrorT represents an error that occurred while attempting to cast a
-// ticket vote.
-type VoteErrorT int
-
-const (
-	// Cast vote errors
-	// TODO these need human readable equivalents
-	VoteErrorInvalid             VoteErrorT = 0
-	VoteErrorInternalError       VoteErrorT = 1
-	VoteErrorTokenInvalid        VoteErrorT = 2
-	VoteErrorRecordNotFound      VoteErrorT = 3
-	VoteErrorMultipleRecordVotes VoteErrorT = 4
-	VoteErrorVoteStatusInvalid   VoteErrorT = 5
-	VoteErrorVoteBitInvalid      VoteErrorT = 6
-	VoteErrorSignatureInvalid    VoteErrorT = 7
-	VoteErrorTicketNotEligible   VoteErrorT = 8
-	VoteErrorTicketAlreadyVoted  VoteErrorT = 9
-)
-
-// CastVote is a signed ticket vote.
-type CastVote struct {
-	Token     string `json:"token"`     // Proposal token
-	Ticket    string `json:"ticket"`    // Ticket ID
-	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
-	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
-}
-
-// CastVoteReply contains the receipt for the cast vote.
-type CastVoteReply struct {
-	Ticket  string `json:"ticket"`  // Ticket ID
-	Receipt string `json:"receipt"` // Server signature of client signature
-
-	// The follwing fields will only be present if an error occurred
-	// while attempting to cast the vote.
-	ErrorCode    VoteErrorT `json:"errorcode,omitempty"`
-	ErrorContext string     `json:"errorcontext,omitempty"`
-}
-
-// CastBallot casts a ballot of votes. A ballot can only contain the votes for
-// a single record.
-type CastBallot struct {
-	Votes []CastVote `json:"votes"`
-}
-
-// CastBallotReply is a reply to a batched list of votes.
-type CastBallotReply struct {
-	Receipts []CastVoteReply `json:"receipts"`
-}
-
-// ProposalVote contains all vote authorizations and the vote details for a
-// proposal vote. The vote details will be null if the proposal vote has not
-// been started yet.
-type ProposalVote struct {
-	Auths []AuthDetails `json:"auths"`
-	Vote  *VoteDetails  `json:"vote"`
-}
-
-// Votes returns the vote authorizations and vote details for each of the
-// provided proposal tokens.
-type Votes struct {
-	Tokens []string `json:"tokens"`
-}
-
-// VotesReply is the reply to the Votes command. The returned map will not
-// contain an entry for any tokens that did not correspond to an actual
-// proposal. It is the callers responsibility to ensure that a entry is
-// returned for all of the provided tokens.
-type VotesReply struct {
-	Votes map[string]ProposalVote `json:"votes"`
-}
-
-// VoteResults returns the votes that have been cast for the specified
-// proposal.
-type VoteResults struct {
-	Token string `json:"token"`
-}
-
-// VoteResultsReply is the reply to the VoteResults command.
-type VoteResultsReply struct {
-	Votes []CastVoteDetails `json:"votes"`
-}
-
-// VoteSummaries summarizes the vote params and results for a ticket vote.
-type VoteSummaries struct {
-	Tokens []string `json:"tokens"`
-}
-
-// VoteSummariesReply is the reply to the VoteSummaries command.
-//
-// Summaries field contains a vote summary for each of the provided
-// tokens. The map will not contain an entry for any tokens that
-// did not correspond to an actual record. It is the callers
-// responsibility to ensure that a summary is returned for all of
-// the provided tokens.
-type VoteSummariesReply struct {
-	Summaries map[string]VoteSummary `json:"summaries"` // [token]Summary
-
-	// BestBlock is the best block value that was used to prepare the
-	// summaries.
-	BestBlock uint32 `json:"bestblock"`
 }
 
 // VoteInventory retrieves the tokens of all public, non-abandoned proposals
