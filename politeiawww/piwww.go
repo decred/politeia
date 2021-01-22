@@ -24,10 +24,12 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	usermd "github.com/decred/politeia/politeiad/plugins/user"
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
@@ -1946,7 +1948,7 @@ func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request
 }
 
 // setPiRoutes sets the pi API routes.
-func (p *politeiawww) setPiRoutes() {
+func (p *politeiawww) setPiRoutes(c *comments.Comments) {
 	// Return a 404 when a route is not found
 	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
@@ -1957,8 +1959,7 @@ func (p *politeiawww) setPiRoutes() {
 		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
 		Methods(http.MethodGet)
 
-	// www routes. These routes have been deprecated and support will
-	// be removed in the future.
+	// www routes. These routes have been DEPRECATED.
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
@@ -2004,29 +2005,25 @@ func (p *politeiawww) setPiRoutes() {
 		piv1.RouteProposalInventory, p.handleProposalInventory,
 		permissionPublic)
 
-	// Pi routes - comments
-	/*
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteCommentNew, p.handleCommentNew,
-			permissionLogin)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteCommentVote, p.handleCommentVote,
-			permissionLogin)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteCommentCensor, p.handleCommentCensor,
-			permissionAdmin)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteComments, p.handleComments,
-			permissionPublic)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteCommentVotes, p.handleCommentVotes,
-			permissionPublic)
-
-		// Comment routes
-		p.addRoute(http.MethodPost, cmv1.APIRoute,
-			cmv1.RouteTimestamps, p.handleCommentTimestamps,
-			permissionPublic)
-	*/
+	// Comment routes
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteNew, c.HandleNew,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteVote, c.HandleVote,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteDel, c.HandleDel,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteComments, c.HandleComments,
+		permissionPublic)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteVotes, c.HandleVotes,
+		permissionPublic)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteTimestamps, c.HandleTimestamps,
+		permissionPublic)
 
 	// Pi routes - vote
 	p.addRoute(http.MethodPost, piv1.APIRoute,

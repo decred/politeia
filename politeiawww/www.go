@@ -27,7 +27,6 @@ import (
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
-	"github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -36,6 +35,7 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
+	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -87,24 +87,6 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 	return www.ErrorStatusInvalid
 }
 
-// TODO verify all plugin errors have been added to these www conversion
-// functions
-func convertWWWErrorStatusFromPiPlugin(e piplugin.ErrorCodeT) www.ErrorStatusT {
-	return www.ErrorStatusInvalid
-}
-
-func convertWWWErrorStatusFromComments(e comments.ErrorCodeT) www.ErrorStatusT {
-	switch e {
-	case comments.ErrorCodeTokenInvalid:
-		return www.ErrorStatusInvalidCensorshipToken
-	case comments.ErrorCodeCommentNotFound:
-		return www.ErrorStatusCommentNotFound
-	case comments.ErrorCodeParentIDInvalid:
-		return www.ErrorStatusCommentNotFound
-	}
-	return www.ErrorStatusInvalid
-}
-
 func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) www.ErrorStatusT {
 	switch e {
 	case ticketvote.ErrorCodeTokenInvalid:
@@ -123,25 +105,14 @@ func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) www.ErrorStatu
 	return www.ErrorStatusInvalid
 }
 
-// convertWWWErrorStatus attempts to convert the provided politeiad plugin ID
-// and error code into a www ErrorStatusT. If a plugin ID is provided the error
-// code is assumed to be a user error code from the specified plugin API.  If
-// no plugin ID is provided the error code is assumed to be a user error code
-// from the politeiad API.
+// TODO make sure the legacy www routes have the plugin error conversions that
+// they need.
 func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
 	switch pluginID {
 	case "":
 		// politeiad API
 		e := pd.ErrorStatusT(errCode)
 		return convertWWWErrorStatusFromPD(e)
-	case piplugin.PluginID:
-		// Pi plugin
-		e := piplugin.ErrorCodeT(errCode)
-		return convertWWWErrorStatusFromPiPlugin(e)
-	case comments.PluginID:
-		// Comments plugin
-		e := comments.ErrorCodeT(errCode)
-		return convertWWWErrorStatusFromComments(e)
 	case ticketvote.PluginID:
 		// Ticket vote plugin
 		e := ticketvote.ErrorCodeT(errCode)
@@ -536,9 +507,12 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 }
 
 func (p *politeiawww) setupPi() error {
+	// Setup api contexts
+	c := comments.New(p.cfg, p.politeiad, p.db)
+
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setPiRoutes()
+	p.setPiRoutes(c)
 
 	// Verify paywall settings
 	switch {
