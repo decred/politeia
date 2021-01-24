@@ -299,7 +299,7 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 
 	// TODO
 	var bestBlock uint32
-	var vs []ticketvote.VoteSummary
+	var vs []ticketvote.SummaryReply
 
 	// Prepare reply
 	summaries := make(map[string]www.VoteSummary, len(vs))

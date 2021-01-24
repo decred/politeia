@@ -399,7 +399,7 @@ const (
 var (
 	// VoteStatuses contains the human readable vote statuses.
 	VoteStatuses = map[VoteStatusT]string{
-		VoteStatusInvalid:      "vote status invalid",
+		VoteStatusInvalid:      "invalid",
 		VoteStatusUnauthorized: "unauthorized",
 		VoteStatusAuthorized:   "authorized",
 		VoteStatusStarted:      "started",
@@ -450,16 +450,13 @@ type Inventory struct{}
 // InventoryReply is the reply to the Inventory command. It contains the tokens
 // of all public, non-abandoned records categorized by vote status.
 //
-// Sorted by timestamp in descending order:
+// Statuses sorted by timestamp in descending order:
 // Unauthorized, Authorized
 //
-// Sorted by voting period end block height in descending order:
+// Statuses sorted by voting period end block height in descending order:
 // Started, Finished
 type InventoryReply struct {
-	Unauthorized []string `json:"unauthorized"`
-	Authorized   []string `json:"authorized"`
-	Started      []string `json:"started"`
-	Finished     []string `json:"finished"`
+	Records map[VoteStatusT][]string `json:"records"`
 
 	// BestBlock is the best block value that was used to prepare the
 	// inventory.

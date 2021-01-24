@@ -22,7 +22,7 @@ type Comments struct {
 	cfg       *config.Config
 	politeiad *pdclient.Client
 	userdb    user.Database
-	sessions  sessions.Sessions
+	sessions  *sessions.Sessions
 	events    *events.Manager
 }
 
@@ -236,10 +236,12 @@ func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new Comments context.
-func New(cfg *config.Config, politeiad *pdclient.Client, userdb user.Database) *Comments {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager) *Comments {
 	return &Comments{
 		cfg:       cfg,
-		politeiad: politeiad,
-		userdb:    userdb,
+		politeiad: pdc,
+		userdb:    udb,
+		sessions:  s,
+		events:    e,
 	}
 }

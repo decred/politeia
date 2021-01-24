@@ -475,11 +475,23 @@ type LinkedFromReply struct {
 // Inventory requests the record inventory categorized by vote status.
 type Inventory struct{}
 
-// InventoryReply is the reply to the Inventory command. The returned map is
-// a map[votestatus][]token where the votestatus key is the human readable vote
-// status defined by the VoteStatuses array in this package.
+// InventoryReply is the reply to the Inventory command. It contains the tokens
+// of all public, non-abandoned records categorized by vote status. The
+// returned map is a map[votestatus][]token where the votestatus key is the
+// human readable vote status defined by the VoteStatuses array in this
+// package.
+//
+// Statuses sorted by timestamp in descending order:
+// Unauthorized, Authorized
+//
+// Statuses sorted by voting period end block height in descending order:
+// Started, Finished
 type InventoryReply struct {
 	Records map[string][]string `json:"records"`
+
+	// BestBlock is the best block value that was used to prepare the
+	// inventory.
+	BestBlock uint32 `json:"bestblock"`
 }
 
 // Proof contains an inclusion proof for the digest in the merkle root. The

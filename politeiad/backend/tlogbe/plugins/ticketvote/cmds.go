@@ -2596,12 +2596,15 @@ func convertInventoryReply(v inventory) ticketvote.InventoryReply {
 		tokens := tokensByHeight[height]
 		started = append(started, tokens...)
 	}
+
 	return ticketvote.InventoryReply{
-		Unauthorized: v.unauthorized,
-		Authorized:   v.authorized,
-		Started:      started,
-		Finished:     v.finished,
-		BestBlock:    v.bestBlock,
+		Records: map[ticketvote.VoteStatusT][]string{
+			ticketvote.VoteStatusUnauthorized: v.unauthorized,
+			ticketvote.VoteStatusAuthorized:   v.authorized,
+			ticketvote.VoteStatusStarted:      started,
+			ticketvote.VoteStatusFinished:     v.finished,
+		},
+		BestBlock: v.bestBlock,
 	}
 }
 

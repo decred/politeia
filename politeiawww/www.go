@@ -35,7 +35,6 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
-	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -461,46 +460,6 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 		// Add route to public router
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 	}
-}
-
-func (p *politeiawww) setupPi() error {
-	// Setup api contexts
-	c := comments.New(p.cfg, p.politeiad, p.db)
-
-	// Setup routes
-	p.setUserWWWRoutes()
-	p.setPiRoutes(c)
-
-	// Verify paywall settings
-	switch {
-	case p.cfg.PaywallAmount != 0 && p.cfg.PaywallXpub != "":
-		// Paywall is enabled
-		paywallAmountInDcr := float64(p.cfg.PaywallAmount) / 1e8
-		log.Infof("Paywall : %v DCR", paywallAmountInDcr)
-
-	case p.cfg.PaywallAmount == 0 && p.cfg.PaywallXpub == "":
-		// Paywall is disabled
-		log.Infof("Paywall: DISABLED")
-
-	default:
-		// Invalid paywall setting
-		return fmt.Errorf("paywall settings invalid, both an amount " +
-			"and public key MUST be set")
-	}
-
-	// Setup paywall pool
-	p.userPaywallPool = make(map[uuid.UUID]paywallPoolMember)
-	err := p.initPaywallChecker()
-	if err != nil {
-		return err
-	}
-
-	// Setup event manager
-	p.setupEventListenersPi()
-
-	// TODO Verify politeiad plugins
-
-	return nil
 }
 
 func (p *politeiawww) setupCMS() error {

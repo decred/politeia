@@ -143,6 +143,7 @@ func (t *TicketVote) processDetails(ctx context.Context, d tkv1.Details) (*tkv1.
 	if err != nil {
 		return nil, err
 	}
+
 	var vote *tkv1.VoteDetails
 	if tdr.Vote != nil {
 		vd := convertVoteDetailsToV1(*tdr.Vote)
@@ -158,44 +159,84 @@ func (t *TicketVote) processDetails(ctx context.Context, d tkv1.Details) (*tkv1.
 func (t *TicketVote) processResults(ctx context.Context, r tkv1.Results) (*tkv1.ResultsReply, error) {
 	log.Tracef("processResults: %v", r.Token)
 
-	return nil, nil
+	rr, err := t.politeiad.TicketVoteResults(ctx, r.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tkv1.ResultsReply{
+		Votes: convertCastVoteDetailsToV1(rr.Votes),
+	}, nil
 }
 
 func (t *TicketVote) processSummaries(ctx context.Context, s tkv1.Summaries) (*tkv1.SummariesReply, error) {
 	log.Tracef("processSummaries: %v", s.Tokens)
 
-	return nil, nil
+	ts, err := t.politeiad.TicketVoteSummaries(ctx, s.Tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tkv1.SummariesReply{
+		Summaries: convertSummariesToV1(ts),
+	}, nil
 }
 
 func (t *TicketVote) processLinkedFrom(ctx context.Context, lf tkv1.LinkedFrom) (*tkv1.LinkedFromReply, error) {
 	log.Tracef("processLinkedFrom: %v", lf.Tokens)
 
-	return nil, nil
+	tlf, err := t.politeiad.TicketVoteLinkedFrom(ctx, lf.Tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tkv1.LinkedFromReply{
+		LinkedFrom: tlf,
+	}, nil
 }
 
 func (t *TicketVote) processInventory(ctx context.Context) (*tkv1.InventoryReply, error) {
 	log.Tracef("processInventory")
 
-	return nil, nil
+	// Send plugin command
+	ir, err := t.politeiad.TicketVoteInventory(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert vote statuses to human readable equivalents
+	records := make(map[string][]string, len(ir.Records))
+	for k, v := range ir.Records {
+		s := convertVoteStatusToV1(k)
+		records[tkv1.VoteStatuses[s]] = v
+	}
+
+	return &tkv1.InventoryReply{
+		Records:   records,
+		BestBlock: ir.BestBlock,
+	}, nil
 }
 
 func (t *TicketVote) processTimestamps(ctx context.Context, ts tkv1.Timestamps) (*tkv1.TimestampsReply, error) {
 	log.Tracef("processTimestamps: %v", ts.Token)
 
-	// TODO Send plugin command
-	var r ticketvote.TimestampsReply
+	// Send plugin command
+	tsr, err := t.politeiad.TicketVoteTimestamps(ctx, ts.Token)
+	if err != nil {
+		return nil, err
+	}
 
 	// Prepare reply
 	var (
-		auths = make([]tkv1.Timestamp, 0, len(r.Auths))
-		votes = make(map[string]tkv1.Timestamp, len(r.Votes))
+		auths = make([]tkv1.Timestamp, 0, len(tsr.Auths))
+		votes = make(map[string]tkv1.Timestamp, len(tsr.Votes))
 
-		details = convertTimestampToV1(r.Details)
+		details = convertTimestampToV1(tsr.Details)
 	)
-	for _, v := range r.Auths {
+	for _, v := range tsr.Auths {
 		auths = append(auths, convertTimestampToV1(v))
 	}
-	for k, v := range r.Votes {
+	for k, v := range tsr.Votes {
 		votes[k] = convertTimestampToV1(v)
 	}
 
@@ -214,17 +255,6 @@ func convertVoteTypeToPlugin(t tkv1.VoteT) ticketvote.VoteT {
 		return ticketvote.VoteTypeRunoff
 	}
 	return ticketvote.VoteTypeInvalid
-}
-
-func convertVoteTypeToV1(t ticketvote.VoteT) tkv1.VoteT {
-	switch t {
-	case ticketvote.VoteTypeStandard:
-		return tkv1.VoteTypeStandard
-	case ticketvote.VoteTypeRunoff:
-		return tkv1.VoteTypeRunoff
-	}
-	return tkv1.VoteTypeInvalid
-
 }
 
 func convertVoteParamsToPlugin(v tkv1.VoteParams) ticketvote.VoteParams {
@@ -250,29 +280,6 @@ func convertVoteParamsToPlugin(v tkv1.VoteParams) ticketvote.VoteParams {
 	tv.Options = vo
 
 	return tv
-}
-
-func convertVoteParamsToV1(v ticketvote.VoteParams) tkv1.VoteParams {
-	vp := tkv1.VoteParams{
-		Token:            v.Token,
-		Version:          v.Version,
-		Type:             convertVoteTypeToV1(v.Type),
-		Mask:             v.Mask,
-		Duration:         v.Duration,
-		QuorumPercentage: v.QuorumPercentage,
-		PassPercentage:   v.PassPercentage,
-	}
-	vo := make([]tkv1.VoteOption, 0, len(v.Options))
-	for _, o := range v.Options {
-		vo = append(vo, tkv1.VoteOption{
-			ID:          o.ID,
-			Description: o.Description,
-			Bit:         o.Bit,
-		})
-	}
-	vp.Options = vo
-
-	return vp
 }
 
 func convertStartDetailsToPlugin(sd tkv1.StartDetails) ticketvote.StartDetails {
@@ -304,6 +311,40 @@ func convertCastVotesToPlugin(votes []tkv1.CastVote) []ticketvote.CastVote {
 		})
 	}
 	return cv
+}
+
+func convertVoteTypeToV1(t ticketvote.VoteT) tkv1.VoteT {
+	switch t {
+	case ticketvote.VoteTypeStandard:
+		return tkv1.VoteTypeStandard
+	case ticketvote.VoteTypeRunoff:
+		return tkv1.VoteTypeRunoff
+	}
+	return tkv1.VoteTypeInvalid
+
+}
+
+func convertVoteParamsToV1(v ticketvote.VoteParams) tkv1.VoteParams {
+	vp := tkv1.VoteParams{
+		Token:            v.Token,
+		Version:          v.Version,
+		Type:             convertVoteTypeToV1(v.Type),
+		Mask:             v.Mask,
+		Duration:         v.Duration,
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+	}
+	vo := make([]tkv1.VoteOption, 0, len(v.Options))
+	for _, o := range v.Options {
+		vo = append(vo, tkv1.VoteOption{
+			ID:          o.ID,
+			Description: o.Description,
+			Bit:         o.Bit,
+		})
+	}
+	vp.Options = vo
+
+	return vp
 }
 
 func convertVoteErrorToV1(e ticketvote.VoteErrorT) tkv1.VoteErrorT {
@@ -368,8 +409,7 @@ func convertAuthDetailsToV1(auths []ticketvote.AuthDetails) []tkv1.AuthDetails {
 	return a
 }
 
-/*
-func convertCastVoteDetails(votes []ticketvote.CastVoteDetails) []tkv1.CastVoteDetails {
+func convertCastVoteDetailsToV1(votes []ticketvote.CastVoteDetails) []tkv1.CastVoteDetails {
 	vs := make([]tkv1.CastVoteDetails, 0, len(votes))
 	for _, v := range votes {
 		vs = append(vs, tkv1.CastVoteDetails{
@@ -383,7 +423,7 @@ func convertCastVoteDetails(votes []ticketvote.CastVoteDetails) []tkv1.CastVoteD
 	return vs
 }
 
-func convertVoteStatus(s ticketvote.VoteStatusT) tkv1.VoteStatusT {
+func convertVoteStatusToV1(s ticketvote.VoteStatusT) tkv1.VoteStatusT {
 	switch s {
 	case ticketvote.VoteStatusInvalid:
 		return tkv1.VoteStatusInvalid
@@ -400,7 +440,7 @@ func convertVoteStatus(s ticketvote.VoteStatusT) tkv1.VoteStatusT {
 	}
 }
 
-func convertSummary(s ticketvote.VoteSummary) tkv1.Summary {
+func convertSummaryToV1(s ticketvote.SummaryReply) tkv1.Summary {
 	results := make([]tkv1.VoteResult, 0, len(s.Results))
 	for _, v := range s.Results {
 		results = append(results, tkv1.VoteResult{
@@ -411,8 +451,8 @@ func convertSummary(s ticketvote.VoteSummary) tkv1.Summary {
 		})
 	}
 	return tkv1.Summary{
-		Type:             convertVoteType(s.Type),
-		Status:           convertVoteStatus(s.Status),
+		Type:             convertVoteTypeToV1(s.Type),
+		Status:           convertVoteStatusToV1(s.Status),
 		Duration:         s.Duration,
 		StartBlockHeight: s.StartBlockHeight,
 		StartBlockHash:   s.StartBlockHash,
@@ -422,9 +462,17 @@ func convertSummary(s ticketvote.VoteSummary) tkv1.Summary {
 		PassPercentage:   s.PassPercentage,
 		Results:          results,
 		Approved:         s.Approved,
+		BestBlock:        s.BestBlock,
 	}
 }
-*/
+
+func convertSummariesToV1(s map[string]ticketvote.SummaryReply) map[string]tkv1.Summary {
+	ts := make(map[string]tkv1.Summary, len(s))
+	for k, v := range s {
+		ts[k] = convertSummaryToV1(v)
+	}
+	return ts
+}
 
 func convertProofToV1(p ticketvote.Proof) tkv1.Proof {
 	return tkv1.Proof{

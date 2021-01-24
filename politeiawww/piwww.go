@@ -26,12 +26,15 @@ import (
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 // TODO www package references should be completely gone from this file
@@ -1369,7 +1372,7 @@ func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Req
 }
 
 // setPiRoutes sets the pi API routes.
-func (p *politeiawww) setPiRoutes(c *comments.Comments) {
+func (p *politeiawww) setPiRoutes(c *comments.Comments, t *ticketvote.TicketVote) {
 	// Return a 404 when a route is not found
 	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
@@ -1446,38 +1449,75 @@ func (p *politeiawww) setPiRoutes(c *comments.Comments) {
 		cmv1.RouteTimestamps, c.HandleTimestamps,
 		permissionPublic)
 
-	/*
-		// Voute routes
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVoteAuthorize, p.handleVoteAuthorize,
-			permissionLogin)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVoteStart, p.handleVoteStart,
-			permissionAdmin)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteCastBallot, p.handleCastBallot,
-			permissionPublic)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVotes, p.handleVotes,
-			permissionPublic)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVoteResults, p.handleVoteResults,
-			permissionPublic)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVoteSummaries, p.handleVoteSummaries,
-			permissionPublic)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVoteInventory, p.handleVoteInventory,
-			permissionPublic)
-
-		// Ticket vote routes
-		p.addRoute(http.MethodPost, tkv1.APIRoute,
-			tkv1.RouteTimestamps, p.handleTicketVoteTimestamps,
-			permissionPublic)
-	*/
+	// Ticket vote routes
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteAuthorize, t.HandleAuthorize,
+		permissionLogin)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteStart, t.HandleStart,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteCastBallot, t.HandleCastBallot,
+		permissionPublic)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteDetails, t.HandleDetails,
+		permissionPublic)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteResults, t.HandleResults,
+		permissionPublic)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteSummaries, t.HandleSummaries,
+		permissionPublic)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteInventory, t.HandleInventory,
+		permissionPublic)
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteTimestamps, t.HandleTimestamps,
+		permissionPublic)
 
 	// Record routes
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteTimestamps, p.handleTimestamps,
 		permissionPublic)
+}
+
+func (p *politeiawww) setupPi() error {
+	// Setup api contexts
+	c := comments.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
+	tv := ticketvote.New(p.cfg, p.politeiad, p.sessions, p.events)
+
+	// Setup routes
+	p.setUserWWWRoutes()
+	p.setPiRoutes(c, tv)
+
+	// Verify paywall settings
+	switch {
+	case p.cfg.PaywallAmount != 0 && p.cfg.PaywallXpub != "":
+		// Paywall is enabled
+		paywallAmountInDcr := float64(p.cfg.PaywallAmount) / 1e8
+		log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+
+	case p.cfg.PaywallAmount == 0 && p.cfg.PaywallXpub == "":
+		// Paywall is disabled
+		log.Infof("Paywall: DISABLED")
+
+	default:
+		// Invalid paywall setting
+		return fmt.Errorf("paywall settings invalid, both an amount " +
+			"and public key MUST be set")
+	}
+
+	// Setup paywall pool
+	p.userPaywallPool = make(map[uuid.UUID]paywallPoolMember)
+	err := p.initPaywallChecker()
+	if err != nil {
+		return err
+	}
+
+	// Setup event manager
+	p.setupEventListenersPi()
+
+	// TODO Verify politeiad plugins
+
+	return nil
 }

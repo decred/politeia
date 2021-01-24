@@ -29,6 +29,7 @@ import (
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -362,10 +363,11 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 
 	// TODO setup testing
 	var c *comments.Comments
+	var tv *ticketvote.TicketVote
 
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setPiRoutes(c)
+	p.setPiRoutes(c, tv)
 
 	// The cleanup is handled using a closure so that the temp dir
 	// can be deleted using the local variable and not cfg.DataDir.

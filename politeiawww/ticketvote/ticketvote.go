@@ -20,7 +20,7 @@ import (
 type TicketVote struct {
 	cfg       *config.Config
 	politeiad *pdclient.Client
-	sessions  sessions.Sessions
+	sessions  *sessions.Sessions
 	events    *events.Manager
 }
 
@@ -251,9 +251,11 @@ func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new TicketVote context.
-func New(cfg *config.Config, politeiad *pdclient.Client) *TicketVote {
+func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager) *TicketVote {
 	return &TicketVote{
 		cfg:       cfg,
-		politeiad: politeiad,
+		politeiad: pdc,
+		sessions:  s,
+		events:    e,
 	}
 }
