@@ -24,103 +24,102 @@ const (
 	RouteProposalEdit      = "/proposal/edit"
 	RouteProposalSetStatus = "/proposal/setstatus"
 	RouteProposals         = "/proposals"
-	RouteProposalInventory = "/proposals/inventory"
 
 	// Vote routes
 	RouteVoteInventory = "/votes/inventory"
 )
 
-// ErrorStatusT represents a user error status code.
-type ErrorStatusT int
+// ErrorCodeT represents a user error code.
+type ErrorCodeT int
 
 const (
 	// Error status codes
-	ErrorStatusInvalid          ErrorStatusT = 0
-	ErrorStatusInputInvalid     ErrorStatusT = 1
-	ErrorStatusPageSizeExceeded ErrorStatusT = 2
+	ErrorCodeInvalid          ErrorCodeT = 0
+	ErrorCodeInputInvalid     ErrorCodeT = 1
+	ErrorCodePageSizeExceeded ErrorCodeT = 2
 
 	// User errors
-	ErrorStatusUserRegistrationNotPaid ErrorStatusT = 100
-	ErrorStatusUserBalanceInsufficient ErrorStatusT = 101
-	ErrorStatusUnauthorized            ErrorStatusT = 102
+	ErrorCodeUserRegistrationNotPaid ErrorCodeT = 100
+	ErrorCodeUserBalanceInsufficient ErrorCodeT = 101
+	ErrorCodeUnauthorized            ErrorCodeT = 102
 
 	// Signature errors
-	ErrorStatusPublicKeyInvalid ErrorStatusT = 200
-	ErrorStatusSignatureInvalid ErrorStatusT = 201
+	ErrorCodePublicKeyInvalid ErrorCodeT = 200
+	ErrorCodeSignatureInvalid ErrorCodeT = 201
 
 	// Proposal errors
 	// TODO number error codes
-	ErrorStatusFileCountInvalid ErrorStatusT = 300
-	ErrorStatusFileNameInvalid  ErrorStatusT = iota
-	ErrorStatusFileMIMEInvalid
-	ErrorStatusFileDigestInvalid
-	ErrorStatusFilePayloadInvalid
-	ErrorStatusIndexFileNameInvalid
-	ErrorStatusIndexFileCountInvalid
-	ErrorStatusIndexFileSizeInvalid
-	ErrorStatusTextFileCountInvalid
-	ErrorStatusImageFileCountInvalid
-	ErrorStatusImageFileSizeInvalid
-	ErrorStatusMetadataCountInvalid
-	ErrorStatusMetadataDigestInvalid
-	ErrorStatusMetadataPayloadInvalid
-	ErrorStatusPropNotFound
-	ErrorStatusPropMetadataNotFound
-	ErrorStatusPropTokenInvalid
-	ErrorStatusPropVersionInvalid
-	ErrorStatusPropNameInvalid
-	ErrorStatusPropLinkToInvalid
-	ErrorStatusPropLinkByInvalid
-	ErrorStatusPropStateInvalid
-	ErrorStatusPropStatusInvalid
-	ErrorStatusPropStatusChangeInvalid
-	ErrorStatusPropStatusChangeReasonInvalid
-	ErrorStatusNoPropChanges
+	ErrorCodeFileCountInvalid ErrorCodeT = 300
+	ErrorCodeFileNameInvalid  ErrorCodeT = iota
+	ErrorCodeFileMIMEInvalid
+	ErrorCodeFileDigestInvalid
+	ErrorCodeFilePayloadInvalid
+	ErrorCodeIndexFileNameInvalid
+	ErrorCodeIndexFileCountInvalid
+	ErrorCodeIndexFileSizeInvalid
+	ErrorCodeTextFileCountInvalid
+	ErrorCodeImageFileCountInvalid
+	ErrorCodeImageFileSizeInvalid
+	ErrorCodeMetadataCountInvalid
+	ErrorCodeMetadataDigestInvalid
+	ErrorCodeMetadataPayloadInvalid
+	ErrorCodePropNotFound
+	ErrorCodePropMetadataNotFound
+	ErrorCodePropTokenInvalid
+	ErrorCodePropVersionInvalid
+	ErrorCodePropNameInvalid
+	ErrorCodePropLinkToInvalid
+	ErrorCodePropLinkByInvalid
+	ErrorCodePropStateInvalid
+	ErrorCodePropStatusInvalid
+	ErrorCodePropStatusChangeInvalid
+	ErrorCodePropStatusChangeReasonInvalid
+	ErrorCodeNoPropChanges
 )
 
 var (
-	// ErrorStatus contains human readable error messages.
+	// ErrorCode contains human readable error messages.
 	// TODO fill in error status messages
-	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:          "error status invalid",
-		ErrorStatusInputInvalid:     "input invalid",
-		ErrorStatusPageSizeExceeded: "page size exceeded",
+	ErrorCode = map[ErrorCodeT]string{
+		ErrorCodeInvalid:          "error status invalid",
+		ErrorCodeInputInvalid:     "input invalid",
+		ErrorCodePageSizeExceeded: "page size exceeded",
 
 		// User errors
-		ErrorStatusUserRegistrationNotPaid: "user registration not paid",
-		ErrorStatusUserBalanceInsufficient: "user balance insufficient",
-		ErrorStatusUnauthorized:            "user is unauthorized",
+		ErrorCodeUserRegistrationNotPaid: "user registration not paid",
+		ErrorCodeUserBalanceInsufficient: "user balance insufficient",
+		ErrorCodeUnauthorized:            "user is unauthorized",
 
 		// Signature errors
-		ErrorStatusPublicKeyInvalid: "public key invalid",
-		ErrorStatusSignatureInvalid: "signature invalid",
+		ErrorCodePublicKeyInvalid: "public key invalid",
+		ErrorCodeSignatureInvalid: "signature invalid",
 
 		// Proposal errors
-		ErrorStatusFileCountInvalid:              "file count invalid",
-		ErrorStatusFileNameInvalid:               "file name invalid",
-		ErrorStatusFileMIMEInvalid:               "file mime invalid",
-		ErrorStatusFileDigestInvalid:             "file digest invalid",
-		ErrorStatusFilePayloadInvalid:            "file payload invalid",
-		ErrorStatusIndexFileNameInvalid:          "index filename invalid",
-		ErrorStatusIndexFileCountInvalid:         "index file count invalid",
-		ErrorStatusIndexFileSizeInvalid:          "index file size invalid",
-		ErrorStatusTextFileCountInvalid:          "text file count invalid",
-		ErrorStatusImageFileCountInvalid:         "file count invalid",
-		ErrorStatusImageFileSizeInvalid:          "file size invalid",
-		ErrorStatusMetadataCountInvalid:          "metadata count invalid",
-		ErrorStatusMetadataDigestInvalid:         "metadata digest invalid",
-		ErrorStatusMetadataPayloadInvalid:        "metadata pyaload invalid",
-		ErrorStatusPropMetadataNotFound:          "proposal metadata not found",
-		ErrorStatusPropNameInvalid:               "proposal name invalid",
-		ErrorStatusPropLinkToInvalid:             "proposal link to invalid",
-		ErrorStatusPropLinkByInvalid:             "proposal link by invalid",
-		ErrorStatusPropTokenInvalid:              "proposal token invalid",
-		ErrorStatusPropNotFound:                  "proposal not found",
-		ErrorStatusPropStateInvalid:              "proposal state invalid",
-		ErrorStatusPropStatusInvalid:             "proposal status invalid",
-		ErrorStatusPropStatusChangeInvalid:       "proposal status change invalid",
-		ErrorStatusPropStatusChangeReasonInvalid: "proposal status reason invalid",
-		ErrorStatusNoPropChanges:                 "no proposal changes",
+		ErrorCodeFileCountInvalid:              "file count invalid",
+		ErrorCodeFileNameInvalid:               "file name invalid",
+		ErrorCodeFileMIMEInvalid:               "file mime invalid",
+		ErrorCodeFileDigestInvalid:             "file digest invalid",
+		ErrorCodeFilePayloadInvalid:            "file payload invalid",
+		ErrorCodeIndexFileNameInvalid:          "index filename invalid",
+		ErrorCodeIndexFileCountInvalid:         "index file count invalid",
+		ErrorCodeIndexFileSizeInvalid:          "index file size invalid",
+		ErrorCodeTextFileCountInvalid:          "text file count invalid",
+		ErrorCodeImageFileCountInvalid:         "file count invalid",
+		ErrorCodeImageFileSizeInvalid:          "file size invalid",
+		ErrorCodeMetadataCountInvalid:          "metadata count invalid",
+		ErrorCodeMetadataDigestInvalid:         "metadata digest invalid",
+		ErrorCodeMetadataPayloadInvalid:        "metadata pyaload invalid",
+		ErrorCodePropMetadataNotFound:          "proposal metadata not found",
+		ErrorCodePropNameInvalid:               "proposal name invalid",
+		ErrorCodePropLinkToInvalid:             "proposal link to invalid",
+		ErrorCodePropLinkByInvalid:             "proposal link by invalid",
+		ErrorCodePropTokenInvalid:              "proposal token invalid",
+		ErrorCodePropNotFound:                  "proposal not found",
+		ErrorCodePropStateInvalid:              "proposal state invalid",
+		ErrorCodePropStatusInvalid:             "proposal status invalid",
+		ErrorCodePropStatusChangeInvalid:       "proposal status change invalid",
+		ErrorCodePropStatusChangeReasonInvalid: "proposal status reason invalid",
+		ErrorCodeNoPropChanges:                 "no proposal changes",
 	}
 )
 
@@ -128,8 +127,8 @@ var (
 // error that is caused by something that the user did (malformed input, bad
 // timing, etc). The HTTP status code will be 400.
 type UserErrorReply struct {
-	ErrorCode    ErrorStatusT `json:"errorcode"`
-	ErrorContext string       `json:"errorcontext"`
+	ErrorCode    ErrorCodeT `json:"errorcode"`
+	ErrorContext string     `json:"errorcontext"`
 }
 
 // Error satisfies the error interface.
@@ -187,7 +186,7 @@ const (
 	PropStatusPublic PropStatusT = 2
 
 	// PropStatusCensored indicates that a proposal has been censored
-	// by an admin for violating the proposal guidlines.. Both unvetted
+	// by an admin for violating the proposal guidlines. Both unvetted
 	// and vetted proposals can be censored so a proposal with this
 	// status can have a state of either PropStateUnvetted or
 	// PropStateVetted depending on whether the proposal was censored
@@ -391,27 +390,10 @@ type ProposalsReply struct {
 	Proposals map[string]ProposalRecord `json:"proposals"` // [token]Proposal
 }
 
-// ProposalInventory retrieves the tokens of all proposals in the inventory,
-// categorized by proposal state and proposal status, that match the provided
-// filtering criteria. If no filtering criteria is provided then the full
-// proposal inventory is returned. Unvetted proposal tokens are only returned
-// to admins and the proposal author.
-type ProposalInventory struct {
-	UserID string `json:"userid,omitempty"`
-}
-
-// ProposalInventoryReply is the reply to the ProposalInventory command. The
-// inventory maps contain map[status][]tokens where the status is the human
-// readable proposal status, as defined by the PropStatuses map, and the tokens
-// are a list of proposal tokens for that status. Each list is ordered by
-// timestamp of the status change from newest to oldest.
-type ProposalInventoryReply struct {
-	Unvetted map[string][]string `json:"unvetted"`
-	Vetted   map[string][]string `json:"vetted"`
-}
-
 // VoteInventory retrieves the tokens of all public, non-abandoned proposals
-// categorized by their vote status.
+// categorized by their vote status. This is the same inventory as the
+// ticketvote API returns except the Finished vote status is broken out into
+// Approved and Rejected.
 type VoteInventory struct{}
 
 // VoteInventoryReply in the reply to the VoteInventory command.

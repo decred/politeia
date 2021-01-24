@@ -2,25 +2,22 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package pi provides a politeiad plugin for functionality that is specific to
-// decred's proposal system.
+// Package pi provides a plugin for functionality that is specific to decred's
+// proposal system.
 package pi
 
 const (
 	PluginID = "pi"
 
 	// Plugin commands
-	// TODO I might not need the ProposalInv command
-	CmdProposalInv = "proposalinv" // Get inventory by proposal status
-	CmdVoteInv     = "voteinv"     // Get inventory by vote status
+	CmdVoteInv = "voteinv" // Get inventory by vote status
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
 type ErrorCodeT int
 
 const (
-	// TODO number
-	// User error codes
+	// TODO User error codes
 	ErrorCodeInvalid          ErrorCodeT = 0
 	ErrorCodePageSizeExceeded ErrorCodeT = iota
 	ErrorCodePropTokenInvalid
@@ -35,8 +32,7 @@ const (
 )
 
 var (
-	// TODO fill in
-	// ErrorCodes contains the human readable errors.
+	// TODO ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid: "error code invalid",
 	}
@@ -82,9 +78,14 @@ const (
 	// PropStatusCensored represents a proposal that has been censored.
 	PropStatusCensored PropStatusT = 3
 
+	// PropStatusUnreviewedChanges is a deprecated proposal status that
+	// has only been included so that the proposal statuses map
+	// directly to the politeiad record statuses.
+	PropStatusUnreviewedChanges PropStatusT = 4
+
 	// PropStatusAbandoned represents a proposal that has been
 	//  abandoned by the author.
-	PropStatusAbandoned PropStatusT = 4
+	PropStatusAbandoned PropStatusT = 5
 )
 
 var (
@@ -125,19 +126,6 @@ type StatusChange struct {
 	PublicKey string      `json:"publickey"`
 	Signature string      `json:"signature"`
 	Timestamp int64       `json:"timestamp"`
-}
-
-// ProposalInv retrieves the tokens of all proposals in the inventory.
-type ProposalInv struct {
-	UserID string `json:"userid,omitempty"`
-}
-
-// ProposalInvReply is the reply to the ProposalInv command. The returned maps
-// contains map[status][]token where the status is the human readable proposal
-// status and the token is the proposal token.
-type ProposalInvReply struct {
-	Unvetted map[string][]string `json:"unvetted"`
-	Vetted   map[string][]string `json:"vetted"`
 }
 
 // VoteInventory requests the tokens of all proposals in the inventory

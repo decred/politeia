@@ -245,8 +245,7 @@ type Record struct {
 }
 
 // NewRecord creates a new record.  It must include all files that are part of
-// the record and it may contain an optional metatda record.  Thet optional
-// metadatarecord must be string encoded.
+// the record and it may contain an optional metatda record.
 type NewRecord struct {
 	Challenge string           `json:"challenge"` // Random challenge
 	Metadata  []MetadataStream `json:"metadata"`  // Metadata streams

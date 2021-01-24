@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
@@ -16,55 +15,6 @@ import (
 
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
-}
-
-func convertPropStatusFromMDStatus(s backend.MDStatusT) pi.PropStatusT {
-	var status pi.PropStatusT
-	switch s {
-	case backend.MDStatusUnvetted, backend.MDStatusIterationUnvetted:
-		status = pi.PropStatusUnvetted
-	case backend.MDStatusVetted:
-		status = pi.PropStatusPublic
-	case backend.MDStatusCensored:
-		status = pi.PropStatusCensored
-	case backend.MDStatusArchived:
-		status = pi.PropStatusAbandoned
-	}
-	return status
-}
-
-func (p *piPlugin) cmdProposalInv() (string, error) {
-	log.Tracef("cmdProposalInv")
-
-	// Get full record inventory
-	ibs, err := p.backend.InventoryByStatus()
-	if err != nil {
-		return "", err
-	}
-
-	// Convert MDStatus keys to human readable proposal statuses
-	unvetted := make(map[string][]string, len(ibs.Unvetted))
-	vetted := make(map[string][]string, len(ibs.Vetted))
-	for k, v := range ibs.Unvetted {
-		s := pi.PropStatuses[convertPropStatusFromMDStatus(k)]
-		unvetted[s] = v
-	}
-	for k, v := range ibs.Vetted {
-		s := pi.PropStatuses[convertPropStatusFromMDStatus(k)]
-		vetted[s] = v
-	}
-
-	// Prepare reply
-	pir := pi.ProposalInvReply{
-		Unvetted: unvetted,
-		Vetted:   vetted,
-	}
-	reply, err := json.Marshal(pir)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
 }
 
 func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
@@ -97,9 +47,12 @@ func (p *piPlugin) cmdVoteInv() (string, error) {
 
 	// Get vote summaries for all finished proposal votes and
 	// categorize by approved/rejected.
-	approved := make([]string, 0, len(ir.Finished))
-	rejected := make([]string, 0, len(ir.Finished))
-	for _, v := range ir.Finished {
+	var (
+		finished = ir.Records[ticketvote.VoteStatusFinished]
+		approved = make([]string, 0, len(finished))
+		rejected = make([]string, 0, len(finished))
+	)
+	for _, v := range finished {
 		t, err := tokenDecode(v)
 		if err != nil {
 			return "", err
@@ -117,9 +70,9 @@ func (p *piPlugin) cmdVoteInv() (string, error) {
 
 	// Prepare reply
 	vir := pi.VoteInventoryReply{
-		Unauthorized: ir.Unauthorized,
-		Authorized:   ir.Authorized,
-		Started:      ir.Started,
+		Unauthorized: ir.Records[ticketvote.VoteStatusUnauthorized],
+		Authorized:   ir.Records[ticketvote.VoteStatusAuthorized],
+		Started:      ir.Records[ticketvote.VoteStatusStarted],
 		Approved:     approved,
 		Rejected:     rejected,
 		BestBlock:    ir.BestBlock,

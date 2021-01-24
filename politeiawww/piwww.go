@@ -29,7 +29,6 @@ import (
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
-	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
@@ -1216,161 +1215,6 @@ func (p *politeiawww) processVoteInventory(ctx context.Context) (*piv1.VoteInven
 	}, nil
 }
 
-func (p *politeiawww) handleProposalNew(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalNew")
-
-	var pn piv1.ProposalNew
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pn); err != nil {
-		respondWithPiError(w, r, "handleProposalNew: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalNew: GetSessionUser: %v", err)
-		return
-	}
-
-	pnr, err := p.processProposalNew(r.Context(), pn, *user)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalNew: processProposalNew: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, pnr)
-}
-
-func (p *politeiawww) handleProposalEdit(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalEdit")
-
-	var pe piv1.ProposalEdit
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pe); err != nil {
-		respondWithPiError(w, r, "handleProposalEdit: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalEdit: GetSessionUser: %v", err)
-		return
-	}
-
-	per, err := p.processProposalEdit(r.Context(), pe, *user)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalEdit: processProposalEdit: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, per)
-}
-
-func (p *politeiawww) handleProposalSetStatus(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalSetStatus")
-
-	var pss piv1.ProposalSetStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pss); err != nil {
-		respondWithPiError(w, r, "handleProposalSetStatus: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	usr, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalSetStatus: GetSessionUser: %v", err)
-		return
-	}
-
-	pssr, err := p.processProposalSetStatus(r.Context(), pss, *usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalSetStatus: processProposalSetStatus: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, pssr)
-}
-
-func (p *politeiawww) handleProposals(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposals")
-
-	var ps piv1.Proposals
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ps); err != nil {
-		respondWithPiError(w, r, "handleProposals: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	// Lookup session user. This is a public route so a session may not
-	// exist. Ignore any session not found errors.
-	usr, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && err != sessions.ErrSessionNotFound {
-		respondWithPiError(w, r,
-			"handleProposals: GetSessionUser: %v", err)
-		return
-	}
-
-	isAdmin := usr != nil && usr.Admin
-	ppi, err := p.processProposals(r.Context(), ps, isAdmin)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposals: processProposals: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, ppi)
-}
-
-func (p *politeiawww) handleProposalInventory(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalInventory")
-
-	var inv piv1.ProposalInventory
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&inv); err != nil {
-		respondWithPiError(w, r, "handleProposalInventory: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
-			})
-		return
-	}
-
-	// Lookup session user. This is a public route so a session may not
-	// exist. Ignore any session not found errors.
-	usr, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && err != sessions.ErrSessionNotFound {
-		respondWithPiError(w, r,
-			"handleProposalInventory: GetSessionUser: %v", err)
-		return
-	}
-
-	pir, err := p.processProposalInventory(r.Context(), inv, usr)
-	if err != nil {
-		respondWithPiError(w, r,
-			"handleProposalInventory: processProposalInventory: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, pir)
-}
-
 // setPiRoutes sets the pi API routes.
 func (p *politeiawww) setPiRoutes(c *comments.Comments, t *ticketvote.TicketVote) {
 	// Return a 404 when a route is not found
@@ -1412,22 +1256,24 @@ func (p *politeiawww) setPiRoutes(c *comments.Comments, t *ticketvote.TicketVote
 		www.RouteBatchVoteSummary, p.handleBatchVoteSummary,
 		permissionPublic)
 
-	// Pi routes - proposals
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteProposalNew, p.handleProposalNew,
-		permissionLogin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteProposalEdit, p.handleProposalEdit,
-		permissionLogin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteProposalSetStatus, p.handleProposalSetStatus,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteProposals, p.handleProposals,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteProposalInventory, p.handleProposalInventory,
-		permissionPublic)
+	/*
+		// Pi routes - proposals
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteProposalNew, p.handleProposalNew,
+			permissionLogin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteProposalEdit, p.handleProposalEdit,
+			permissionLogin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteProposalSetStatus, p.handleProposalSetStatus,
+			permissionAdmin)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteProposals, p.handleProposals,
+			permissionPublic)
+		p.addRoute(http.MethodPost, piv1.APIRoute,
+			piv1.RouteProposalInventory, p.handleProposalInventory,
+			permissionPublic)
+	*/
 
 	// Comment routes
 	p.addRoute(http.MethodPost, cmv1.APIRoute,

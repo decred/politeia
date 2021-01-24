@@ -47,8 +47,6 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 	log.Tracef("Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
-	case pi.CmdProposalInv:
-		return p.cmdProposalInv()
 	case pi.CmdVoteInv:
 		return p.cmdVoteInv()
 	}

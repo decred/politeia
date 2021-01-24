@@ -5,7 +5,7 @@
 package ticketvote
 
 import (
-	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -19,12 +19,12 @@ const (
 
 // EventAuthorize is the event data for EventTypeAuthorize.
 type EventAuthorize struct {
-	Auth tkv1.Authorize
+	Auth v1.Authorize
 	User user.User
 }
 
 // EventStart is the event data for EventTypeStart.
 type EventStart struct {
-	Start tkv1.Start
+	Start v1.Start
 	User  user.User
 }

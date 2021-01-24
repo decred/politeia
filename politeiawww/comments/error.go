@@ -13,26 +13,26 @@ import (
 	"time"
 
 	pdclient "github.com/decred/politeia/politeiad/client"
-	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/util"
 )
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	var (
-		ue cmv1.UserErrorReply
+		ue v1.UserErrorReply
 		pe pdclient.Error
 	)
 	switch {
 	case errors.As(err, &ue):
 		// Comments user error
 		m := fmt.Sprintf("Comments user error: %v %v %v",
-			util.RemoteAddr(r), ue.ErrorCode, cmv1.ErrorCodes[ue.ErrorCode])
+			util.RemoteAddr(r), ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {
 			m += fmt.Sprintf(": %v", ue.ErrorContext)
 		}
 		log.Infof(m)
 		util.RespondWithJSON(w, http.StatusBadRequest,
-			cmv1.UserErrorReply{
+			v1.UserErrorReply{
 				ErrorCode:    ue.ErrorCode,
 				ErrorContext: ue.ErrorContext,
 			})
@@ -55,7 +55,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 			}
 			log.Infof(m)
 			util.RespondWithJSON(w, http.StatusBadRequest,
-				cmv1.PluginErrorReply{
+				v1.PluginErrorReply{
 					PluginID:     pluginID,
 					ErrorCode:    errCode,
 					ErrorContext: strings.Join(errContext, ", "),
@@ -70,7 +70,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 				r.Proto, ts, errCode)
 
 			util.RespondWithJSON(w, http.StatusInternalServerError,
-				cmv1.ServerErrorReply{
+				v1.ServerErrorReply{
 					ErrorCode: ts,
 				})
 			return
@@ -85,7 +85,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 		util.RespondWithJSON(w, http.StatusInternalServerError,
-			cmv1.ServerErrorReply{
+			v1.ServerErrorReply{
 				ErrorCode: t,
 			})
 		return

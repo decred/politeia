@@ -9,14 +9,14 @@ import (
 	"net/http"
 
 	pdclient "github.com/decred/politeia/politeiad/client"
-	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 )
 
-// TicketVote is the context that handles the ticketvote API.
+// TicketVote is the context for the ticketvote API.
 type TicketVote struct {
 	cfg       *config.Config
 	politeiad *pdclient.Client
@@ -29,12 +29,12 @@ type TicketVote struct {
 func (t *TicketVote) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleAuthorize")
 
-	var a tkv1.Authorize
+	var a v1.Authorize
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil {
 		respondWithError(w, r, "HandleAuthorize: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -60,12 +60,12 @@ func (t *TicketVote) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleStart(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleStart")
 
-	var s tkv1.Start
+	var s v1.Start
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&s); err != nil {
 		respondWithError(w, r, "HandleStart: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -92,12 +92,12 @@ func (t *TicketVote) HandleStart(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleCastBallot(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleCastBallot")
 
-	var cb tkv1.CastBallot
+	var cb v1.CastBallot
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cb); err != nil {
 		respondWithError(w, r, "HandleCastBallot: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -116,12 +116,12 @@ func (t *TicketVote) HandleCastBallot(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleDetails")
 
-	var d tkv1.Details
+	var d v1.Details
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&d); err != nil {
 		respondWithError(w, r, "HandleDetails: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -140,12 +140,12 @@ func (t *TicketVote) HandleDetails(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleResults(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleResults")
 
-	var rs tkv1.Results
+	var rs v1.Results
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rs); err != nil {
 		respondWithError(w, r, "HandleResults: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -165,12 +165,12 @@ func (t *TicketVote) HandleResults(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleSummaries(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleSummaries")
 
-	var s tkv1.Summaries
+	var s v1.Summaries
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&s); err != nil {
 		respondWithError(w, r, "HandleSummaries: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -190,12 +190,12 @@ func (t *TicketVote) HandleSummaries(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleLinkedFrom(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleLinkedFrom")
 
-	var lf tkv1.LinkedFrom
+	var lf v1.LinkedFrom
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&lf); err != nil {
 		respondWithError(w, r, "HandleLinkedFrom: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -230,12 +230,12 @@ func (t *TicketVote) HandleInventory(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleTimestamps")
 
-	var ts tkv1.Timestamps
+	var ts v1.Timestamps
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		respondWithError(w, r, "HandleTimestamps: unmarshal",
-			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}

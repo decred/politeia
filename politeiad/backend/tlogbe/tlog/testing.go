@@ -5,8 +5,7 @@
 package tlog
 
 import (
-	"os"
-	"path/filepath"
+	"io/ioutil"
 	"testing"
 
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
@@ -17,15 +16,14 @@ func newTestTlog(t *testing.T, tlogID, dataDir string, encrypt bool) *Tlog {
 	t.Helper()
 
 	// Setup datadir for this tlog instance
-	dataDir = filepath.Join(dataDir, tlogID)
-	err := os.MkdirAll(dataDir, 0700)
+	var err error
+	dataDir, err = ioutil.TempDir(dataDir, tlogID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Setup key-value store
-	fp := filepath.Join(dataDir, defaultStoreDirname)
-	err = os.MkdirAll(fp, 0700)
+	fp, err := ioutil.TempDir(dataDir, defaultStoreDirname)
 	if err != nil {
 		t.Fatal(err)
 	}

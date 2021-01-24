@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	pdclient "github.com/decred/politeia/politeiad/client"
-	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -17,7 +17,7 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// Comments is the context that handles the comments API.
+// Comments is the context for the comments API.
 type Comments struct {
 	cfg       *config.Config
 	politeiad *pdclient.Client
@@ -30,12 +30,12 @@ type Comments struct {
 func (c *Comments) HandleNew(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleNew")
 
-	var n cmv1.New
+	var n v1.New
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&n); err != nil {
 		respondWithError(w, r, "HandleNew: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -61,12 +61,12 @@ func (c *Comments) HandleNew(w http.ResponseWriter, r *http.Request) {
 func (c *Comments) HandleVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleVote")
 
-	var v cmv1.Vote
+	var v v1.Vote
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&v); err != nil {
 		respondWithError(w, r, "HandleVote: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -92,12 +92,12 @@ func (c *Comments) HandleVote(w http.ResponseWriter, r *http.Request) {
 func (c *Comments) HandleDel(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleDel")
 
-	var d cmv1.Del
+	var d v1.Del
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&d); err != nil {
 		respondWithError(w, r, "HandleDel: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -123,12 +123,12 @@ func (c *Comments) HandleDel(w http.ResponseWriter, r *http.Request) {
 func (c *Comments) HandleCount(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleCount")
 
-	var ct cmv1.Count
+	var ct v1.Count
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&c); err != nil {
 		respondWithError(w, r, "HandleCount: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -147,12 +147,12 @@ func (c *Comments) HandleCount(w http.ResponseWriter, r *http.Request) {
 func (c *Comments) HandleComments(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleComments")
 
-	var cs cmv1.Comments
+	var cs v1.Comments
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cs); err != nil {
 		respondWithError(w, r, "HandleComments: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -180,12 +180,12 @@ func (c *Comments) HandleComments(w http.ResponseWriter, r *http.Request) {
 func (c *Comments) HandleVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleVotes")
 
-	var v cmv1.Votes
+	var v v1.Votes
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&v); err != nil {
 		respondWithError(w, r, "HandleVotes: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
@@ -205,12 +205,12 @@ func (c *Comments) HandleVotes(w http.ResponseWriter, r *http.Request) {
 func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleTimestamps")
 
-	var t cmv1.Timestamps
+	var t v1.Timestamps
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		respondWithError(w, r, "HandleTimestamps: unmarshal",
-			cmv1.UserErrorReply{
-				ErrorCode: cmv1.ErrorCodeInputInvalid,
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}

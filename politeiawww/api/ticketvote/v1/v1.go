@@ -472,7 +472,8 @@ type LinkedFromReply struct {
 	LinkedFrom map[string][]string `json:"linkedfrom"`
 }
 
-// Inventory requests the record inventory categorized by vote status.
+// Inventory requests the tokens of all records in the inventory, categorized
+// by vote status.
 type Inventory struct{}
 
 // InventoryReply is the reply to the Inventory command. It contains the tokens
