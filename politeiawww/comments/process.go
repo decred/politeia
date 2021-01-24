@@ -24,7 +24,7 @@ func (c *Comments) processNew(ctx context.Context, n cmv1.New, u user.User) (*cm
 		// Verify user has paid registration paywall
 		if !c.userHasPaid(u) {
 			return nil, cmv1.UserErrorReply{
-				// ErrorCode: cmv1.ErrorCodeUserRegistrationNotPaid,
+				// TODO ErrorCode: cmv1.ErrorCodeUserRegistrationNotPaid,
 			}
 		}
 	}
@@ -47,7 +47,7 @@ func (c *Comments) processNew(ctx context.Context, n cmv1.New, u user.User) (*cm
 		}
 		if u.ID.String() != authorID {
 			return nil, cmv1.UserErrorReply{
-				// ErrorCode:    cmv1.ErrorCodeUnauthorized,
+				// TODO ErrorCode:    cmv1.ErrorCodeUnauthorized,
 				ErrorContext: "user is not author or admin",
 			}
 		}
@@ -62,7 +62,7 @@ func (c *Comments) processNew(ctx context.Context, n cmv1.New, u user.User) (*cm
 		PublicKey: n.PublicKey,
 		Signature: n.Signature,
 	}
-	cnr, err := c.politeiad.CommentNew(ctx, n.State, n.Token, cn)
+	cnr, err := c.politeiad.CommentNew(ctx, n.State, cn)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +74,8 @@ func (c *Comments) processNew(ctx context.Context, n cmv1.New, u user.User) (*cm
 	// Emit event
 	c.events.Emit(EventTypeNew,
 		EventNew{
-			State:     n.State,
-			Token:     cm.Token,
-			CommentID: cm.CommentID,
-			ParentID:  cm.ParentID,
-			Username:  cm.Username,
+			State:   n.State,
+			Comment: cm,
 		})
 
 	return &cmv1.NewReply{
@@ -126,7 +123,7 @@ func (c *Comments) processVote(ctx context.Context, v cmv1.Vote, u user.User) (*
 		PublicKey: v.PublicKey,
 		Signature: v.Signature,
 	}
-	vr, err := c.politeiad.CommentVote(ctx, v.State, v.Token, cv)
+	vr, err := c.politeiad.CommentVote(ctx, v.State, cv)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +155,7 @@ func (c *Comments) processDel(ctx context.Context, d cmv1.Del, u user.User) (*cm
 		PublicKey: d.PublicKey,
 		Signature: d.Signature,
 	}
-	cdr, err := c.politeiad.CommentDel(ctx, d.State, d.Token, cd)
+	cdr, err := c.politeiad.CommentDel(ctx, d.State, cd)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +210,7 @@ func (c *Comments) processComments(ctx context.Context, cs cmv1.Comments, u *use
 		}
 		if !isAllowed {
 			return nil, cmv1.UserErrorReply{
-				// ErrorCode:    cmv1.ErrorCodeUnauthorized,
+				// TODO ErrorCode:    cmv1.ErrorCodeUnauthorized,
 				ErrorContext: "user is not author or admin",
 			}
 		}

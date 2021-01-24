@@ -4,17 +4,15 @@
 
 package comments
 
+import cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+
 const (
-	// EventTypeNew is the event that is emitted when a new comment is
-	// made.
-	EventTypeNew = "commentnew"
+	// EventTypeNew is emitted when a new comment is made.
+	EventTypeNew = "comments-new"
 )
 
-// EventNew is the event data that is emitted when a new comment is made.
+// EventNew is the event data for EventTypeNew.
 type EventNew struct {
-	State     string
-	Token     string
-	CommentID uint32
-	ParentID  uint32
-	Username  string
+	State   string
+	Comment cmv1.Comment
 }

@@ -16,8 +16,8 @@ const (
 	RouteDetails    = "/details"
 	RouteResults    = "/results"
 	RouteSummaries  = "/summaries"
-	RouteInventory  = "/inventory"
 	RouteLinkedFrom = "/linkedfrom"
+	RouteInventory  = "/inventory"
 	RouteTimestamps = "/timestamps"
 )
 
@@ -28,6 +28,9 @@ const (
 	// Error codes
 	ErrorCodeInvalid      ErrorCodeT = 0
 	ErrorCodeInputInvalid ErrorCodeT = 1
+
+	ErrorCodePublicKeyInvalid ErrorCodeT = iota
+	ErrorCodeUnauthorized
 )
 
 var (
@@ -377,7 +380,7 @@ type Details struct {
 // DetailsReply is the reply to the Details command.
 type DetailsReply struct {
 	Auths []AuthDetails `json:"auths"`
-	Vote  VoteDetails   `json:"vote"`
+	Vote  *VoteDetails  `json:"vote"`
 }
 
 // CastVoteDetails contains the details of a cast vote.
@@ -454,16 +457,6 @@ type SummariesReply struct {
 	Summaries map[string]Summary `json:"summaries"` // [token]Summary
 }
 
-// Inventory requests the record inventory categorized by vote status.
-type Inventory struct{}
-
-// InventoryReply is the reply to the Inventory command. The returned map is
-// a map[votestatus][]token where the votestatus key is the human readable vote
-// status defined by the VoteStatuses array in this package.
-type InventoryReply struct {
-	Records map[string][]string `json:"records"`
-}
-
 // LinkedFrom requests the linked from list for a record. The only records that
 // will have a linked from list are the parent records in a runoff vote. The
 // linked from list will contain all runoff vote submissions, i.e. records that
@@ -477,6 +470,16 @@ type LinkedFrom struct {
 // map.
 type LinkedFromReply struct {
 	LinkedFrom map[string][]string `json:"linkedfrom"`
+}
+
+// Inventory requests the record inventory categorized by vote status.
+type Inventory struct{}
+
+// InventoryReply is the reply to the Inventory command. The returned map is
+// a map[votestatus][]token where the votestatus key is the human readable vote
+// status defined by the VoteStatuses array in this package.
+type InventoryReply struct {
+	Records map[string][]string `json:"records"`
 }
 
 // Proof contains an inclusion proof for the digest in the merkle root. The

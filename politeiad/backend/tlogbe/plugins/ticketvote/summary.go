@@ -40,7 +40,7 @@ var (
 	errSummaryNotFound = errors.New("summary not found")
 )
 
-func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.VoteSummary, error) {
+func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.SummaryReply, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -58,17 +58,17 @@ func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.VoteSummary, 
 		return nil, err
 	}
 
-	var vs ticketvote.VoteSummary
-	err = json.Unmarshal(b, &vs)
+	var sr ticketvote.SummaryReply
+	err = json.Unmarshal(b, &sr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &vs, nil
+	return &sr, nil
 }
 
-func (p *ticketVotePlugin) summaryCacheSave(token string, vs ticketvote.VoteSummary) error {
-	b, err := json.Marshal(vs)
+func (p *ticketVotePlugin) summaryCacheSave(token string, sr ticketvote.SummaryReply) error {
+	b, err := json.Marshal(sr)
 	if err != nil {
 		return err
 	}

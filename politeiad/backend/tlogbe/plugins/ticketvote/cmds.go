@@ -470,7 +470,7 @@ func (p *ticketVotePlugin) voteOptionResults(token []byte, options []ticketvote.
 
 // voteSummariesForRunoff returns the vote summaries of all submissions in a
 // runoff vote. This should only be called once the vote has finished.
-func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ticketvote.VoteSummary, error) {
+func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ticketvote.SummaryReply, error) {
 	// Get runoff vote details
 	parent, err := tokenDecode(parentToken)
 	if err != nil {
@@ -491,12 +491,12 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 	// Verify submissions exist
 	subs := rdr.Runoff.Submissions
 	if len(subs) == 0 {
-		return map[string]ticketvote.VoteSummary{}, nil
+		return map[string]ticketvote.SummaryReply{}, nil
 	}
 
 	// Compile summaries for all submissions
 	var (
-		summaries        = make(map[string]ticketvote.VoteSummary, len(subs))
+		summaries        = make(map[string]ticketvote.SummaryReply, len(subs))
 		winnerNetApprove int    // Net number of approve votes of the winner
 		winnerToken      string // Token of the winner
 	)
@@ -519,7 +519,7 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 		}
 
 		// Save summary
-		s := ticketvote.VoteSummary{
+		s := ticketvote.SummaryReply{
 			Type:             vd.Params.Type,
 			Status:           ticketvote.VoteStatusFinished,
 			Duration:         vd.Params.Duration,
@@ -583,7 +583,7 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 }
 
 // summary returns the vote summary for a record.
-func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32) (*ticketvote.VoteSummary, error) {
+func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
 	// Check if the summary has been cached
 	s, err := p.summaryCache(hex.EncodeToString(token))
 	switch {
@@ -618,9 +618,10 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 		case ticketvote.AuthActionRevoke:
 			// Vote authorization has been revoked. Its not possible for
 			// the vote to have been started. We can stop looking.
-			return &ticketvote.VoteSummary{
-				Status:  status,
-				Results: []ticketvote.VoteOptionResult{},
+			return &ticketvote.SummaryReply{
+				Status:    status,
+				Results:   []ticketvote.VoteOptionResult{},
+				BestBlock: bestBlock,
 			}, nil
 		}
 	}
@@ -632,9 +633,10 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	}
 	if vd == nil {
 		// Vote has not been started yet
-		return &ticketvote.VoteSummary{
-			Status:  status,
-			Results: []ticketvote.VoteOptionResult{},
+		return &ticketvote.SummaryReply{
+			Status:    status,
+			Results:   []ticketvote.VoteOptionResult{},
+			BestBlock: bestBlock,
 		}, nil
 	}
 
@@ -653,7 +655,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	}
 
 	// Prepare summary
-	summary := ticketvote.VoteSummary{
+	summary := ticketvote.SummaryReply{
 		Type:             vd.Params.Type,
 		Status:           status,
 		Duration:         vd.Params.Duration,
@@ -664,6 +666,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 		QuorumPercentage: vd.Params.QuorumPercentage,
 		PassPercentage:   vd.Params.PassPercentage,
 		Results:          results,
+		BestBlock:        bestBlock,
 	}
 
 	// If the vote has not finished yet then we are done for now.
@@ -716,7 +719,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	return &summary, nil
 }
 
-func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.VoteSummary, error) {
+func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.SummaryReply, error) {
 	reply, err := p.backend.VettedPluginCmd(token, ticketvote.PluginID,
 		ticketvote.CmdSummary, "")
 	if err != nil {
@@ -728,7 +731,7 @@ func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.VoteSummary
 	if err != nil {
 		return nil, err
 	}
-	return &sr.Summary, nil
+	return &sr, nil
 }
 
 func (p *ticketVotePlugin) timestamp(treeID int64, digest []byte) (*ticketvote.Timestamp, error) {
@@ -2554,16 +2557,12 @@ func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte, payload string
 	}
 
 	// Get summary
-	s, err := p.summary(treeID, token, bb)
+	sr, err := p.summary(treeID, token, bb)
 	if err != nil {
 		return "", fmt.Errorf("summary: %v", err)
 	}
 
 	// Prepare reply
-	sr := ticketvote.SummaryReply{
-		Summary:   *s,
-		BestBlock: bb,
-	}
 	reply, err := json.Marshal(sr)
 	if err != nil {
 		return "", err

@@ -155,46 +155,7 @@ func convertPiErrorStatusFromPD(e pd.ErrorStatusT) pi.ErrorStatusT {
 
 func convertPiErrorStatusFromPiPlugin(e piplugin.ErrorCodeT) pi.ErrorStatusT {
 	switch e {
-	case piplugin.ErrorCodePageSizeExceeded:
-		return pi.ErrorStatusPageSizeExceeded
-	case piplugin.ErrorCodePropTokenInvalid:
-		return pi.ErrorStatusPropTokenInvalid
-	case piplugin.ErrorCodePropStatusInvalid:
-		return pi.ErrorStatusPropStatusInvalid
-	case piplugin.ErrorCodePropVersionInvalid:
-		return pi.ErrorStatusPropVersionInvalid
-	case piplugin.ErrorCodePropStatusChangeInvalid:
-		return pi.ErrorStatusPropStatusChangeInvalid
-	case piplugin.ErrorCodePropLinkToInvalid:
-		return pi.ErrorStatusPropLinkToInvalid
-	case piplugin.ErrorCodeVoteStatusInvalid:
-		return pi.ErrorStatusVoteStatusInvalid
-	case piplugin.ErrorCodeStartDetailsInvalid:
-		return pi.ErrorStatusStartDetailsInvalid
-	case piplugin.ErrorCodeStartDetailsMissing:
-		return pi.ErrorStatusStartDetailsMissing
-	case piplugin.ErrorCodeVoteParentInvalid:
-		return pi.ErroStatusVoteParentInvalid
-	}
-	return pi.ErrorStatusInvalid
-}
-
-func convertPiErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) pi.ErrorStatusT {
-	switch e {
-	case ticketvote.ErrorCodeTokenInvalid:
-		return pi.ErrorStatusPropTokenInvalid
-	case ticketvote.ErrorCodePublicKeyInvalid:
-		return pi.ErrorStatusPublicKeyInvalid
-	case ticketvote.ErrorCodeSignatureInvalid:
-		return pi.ErrorStatusSignatureInvalid
-	case ticketvote.ErrorCodeRecordStatusInvalid:
-		return pi.ErrorStatusPropStatusInvalid
-	case ticketvote.ErrorCodeAuthorizationInvalid:
-		return pi.ErrorStatusVoteAuthInvalid
-	case ticketvote.ErrorCodeVoteParamsInvalid:
-		return pi.ErrorStatusVoteParamsInvalid
-	case ticketvote.ErrorCodeVoteStatusInvalid:
-		return pi.ErrorStatusVoteStatusInvalid
+	// TODO
 	}
 	return pi.ErrorStatusInvalid
 }
@@ -214,10 +175,6 @@ func convertPiErrorStatus(pluginID string, errCode int) pi.ErrorStatusT {
 		// Pi plugin
 		e := piplugin.ErrorCodeT(errCode)
 		return convertPiErrorStatusFromPiPlugin(e)
-	case ticketvote.PluginID:
-		// Ticket vote plugin
-		e := ticketvote.ErrorCodeT(errCode)
-		return convertPiErrorStatusFromTicketVote(e)
 	}
 
 	// No corresponding pi error status found

@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package comments
+package ticketvote
 
 import (
 	"encoding/json"
@@ -13,7 +13,6 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
 
@@ -21,182 +20,240 @@ import (
 type TicketVote struct {
 	cfg       *config.Config
 	politeiad *pdclient.Client
-	userdb    user.Database
 	sessions  sessions.Sessions
 	events    *events.Manager
 }
 
-func (p *politeiawww) handleAuthorize(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAuthorize")
+// HandleAuthorize is the request handler for the ticketvote v1 Authorize
+// route.
+func (t *TicketVote) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleAuthorize")
 
 	var a tkv1.Authorize
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&va); err != nil {
-		respondWithError(w, r, "handleAuthorize: unmarshal",
+	if err := decoder.Decode(&a); err != nil {
+		respondWithError(w, r, "HandleAuthorize: unmarshal",
 			tkv1.UserErrorReply{
-				ErrorCode: tkv1.ErrorStatusInputInvalid,
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	u, err := p.sessions.GetSessionUser(w, r)
+	u, err := t.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithError(w, r,
-			"handleAuthorize: GetSessionUser: %v", err)
+			"HandleAuthorize: GetSessionUser: %v", err)
 		return
 	}
 
-	ar, err := p.processAuthorize(r.Context(), a, *u)
+	ar, err := t.processAuthorize(r.Context(), a, *u)
 	if err != nil {
 		respondWithError(w, r,
-			"handleAuthorize: processAuthorize: %v", err)
+			"HandleAuthorize: processAuthorize: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vr)
+	util.RespondWithJSON(w, http.StatusOK, ar)
 }
 
-func (p *politeiawww) HandleStart(w http.ResponseWriter, r *http.Request) {
+// HandleStart is the requeset handler for the ticketvote v1 Start route.
+func (t *TicketVote) HandleStart(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleStart")
 
-	var vs piv1.VoteStart
+	var s tkv1.Start
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vs); err != nil {
-		respondWithPiError(w, r, "HandleStart: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
+	if err := decoder.Decode(&s); err != nil {
+		respondWithError(w, r, "HandleStart: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	usr, err := p.sessions.GetSessionUser(w, r)
+	u, err := t.sessions.GetSessionUser(w, r)
 	if err != nil {
-		respondWithPiError(w, r,
+		respondWithError(w, r,
 			"HandleStart: GetSessionUser: %v", err)
 		return
 	}
 
-	vsr, err := p.processVoteStart(r.Context(), vs, *usr)
+	sr, err := t.processStart(r.Context(), s, *u)
 	if err != nil {
-		respondWithPiError(w, r,
-			"HandleStart: processVoteStart: %v", err)
+		respondWithError(w, r,
+			"HandleStart: processStart: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vsr)
+	util.RespondWithJSON(w, http.StatusOK, sr)
 }
 
-func (p *politeiawww) handleCastBallot(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCastBallot")
+// HandleCastBallot is the request handler for the ticketvote v1 CastBallot
+// route.
+func (t *TicketVote) HandleCastBallot(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleCastBallot")
 
-	var vb piv1.CastBallot
+	var cb tkv1.CastBallot
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vb); err != nil {
-		respondWithPiError(w, r, "handleCastBallot: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
+	if err := decoder.Decode(&cb); err != nil {
+		respondWithError(w, r, "HandleCastBallot: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	vbr, err := p.processCastBallot(r.Context(), vb)
+	cbr, err := t.processCastBallot(r.Context(), cb)
 	if err != nil {
-		respondWithPiError(w, r,
-			"handleCastBallot: processCastBallot: %v", err)
+		respondWithError(w, r,
+			"HandleCastBallot: processCastBallot: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vbr)
+	util.RespondWithJSON(w, http.StatusOK, cbr)
 }
 
-func (p *politeiawww) handleVotes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVotes")
+// HandleDetails is the request handler for the ticketvote v1 Details route.
+func (t *TicketVote) HandleDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleDetails")
 
-	var v piv1.Votes
+	var d tkv1.Details
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&v); err != nil {
-		respondWithPiError(w, r, "handleVotes: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
+	if err := decoder.Decode(&d); err != nil {
+		respondWithError(w, r, "HandleDetails: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	vr, err := p.processVotes(r.Context(), v)
+	dr, err := t.processDetails(r.Context(), d)
 	if err != nil {
-		respondWithPiError(w, r,
-			"handleVotes: processVotes: %v", err)
+		respondWithError(w, r,
+			"HandleDetails: processDetails: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vr)
+	util.RespondWithJSON(w, http.StatusOK, dr)
 }
 
-func (p *politeiawww) handleVoteResultsPi(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteResults")
+// HandleResults is the request handler for the ticketvote v1 Results route.
+func (t *TicketVote) HandleResults(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleResults")
 
-	var vr piv1.VoteResults
+	var rs tkv1.Results
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vr); err != nil {
-		respondWithPiError(w, r, "handleVoteResults: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
+	if err := decoder.Decode(&rs); err != nil {
+		respondWithError(w, r, "HandleResults: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	vrr, err := p.processVoteResultsPi(r.Context(), vr)
+	rsr, err := t.processResults(r.Context(), rs)
 	if err != nil {
-		respondWithPiError(w, r,
-			"handleVoteResults: prcoessVoteResults: %v", err)
+		respondWithError(w, r,
+			"HandleResults: processResults: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vrr)
+	util.RespondWithJSON(w, http.StatusOK, rsr)
 }
 
-func (p *politeiawww) handleVoteSummaries(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteSummaries")
+// HandleSummaries is the request handler for the ticketvote v1 Summaries
+// route.
+func (t *TicketVote) HandleSummaries(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleSummaries")
 
-	var vs piv1.VoteSummaries
+	var s tkv1.Summaries
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vs); err != nil {
-		respondWithPiError(w, r, "handleVoteSummaries: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
+	if err := decoder.Decode(&s); err != nil {
+		respondWithError(w, r, "HandleSummaries: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	vsr, err := p.processVoteSummaries(r.Context(), vs)
+	sr, err := t.processSummaries(r.Context(), s)
 	if err != nil {
-		respondWithPiError(w, r, "handleVoteSummaries: processVoteSummaries: %v",
+		respondWithError(w, r, "HandleSummaries: processSummaries: %v",
 			err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vsr)
+	util.RespondWithJSON(w, http.StatusOK, sr)
 }
 
-func (p *politeiawww) handleVoteInventory(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteInventory")
+// HandleLinkedFrom is the request handler for the ticketvote v1 LinkedFrom
+// route.
+func (t *TicketVote) HandleLinkedFrom(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleLinkedFrom")
 
-	var vi piv1.VoteInventory
+	var lf tkv1.LinkedFrom
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vi); err != nil {
-		respondWithPiError(w, r, "handleVoteInventory: unmarshal",
-			piv1.UserErrorReply{
-				ErrorCode: piv1.ErrorStatusInputInvalid,
+	if err := decoder.Decode(&lf); err != nil {
+		respondWithError(w, r, "HandleLinkedFrom: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	vir, err := p.processVoteInventory(r.Context())
+	lfr, err := t.processLinkedFrom(r.Context(), lf)
 	if err != nil {
-		respondWithPiError(w, r, "handleVoteInventory: processVoteInventory: %v",
+		respondWithError(w, r, "HandleLinkedFrom: processLinkedFrom: %v",
 			err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, vir)
+	util.RespondWithJSON(w, http.StatusOK, lfr)
+}
+
+// HandleInventory is the request handler for the ticketvote v1 Inventory
+// route.
+func (t *TicketVote) HandleInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleInventory")
+
+	ir, err := t.processInventory(r.Context())
+	if err != nil {
+		respondWithError(w, r, "HandleInventory: processInventory: %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ir)
+}
+
+// HandleTimestamps is the request handler for the ticketvote v1 Timestamps
+// route.
+func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleTimestamps")
+
+	var ts tkv1.Timestamps
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		respondWithError(w, r, "HandleTimestamps: unmarshal",
+			tkv1.UserErrorReply{
+				ErrorCode: tkv1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	tsr, err := t.processTimestamps(r.Context(), ts)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleTimestamps: processTimestamps: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, tsr)
+}
+
+// New returns a new TicketVote context.
+func New(cfg *config.Config, politeiad *pdclient.Client) *TicketVote {
+	return &TicketVote{
+		cfg:       cfg,
+		politeiad: politeiad,
+	}
 }

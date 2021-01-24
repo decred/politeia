@@ -14,7 +14,7 @@ import (
 )
 
 // CommentNew sends the comments plugin New command to the politeiad v1 API.
-func (c *Client) CommentNew(ctx context.Context, state, token string, n comments.New) (*comments.NewReply, error) {
+func (c *Client) CommentNew(ctx context.Context, state string, n comments.New) (*comments.NewReply, error) {
 	// Setup request
 	b, err := json.Marshal(n)
 	if err != nil {
@@ -23,7 +23,7 @@ func (c *Client) CommentNew(ctx context.Context, state, token string, n comments
 	cmds := []pdv1.PluginCommandV2{
 		{
 			State:   state,
-			Token:   token,
+			Token:   n.Token,
 			ID:      comments.PluginID,
 			Command: comments.CmdNew,
 			Payload: string(b),
@@ -54,7 +54,7 @@ func (c *Client) CommentNew(ctx context.Context, state, token string, n comments
 }
 
 // CommentVote sends the comments plugin Vote command to the politeiad v1 API.
-func (c *Client) CommentVote(ctx context.Context, state, token string, v comments.Vote) (*comments.VoteReply, error) {
+func (c *Client) CommentVote(ctx context.Context, state string, v comments.Vote) (*comments.VoteReply, error) {
 	// Setup request
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -63,7 +63,7 @@ func (c *Client) CommentVote(ctx context.Context, state, token string, v comment
 	cmds := []pdv1.PluginCommandV2{
 		{
 			State:   state,
-			Token:   token,
+			Token:   v.Token,
 			ID:      comments.PluginID,
 			Command: comments.CmdVote,
 			Payload: string(b),
@@ -94,7 +94,7 @@ func (c *Client) CommentVote(ctx context.Context, state, token string, v comment
 }
 
 // CommentDel sends the comments plugin Del command to the politeiad v1 API.
-func (c *Client) CommentDel(ctx context.Context, state, token string, d comments.Del) (*comments.DelReply, error) {
+func (c *Client) CommentDel(ctx context.Context, state string, d comments.Del) (*comments.DelReply, error) {
 	// Setup request
 	b, err := json.Marshal(d)
 	if err != nil {
@@ -103,7 +103,7 @@ func (c *Client) CommentDel(ctx context.Context, state, token string, d comments
 	cmds := []pdv1.PluginCommandV2{
 		{
 			State:   state,
-			Token:   token,
+			Token:   d.Token,
 			ID:      comments.PluginID,
 			Command: comments.CmdDel,
 			Payload: string(b),

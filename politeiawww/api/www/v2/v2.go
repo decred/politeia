@@ -14,8 +14,7 @@ type VoteT int
 const (
 	APIVersion = 2
 
-	// All routes in the package are NO LONGER SUPPORTED. The pi v1 API
-	// should be used instead.
+	// All routes in the package are NO LONGER SUPPORTED.
 	RouteStartVote       = "/vote/start"
 	RouteStartVoteRunoff = "/vote/startrunoff"
 	RouteVoteDetails     = "/vote/{token:[A-z0-9]{64}}"

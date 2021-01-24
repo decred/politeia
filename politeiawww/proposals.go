@@ -242,17 +242,14 @@ func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchPro
 func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
-	// Get vote details
-	vd, err := p.voteDetails(ctx, token)
-	if err != nil {
-		return nil, err
-	}
+	// TODO Get vote details
+	var vd ticketvote.VoteDetails
 
 	// Convert to www
-	startHeight := strconv.FormatUint(uint64(vd.Vote.StartBlockHeight), 10)
-	endHeight := strconv.FormatUint(uint64(vd.Vote.EndBlockHeight), 10)
-	options := make([]www.VoteOption, 0, len(vd.Vote.Params.Options))
-	for _, o := range vd.Vote.Params.Options {
+	startHeight := strconv.FormatUint(uint64(vd.StartBlockHeight), 10)
+	endHeight := strconv.FormatUint(uint64(vd.EndBlockHeight), 10)
+	options := make([]www.VoteOption, 0, len(vd.Params.Options))
+	for _, o := range vd.Params.Options {
 		options = append(options, www.VoteOption{
 			Id:          o.ID,
 			Description: o.Description,
@@ -260,11 +257,8 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 		})
 	}
 
-	// Get cast votes
-	rr, err := p.voteResults(ctx, token)
-	if err != nil {
-		return nil, err
-	}
+	// TODO Get cast votes
+	var rr ticketvote.ResultsReply
 
 	// Convert to www
 	votes := make([]www.CastVote, 0, len(rr.Votes))
@@ -279,22 +273,22 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 
 	return &www.VoteResultsReply{
 		StartVote: www.StartVote{
-			PublicKey: vd.Vote.PublicKey,
-			Signature: vd.Vote.Signature,
+			PublicKey: vd.PublicKey,
+			Signature: vd.Signature,
 			Vote: www.Vote{
-				Token:            vd.Vote.Params.Token,
-				Mask:             vd.Vote.Params.Mask,
-				Duration:         vd.Vote.Params.Duration,
-				QuorumPercentage: vd.Vote.Params.QuorumPercentage,
-				PassPercentage:   vd.Vote.Params.PassPercentage,
+				Token:            vd.Params.Token,
+				Mask:             vd.Params.Mask,
+				Duration:         vd.Params.Duration,
+				QuorumPercentage: vd.Params.QuorumPercentage,
+				PassPercentage:   vd.Params.PassPercentage,
 				Options:          options,
 			},
 		},
 		StartVoteReply: www.StartVoteReply{
 			StartBlockHeight: startHeight,
-			StartBlockHash:   vd.Vote.StartBlockHash,
+			StartBlockHash:   vd.StartBlockHash,
 			EndHeight:        endHeight,
-			EligibleTickets:  vd.Vote.EligibleTickets,
+			EligibleTickets:  vd.EligibleTickets,
 		},
 		CastVotes: votes,
 	}, nil
@@ -363,10 +357,9 @@ func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) 
 	cb := ticketvote.CastBallot{
 		Ballot: votes,
 	}
-	cbr, err := p.castBallot(ctx, cb)
-	if err != nil {
-		return nil, err
-	}
+	// TODO
+	_ = cb
+	var cbr ticketvote.CastBallotReply
 
 	// Prepare reply
 	receipts := make([]www.CastVoteReply, 0, len(cbr.Receipts))

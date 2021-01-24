@@ -67,7 +67,7 @@ func (p *piPlugin) cmdProposalInv() (string, error) {
 	return string(reply), nil
 }
 
-func (p *piPlugin) voteSummary(token []byte) (*ticketvote.VoteSummary, error) {
+func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 	reply, err := p.backend.VettedPluginCmd(token,
 		ticketvote.PluginID, ticketvote.CmdSummary, "")
 	if err != nil {
@@ -78,7 +78,7 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.VoteSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &sr.Summary, nil
+	return &sr, nil
 }
 
 func (p *piPlugin) cmdVoteInv() (string, error) {

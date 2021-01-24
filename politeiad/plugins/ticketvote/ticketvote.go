@@ -6,9 +6,7 @@
 // tickets to participate.
 package ticketvote
 
-// TODO VoteDetails, StartReply, StartRunoffReply should contain a receipt.
-// The receipt should be the server signature of Signature+StartBlockHash.
-// TODO Update politeiavoter
+// TODO should VoteDetails, StartReply, StartRunoffReply contain a receipt?
 // TODO the timestamps reply is going to be too large. Each ticket vote
 // timestamp is ~2000 bytes.
 // Avg   (15k votes): 30MB
@@ -25,9 +23,9 @@ const (
 	CmdDetails    = "details"    // Get vote details
 	CmdResults    = "results"    // Get vote results
 	CmdSummary    = "summary"    // Get vote summary
+	CmdLinkedFrom = "linkedfrom" // Get linked from list
 	CmdInventory  = "inventory"  // Get inventory by vote status
 	CmdTimestamps = "timestamps" // Get vote data timestamps
-	CmdLinkedFrom = "linkedfrom" // Get record linked from list
 
 	// Plugin setting keys
 	SettingKeyVoteDurationMin = "votedurationmin"
@@ -418,8 +416,11 @@ type VoteOptionResult struct {
 	Votes       uint64 `json:"votes"`       // Votes cast for this option
 }
 
-// VoteSummary contains a summary of a record vote.
-type VoteSummary struct {
+// Summary requests the vote summaries for a record.
+type Summary struct{}
+
+// SummaryReply is the reply to the Summary command.
+type SummaryReply struct {
 	Type             VoteT              `json:"type"`
 	Status           VoteStatusT        `json:"status"`
 	Duration         uint32             `json:"duration"`
@@ -436,17 +437,9 @@ type VoteSummary struct {
 	// VoteTypeRunoff, both of which only allow for approve/reject
 	// voting options.
 	Approved bool `json:"approved,omitempty"`
-}
 
-// Summary requests the vote summaries for a record.
-type Summary struct{}
-
-// SummaryReply is the reply to the Summary command.
-type SummaryReply struct {
-	Summary VoteSummary `json:"summary"`
-
-	// BestBlock is the best block value that was used to
-	// prepare this summary.
+	// BestBlock is the best block value that was used to prepare this
+	// summary.
 	BestBlock uint32 `json:"bestblock"`
 }
 
