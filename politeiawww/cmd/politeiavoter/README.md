@@ -46,8 +46,8 @@ directory by default.  The certificate (`client.pem`) must be appended to
 For example:
 
 ```
-$ gencerts ~/.politeiavoter/client.{cert,key}
-$ cat ~/.politeiavoter/client.cert >> ~/.dcrwallet/clients.pem
+$ gencerts ~/.politeiavoter/client{,-key}.pem
+$ cat ~/.politeiavoter/client.pem >> ~/.dcrwallet/clients.pem
 ```
 
 In order to sign votes ```politeiavoter``` requires the wallet passphrase.
