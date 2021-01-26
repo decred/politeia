@@ -43,6 +43,13 @@ path using the `--walletgrpccert` flag.  Client certs can be generated using
 directory by default.  The certificate (`client.pem`) must be appended to
 `~/.dcrwallet/clients.pem` in order for `dcrwallet` to trust the client.
 
+For example:
+
+```
+$ gencerts ~/.politeiavoter/client.{cert,key}
+$ cat ~/.politeiavoter/client.cert >> ~/.dcrwallet/clients.pem
+```
+
 In order to sign votes ```politeiavoter``` requires the wallet passphrase.
 
 In order to use the "vote trickler" functionality one must use Tor. Without Tor
