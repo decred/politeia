@@ -1251,6 +1251,9 @@ func (p *politeiawww) processNewProposal(ctx context.Context, np www.NewProposal
 		return nil, err
 	}
 
+	// Invalidate the token inventory cache
+	p.invDel()
+
 	// Fire off new proposal event
 	p.fireEvent(EventTypeProposalSubmitted,
 		EventDataProposalSubmitted{
@@ -1659,6 +1662,9 @@ func (p *politeiawww) processSetProposalStatus(ctx context.Context, sps www.SetP
 	if err != nil {
 		return nil, err
 	}
+
+	// Invalidate the token inventory cache
+	p.invDel()
 
 	// Get record from the cache
 	updatedProp, err := p.getPropVersion(pr.CensorshipRecord.Token, pr.Version)
@@ -2936,6 +2942,9 @@ func (p *politeiawww) processStartVoteV2(ctx context.Context, sv www2.StartVote,
 		return nil, err
 	}
 
+	// Invalidate the token inventory cache
+	p.invDel()
+
 	// Fire off start vote event
 	p.fireEvent(EventTypeProposalVoteStarted,
 		EventDataProposalVoteStarted{
@@ -3219,6 +3228,9 @@ func (p *politeiawww) processStartVoteRunoffV2(ctx context.Context, sv www2.Star
 		return nil, err
 	}
 
+	// Invalidate the token inventory cache
+	p.invDel()
+
 	// Fire off a start vote events for each rfp submission
 	for _, v := range sv.StartVotes {
 		p.fireEvent(EventTypeProposalVoteStarted,
@@ -3244,6 +3256,13 @@ func (p *politeiawww) processStartVoteRunoffV2(ctx context.Context, sv www2.Star
 // read access to the cache, loading the VoteResults table requires using a
 // politeiad decredplugin command.
 func (p *politeiawww) tokenInventory(ctx context.Context, bestBlock uint64, isAdmin bool) (*www.TokenInventoryReply, error) {
+	// Check if the token inventory has been memoized
+	inv := p.invGet()
+	if inv != nil {
+		return inv, nil
+	}
+
+	// Token inventory not in memory. Get it manually.
 	var done bool
 	var r www.TokenInventoryReply
 	for retries := 0; !done && retries <= 1; retries++ {
@@ -3269,6 +3288,9 @@ func (p *politeiawww) tokenInventory(ctx context.Context, bestBlock uint64, isAd
 		r = convertTokenInventoryReplyFromDecred(*ti)
 		done = true
 	}
+
+	// Memoize results
+	p.invSet(&r)
 
 	return &r, nil
 }

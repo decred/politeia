@@ -146,6 +146,42 @@ type politeiawww struct {
 	// the dcrdata best block route of politeiad is used as a fallback.
 	bestBlock uint64
 	bbMtx     sync.RWMutex
+
+	// inv memoizes the token inventory. It get invalidated anytime a
+	// record is submitted, a record status is changed, a vote is
+	// started, or a new block is received by the dcrdata websocket
+	// subscription.
+	inv *www.TokenInventoryReply
+}
+
+func (p *politeiawww) invSet(inv *www.TokenInventoryReply) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.inv = inv
+
+	log.Debugf("Token inventory memoized")
+}
+
+func (p *politeiawww) invDel() {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.inv == nil {
+		// Nothing to do
+		return
+	}
+
+	p.inv = nil
+
+	log.Debugf("Token inventory deleted")
+}
+
+func (p *politeiawww) invGet() *www.TokenInventoryReply {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.inv
 }
 
 // XXX rig this up
@@ -956,6 +992,9 @@ func (p *politeiawww) monitorWSDcrdataPi(ctx context.Context) {
 				log.Errorf("decredLoadVoteResults: %v", err)
 			}
 
+			// Invalidate the token inventory cache
+			p.invDel()
+
 		case *pstypes.HangUp:
 			log.Infof("Dcrdata websocket has hung up. Will reconnect.")
 			goto reconnect
@@ -975,6 +1014,9 @@ func (p *politeiawww) monitorWSDcrdataPi(ctx context.Context) {
 		// Update best block to 0 to indicate that the websocket
 		// connection is closed.
 		p.updateBestBlock(0)
+
+		// Invalidate the token inventory cache
+		p.invDel()
 
 		// Reconnect
 		p.wsDcrdata.Reconnect()
