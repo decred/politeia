@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	_ plugins.Client = (*piPlugin)(nil)
+	_ plugins.PluginClient = (*piPlugin)(nil)
 )
 
-// piPlugin satisfies the plugins.Client interface.
+// piPlugin satisfies the plugins.PluginClient interface.
 type piPlugin struct {
 	sync.Mutex
 	backend backend.Backend
@@ -44,7 +44,7 @@ type piPlugin struct {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Setup() error {
 	log.Tracef("Setup")
 
@@ -55,7 +55,7 @@ func (p *piPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
@@ -69,7 +69,7 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
@@ -87,7 +87,7 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("Fsck")
 

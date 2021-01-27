@@ -21,7 +21,6 @@ const (
 	CmdVotes      = "votes"      // Get comment votes
 	CmdTimestamps = "timestamps" // Get timestamps
 
-	// TODO make these default settings, not policies
 	// PolicyCommentLengthMax is the maximum number of characters
 	// accepted for comments.
 	PolicyCommentLengthMax = 8000

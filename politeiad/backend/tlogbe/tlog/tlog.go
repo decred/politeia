@@ -32,11 +32,11 @@ const (
 	defaultStoreDirname        = "store"
 
 	// Blob entry data descriptors
-	dataDescriptorFile           = "file_v1"
-	dataDescriptorRecordMetadata = "recordmd_v1"
-	dataDescriptorMetadataStream = "mdstream_v1"
-	dataDescriptorRecordIndex    = "rindex_v1"
-	dataDescriptorAnchor         = "anchor_v1"
+	dataDescriptorFile           = "file-v1"
+	dataDescriptorRecordMetadata = "recordmd-v1"
+	dataDescriptorMetadataStream = "mdstream-v1"
+	dataDescriptorRecordIndex    = "rindex-v1"
+	dataDescriptorAnchor         = "anchor-v1"
 
 	// The keys for kv store blobs are saved by stuffing them into the
 	// ExtraData field of their corresponding trillian log leaf. The
@@ -46,9 +46,6 @@ const (
 	// data out of the store, which can become an issue in situations
 	// such as searching for a record index that has been buried by
 	// thousands of leaves from plugin data.
-	// TODO key prefix app-dataID:
-	// TODO the leaf ExtraData field should be hinted. Similar to what
-	// we do for blobs.
 	dataTypeSeperator     = ":"
 	dataTypeRecordIndex   = "rindex"
 	dataTypeRecordContent = "rcontent"
@@ -59,7 +56,6 @@ var (
 	_ plugins.TlogClient = (*Tlog)(nil)
 )
 
-// TODO change tlog name to tstore.
 // We do not unwind.
 type Tlog struct {
 	sync.Mutex

@@ -33,7 +33,6 @@ import (
 
 // TODO testnet vs mainnet trillian databases
 // TODO fsck
-// TODO move memory caches to filesystem
 
 const (
 	defaultEncryptionKeyFilename = "tlogbe.key"
@@ -50,12 +49,11 @@ var (
 // tlogBackend implements the backend.Backend interface.
 type tlogBackend struct {
 	sync.RWMutex
-	activeNetParams *chaincfg.Params
-	homeDir         string
-	dataDir         string
-	shutdown        bool
-	unvetted        *tlog.Tlog
-	vetted          *tlog.Tlog
+	homeDir  string
+	dataDir  string
+	shutdown bool
+	unvetted *tlog.Tlog
+	vetted   *tlog.Tlog
 
 	// prefixes contains the prefix to full token mapping for unvetted
 	// records. The prefix is the first n characters of the hex encoded
@@ -1787,13 +1785,12 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 
 	// Setup tlogbe
 	t := tlogBackend{
-		activeNetParams: anp,
-		homeDir:         homeDir,
-		dataDir:         dataDir,
-		unvetted:        unvetted,
-		vetted:          vetted,
-		prefixes:        make(map[string][]byte),
-		vettedTreeIDs:   make(map[string]int64),
+		homeDir:       homeDir,
+		dataDir:       dataDir,
+		unvetted:      unvetted,
+		vetted:        vetted,
+		prefixes:      make(map[string][]byte),
+		vettedTreeIDs: make(map[string]int64),
 		inv: inventory{
 			unvetted: make(map[backend.MDStatusT][]string),
 			vetted:   make(map[backend.MDStatusT][]string),

@@ -31,10 +31,10 @@ import (
 
 const (
 	// Blob entry data descriptors
-	dataDescriptorAuthDetails     = "authdetails_v1"
-	dataDescriptorVoteDetails     = "votedetails_v1"
-	dataDescriptorCastVoteDetails = "castvotedetails_v1"
-	dataDescriptorStartRunoff     = "startrunoff_v1"
+	dataDescriptorAuthDetails     = "authdetails-v1"
+	dataDescriptorVoteDetails     = "votedetails-v1"
+	dataDescriptorCastVoteDetails = "castvotedetails-v1"
+	dataDescriptorStartRunoff     = "startrunoff-v1"
 
 	// Data types
 	dataTypeAuthDetails     = "authdetails"

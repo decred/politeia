@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	_ plugins.Client = (*userPlugin)(nil)
+	_ plugins.PluginClient = (*userPlugin)(nil)
 )
 
 type userPlugin struct {
@@ -30,7 +30,7 @@ type userPlugin struct {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Setup() error {
 	log.Tracef("Setup")
 
@@ -39,7 +39,7 @@ func (p *userPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
@@ -55,7 +55,7 @@ func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (strin
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
@@ -77,7 +77,7 @@ func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload s
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("Fsck")
 

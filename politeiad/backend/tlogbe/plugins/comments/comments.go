@@ -21,12 +21,12 @@ import (
 // error which causes a 500. Solution: add the timestamp to the vote index.
 
 var (
-	_ plugins.Client = (*commentsPlugin)(nil)
+	_ plugins.PluginClient = (*commentsPlugin)(nil)
 )
 
 // commentsPlugin is the tlog backend implementation of the comments plugin.
 //
-// commentsPlugin satisfies the plugins.Client interface.
+// commentsPlugin satisfies the plugins.PluginClient interface.
 type commentsPlugin struct {
 	sync.Mutex
 	tlog plugins.TlogClient
@@ -64,7 +64,7 @@ func (p *commentsPlugin) mutex(token []byte) *sync.Mutex {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Setup() error {
 	log.Tracef("Setup")
 
@@ -73,7 +73,7 @@ func (p *commentsPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
 
@@ -105,7 +105,7 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
@@ -114,7 +114,7 @@ func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, paylo
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("Fsck")
 

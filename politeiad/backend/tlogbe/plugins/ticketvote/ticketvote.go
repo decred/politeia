@@ -22,12 +22,10 @@ import (
 )
 
 var (
-	_ plugins.Client = (*ticketVotePlugin)(nil)
+	_ plugins.PluginClient = (*ticketVotePlugin)(nil)
 )
 
-// TODO verify all writes only accept full length tokens
-
-// ticketVotePlugin satisfies the plugins.Client interface.
+// ticketVotePlugin satisfies the plugins.PluginClient interface.
 type ticketVotePlugin struct {
 	sync.Mutex
 	backend         backend.Backend
@@ -87,7 +85,7 @@ func (p *ticketVotePlugin) mutex(token []byte) *sync.Mutex {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("Setup")
 
@@ -183,7 +181,7 @@ func (p *ticketVotePlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
 
@@ -219,7 +217,7 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
@@ -237,7 +235,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.Client interface.
+// This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("Fsck")
 

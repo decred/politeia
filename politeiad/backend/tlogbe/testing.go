@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 )
@@ -28,13 +27,12 @@ func NewTestTlogBackend(t *testing.T) (*tlogBackend, func()) {
 	dataDir := filepath.Join(homeDir, "data")
 
 	tlogBackend := tlogBackend{
-		activeNetParams: chaincfg.TestNet3Params(),
-		homeDir:         homeDir,
-		dataDir:         dataDir,
-		unvetted:        tlog.NewTestTlogUnencrypted(t, dataDir, "unvetted"),
-		vetted:          tlog.NewTestTlogEncrypted(t, dataDir, "vetted"),
-		prefixes:        make(map[string][]byte),
-		vettedTreeIDs:   make(map[string]int64),
+		homeDir:       homeDir,
+		dataDir:       dataDir,
+		unvetted:      tlog.NewTestTlogUnencrypted(t, dataDir, "unvetted"),
+		vetted:        tlog.NewTestTlogEncrypted(t, dataDir, "vetted"),
+		prefixes:      make(map[string][]byte),
+		vettedTreeIDs: make(map[string]int64),
 		inv: inventory{
 			unvetted: make(map[backend.MDStatusT][]string),
 			vetted:   make(map[backend.MDStatusT][]string),

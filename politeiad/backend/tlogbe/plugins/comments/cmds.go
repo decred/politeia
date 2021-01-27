@@ -23,9 +23,9 @@ import (
 
 const (
 	// Blob entry data descriptors
-	dataDescriptorCommentAdd  = "cadd_v1"
-	dataDescriptorCommentDel  = "cdel_v1"
-	dataDescriptorCommentVote = "cvote_v1"
+	dataDescriptorCommentAdd  = "cadd-v1"
+	dataDescriptorCommentDel  = "cdel-v1"
+	dataDescriptorCommentVote = "cvote-v1"
 
 	// Data types
 	dataTypeCommentAdd  = "cadd"

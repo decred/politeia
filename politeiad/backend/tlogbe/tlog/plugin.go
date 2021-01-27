@@ -34,7 +34,7 @@ const (
 type plugin struct {
 	id       string
 	settings []backend.PluginSetting
-	client   plugins.Client
+	client   plugins.PluginClient
 }
 
 func (t *Tlog) plugin(pluginID string) (plugin, bool) {
@@ -61,7 +61,7 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	log.Tracef("%v PluginRegister: %v", t.id, p.ID)
 
 	var (
-		client plugins.Client
+		client plugins.PluginClient
 		err    error
 
 		dataDir = filepath.Join(t.dataDir, pluginDataDirname)

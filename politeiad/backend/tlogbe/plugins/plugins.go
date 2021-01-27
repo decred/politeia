@@ -16,7 +16,7 @@ const (
 	// HookTypeInvalid is an invalid plugin hook.
 	HookTypeInvalid HookT = 0
 
-	// HootTypeNewRecordPre is called before new record is saved to
+	// HootTypeNewRecordPre is called before a new record is saved to
 	// disk.
 	HookTypeNewRecordPre HookT = 1
 
@@ -71,9 +71,7 @@ var (
 	}
 )
 
-// RecordStateT represents a record state. The record state is included in all
-// hook payloads so that a plugin has the ability to implement different
-// behaviors for different states.
+// RecordStateT represents a record state.
 type RecordStateT int
 
 const (
@@ -157,9 +155,9 @@ type HookPluginPost struct {
 	Reply    string       `json:"reply"`
 }
 
-// Client provides an API for a tlog instance to use when interacting with a
-// plugin. All tlog plugins must implement the Client interface.
-type Client interface {
+// PluginClient provides an API for a tlog instance to use when interacting
+// with a plugin. All tlog plugins must implement the PluginClient interface.
+type PluginClient interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 
