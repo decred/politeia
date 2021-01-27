@@ -13,6 +13,9 @@ const (
 	CmdAuthor      = "author"      // Get record author
 	CmdUserRecords = "userrecords" // Get user submitted records
 
+	// TODO add record status change mdstream
+	// TODO make whether user md is required a plugin setting
+
 	// TODO MDStream IDs need to be plugin specific. If we can't then
 	// we need to make a mdstream package to aggregate all the mdstream
 	// ID.
@@ -42,6 +45,15 @@ var (
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid: "error code invalid",
 	}
+
+	/*
+		// statusReasonRequired contains the list of proposal statuses that
+		// require an accompanying reason to be given for the status change.
+		statusReasonRequired = map[piv1.PropStatusT]struct{}{
+			piv1.PropStatusCensored:  {},
+			piv1.PropStatusAbandoned: {},
+		}
+	*/
 )
 
 // UserMetadata contains user metadata about a politeiad record. It is

@@ -995,10 +995,10 @@ type PolicyReply struct {
 	TokenPrefixLength          int      `json:"tokenprefixlength"`
 	BuildInformation           []string `json:"buildinformation"`
 	IndexFilename              string   `json:"indexfilename"`
-	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
-	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
-	MinVoteDuration            uint32   `json:"minvoteduration"`
-	MaxVoteDuration            uint32   `json:"maxvoteduration"`
+	MinLinkByPeriod            int64    `json:"minlinkbyperiod"` // DEPRECATED
+	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"` // DEPRECATED
+	MinVoteDuration            uint32   `json:"minvoteduration"` // DEPRECATED
+	MaxVoteDuration            uint32   `json:"maxvoteduration"` // DEPRECATED
 }
 
 // VoteOption describes a single vote option.

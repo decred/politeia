@@ -306,6 +306,16 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 			}
 		}
 
+		// Verify payload is not empty
+		if files[i].Payload == "" {
+			return backend.ContentVerificationError{
+				ErrorCode: v1.ErrorStatusInvalidBase64,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+
 		// Decode base64 payload
 		var err error
 		payload, err := base64.StdEncoding.DecodeString(files[i].Payload)

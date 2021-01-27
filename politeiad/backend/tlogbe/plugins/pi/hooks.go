@@ -5,19 +5,30 @@
 package pi
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"strings"
+	"strconv"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/util"
 )
+
+const (
+	// Accepted MIME types
+	mimeTypeText     = "text/plain"
+	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
+	mimeTypePNG      = "image/png"
+)
+
+func tokenDecode(token string) ([]byte, error) {
+	return util.TokenDecode(util.TokenTypeTlog, token)
+}
 
 // proposalMetadataDecode decodes and returns the ProposalMetadata from the
 // provided backend files. If a ProposalMetadata is not found, nil is returned.
@@ -41,22 +52,161 @@ func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) 
 	return propMD, nil
 }
 
-// statusChangesDecode decodes a JSON byte slice into a []StatusChange slice.
-func statusChangesDecode(payload []byte) ([]pi.StatusChange, error) {
-	var statuses []pi.StatusChange
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var sc pi.StatusChange
-		err := d.Decode(&sc)
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
+// proposalNameRegexp returns the regexp string for validating a proposal name.
+func (p *piPlugin) proposalNameRegexpString() string {
+	var b bytes.Buffer
+
+	b.WriteString("^[")
+	for _, v := range p.proposalNameSupportedChars {
+		if len(v) > 1 {
+			b.WriteString(v)
+		} else {
+			b.WriteString(`\` + v)
 		}
-		statuses = append(statuses, sc)
+	}
+	minNameLength := strconv.Itoa(p.proposalNameLengthMin)
+	maxNameLength := strconv.Itoa(p.proposalNameLengthMax)
+	b.WriteString("]{")
+	b.WriteString(minNameLength + ",")
+	b.WriteString(maxNameLength + "}$")
+
+	return b.String()
+}
+
+// proposalNameIsValid returns whether the provided name is a valid proposal
+// name.
+func (p *piPlugin) proposalNameIsValid(name string) bool {
+	return p.proposalNameRegexp.MatchString(name)
+}
+
+// proposalFilesVerify verifies the files adhere to all plugin setting
+// requirements. If this hook is being executed then the files have already
+// passed politeia validation so we can assume that the file has a unique name,
+// a valid base64 payload, and that the file digest and MIME type are correct.
+func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
+	var (
+		textFilesCount  int
+		imageFilesCount int
+		indexFileFound  bool
+	)
+	for _, v := range files {
+		payload, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return fmt.Errorf("invalid base64 %v", v.Name)
+		}
+
+		// MIME type specific validation
+		switch v.MIME {
+		case mimeTypeText:
+			textFilesCount++
+
+			// The text file must be the proposal index file
+			if v.Name != p.indexFileName {
+				e := fmt.Sprintf("want %v, got %v", p.indexFileName, v.Name)
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    int(pi.ErrorCodeIndexFileNameInvalid),
+					ErrorContext: e,
+				}
+			}
+
+			// Verify text file size
+			if len(payload) > p.textFileSizeMax {
+				e := fmt.Sprintf("file %v size %v exceeds max size %v",
+					v.Name, len(payload), p.textFileSizeMax)
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    int(pi.ErrorCodeIndexFileSizeInvalid),
+					ErrorContext: e,
+				}
+			}
+
+			// Verify there isn't more than one index file
+			if indexFileFound {
+				e := fmt.Sprintf("more than one %v file found",
+					p.indexFileName)
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
+					ErrorContext: e,
+				}
+			}
+
+			// Set index file as being found
+			indexFileFound = true
+
+		case mimeTypePNG:
+			imageFilesCount++
+
+			// Verify image file size
+			if len(payload) > p.imageFileSizeMax {
+				e := fmt.Sprintf("image %v size %v exceeds max size %v",
+					v.Name, len(payload), p.imageFileSizeMax)
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    int(pi.ErrorCodeImageFileSizeInvalid),
+					ErrorContext: e,
+				}
+			}
+
+		default:
+			return fmt.Errorf("invalid mime")
+		}
 	}
 
-	return statuses, nil
+	// Verify that an index file is present
+	if !indexFileFound {
+		e := fmt.Sprintf("%v file not found", p.indexFileName)
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify file counts are acceptable
+	if textFilesCount > p.textFileCountMax {
+		e := fmt.Sprintf("got %v text files, max is %v",
+			textFilesCount, p.textFileCountMax)
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    int(pi.ErrorCodeTextFileCountInvalid),
+			ErrorContext: e,
+		}
+	}
+	if imageFilesCount > p.imageFileCountMax {
+		e := fmt.Sprintf("got %v image files, max is %v",
+			imageFilesCount, p.imageFileCountMax)
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    int(pi.ErrorCodeImageFileCountInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify a proposal metadata has been included
+	pm, err := proposalMetadataDecode(files)
+	if err != nil {
+		return err
+	}
+	if pm == nil {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    int(pi.ErrorCodeProposalMetadataInvalid),
+			ErrorContext: "metadata not found",
+		}
+	}
+
+	// Verify proposal name
+	if !p.proposalNameIsValid(pm.Name) {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    int(pi.ErrorCodeProposalNameInvalid),
+			ErrorContext: p.proposalNameRegexpString(),
+		}
+	}
+
+	return nil
 }
 
 func (p *piPlugin) hookNewRecordPre(payload string) error {
@@ -66,140 +216,42 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 		return err
 	}
 
-	// Verify a proposal metadata has been included
-	pm, err := proposalMetadataDecode(nr.Files)
-	if err != nil {
-		return err
-	}
-	if pm == nil {
-		return fmt.Errorf("proposal metadata not found")
-	}
-
-	// TODO Verify proposal name
-
-	return nil
+	return p.proposalFilesVerify(nr.Files)
 }
 
 func (p *piPlugin) hookEditRecordPre(payload string) error {
-	/*
-		var er plugins.HookEditRecord
-		err := json.Unmarshal([]byte(payload), &er)
-		if err != nil {
-			return err
-		}
-
-		// TODO verify files were changed. Before adding this, verify that
-		// politeiad will also error if no files were changed.
-
-		// Verify vote status. This is only required for public proposals.
-		if status == pi.PropStatusPublic {
-			token := er.RecordMetadata.Token
-			s := ticketvote.Summaries{
-				Tokens: []string{token},
-			}
-			b, err := ticketvote.EncodeSummaries(s)
-			if err != nil {
-				return err
-			}
-			reply, err := p.backend.Plugin(ticketvote.PluginID,
-				ticketvote.CmdSummaries, "", string(b))
-			if err != nil {
-				return fmt.Errorf("ticketvote Summaries: %v", err)
-			}
-			sr, err := ticketvote.DecodeSummariesReply([]byte(reply))
-			if err != nil {
-				return err
-			}
-			summary, ok := sr.Summaries[token]
-			if !ok {
-				return fmt.Errorf("ticketvote summmary not found")
-			}
-			if summary.Status != ticketvote.VoteStatusUnauthorized {
-				e := fmt.Sprintf("vote status got %v, want %v",
-					ticketvote.VoteStatuses[summary.Status],
-					ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized])
-				return backend.PluginUserError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
-					ErrorContext: e,
-				}
-			}
-		}
-	*/
-
-	return nil
-}
-
-func (p *piPlugin) hookSetRecordStatusPost(payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
+	var er plugins.HookEditRecord
+	err := json.Unmarshal([]byte(payload), &er)
 	if err != nil {
 		return err
 	}
 
-	/*
-		// Parse the status change metadata
-		var sc *pi.StatusChange
-		for _, v := range srs.MDAppend {
-			if v.ID != pi.MDStreamIDStatusChanges {
-				continue
-			}
+	// Verify proposal files
+	err = p.proposalFilesVerify(er.Files)
+	if err != nil {
+		return err
+	}
 
-			var sc pi.StatusChange
-			err := json.Unmarshal([]byte(v.Payload), &sc)
-			if err != nil {
-				return err
-			}
-			break
+	// Verify vote status allows proposal edits
+	if er.RecordMetadata.Status == backend.MDStatusVetted {
+		t, err := tokenDecode(er.RecordMetadata.Token)
+		if err != nil {
+			return err
 		}
-		if sc == nil {
-			return fmt.Errorf("status change append metadata not found")
+		s, err := p.voteSummary(t)
+		if err != nil {
+			return err
 		}
-
-		// Parse the existing status changes metadata stream
-		var statuses []pi.StatusChange
-		for _, v := range srs.Current.Metadata {
-			if v.ID != pi.MDStreamIDStatusChanges {
-				continue
-			}
-
-			statuses, err = statusChangesDecode([]byte(v.Payload))
-			if err != nil {
-				return err
-			}
-			break
-		}
-
-		// Verify version is the latest version
-		if sc.Version != srs.Current.Version {
-			e := fmt.Sprintf("version not current: got %v, want %v",
-				sc.Version, srs.Current.Version)
+		if s.Status != ticketvote.VoteStatusUnauthorized {
+			e := fmt.Sprintf("vote status '%v' does not allow for proposal edits",
+				ticketvote.VoteStatuses[s.Status])
 			return backend.PluginError{
 				PluginID:     pi.PluginID,
-				ErrorCode:    int(pi.ErrorCodePropVersionInvalid),
+				ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
 				ErrorContext: e,
 			}
 		}
-
-		// Verify status change is allowed
-		var from pi.PropStatusT
-		if len(statuses) == 0 {
-			// No previous status changes exist. Proposal is unvetted.
-			from = pi.PropStatusUnvetted
-		} else {
-			from = statuses[len(statuses)-1].Status
-		}
-		_, isAllowed := pi.StatusChanges[from][sc.Status]
-		if !isAllowed {
-			e := fmt.Sprintf("from %v to %v status change not allowed",
-				from, sc.Status)
-			return backend.PluginError{
-				PluginID:     pi.PluginID,
-				ErrorCode:    int(pi.ErrorCodePropStatusChangeInvalid),
-				ErrorContext: e,
-			}
-		}
-	*/
+	}
 
 	return nil
 }

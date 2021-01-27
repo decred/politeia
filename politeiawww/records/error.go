@@ -31,7 +31,7 @@ func convertRecordsErrorCode(errCode int) v1.ErrorCodeT {
 	return v1.ErrorCodeInvalid
 }
 
-func respondWithRecordError(w http.ResponseWriter, r *http.Request, format string, err error) {
+func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	var (
 		ue v1.UserErrorReply
 		pe pdclient.Error

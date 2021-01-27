@@ -19,14 +19,13 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/pi/v1"
 
-	// Proposal routes
-	RouteProposalNew       = "/proposal/new"
-	RouteProposalEdit      = "/proposal/edit"
-	RouteProposalSetStatus = "/proposal/setstatus"
-	RouteProposals         = "/proposals"
+	// Routes
+	RouteProposals     = "/proposals"
+	RouteVoteInventory = "/voteinventory"
 
-	// Vote routes
-	RouteVoteInventory = "/votes/inventory"
+	// Proposal states
+	ProposalStateUnvetted = "unvetted"
+	ProposalStateVetted   = "vetted"
 )
 
 // ErrorCodeT represents a user error code.
@@ -46,35 +45,6 @@ const (
 	// Signature errors
 	ErrorCodePublicKeyInvalid ErrorCodeT = 200
 	ErrorCodeSignatureInvalid ErrorCodeT = 201
-
-	// Proposal errors
-	// TODO number error codes
-	ErrorCodeFileCountInvalid ErrorCodeT = 300
-	ErrorCodeFileNameInvalid  ErrorCodeT = iota
-	ErrorCodeFileMIMEInvalid
-	ErrorCodeFileDigestInvalid
-	ErrorCodeFilePayloadInvalid
-	ErrorCodeIndexFileNameInvalid
-	ErrorCodeIndexFileCountInvalid
-	ErrorCodeIndexFileSizeInvalid
-	ErrorCodeTextFileCountInvalid
-	ErrorCodeImageFileCountInvalid
-	ErrorCodeImageFileSizeInvalid
-	ErrorCodeMetadataCountInvalid
-	ErrorCodeMetadataDigestInvalid
-	ErrorCodeMetadataPayloadInvalid
-	ErrorCodePropNotFound
-	ErrorCodePropMetadataNotFound
-	ErrorCodePropTokenInvalid
-	ErrorCodePropVersionInvalid
-	ErrorCodePropNameInvalid
-	ErrorCodePropLinkToInvalid
-	ErrorCodePropLinkByInvalid
-	ErrorCodePropStateInvalid
-	ErrorCodePropStatusInvalid
-	ErrorCodePropStatusChangeInvalid
-	ErrorCodePropStatusChangeReasonInvalid
-	ErrorCodeNoPropChanges
 )
 
 var (
@@ -95,31 +65,6 @@ var (
 		ErrorCodeSignatureInvalid: "signature invalid",
 
 		// Proposal errors
-		ErrorCodeFileCountInvalid:              "file count invalid",
-		ErrorCodeFileNameInvalid:               "file name invalid",
-		ErrorCodeFileMIMEInvalid:               "file mime invalid",
-		ErrorCodeFileDigestInvalid:             "file digest invalid",
-		ErrorCodeFilePayloadInvalid:            "file payload invalid",
-		ErrorCodeIndexFileNameInvalid:          "index filename invalid",
-		ErrorCodeIndexFileCountInvalid:         "index file count invalid",
-		ErrorCodeIndexFileSizeInvalid:          "index file size invalid",
-		ErrorCodeTextFileCountInvalid:          "text file count invalid",
-		ErrorCodeImageFileCountInvalid:         "file count invalid",
-		ErrorCodeImageFileSizeInvalid:          "file size invalid",
-		ErrorCodeMetadataCountInvalid:          "metadata count invalid",
-		ErrorCodeMetadataDigestInvalid:         "metadata digest invalid",
-		ErrorCodeMetadataPayloadInvalid:        "metadata pyaload invalid",
-		ErrorCodePropMetadataNotFound:          "proposal metadata not found",
-		ErrorCodePropNameInvalid:               "proposal name invalid",
-		ErrorCodePropLinkToInvalid:             "proposal link to invalid",
-		ErrorCodePropLinkByInvalid:             "proposal link by invalid",
-		ErrorCodePropTokenInvalid:              "proposal token invalid",
-		ErrorCodePropNotFound:                  "proposal not found",
-		ErrorCodePropStateInvalid:              "proposal state invalid",
-		ErrorCodePropStatusInvalid:             "proposal status invalid",
-		ErrorCodePropStatusChangeInvalid:       "proposal status change invalid",
-		ErrorCodePropStatusChangeReasonInvalid: "proposal status reason invalid",
-		ErrorCodeNoPropChanges:                 "no proposal changes",
 	}
 )
 
@@ -149,24 +94,6 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// PropStateT represents a proposal state. A proposal state can be either
-// unvetted or vetted. The PropStatusT type further breaks down these two
-// states into more granular statuses.
-type PropStateT int
-
-const (
-	// PropStateInvalid indicates an invalid proposal state.
-	PropStateInvalid PropStateT = 0
-
-	// PropStateUnvetted indicates a proposal has not been made public
-	// yet. Only admins and the proposal author are able to view
-	// unvetted proposals.
-	PropStateUnvetted PropStateT = 1
-
-	// PropStateVetted indicates a proposal has been made public.
-	PropStateVetted PropStateT = 2
-)
-
 // PropStatusT represents a proposal status.
 type PropStatusT int
 
@@ -193,10 +120,14 @@ const (
 	// before or after it was made public.
 	PropStatusCensored PropStatusT = 3
 
+	// PropStatusUnreviewedChanges is deprecated. It is only here so
+	// the proposal status numbering maps directly to the record status
+	// numbering.
+	PropStatusUnreviewedChanges PropStatusT = 4
+
 	// PropStatusAbandoned indicates that a proposal has been marked
 	// as abandoned by an admin due to the author being inactive.
-	// TODO can a unvetted proposal be abandoned?
-	PropStatusAbandoned PropStatusT = 4
+	PropStatusAbandoned PropStatusT = 5
 )
 
 // PropStatuses contains the human readable proposal statuses.
@@ -240,9 +171,9 @@ type ProposalMetadata struct {
 	Name string `json:"name"` // Proposal name
 }
 
-// VoteMetadata that is specified by the user on proposal submission in order to
-// host or participate in certain types of votes. It is attached to a proposal
-// submission as a Metadata object.
+// VoteMetadata is metadata that is specified by the user on proposal
+// submission in order to host or participate in certain types of votes. It is
+// attached to a proposal submission as a Metadata object.
 type VoteMetadata struct {
 	// LinkBy is set when the user intends for the proposal to be the
 	// parent proposal in a runoff vote. It is a UNIX timestamp that
@@ -291,7 +222,7 @@ type StatusChange struct {
 type ProposalRecord struct {
 	Version   string         `json:"version"`   // Proposal version
 	Timestamp int64          `json:"timestamp"` // Submission UNIX timestamp
-	State     PropStateT     `json:"state"`     // Proposal state
+	State     string         `json:"state"`     // Proposal state
 	Status    PropStatusT    `json:"status"`    // Proposal status
 	UserID    string         `json:"userid"`    // Author ID
 	Username  string         `json:"username"`  // Author username
@@ -306,82 +237,23 @@ type ProposalRecord struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// ProposalNew submits a new proposal.
-//
-// Metadata must contain a ProposalMetadata object.
-//
-// Signature is the client signature of the proposal merkle root. The merkle
-// root is the ordered merkle root of all proposal Files and Metadata.
-type ProposalNew struct {
-	Files     []File     `json:"files"`     // Proposal files
-	Metadata  []Metadata `json:"metadata"`  // User defined metadata
-	PublicKey string     `json:"publickey"` // Key used for signature
-	Signature string     `json:"signature"` // Signature of merkle root
-}
-
-// ProposalNewReply is the reply to the ProposalNew command.
-type ProposalNewReply struct {
-	Proposal ProposalRecord `json:"proposal"`
-}
-
-// ProposalEdit edits an existing proposal.
-//
-// Metadata must contain a ProposalMetadata object.
-//
-// Signature is the client signature of the proposal merkle root. The merkle
-// root is the ordered merkle root of all proposal Files and Metadata.
-type ProposalEdit struct {
-	Token     string     `json:"token"`     // Censorship token
-	State     PropStateT `json:"state"`     // Proposal state
-	Files     []File     `json:"files"`     // Proposal files
-	Metadata  []Metadata `json:"metadata"`  // User defined metadata
-	PublicKey string     `json:"publickey"` // Key used for signature
-	Signature string     `json:"signature"` // Signature of merkle root
-}
-
-// ProposalEditReply is the reply to the ProposalEdit command.
-type ProposalEditReply struct {
-	Proposal ProposalRecord `json:"proposal"`
-}
-
-// ProposalSetStatus sets the status of a proposal. Some status changes require
-// a reason to be included.
-//
-// Signature is the client signature of the Token+Version+Status+Reason.
-type ProposalSetStatus struct {
-	Token     string      `json:"token"`            // Censorship token
-	State     PropStateT  `json:"state"`            // Proposal state
-	Version   string      `json:"version"`          // Proposal version
-	Status    PropStatusT `json:"status"`           // New status
-	Reason    string      `json:"reason,omitempty"` // Reason for status change
-	PublicKey string      `json:"publickey"`        // Key used for signature
-	Signature string      `json:"signature"`        // Client signature
-}
-
-// ProposalSetStatusReply is the reply to the ProposalSetStatus command.
-type ProposalSetStatusReply struct {
-	Proposal ProposalRecord `json:"proposal"`
-}
-
-// ProposalRequest is used to request the ProposalRecord of the provided
-// proposal token and version. If the version is omitted, the most recent
-// version will be returned.
+// ProposalRequest is used to request a ProposalRecord. If the version is
+// omitted, the most recent version will be returned.
 type ProposalRequest struct {
 	Token   string `json:"token"`
 	Version string `json:"version,omitempty"`
 }
 
 // Proposals retrieves the ProposalRecord for each of the provided proposal
-// requests. Unvetted proposals are stripped of their user defined files and
-// metadata when being returned to non-admins.
+// requests.
 //
-// IncludeFiles specifies whether the proposal files should be returned. The
-// user defined metadata will still be returned even when IncludeFiles is set
-// to false.
+// This command does not return user submitted proposal files or metadata,
+// except for the ProposalMetadata, which contains the proposal name. All other
+// user submitted data isi removed. Unvetted proposals are also stripped of the
+// ProposalMetadata when being returned to non-admins.
 type Proposals struct {
-	State        PropStateT        `json:"state"`
-	Requests     []ProposalRequest `json:"requests,omitempty"`
-	IncludeFiles bool              `json:"includefiles,omitempty"`
+	State    string            `json:"state"`
+	Requests []ProposalRequest `json:"requests"`
 }
 
 // ProposalsReply is the reply to the Proposals command. Any tokens that did

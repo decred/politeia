@@ -116,7 +116,7 @@ func convertWWWUserFromDatabaseUser(user *user.User) www.User {
 		Deactivated:                     user.Deactivated,
 		Locked:                          userIsLocked(user.FailedLoginAttempts),
 		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
-		ProposalCredits:                 proposalCreditBalance(*user),
+		ProposalCredits:                 uint64(len(user.UnspentProposalCredits)),
 		EmailNotifications:              user.EmailNotifications,
 	}
 }
@@ -635,6 +635,14 @@ func (p *politeiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.E
 	return &www.EditUserReply{}, nil
 }
 
+// userHasPaid returns whether the user has paid the user registration paywall.
+func (p *politeiawww) userHasPaid(u user.User) bool {
+	if !p.paywallIsEnabled() {
+		return true
+	}
+	return u.NewUserPaywallTx != ""
+}
+
 // createLoginReply creates a login reply.
 func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.LoginReply, error) {
 	reply := www.LoginReply{
@@ -644,7 +652,7 @@ func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.
 		Username:        u.Username,
 		PublicKey:       u.PublicKey(),
 		PaywallTxID:     u.NewUserPaywallTx,
-		ProposalCredits: proposalCreditBalance(*u),
+		ProposalCredits: uint64(len(u.UnspentProposalCredits)),
 		LastLoginTime:   lastLoginTime,
 	}
 

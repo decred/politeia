@@ -6,10 +6,392 @@ package records
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pduser "github.com/decred/politeia/politeiad/plugins/user"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
+
+func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.NewReply, error) {
+	log.Tracef("processNew: %v", u.Username)
+
+	// Verify user signed using active identity
+	if u.PublicKey() != n.PublicKey {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch r.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		err := r.piHookNewRecordPre(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Setup metadata stream
+	um := pduser.UserMetadata{
+		UserID:    u.ID.String(),
+		PublicKey: n.PublicKey,
+		Signature: n.Signature,
+	}
+	b, err := json.Marshal(um)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []pdv1.MetadataStream{
+		{
+			ID:      pduser.MDStreamIDUserMetadata,
+			Payload: string(b),
+		},
+	}
+
+	// Save record to politeiad
+	f := convertFilesToPD(n.Files)
+	cr, err := r.politeiad.NewRecord(ctx, metadata, f)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get full record
+	pdr, err := r.politeiad.GetUnvetted(ctx, cr.Token, "")
+	if err != nil {
+		return nil, err
+	}
+	rc := convertRecordToV1(*pdr, v1.RecordStateUnvetted)
+
+	// Execute post plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch r.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		err := r.piHookNewRecordPost(u, rc.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Emit event
+	r.events.Emit(EventTypeNew,
+		EventNew{
+			User:   u,
+			Record: rc,
+		})
+
+	log.Infof("Record submitted: %v", rc.CensorshipRecord.Token)
+	for k, f := range rc.Files {
+		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
+	}
+
+	return &v1.NewReply{
+		Record: rc,
+	}, nil
+}
+
+// filesToDel returns the names of the files that are included in the current
+// files but are not included in updated files. These are the files that need
+// to be deleted from a record on update.
+func filesToDel(current []pdv1.File, updated []pdv1.File) []string {
+	curr := make(map[string]struct{}, len(current)) // [name]struct
+	for _, v := range updated {
+		curr[v.Name] = struct{}{}
+	}
+
+	del := make([]string, 0, len(current))
+	for _, v := range current {
+		_, ok := curr[v.Name]
+		if !ok {
+			del = append(del, v.Name)
+		}
+	}
+
+	return del
+}
+
+func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.EditReply, error) {
+	log.Tracef("processEdit: %v %v", e.Token, u.Username)
+
+	// Verify user signed using active identity
+	if u.PublicKey() != e.PublicKey {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Get current record
+	var (
+		curr *pdv1.Record
+		err  error
+	)
+	switch e.State {
+	case v1.RecordStateUnvetted:
+		curr, err = r.politeiad.GetUnvetted(ctx, e.Token, "")
+		if err != nil {
+			return nil, err
+		}
+	case v1.RecordStateVetted:
+		curr, err = r.politeiad.GetVetted(ctx, e.Token, "")
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Setup files
+	filesAdd := convertFilesToPD(e.Files)
+	filesDel := filesToDel(curr.Files, filesAdd)
+
+	// Setup metadata
+	um := pduser.UserMetadata{
+		UserID:    u.ID.String(),
+		PublicKey: e.PublicKey,
+		Signature: e.Signature,
+	}
+	b, err := json.Marshal(um)
+	if err != nil {
+		return nil, err
+	}
+	mdOverwrite := []pdv1.MetadataStream{
+		{
+			ID:      pduser.MDStreamIDUserMetadata,
+			Payload: string(b),
+		},
+	}
+	mdAppend := []pdv1.MetadataStream{}
+
+	// Save update to politeiad
+	var pdr *pdv1.Record
+	switch e.State {
+	case v1.RecordStateUnvetted:
+		pdr, err = r.politeiad.UpdateUnvetted(ctx, e.Token, mdAppend,
+			mdOverwrite, filesAdd, filesDel)
+		if err != nil {
+			return nil, err
+		}
+	case v1.RecordStateVetted:
+		pdr, err = r.politeiad.UpdateUnvetted(ctx, e.Token, mdAppend,
+			mdOverwrite, filesAdd, filesDel)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("invalid state %v", e.State)
+	}
+
+	rc := convertRecordToV1(*pdr, e.State)
+
+	// Emit event
+	r.events.Emit(EventTypeEdit,
+		EventEdit{
+			User:   u,
+			State:  e.State,
+			Record: rc,
+		})
+
+	log.Infof("Record edited: %v %v", e.State, rc.CensorshipRecord.Token)
+	for k, f := range rc.Files {
+		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
+	}
+
+	return &v1.EditReply{
+		Record: rc,
+	}, nil
+}
+
+func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.User) (*v1.SetStatusReply, error) {
+
+	/*
+		// Verify user signed with their active identity
+		if u.PublicKey() != pss.PublicKey {
+			return nil, v1.UserErrorReply{
+				ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+				ErrorContext: "not active identity",
+			}
+		}
+	*/
+
+	// Status change user metadata
+	/*
+		timestamp := time.Now().Unix()
+		sc := pi.StatusChange{
+			Token:     pss.Token,
+			Version:   pss.Version,
+			Status:    pi.PropStatusT(pss.Status),
+			Reason:    pss.Reason,
+			PublicKey: pss.PublicKey,
+			Signature: pss.Signature,
+			Timestamp: timestamp,
+		}
+		b, err := json.Marshal(sc)
+		if err != nil {
+			return nil, err
+		}
+		mdAppend := []pdv1.MetadataStream{
+			{
+				ID:      pi.MDStreamIDStatusChanges,
+				Payload: string(b),
+			},
+		}
+		mdOverwrite := []pdv1.MetadataStream{}
+	*/
+
+	/*
+		// This goes in the user plugin
+		// Verify reason
+		_, required := statusReasonRequired[pss.Status]
+		if required && pss.Reason == "" {
+			return nil, v1.UserErrorReply{
+				ErrorCode:    v1.ErrorCodePropStatusChangeReasonInvalid,
+				ErrorContext: "reason not given",
+			}
+		}
+
+		msg := pss.Token + pss.Version + strconv.Itoa(int(pss.Status)) + pss.Reason
+		err := util.VerifySignature(pss.Signature, pss.PublicKey, msg)
+		if err != nil {
+			return nil, convertUserErrorFromSignatureError(err)
+		}
+	*/
+
+	// Emit event
+
+	return nil, nil
+}
+
+// record returns a version of a record from politeiad. If version is an empty
+// string then the most recent version will be returned.
+func (r *Records) record(ctx context.Context, state, token, version string) (*v1.Record, error) {
+	var (
+		pdr *pdv1.Record
+		err error
+	)
+	switch state {
+	case v1.RecordStateUnvetted:
+		pdr, err = r.politeiad.GetUnvetted(ctx, token, version)
+		if err != nil {
+			return nil, err
+		}
+	case v1.RecordStateVetted:
+		pdr, err = r.politeiad.GetVetted(ctx, token, version)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("invalid state %v", state)
+	}
+
+	rc := convertRecordToV1(*pdr, state)
+
+	// Fill in user data
+	userID := userIDFromMetadataStreams(rc.Metadata)
+	uid, err := uuid.Parse(userID)
+	u, err := r.userdb.UserGetById(uid)
+	if err != nil {
+		return nil, err
+	}
+	rc = recordPopulateUserData(rc, *u)
+
+	return &rc, nil
+}
+
+func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User) (*v1.DetailsReply, error) {
+	log.Tracef("processDetails: %v %v %v", d.State, d.Token, d.Version)
+
+	// Verify state
+	switch d.State {
+	case v1.RecordStateUnvetted, v1.RecordStateVetted:
+		// Allowed; continue
+	default:
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Get record
+	rc, err := r.record(ctx, d.State, d.Token, d.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only admins and the record author are allowed to retrieve
+	// unvetted record files. Remove files if the user is not an admin
+	// or the author. This is a public route so a user may not be
+	// present.
+	var (
+		authorID = userIDFromMetadataStreams(rc.Metadata)
+		isAuthor = u != nil && u.ID.String() == authorID
+		isAdmin  = u != nil && u.Admin
+	)
+	if !isAuthor && !isAdmin {
+		rc.Files = []v1.File{}
+	}
+
+	return &v1.DetailsReply{
+		Record: *rc,
+	}, nil
+}
+
+func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.User) (*v1.RecordsReply, error) {
+	log.Tracef("processRecords: %v %v", rs.State, len(rs.Requests))
+
+	// Verify state
+	switch rs.State {
+	case v1.RecordStateUnvetted, v1.RecordStateVetted:
+		// Allowed; continue
+	default:
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// TODO Verify page size
+
+	// Get all records in the batch
+	records := make(map[string]v1.Record, len(rs.Requests))
+	for _, v := range rs.Requests {
+		rc, err := r.record(ctx, rs.State, v.Token, v.Version)
+		if err != nil {
+			// If any error occured simply skip this record. It will not
+			// be included in the reply.
+			continue
+		}
+
+		// Only admins and the record author are allowed to retrieve
+		// unvetted record files. Remove files if the user is not an admin
+		// or the author. This is a public route so a user may not be
+		// present.
+		var (
+			authorID = userIDFromMetadataStreams(rc.Metadata)
+			isAuthor = u != nil && u.ID.String() == authorID
+			isAdmin  = u != nil && u.Admin
+		)
+		if !isAuthor && !isAdmin {
+			rc.Files = []v1.File{}
+		}
+
+		records[rc.CensorshipRecord.Token] = *rc
+	}
+
+	return &v1.RecordsReply{
+		Records: records,
+	}, nil
+}
+
+func (r *Records) processInventory(ctx context.Context, u *user.User) (*v1.InventoryReply, error) {
+	return nil, nil
+}
 
 func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
 	log.Tracef("processTimestamps: %v %v %v", t.State, t.Token, t.Version)
@@ -67,6 +449,223 @@ func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmi
 		Files:          files,
 		Metadata:       metadata,
 	}, nil
+}
+
+func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *user.User) (*v1.UserRecordsReply, error) {
+	/*
+		// Determine if unvetted tokens should be returned
+		switch {
+		case u == nil:
+			// No user session. Remove unvetted.
+			pir.Unvetted = nil
+		case u.Admin:
+			// User is an admin. Return unvetted.
+		case inv.UserID == u.ID.String():
+			// User is requesting their own proposals. Return unvetted.
+		default:
+			// Remove unvetted for all other cases
+			pir.Unvetted = nil
+		}
+	*/
+
+	return nil, nil
+}
+
+// paywallIsEnabled returns whether the user paywall is enabled.
+//
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (r *Records) paywallIsEnabled() bool {
+	return r.cfg.PaywallAmount != 0 && r.cfg.PaywallXpub != ""
+}
+
+// userHasPaid returns whether the user has paid their user registration fee.
+//
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (r *Records) userHasPaid(u user.User) bool {
+	if !r.paywallIsEnabled() {
+		return true
+	}
+	return u.NewUserPaywallTx != ""
+}
+
+// userHashProposalCredits returns whether the user has any unspent proposal
+// credits.
+//
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func userHasProposalCredits(u user.User) bool {
+	return len(u.UnspentProposalCredits) > 0
+}
+
+// spendProposalCredit moves a unspent credit to the spent credit list and
+// updates the user in the database.
+//
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (r *Records) spendProposalCredit(u user.User, token string) error {
+	// Skip if the paywall is enabled
+	if !r.paywallIsEnabled() {
+		return nil
+	}
+
+	// Verify there are credits to be spent
+	if !userHasProposalCredits(u) {
+		return fmt.Errorf("no proposal credits found")
+	}
+
+	// Credits are spent FIFO
+	c := u.UnspentProposalCredits[0]
+	c.CensorshipToken = token
+	u.SpentProposalCredits = append(u.SpentProposalCredits, c)
+	u.UnspentProposalCredits = u.UnspentProposalCredits[1:]
+
+	return r.userdb.UserUpdate(u)
+}
+
+// piHookNewRecordpre executes the new record pre hook for pi.
+//
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (r *Records) piHookNewRecordPre(u user.User) error {
+	// Verify user has paid registration paywall
+	if !r.userHasPaid(u) {
+		return v1.UserErrorReply{
+			// TODO
+			// ErrorCode: v1.ErrorCodeUserRegistrationNotPaid,
+		}
+	}
+
+	// Verify user has a proposal credit
+	if !userHasProposalCredits(u) {
+		return v1.UserErrorReply{
+			// TODO
+			// ErrorCode: v1.ErrorCodeUserBalanceInsufficient,
+		}
+	}
+	return nil
+}
+
+// piHoonNewRecordPost executes the new record post hook for pi.
+//
+// This function is a temporary function that will be removed once user plugins
+// have been implemented.
+func (r *Records) piHookNewRecordPost(u user.User, token string) error {
+	return r.spendProposalCredit(u, token)
+}
+
+// recordPopulateUserData populates the record with user data that is not
+// stored in politeiad.
+func recordPopulateUserData(r v1.Record, u user.User) v1.Record {
+	r.Username = u.Username
+	return r
+}
+
+// userMetadataDecode decodes and returns the UserMetadata from the provided
+// metadata streams. If a UserMetadata is not found, nil is returned.
+func userMetadataDecode(ms []v1.MetadataStream) (*pduser.UserMetadata, error) {
+	var userMD *pduser.UserMetadata
+	for _, v := range ms {
+		if v.ID == pduser.MDStreamIDUserMetadata {
+			var um pduser.UserMetadata
+			err := json.Unmarshal([]byte(v.Payload), &um)
+			if err != nil {
+				return nil, err
+			}
+			userMD = &um
+			break
+		}
+	}
+	return userMD, nil
+}
+
+// userIDFromMetadataStreams searches for a UserMetadata and parses the user ID
+// from it if found. An empty string is returned if no UserMetadata is found.
+func userIDFromMetadataStreams(ms []v1.MetadataStream) string {
+	um, err := userMetadataDecode(ms)
+	if err != nil {
+		return ""
+	}
+	if um == nil {
+		return ""
+	}
+	return um.UserID
+}
+
+func convertFilesToPD(f []v1.File) []pdv1.File {
+	files := make([]pdv1.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, pdv1.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+	return files
+}
+
+func convertStatusToV1(s pdv1.RecordStatusT) v1.RecordStatusT {
+	switch s {
+	case pdv1.RecordStatusNotReviewed:
+		return v1.RecordStatusUnreviewed
+	case pdv1.RecordStatusPublic:
+		return v1.RecordStatusPublic
+	case pdv1.RecordStatusCensored:
+		return v1.RecordStatusCensored
+	case pdv1.RecordStatusArchived:
+		return v1.RecordStatusArchived
+	}
+	return v1.RecordStatusInvalid
+}
+
+func convertFilesToV1(f []pdv1.File) []v1.File {
+	files := make([]v1.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, v1.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+	return files
+}
+
+func convertMetadataStreamsToV1(ms []pdv1.MetadataStream) []v1.MetadataStream {
+	metadata := make([]v1.MetadataStream, 0, len(ms))
+	for _, v := range ms {
+		metadata = append(metadata, v1.MetadataStream{
+			ID:      v.ID,
+			Payload: v.Payload,
+		})
+	}
+	return metadata
+}
+
+func convertCensorshipRecordToV1(cr pdv1.CensorshipRecord) v1.CensorshipRecord {
+	return v1.CensorshipRecord{
+		Token:     cr.Token,
+		Merkle:    cr.Merkle,
+		Signature: cr.Signature,
+	}
+}
+
+func convertRecordToV1(r pdv1.Record, state string) v1.Record {
+	// User fields that are not part of the politeiad record have
+	// been intentionally left blank. These fields must be pulled
+	// from the user database.
+	return v1.Record{
+		State:            state,
+		Status:           convertStatusToV1(r.Status),
+		Version:          r.Version,
+		Timestamp:        r.Timestamp,
+		Username:         "", // Intentionally left blank
+		Metadata:         convertMetadataStreamsToV1(r.Metadata),
+		Files:            convertFilesToV1(r.Files),
+		CensorshipRecord: convertCensorshipRecordToV1(r.CensorshipRecord),
+	}
 }
 
 func convertProofToV1(p pdv1.Proof) v1.Proof {

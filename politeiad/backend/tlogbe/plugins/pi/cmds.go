@@ -10,12 +10,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/util"
 )
-
-func tokenDecode(token string) ([]byte, error) {
-	return util.TokenDecode(util.TokenTypeTlog, token)
-}
 
 func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 	reply, err := p.backend.VettedPluginCmd(token,

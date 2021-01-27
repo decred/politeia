@@ -17,8 +17,8 @@ import (
 func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.NewReply, error) {
 	log.Tracef("processNew: %v %v %v", n.Token, u.Username)
 
-	// Checking the mode is a temporary measure until user plugins
-	// have been implemented.
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
 	switch c.cfg.Mode {
 	case config.PoliteiaWWWMode:
 		// Verify user has paid registration paywall
@@ -69,7 +69,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 
 	// Prepare reply
 	cm := convertComment(cnr.Comment)
-	cm = commentPopulateUser(cm, u)
+	cm = commentPopulateUserData(cm, u)
 
 	// Emit event
 	c.events.Emit(EventTypeNew,
@@ -162,7 +162,7 @@ func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.D
 
 	// Prepare reply
 	cm := convertComment(cdr.Comment)
-	cm = commentPopulateUser(cm, u)
+	cm = commentPopulateUserData(cm, u)
 
 	return &v1.DelReply{
 		Comment: cm,
@@ -237,7 +237,7 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 		if err != nil {
 			return nil, err
 		}
-		cm = commentPopulateUser(cm, *u)
+		cm = commentPopulateUserData(cm, *u)
 
 		// Add comment
 		comments = append(comments, cm)
@@ -298,7 +298,7 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 
 // commentPopulateUserData populates the comment with user data that is not
 // stored in politeiad.
-func commentPopulateUser(c v1.Comment, u user.User) v1.Comment {
+func commentPopulateUserData(c v1.Comment, u user.User) v1.Comment {
 	c.Username = u.Username
 	return c
 }
@@ -367,12 +367,16 @@ func convertTimestamp(t comments.Timestamp) v1.Timestamp {
 	}
 }
 
+// paywallIsEnabled returns whether the user paywall is enabled.
+//
 // This function is a temporary function that will be removed once user plugins
 // have been implemented.
 func (c *Comments) paywallIsEnabled() bool {
 	return c.cfg.PaywallAmount != 0 && c.cfg.PaywallXpub != ""
 }
 
+// userHasPaid returns whether the user has paid their user registration fee.
+//
 // This function is a temporary function that will be removed once user plugins
 // have been implemented.
 func (c *Comments) userHasPaid(u user.User) bool {

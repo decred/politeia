@@ -11,7 +11,7 @@ const (
 	EventTypeNew = "comments-new"
 )
 
-// EventNew is the event data for EventTypeNew.
+// EventNew is the event data for the EventTypeNew.
 type EventNew struct {
 	State   string
 	Comment v1.Comment

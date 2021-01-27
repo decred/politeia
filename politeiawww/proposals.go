@@ -6,7 +6,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	ticketvote "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -24,6 +22,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
+/*
 func convertStateToWWW(state pi.PropStateT) www.PropStateT {
 	switch state {
 	case pi.PropStateInvalid:
@@ -36,6 +35,7 @@ func convertStateToWWW(state pi.PropStateT) www.PropStateT {
 		return www.PropStateInvalid
 	}
 }
+*/
 
 func convertStatusToWWW(status pi.PropStatusT) www.PropStatusT {
 	switch status {
@@ -52,6 +52,7 @@ func convertStatusToWWW(status pi.PropStatusT) www.PropStatusT {
 	}
 }
 
+/*
 func convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
 	// Decode metadata
 	var pm *piplugin.ProposalMetadata
@@ -133,6 +134,7 @@ func convertProposalToWWW(pr *pi.ProposalRecord) (*www.ProposalRecord, error) {
 		},
 	}, nil
 }
+*/
 
 func convertVoteStatusToWWW(status ticketvote.VoteStatusT) www.PropVoteStatusT {
 	switch status {
@@ -188,55 +190,18 @@ func convertVoteErrorCodeToWWW(errcode ticketvote.VoteErrorT) decredplugin.Error
 func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
-	pr, err := p.proposalRecord(ctx, pi.PropStateVetted, pd.Token, pd.Version)
-	if err != nil {
-		return nil, err
-	}
-	pw, err := convertProposalToWWW(pr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &www.ProposalDetailsReply{
-		Proposal: *pw,
-	}, nil
+	return nil, nil
 }
 
 func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
-	// TODO
+
 	return nil, nil
 }
 
 func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
-	// Setup requests
-	prs := make([]pi.ProposalRequest, 0, len(bp.Tokens))
-	for _, t := range bp.Tokens {
-		prs = append(prs, pi.ProposalRequest{
-			Token: t,
-		})
-	}
-
-	// Get proposals
-	props, err := p.proposalRecords(ctx, pi.PropStateVetted, prs, false)
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare reply
-	propsw := make([]www.ProposalRecord, 0, len(bp.Tokens))
-	for _, pr := range props {
-		propw, err := convertProposalToWWW(&pr)
-		if err != nil {
-			return nil, err
-		}
-		propsw = append(propsw, *propw)
-	}
-
-	return &www.BatchProposalsReply{
-		Proposals: propsw,
-	}, nil
+	return nil, nil
 }
 
 func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
@@ -386,11 +351,8 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 		return nil, err
 	}
 
-	// Get vote inventory
-	vir, err := p.piVoteInventory(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// TODO Get vote inventory
+	var vir pi.VoteInventoryReply
 
 	// Unpack record inventory
 	var (

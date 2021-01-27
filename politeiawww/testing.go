@@ -367,7 +367,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setPiRoutes(c, tv)
+	p.setupPiRoutes(c, tv)
 
 	// The cleanup is handled using a closure so that the temp dir
 	// can be deleted using the local variable and not cfg.DataDir.

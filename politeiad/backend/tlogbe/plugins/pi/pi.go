@@ -7,6 +7,7 @@ package pi
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 
 	"github.com/decred/politeia/politeiad/backend"
@@ -27,6 +28,18 @@ type piPlugin struct {
 	// stored here is cached data that can be re-created at any time
 	// by walking the trillian trees.
 	dataDir string
+
+	// Plugin settings
+	indexFileName     string
+	textFileCountMax  int
+	textFileSizeMax   int // In bytes
+	imageFileCountMax int
+	imageFileSizeMax  int // In bytes
+
+	proposalNameSupportedChars []string
+	proposalNameLengthMin      int // In characters
+	proposalNameLengthMax      int // In characters
+	proposalNameRegexp         *regexp.Regexp
 }
 
 // Setup performs any plugin setup that is required.
@@ -65,8 +78,6 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 		return p.hookNewRecordPre(payload)
 	case plugins.HookTypeEditRecordPre:
 		return p.hookEditRecordPre(payload)
-	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
 	case plugins.HookTypePluginPre:
 		return p.hookPluginPre(treeID, token, payload)
 	}
@@ -91,8 +102,22 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		return nil, err
 	}
 
+	// Setup proposal name regex
+	// pregexp, err = regexp.Compile()
+	var pregexp *regexp.Regexp
+
 	return &piPlugin{
 		dataDir: dataDir,
 		backend: backend,
+		// TODO pi plugin settings
+		indexFileName:              "",
+		textFileCountMax:           0,
+		textFileSizeMax:            0,
+		imageFileCountMax:          0,
+		imageFileSizeMax:           0,
+		proposalNameSupportedChars: []string{},
+		proposalNameLengthMin:      0,
+		proposalNameLengthMax:      0,
+		proposalNameRegexp:         pregexp,
 	}, nil
 }

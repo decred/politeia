@@ -17,18 +17,19 @@ const (
 type ErrorCodeT int
 
 const (
-	// TODO User error codes
+	// TODO number error codes
 	ErrorCodeInvalid          ErrorCodeT = 0
 	ErrorCodePageSizeExceeded ErrorCodeT = iota
-	ErrorCodePropTokenInvalid
-	ErrorCodePropStatusInvalid
-	ErrorCodePropVersionInvalid
-	ErrorCodePropStatusChangeInvalid
-	ErrorCodePropLinkToInvalid
+	ErrorCodeFileNameInvalid
+	ErrorCodeIndexFileNameInvalid
+	ErrorCodeIndexFileCountInvalid
+	ErrorCodeIndexFileSizeInvalid
+	ErrorCodeTextFileCountInvalid
+	ErrorCodeImageFileCountInvalid
+	ErrorCodeImageFileSizeInvalid
+	ErrorCodeProposalMetadataInvalid
+	ErrorCodeProposalNameInvalid
 	ErrorCodeVoteStatusInvalid
-	ErrorCodeStartDetailsInvalid
-	ErrorCodeStartDetailsMissing
-	ErrorCodeVoteParentInvalid
 )
 
 var (
@@ -45,10 +46,6 @@ const (
 	// user provided metadata and needs to be included in the merkle
 	// root that politeiad signs.
 	FileNameProposalMetadata = "proposalmetadata.json"
-
-	// MDStreamIDStatusChanges is the politeiad metadata stream ID that
-	// the StatusesChange structure is appended onto.
-	MDStreamIDStatusChanges = 2
 )
 
 // ProposalMetadata contains metadata that is provided by the user as part of
@@ -60,22 +57,32 @@ type ProposalMetadata struct {
 	Name string `json:"name"`
 }
 
-// PropStatusT represents a proposal status.
+// PropStatusT represents a proposal status. These map directly to the
+// politeiad record statuses, but some have had their names changed to better
+// reflect their intended use case by proposals.
 type PropStatusT int
 
 const (
 	// PropStatusInvalid is an invalid proposal status.
 	PropStatusInvalid PropStatusT = 0
 
-	// PropStatusUnvetted represents a proposal that has not been made
-	// public yet.
+	// PropStatusUnreviewed indicates the proposal has been submitted,
+	// but has not yet been reviewed and made public by an admin. A
+	// proposal with this status will have a proposal state of
+	// PropStateUnvetted.
 	PropStatusUnvetted PropStatusT = 1
 
-	// PropStatusPublic represents a proposal that has been made
-	// public.
+	// PropStatusPublic indicates that a proposal has been reviewed and
+	// made public by an admin. A proposal with this status will have
+	// a proposal state of PropStateVetted.
 	PropStatusPublic PropStatusT = 2
 
-	// PropStatusCensored represents a proposal that has been censored.
+	// PropStatusCensored indicates that a proposal has been censored
+	// by an admin for violating the proposal guidlines. Both unvetted
+	// and vetted proposals can be censored so a proposal with this
+	// status can have a state of either PropStateUnvetted or
+	// PropStateVetted depending on whether the proposal was censored
+	// before or after it was made public.
 	PropStatusCensored PropStatusT = 3
 
 	// PropStatusUnreviewedChanges is a deprecated proposal status that
@@ -83,8 +90,8 @@ const (
 	// directly to the politeiad record statuses.
 	PropStatusUnreviewedChanges PropStatusT = 4
 
-	// PropStatusAbandoned represents a proposal that has been
-	//  abandoned by the author.
+	// PropStatusAbandoned indicates that a proposal has been marked
+	// as abandoned by an admin due to the author being inactive.
 	PropStatusAbandoned PropStatusT = 5
 )
 
@@ -97,36 +104,7 @@ var (
 		PropStatusCensored:  "censored",
 		PropStatusAbandoned: "abandoned",
 	}
-
-	// StatusChanges contains the allowed proposal status change
-	// transitions. If StatusChanges[currentStatus][newStatus] exists
-	// then the status change is allowed.
-	StatusChanges = map[PropStatusT]map[PropStatusT]struct{}{
-		PropStatusUnvetted: {
-			PropStatusPublic:   {},
-			PropStatusCensored: {},
-		},
-		PropStatusPublic: {
-			PropStatusAbandoned: {},
-			PropStatusCensored:  {},
-		},
-		PropStatusCensored:  {},
-		PropStatusAbandoned: {},
-	}
 )
-
-// StatusChange represents a proposal status change.
-//
-// Signature is the client signature of the Token+Version+Status+Reason.
-type StatusChange struct {
-	Token     string      `json:"token"`
-	Version   string      `json:"version"`
-	Status    PropStatusT `json:"status"`
-	Reason    string      `json:"message,omitempty"`
-	PublicKey string      `json:"publickey"`
-	Signature string      `json:"signature"`
-	Timestamp int64       `json:"timestamp"`
-}
 
 // VoteInventory requests the tokens of all proposals in the inventory
 // categorized by their vote status. This call relies on the ticketvote

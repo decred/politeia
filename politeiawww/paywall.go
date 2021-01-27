@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -265,51 +264,4 @@ func (p *politeiawww) verifyProposalPayment(ctx context.Context, u *user.User) (
 	}
 
 	return nil, nil
-}
-
-// userHasPaid returns whether the user has paid the user registration paywall.
-func (p *politeiawww) userHasPaid(u user.User) bool {
-	// Return true if paywall is disabled
-	if !p.paywallIsEnabled() {
-		return true
-	}
-
-	return u.NewUserPaywallTx != ""
-}
-
-func proposalCreditBalance(u user.User) uint64 {
-	return uint64(len(u.UnspentProposalCredits))
-}
-
-// userHasProposalCredits returns whether the user has at least 1 unspent
-// proposal credit.
-func (p *politeiawww) userHasProposalCredits(u user.User) bool {
-	if !p.paywallIsEnabled() {
-		return true
-	}
-	return proposalCreditBalance(u) > 0
-}
-
-// spendProposalCredit updates an unspent proposal credit with the passed in
-// censorship token, moves the credit into the user's spent proposal credits
-// list, and then updates the user database.
-func (p *politeiawww) spendProposalCredit(u *user.User, token string) error {
-	// Skip when running unit tests or if paywall is disabled.
-	if !p.paywallIsEnabled() {
-		return nil
-	}
-
-	if !p.userHasProposalCredits(*u) {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusNoProposalCredits,
-		}
-	}
-
-	creditToSpend := u.UnspentProposalCredits[0]
-	creditToSpend.CensorshipToken = token
-	u.SpentProposalCredits = append(u.SpentProposalCredits, creditToSpend)
-	u.UnspentProposalCredits = u.UnspentProposalCredits[1:]
-
-	err := p.db.UserUpdate(*u)
-	return err
 }

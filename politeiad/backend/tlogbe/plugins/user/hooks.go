@@ -137,6 +137,28 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 	return nil
 }
 
+/*
+// statusChangesDecode decodes a JSON byte slice into a []StatusChange slice.
+func statusChangesDecode(payload []byte) ([]pi.StatusChange, error) {
+	var statuses []pi.StatusChange
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var sc pi.StatusChange
+		err := d.Decode(&sc)
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, sc)
+	}
+
+	return statuses, nil
+}
+
+
+*/
+
 func (p *userPlugin) hookNewRecordPre(payload string) error {
 	var nr plugins.HookNewRecordPre
 	err := json.Unmarshal([]byte(payload), &nr)

@@ -55,9 +55,6 @@ var (
 	wsdcrdataLog     = backendLog.Logger("WSDD")
 	githubTrackerLog = backendLog.Logger("GHTR")
 	githubdbLog      = backendLog.Logger("GHDB")
-	sessionsLog      = backendLog.Logger("SESS")
-	commentsLog      = backendLog.Logger("COMT")
-	ticketvoteLog    = backendLog.Logger("TICK")
 )
 
 // Initialize package-global logger variables.
@@ -68,9 +65,9 @@ func init() {
 	wsdcrdata.UseLogger(wsdcrdataLog)
 	github.UseLogger(githubTrackerLog)
 	ghdb.UseLogger(githubdbLog)
-	sessions.UseLogger(sessionsLog)
-	comments.UseLogger(commentsLog)
-	ticketvote.UseLogger(ticketvoteLog)
+	sessions.UseLogger(log)
+	comments.UseLogger(log)
+	ticketvote.UseLogger(log)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -81,9 +78,6 @@ var subsystemLoggers = map[string]slog.Logger{
 	"WSDD": wsdcrdataLog,
 	"GHTR": githubTrackerLog,
 	"GHDB": githubdbLog,
-	"SESS": sessionsLog,
-	"COMT": commentsLog,
-	"TICK": ticketvoteLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

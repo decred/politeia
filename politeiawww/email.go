@@ -12,7 +12,7 @@ import (
 	"text/template"
 	"time"
 
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
@@ -119,7 +119,7 @@ func (p *politeiawww) emailProposalStatusChange(d dataProposalStatusChange, prop
 		body    string
 	)
 	switch d.status {
-	case pi.PropStatusPublic:
+	case rcv1.StatusPublic:
 		subject = "New Proposal Published"
 		tmplData := proposalVetted{
 			Name: proposalName,
@@ -152,7 +152,7 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 		body    string
 	)
 	switch d.status {
-	case pi.PropStatusPublic:
+	case rcv1.StatusPublic:
 		subject = "Your Proposal Has Been Published"
 		tmplData := proposalVettedToAuthor{
 			Name: proposalName,
@@ -163,7 +163,7 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 			return err
 		}
 
-	case pi.PropStatusCensored:
+	case rcv1.StatusCensored:
 		subject = "Your Proposal Has Been Censored"
 		tmplData := proposalCensoredToAuthor{
 			Name:   proposalName,
