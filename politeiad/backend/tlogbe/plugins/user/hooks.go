@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+	"strings"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
@@ -137,28 +140,6 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 	return nil
 }
 
-/*
-// statusChangesDecode decodes a JSON byte slice into a []StatusChange slice.
-func statusChangesDecode(payload []byte) ([]pi.StatusChange, error) {
-	var statuses []pi.StatusChange
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var sc pi.StatusChange
-		err := d.Decode(&sc)
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		statuses = append(statuses, sc)
-	}
-
-	return statuses, nil
-}
-
-
-*/
-
 func (p *userPlugin) hookNewRecordPre(payload string) error {
 	var nr plugins.HookNewRecordPre
 	err := json.Unmarshal([]byte(payload), &nr)
@@ -237,6 +218,98 @@ func (p *userPlugin) hookEditMetadataPre(payload string) error {
 	return userMetadataPreventUpdates(em.Current.Metadata, em.Metadata)
 }
 
+// statusChangesDecode decodes a []StatusChange from the provided metadata
+// streams. If a status change metadata stream is not found, nil is returned.
+func statusChangesDecode(metadata []backend.MetadataStream) ([]user.StatusChangeMetadata, error) {
+	var statuses []user.StatusChangeMetadata
+	for _, v := range metadata {
+		if v.ID == user.MDStreamIDUserMetadata {
+			d := json.NewDecoder(strings.NewReader(v.Payload))
+			for {
+				var sc user.StatusChangeMetadata
+				err := d.Decode(&sc)
+				if errors.Is(err, io.EOF) {
+					break
+				} else if err != nil {
+					return nil, err
+				}
+				statuses = append(statuses, sc)
+			}
+		}
+		break
+	}
+	return statuses, nil
+}
+
+var (
+	// statusReasonRequired contains the list of record statuses that
+	// require an accompanying reason to be given in the status change.
+	statusReasonRequired = map[backend.MDStatusT]struct{}{
+		backend.MDStatusCensored: {},
+		backend.MDStatusArchived: {},
+	}
+)
+
+// statusChangeMetadataVerify parses the status change metadata from the
+// metadata streams and verifies that its contents are valid.
+func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	// Decode status change metadata
+	statusChanges, err := statusChangesDecode(metadata)
+	if err != nil {
+		return err
+	}
+
+	// Verify that status change metadata is present
+	if len(statusChanges) == 0 {
+		return backend.PluginError{
+			PluginID:  user.PluginID,
+			ErrorCode: int(user.ErrorCodeStatusChangeMetadataNotFound),
+		}
+	}
+	scm := statusChanges[len(statusChanges)-1]
+
+	// Verify token matches
+	if scm.Token != rm.Token {
+		e := fmt.Sprintf("status change token does not match record "+
+			"metadata token: got %v, want %v", scm.Token, rm.Token)
+		return backend.PluginError{
+			PluginID:     user.PluginID,
+			ErrorCode:    int(user.ErrorCodeTokenInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify status matches
+	if scm.Status != int(rm.Status) {
+		e := fmt.Sprintf("status from metadata does not match status from "+
+			"record metadata: got %v, want %v", scm.Status, rm.Status)
+		return backend.PluginError{
+			PluginID:     user.PluginID,
+			ErrorCode:    int(user.ErrorCodeStatusInvalid),
+			ErrorContext: e,
+		}
+	}
+
+	// Verify reason was included on required status changes
+	_, ok := statusReasonRequired[rm.Status]
+	if ok && scm.Reason == "" {
+		return backend.PluginError{
+			PluginID:     user.PluginID,
+			ErrorCode:    int(user.ErrorCodeReasonInvalid),
+			ErrorContext: "a reason must be given for this status change",
+		}
+	}
+
+	// Verify signature
+	msg := scm.Token + scm.Version + strconv.Itoa(scm.Status) + scm.Reason
+	err = util.VerifySignature(scm.Signature, scm.PublicKey, msg)
+	if err != nil {
+		return convertSignatureError(err)
+	}
+
+	return nil
+}
+
 func (p *userPlugin) hookSetRecordStatusPre(payload string) error {
 	var srs plugins.HookSetRecordStatus
 	err := json.Unmarshal([]byte(payload), &srs)
@@ -245,5 +318,16 @@ func (p *userPlugin) hookSetRecordStatusPre(payload string) error {
 	}
 
 	// User metadata should not change on status changes
-	return userMetadataPreventUpdates(srs.Current.Metadata, srs.Metadata)
+	err = userMetadataPreventUpdates(srs.Current.Metadata, srs.Metadata)
+	if err != nil {
+		return err
+	}
+
+	// Verify status change metadata
+	err = statusChangeMetadataVerify(srs.RecordMetadata, srs.Metadata)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

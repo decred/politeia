@@ -26,6 +26,7 @@ type Records struct {
 	events    *events.Manager
 }
 
+// HandleNew is the request handler for the records v1 New route.
 func (c *Records) HandleNew(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleNew")
 
@@ -56,6 +57,7 @@ func (c *Records) HandleNew(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, nr)
 }
 
+// HandleEdit is the request handler for the records v1 Edit route.
 func (c *Records) HandleEdit(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleEdit")
 
@@ -86,6 +88,7 @@ func (c *Records) HandleEdit(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, er)
 }
 
+// HandleSetStatus is the request handler for the records v1 SetStatus route.
 func (c *Records) HandleSetStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleSetStatus")
 
@@ -116,6 +119,7 @@ func (c *Records) HandleSetStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, ssr)
 }
 
+// HandleDetails is the request handler for the records v1 Details route.
 func (c *Records) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleDetails")
 
@@ -148,6 +152,7 @@ func (c *Records) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, dr)
 }
 
+// HandleRecords is the request handler for the records v1 Records route.
 func (c *Records) HandleRecords(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleRecords")
 
@@ -180,6 +185,7 @@ func (c *Records) HandleRecords(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, rsr)
 }
 
+// HandleInventory is the request handler for the records v1 Inventory route.
 func (c *Records) HandleInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleInventory")
 
@@ -212,6 +218,7 @@ func (c *Records) HandleInventory(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, ir)
 }
 
+// HandleTimestamps is the request handler for the records v1 Timestamps route.
 func (c *Records) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleTimestamps")
 
@@ -245,6 +252,8 @@ func (c *Records) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, tr)
 }
 
+// HandleUserRecords is the request handler for the records v1 UserRecords
+// route.
 func (c *Records) HandleUserRecords(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleUserRecords")
 

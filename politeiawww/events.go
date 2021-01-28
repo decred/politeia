@@ -205,12 +205,12 @@ func (p *politeiawww) handleEventProposalEdited(ch chan interface{}) {
 }
 
 type dataProposalStatusChange struct {
-	token   string       // Proposal censorship token
-	state   string       // Updated proposal state
-	status  rcv1.StatusT // Updated proposal status
-	version string       // Proposal version
-	reason  string       // Status change reason
-	adminID string       // Admin uuid
+	token   string             // Proposal censorship token
+	state   string             // Updated proposal state
+	status  rcv1.RecordStatusT // Updated proposal status
+	version string             // Proposal version
+	reason  string             // Status change reason
+	adminID string             // Admin uuid
 }
 
 func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
@@ -223,7 +223,7 @@ func (p *politeiawww) handleEventProposalStatusChange(ch chan interface{}) {
 
 		// Check if proposal is in correct status for notification
 		switch d.status {
-		case rcv1.StatusPublic, rcv1.StatusCensored:
+		case rcv1.RecordStatusPublic, rcv1.RecordStatusCensored:
 			// The status requires a notification be sent
 		default:
 			// The status does not require a notification be sent. Listen

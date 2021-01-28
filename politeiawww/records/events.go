@@ -15,6 +15,9 @@ const (
 
 	// EventTypeEdit is emitted when a a record is edited.
 	EventTypeEdit = "records-edit"
+
+	// EventTypeSetStatus is emitted when a a record is edited.
+	EventTypeSetStatus = "records-setstatus"
 )
 
 // EventNew is the event data for the EventTypeNew.
@@ -26,6 +29,12 @@ type EventNew struct {
 // EventEdit is the event data for the EventTypeEdit.
 type EventEdit struct {
 	User   user.User
+	State  string
+	Record v1.Record
+}
+
+// EventSetStatus is the event data for the EventTypeSetStatus.
+type EventSetStatus struct {
 	State  string
 	Record v1.Record
 }

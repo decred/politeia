@@ -211,63 +211,73 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 }
 
 func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.User) (*v1.SetStatusReply, error) {
+	log.Tracef("processSetStatus: %v %v %v", ss.Token, ss.Status, ss.Reason)
 
-	/*
-		// Verify user signed with their active identity
-		if u.PublicKey() != pss.PublicKey {
-			return nil, v1.UserErrorReply{
-				ErrorCode:    v1.ErrorCodePublicKeyInvalid,
-				ErrorContext: "not active identity",
-			}
+	// Verify user signed using active identity
+	if u.PublicKey() != ss.PublicKey {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
 		}
-	*/
+	}
 
-	// Status change user metadata
-	/*
-		timestamp := time.Now().Unix()
-		sc := pi.StatusChange{
-			Token:     pss.Token,
-			Version:   pss.Version,
-			Status:    pi.PropStatusT(pss.Status),
-			Reason:    pss.Reason,
-			PublicKey: pss.PublicKey,
-			Signature: pss.Signature,
-			Timestamp: timestamp,
-		}
-		b, err := json.Marshal(sc)
+	// Setup status change metadata
+	scm := pduser.StatusChangeMetadata{
+		Token:     ss.Token,
+		Version:   ss.Version,
+		Status:    int(ss.Status),
+		Reason:    ss.Reason,
+		PublicKey: ss.PublicKey,
+		Signature: ss.Signature,
+	}
+	b, err := json.Marshal(scm)
+	if err != nil {
+		return nil, err
+	}
+	mdAppend := []pdv1.MetadataStream{
+		{
+			ID:      pduser.MDStreamIDStatusChanges,
+			Payload: string(b),
+		},
+	}
+	mdOverwrite := []pdv1.MetadataStream{}
+
+	// Send politeiad request
+	var (
+		s   = convertStatusToPD(ss.Status)
+		pdr *pdv1.Record
+	)
+	switch ss.State {
+	case v1.RecordStateUnvetted:
+		pdr, err = r.politeiad.SetUnvettedStatus(ctx, ss.Token,
+			s, mdAppend, mdOverwrite)
 		if err != nil {
 			return nil, err
 		}
-		mdAppend := []pdv1.MetadataStream{
-			{
-				ID:      pi.MDStreamIDStatusChanges,
-				Payload: string(b),
-			},
-		}
-		mdOverwrite := []pdv1.MetadataStream{}
-	*/
-
-	/*
-		// This goes in the user plugin
-		// Verify reason
-		_, required := statusReasonRequired[pss.Status]
-		if required && pss.Reason == "" {
-			return nil, v1.UserErrorReply{
-				ErrorCode:    v1.ErrorCodePropStatusChangeReasonInvalid,
-				ErrorContext: "reason not given",
-			}
-		}
-
-		msg := pss.Token + pss.Version + strconv.Itoa(int(pss.Status)) + pss.Reason
-		err := util.VerifySignature(pss.Signature, pss.PublicKey, msg)
+	case v1.RecordStateVetted:
+		pdr, err = r.politeiad.SetVettedStatus(ctx, ss.Token,
+			s, mdAppend, mdOverwrite)
 		if err != nil {
-			return nil, convertUserErrorFromSignatureError(err)
+			return nil, err
 		}
-	*/
+	default:
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	rc := convertRecordToV1(*pdr, ss.State)
 
 	// Emit event
+	r.events.Emit(EventTypeSetStatus,
+		EventSetStatus{
+			State:  ss.State,
+			Record: rc,
+		})
 
-	return nil, nil
+	return &v1.SetStatusReply{
+		Record: rc,
+	}, nil
 }
 
 // record returns a version of a record from politeiad. If version is an empty
@@ -390,7 +400,33 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 }
 
 func (r *Records) processInventory(ctx context.Context, u *user.User) (*v1.InventoryReply, error) {
-	return nil, nil
+	log.Tracef("processInventory")
+
+	ir, err := r.politeiad.InventoryByStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	unvetted := make(map[string][]string, len(ir.Unvetted))
+	vetted := make(map[string][]string, len(ir.Vetted))
+	for k, v := range ir.Vetted {
+		ks := v1.RecordStatuses[convertStatusToV1(k)]
+		vetted[ks] = v
+	}
+
+	// Only admins are allowed to retrieve unvetted tokens. A user may
+	// or may not exist.
+	if u != nil && u.Admin {
+		for k, v := range ir.Unvetted {
+			ks := v1.RecordStatuses[convertStatusToV1(k)]
+			unvetted[ks] = v
+		}
+	}
+
+	return &v1.InventoryReply{
+		Unvetted: unvetted,
+		Vetted:   vetted,
+	}, nil
 }
 
 func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
@@ -452,23 +488,45 @@ func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmi
 }
 
 func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *user.User) (*v1.UserRecordsReply, error) {
-	/*
-		// Determine if unvetted tokens should be returned
-		switch {
-		case u == nil:
-			// No user session. Remove unvetted.
-			pir.Unvetted = nil
-		case u.Admin:
-			// User is an admin. Return unvetted.
-		case inv.UserID == u.ID.String():
-			// User is requesting their own proposals. Return unvetted.
-		default:
-			// Remove unvetted for all other cases
-			pir.Unvetted = nil
-		}
-	*/
+	log.Tracef("processUserRecords: %v", ur.UserID)
 
-	return nil, nil
+	reply, err := r.politeiad.UserRecords(ctx, ur.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unpack reply
+	var (
+		unvetted = make([]string, 0)
+		vetted   = make([]string, 0)
+	)
+	tokens, ok := reply[v1.RecordStateUnvetted]
+	if ok {
+		unvetted = tokens
+	}
+	tokens, ok = reply[v1.RecordStateUnvetted]
+	if ok {
+		vetted = tokens
+	}
+
+	// Determine if unvetted tokens should be returned
+	switch {
+	case u == nil:
+		// No user session. Remove unvetted.
+		unvetted = []string{}
+	case u.Admin:
+		// User is an admin. Return unvetted.
+	case ur.UserID == u.ID.String():
+		// User is requesting their own records. Return unvetted.
+	default:
+		// Remove unvetted for all other cases
+		unvetted = []string{}
+	}
+
+	return &v1.UserRecordsReply{
+		Unvetted: unvetted,
+		Vetted:   vetted,
+	}, nil
 }
 
 // paywallIsEnabled returns whether the user paywall is enabled.
@@ -604,6 +662,20 @@ func convertFilesToPD(f []v1.File) []pdv1.File {
 		})
 	}
 	return files
+}
+
+func convertStatusToPD(s v1.RecordStatusT) pdv1.RecordStatusT {
+	switch s {
+	case v1.RecordStatusUnreviewed:
+		return pdv1.RecordStatusNotReviewed
+	case v1.RecordStatusPublic:
+		return pdv1.RecordStatusPublic
+	case v1.RecordStatusCensored:
+		return pdv1.RecordStatusCensored
+	case v1.RecordStatusArchived:
+		return pdv1.RecordStatusArchived
+	}
+	return pdv1.RecordStatusInvalid
 }
 
 func convertStatusToV1(s pdv1.RecordStatusT) v1.RecordStatusT {

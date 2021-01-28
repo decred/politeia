@@ -341,13 +341,14 @@ type TimestampsReply struct {
 	Files map[string]Timestamp `json:"files"`
 }
 
-// UserRecords requests the tokens of all records submitted by a user.
+// UserRecords requests the tokens of all records submitted by a user. Unvetted
+// record tokens are only returned to admins and the record author.
 type UserRecords struct {
-	State  string `json:"state"`
 	UserID string `json:"userid"`
 }
 
 // UserRecordsReply is the reply to the UserRecords command.
 type UserRecordsReply struct {
-	Tokens []string `json:"tokens"`
+	Unvetted []string `json:"unvetted"`
+	Vetted   []string `json:"Vetted"`
 }

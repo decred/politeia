@@ -50,8 +50,9 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 }
 
 // UserRecords sends the user plugin UserRecords command to the politeiad v1
-// API.
-func (c *Client) UserRecords(ctx context.Context, state, token, userID string) ([]string, error) {
+// API. A seperate command is sent for the unvetted and vetted records. The
+// returned map is a map[recordState][]token.
+func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]string, error) {
 	// Setup request
 	ur := user.UserRecords{
 		UserID: userID,
@@ -62,8 +63,13 @@ func (c *Client) UserRecords(ctx context.Context, state, token, userID string) (
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
-			State:   state,
-			Token:   token,
+			State:   pdv1.RecordStateUnvetted,
+			ID:      user.PluginID,
+			Command: user.CmdUserRecords,
+			Payload: string(b),
+		},
+		{
+			State:   pdv1.RecordStateVetted,
 			ID:      user.PluginID,
 			Command: user.CmdUserRecords,
 			Payload: string(b),
@@ -75,20 +81,24 @@ func (c *Client) UserRecords(ctx context.Context, state, token, userID string) (
 	if err != nil {
 		return nil, err
 	}
-
-	// Decode reply
 	if len(replies) == 0 {
 		return nil, fmt.Errorf("no replies found")
 	}
-	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
-	}
-	var urr user.UserRecordsReply
-	err = json.Unmarshal([]byte(pcr.Payload), &urr)
-	if err != nil {
-		return nil, err
+
+	// Decode replies
+	reply := make(map[string][]string, 2) // [recordState][]token
+	for _, v := range replies {
+		if v.Error != nil {
+			// Swallow individual errors
+			continue
+		}
+		var urr user.UserRecordsReply
+		err = json.Unmarshal([]byte(v.Payload), &urr)
+		if err != nil {
+			return nil, err
+		}
+		reply[v.State] = urr.Records
 	}
 
-	return urr.Records, nil
+	return reply, nil
 }

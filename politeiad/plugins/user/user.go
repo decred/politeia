@@ -13,16 +13,18 @@ const (
 	CmdAuthor      = "author"      // Get record author
 	CmdUserRecords = "userrecords" // Get user submitted records
 
-	// TODO add record status change mdstream
-	// TODO make whether user md is required a plugin setting
-
 	// TODO MDStream IDs need to be plugin specific. If we can't then
 	// we need to make a mdstream package to aggregate all the mdstream
-	// ID.
+	// IDs.
 
 	// MDStreamIDUserMetadata is the politeiad metadata stream ID for
 	// the UserMetadata structure.
 	MDStreamIDUserMetadata = 1
+
+	// MDStreamIDStatusChanges is the politeiad metadata stream ID for
+	// the status changes metadata. Status changes should be appended
+	// onto this metadata stream.
+	MDStreamIDStatusChanges = 2
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
@@ -36,7 +38,10 @@ const (
 	ErrorCodeUserIDInvalid
 	ErrorCodePublicKeyInvalid
 	ErrorCodeSignatureInvalid
-	ErrorCodeUpdateNotAllowed
+	ErrorCodeStatusChangeMetadataNotFound
+	ErrorCodeTokenInvalid
+	ErrorCodeStatusInvalid
+	ErrorCodeReasonInvalid
 )
 
 var (
@@ -45,15 +50,6 @@ var (
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid: "error code invalid",
 	}
-
-	/*
-		// statusReasonRequired contains the list of proposal statuses that
-		// require an accompanying reason to be given for the status change.
-		statusReasonRequired = map[piv1.PropStatusT]struct{}{
-			piv1.PropStatusCensored:  {},
-			piv1.PropStatusAbandoned: {},
-		}
-	*/
 )
 
 // UserMetadata contains user metadata about a politeiad record. It is
@@ -65,6 +61,18 @@ type UserMetadata struct {
 	UserID    string `json:"userid"`    // Author user ID
 	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
+}
+
+// StatusChangeMetadata contains the user signature for a record status change.
+//
+// Signature is the client signature of the Token+Version+Status+Reason.
+type StatusChangeMetadata struct {
+	Token     string `json:"token"`
+	Version   string `json:"version"`
+	Status    int    `json:"status"`
+	Reason    string `json:"message,omitempty"`
+	PublicKey string `json:"publickey"`
+	Signature string `json:"signature"`
 }
 
 // Author returns the user ID of a record's author. If no UserMetadata is

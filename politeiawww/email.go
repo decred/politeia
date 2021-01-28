@@ -119,7 +119,7 @@ func (p *politeiawww) emailProposalStatusChange(d dataProposalStatusChange, prop
 		body    string
 	)
 	switch d.status {
-	case rcv1.StatusPublic:
+	case rcv1.RecordStatusPublic:
 		subject = "New Proposal Published"
 		tmplData := proposalVetted{
 			Name: proposalName,
@@ -152,7 +152,7 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 		body    string
 	)
 	switch d.status {
-	case rcv1.StatusPublic:
+	case rcv1.RecordStatusPublic:
 		subject = "Your Proposal Has Been Published"
 		tmplData := proposalVettedToAuthor{
 			Name: proposalName,
@@ -163,7 +163,7 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 			return err
 		}
 
-	case rcv1.StatusCensored:
+	case rcv1.RecordStatusCensored:
 		subject = "Your Proposal Has Been Censored"
 		tmplData := proposalCensoredToAuthor{
 			Name:   proposalName,
