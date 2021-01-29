@@ -7,6 +7,7 @@
 package pi
 
 const (
+	// PluginID is the pi plugin ID.
 	PluginID = "pi"
 
 	// Plugin commands
@@ -56,55 +57,6 @@ const (
 type ProposalMetadata struct {
 	Name string `json:"name"`
 }
-
-// PropStatusT represents a proposal status. These map directly to the
-// politeiad record statuses, but some have had their names changed to better
-// reflect their intended use case by proposals.
-type PropStatusT int
-
-const (
-	// PropStatusInvalid is an invalid proposal status.
-	PropStatusInvalid PropStatusT = 0
-
-	// PropStatusUnreviewed indicates the proposal has been submitted,
-	// but has not yet been reviewed and made public by an admin. A
-	// proposal with this status will have a proposal state of
-	// PropStateUnvetted.
-	PropStatusUnvetted PropStatusT = 1
-
-	// PropStatusPublic indicates that a proposal has been reviewed and
-	// made public by an admin. A proposal with this status will have
-	// a proposal state of PropStateVetted.
-	PropStatusPublic PropStatusT = 2
-
-	// PropStatusCensored indicates that a proposal has been censored
-	// by an admin for violating the proposal guidlines. Both unvetted
-	// and vetted proposals can be censored so a proposal with this
-	// status can have a state of either PropStateUnvetted or
-	// PropStateVetted depending on whether the proposal was censored
-	// before or after it was made public.
-	PropStatusCensored PropStatusT = 3
-
-	// PropStatusUnreviewedChanges is a deprecated proposal status that
-	// has only been included so that the proposal statuses map
-	// directly to the politeiad record statuses.
-	PropStatusUnreviewedChanges PropStatusT = 4
-
-	// PropStatusAbandoned indicates that a proposal has been marked
-	// as abandoned by an admin due to the author being inactive.
-	PropStatusAbandoned PropStatusT = 5
-)
-
-var (
-	// PropStatuses contains the human readable proposal statuses.
-	PropStatuses = map[PropStatusT]string{
-		PropStatusInvalid:   "invalid",
-		PropStatusUnvetted:  "unvetted",
-		PropStatusPublic:    "public",
-		PropStatusCensored:  "censored",
-		PropStatusAbandoned: "abandoned",
-	}
-)
 
 // VoteInventory requests the tokens of all proposals in the inventory
 // categorized by their vote status. This call relies on the ticketvote

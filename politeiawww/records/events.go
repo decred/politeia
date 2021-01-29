@@ -16,7 +16,7 @@ const (
 	// EventTypeEdit is emitted when a a record is edited.
 	EventTypeEdit = "records-edit"
 
-	// EventTypeSetStatus is emitted when a a record is edited.
+	// EventTypeSetStatus is emitted when a a record status is updated.
 	EventTypeSetStatus = "records-setstatus"
 )
 

@@ -28,7 +28,6 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -703,8 +702,7 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	}
 
 	// Note that we need validate the string representation of the merkle
-	files := convertPiFilesFromWWW([]www.File{nd.File})
-	mr, err := wwwutil.MerkleRoot(files, nil)
+	mr, err := merkleRoot([]www.File{nd.File})
 	if err != nil {
 		return err
 	}

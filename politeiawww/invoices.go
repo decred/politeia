@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -29,7 +31,6 @@ import (
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -798,6 +799,24 @@ func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, 
 	}, nil
 }
 
+func merkleRoot(files []www.File) (string, error) {
+	// Calculate file digests
+	digests := make([]*[sha256.Size]byte, 0, len(files))
+	for _, f := range files {
+		b, err := base64.StdEncoding.DecodeString(f.Payload)
+		if err != nil {
+			return "", err
+		}
+		digest := util.Digest(b)
+		var hf [sha256.Size]byte
+		copy(hf[:], digest)
+		digests = append(digests, &hf)
+	}
+
+	// Return merkle root
+	return hex.EncodeToString(merkle.Root(digests)[:]), nil
+}
+
 func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error {
 	log.Tracef("validateInvoice")
 
@@ -1118,8 +1137,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	// Note that we need validate the string representation of the merkle
-	files := convertPiFilesFromWWW(ni.Files)
-	mr, err := wwwutil.MerkleRoot(files, nil)
+	mr, err := merkleRoot(ni.Files)
 	if err != nil {
 		return err
 	}

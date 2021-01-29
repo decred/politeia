@@ -13,6 +13,8 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker/github"
 	ghdb "github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
 	"github.com/decred/politeia/politeiawww/comments"
+	"github.com/decred/politeia/politeiawww/pi"
+	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -68,6 +70,8 @@ func init() {
 	sessions.UseLogger(log)
 	comments.UseLogger(log)
 	ticketvote.UseLogger(log)
+	records.UseLogger(log)
+	pi.UseLogger(log)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.

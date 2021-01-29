@@ -33,38 +33,19 @@ type ErrorCodeT int
 
 const (
 	// Error status codes
-	ErrorCodeInvalid          ErrorCodeT = 0
-	ErrorCodeInputInvalid     ErrorCodeT = 1
-	ErrorCodePageSizeExceeded ErrorCodeT = 2
-
-	// User errors
-	ErrorCodeUserRegistrationNotPaid ErrorCodeT = 100
-	ErrorCodeUserBalanceInsufficient ErrorCodeT = 101
-	ErrorCodeUnauthorized            ErrorCodeT = 102
-
-	// Signature errors
-	ErrorCodePublicKeyInvalid ErrorCodeT = 200
-	ErrorCodeSignatureInvalid ErrorCodeT = 201
+	ErrorCodeInvalid              ErrorCodeT = 0
+	ErrorCodeInputInvalid         ErrorCodeT = 1
+	ErrorCodePageSizeExceeded     ErrorCodeT = 2
+	ErrorCodeProposalStateInvalid ErrorCodeT = 3
 )
 
 var (
-	// ErrorCode contains human readable error messages.
+	// ErrorCodes contains human readable error messages.
 	// TODO fill in error status messages
-	ErrorCode = map[ErrorCodeT]string{
+	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid:          "error status invalid",
 		ErrorCodeInputInvalid:     "input invalid",
 		ErrorCodePageSizeExceeded: "page size exceeded",
-
-		// User errors
-		ErrorCodeUserRegistrationNotPaid: "user registration not paid",
-		ErrorCodeUserBalanceInsufficient: "user balance insufficient",
-		ErrorCodeUnauthorized:            "user is unauthorized",
-
-		// Signature errors
-		ErrorCodePublicKeyInvalid: "public key invalid",
-		ErrorCodeSignatureInvalid: "signature invalid",
-
-		// Proposal errors
 	}
 )
 
@@ -79,6 +60,19 @@ type UserErrorReply struct {
 // Error satisfies the error interface.
 func (e UserErrorReply) Error() string {
 	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+}
+
+// PluginErrorReply is the reply that the server returns when it encounters
+// a plugin error.
+type PluginErrorReply struct {
+	PluginID     string `json:"pluginid"`
+	ErrorCode    int    `json:"errorcode"`
+	ErrorContext string `json:"errorcontext"`
+}
+
+// Error satisfies the error interface.
+func (e PluginErrorReply) Error() string {
+	return fmt.Sprintf("plugin error code: %v", e.ErrorCode)
 }
 
 // ServerErrorReply is the reply that the server returns when it encounters an
@@ -130,15 +124,6 @@ const (
 	PropStatusAbandoned PropStatusT = 5
 )
 
-// PropStatuses contains the human readable proposal statuses.
-var PropStatuses = map[PropStatusT]string{
-	PropStatusInvalid:    "invalid",
-	PropStatusUnreviewed: "unreviewed",
-	PropStatusPublic:     "public",
-	PropStatusCensored:   "censored",
-	PropStatusAbandoned:  "abandoned",
-}
-
 // File describes an individual file that is part of the proposal. The
 // directory structure must be flattened.
 type File struct {
@@ -148,32 +133,24 @@ type File struct {
 	Payload string `json:"payload"` // File content, base64 encoded
 }
 
-// Metadata describes user specified proposal metadata.
-type Metadata struct {
-	Hint    string `json:"hint"`    // Hint that describes the payload
-	Digest  string `json:"digest"`  // SHA256 digest of unencoded payload
-	Payload string `json:"payload"` // JSON metadata content, base64 encoded
-}
-
 const (
-	// HintProposalMetadata is the Metadata object hint that is used
-	// when the payload contains a ProposalMetadata.
-	HintProposalMetadata = "proposalmd"
+	// FileNameProposalMetadata is the file name of the user submitted
+	// ProposalMetadata.
+	FileNameProposalMetadata = "proposalmetadata.json"
 
-	// HintVoteMetadata is the Metadata object hint that is used when
-	// the payload contains a VoteMetadata.
-	HintVoteMetadata = "votemd"
+	// FileNameVoteMetadata is the file name of the user submitted
+	// VoteMetadata.
+	FileNameVoteMetadata = "votemetadata.json"
 )
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
-// submission. It is attached to a proposal submission as a Metadata object.
+// submission.
 type ProposalMetadata struct {
 	Name string `json:"name"` // Proposal name
 }
 
 // VoteMetadata is metadata that is specified by the user on proposal
-// submission in order to host or participate in certain types of votes. It is
-// attached to a proposal submission as a Metadata object.
+// submission in order to host or participate in a runoff vote.
 type VoteMetadata struct {
 	// LinkBy is set when the user intends for the proposal to be the
 	// parent proposal in a runoff vote. It is a UNIX timestamp that
@@ -215,11 +192,11 @@ type StatusChange struct {
 	Timestamp int64       `json:"timestamp"`
 }
 
-// ProposalRecord represents a proposal submission and its metadata.
+// Proposal represents a proposal submission and its metadata.
 //
 // Signature is the client signature of the proposal merkle root. The merkle
-// root is the ordered merkle root of all proposal Files and Metadata.
-type ProposalRecord struct {
+// root is the ordered merkle root of all proposal files.
+type Proposal struct {
 	Version   string         `json:"version"`   // Proposal version
 	Timestamp int64          `json:"timestamp"` // Submission UNIX timestamp
 	State     string         `json:"state"`     // Proposal state
@@ -229,7 +206,6 @@ type ProposalRecord struct {
 	PublicKey string         `json:"publickey"` // Key used in signature
 	Signature string         `json:"signature"` // Signature of merkle root
 	Files     []File         `json:"files"`     // Proposal files
-	Metadata  []Metadata     `json:"metadata"`  // User defined metadata
 	Statuses  []StatusChange `json:"statuses"`  // Status change history
 
 	// CensorshipRecord contains cryptographic proof that the proposal
@@ -237,29 +213,27 @@ type ProposalRecord struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// ProposalRequest is used to request a ProposalRecord. If the version is
-// omitted, the most recent version will be returned.
-type ProposalRequest struct {
-	Token   string `json:"token"`
-	Version string `json:"version,omitempty"`
-}
+const (
+	// ProposalsPageSize is the maximum number of proposals that can be
+	// requested in a Proposals request.
+	ProposalsPageSize = 10
+)
 
-// Proposals retrieves the ProposalRecord for each of the provided proposal
-// requests.
+// Proposals retrieves the Proposal for each of the provided tokens.
 //
-// This command does not return user submitted proposal files or metadata,
-// except for the ProposalMetadata, which contains the proposal name. All other
-// user submitted data isi removed. Unvetted proposals are also stripped of the
-// ProposalMetadata when being returned to non-admins.
+// This command does not return the proposal index file or any attachment
+// files. It will return the ProposalMetadata file and the VoteMetadata file if
+// one is present. Unvetted proposals are stripped of all user submitted data
+// when being returned to non-admins.
 type Proposals struct {
-	State    string            `json:"state"`
-	Requests []ProposalRequest `json:"requests"`
+	State  string   `json:"state"`
+	Tokens []string `json:"tokens"`
 }
 
 // ProposalsReply is the reply to the Proposals command. Any tokens that did
-// not correspond to a ProposalRecord will not be included in the reply.
+// not correspond to a Proposal will not be included in the reply.
 type ProposalsReply struct {
-	Proposals map[string]ProposalRecord `json:"proposals"` // [token]Proposal
+	Proposals map[string]Proposal `json:"proposals"` // [token]Proposal
 }
 
 // VoteInventory retrieves the tokens of all public, non-abandoned proposals

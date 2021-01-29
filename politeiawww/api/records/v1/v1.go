@@ -38,6 +38,7 @@ const (
 	ErrorCodeSignatureInvalid
 	ErrorCodeRecordStateInvalid
 	ErrorCodeRecordNotFound
+	ErrorCodePageSizeExceeded
 )
 
 var (
@@ -261,18 +262,21 @@ type DetailsReply struct {
 	Record Record `json:"record"`
 }
 
-// RecordRequest is used to request a record version. If the version is
-// omitted, the most recent version will be returned.
-type RecordRequest struct {
-	Token   string `json:"token"`
-	Version string `json:"version,omitempty"`
-}
+const (
+	// RecordsPageSize is the maximum number of records that can be
+	// requested in a Records request.
+	RecordsPageSize = 10
+)
 
-// Records requests a batch of records. Only the record metadata is returned.
-// The Details command must be used to retrieve the record files.
+// Records requests a batch of records.
+//
+// Only the record metadata is returned. The Details command must be used to
+// retrieve the record files or a specific version of the record. Since record
+// files are not included in the reply, unvetted records are returned to all
+// users.
 type Records struct {
-	State    string          `json:"state"`
-	Requests []RecordRequest `json:"requests"`
+	State  string   `json:"state"`
+	Tokens []string `json:"tokens"`
 }
 
 // RecordsReply is the reply to the Records command. Any tokens that did not
@@ -282,7 +286,8 @@ type RecordsReply struct {
 }
 
 // Inventory requests the tokens of all records in the inventory, categorized
-// by record state and record status.
+// by record state and record status. Unvetted record tokens will only be
+// returned to admins.
 type Inventory struct{}
 
 // InventoryReply is the reply to the Inventory command. The returned maps are

@@ -311,7 +311,7 @@ func (r *Records) record(ctx context.Context, state, token, version string) (*v1
 	if err != nil {
 		return nil, err
 	}
-	rc = recordPopulateUserData(rc, *u)
+	recordPopulateUserData(&rc, *u)
 
 	return &rc, nil
 }
@@ -354,7 +354,7 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 }
 
 func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.User) (*v1.RecordsReply, error) {
-	log.Tracef("processRecords: %v %v", rs.State, len(rs.Requests))
+	log.Tracef("processRecords: %v %v", rs.State, len(rs.Tokens))
 
 	// Verify state
 	switch rs.State {
@@ -366,30 +366,29 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 		}
 	}
 
-	// TODO Verify page size
+	// Verify page size
+	if len(rs.Tokens) > v1.RecordsPageSize {
+		e := fmt.Sprintf("max page size is %v", v1.RecordsPageSize)
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePageSizeExceeded,
+			ErrorContext: e,
+		}
+	}
 
-	// Get all records in the batch
-	records := make(map[string]v1.Record, len(rs.Requests))
-	for _, v := range rs.Requests {
-		rc, err := r.record(ctx, rs.State, v.Token, v.Version)
+	// Get all records in the batch. This should be a batched call to
+	// politeiad, but the politeiad API does not provided a batched
+	// records endpoint.
+	records := make(map[string]v1.Record, len(rs.Tokens))
+	for _, v := range rs.Tokens {
+		rc, err := r.record(ctx, rs.State, v, "")
 		if err != nil {
 			// If any error occured simply skip this record. It will not
 			// be included in the reply.
 			continue
 		}
 
-		// Only admins and the record author are allowed to retrieve
-		// unvetted record files. Remove files if the user is not an admin
-		// or the author. This is a public route so a user may not be
-		// present.
-		var (
-			authorID = userIDFromMetadataStreams(rc.Metadata)
-			isAuthor = u != nil && u.ID.String() == authorID
-			isAdmin  = u != nil && u.Admin
-		)
-		if !isAuthor && !isAdmin {
-			rc.Files = []v1.File{}
-		}
+		// Record files are not returned in this call
+		rc.Files = []v1.File{}
 
 		records[rc.CensorshipRecord.Token] = *rc
 	}
@@ -615,9 +614,8 @@ func (r *Records) piHookNewRecordPost(u user.User, token string) error {
 
 // recordPopulateUserData populates the record with user data that is not
 // stored in politeiad.
-func recordPopulateUserData(r v1.Record, u user.User) v1.Record {
+func recordPopulateUserData(r *v1.Record, u user.User) {
 	r.Username = u.Username
-	return r
 }
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided

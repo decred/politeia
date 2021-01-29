@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// Manager manages event listeners for different event types.
+// Manager manages event listeners.
 type Manager struct {
 	sync.Mutex
 	listeners map[string][]chan interface{}
