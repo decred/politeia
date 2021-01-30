@@ -4,16 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"fmt"
-	"strconv"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // commentNewCmd submits a new proposal comment.
 type commentNewCmd struct {
 	Args struct {
@@ -26,6 +16,7 @@ type commentNewCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
+/*
 // Execute executes the commentNewCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -110,6 +101,7 @@ func (c *commentNewCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // commentNewHelpMsg is the help command message.
 const commentNewHelpMsg = `commentnew "token" "comment" "parentid"

@@ -21,8 +21,6 @@ import (
 
 	"decred.org/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -63,16 +61,6 @@ func userWWWErrorStatus(e www.ErrorStatusT) string {
 		return s
 	}
 	s, ok = cms.ErrorStatus[e]
-	if ok {
-		return s
-	}
-	return ""
-}
-
-// userPiErrorStatus retrieves the human readable error message for an error
-// status code. The status code error message comes from the pi api.
-func userPiErrorStatus(e pi.ErrorStatusT) string {
-	s, ok := pi.ErrorStatus[e]
 	if ok {
 		return s
 	}
@@ -142,47 +130,6 @@ func commentsError(body []byte, statusCode int) error {
 // TODO implement ticketVoteError
 func ticketVoteError(body []byte, statusCode int) error {
 	return fmt.Errorf("%v %s", statusCode, body)
-}
-
-// piError unmarshals the response body from makeRequest, and handles any
-// status code errors from the server. Parses the error code and error context
-// from the pi api, in case of user error.
-func piError(body []byte, statusCode int) error {
-	switch statusCode {
-	case http.StatusBadRequest:
-		// User Error
-		var ue pi.UserErrorReply
-		err := json.Unmarshal(body, &ue)
-		if err != nil {
-			return fmt.Errorf("unmarshal UserError: %v", err)
-		}
-		if ue.ErrorCode != 0 {
-			var e error
-			errMsg := userPiErrorStatus(ue.ErrorCode)
-			if len(ue.ErrorContext) == 0 {
-				// Error format when an ErrorContext is not included
-				e = fmt.Errorf("%v, %v", statusCode, errMsg)
-			} else {
-				// Error format when an ErrorContext is included
-				e = fmt.Errorf("%v, %v: %v", statusCode, errMsg,
-					strings.Join(ue.ErrorContext, ", "))
-			}
-			return e
-		}
-	case http.StatusInternalServerError:
-		// Server Error
-		var ser pi.ServerErrorReply
-		err := json.Unmarshal(body, &ser)
-		if err != nil {
-			return fmt.Errorf("unmarshal ServerError: %v", err)
-		}
-		return fmt.Errorf("ServerError timestamp: %v", ser.ErrorCode)
-	default:
-		// Return Status Code Error
-		return fmt.Errorf("%v", statusCode)
-	}
-
-	return nil
 }
 
 // makeRequest sends the provided request to the politeiawww backend specified
@@ -857,90 +804,6 @@ func (c *Client) UserProposalPaywall() (*www.UserProposalPaywallReply, error) {
 	return &ppdr, nil
 }
 
-// ProposalNew submits a new proposal.
-func (c *Client) ProposalNew(pn pi.ProposalNew) (*pi.ProposalNewReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteProposalNew, pn)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var pnr pi.ProposalNewReply
-	err = json.Unmarshal(respBody, &pnr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalNewReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(pnr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &pnr, nil
-}
-
-// ProposalEdit edits a proposal.
-func (c *Client) ProposalEdit(pe pi.ProposalEdit) (*pi.ProposalEditReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteProposalEdit, pe)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var per pi.ProposalEditReply
-	err = json.Unmarshal(respBody, &per)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalEditReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(per)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &per, nil
-}
-
-// ProposalSetStatus sends the ProposalSetStatus command to politeiawww.
-func (c *Client) ProposalSetStatus(pss pi.ProposalSetStatus) (*pi.ProposalSetStatusReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteProposalSetStatus, pss)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var pssr pi.ProposalSetStatusReply
-	err = json.Unmarshal(respBody, &pssr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalSetStatusReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(pssr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &pssr, nil
-}
-
 // RecordTimestamps sends the Timestamps command to politeiawww records API.
 func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
@@ -995,62 +858,6 @@ func (c *Client) TicketVoteTimestamps(t tkv1.Timestamps) (*tkv1.TimestampsReply,
 	}
 
 	return &tr, nil
-}
-
-// Proposals retrieves a proposal for each of the provided proposal requests.
-func (c *Client) Proposals(p pi.Proposals) (*pi.ProposalsReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteProposals, p)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var pr pi.ProposalsReply
-	err = json.Unmarshal(respBody, &pr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalsReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(pr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &pr, nil
-}
-
-// ProposalInventory sends a ProposalInventory request to politeiawww.
-func (c *Client) ProposalInventory(p pi.ProposalInventory) (*pi.ProposalInventoryReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteProposalInventory, p)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var pir pi.ProposalInventoryReply
-	err = json.Unmarshal(respBody, &pir)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalInventory: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(pir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &pir, nil
 }
 
 // NewInvoice submits the specified invoice to politeiawww for the logged in
@@ -1333,35 +1140,6 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 	return &pir, nil
 }
 
-// VoteInventory retrieves the tokens of all proposals in the inventory
-// categorized by their vote status.
-func (c *Client) VoteInventory(vi pi.VoteInventory) (*pi.VoteInventoryReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteInventory, vi)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vir pi.VoteInventoryReply
-	err = json.Unmarshal(respBody, &vir)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal VoteInventory: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(vir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vir, nil
-}
-
 // BatchProposals retrieves a list of proposals
 func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodPost,
@@ -1388,35 +1166,6 @@ func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsRepl
 	}
 
 	return &bpr, nil
-}
-
-// VoteSummaries retrieves a summary of the voting process for a set of
-// proposals.
-func (c *Client) VoteSummaries(vs pi.VoteSummaries) (*pi.VoteSummariesReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteSummaries, vs)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vsr pi.VoteSummariesReply
-	err = json.Unmarshal(respBody, &vsr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(vsr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vsr, nil
 }
 
 // GetAllVetted retrieves a page of vetted proposals.
@@ -1475,175 +1224,6 @@ func (c *Client) WWWNewComment(nc *www.NewComment) (*www.NewCommentReply, error)
 	return &ncr, nil
 }
 
-// CommentNew submits a new proposal comment for the logged in user.
-func (c *Client) CommentNew(cn pi.CommentNew) (*pi.CommentNewReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteCommentNew, cn)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var cnr pi.CommentNewReply
-	err = json.Unmarshal(respBody, &cnr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentNewReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cnr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cnr, nil
-}
-
-// CommentVote casts a like comment action (upvote/downvote) for the logged in
-// user.
-func (c *Client) CommentVote(cv pi.CommentVote) (*pi.CommentVoteReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteCommentVote, cv)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var cvr pi.CommentVoteReply
-	err = json.Unmarshal(respBody, &cvr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentVoteReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cvr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cvr, nil
-}
-
-// CommentCensor censors the specified proposal comment.
-func (c *Client) CommentCensor(cc pi.CommentCensor) (*pi.CommentCensorReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteCommentCensor, cc)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var ccr pi.CommentCensorReply
-	err = json.Unmarshal(respBody, &ccr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CensorCommentReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(ccr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &ccr, nil
-}
-
-// Comments retrieves the comments for the specified proposal.
-func (c *Client) Comments(cs pi.Comments) (*pi.CommentsReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteComments, &cs)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var cr pi.CommentsReply
-	err = json.Unmarshal(respBody, &cr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentsReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cr, nil
-}
-
-// CommentVotes retrieves the comment likes (upvotes/downvotes) for the
-// specified proposal that are from the privoded user.
-func (c *Client) CommentVotes(cv pi.CommentVotes) (*pi.CommentVotesReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteCommentVotes, cv)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var cvr pi.CommentVotesReply
-	err = json.Unmarshal(respBody, &cvr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentVotes: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cvr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cvr, nil
-}
-
-// CommentTimestamps sends the Timestamps command to politeiawww comments API.
-func (c *Client) CommentTimestamps(t cmv1.Timestamps) (*cmv1.TimestampsReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		cmv1.APIRoute, cmv1.RouteTimestamps, t)
-	if err != nil {
-		return nil, err
-	}
-	if statusCode != http.StatusOK {
-		return nil, commentsError(respBody, statusCode)
-	}
-
-	var tr cmv1.TimestampsReply
-	err = json.Unmarshal(respBody, &tr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(tr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &tr, nil
-}
-
 // InvoiceComments retrieves the comments for the specified proposal.
 func (c *Client) InvoiceComments(token string) (*www.GetCommentsReply, error) {
 	route := "/invoices/" + token + "/comments"
@@ -1671,34 +1251,6 @@ func (c *Client) InvoiceComments(token string) (*www.GetCommentsReply, error) {
 	}
 
 	return &gcr, nil
-}
-
-// Votes rerieves the vote details for a given proposal.
-func (c *Client) Votes(vs pi.Votes) (*pi.VotesReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteVotes, vs)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vsr pi.VotesReply
-	err = json.Unmarshal(respBody, &vsr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal Votes: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(vsr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vsr, nil
 }
 
 // WWWCensorComment censors the specified proposal comment.
@@ -1729,35 +1281,6 @@ func (c *Client) WWWCensorComment(cc *www.CensorComment) (*www.CensorCommentRepl
 	return &ccr, nil
 }
 
-// VoteStart sends the provided VoteStart to pi.
-func (c *Client) VoteStart(vs pi.VoteStart) (*pi.VoteStartReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteVoteStart, vs)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vsr pi.VoteStartReply
-	err = json.Unmarshal(respBody, &vsr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal VoteStartReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		vsr.EligibleTickets = []string{"removed by piwww for readability"}
-		err := prettyPrintJSON(vsr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vsr, nil
-}
-
 // UserRegistrationPayment checks whether the logged in user has paid their user
 // registration fee.
 func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, error) {
@@ -1786,34 +1309,6 @@ func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, e
 	}
 
 	return &urpr, nil
-}
-
-// VoteResults retrieves the vote results for the specified proposal.
-func (c *Client) VoteResults(vr pi.VoteResults) (*pi.VoteResultsReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteVoteResults, vr)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vrr pi.VoteResultsReply
-	err = json.Unmarshal(respBody, &vrr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(vrr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vrr, nil
 }
 
 // VoteDetailsV2 returns the proposal vote details for the given token using
@@ -1992,35 +1487,6 @@ func (c *Client) EditUser(eu *www.EditUser) (*www.EditUserReply, error) {
 	return &eur, nil
 }
 
-// VoteAuthorize authorizes the voting period for the specified proposal using
-// the logged in user.
-func (c *Client) VoteAuthorize(va pi.VoteAuthorize) (*pi.VoteAuthorizeReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost, pi.APIRoute,
-		pi.RouteVoteAuthorize, va)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var vr pi.VoteAuthorizeReply
-	err = json.Unmarshal(respBody, &vr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal VoteAuthorizeReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(vr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vr, nil
-}
-
 // VoteStatus retrieves the vote status for the specified proposal.
 func (c *Client) VoteStatus(token string) (*www.VoteStatusReply, error) {
 	route := "/proposals/" + token + "/votestatus"
@@ -2104,34 +1570,6 @@ func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	}
 
 	return &avr, nil
-}
-
-// CastBallot casts a ballot of votes for a proposal.
-func (c *Client) CastBallot(cb pi.CastBallot) (*pi.CastBallotReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		pi.APIRoute, pi.RouteCastBallot, cb)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, piError(respBody, statusCode)
-	}
-
-	var cbr pi.CastBallotReply
-	err = json.Unmarshal(respBody, &cbr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CastBallotReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(cbr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &cbr, nil
 }
 
 // UpdateUserKey updates the identity of the logged in user.

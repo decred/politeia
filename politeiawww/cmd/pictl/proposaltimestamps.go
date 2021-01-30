@@ -5,32 +5,30 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// recordTimestampsCmd retrieves the timestamps for a politeiawww record.
-type recordTimestampsCmd struct {
+// proposalTimestampsCmd retrieves the timestamps for a politeiawww proposal.
+type proposalTimestampsCmd struct {
 	Args struct {
 		Token   string `positional-arg-name:"token" required:"true"`
 		Version string `positional-arg-name:"version" optional:"true"`
 	} `positional-args:"true"`
 
 	// Unvetted is used to request the timestamps of an unvetted
-	// record.
+	// proposal.
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the recordTimestampsCmd command.
+/*
+// Execute executes the proposalTimestampsCmd command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *recordTimestampsCmd) Execute(args []string) error {
+func (c *proposalTimestampsCmd) Execute(args []string) error {
 
-	// Set record state. Defaults to vetted unless the unvetted flag
+	// Set proposal state. Defaults to vetted unless the unvetted flag
 	// is used.
 	var state rcv1.StateT
 	switch {
@@ -64,7 +62,7 @@ func (c *recordTimestampsCmd) Execute(args []string) error {
 	// Verify timestamps
 	err = verifyTimestamp(tr.RecordMetadata)
 	if err != nil {
-		return fmt.Errorf("verify record metadata timestamp: %v", err)
+		return fmt.Errorf("verify proposal metadata timestamp: %v", err)
 	}
 	for k, v := range tr.Metadata {
 		err = verifyTimestamp(v)
@@ -81,10 +79,11 @@ func (c *recordTimestampsCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 func verifyTimestamp(t rcv1.Timestamp) error {
 	ts := convertTimestamp(t)
-	return tlogbe.VerifyTimestamp(ts)
+	return tlog.VerifyTimestamp(ts)
 }
 
 func convertProof(p rcv1.Proof) backend.Proof {
@@ -111,17 +110,17 @@ func convertTimestamp(t rcv1.Timestamp) backend.Timestamp {
 	}
 }
 
-const recordTimestampsHelpMsg = `recordtimestamps [flags] "token" "version"
+const proposalTimestampsHelpMsg = `proposaltimestamps [flags] "token" "version"
 
-Fetch the timestamps a record version. The timestamp contains all necessary
-data to verify that user submitted record data has been timestamped onto the
+Fetch the timestamps a proposal version. The timestamp contains all necessary
+data to verify that user submitted proposal data has been timestamped onto the
 decred blockchain.
 
 Arguments:
-1. token   (string, required) Record token
-2. version (string, optional) Record version
+1. token    (string, required) Record token
+2. version  (string, optional) Record version
 
 Flags:
- --unvetted (bool, optional) Request is for unvetted records instead of vetted
-                             ones (default: false).
+ --unvetted (bool, optional)   Request is for unvetted proposals instead of
+                               vetted ones (default: false).
 `

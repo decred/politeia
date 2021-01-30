@@ -4,16 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"fmt"
-	"strconv"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // voteAuthorizeCmd authorizes a proposal vote or revokes a previous vote
 // authorization.
 type voteAuthorizeCmd struct {
@@ -23,6 +13,7 @@ type voteAuthorizeCmd struct {
 	} `positional-args:"true"`
 }
 
+/*
 // Execute executes the voteAuthorizeCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -105,6 +96,7 @@ func (cmd *voteAuthorizeCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // voteAuthorizeHelpMsg is the help command message.
 const voteAuthorizeHelpMsg = `voteauthorize "token" "action"

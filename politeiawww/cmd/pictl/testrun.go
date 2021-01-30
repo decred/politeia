@@ -4,22 +4,6 @@
 
 package main
 
-import (
-	"context"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"strconv"
-	"time"
-
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // testRunCmd performs a test run of all the politeiawww routes.
 type testRunCmd struct {
 	Args struct {
@@ -28,6 +12,7 @@ type testRunCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
+/*
 var (
 	minPasswordLength int
 	publicKey         string
@@ -1497,6 +1482,7 @@ func (cmd *testRunCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 const testRunHelpMsg = `testrun "adminusername" "adminpassword"
 

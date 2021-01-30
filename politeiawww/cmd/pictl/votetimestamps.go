@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -66,7 +66,7 @@ func (c *voteTimestampsCmd) Execute(args []string) error {
 
 func verifyVoteTimestamp(t tkv1.Timestamp) error {
 	ts := convertVoteTimestamp(t)
-	return tlogbe.VerifyTimestamp(ts)
+	return tlog.VerifyTimestamp(ts)
 }
 
 func convertVoteProof(p tkv1.Proof) backend.Proof {

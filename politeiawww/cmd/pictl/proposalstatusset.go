@@ -4,15 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"fmt"
-	"strconv"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // proposalSetStatusCmd sets the status of a proposal.
 type proposalSetStatusCmd struct {
 	Args struct {
@@ -25,6 +16,7 @@ type proposalSetStatusCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
+/*
 // Execute executes the proposalSetStatusCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -121,6 +113,7 @@ func (cmd *proposalSetStatusCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // proposalSetStatusHelpMsg is the output of the help command.
 const proposalSetStatusHelpMsg = `proposalstatusset "token" "status" "reason"

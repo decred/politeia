@@ -4,16 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"fmt"
-	"strconv"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // commentVoteCmd is used to upvote/downvote a proposal comment using the
 // logged in the user.
 type commentVoteCmd struct {
@@ -24,6 +14,7 @@ type commentVoteCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
+/*
 // Execute executes the commentVoteCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -102,6 +93,7 @@ func (c *commentVoteCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // commentVoteHelpMsg is the help command message.
 const commentVoteHelpMsg = `commentvote "token" "commentID" "vote"

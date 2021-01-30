@@ -4,21 +4,6 @@
 
 package main
 
-import (
-	"bytes"
-	"encoding/hex"
-	"fmt"
-	"os"
-	"strconv"
-
-	"decred.org/dcrwallet/rpc/walletrpc"
-	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/util"
-	"golang.org/x/crypto/ssh/terminal"
-)
-
 // castBallotCmd casts a ballot of votes for the specified proposal.
 type castBallotCmd struct {
 	Args struct {
@@ -28,6 +13,7 @@ type castBallotCmd struct {
 	Password string `long:"password" optional:"true"`
 }
 
+/*
 // Execute executes the castBallotCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -212,6 +198,7 @@ func (c *castBallotCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // castBallotHelpMsg is the help command message.
 const castBallotHelpMsg = `castballot "token" "voteid"

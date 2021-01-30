@@ -4,15 +4,6 @@
 
 package main
 
-import (
-	"fmt"
-
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
-	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // commentTimestampsCmd retrieves the timestamps for politeiawww comments.
 type commentTimestampsCmd struct {
 	Args struct {
@@ -25,6 +16,7 @@ type commentTimestampsCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
+/*
 // Execute executes the commentTimestampsCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -103,6 +95,7 @@ func convertCommentTimestamp(t cmv1.Timestamp) backend.Timestamp {
 		Proofs:     proofs,
 	}
 }
+*/
 
 const commentTimestampsHelpMsg = `commenttimestamps [flags] "token" commentIDs
 

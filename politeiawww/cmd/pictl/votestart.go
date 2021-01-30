@@ -4,17 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"strconv"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // voteStartCmd starts the voting period on the specified proposal.
 type voteStartCmd struct {
 	Args struct {
@@ -25,6 +14,7 @@ type voteStartCmd struct {
 	} `positional-args:"true"`
 }
 
+/*
 // Execute executes the voteStartCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -120,6 +110,7 @@ func (cmd *voteStartCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // voteStartHelpMsg is the help command message.
 var voteStartHelpMsg = `votestart <token> <duration> <quorumpercentage> <passpercentage>

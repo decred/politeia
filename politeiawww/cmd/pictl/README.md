@@ -1,59 +1,59 @@
-piwww
+pictl
 ====
 
-piwww is a command line tool that allows you to interact with the politeiawww
+pictl is a command line tool that allows you to interact with the politeiawww
 pi API.
 
 # Available Commands
 You can view the available commands and application options by using the help
 flag.
 
-    $ piwww -h 
+    $ pictl -h 
 
 You can view details about a specific command by using the help command.
 
-    $ piwww help <command>
+    $ pictl help <command>
 
 # Persisting Data Between Commands
-piwww stores  user identity data (the user's public/private key pair), session
-cookies, and CSRF tokens in the piwww directory.  This allows you to login with
+pictl stores  user identity data (the user's public/private key pair), session
+cookies, and CSRF tokens in the pictl directory.  This allows you to login with
 a user and use the same session data for subsequent commands.  The data is
 segmented by host, allowing you to login and interact with multiple hosts
 simultaneously.
 
-The location of the piwww directory varies based on your operating system.
+The location of the pictl directory varies based on your operating system.
 
 **macOS**
 
-`/Users/<username>/Library/Application Support/Piwww`
+`/Users/<username>/Library/Application Support/Pictl`
 
 **Windows**
 
-`C:\Users\<username>\AppData\Local\Piwww`
+`C:\Users\<username>\AppData\Local\Pictl`
 
 **Ubuntu**
 
-`~/.piwww`
+`~/.pictl`
 
 # Setup Configuration File
-piwww has a configuration file that you can setup to make execution easier.
+pictl has a configuration file that you can setup to make execution easier.
 You should create the configuration file under the following paths.
 
 **macOS**
 
-`/Users/<username>/Library/Application Support/Piwww/piwww.conf`
+`/Users/<username>/Library/Application Support/Pictl/pictl.conf`
 
 **Windows**
 
-`C:\Users\<username>\AppData\Local\Piwww/piwww.conf`
+`C:\Users\<username>\AppData\Local\Pictl/pictl.conf`
 
 **Ubuntu**
 
-`~/.piwww/piwww.conf`
+`~/.pictl/pictl.conf`
 
 If you're developing locally, you'll want to set the politeiawww host in the
 configuration file to your local politeiawww instance. The host defaults to
-`https://proposals.decred.org`.  Copy these lines into your `piwww.conf` file.
+`https://proposals.decred.org`.  Copy these lines into your `pictl.conf` file.
 `skipverify` is used to skip TLS certificate verification and should only be
 used when running politeia locally.
 
@@ -66,7 +66,7 @@ skipverify=true
 
 ## Create a new user
 
-    $ piwww usernew email@example.com username password --verify --paywall
+    $ pictl usernew email@example.com username password --verify --paywall
 
 `--verify` and `--paywall` are options that can be used when running
 politeiawww on testnet to make the user registration process quicker.
@@ -81,7 +81,7 @@ confirmations before you'll be allowed to submit proposals.**
 
 ## Login with the user
 
-    $ piwww login email@example.com password
+    $ pictl login email@example.com password
 
 ## Assign admin privileges and create proposal credits
 
@@ -103,9 +103,9 @@ get a `resource temporarily unavailable` error if you don't.**
 ## Submit a new proposal
 
 When submitting a proposal, you can either specify a markdown file or you can
-use the `--random` flag to have piwww generate a random proposal for you.
+use the `--random` flag to have pictl generate a random proposal for you.
 
-    $ piwww proposalnew --random
+    $ pictl proposalnew --random
     {
       "files": [
         {
@@ -143,7 +143,7 @@ commands. The censorship record token of the proposal example shown above is
 The proposal must first be vetted by an admin and have the proposal status set
 to public before it will be publicly viewable.
 
-    $ piwww proposalstatusset --unvetted [token] public
+    $ pictl proposalstatusset --unvetted [token] public
 
 Now that the proposal status has been made public, any user can comment on the
 proposal. Once the proposal author feels the discussion period was sufficient,
@@ -154,14 +154,14 @@ they can authorize the voting period to start.
 Before an admin can start the voting period on a proposal the author must
 authorize the vote.
 
-    $ piwww voteauthorize [token]
+    $ pictl voteauthorize [token]
 
 ## Start a proposal vote (admin privileges required)
 
 Once a proposal vote has been authorized by the author, an admin can start the
 voting period at any point.
 
-    $ piwww votestart [token]
+    $ pictl votestart [token]
 
 ## Voting on a proposal
 
@@ -171,16 +171,16 @@ Voting on a proposal can be done using the `politeiavoter` tool.
 
 [politeiavoter](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiavoter/)
 
-### piwww
+### pictl
 
-You can also vote on proposals using the `piwww voteballot` command. This casts
+You can also vote on proposals using the `pictl voteballot` command. This casts
 a ballot of votes. This will only work on testnet and if you are running your
 dcrwallet locally using the default port.
 
-    $ piwww voteballot [token] [voteID]
+    $ pictl voteballot [token] [voteID]
 
 # Reference implementation
 
-The piwww `testrun` command runs a series of tests on all of the politeiawww pi
+The pictl `testrun` command runs a series of tests on all of the politeiawww pi
 API routes.  This command can be used as a reference implementation for the pi
 API.

@@ -4,16 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"fmt"
-	"strconv"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // commentCensorCmd censors a proposal comment.
 type commentCensorCmd struct {
 	Args struct {
@@ -26,6 +16,7 @@ type commentCensorCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
+/*
 // Execute executes the commentCensorCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -102,6 +93,7 @@ func (cmd *commentCensorCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // commentCensorHelpMsg is the help command message.
 const commentCensorHelpMsg = `commentcensor "token" "commentID" "reason"

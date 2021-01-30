@@ -4,18 +4,6 @@
 
 package main
 
-import (
-	"encoding/hex"
-	"encoding/json"
-	"strconv"
-
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // voteStartRunoffCmd starts the voting period on all public submissions to a
 // request for proposals (RFP).
 //
@@ -31,6 +19,7 @@ type voteStartRunoffCmd struct {
 	} `positional-args:"true"`
 }
 
+/*
 // Execute executes the voteStartRunoffCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -155,6 +144,7 @@ func (cmd *voteStartRunoffCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // voteStartRunoffHelpMsg is the help command output for 'votestartrunoff'.
 var voteStartRunoffHelpMsg = `votestartrunoff <token> <duration> <quorumpercentage> <passpercentage>

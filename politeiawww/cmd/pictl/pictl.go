@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,13 +17,13 @@ import (
 
 const (
 	// Config settings
-	defaultHomeDirname    = "piwww"
+	defaultHomeDirname    = "pictl"
 	defaultDataDirname    = "data"
-	defaultConfigFilename = "piwww.conf"
+	defaultConfigFilename = "pictl.conf"
 )
 
 var (
-	// Global variables for piwww commands
+	// Global variables for pictl commands
 	cfg    *shared.Config
 	client *shared.Client
 
@@ -31,7 +31,7 @@ var (
 	defaultHomeDir = dcrutil.AppDataDir(defaultHomeDirname, false)
 )
 
-type piwww struct {
+type pictl struct {
 	// This is here to prevent parsing errors caused by config flags.
 	Config shared.Config
 
@@ -41,7 +41,6 @@ type piwww struct {
 	// Server commands
 	Version shared.VersionCmd `command:"version"`
 	Policy  policyCmd         `command:"policy"`
-	Secret  shared.SecretCmd  `command:"secret"`
 	Login   shared.LoginCmd   `command:"login"`
 	Logout  shared.LogoutCmd  `command:"logout"`
 	Me      shared.MeCmd      `command:"me"`
@@ -66,14 +65,12 @@ type piwww struct {
 
 	// TODO replace www policies with pi policies
 	// Proposal commands
-	ProposalNew       proposalNewCmd       `command:"proposalnew"`
-	ProposalEdit      proposalEditCmd      `command:"proposaledit"`
-	ProposalSetStatus proposalSetStatusCmd `command:"proposalsetstatus"`
-	Proposals         proposalsCmd         `command:"proposals"`
-	ProposalInv       proposalInvCmd       `command:"proposalinv"`
-
-	// Record commands
-	RecordTimestamps recordTimestampsCmd `command:"recordtimestamps"`
+	ProposalNew        proposalNewCmd        `command:"proposalnew"`
+	ProposalEdit       proposalEditCmd       `command:"proposaledit"`
+	ProposalSetStatus  proposalSetStatusCmd  `command:"proposalsetstatus"`
+	Proposals          proposalsCmd          `command:"proposals"`
+	ProposalInv        proposalInvCmd        `command:"proposalinv"`
+	proposalTimestamps proposalTimestampsCmd `command:"proposaltimestamps"`
 
 	// Comments commands
 	CommentNew        commentNewCmd        `command:"commentnew"`
@@ -192,7 +189,7 @@ func _main() error {
 	shared.SetClient(client)
 
 	// Check for a help flag. This is done separately so that we can
-	// print our own custom help message
+	// print our own custom help message.
 	var opts flags.Options = flags.HelpFlag | flags.IgnoreUnknown |
 		flags.PassDoubleDash
 	parser := flags.NewParser(&struct{}{}, opts)
@@ -200,24 +197,21 @@ func _main() error {
 	if err != nil {
 		var flagsErr *flags.Error
 		if errors.As(err, &flagsErr) && flagsErr.Type == flags.ErrHelp {
+			// The -h, --help flag was used. Print the custom help message
+			// and exit gracefully.
 			fmt.Printf("%v\n", helpMsg)
-			return nil
+			os.Exit(0)
 		}
 		return fmt.Errorf("parse help flag: %v", err)
 	}
 
-	// Get politeiawww CSRF token
-	if cfg.CSRF == "" {
-		_, err := client.Version()
-		if err != nil {
-			return fmt.Errorf("Version: %v", err)
-		}
-	}
-
-	// Parse subcommand and execute
-	parser = flags.NewParser(&piwww{Config: *cfg}, flags.Default)
+	// Parse CLI args and execute command
+	parser = flags.NewParser(&pictl{Config: *cfg}, flags.Default)
 	_, err = parser.Parse()
 	if err != nil {
+		// An error has occurred during command execution. go-flags will
+		// have already printed the error to os.Stdout. Exit with an
+		// error code.
 		os.Exit(1)
 	}
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -27,7 +27,7 @@ type proposalNewCmd struct {
 		Attachments []string `positional-arg-name:"attachments"`
 	} `positional-args:"true" optional:"true"`
 
-	// CLI flags
+	// Metadata fields that can be set by the user
 	Name   string `long:"name" optional:"true"`
 	LinkTo string `long:"linkto" optional:"true"`
 	LinkBy int64  `long:"linkby" optional:"true"`
@@ -38,8 +38,8 @@ type proposalNewCmd struct {
 
 	// RFP is a flag that is intended to make submitting an RFP easier
 	// by calculating and inserting a linkby timestamp automatically
-	// instead of having to pass in a specific timestamp using the
-	// --linkby flag.
+	// instead of having to pass in a timestamp using the --linkby
+	// flag.
 	RFP bool `long:"rfp" optional:"true"`
 }
 
@@ -47,10 +47,11 @@ type proposalNewCmd struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (cmd *proposalNewCmd) Execute(args []string) error {
+	// Unpack args
 	indexFile := cmd.Args.IndexFile
 	attachments := cmd.Args.Attachments
 
-	// Validate arguments
+	// Verify args
 	switch {
 	case !cmd.Random && indexFile == "":
 		return fmt.Errorf("index file not found; you must either provide an " +
@@ -75,9 +76,11 @@ func (cmd *proposalNewCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
+	// Get pi policy
+
 	// Prepare index file
 	var (
-		file *pi.File
+		file *rcv1.File
 		err  error
 	)
 	if cmd.Random {

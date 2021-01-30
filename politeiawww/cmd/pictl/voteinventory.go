@@ -4,15 +4,11 @@
 
 package main
 
-import (
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // voteInventoryCmd retrieves the censorship record tokens of all public,
 // non-abandoned proposals in  inventory categorized by their vote status.
 type voteInventoryCmd struct{}
 
+/*
 // Execute executes the voteInventoryCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -37,6 +33,7 @@ func (cmd *voteInventoryCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // voteInventoryHelpMsg is the command help message.
 const voteInventoryHelpMsg = `voteinv

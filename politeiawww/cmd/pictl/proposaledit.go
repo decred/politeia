@@ -4,22 +4,6 @@
 
 package main
 
-import (
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"path/filepath"
-	"time"
-
-	"github.com/decred/politeia/politeiad/api/v1/mime"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
-)
-
 // proposalEditCmd edits an existing proposal.
 type proposalEditCmd struct {
 	Args struct {
@@ -50,6 +34,7 @@ type proposalEditCmd struct {
 	UseMD bool `long:"usemd" optional:"true"`
 }
 
+/*
 // Execute executes the proposalEditCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -225,6 +210,7 @@ func (cmd *proposalEditCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // proposalEditHelpMsg is the output of the help command.
 const proposalEditHelpMsg = `editproposal [flags] "token" "indexfile" "attachments" 

@@ -4,11 +4,6 @@
 
 package main
 
-import (
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // voteResultsCmd retreives the cast votes for the provided proposal.
 type voteResultsCmd struct {
 	Args struct {
@@ -16,6 +11,7 @@ type voteResultsCmd struct {
 	} `positional-args:"true" required:"true"`
 }
 
+/*
 // Execute executes the voteResultsCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -42,6 +38,7 @@ func (cmd *voteResultsCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // voteResultsHelpMsg is the help command message.
 const voteResultsHelpMsg = `voteresults "token"

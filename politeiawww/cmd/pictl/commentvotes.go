@@ -4,13 +4,6 @@
 
 package main
 
-import (
-	"fmt"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // commentVotesCmd retreives like comment objects for
 // the specified proposal from the provided user.
 type commentVotesCmd struct {
@@ -21,6 +14,7 @@ type commentVotesCmd struct {
 	Me bool `long:"me" optional:"true"`
 }
 
+/*
 // Execute executes the commentVotesCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -52,6 +46,7 @@ func (c *commentVotesCmd) Execute(args []string) error {
 	}
 	return shared.PrintJSON(cvr)
 }
+*/
 
 // commentVotesHelpMsg is the output for the help command when
 // 'commentvotes' is specified.

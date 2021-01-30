@@ -4,11 +4,6 @@
 
 package main
 
-import (
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // commentsCmd retreives the comments for the specified proposal.
 type commentsCmd struct {
 	Args struct {
@@ -19,6 +14,7 @@ type commentsCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
+/*
 // Execute executes the commentsCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -45,6 +41,7 @@ func (cmd *commentsCmd) Execute(args []string) error {
 
 	return shared.PrintJSON(gcr)
 }
+*/
 
 // commentsHelpMsg is the output for the help command when 'comments'
 // is specified.

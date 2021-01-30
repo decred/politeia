@@ -4,14 +4,6 @@
 
 package main
 
-import (
-	"fmt"
-	"strings"
-
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // proposalsCmd retrieves the proposal records of the requested tokens and
 // versions.
 type proposalsCmd struct {
@@ -26,6 +18,7 @@ type proposalsCmd struct {
 	IncludeFiles bool `long:"includefiles" optional:"true"`
 }
 
+/*
 // Execute executes the proposalsCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -100,6 +93,7 @@ func (c *proposalsCmd) Execute(args []string) error {
 
 	return nil
 }
+*/
 
 // proposalsHelpMsg is the output of the help command.
 const proposalsHelpMsg = `proposals [flags] "proposals" 

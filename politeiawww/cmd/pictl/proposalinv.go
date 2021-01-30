@@ -4,11 +4,6 @@
 
 package main
 
-import (
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-)
-
 // proposalInvCmd retrieves the censorship record tokens of all proposals in
 // the inventory that match the provided filtering criteria. If no filtering
 // criteria is given then the full inventory is returned.
@@ -16,6 +11,7 @@ type proposalInvCmd struct {
 	UserID string `long:"userid" optional:"true"`
 }
 
+/*
 // Execute executes the proposalInvCmd command.
 //
 // This function satisfies the go-flags Commander interface.
@@ -37,6 +33,7 @@ func (c *proposalInvCmd) Execute(args []string) error {
 	}
 	return nil
 }
+*/
 
 // proposalInvHelpMsg is the command help message.
 const proposalInvHelpMsg = `proposalinv
