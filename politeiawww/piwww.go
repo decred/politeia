@@ -8,18 +8,24 @@ import (
 	"fmt"
 	"net/http"
 
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
+	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/google/uuid"
 )
 
 // setupPiRoutes sets up the API routes for piwww mode.
-func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t *ticketvote.TicketVote) {
+func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t *ticketvote.TicketVote, pic *pi.Pi) {
 	// Return a 404 when a route is not found
 	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
@@ -75,6 +81,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteTimestamps, r.HandleTimestamps,
 		permissionPublic)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteUserRecords, r.HandleUserRecords,
+		permissionPublic)
 
 	// Comment routes
 	p.addRoute(http.MethodPost, cmv1.APIRoute,
@@ -122,26 +131,55 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		tkv1.RouteTimestamps, t.HandleTimestamps,
 		permissionPublic)
 
-	/*
-		// Pi routes
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteProposals, p.handleProposals,
-			permissionPublic)
-		p.addRoute(http.MethodPost, piv1.APIRoute,
-			piv1.RouteVoteInventory, p.handleVoteInventory,
-			permissionPublic)
-	*/
+	// Pi routes
+	p.addRoute(http.MethodGet, piv1.APIRoute,
+		piv1.RoutePolicy, pic.HandlePolicy,
+		permissionPublic)
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		piv1.RouteProposals, pic.HandleProposals,
+		permissionPublic)
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		piv1.RouteVoteInventory, pic.HandleVoteInventory,
+		permissionPublic)
 }
 
-func (p *politeiawww) setupPi() error {
+func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
+	// Verify all required politeiad plugins have been registered
+	required := map[string]bool{
+		piplugin.PluginID: false,
+		cmplugin.PluginID: false,
+		tkplugin.PluginID: false,
+	}
+	for _, v := range plugins {
+		_, ok := required[v.ID]
+		if !ok {
+			// Not a required plugin. Skip.
+			continue
+		}
+		required[v.ID] = true
+	}
+	notFound := make([]string, 0, len(required))
+	for pluginID, wasFound := range required {
+		if !wasFound {
+			notFound = append(notFound, pluginID)
+		}
+	}
+	if len(notFound) > 0 {
+		return fmt.Errorf("required politeiad plugins not found: %v", notFound)
+	}
+
 	// Setup api contexts
 	c := comments.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
 	tv := ticketvote.New(p.cfg, p.politeiad, p.sessions, p.events)
 	r := records.New(p.cfg, p.politeiad, p.sessions, p.events)
+	pic, err := pi.New(p.cfg, p.politeiad, p.db, p.sessions, plugins)
+	if err != nil {
+		return fmt.Errorf("new pi: %v", err)
+	}
 
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setupPiRoutes(r, c, tv)
+	p.setupPiRoutes(r, c, tv, pic)
 
 	// Verify paywall settings
 	switch {
@@ -162,15 +200,13 @@ func (p *politeiawww) setupPi() error {
 
 	// Setup paywall pool
 	p.userPaywallPool = make(map[uuid.UUID]paywallPoolMember)
-	err := p.initPaywallChecker()
+	err = p.initPaywallChecker()
 	if err != nil {
 		return err
 	}
 
 	// Setup event manager
 	p.setupEventListenersPi()
-
-	// TODO Verify politeiad plugins
 
 	return nil
 }

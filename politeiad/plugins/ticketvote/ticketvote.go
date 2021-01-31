@@ -14,6 +14,7 @@ package ticketvote
 // Max   (41k votes): 82MB
 
 const (
+	// PluginID is the ticketvote plugin ID.
 	PluginID = "ticketvote"
 
 	// Plugin commands

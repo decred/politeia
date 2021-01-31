@@ -50,7 +50,6 @@ type politeia struct {
 	cfg      *config
 	router   *mux.Router
 	identity *identity.FullIdentity
-	plugins  map[string]v1.Plugin
 }
 
 func remoteAddr(r *http.Request) string {
@@ -69,16 +68,20 @@ func convertBackendPluginSetting(bpi backend.PluginSetting) v1.PluginSetting {
 	}
 }
 
-func convertBackendPlugin(bpi backend.Plugin) v1.Plugin {
-	p := v1.Plugin{
-		ID:      bpi.ID,
-		Version: bpi.Version,
+func convertBackendPlugins(bplugins []backend.Plugin) []v1.Plugin {
+	plugins := make([]v1.Plugin, 0, len(bplugins))
+	for _, v := range bplugins {
+		p := v1.Plugin{
+			ID:       v.ID,
+			Version:  v.Version,
+			Settings: make([]v1.PluginSetting, 0, len(v.Settings)),
+		}
+		for _, v := range v.Settings {
+			p.Settings = append(p.Settings, convertBackendPluginSetting(v))
+		}
+		plugins = append(plugins, p)
 	}
-	for _, v := range bpi.Settings {
-		p.Settings = append(p.Settings, convertBackendPluginSetting(v))
-	}
-
-	return p
+	return plugins
 }
 
 // convertBackendMetadataStream converts a backend metadata stream to an API
@@ -1149,12 +1152,35 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	response := p.identity.SignMessage(challenge)
 
-	reply := v1.PluginInventoryReply{
-		Response: hex.EncodeToString(response[:]),
+	// Get plugins
+	unvetted := p.backend.GetUnvettedPlugins()
+	vetted := p.backend.GetVettedPlugins()
+
+	// Aggregate unique plugins
+	pid := make(map[string]struct{}, len(unvetted)+len(vetted))
+	plugins := make([]backend.Plugin, len(unvetted)+len(vetted))
+	for _, v := range unvetted {
+		_, ok := pid[v.ID]
+		if ok {
+			// Already added
+			continue
+		}
+		plugins = append(plugins, v)
+		pid[v.ID] = struct{}{}
+	}
+	for _, v := range vetted {
+		_, ok := pid[v.ID]
+		if ok {
+			// Already added
+			continue
+		}
+		plugins = append(plugins, v)
+		pid[v.ID] = struct{}{}
 	}
 
-	for _, v := range p.plugins {
-		reply.Plugins = append(reply.Plugins, v)
+	reply := v1.PluginInventoryReply{
+		Plugins:  convertBackendPlugins(plugins),
+		Response: hex.EncodeToString(response[:]),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -1440,8 +1466,7 @@ func _main() error {
 
 	// Setup application context.
 	p := &politeia{
-		cfg:     cfg,
-		plugins: make(map[string]v1.Plugin),
+		cfg: cfg,
 	}
 
 	// Load identity.
@@ -1621,9 +1646,6 @@ func _main() error {
 			if err != nil {
 				return fmt.Errorf("register vetted plugin %v: %v", v, err)
 			}
-
-			// Add plugin to politeiad context
-			p.plugins[plugin.ID] = convertBackendPlugin(plugin)
 
 			log.Infof("Registered plugin: %v", v)
 		}

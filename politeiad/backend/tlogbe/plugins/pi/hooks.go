@@ -5,11 +5,9 @@
 package pi
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
@@ -52,27 +50,6 @@ func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) 
 	return propMD, nil
 }
 
-// proposalNameRegexp returns the regexp string for validating a proposal name.
-func (p *piPlugin) proposalNameRegexpString() string {
-	var b bytes.Buffer
-
-	b.WriteString("^[")
-	for _, v := range p.proposalNameSupportedChars {
-		if len(v) > 1 {
-			b.WriteString(v)
-		} else {
-			b.WriteString(`\` + v)
-		}
-	}
-	minNameLength := strconv.Itoa(p.proposalNameLengthMin)
-	maxNameLength := strconv.Itoa(p.proposalNameLengthMax)
-	b.WriteString("]{")
-	b.WriteString(minNameLength + ",")
-	b.WriteString(maxNameLength + "}$")
-
-	return b.String()
-}
-
 // proposalNameIsValid returns whether the provided name is a valid proposal
 // name.
 func (p *piPlugin) proposalNameIsValid(name string) bool {
@@ -85,8 +62,8 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 // a valid base64 payload, and that the file digest and MIME type are correct.
 func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	var (
-		textFilesCount  int
-		imageFilesCount int
+		textFilesCount  uint32
+		imageFilesCount uint32
 		indexFileFound  bool
 	)
 	for _, v := range files {
@@ -101,8 +78,8 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			textFilesCount++
 
 			// The text file must be the proposal index file
-			if v.Name != p.indexFileName {
-				e := fmt.Sprintf("want %v, got %v", p.indexFileName, v.Name)
+			if v.Name != pi.FileNameIndexFile {
+				e := fmt.Sprintf("want %v, got %v", pi.FileNameIndexFile, v.Name)
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
 					ErrorCode:    int(pi.ErrorCodeIndexFileNameInvalid),
@@ -111,7 +88,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			}
 
 			// Verify text file size
-			if len(payload) > p.textFileSizeMax {
+			if len(payload) > int(p.textFileSizeMax) {
 				e := fmt.Sprintf("file %v size %v exceeds max size %v",
 					v.Name, len(payload), p.textFileSizeMax)
 				return backend.PluginError{
@@ -124,7 +101,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			// Verify there isn't more than one index file
 			if indexFileFound {
 				e := fmt.Sprintf("more than one %v file found",
-					p.indexFileName)
+					pi.FileNameIndexFile)
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
 					ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
@@ -139,7 +116,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			imageFilesCount++
 
 			// Verify image file size
-			if len(payload) > p.imageFileSizeMax {
+			if len(payload) > int(p.imageFileSizeMax) {
 				e := fmt.Sprintf("image %v size %v exceeds max size %v",
 					v.Name, len(payload), p.imageFileSizeMax)
 				return backend.PluginError{
@@ -156,7 +133,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 
 	// Verify that an index file is present
 	if !indexFileFound {
-		e := fmt.Sprintf("%v file not found", p.indexFileName)
+		e := fmt.Sprintf("%v file not found", pi.FileNameIndexFile)
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
@@ -202,7 +179,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    int(pi.ErrorCodeProposalNameInvalid),
-			ErrorContext: p.proposalNameRegexpString(),
+			ErrorContext: p.proposalNameRegexp.String(),
 		}
 	}
 

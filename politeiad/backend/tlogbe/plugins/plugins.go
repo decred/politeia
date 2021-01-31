@@ -169,6 +169,9 @@ type PluginClient interface {
 
 	// Fsck performs a plugin file system check.
 	Fsck(treeIDs []int64) error
+
+	// Settings returns the plugin settings.
+	Settings() []backend.PluginSetting
 }
 
 // TlogClient provides an API for plugins to interact with a tlog instance.

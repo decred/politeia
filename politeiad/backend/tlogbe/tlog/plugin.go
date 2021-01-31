@@ -32,9 +32,8 @@ const (
 
 // plugin represents a tlog plugin.
 type plugin struct {
-	id       string
-	settings []backend.PluginSetting
-	client   plugins.PluginClient
+	id     string
+	client plugins.PluginClient
 }
 
 func (t *Tlog) plugin(pluginID string) (plugin, bool) {
@@ -98,9 +97,8 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	defer t.Unlock()
 
 	t.plugins[p.ID] = plugin{
-		id:       p.ID,
-		settings: p.Settings,
-		client:   client,
+		id:     p.ID,
+		client: client,
 	}
 
 	return nil
@@ -182,7 +180,7 @@ func (t *Tlog) Plugins() []backend.Plugin {
 	for _, v := range t.plugins {
 		plugins = append(plugins, backend.Plugin{
 			ID:       v.id,
-			Settings: v.settings,
+			Settings: v.client.Settings(),
 		})
 	}
 

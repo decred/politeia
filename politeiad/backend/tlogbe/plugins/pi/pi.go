@@ -5,14 +5,18 @@
 package pi
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"sync"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -30,15 +34,13 @@ type piPlugin struct {
 	dataDir string
 
 	// Plugin settings
-	indexFileName     string
-	textFileCountMax  int
-	textFileSizeMax   int // In bytes
-	imageFileCountMax int
-	imageFileSizeMax  int // In bytes
-
-	proposalNameSupportedChars []string
-	proposalNameLengthMin      int // In characters
-	proposalNameLengthMax      int // In characters
+	textFileCountMax           uint32
+	textFileSizeMax            uint32 // In bytes
+	imageFileCountMax          uint32
+	imageFileSizeMax           uint32 // In bytes
+	proposalNameSupportedChars string // JSON encoded []string
+	proposalNameLengthMin      uint32 // In characters
+	proposalNameLengthMax      uint32 // In characters
 	proposalNameRegexp         *regexp.Regexp
 }
 
@@ -94,6 +96,49 @@ func (p *piPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
+// Settings returns the plugin's settings.
+//
+// This function satisfies the plugins.PluginClient interface.
+func (p *piPlugin) Settings() []backend.PluginSetting {
+	log.Tracef("Settings")
+
+	return []backend.PluginSetting{
+		{
+			Key:   pi.SettingKeyTextFileCountMax,
+			Value: strconv.FormatUint(uint64(p.textFileCountMax), 10),
+		},
+		{
+			Key:   pi.SettingKeyTextFileSizeMax,
+			Value: strconv.FormatUint(uint64(p.textFileSizeMax), 10),
+		},
+		{
+			Key:   pi.SettingKeyImageFileCountMax,
+			Value: strconv.FormatUint(uint64(p.imageFileCountMax), 10),
+		},
+		{
+			Key:   pi.SettingKeyImageFileCountMax,
+			Value: strconv.FormatUint(uint64(p.imageFileCountMax), 10),
+		},
+		{
+			Key:   pi.SettingKeyImageFileSizeMax,
+			Value: strconv.FormatUint(uint64(p.imageFileSizeMax), 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalNameLengthMin,
+			Value: strconv.FormatUint(uint64(p.proposalNameLengthMin), 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalNameLengthMax,
+			Value: strconv.FormatUint(uint64(p.proposalNameLengthMax), 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalNameSupportedChars,
+			Value: p.proposalNameSupportedChars,
+		},
+	}
+}
+
+// New returns a new piPlugin.
 func New(backend backend.Backend, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, pi.PluginID)
@@ -102,22 +147,100 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		return nil, err
 	}
 
+	// Setup plugin setting default values
+	var (
+		textFileCountMax   = pi.SettingTextFileCountMax
+		textFileSizeMax    = pi.SettingTextFileSizeMax
+		imageFileCountMax  = pi.SettingImageFileCountMax
+		imageFileSizeMax   = pi.SettingImageFileSizeMax
+		nameLengthMin      = pi.SettingProposalNameLengthMin
+		nameLengthMax      = pi.SettingProposalNameLengthMax
+		nameSupportedChars = pi.SettingProposalNameSupportedChars
+	)
+
+	// Override default plugin settings with any passed in settings
+	for _, v := range settings {
+		switch v.Key {
+		case pi.SettingKeyTextFileCountMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			textFileCountMax = uint32(u)
+		case pi.SettingKeyTextFileSizeMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			textFileSizeMax = uint32(u)
+		case pi.SettingKeyImageFileCountMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			imageFileCountMax = uint32(u)
+		case pi.SettingKeyImageFileSizeMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			imageFileSizeMax = uint32(u)
+		case pi.SettingKeyProposalNameLengthMin:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			nameLengthMin = uint32(u)
+		case pi.SettingKeyProposalNameLengthMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			nameLengthMax = uint32(u)
+		case pi.SettingKeyProposalNameSupportedChars:
+			var sc []string
+			err := json.Unmarshal([]byte(v.Value), &sc)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			nameSupportedChars = sc
+		default:
+			return nil, fmt.Errorf("invalid plugin setting: %v", v.Key)
+		}
+	}
+
 	// Setup proposal name regex
-	// pregexp, err = regexp.Compile()
-	var pregexp *regexp.Regexp
+	rexp, err := util.Regexp(nameSupportedChars, uint64(nameLengthMin),
+		uint64(nameLengthMax))
+	if err != nil {
+		return nil, fmt.Errorf("proposal name regexp: %v", err)
+	}
+
+	// Encode the supported chars so that they can be returned as a
+	// string plugin setting.
+	b, err := json.Marshal(nameSupportedChars)
+	if err != nil {
+		return nil, err
+	}
+	nameSupportedCharsString := string(b)
 
 	return &piPlugin{
-		dataDir: dataDir,
-		backend: backend,
-		// TODO pi plugin settings
-		indexFileName:              "",
-		textFileCountMax:           0,
-		textFileSizeMax:            0,
-		imageFileCountMax:          0,
-		imageFileSizeMax:           0,
-		proposalNameSupportedChars: []string{},
-		proposalNameLengthMin:      0,
-		proposalNameLengthMax:      0,
-		proposalNameRegexp:         pregexp,
+		dataDir:                    dataDir,
+		backend:                    backend,
+		textFileCountMax:           textFileCountMax,
+		textFileSizeMax:            textFileSizeMax,
+		imageFileCountMax:          imageFileCountMax,
+		imageFileSizeMax:           imageFileSizeMax,
+		proposalNameLengthMin:      nameLengthMin,
+		proposalNameLengthMax:      nameLengthMax,
+		proposalNameSupportedChars: nameSupportedCharsString,
+		proposalNameRegexp:         rexp,
 	}, nil
 }

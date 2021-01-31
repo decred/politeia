@@ -11,7 +11,53 @@ const (
 	PluginID = "pi"
 
 	// Plugin commands
-	CmdVoteInv = "voteinv" // Get inventory by vote status
+	CmdVoteInv = "voteinv"
+)
+
+const (
+	// Setting keys are the plugin setting keys that can be used to
+	// override a default plugin setting. Defaults will be overridden
+	// if a plugin setting is provided to the plugin on startup.
+	SettingKeyTextFileCountMax           = "textfilecountmax"
+	SettingKeyTextFileSizeMax            = "textfilesizemax"
+	SettingKeyImageFileCountMax          = "imagefilecountmax"
+	SettingKeyImageFileSizeMax           = "imagefilesizemax"
+	SettingKeyProposalNameLengthMin      = "proposalnamelengthmin"
+	SettingKeyProposalNameLengthMax      = "proposalnamelengthmax"
+	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
+
+	// SettingTextFileCountMax is the maximum number of text files that
+	// can be included a proposal.
+	SettingTextFileCountMax uint32 = 1
+
+	// SettingTextFileSizeMax is the maximum allowed size of a text
+	// file in bytes.
+	SettingTextFileSizeMax uint32 = 512 * 1024
+
+	// SettingImageFileCountMax is the maximum number of image files
+	// that can be included in a proposal.
+	SettingImageFileCountMax uint32 = 5
+
+	// SettingImageFileSizeMax is the maximum allowed size of a image
+	// file in bytes.
+	SettingImageFileSizeMax uint32 = 512 * 1024
+
+	// SettingProposalNameLengthMin is the minimum number of characters
+	// that a proposal name can be.
+	SettingProposalNameLengthMin uint32 = 8
+
+	// SettingProposalNameLengthMax is the maximum number of characters
+	// that a proposal name can be.
+	SettingProposalNameLengthMax uint32 = 80
+)
+
+var (
+	// SettingProposalNameSupportedChars contains the supported
+	// characters in a proposal name.
+	SettingProposalNameSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'",
+	}
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
@@ -41,6 +87,11 @@ var (
 )
 
 const (
+	// FileNameIndexFile is the file name of the proposal markdown
+	// file. Every proposal is required to have an index file. The
+	// index file should contain the proposal content.
+	FileNameIndexFile = "index.md"
+
 	// FileNameProposalMetadata is the filename of the ProposalMetadata
 	// file that is saved to politeiad. ProposalMetadata is saved to
 	// politeiad as a file, not as a metadata stream, since it contains

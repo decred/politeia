@@ -21,6 +21,20 @@ import (
 	"github.com/google/uuid"
 )
 
+func (p *Pi) processPolicy(ctx context.Context) (*v1.PolicyReply, error) {
+	log.Tracef("Policy")
+
+	return &v1.PolicyReply{
+		TextFileCountMax:   p.textFileCountMax,
+		TextFileSizeMax:    p.textFileSizeMax,
+		ImageFileCountMax:  p.imageFileCountMax,
+		ImageFileSizeMax:   p.imageFileSizeMax,
+		NameLengthMin:      p.nameLengthMin,
+		NameLengthMax:      p.nameLengthMax,
+		NameSupportedChars: p.nameSupportedChars,
+	}, nil
+}
+
 // proposal returns a version of a proposal record from politeiad. If version
 // is an empty string then the most recent version will be returned.
 func (p *Pi) proposal(ctx context.Context, state, token, version string) (*v1.Proposal, error) {

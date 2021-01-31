@@ -26,6 +26,7 @@ import (
 
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -305,6 +306,44 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 		// Add route to public router
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 	}
+}
+
+// getPluginInventory returns the politeiad plugin inventory. If a politeiad
+// connection cannot be made, the call will be retried every 5 seconds for up
+// to 1000 tries.
+func (p *politeiawww) getPluginInventory() ([]pdv1.Plugin, error) {
+	// Attempt to fetch the plugin inventory from politeiad until
+	// either it is successful or the maxRetries has been exceeded.
+	var (
+		done          bool
+		maxRetries    = 1000
+		sleepInterval = 5 * time.Second
+		plugins       = make([]pdv1.Plugin, 0, 32)
+		ctx           = context.Background()
+	)
+	for retries := 0; !done; retries++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if retries == maxRetries {
+			return nil, fmt.Errorf("max retries exceeded")
+		}
+
+		pi, err := p.politeiad.PluginInventory(ctx)
+		if err != nil {
+			log.Infof("cannot get politeiad plugin inventory: %v: retry in %v",
+				err, sleepInterval)
+			time.Sleep(sleepInterval)
+			continue
+		}
+		for _, v := range pi {
+			plugins = append(plugins, v)
+		}
+
+		done = true
+	}
+
+	return plugins, nil
 }
 
 func (p *politeiawww) setupCMS() error {
@@ -680,10 +719,11 @@ func _main() error {
 	}
 
 	// Setup politeiad plugins
-	p.plugins, err = p.getPluginInventory()
+	plugins, err := p.getPluginInventory()
 	if err != nil {
 		return fmt.Errorf("getPluginInventory: %v", err)
 	}
+	p.plugins = plugins
 
 	// Setup email-userID cache
 	err = p.initUserEmailsCache()
@@ -694,7 +734,7 @@ func _main() error {
 	// Perform application specific setup
 	switch p.cfg.Mode {
 	case config.PoliteiaWWWMode:
-		err = p.setupPi()
+		err = p.setupPi(plugins)
 		if err != nil {
 			return fmt.Errorf("setupPi: %v", err)
 		}

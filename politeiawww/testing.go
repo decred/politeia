@@ -24,10 +24,11 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/ticketvote"
@@ -58,7 +59,7 @@ func errToStr(e error) string {
 // by default but can be filled in with random rgb colors by setting the
 // addColor parameter to true. The png without color will be ~3kB. The png with
 // color will be ~2MB.
-func newFilePNG(t *testing.T, addColor bool) *pi.File {
+func newFilePNG(t *testing.T, addColor bool) *piv1.File {
 	t.Helper()
 
 	b := new(bytes.Buffer)
@@ -89,7 +90,7 @@ func newFilePNG(t *testing.T, addColor bool) *pi.File {
 		t.Fatalf("%v", err)
 	}
 
-	return &pi.File{
+	return &piv1.File{
 		Name:    hex.EncodeToString(r) + ".png",
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
@@ -366,10 +367,11 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	var c *comments.Comments
 	var tv *ticketvote.TicketVote
 	var r *records.Records
+	var pic *pi.Pi
 
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setupPiRoutes(r, c, tv)
+	p.setupPiRoutes(r, c, tv, pic)
 
 	// The cleanup is handled using a closure so that the temp dir
 	// can be deleted using the local variable and not cfg.DataDir.

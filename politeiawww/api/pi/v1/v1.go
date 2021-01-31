@@ -20,6 +20,7 @@ const (
 	APIRoute = "/pi/v1"
 
 	// Routes
+	RoutePolicy        = "/policy"
 	RouteProposals     = "/proposals"
 	RouteVoteInventory = "/voteinventory"
 
@@ -88,7 +89,23 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// PropStatusT represents a proposal status.
+// Policy requests the policy settings for the pi API.
+type Policy struct{}
+
+// PolicyReply is the reply to the Policy command.
+type PolicyReply struct {
+	TextFileCountMax   uint32   `json:"textfilecountmax"`
+	TextFileSizeMax    uint32   `json:"textfilesizemax"` // In bytes
+	ImageFileCountMax  uint32   `json:"imagefilecountmax"`
+	ImageFileSizeMax   uint32   `json:"imagefilesizemax"` // In bytes
+	NameLengthMin      uint32   `json:"namelengthmin"`    // In characters
+	NameLengthMax      uint32   `json:"namelengthmax"`    // In characters
+	NameSupportedChars []string `json:"namesupportedchars"`
+}
+
+// PropStatusT represents a proposal status. The proposal status codes map
+// directly to the record status codes. Some have been renamed to give a more
+// accurate representation of their use in pi.
 type PropStatusT int
 
 const (
@@ -124,16 +141,11 @@ const (
 	PropStatusAbandoned PropStatusT = 5
 )
 
-// File describes an individual file that is part of the proposal. The
-// directory structure must be flattened.
-type File struct {
-	Name    string `json:"name"`    // Filename
-	MIME    string `json:"mime"`    // Mime type
-	Digest  string `json:"digest"`  // SHA256 digest of unencoded payload
-	Payload string `json:"payload"` // File content, base64 encoded
-}
-
 const (
+	// FileNameIndexFile is the file name of the proposal markdown
+	// file that contains the proposal contents.
+	FileNameIndexFile = "index.md"
+
 	// FileNameProposalMetadata is the file name of the user submitted
 	// ProposalMetadata.
 	FileNameProposalMetadata = "proposalmetadata.json"
@@ -142,6 +154,15 @@ const (
 	// VoteMetadata.
 	FileNameVoteMetadata = "votemetadata.json"
 )
+
+// File describes an individual file that is part of the proposal. The
+// directory structure must be flattened.
+type File struct {
+	Name    string `json:"name"`    // Filename
+	MIME    string `json:"mime"`    // Mime type
+	Digest  string `json:"digest"`  // SHA256 digest of unencoded payload
+	Payload string `json:"payload"` // File content, base64 encoded
+}
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission.
