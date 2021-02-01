@@ -31,17 +31,16 @@ const (
 type ErrorCodeT int
 
 const (
-	// TODO number
 	// User error codes
-	ErrorCodeInvalid ErrorCodeT = iota
-	ErrorCodeUserMetadataNotFound
-	ErrorCodeUserIDInvalid
-	ErrorCodePublicKeyInvalid
-	ErrorCodeSignatureInvalid
-	ErrorCodeStatusChangeMetadataNotFound
-	ErrorCodeTokenInvalid
-	ErrorCodeStatusInvalid
-	ErrorCodeReasonInvalid
+	ErrorCodeInvalid                      ErrorCodeT = 0
+	ErrorCodeUserMetadataNotFound         ErrorCodeT = 1
+	ErrorCodeUserIDInvalid                ErrorCodeT = 2
+	ErrorCodePublicKeyInvalid             ErrorCodeT = 3
+	ErrorCodeSignatureInvalid             ErrorCodeT = 4
+	ErrorCodeStatusChangeMetadataNotFound ErrorCodeT = 5
+	ErrorCodeTokenInvalid                 ErrorCodeT = 6
+	ErrorCodeStatusInvalid                ErrorCodeT = 7
+	ErrorCodeReasonInvalid                ErrorCodeT = 8
 )
 
 var (

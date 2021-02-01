@@ -38,6 +38,10 @@ var (
 	// DefaultDataDir points to politeiawww's default data directory
 	// path.
 	DefaultDataDir = filepath.Join(DefaultHomeDir, DefaultDataDirname)
+
+	// DefaultHTTPSCertFile contains the file path to the politeiawww
+	// https certificate.
+	DefaultHTTPSCertFile = filepath.Join(DefaultHomeDir, "https.cert")
 )
 
 // Config defines the configuration options for politeiawww.

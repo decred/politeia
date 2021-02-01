@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -46,69 +48,77 @@ type proposalNewCmd struct {
 // Execute executes the proposalNewCmd command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *proposalNewCmd) Execute(args []string) error {
+func (c *proposalNewCmd) Execute(args []string) error {
 	// Unpack args
-	indexFile := cmd.Args.IndexFile
-	attachments := cmd.Args.Attachments
+	indexFile := c.Args.IndexFile
+	attachments := c.Args.Attachments
 
-	// Verify args
+	// Verify args and flags
 	switch {
-	case !cmd.Random && indexFile == "":
-		return fmt.Errorf("index file not found; you must either provide an " +
-			"index.md file or use --random")
+	case !c.Random && indexFile == "":
+		return fmt.Errorf("index file not found; you must either " +
+			"provide an index.md file or use --random")
 
-	case cmd.Random && indexFile != "":
-		return fmt.Errorf("you cannot provide file arguments and use the " +
-			"--random flag at the same time")
+	case c.Random && indexFile != "":
+		return fmt.Errorf("you cannot provide file arguments and use " +
+			"the --random flag at the same time")
 
-	case !cmd.Random && cmd.Name == "":
-		return fmt.Errorf("you must either provide a proposal name using the " +
-			"--name flag or use the --random flag to generate a random name")
+	case !c.Random && c.Name == "":
+		return fmt.Errorf("you must either provide a proposal name " +
+			"using the --name flag or use the --random flag to generate " +
+			"a random name")
 
-	case cmd.RFP && cmd.LinkBy != 0:
-		return fmt.Errorf("you cannot use both the --rfp and --linkby flags " +
-			"at the same time")
+	case c.RFP && c.LinkBy != 0:
+		return fmt.Errorf("you cannot use both the --rfp and --linkby " +
+			"flags at the same time")
 	}
 
 	// Check for user identity. A user identity is required to sign
-	// the proposal files and metadata.
+	// the proposal files.
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Get pi policy
+	// Setup client
+	pc, err := pclient.New(cfg.Host, cfg.HTTPSCert, cfg.Cookies, cfg.CSRF)
+	if err != nil {
+		return err
+	}
 
-	// Prepare index file
-	var (
-		file *rcv1.File
-		err  error
-	)
-	if cmd.Random {
+	// Get the pi policy. It contains the proposal requirements.
+	pr, err := pc.PiPolicy()
+	if err != nil {
+		return err
+	}
+
+	// Setup index file
+	var file *rcv1.File
+	if c.Random {
 		// Generate random text for the index file
 		file, err = createMDFile()
 		if err != nil {
 			return err
 		}
 	} else {
-		// Read the index file from disk
+		// Read index file from disk
 		fp := util.CleanAndExpandPath(indexFile)
 		var err error
 		payload, err := ioutil.ReadFile(fp)
 		if err != nil {
 			return fmt.Errorf("ReadFile %v: %v", fp, err)
 		}
-		file = &pi.File{
-			Name:    v1.PolicyIndexFilename,
+		file = &rcv1.File{
+			Name:    piplugin.FileNameIndexFile,
 			MIME:    mime.DetectMimeType(payload),
 			Digest:  hex.EncodeToString(util.Digest(payload)),
 			Payload: base64.StdEncoding.EncodeToString(payload),
 		}
 	}
-	files := []pi.File{
+	files := []rcv1.File{
 		*file,
 	}
 
-	// Prepare attachment files
+	// Setup attachment files
 	for _, fn := range attachments {
 		fp := util.CleanAndExpandPath(fn)
 		payload, err := ioutil.ReadFile(fp)
@@ -116,7 +126,7 @@ func (cmd *proposalNewCmd) Execute(args []string) error {
 			return fmt.Errorf("ReadFile %v: %v", fp, err)
 		}
 
-		files = append(files, pi.File{
+		files = append(files, rcv1.File{
 			Name:    filepath.Base(fn),
 			MIME:    mime.DetectMimeType(payload),
 			Digest:  hex.EncodeToString(util.Digest(payload)),
@@ -124,70 +134,84 @@ func (cmd *proposalNewCmd) Execute(args []string) error {
 		})
 	}
 
-	// Setup metadata
-	if cmd.Random {
-		r, err := util.Random(v1.PolicyMinProposalNameLength)
+	// Setup proposal metadata
+	if c.Random {
+		r, err := util.Random(int(pr.NameLengthMin))
 		if err != nil {
 			return err
 		}
-		cmd.Name = hex.EncodeToString(r)
+		c.Name = hex.EncodeToString(r)
 	}
-	if cmd.RFP {
-		// Set linkby to a month from now
-		cmd.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
-	}
-	pm := pi.ProposalMetadata{
-		Name:   cmd.Name,
-		LinkTo: cmd.LinkTo,
-		LinkBy: cmd.LinkBy,
+	pm := piv1.ProposalMetadata{
+		Name: c.Name,
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
 		return err
 	}
-	metadata := []pi.Metadata{
-		{
-			Digest:  hex.EncodeToString(util.Digest(pmb)),
-			Hint:    pi.HintProposalMetadata,
-			Payload: base64.StdEncoding.EncodeToString(pmb),
-		},
+	files = append(files, rcv1.File{
+		Name:    piv1.FileNameProposalMetadata,
+		MIME:    mime.DetectMimeType(pmb),
+		Digest:  hex.EncodeToString(util.Digest(pmb)),
+		Payload: base64.StdEncoding.EncodeToString(pmb),
+	})
+
+	// Setup vote metadata
+	if c.RFP {
+		// Set linkby to a month from now
+		c.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	}
+	if c.LinkBy != 0 || c.LinkTo != "" {
+		vm := piv1.VoteMetadata{
+			LinkTo: c.LinkTo,
+			LinkBy: c.LinkBy,
+		}
+		vmb, err := json.Marshal(vm)
+		if err != nil {
+			return err
+		}
+		files = append(files, rcv1.File{
+			Name:    piv1.FileNameProposalMetadata,
+			MIME:    mime.DetectMimeType(vmb),
+			Digest:  hex.EncodeToString(util.Digest(vmb)),
+			Payload: base64.StdEncoding.EncodeToString(vmb),
+		})
 	}
 
-	// Setup new proposal request
-	sig, err := signedMerkleRoot(files, metadata, cfg.Identity)
+	// Setup request
+	sig, err := signedMerkleRoot(files, cfg.Identity)
 	if err != nil {
 		return err
 	}
-	pn := pi.ProposalNew{
+	n := rcv1.New{
 		Files:     files,
-		Metadata:  metadata,
-		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		PublicKey: cfg.Identity.Public.String(),
 		Signature: sig,
 	}
 
 	// Send request. The request and response details are printed to
 	// the console based on the logging flags that were used.
-	err = shared.PrintJSON(pn)
+	err = shared.PrintJSON(n)
 	if err != nil {
 		return err
 	}
-	pnr, err := client.ProposalNew(pn)
+	nr, err := pc.RecordNew(n)
 	if err != nil {
 		return err
 	}
-	err = shared.PrintJSON(pnr)
+	err = shared.PrintJSON(nr)
 	if err != nil {
 		return err
 	}
 
-	// Verify proposal
+	// Verify record
 	vr, err := client.Version()
 	if err != nil {
 		return err
 	}
-	err = verifyProposal(pnr.Proposal, vr.PubKey)
+	err = verifyRecord(nr.Record, vr.PubKey)
 	if err != nil {
-		return fmt.Errorf("unable to verify proposal: %v", err)
+		return fmt.Errorf("unable to verify record: %v", err)
 	}
 
 	return nil
@@ -196,23 +220,21 @@ func (cmd *proposalNewCmd) Execute(args []string) error {
 // proposalNewHelpMsg is the output of the help command.
 const proposalNewHelpMsg = `proposalnew [flags] "indexfile" "attachments" 
 
-Submit a new proposal to Politeia. A proposal is defined as a single markdown
-file with the filename "index.md" and optional attachment png files. No other
-file types are allowed.
+Submit a new proposal to Politeia.
 
 A proposal can be submitted as an RFP (Request for Proposals) by using either
 the --rfp flag or by manually specifying a link by deadline using the --linkby
 flag. Only one of these flags can be used at a time.
 
 A proposal can be submitted as an RFP submission by using the --linkto flag
-to link to and existing RFP proposal.
+to link to and an existing RFP proposal.
 
 Arguments:
 1. indexfile     (string, required)   Index file
 2. attachments   (string, optional)   Attachment files
 
 Flags:
- --name   (string, optional)  The name of the proposal.
+ --name   (string, optional)  Name of the proposal.
  --linkto (string, optional)  Token of an existing public proposal to link to.
  --linkby (int64, optional)   UNIX timestamp of the RFP deadline. Setting this
                               field will make the proposal an RFP with a

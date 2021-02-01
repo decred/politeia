@@ -627,6 +627,15 @@ func (p *dcrdataPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
+// TODO Settings returns the plugin's settings.
+//
+// This function satisfies the plugins.PluginClient interface.
+func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
+	log.Tracef("Settings")
+
+	return nil
+}
+
 func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
 	// Unpack plugin settings
 	var (

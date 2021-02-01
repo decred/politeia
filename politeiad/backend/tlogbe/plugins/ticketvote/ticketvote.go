@@ -244,6 +244,15 @@ func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
+// TODO Settings returns the plugin's settings.
+//
+// This function satisfies the plugins.PluginClient interface.
+func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
+	log.Tracef("Settings")
+
+	return nil
+}
+
 /*
 // linkByPeriodMin returns the minimum amount of time, in seconds, that the
 // LinkBy period must be set to. This is determined by adding 1 week onto the

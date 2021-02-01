@@ -84,6 +84,15 @@ func (p *userPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
+// TODO Settings returns the plugin's settings.
+//
+// This function satisfies the plugins.PluginClient interface.
+func (p *userPlugin) Settings() []backend.PluginSetting {
+	log.Tracef("Settings")
+
+	return nil
+}
+
 // New returns a new userPlugin.
 func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string) (*userPlugin, error) {
 	// Create plugin data directory

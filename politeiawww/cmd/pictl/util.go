@@ -13,28 +13,27 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 
-// signedMerkleRoot calculates the merkle root of the passed in list of files
-// and metadata, signs the merkle root with the passed in identity and returns
-// the signature.
-func signedMerkleRoot(files []rcv1.File, id *identity.FullIdentity) (string, error) {
-	/*
-		if len(files) == 0 {
-			return "", fmt.Errorf("no proposal files found")
-		}
-		mr, err := utilwww.MerkleRoot(files, md)
-		if err != nil {
-			return "", err
-		}
-		sig := id.SignMessage([]byte(mr))
-		return hex.EncodeToString(sig[:]), nil
-	*/
-	return "", fmt.Errorf("not implemented")
+// signedMerkleRoot returns the signed merkle root of the provided files. The
+// signature is created using the provided identity.
+func signedMerkleRoot(files []rcv1.File, fid *identity.FullIdentity) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no proposal files found")
+	}
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	mr, err := util.MerkleRoot(digests)
+	if err != nil {
+		return "", err
+	}
+	sig := fid.SignMessage(mr[:])
+	return hex.EncodeToString(sig[:]), nil
 }
 
 // convertTicketHashes converts a slice of hexadecimal ticket hashes into
@@ -53,10 +52,9 @@ func convertTicketHashes(h []string) ([][]byte, error) {
 
 // createMDFile returns a File object that was created using a markdown file
 // filled with random text.
-func createMDFile() (*pi.File, error) {
+// TODO fill to max size
+func createMDFile() (*rcv1.File, error) {
 	var b bytes.Buffer
-	b.WriteString("This is the proposal title\n")
-
 	for i := 0; i < 10; i++ {
 		r, err := util.Random(32)
 		if err != nil {
@@ -65,7 +63,7 @@ func createMDFile() (*pi.File, error) {
 		b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
 	}
 
-	return &pi.File{
+	return &rcv1.File{
 		Name:    v1.PolicyIndexFilename,
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
@@ -73,8 +71,9 @@ func createMDFile() (*pi.File, error) {
 	}, nil
 }
 
+// verifyDigests verifies that all file digests match the calculated SHA256
+// digests of the file payloads.
 func verifyDigests(files []rcv1.File) error {
-	// Validate file digests
 	for _, f := range files {
 		b, err := base64.StdEncoding.DecodeString(f.Payload)
 		if err != nil {
@@ -92,57 +91,44 @@ func verifyDigests(files []rcv1.File) error {
 				f.Name)
 		}
 	}
-
 	return nil
 }
 
 func verifyRecord(r rcv1.Record, serverPubKey string) error {
-	/*
-		if len(p.Files) > 0 {
-			// Verify digests
-			err := verifyDigests(p.Files, p.Metadata)
-			if err != nil {
-				return err
-			}
-			// Verify merkle root
-			mr, err := utilwww.MerkleRoot(p.Files, p.Metadata)
-			if err != nil {
-				return err
-			}
-			// Check if merkle roots match
-			if mr != p.CensorshipRecord.Merkle {
-				return fmt.Errorf("merkle roots do not match")
-			}
+	if len(r.Files) > 0 {
+		// Verify digests
+		err := verifyDigests(r.Files)
+		if err != nil {
+			return err
 		}
+		// Verify merkle root
+		digests := make([]string, 0, len(r.Files))
+		for _, v := range r.Files {
+			digests = append(digests, v.Digest)
+		}
+		mr, err := util.MerkleRoot(digests)
+		if err != nil {
+			return err
+		}
+		// Check if merkle roots match
+		if hex.EncodeToString(mr[:]) != r.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
+	}
 
-		// Verify proposal signature
-		pid, err := util.IdentityFromString(p.PublicKey)
-		if err != nil {
-			return err
-		}
-		sig, err := util.ConvertSignature(p.Signature)
-		if err != nil {
-			return err
-		}
-		if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
-			return fmt.Errorf("invalid proposal signature")
-		}
+	// Verify censorship record signature
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(r.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(r.CensorshipRecord.Merkle + r.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("invalid censorship record signature")
+	}
 
-		// Verify censorship record signature
-		id, err := util.IdentityFromString(serverPubKey)
-		if err != nil {
-			return err
-		}
-		s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
-		if err != nil {
-			return err
-		}
-		msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
-		if !id.VerifyMessage(msg, s) {
-			return fmt.Errorf("invalid censorship record signature")
-		}
-
-		return nil
-	*/
-	return fmt.Errorf("not implemented")
+	return nil
 }

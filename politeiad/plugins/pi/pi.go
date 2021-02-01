@@ -64,19 +64,16 @@ var (
 type ErrorCodeT int
 
 const (
-	// TODO number error codes
-	ErrorCodeInvalid          ErrorCodeT = 0
-	ErrorCodePageSizeExceeded ErrorCodeT = iota
-	ErrorCodeFileNameInvalid
-	ErrorCodeIndexFileNameInvalid
-	ErrorCodeIndexFileCountInvalid
-	ErrorCodeIndexFileSizeInvalid
-	ErrorCodeTextFileCountInvalid
-	ErrorCodeImageFileCountInvalid
-	ErrorCodeImageFileSizeInvalid
-	ErrorCodeProposalMetadataInvalid
-	ErrorCodeProposalNameInvalid
-	ErrorCodeVoteStatusInvalid
+	ErrorCodeInvalid                 ErrorCodeT = 0
+	ErrorCodeIndexFileNameInvalid    ErrorCodeT = 1
+	ErrorCodeIndexFileCountInvalid   ErrorCodeT = 2
+	ErrorCodeIndexFileSizeInvalid    ErrorCodeT = 3
+	ErrorCodeTextFileCountInvalid    ErrorCodeT = 4
+	ErrorCodeImageFileCountInvalid   ErrorCodeT = 5
+	ErrorCodeImageFileSizeInvalid    ErrorCodeT = 6
+	ErrorCodeProposalMetadataInvalid ErrorCodeT = 7
+	ErrorCodeProposalNameInvalid     ErrorCodeT = 8
+	ErrorCodeVoteStatusInvalid       ErrorCodeT = 9
 )
 
 var (

@@ -123,6 +123,15 @@ func (p *commentsPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
+// TODO Settings returns the plugin's settings.
+//
+// This function satisfies the plugins.PluginClient interface.
+func (p *commentsPlugin) Settings() []backend.PluginSetting {
+	log.Tracef("Settings")
+
+	return nil
+}
+
 // New returns a new comments plugin.
 func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*commentsPlugin, error) {
 	// Setup comments plugin data dir

@@ -25,7 +25,6 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
-	pdutil "github.com/decred/politeia/politeiad/util"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/subosito/gozaru"
@@ -405,7 +404,11 @@ func statusChangeIsAllowed(from, to backend.MDStatusT) bool {
 }
 
 func recordMetadataNew(token []byte, files []backend.File, status backend.MDStatusT, iteration uint64) (*backend.RecordMetadata, error) {
-	m, err := pdutil.MerkleRoot(files)
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	m, err := util.MerkleRoot(digests)
 	if err != nil {
 		return nil, err
 	}
@@ -1506,7 +1509,7 @@ func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload str
 	// The token is optional. If a token is not provided then a tree ID
 	// will not be provided to the plugin.
 	var treeID int64
-	if token != nil {
+	if len(token) > 0 {
 		// Get tree ID
 		treeID = t.unvettedTreeIDFromToken(token)
 
@@ -1570,7 +1573,7 @@ func (t *tlogBackend) VettedPluginCmd(token []byte, pluginID, cmd, payload strin
 	// will not be provided to the plugin.
 	var treeID int64
 	var ok bool
-	if token != nil {
+	if len(token) > 0 {
 		// Get tree ID
 		treeID, ok = t.vettedTreeIDFromToken(token)
 		if !ok {

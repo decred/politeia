@@ -76,7 +76,6 @@ const (
 
 var (
 	defaultHTTPSKeyFile  = filepath.Join(config.DefaultHomeDir, "https.key")
-	defaultHTTPSCertFile = filepath.Join(config.DefaultHomeDir, "https.cert")
 	defaultRPCCertFile   = filepath.Join(config.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(config.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(config.DefaultHomeDir, defaultLogDirname)
@@ -281,7 +280,7 @@ func loadConfig() (*config.Config, []string, error) {
 		DataDir:                  config.DefaultDataDir,
 		LogDir:                   defaultLogDir,
 		HTTPSKey:                 defaultHTTPSKeyFile,
-		HTTPSCert:                defaultHTTPSCertFile,
+		HTTPSCert:                config.DefaultHTTPSCertFile,
 		RPCCert:                  defaultRPCCertFile,
 		CookieKeyFile:            defaultCookieKeyFile,
 		Version:                  version.String(),
@@ -354,7 +353,7 @@ func loadConfig() (*config.Config, []string, error) {
 		} else {
 			cfg.HTTPSKey = preCfg.HTTPSKey
 		}
-		if preCfg.HTTPSCert == defaultHTTPSCertFile {
+		if preCfg.HTTPSCert == config.DefaultHTTPSCertFile {
 			cfg.HTTPSCert = filepath.Join(cfg.HomeDir, "https.cert")
 		} else {
 			cfg.HTTPSCert = preCfg.HTTPSCert

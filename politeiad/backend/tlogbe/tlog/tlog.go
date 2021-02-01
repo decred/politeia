@@ -1527,6 +1527,7 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		store:           store,
 		dcrtime:         dcrtimeClient,
 		cron:            cron.New(),
+		plugins:         make(map[string]plugin),
 		encryptionKey:   ek,
 	}
 

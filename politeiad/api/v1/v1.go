@@ -493,14 +493,14 @@ func (e UserErrorReply) Error() string {
 // PluginUserErrorReply returns details about a plugin error that occurred
 // while trying to execute a command due to bad input from the client.
 type PluginErrorReply struct {
-	PluginID     string   `json:"plugin"`
+	PluginID     string   `json:"pluginid"`
 	ErrorCode    int      `json:"errorcode"`
 	ErrorContext []string `json:"errorcontext,omitempty"`
 }
 
 // Error satisfies the error interface.
 func (e PluginErrorReply) Error() string {
-	return fmt.Sprintf("plugin user error code: %v", e.ErrorCode)
+	return fmt.Sprintf("plugin '%v' error code: %v", e.PluginID, e.ErrorCode)
 }
 
 // ServerErrorReply returns an error code that can be correlated with

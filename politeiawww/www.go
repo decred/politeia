@@ -279,8 +279,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 }
 
 // addRoute sets up a handler for a specific method+route. If method is not
-// specified it adds a websocket. The routeVersion should be in the format
-// "/v1".
+// specified it adds a websocket.
 func (p *politeiawww) addRoute(method string, routeVersion string, route string, handler http.HandlerFunc, perm permission) {
 	fullRoute := routeVersion + route
 
@@ -622,8 +621,8 @@ func _main() error {
 	auth.Use(csrfMiddleware)
 
 	// Setup the politeiad client
-	pdc, err := pdclient.New(loadedCfg.RPCHost, loadedCfg.RPCUser,
-		loadedCfg.RPCPass, loadedCfg.Identity)
+	pdc, err := pdclient.New(loadedCfg.RPCHost, loadedCfg.RPCCert,
+		loadedCfg.RPCUser, loadedCfg.RPCPass, loadedCfg.Identity)
 	if err != nil {
 		return err
 	}

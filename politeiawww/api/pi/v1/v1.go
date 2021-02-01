@@ -89,7 +89,8 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// Policy requests the policy settings for the pi API.
+// Policy requests the policy settings for the pi API. It includes the policy
+// guidlines for the contents of a proposal record.
 type Policy struct{}
 
 // PolicyReply is the reply to the Policy command.

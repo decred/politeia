@@ -32,6 +32,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
@@ -261,9 +262,9 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.Erro
 	})
 }
 
-func (p *politeia) respondWithPluginError(w http.ResponseWriter, plugin string, errorCode int, errorContext string) {
+func (p *politeia) respondWithPluginError(w http.ResponseWriter, pluginID string, errorCode int, errorContext string) {
 	util.RespondWithJSON(w, http.StatusBadRequest, v1.PluginErrorReply{
-		PluginID:     plugin,
+		PluginID:     pluginID,
 		ErrorCode:    errorCode,
 		ErrorContext: []string{errorContext},
 	})
@@ -313,8 +314,6 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
-
-	log.Infof("New record submitted %v", remoteAddr(r))
 
 	md := convertFrontendMetadataStream(t.Metadata)
 	files := convertFrontendFiles(t.Files)
@@ -1237,50 +1236,6 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func convertBackendError(e error) error {
-	// Check for a plugin error
-	var pe backend.PluginError
-	if errors.As(e, &pe) {
-		return v1.PluginErrorReply{
-			PluginID:     pe.PluginID,
-			ErrorCode:    pe.ErrorCode,
-			ErrorContext: []string{pe.ErrorContext},
-		}
-	}
-
-	// Check for a backend error
-	var s v1.ErrorStatusT
-	switch e {
-	case backend.ErrRecordNotFound:
-		s = v1.ErrorStatusRecordNotFound
-	case backend.ErrRecordFound:
-		// Intentionally omitted
-	case backend.ErrFileNotFound:
-		// Intentionally omitted
-	case backend.ErrNoChanges:
-		s = v1.ErrorStatusNoChanges
-	case backend.ErrChangesRecord:
-		// Intentionally omitted
-	case backend.ErrRecordLocked:
-		s = v1.ErrorStatusRecordLocked
-	case backend.ErrJournalsNotReplayed:
-		// Intentionally omitted
-	case backend.ErrPluginInvalid:
-		// Intentionally omitted
-	case backend.ErrPluginCmdInvalid:
-		// Intentionally omitted
-	}
-	if s != v1.ErrorStatusInvalid {
-		return v1.UserErrorReply{
-			ErrorCode: s,
-		}
-	}
-
-	return v1.ServerErrorReply{
-		ErrorCode: time.Now().Unix(),
-	}
-}
-
 func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 	var pcb v1.PluginCommandBatch
 	decoder := json.NewDecoder(r.Body)
@@ -1329,18 +1284,43 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err != nil {
-			// Add error to reply
-			e := convertBackendError(err)
-			replies[k] = v1.PluginCommandReplyV2{
-				Error: e,
-			}
+			var e backend.PluginError
+			switch {
+			case errors.As(err, &e):
+				log.Infof("%v batched plugin cmd user error: %v %v",
+					remoteAddr(r), e.PluginID, e.ErrorCode)
 
-			// Log any internal server errors
-			var se v1.ServerErrorReply
-			if errors.As(e, &se) {
-				log.Errorf("%v %v: backend plugin failed: pluginID:%v cmd:%v "+
-					"payload:%v err:%v", remoteAddr(r), se.ErrorCode, pc.ID,
+				replies[k] = v1.PluginCommandReplyV2{
+					Error: v1.PluginErrorReply{
+						PluginID:     e.PluginID,
+						ErrorCode:    e.ErrorCode,
+						ErrorContext: []string{e.ErrorContext},
+					},
+				}
+			case err == backend.ErrRecordNotFound:
+				replies[k] = v1.PluginCommandReplyV2{
+					Error: v1.UserErrorReply{
+						ErrorCode: v1.ErrorStatusRecordNotFound,
+					},
+				}
+			case err == backend.ErrRecordLocked:
+				replies[k] = v1.PluginCommandReplyV2{
+					Error: v1.UserErrorReply{
+						ErrorCode: v1.ErrorStatusRecordLocked,
+					},
+				}
+			default:
+				// Unkown error. Log is as an internal server error.
+				t := time.Now().Unix()
+				log.Errorf("%v %v: batched plugin cmd failed: pluginID:%v "+
+					"cmd:%v payload:%v err:%v", remoteAddr(r), t, pc.ID,
 					pc.Command, pc.Payload, err)
+
+				replies[k] = v1.PluginCommandReplyV2{
+					Error: v1.ServerErrorReply{
+						ErrorCode: t,
+					},
+				}
 			}
 
 			continue
@@ -1628,6 +1608,11 @@ func _main() error {
 					ID:       ticketvote.PluginID,
 					Settings: ps,
 					Identity: p.identity,
+				}
+			case user.PluginID:
+				plugin = backend.Plugin{
+					ID:       user.PluginID,
+					Settings: ps,
 				}
 			case decredplugin.ID:
 				// TODO plugin setup for cms

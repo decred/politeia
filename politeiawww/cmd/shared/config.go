@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,13 +18,14 @@ import (
 
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
 
 const (
-	defaultHost              = "https://proposals.decred.org/api"
+	defaultHost              = "https://127.0.0.1:4443"
 	defaultFaucetHost        = "https://faucet.decred.org/requestfaucet"
 	defaultWalletHost        = "127.0.0.1"
 	defaultWalletTestnetPort = "19111"
@@ -38,6 +39,7 @@ const (
 )
 
 var (
+	defaultHTTPSCert      = config.DefaultHTTPSCertFile
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
@@ -46,6 +48,7 @@ var (
 type Config struct {
 	HomeDir     string `long:"appdata" description:"Path to application home directory"`
 	Host        string `long:"host" description:"politeiawww host"`
+	HTTPSCert   string `long:"httpscert" description:"politeiawww https cert"`
 	RawJSON     bool   `short:"j" long:"json" description:"Print raw JSON output"`
 	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
 	SkipVerify  bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name"`
@@ -85,6 +88,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		HomeDir:    homeDir,
 		DataDir:    filepath.Join(homeDir, dataDirname),
 		Host:       defaultHost,
+		HTTPSCert:  defaultHTTPSCert,
 		WalletHost: defaultWalletHost + ":" + defaultWalletTestnetPort,
 		WalletCert: defaultWalletCertFile,
 		FaucetHost: defaultFaucetHost,
@@ -127,7 +131,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) {
-			fmt.Printf("Warning: no config file found at %v\n", cfgFile)
+			// No config file found. Do nothing.
 		} else {
 			return nil, fmt.Errorf("parsing config file: %v", err)
 		}

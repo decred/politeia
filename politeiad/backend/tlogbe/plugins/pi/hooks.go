@@ -24,6 +24,16 @@ const (
 	mimeTypePNG      = "image/png"
 )
 
+var (
+	// allowedTextFileNames contains the only file names that are
+	// allowed for text files.
+	allowedTextFileNames = map[string]struct{}{
+		pi.FileNameIndexFile:            {},
+		pi.FileNameProposalMetadata:     {},
+		ticketvote.FileNameVoteMetadata: {},
+	}
+)
+
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
 }
@@ -61,105 +71,109 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 // passed politeia validation so we can assume that the file has a unique name,
 // a valid base64 payload, and that the file digest and MIME type are correct.
 func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
-	var (
-		textFilesCount  uint32
-		imageFilesCount uint32
-		indexFileFound  bool
-	)
-	for _, v := range files {
-		payload, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			return fmt.Errorf("invalid base64 %v", v.Name)
-		}
-
-		// MIME type specific validation
-		switch v.MIME {
-		case mimeTypeText:
-			textFilesCount++
-
-			// The text file must be the proposal index file
-			if v.Name != pi.FileNameIndexFile {
-				e := fmt.Sprintf("want %v, got %v", pi.FileNameIndexFile, v.Name)
-				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeIndexFileNameInvalid),
-					ErrorContext: e,
-				}
+	// TODO this verification assumes the user provided is passed
+	// in as metadata and not files.
+	/*
+		var (
+			textFilesCount  uint32
+			imageFilesCount uint32
+			indexFileFound  bool
+		)
+		for _, v := range files {
+			payload, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return fmt.Errorf("invalid base64 %v", v.Name)
 			}
 
-			// Verify text file size
-			if len(payload) > int(p.textFileSizeMax) {
-				e := fmt.Sprintf("file %v size %v exceeds max size %v",
-					v.Name, len(payload), p.textFileSizeMax)
-				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeIndexFileSizeInvalid),
-					ErrorContext: e,
+			// MIME type specific validation
+			switch v.MIME {
+			case mimeTypeText, mimeTypeTextUTF8:
+				textFilesCount++
+
+				// The text file must be the proposal index file
+				if v.Name != pi.FileNameIndexFile {
+					e := fmt.Sprintf("want %v, got %v", pi.FileNameIndexFile, v.Name)
+					return backend.PluginError{
+						PluginID:     pi.PluginID,
+						ErrorCode:    int(pi.ErrorCodeIndexFileNameInvalid),
+						ErrorContext: e,
+					}
 				}
-			}
 
-			// Verify there isn't more than one index file
-			if indexFileFound {
-				e := fmt.Sprintf("more than one %v file found",
-					pi.FileNameIndexFile)
-				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
-					ErrorContext: e,
+				// Verify text file size
+				if len(payload) > int(p.textFileSizeMax) {
+					e := fmt.Sprintf("file %v size %v exceeds max size %v",
+						v.Name, len(payload), p.textFileSizeMax)
+					return backend.PluginError{
+						PluginID:     pi.PluginID,
+						ErrorCode:    int(pi.ErrorCodeIndexFileSizeInvalid),
+						ErrorContext: e,
+					}
 				}
-			}
 
-			// Set index file as being found
-			indexFileFound = true
-
-		case mimeTypePNG:
-			imageFilesCount++
-
-			// Verify image file size
-			if len(payload) > int(p.imageFileSizeMax) {
-				e := fmt.Sprintf("image %v size %v exceeds max size %v",
-					v.Name, len(payload), p.imageFileSizeMax)
-				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeImageFileSizeInvalid),
-					ErrorContext: e,
+				// Verify there isn't more than one index file
+				if indexFileFound {
+					e := fmt.Sprintf("more than one %v file found",
+						pi.FileNameIndexFile)
+					return backend.PluginError{
+						PluginID:     pi.PluginID,
+						ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
+						ErrorContext: e,
+					}
 				}
+
+				// Set index file as being found
+				indexFileFound = true
+
+			case mimeTypePNG:
+				imageFilesCount++
+
+				// Verify image file size
+				if len(payload) > int(p.imageFileSizeMax) {
+					e := fmt.Sprintf("image %v size %v exceeds max size %v",
+						v.Name, len(payload), p.imageFileSizeMax)
+					return backend.PluginError{
+						PluginID:     pi.PluginID,
+						ErrorCode:    int(pi.ErrorCodeImageFileSizeInvalid),
+						ErrorContext: e,
+					}
+				}
+
+			default:
+				return fmt.Errorf("invalid mime")
 			}
+		}
 
-		default:
-			return fmt.Errorf("invalid mime")
+		// Verify that an index file is present
+		if !indexFileFound {
+			e := fmt.Sprintf("%v file not found", pi.FileNameIndexFile)
+			return backend.PluginError{
+				PluginID:     pi.PluginID,
+				ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
+				ErrorContext: e,
+			}
 		}
-	}
 
-	// Verify that an index file is present
-	if !indexFileFound {
-		e := fmt.Sprintf("%v file not found", pi.FileNameIndexFile)
-		return backend.PluginError{
-			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeIndexFileCountInvalid),
-			ErrorContext: e,
+		// Verify file counts are acceptable
+		if textFilesCount > p.textFileCountMax {
+			e := fmt.Sprintf("got %v text files, max is %v",
+				textFilesCount, p.textFileCountMax)
+			return backend.PluginError{
+				PluginID:     pi.PluginID,
+				ErrorCode:    int(pi.ErrorCodeTextFileCountInvalid),
+				ErrorContext: e,
+			}
 		}
-	}
-
-	// Verify file counts are acceptable
-	if textFilesCount > p.textFileCountMax {
-		e := fmt.Sprintf("got %v text files, max is %v",
-			textFilesCount, p.textFileCountMax)
-		return backend.PluginError{
-			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeTextFileCountInvalid),
-			ErrorContext: e,
+		if imageFilesCount > p.imageFileCountMax {
+			e := fmt.Sprintf("got %v image files, max is %v",
+				imageFilesCount, p.imageFileCountMax)
+			return backend.PluginError{
+				PluginID:     pi.PluginID,
+				ErrorCode:    int(pi.ErrorCodeImageFileCountInvalid),
+				ErrorContext: e,
+			}
 		}
-	}
-	if imageFilesCount > p.imageFileCountMax {
-		e := fmt.Sprintf("got %v image files, max is %v",
-			imageFilesCount, p.imageFileCountMax)
-		return backend.PluginError{
-			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeImageFileCountInvalid),
-			ErrorContext: e,
-		}
-	}
+	*/
 
 	// Verify a proposal metadata has been included
 	pm, err := proposalMetadataDecode(files)

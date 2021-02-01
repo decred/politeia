@@ -5,7 +5,6 @@
 package user
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +15,6 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/user"
-	pdutil "github.com/decred/politeia/politeiad/util"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -82,12 +80,15 @@ func userMetadataVerify(metadata []backend.MetadataStream, files []backend.File)
 	}
 
 	// Verify signature
-	m, err := pdutil.MerkleRoot(files)
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	m, err := util.MerkleRoot(digests)
 	if err != nil {
 		return err
 	}
-	msg := hex.EncodeToString(m[:])
-	err = util.VerifySignature(um.Signature, um.PublicKey, msg)
+	err = util.VerifySignature(um.Signature, um.PublicKey, string(m[:]))
 	if err != nil {
 		return convertSignatureError(err)
 	}

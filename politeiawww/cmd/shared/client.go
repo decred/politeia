@@ -2517,15 +2517,13 @@ func (c *Client) Close() {
 
 // NewClient returns a new politeiawww client.
 func NewClient(cfg *Config) (*Client, error) {
-	// Create http client
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.SkipVerify,
-	}
-	tr := &http.Transport{
-		TLSClientConfig: tlsConfig,
+	// Setup http client
+	httpClient, err := util.NewHTTPClient(cfg.SkipVerify, cfg.HTTPSCert)
+	if err != nil {
+		return nil, err
 	}
 
-	// Set cookies
+	// Setup cookies
 	jar, err := cookiejar.New(&cookiejar.Options{
 		PublicSuffixList: publicsuffix.List,
 	})
@@ -2537,10 +2535,7 @@ func NewClient(cfg *Config) (*Client, error) {
 		return nil, err
 	}
 	jar.SetCookies(u, cfg.Cookies)
-	httpClient := &http.Client{
-		Transport: tr,
-		Jar:       jar,
-	}
+	httpClient.Jar = jar
 
 	return &Client{
 		http: httpClient,

@@ -18,6 +18,7 @@ import (
 // Client provides a client for interacting with the politeiad API.
 type Client struct {
 	rpcHost string
+	rpcCert string
 	rpcUser string
 	rpcPass string
 	http    *http.Client
@@ -28,9 +29,9 @@ type Client struct {
 // an error occurs. PluginID will only be populated if the error occured during
 // execution of a plugin command.
 type ErrorReply struct {
-	PluginID     string
-	ErrorCode    int
-	ErrorContext []string
+	PluginID     string   `json:"pluginid"`
+	ErrorCode    int      `json:"errorcode"`
+	ErrorContext []string `json:"errorcontext"`
 }
 
 // Error represents a politeiad error. Error is returned anytime the politeiad
@@ -99,15 +100,17 @@ func (c *Client) makeReq(ctx context.Context, method string, route string, v int
 }
 
 // New returns a new politeiad client.
-func New(rpcHost, rpcUser, rpcPass string, pid *identity.PublicIdentity) (*Client, error) {
-	h, err := util.NewHTTPClient(false, "")
+func New(rpcHost, rpcCert, rpcUser, rpcPass string, pid *identity.PublicIdentity) (*Client, error) {
+	h, err := util.NewHTTPClient(false, rpcCert)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
 		rpcHost: rpcHost,
+		rpcCert: rpcCert,
 		rpcUser: rpcUser,
 		rpcPass: rpcPass,
 		http:    h,
+		pid:     pid,
 	}, nil
 }

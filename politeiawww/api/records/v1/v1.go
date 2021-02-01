@@ -32,20 +32,47 @@ type ErrorCodeT int
 
 const (
 	// Error codes
-	ErrorCodeInvalid      ErrorCodeT = 0
-	ErrorCodeInputInvalid ErrorCodeT = iota
-	ErrorCodePublicKeyInvalid
-	ErrorCodeSignatureInvalid
-	ErrorCodeRecordStateInvalid
-	ErrorCodeRecordNotFound
-	ErrorCodePageSizeExceeded
+	ErrorCodeInvalid                      ErrorCodeT = 0
+	ErrorCodeInputInvalid                 ErrorCodeT = 1
+	ErrorCodeFileNameInvalid              ErrorCodeT = 2
+	ErrorCodeFileMIMEInvalid              ErrorCodeT = 3
+	ErrorCodeFileDigestInvalid            ErrorCodeT = 4
+	ErrorCodeFilePayloadInvalid           ErrorCodeT = 5
+	ErrorCodeMetadataStreamIDInvalid      ErrorCodeT = 6
+	ErrorCodeMetadataStreamPayloadInvalid ErrorCodeT = 8
+	ErrorCodePublicKeyInvalid             ErrorCodeT = 9
+	ErrorCodeSignatureInvalid             ErrorCodeT = 10
+	ErrorCodeRecordTokenInvalid           ErrorCodeT = 11
+	ErrorCodeRecordStateInvalid           ErrorCodeT = 12
+	ErrorCodeRecordNotFound               ErrorCodeT = 13
+	ErrorCodeRecordLocked                 ErrorCodeT = 14
+	ErrorCodeNoRecordChanges              ErrorCodeT = 15
+	ErrorCodeRecordStatusInvalid          ErrorCodeT = 16
+	ErrorCodeStatusReasonNotFound         ErrorCodeT = 17
+	ErrorCodePageSizeExceeded             ErrorCodeT = 18
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:      "error invalid",
-		ErrorCodeInputInvalid: "input invalid",
+		ErrorCodeInvalid:                      "error invalid",
+		ErrorCodeInputInvalid:                 "input invalid",
+		ErrorCodeFileNameInvalid:              "file name invalid",
+		ErrorCodeFileMIMEInvalid:              "file mime invalid",
+		ErrorCodeFileDigestInvalid:            "file digest invalid",
+		ErrorCodeFilePayloadInvalid:           "file payload invalid",
+		ErrorCodeMetadataStreamIDInvalid:      "mdstream id invalid",
+		ErrorCodeMetadataStreamPayloadInvalid: "mdstream payload invalid",
+		ErrorCodePublicKeyInvalid:             "public key invalid",
+		ErrorCodeSignatureInvalid:             "signature invalid",
+		ErrorCodeRecordTokenInvalid:           "record token invalid",
+		ErrorCodeRecordStateInvalid:           "record state invalid",
+		ErrorCodeRecordNotFound:               "record not found",
+		ErrorCodeRecordLocked:                 "record locked",
+		ErrorCodeNoRecordChanges:              "no record changes",
+		ErrorCodeRecordStatusInvalid:          "record status invalid",
+		ErrorCodeStatusReasonNotFound:         "status reason not found",
+		ErrorCodePageSizeExceeded:             "page size exceeded",
 	}
 )
 

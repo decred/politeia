@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
@@ -52,6 +53,11 @@ func (t *Tlog) pluginIDs() []string {
 	for k := range t.plugins {
 		ids = append(ids, k)
 	}
+
+	// Sort IDs so the returned order is deterministic
+	sort.SliceStable(ids, func(i, j int) bool {
+		return ids[i] < ids[j]
+	})
 
 	return ids
 }
