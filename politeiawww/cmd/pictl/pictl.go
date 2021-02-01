@@ -64,6 +64,7 @@ type pictl struct {
 	Users                   shared.UsersCmd              `command:"users"`
 
 	// Proposal commands
+	// TODO ProposalPolicy
 	ProposalNew        proposalNewCmd        `command:"proposalnew"`
 	ProposalEdit       proposalEditCmd       `command:"proposaledit"`
 	ProposalSetStatus  proposalSetStatusCmd  `command:"proposalsetstatus"`
@@ -81,6 +82,7 @@ type pictl struct {
 	CommentTimestamps commentTimestampsCmd `command:"commenttimestamps"`
 
 	// Vote commands
+	VotePolicy      votePolicyCmd      `command:"votepolicy"`
 	VoteAuthorize   voteAuthorizeCmd   `command:"voteauthorize"`
 	VoteStart       voteStartCmd       `command:"votestart"`
 	VoteStartRunoff voteStartRunoffCmd `command:"votestartrunoff"`

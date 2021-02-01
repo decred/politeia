@@ -38,12 +38,6 @@ type ticketVotePlugin struct {
 	// record vote has ended.
 	dataDir string
 
-	// Plugin settings
-	voteDurationMin uint32 // In blocks
-	voteDurationMax uint32 // In blocks
-	linkByPeriodMin int64  // In seconds
-	linkByPeriodMax int64  // In seconds
-
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
@@ -65,6 +59,12 @@ type ticketVotePlugin struct {
 	// lazy loaded and should only be used for tree updates, not for
 	// cache updates.
 	mutexes map[string]*sync.Mutex // [string]mutex
+
+	// Plugin settings
+	linkByPeriodMin int64  // In seconds
+	linkByPeriodMax int64  // In seconds
+	voteDurationMin uint32 // In blocks
+	voteDurationMax uint32 // In blocks
 }
 
 // mutex returns the mutex for the specified record.
@@ -244,48 +244,37 @@ func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
-// TODO Settings returns the plugin's settings.
+// Settings returns the plugin's settings.
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
 	log.Tracef("Settings")
 
-	return nil
-}
-
-/*
-// linkByPeriodMin returns the minimum amount of time, in seconds, that the
-// LinkBy period must be set to. This is determined by adding 1 week onto the
-// minimum voting period so that RFP proposal submissions have at least one
-// week to be submitted after the proposal vote ends.
-func (p *politeiawww) linkByPeriodMin() int64 {
-	var (
-		submissionPeriod int64 = 604800 // One week in seconds
-		blockTime        int64          // In seconds
-	)
-	switch {
-	case p.cfg.TestNet:
-		blockTime = int64(testNet3Params.TargetTimePerBlock.Seconds())
-	case p.cfg.SimNet:
-		blockTime = int64(simNetParams.TargetTimePerBlock.Seconds())
-	default:
-		blockTime = int64(mainNetParams.TargetTimePerBlock.Seconds())
+	return []backend.PluginSetting{
+		{
+			Key:   ticketvote.SettingKeyLinkByPeriodMin,
+			Value: strconv.FormatInt(p.linkByPeriodMin, 10),
+		},
+		{
+			Key:   ticketvote.SettingKeyLinkByPeriodMax,
+			Value: strconv.FormatInt(p.linkByPeriodMax, 10),
+		},
+		{
+			Key:   ticketvote.SettingKeyVoteDurationMin,
+			Value: strconv.FormatUint(uint64(p.voteDurationMin), 10),
+		},
+		{
+			Key:   ticketvote.SettingKeyVoteDurationMax,
+			Value: strconv.FormatUint(uint64(p.voteDurationMax), 10),
+		},
 	}
-	return (int64(p.cfg.VoteDurationMin) * blockTime) + submissionPeriod
 }
-
-// linkByPeriodMax returns the maximum amount of time, in seconds, that the
-// LinkBy period can be set to. 3 months is currently hard coded with no real
-// reason for deciding on 3 months besides that it sounds like a sufficient
-// amount of time.  This can be changed if there is a valid reason to.
-func (p *politeiawww) linkByPeriodMax() int64 {
-	return 7776000 // 3 months in seconds
-}
-*/
 
 func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
 	// Plugin settings
 	var (
+		linkByPeriodMin = ticketvote.SettingLinkByPeriodMin
+		linkByPeriodMax = ticketvote.SettingLinkByPeriodMax
 		voteDurationMin uint32
 		voteDurationMax uint32
 	)
@@ -294,21 +283,36 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 	// the setting was specified by the user.
 	switch activeNetParams.Name {
 	case chaincfg.MainNetParams().Name:
-		voteDurationMin = ticketvote.DefaultMainNetVoteDurationMin
-		voteDurationMax = ticketvote.DefaultMainNetVoteDurationMax
+		voteDurationMin = ticketvote.SettingMainNetVoteDurationMin
+		voteDurationMax = ticketvote.SettingMainNetVoteDurationMax
 	case chaincfg.TestNet3Params().Name:
-		voteDurationMin = ticketvote.DefaultTestNetVoteDurationMin
-		voteDurationMax = ticketvote.DefaultTestNetVoteDurationMax
+		voteDurationMin = ticketvote.SettingTestNetVoteDurationMin
+		voteDurationMax = ticketvote.SettingTestNetVoteDurationMax
 	case chaincfg.SimNetParams().Name:
-		voteDurationMin = ticketvote.DefaultSimNetVoteDurationMin
-		voteDurationMax = ticketvote.DefaultSimNetVoteDurationMax
+		voteDurationMin = ticketvote.SettingSimNetVoteDurationMin
+		voteDurationMax = ticketvote.SettingSimNetVoteDurationMax
 	default:
 		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 	}
 
-	// Parse user provided plugin settings
+	// Override default plugin settings with user provided plugin
+	// settings.
 	for _, v := range settings {
 		switch v.Key {
+		case ticketvote.SettingKeyLinkByPeriodMin:
+			i, err := strconv.ParseInt(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseInt(%v): %v",
+					v.Key, v.Value, err)
+			}
+			linkByPeriodMin = i
+		case ticketvote.SettingKeyLinkByPeriodMax:
+			i, err := strconv.ParseInt(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseInt(%v): %v",
+					v.Key, v.Value, err)
+			}
+			linkByPeriodMax = i
 		case ticketvote.SettingKeyVoteDurationMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -339,8 +343,6 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 		activeNetParams: activeNetParams,
 		backend:         backend,
 		tlog:            tlog,
-		voteDurationMin: voteDurationMin,
-		voteDurationMax: voteDurationMax,
 		dataDir:         dataDir,
 		identity:        id,
 		inv: inventory{
@@ -350,7 +352,11 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 			finished:     make([]string, 0, 1024),
 			bestBlock:    0,
 		},
-		votes:   make(map[string]map[string]string),
-		mutexes: make(map[string]*sync.Mutex),
+		votes:           make(map[string]map[string]string),
+		mutexes:         make(map[string]*sync.Mutex),
+		linkByPeriodMin: linkByPeriodMin,
+		linkByPeriodMax: linkByPeriodMax,
+		voteDurationMin: voteDurationMin,
+		voteDurationMax: voteDurationMax,
 	}, nil
 }

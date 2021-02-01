@@ -28,22 +28,47 @@ const (
 	CmdInventory  = "inventory"  // Get inventory by vote status
 	CmdTimestamps = "timestamps" // Get vote data timestamps
 
-	// Plugin setting keys
+	// Setting keys are the plugin setting keys that can be used to
+	// override a default plugin setting. Defaults will be overridden
+	// if a plugin setting is provided to the plugin on startup.
+	SettingKeyLinkByPeriodMin = "linkbyperiodmin"
+	SettingKeyLinkByPeriodMax = "linkbyperiodmax"
 	SettingKeyVoteDurationMin = "votedurationmin"
 	SettingKeyVoteDurationMax = "votedurationmax"
 
-	// Default plugin settings
-	DefaultMainNetVoteDurationMin = 2016
-	DefaultMainNetVoteDurationMax = 4032
-	DefaultTestNetVoteDurationMin = 0
-	DefaultTestNetVoteDurationMax = 4032
-	DefaultSimNetVoteDurationMin  = 0
-	DefaultSimNetVoteDurationMax  = 4032
+	// SettingLinkByPeriodMin is the default minimum amount of time,
+	// in seconds, that the link by period can be set to. This value
+	// of 2 weeks was chosen arbitrarily.
+	SettingLinkByPeriodMin int64 = 1209600
 
-	// TODO implement PolicyVotesPageSize
-	// PolicyVotesPageSize is the maximum number of results that can be
-	// returned from any of the batched vote commands.
-	PolicyVotesPageSize = 20
+	// SettingLinkByPeriodMax is the default maximum amount of time,
+	// in seconds, that the link by period can be set to. This value
+	// of 3 months was chosen arbitrarily.
+	SettingLinkByPeriodMax int64 = 7776000
+
+	// SettingMainNetVoteDurationMin is the default minimum vote
+	// duration on mainnet in blocks.
+	SettingMainNetVoteDurationMin uint32 = 2016
+
+	// SettingMainNetVoteDurationMax is the default maximum vote
+	// duration on mainnet in blocks.
+	SettingMainNetVoteDurationMax uint32 = 4032
+
+	// SettingTestNetVoteDurationMin is the default minimum vote
+	// duration on testnet in blocks.
+	SettingTestNetVoteDurationMin uint32 = 1
+
+	// SettingTestNetVoteDurationMax is the default maximum vote
+	// duration on testnet in blocks.
+	SettingTestNetVoteDurationMax uint32 = 4032
+
+	// SettingSimNetVoteDurationMin is the default minimum vote
+	// duration on simnet in blocks.
+	SettingSimNetVoteDurationMin uint32 = 1
+
+	// SettingSimNetVoteDurationMax is the default maximum vote
+	// duration on simnet in blocks.
+	SettingSimNetVoteDurationMax uint32 = 4032
 )
 
 // ErrorCodeT represents and error that is caused by the user.

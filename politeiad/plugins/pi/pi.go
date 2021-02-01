@@ -12,9 +12,7 @@ const (
 
 	// Plugin commands
 	CmdVoteInv = "voteinv"
-)
 
-const (
 	// Setting keys are the plugin setting keys that can be used to
 	// override a default plugin setting. Defaults will be overridden
 	// if a plugin setting is provided to the plugin on startup.
@@ -25,24 +23,24 @@ const (
 	SettingKeyProposalNameLengthMax      = "proposalnamelengthmax"
 	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
 
-	// SettingTextFileSizeMax is the maximum allowed size of a text
-	// file in bytes.
+	// SettingTextFileSizeMax is the default maximum allowed size of a
+	// text file in bytes.
 	SettingTextFileSizeMax uint32 = 512 * 1024
 
-	// SettingImageFileCountMax is the maximum number of image files
-	// that can be included in a proposal.
+	// SettingImageFileCountMax is the default maximum number of image
+	// files that can be included in a proposal.
 	SettingImageFileCountMax uint32 = 5
 
-	// SettingImageFileSizeMax is the maximum allowed size of a image
-	// file in bytes.
+	// SettingImageFileSizeMax is the default maximum allowed size of
+	// an image file in bytes.
 	SettingImageFileSizeMax uint32 = 512 * 1024
 
-	// SettingProposalNameLengthMin is the minimum number of characters
-	// that a proposal name can be.
+	// SettingProposalNameLengthMin is the default minimum number of
+	// characters that a proposal name can be.
 	SettingProposalNameLengthMin uint32 = 8
 
-	// SettingProposalNameLengthMax is the maximum number of characters
-	// that a proposal name can be.
+	// SettingProposalNameLengthMax is the default maximum number of
+	// characters that a proposal name can be.
 	SettingProposalNameLengthMax uint32 = 80
 )
 

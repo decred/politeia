@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -29,6 +30,21 @@ func printf(s string, args ...interface{}) {
 		// Print to stdout
 		fmt.Printf(s, args...)
 	}
+}
+
+// println prints the provided string to stdout if the global config settings
+// allows for it.
+func println(s string, args ...interface{}) {
+	printf(s+"\n", args...)
+}
+
+// formatJSON returns a pretty printed JSON string for the provided structure.
+func formatJSON(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // signedMerkleRoot returns the signed merkle root of the provided files. The

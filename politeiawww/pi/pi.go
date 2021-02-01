@@ -26,28 +26,14 @@ type Pi struct {
 	politeiad *pdclient.Client
 	userdb    user.Database
 	sessions  *sessions.Sessions
-
-	// Plugin settings
-	textFileSizeMax    uint32 // In bytes
-	imageFileCountMax  uint32
-	imageFileSizeMax   uint32 // In bytes
-	nameLengthMin      uint32 // In characters
-	nameLengthMax      uint32 // In characters
-	nameSupportedChars []string
+	policy    *v1.PolicyReply
 }
 
 // HandlePolicy is the request handler for the pi v1 Policy route.
 func (p *Pi) HandlePolicy(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandlePolicy")
 
-	pr, err := p.processPolicy(r.Context())
-	if err != nil {
-		respondWithError(w, r,
-			"HandlePolicy: processPolicy: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, pr)
+	util.RespondWithJSON(w, http.StatusOK, p.policy)
 }
 
 // HandleProposals is the request handler for the pi v1 Proposals route.
@@ -100,7 +86,7 @@ func (p *Pi) HandleVoteInventory(w http.ResponseWriter, r *http.Request) {
 
 // New returns a new Pi context.
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, plugins []pdv1.Plugin) (*Pi, error) {
-	// Parse pi plugin settings
+	// Parse plugin settings
 	var (
 		textFileSizeMax    uint32
 		imageFileCountMax  uint32
@@ -109,53 +95,53 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		nameLengthMax      uint32
 		nameSupportedChars []string
 	)
-	for _, v := range plugins {
-		if v.ID != pi.PluginID {
+	for _, p := range plugins {
+		if p.ID != pi.PluginID {
 			// Not the pi plugin; skip
 			continue
 		}
-		for _, s := range v.Settings {
-			switch s.Key {
+		for _, v := range p.Settings {
+			switch v.Key {
 			case pi.SettingKeyTextFileSizeMax:
-				u, err := strconv.ParseUint(s.Value, 10, 64)
+				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				textFileSizeMax = uint32(u)
 			case pi.SettingKeyImageFileCountMax:
-				u, err := strconv.ParseUint(s.Value, 10, 64)
+				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				imageFileCountMax = uint32(u)
 			case pi.SettingKeyImageFileSizeMax:
-				u, err := strconv.ParseUint(s.Value, 10, 64)
+				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				imageFileSizeMax = uint32(u)
 			case pi.SettingKeyProposalNameLengthMin:
-				u, err := strconv.ParseUint(s.Value, 10, 64)
+				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				nameLengthMin = uint32(u)
 			case pi.SettingKeyProposalNameLengthMax:
-				u, err := strconv.ParseUint(s.Value, 10, 64)
+				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				nameLengthMax = uint32(u)
 			case pi.SettingKeyProposalNameSupportedChars:
 				var sc []string
-				err := json.Unmarshal([]byte(s.Value), &sc)
+				err := json.Unmarshal([]byte(v.Value), &sc)
 				if err != nil {
 					return nil, err
 				}
 				nameSupportedChars = sc
 			default:
 				// Skip unknown settings
-				log.Warnf("Unknown plugin setting %v; Skipping...", s.Key)
+				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
 			}
 		}
 	}
@@ -180,15 +166,17 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	}
 
 	return &Pi{
-		cfg:                cfg,
-		politeiad:          pdc,
-		userdb:             udb,
-		sessions:           s,
-		textFileSizeMax:    textFileSizeMax,
-		imageFileCountMax:  imageFileCountMax,
-		imageFileSizeMax:   imageFileSizeMax,
-		nameLengthMin:      nameLengthMin,
-		nameLengthMax:      nameLengthMax,
-		nameSupportedChars: nameSupportedChars,
+		cfg:       cfg,
+		politeiad: pdc,
+		userdb:    udb,
+		sessions:  s,
+		policy: &v1.PolicyReply{
+			TextFileSizeMax:    textFileSizeMax,
+			ImageFileCountMax:  imageFileCountMax,
+			ImageFileSizeMax:   imageFileSizeMax,
+			NameLengthMin:      nameLengthMin,
+			NameLengthMax:      nameLengthMax,
+			NameSupportedChars: nameSupportedChars,
+		},
 	}, nil
 }

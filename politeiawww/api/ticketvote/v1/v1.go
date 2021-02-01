@@ -10,6 +10,7 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/ticketvote/v1"
 
+	RoutePolicy     = "/policy"
 	RouteAuthorize  = "/authorize"
 	RouteStart      = "/start"
 	RouteCastBallot = "/castballot"
@@ -78,6 +79,17 @@ type ServerErrorReply struct {
 // Error satisfies the error interface.
 func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
+
+// Policy requests the ticketvote policy.
+type Policy struct{}
+
+// PolicyReply is the reply to the Policy command.
+type PolicyReply struct {
+	LinkByPeriodMin int64  `json:"linkbyperiodmin"` // In seconds
+	LinkByPeriodMax int64  `json:"linkbyperiodmax"` // In seconds
+	VoteDurationMin uint32 `json:"votedurationmin"` // In blocks
+	VoteDurationMax uint32 `json:"votedurationmax"` // In blocks
 }
 
 // AuthActionT represents an Authorize action.

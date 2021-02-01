@@ -6,9 +6,13 @@ package ticketvote
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
@@ -22,6 +26,14 @@ type TicketVote struct {
 	politeiad *pdclient.Client
 	sessions  *sessions.Sessions
 	events    *events.Manager
+	policy    *v1.PolicyReply
+}
+
+// HandlePolicy is the request handler for the ticketvote v1 Policy route.
+func (t *TicketVote) HandlePolicy(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandlePolicy")
+
+	util.RespondWithJSON(w, http.StatusOK, t.policy)
 }
 
 // HandleAuthorize is the request handler for the ticketvote v1 Authorize
@@ -251,11 +263,77 @@ func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new TicketVote context.
-func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager) *TicketVote {
+func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager, plugins []pdv1.Plugin) (*TicketVote, error) {
+	// Parse plugin settings
+	var (
+		linkByPeriodMin int64
+		linkByPeriodMax int64
+		voteDurationMin uint32
+		voteDurationMax uint32
+	)
+	for _, p := range plugins {
+		if p.ID != ticketvote.PluginID {
+			// Wrong plugin; skip
+			continue
+		}
+		for _, v := range p.Settings {
+			switch v.Key {
+			case ticketvote.SettingKeyLinkByPeriodMin:
+				i, err := strconv.ParseInt(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				linkByPeriodMin = i
+			case ticketvote.SettingKeyLinkByPeriodMax:
+				i, err := strconv.ParseInt(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				linkByPeriodMax = i
+			case ticketvote.SettingKeyVoteDurationMin:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				voteDurationMin = uint32(u)
+			case ticketvote.SettingKeyVoteDurationMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				voteDurationMax = uint32(u)
+			default:
+				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
+			}
+		}
+	}
+
+	// Verify all plugin settings have been provided
+	switch {
+	case linkByPeriodMin == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeyLinkByPeriodMin)
+	case linkByPeriodMax == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeyLinkByPeriodMax)
+	case voteDurationMin == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeyVoteDurationMin)
+	case voteDurationMax == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeyVoteDurationMax)
+	}
+
 	return &TicketVote{
 		cfg:       cfg,
 		politeiad: pdc,
 		sessions:  s,
 		events:    e,
-	}
+		policy: &v1.PolicyReply{
+			LinkByPeriodMin: linkByPeriodMin,
+			LinkByPeriodMax: linkByPeriodMax,
+			VoteDurationMin: voteDurationMin,
+			VoteDurationMax: voteDurationMax,
+		},
+	}, nil
 }

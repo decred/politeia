@@ -110,6 +110,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		permissionPublic)
 
 	// Ticket vote routes
+	p.addRoute(http.MethodGet, tkv1.APIRoute,
+		tkv1.RoutePolicy, t.HandlePolicy,
+		permissionPublic)
 	p.addRoute(http.MethodPost, tkv1.APIRoute,
 		tkv1.RouteAuthorize, t.HandleAuthorize,
 		permissionLogin)
@@ -174,9 +177,13 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 	}
 
 	// Setup api contexts
-	c := comments.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
-	tv := ticketvote.New(p.cfg, p.politeiad, p.sessions, p.events)
 	r := records.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
+	c := comments.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
+	tv, err := ticketvote.New(p.cfg, p.politeiad,
+		p.sessions, p.events, plugins)
+	if err != nil {
+		return fmt.Errorf("new ticketvote: %v", err)
+	}
 	pic, err := pi.New(p.cfg, p.politeiad, p.db, p.sessions, plugins)
 	if err != nil {
 		return fmt.Errorf("new pi: %v", err)
