@@ -16,7 +16,12 @@ type votePolicyCmd struct{}
 // This function satisfies the go-flags Commander interface.
 func (cmd *votePolicyCmd) Execute(args []string) error {
 	// Setup client
-	pc, err := pclient.New(cfg.Host, cfg.HTTPSCert, nil, "")
+	opts := pclient.Opts{
+		HTTPSCert: cfg.HTTPSCert,
+		Verbose:   cfg.Verbose,
+		RawJSON:   cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
 		return err
 	}

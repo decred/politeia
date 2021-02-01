@@ -29,6 +29,9 @@ func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.verbose {
+		fmt.Printf("%v\n", formatJSON(nr))
+	}
 
 	return &nr, nil
 }
@@ -45,6 +48,9 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.DetailsReply, error) {
 	err = json.Unmarshal(resBody, &dr)
 	if err != nil {
 		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", formatJSON(dr))
 	}
 
 	return &dr, nil

@@ -28,7 +28,14 @@ type proposalDetailsCmd struct {
 // This function satisfies the go-flags Commander interface.
 func (c *proposalDetailsCmd) Execute(args []string) error {
 	// Setup client
-	pc, err := pclient.New(cfg.Host, cfg.HTTPSCert, cfg.Cookies, cfg.CSRF)
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
 		return err
 	}

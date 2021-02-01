@@ -21,8 +21,6 @@ import (
 
 	"decred.org/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/util"
@@ -115,21 +113,6 @@ func wwwError(body []byte, statusCode int) error {
 	}
 
 	return nil
-}
-
-// TODO implement recordsError
-func recordsError(body []byte, statusCode int) error {
-	return fmt.Errorf("%v %s", statusCode, body)
-}
-
-// TODO implement commentsError
-func commentsError(body []byte, statusCode int) error {
-	return fmt.Errorf("%v %s", statusCode, body)
-}
-
-// TODO implement ticketVoteError
-func ticketVoteError(body []byte, statusCode int) error {
-	return fmt.Errorf("%v %s", statusCode, body)
 }
 
 // makeRequest sends the provided request to the politeiawww backend specified
@@ -802,62 +785,6 @@ func (c *Client) UserProposalPaywall() (*www.UserProposalPaywallReply, error) {
 	}
 
 	return &ppdr, nil
-}
-
-// RecordTimestamps sends the Timestamps command to politeiawww records API.
-func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		rcv1.APIRoute, rcv1.RouteTimestamps, t)
-	if err != nil {
-		return nil, err
-	}
-	if statusCode != http.StatusOK {
-		return nil, recordsError(respBody, statusCode)
-	}
-
-	var tr rcv1.TimestampsReply
-	err = json.Unmarshal(respBody, &tr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(tr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &tr, nil
-}
-
-// TicketVoteTimestamps sends the Timestamps command to politeiawww ticketvote
-// API.
-func (c *Client) TicketVoteTimestamps(t tkv1.Timestamps) (*tkv1.TimestampsReply,
-	error) {
-	statusCode, respBody, err := c.makeRequest(http.MethodPost,
-		tkv1.APIRoute, tkv1.RouteTimestamps, t)
-	if err != nil {
-		return nil, err
-	}
-	if statusCode != http.StatusOK {
-		return nil, ticketVoteError(respBody, statusCode)
-	}
-
-	var tr tkv1.TimestampsReply
-	err = json.Unmarshal(respBody, &tr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(tr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &tr, nil
 }
 
 // NewInvoice submits the specified invoice to politeiawww for the logged in

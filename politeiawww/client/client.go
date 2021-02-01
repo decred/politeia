@@ -25,8 +25,9 @@ var (
 // Client provides a client for interacting with the politeiawww API.
 type Client struct {
 	host       string
-	cert       string
 	headerCSRF string // Header csrf token
+	verbose    bool
+	rawJSON    bool
 	http       *http.Client
 }
 
@@ -58,6 +59,15 @@ func (e Error) Error() string {
 		return fmt.Sprintf("politeiawww error: %v %v",
 			e.HTTPCode, e.ErrorReply.ErrorCode)
 	}
+}
+
+// formatJSON returns a pretty printed JSON string for the provided structure.
+func formatJSON(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("MarshalIndent: %v", err)
+	}
+	return string(b)
 }
 
 // makeReq makes a politeiawww http request to the method and route provided,
@@ -99,8 +109,23 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 		}
 	}
 
-	// Send request
+	// Setup route
 	fullRoute := c.host + route + queryParams
+
+	// Print request details
+	switch {
+	case method == http.MethodGet && c.verbose:
+		fmt.Printf("Request: %v %v\n", method, fullRoute)
+	case method == http.MethodGet && c.rawJSON:
+		// No JSON to print
+	case c.verbose:
+		fmt.Printf("Request: %v %v\n", method, fullRoute)
+		fmt.Printf("%v\n", formatJSON(v))
+	case c.rawJSON:
+		fmt.Printf("%s\n", reqBody)
+	}
+
+	// Send request
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
@@ -113,6 +138,11 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 		return nil, err
 	}
 	defer r.Body.Close()
+
+	// Print response code
+	if c.verbose {
+		fmt.Printf("Response: %v\n", r.StatusCode)
+	}
 
 	// Handle reply
 	if r.StatusCode != http.StatusOK {
@@ -127,30 +157,46 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 		}
 	}
 
+	// Decode response body
 	respBody := util.ConvertBodyToByteArray(r.Body, false)
+
+	// Print response body. Pretty printing the response body for the
+	// verbose output must be handled by the calling function once it
+	// has unmarshalled the body.
+	if c.rawJSON {
+		fmt.Printf("%s\n", respBody)
+	}
+
 	return respBody, nil
 }
 
+// Opts contains the politeiawww client options. All values are optional.
+//
+// Any provided HTTPSCert will be added to the http client's trust cert pool.
+// This allows you to interact with a politeiawww instance that uses a self
+// signed cert.
+type Opts struct {
+	HTTPSCert  string
+	Cookies    []*http.Cookie
+	HeaderCSRF string
+	Verbose    bool // Pretty print details
+	RawJSON    bool // Print raw json
+}
+
 // New returns a new politeiawww client.
-//
-// The cert argument is optional. Any provided cert will be added to the http
-// client's trust cert pool. This allows you to interact with a politeiawww
-// instance that uses a self signed cert.
-//
-// The cookies and headerCSRF arguments are optional.
-func New(host, cert string, cookies []*http.Cookie, headerCSRF string) (*Client, error) {
+func New(host string, opts Opts) (*Client, error) {
 	// Setup http client
-	h, err := util.NewHTTPClient(false, cert)
+	h, err := util.NewHTTPClient(false, opts.HTTPSCert)
 	if err != nil {
 		return nil, err
 	}
 
 	// Setup cookies
-	if cookies != nil {
-		opt := cookiejar.Options{
+	if opts.Cookies != nil {
+		copt := cookiejar.Options{
 			PublicSuffixList: publicsuffix.List,
 		}
-		jar, err := cookiejar.New(&opt)
+		jar, err := cookiejar.New(&copt)
 		if err != nil {
 			return nil, err
 		}
@@ -158,14 +204,15 @@ func New(host, cert string, cookies []*http.Cookie, headerCSRF string) (*Client,
 		if err != nil {
 			return nil, err
 		}
-		jar.SetCookies(u, cookies)
+		jar.SetCookies(u, opts.Cookies)
 		h.Jar = jar
 	}
 
 	return &Client{
 		host:       host,
-		cert:       cert,
-		headerCSRF: headerCSRF,
+		headerCSRF: opts.HeaderCSRF,
+		verbose:    opts.Verbose,
+		rawJSON:    opts.RawJSON,
 		http:       h,
 	}, nil
 }

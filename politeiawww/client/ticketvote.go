@@ -6,6 +6,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
@@ -23,6 +24,9 @@ func (c *Client) TicketVotePolicy() (*tkv1.PolicyReply, error) {
 	err = json.Unmarshal(resBody, &pr)
 	if err != nil {
 		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", formatJSON(pr))
 	}
 
 	return &pr, nil

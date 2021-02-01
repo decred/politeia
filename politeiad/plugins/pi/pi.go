@@ -12,10 +12,12 @@ const (
 
 	// Plugin commands
 	CmdVoteInv = "voteinv"
+)
 
-	// Setting keys are the plugin setting keys that can be used to
-	// override a default plugin setting. Defaults will be overridden
-	// if a plugin setting is provided to the plugin on startup.
+// Plugin setting keys and default values. Default plugin setting values can be
+// overridden by passing in a custom plugin setting key and value on startup.
+const (
+	// Plugin setting keys
 	SettingKeyTextFileSizeMax            = "textfilesizemax"
 	SettingKeyImageFileCountMax          = "imagefilecountmax"
 	SettingKeyImageFileSizeMax           = "imagefilesizemax"
@@ -48,8 +50,8 @@ var (
 	// SettingProposalNameSupportedChars contains the supported
 	// characters in a proposal name.
 	SettingProposalNameSupportedChars = []string{
-		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!", "?", "\"", "'",
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#",
+		"/", "(", ")", "!", "?", "\"", "'",
 	}
 )
 
@@ -57,21 +59,49 @@ var (
 type ErrorCodeT int
 
 const (
-	ErrorCodeInvalid                 ErrorCodeT = 0
-	ErrorCodeIndexFileNameInvalid    ErrorCodeT = 1
-	ErrorCodeIndexFileSizeInvalid    ErrorCodeT = 2
-	ErrorCodeFileMissing             ErrorCodeT = 3
-	ErrorCodeImageFileCountInvalid   ErrorCodeT = 4
-	ErrorCodeImageFileSizeInvalid    ErrorCodeT = 5
-	ErrorCodeProposalMetadataInvalid ErrorCodeT = 6
-	ErrorCodeProposalNameInvalid     ErrorCodeT = 7
-	ErrorCodeVoteStatusInvalid       ErrorCodeT = 8
+	// ErrorCodeInvalid represents and invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeTextFileNameInvalid is returned when a text file has
+	// a file name that is not allowed.
+	ErrorCodeTextFileNameInvalid ErrorCodeT = 1
+
+	// ErrorCodeTextFileSizeInvalid is returned when a text file size
+	// exceedes the TextFileSizeMax setting.
+	ErrorCodeTextFileSizeInvalid ErrorCodeT = 2
+
+	// ErrorCodeTextFileMissing is returned when the proposal does not
+	// contain one or more of the required text files.
+	ErrorCodeTextFileMissing ErrorCodeT = 3
+
+	// ErrorCodeImageFileCountInvalid is returned when the number of
+	// image attachments exceedes the ImageFileCountMax setting.
+	ErrorCodeImageFileCountInvalid ErrorCodeT = 4
+
+	// ErrorCodeImageFileSizeInvalid is returned when an image file
+	// size exceedes the ImageFileSizeMax setting.
+	ErrorCodeImageFileSizeInvalid ErrorCodeT = 5
+
+	// ErrorCodeProposalNameInvalid is returned when a proposal name
+	// does not adhere to the proposal name settings.
+	ErrorCodeProposalNameInvalid ErrorCodeT = 6
+
+	// ErrorCodeVoteStatusInvalid is returned when a proposal vote
+	// status does not allow changes to be made to the proposal.
+	ErrorCodeVoteStatusInvalid ErrorCodeT = 7
 )
 
 var (
-	// TODO ErrorCodes contains the human readable errors.
+	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid: "error code invalid",
+		ErrorCodeInvalid:               "error code invalid",
+		ErrorCodeTextFileNameInvalid:   "text file name invalid",
+		ErrorCodeTextFileSizeInvalid:   "text file size invalid",
+		ErrorCodeTextFileMissing:       "text file is misisng",
+		ErrorCodeImageFileCountInvalid: "image file count invalid",
+		ErrorCodeImageFileSizeInvalid:  "image file size invalid",
+		ErrorCodeProposalNameInvalid:   "proposal name invalid",
+		ErrorCodeVoteStatusInvalid:     "vote status invalid",
 	}
 )
 

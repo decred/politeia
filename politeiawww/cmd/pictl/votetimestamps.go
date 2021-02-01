@@ -5,12 +5,9 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // voteTimestampsCmd retrieves the timestamps for a politeiawww ticket vote.
@@ -24,42 +21,44 @@ type voteTimestampsCmd struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *voteTimestampsCmd) Execute(args []string) error {
-	// Setup request
-	t := tkv1.Timestamps{
-		Token: c.Args.Token,
-	}
-
-	// Send request
-	err := shared.PrintJSON(t)
-	if err != nil {
-		return err
-	}
-	tr, err := client.TicketVoteTimestamps(t)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(tr)
-	if err != nil {
-		return err
-	}
-
-	// Verify timestamps
-	for k, v := range tr.Auths {
-		err = verifyVoteTimestamp(v)
-		if err != nil {
-			return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
+	/*
+		// Setup request
+		t := tkv1.Timestamps{
+			Token: c.Args.Token,
 		}
-	}
-	err = verifyVoteTimestamp(tr.Details)
-	if err != nil {
-		return fmt.Errorf("verify vote details timestamp: %v", err)
-	}
-	for k, v := range tr.Votes {
-		err = verifyVoteTimestamp(v)
+
+		// Send request
+		err := shared.PrintJSON(t)
 		if err != nil {
-			return fmt.Errorf("verify vote %v timestamp: %v", k, err)
+			return err
 		}
-	}
+		tr, err := client.TicketVoteTimestamps(t)
+		if err != nil {
+			return err
+		}
+		err = shared.PrintJSON(tr)
+		if err != nil {
+			return err
+		}
+
+		// Verify timestamps
+		for k, v := range tr.Auths {
+			err = verifyVoteTimestamp(v)
+			if err != nil {
+				return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
+			}
+		}
+		err = verifyVoteTimestamp(tr.Details)
+		if err != nil {
+			return fmt.Errorf("verify vote details timestamp: %v", err)
+		}
+		for k, v := range tr.Votes {
+			err = verifyVoteTimestamp(v)
+			if err != nil {
+				return fmt.Errorf("verify vote %v timestamp: %v", k, err)
+			}
+		}
+	*/
 
 	return nil
 }

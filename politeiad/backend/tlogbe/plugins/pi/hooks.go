@@ -86,7 +86,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			if !ok {
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeIndexFileNameInvalid),
+					ErrorCode:    int(pi.ErrorCodeTextFileNameInvalid),
 					ErrorContext: v.Name,
 				}
 			}
@@ -97,7 +97,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 					v.Name, len(payload), p.textFileSizeMax)
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeIndexFileSizeInvalid),
+					ErrorCode:    int(pi.ErrorCodeTextFileSizeInvalid),
 					ErrorContext: e,
 				}
 			}
@@ -132,7 +132,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if !found {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeFileMissing),
+			ErrorCode:    int(pi.ErrorCodeTextFileMissing),
 			ErrorContext: pi.FileNameIndexFile,
 		}
 	}
@@ -156,8 +156,8 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if pm == nil {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeProposalMetadataInvalid),
-			ErrorContext: "metadata not found",
+			ErrorCode:    int(pi.ErrorCodeTextFileMissing),
+			ErrorContext: pi.FileNameProposalMetadata,
 		}
 	}
 
