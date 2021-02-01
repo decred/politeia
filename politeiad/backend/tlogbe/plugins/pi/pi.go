@@ -104,10 +104,6 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 
 	return []backend.PluginSetting{
 		{
-			Key:   pi.SettingKeyTextFileCountMax,
-			Value: strconv.FormatUint(uint64(p.textFileCountMax), 10),
-		},
-		{
 			Key:   pi.SettingKeyTextFileSizeMax,
 			Value: strconv.FormatUint(uint64(p.textFileSizeMax), 10),
 		},
@@ -149,7 +145,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 
 	// Setup plugin setting default values
 	var (
-		textFileCountMax   = pi.SettingTextFileCountMax
 		textFileSizeMax    = pi.SettingTextFileSizeMax
 		imageFileCountMax  = pi.SettingImageFileCountMax
 		imageFileSizeMax   = pi.SettingImageFileSizeMax
@@ -161,13 +156,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	// Override default plugin settings with any passed in settings
 	for _, v := range settings {
 		switch v.Key {
-		case pi.SettingKeyTextFileCountMax:
-			u, err := strconv.ParseUint(v.Value, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
-					v.Key, v.Value, err)
-			}
-			textFileCountMax = uint32(u)
 		case pi.SettingKeyTextFileSizeMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -234,7 +222,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	return &piPlugin{
 		dataDir:                    dataDir,
 		backend:                    backend,
-		textFileCountMax:           textFileCountMax,
 		textFileSizeMax:            textFileSizeMax,
 		imageFileCountMax:          imageFileCountMax,
 		imageFileSizeMax:           imageFileSizeMax,

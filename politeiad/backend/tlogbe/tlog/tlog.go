@@ -90,7 +90,7 @@ func leafExtraData(dataType, storeKey string) []byte {
 }
 
 func leafDataType(l *trillian.LogLeaf) string {
-	s := bytes.SplitAfter(l.ExtraData, []byte(":"))
+	s := bytes.Split(l.ExtraData, []byte(":"))
 	if len(s) != 2 {
 		e := fmt.Sprintf("invalid key '%s' for leaf %x",
 			l.ExtraData, l.MerkleLeafHash)

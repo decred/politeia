@@ -56,9 +56,13 @@ func (c *castBallotCmd) Execute(args []string) error {
 	defer client.Close()
 
 	// Get the user's tickets that are eligible to vote
-	ticketPool, err := convertTicketHashes(pv.Vote.EligibleTickets)
-	if err != nil {
-		return err
+	ticketpool := make([][]byte, 0, len(pv.Vote.EligibleTickets))
+	for _, v := range pv.Vote.EligibleTickets {
+		h, err := chainhash.NewHashFromStr(v)
+		if err != nil {
+			return nil, err
+		}
+		ticketpool = append(ticketpool, h[:])
 	}
 	ctr, err := client.CommittedTickets(
 		&walletrpc.CommittedTicketsRequest{

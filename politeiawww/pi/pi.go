@@ -28,7 +28,6 @@ type Pi struct {
 	sessions  *sessions.Sessions
 
 	// Plugin settings
-	textFileCountMax   uint32
 	textFileSizeMax    uint32 // In bytes
 	imageFileCountMax  uint32
 	imageFileSizeMax   uint32 // In bytes
@@ -103,7 +102,6 @@ func (p *Pi) HandleVoteInventory(w http.ResponseWriter, r *http.Request) {
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, plugins []pdv1.Plugin) (*Pi, error) {
 	// Parse pi plugin settings
 	var (
-		textFileCountMax   uint32
 		textFileSizeMax    uint32
 		imageFileCountMax  uint32
 		imageFileSizeMax   uint32
@@ -118,12 +116,6 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		}
 		for _, s := range v.Settings {
 			switch s.Key {
-			case pi.SettingKeyTextFileCountMax:
-				u, err := strconv.ParseUint(s.Value, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				textFileCountMax = uint32(u)
 			case pi.SettingKeyTextFileSizeMax:
 				u, err := strconv.ParseUint(s.Value, 10, 64)
 				if err != nil {
@@ -170,9 +162,6 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 
 	// Verify all plugin settings have been provided
 	switch {
-	case textFileCountMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
-			pi.SettingKeyTextFileCountMax)
 	case textFileSizeMax == 0:
 		return nil, fmt.Errorf("plugin setting not found: %v",
 			pi.SettingKeyTextFileSizeMax)
@@ -195,7 +184,6 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		politeiad:          pdc,
 		userdb:             udb,
 		sessions:           s,
-		textFileCountMax:   textFileCountMax,
 		textFileSizeMax:    textFileSizeMax,
 		imageFileCountMax:  imageFileCountMax,
 		imageFileSizeMax:   imageFileSizeMax,

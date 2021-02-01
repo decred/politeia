@@ -287,10 +287,11 @@ func (c *Records) HandleUserRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new Records context.
-func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager) *Records {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager) *Records {
 	return &Records{
 		cfg:       cfg,
 		politeiad: pdc,
+		userdb:    udb,
 		sessions:  s,
 		events:    e,
 	}

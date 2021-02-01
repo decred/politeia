@@ -63,11 +63,11 @@ type pictl struct {
 	UserDetails             userDetailsCmd               `command:"userdetails"`
 	Users                   shared.UsersCmd              `command:"users"`
 
-	// TODO replace www policies with pi policies
 	// Proposal commands
 	ProposalNew        proposalNewCmd        `command:"proposalnew"`
 	ProposalEdit       proposalEditCmd       `command:"proposaledit"`
 	ProposalSetStatus  proposalSetStatusCmd  `command:"proposalsetstatus"`
+	ProposalDetails    proposalDetailsCmd    `command:"proposaldetails"`
 	Proposals          proposalsCmd          `command:"proposals"`
 	ProposalInv        proposalInvCmd        `command:"proposalinv"`
 	proposalTimestamps proposalTimestampsCmd `command:"proposaltimestamps"`
@@ -141,8 +141,9 @@ Proposal commands
   proposalnew             (user)   Submit a new proposal
   proposaledit            (user)   Edit an existing proposal
   proposalstatusset       (admin)  Set the status of a proposal
-  proposals               (public) Get proposals
-  proposalinv             (public) Get proposal inventory by proposal status
+  proposaldetials         (public) Get a full proposal record
+  proposals               (public) Get proposals without their files
+  proposalinv             (public) Get inventory by proposal status
 
 Comment commands
   commentnew              (user)   Submit a new comment

@@ -18,17 +18,12 @@ const (
 	// Setting keys are the plugin setting keys that can be used to
 	// override a default plugin setting. Defaults will be overridden
 	// if a plugin setting is provided to the plugin on startup.
-	SettingKeyTextFileCountMax           = "textfilecountmax"
 	SettingKeyTextFileSizeMax            = "textfilesizemax"
 	SettingKeyImageFileCountMax          = "imagefilecountmax"
 	SettingKeyImageFileSizeMax           = "imagefilesizemax"
 	SettingKeyProposalNameLengthMin      = "proposalnamelengthmin"
 	SettingKeyProposalNameLengthMax      = "proposalnamelengthmax"
 	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
-
-	// SettingTextFileCountMax is the maximum number of text files that
-	// can be included a proposal.
-	SettingTextFileCountMax uint32 = 1
 
 	// SettingTextFileSizeMax is the maximum allowed size of a text
 	// file in bytes.

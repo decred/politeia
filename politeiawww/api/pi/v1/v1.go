@@ -9,10 +9,6 @@ import (
 )
 
 // TODO verify that all batched request have a page size limit
-// TODO pi needs a Version route that returns the APIs and versions that pi
-// uses.
-// TODO new APIs need a Policy route. The policies should be defined in the
-// plugin packages as plugin settings and returned in a policy command.
 // TODO module these API packages
 
 const (
@@ -95,7 +91,6 @@ type Policy struct{}
 
 // PolicyReply is the reply to the Policy command.
 type PolicyReply struct {
-	TextFileCountMax   uint32   `json:"textfilecountmax"`
 	TextFileSizeMax    uint32   `json:"textfilesizemax"` // In bytes
 	ImageFileCountMax  uint32   `json:"imagefilecountmax"`
 	ImageFileSizeMax   uint32   `json:"imagefilesizemax"` // In bytes
@@ -211,7 +206,6 @@ type StatusChange struct {
 	Reason    string      `json:"message,omitempty"`
 	PublicKey string      `json:"publickey"`
 	Signature string      `json:"signature"`
-	Timestamp int64       `json:"timestamp"`
 }
 
 // Proposal represents a proposal submission and its metadata.

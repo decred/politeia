@@ -12,6 +12,7 @@ import (
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
+	usplugin "github.com/decred/politeia/politeiad/plugins/user"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -75,6 +76,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteSetStatus, r.HandleSetStatus,
 		permissionAdmin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteDetails, r.HandleDetails,
+		permissionPublic)
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteInventory, r.HandleInventory,
 		permissionPublic)
@@ -149,6 +153,7 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 		piplugin.PluginID: false,
 		cmplugin.PluginID: false,
 		tkplugin.PluginID: false,
+		usplugin.PluginID: false,
 	}
 	for _, v := range plugins {
 		_, ok := required[v.ID]
@@ -171,7 +176,7 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 	// Setup api contexts
 	c := comments.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
 	tv := ticketvote.New(p.cfg, p.politeiad, p.sessions, p.events)
-	r := records.New(p.cfg, p.politeiad, p.sessions, p.events)
+	r := records.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
 	pic, err := pi.New(p.cfg, p.politeiad, p.db, p.sessions, plugins)
 	if err != nil {
 		return fmt.Errorf("new pi: %v", err)

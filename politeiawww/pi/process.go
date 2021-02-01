@@ -25,7 +25,6 @@ func (p *Pi) processPolicy(ctx context.Context) (*v1.PolicyReply, error) {
 	log.Tracef("Policy")
 
 	return &v1.PolicyReply{
-		TextFileCountMax:   p.textFileCountMax,
 		TextFileSizeMax:    p.textFileSizeMax,
 		ImageFileCountMax:  p.imageFileCountMax,
 		ImageFileSizeMax:   p.imageFileSizeMax,

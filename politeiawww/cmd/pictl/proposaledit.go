@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,15 +12,20 @@ type proposalEditCmd struct {
 		Attachments []string `positional-arg-name:"attachmets"`
 	} `positional-args:"true" optional:"true"`
 
-	// CLI flags
-	Unvetted bool   `long:"unvetted" optional:"true"`
-	Name     string `long:"name" optional:"true"`
-	LinkTo   string `long:"linkto" optional:"true"`
-	LinkBy   int64  `long:"linkby" optional:"true"`
+	// Unvetted is used to indicate that the state of the requested
+	// proposal is unvetted. If this flag is not used it will be
+	// assumed that a vetted proposal is being requested.
+	Unvetted bool `long:"unvetted" optional:"true"`
 
 	// Random generates random proposal data. An IndexFile and
 	// Attachments are not required when using this flag.
 	Random bool `long:"random" optional:"true"`
+
+	// The following flags can be used to specify user defined proposal
+	// metadata values.
+	Name   string `long:"name" optional:"true"`
+	LinkTo string `long:"linkto" optional:"true"`
+	LinkBy int64  `long:"linkby" optional:"true"`
 
 	// RFP is a flag that is intended to make editing an RFP easier
 	// by calculating and inserting a linkby timestamp automatically
@@ -30,187 +35,141 @@ type proposalEditCmd struct {
 
 	// UseMD is a flag that is intended to make editing proposal
 	// metadata easier by using exisiting proposal metadata values
-	// instead of having to pass in specific values
+	// instead of having to pass in specific values.
 	UseMD bool `long:"usemd" optional:"true"`
 }
 
-/*
 // Execute executes the proposalEditCmd command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *proposalEditCmd) Execute(args []string) error {
-	token := cmd.Args.Token
-	indexFile := cmd.Args.IndexFile
-	attachments := cmd.Args.Attachments
+func (c *proposalEditCmd) Execute(args []string) error {
+	/*
+		// Unpack args
+		token := c.Args.Token
+		indexFile := c.Args.IndexFile
+		attachments := c.Args.Attachments
 
-	// Verify arguments
-	switch {
-	case !cmd.Random && indexFile == "":
-		return fmt.Errorf("index file not found; you must either provide an " +
-			"index.md file or use --random")
-	case cmd.RFP && cmd.LinkBy != 0:
-		return fmt.Errorf("--rfp and --linkby can not be used together, as " +
-			"--rfp sets the linkby one month from now")
-	case cmd.Random && cmd.Name != "":
-		return fmt.Errorf("--random and --name can not be used together, as " +
-			"--random generates a random name and random proposal data")
-	}
+		// Verify args
+		switch {
+		case !c.Random && indexFile == "":
+			return fmt.Errorf("index file not found; you must either " +
+				"provide an index.md file or use --random")
 
-	// Verify state. Defaults to vetted if the --unvetted flag
-	// is not used.
-	var state pi.PropStateT
-	switch {
-	case cmd.Unvetted:
-		state = pi.PropStateUnvetted
-	default:
-		state = pi.PropStateVetted
-	}
+		case c.Random && indexFile != "":
+			return fmt.Errorf("you cannot provide file arguments and use " +
+				"the --random flag at the same time")
 
-	// Check for user identity. A user identity is required to sign
-	// the proposal files and metadata.
-	if cfg.Identity == nil {
-		return shared.ErrUserIdentityNotFound
-	}
+		case !c.Random && c.Name == "":
+			return fmt.Errorf("you must either provide a proposal name " +
+				"using the --name flag or use the --random flag to generate " +
+				"a random proposal")
 
-	// Prepare index file
-	var (
-		file *pi.File
-		err  error
-	)
-	if cmd.Random {
-		// Generate random text for the index file
-		file, err = createMDFile()
-		if err != nil {
-			return err
-		}
-	} else {
-		// Read the index file from disk
-		fp := util.CleanAndExpandPath(indexFile)
-		var err error
-		payload, err := ioutil.ReadFile(fp)
-		if err != nil {
-			return fmt.Errorf("ReadFile %v: %v", fp, err)
-		}
-		file = &pi.File{
-			Name:    v1.PolicyIndexFilename,
-			MIME:    mime.DetectMimeType(payload),
-			Digest:  hex.EncodeToString(util.Digest(payload)),
-			Payload: base64.StdEncoding.EncodeToString(payload),
-		}
-	}
-	files := []pi.File{
-		*file,
-	}
-
-	// Prepare attachment files
-	for _, fn := range attachments {
-		fp := util.CleanAndExpandPath(fn)
-		payload, err := ioutil.ReadFile(fp)
-		if err != nil {
-			return fmt.Errorf("ReadFile %v: %v", fp, err)
+		case c.RFP && c.LinkBy != 0:
+			return fmt.Errorf("you cannot use both the --rfp and --linkby " +
+				"flags at the same time")
 		}
 
-		files = append(files, pi.File{
-			Name:    filepath.Base(fn),
-			MIME:    mime.DetectMimeType(payload),
-			Digest:  hex.EncodeToString(util.Digest(payload)),
-			Payload: base64.StdEncoding.EncodeToString(payload),
-		})
-	}
-
-	// Setup metadata
-	var pm pi.ProposalMetadata
-	if cmd.UseMD {
-		// Get the existing proposal metadata
-		pr, err := proposalRecordLatest(state, cmd.Args.Token)
-		if err != nil {
-			return err
+		// Check for user identity. A user identity is required to sign
+		// the proposal files.
+		if cfg.Identity == nil {
+			return shared.ErrUserIdentityNotFound
 		}
-		pmCurr, err := decodeProposalMetadata(pr.Metadata)
+
+		// Setup client
+		pc, err := pclient.New(cfg.Host, cfg.HTTPSCert, cfg.Cookies, cfg.CSRF)
 		if err != nil {
 			return err
 		}
 
-		// Prefill proposal metadata with existing values
-		pm.Name = pmCurr.Name
-		pm.LinkTo = pmCurr.LinkTo
-		pm.LinkBy = pmCurr.LinkBy
-	}
-	if cmd.Random {
-		// Generate random name
-		r, err := util.Random(v1.PolicyMinProposalNameLength)
+		// Get the pi policy. It contains the proposal requirements.
+		pr, err := pc.PiPolicy()
 		if err != nil {
 			return err
 		}
-		pm.Name = hex.EncodeToString(r)
-	}
-	if cmd.RFP {
-		// Set linkby to a month from now
-		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
-	}
-	if cmd.Name != "" {
-		pm.Name = cmd.Name
-	}
-	if cmd.LinkBy != 0 {
-		pm.LinkBy = cmd.LinkBy
-	}
-	if cmd.LinkTo != "" {
-		pm.LinkTo = cmd.LinkTo
-	}
-	pmb, err := json.Marshal(pm)
-	if err != nil {
-		return err
-	}
-	metadata := []pi.Metadata{
-		{
+
+		// Setup state
+		var state string
+		switch {
+		case c.Unvetted:
+			state = rcv1.RecordStateUnvetted
+		default:
+			state = rcv1.RecordStateVetted
+		}
+
+		// Setup index file
+		var (
+			file  *rcv1.File
+			files = make([]rcv1.File, 0, 16)
+		)
+		if c.Random {
+			// Generate random text for the index file
+			file, err = createMDFile()
+			if err != nil {
+				return err
+			}
+		} else {
+			// Read index file from disk
+			fp := util.CleanAndExpandPath(indexFile)
+			var err error
+			payload, err := ioutil.ReadFile(fp)
+			if err != nil {
+				return fmt.Errorf("ReadFile %v: %v", fp, err)
+			}
+			file = &rcv1.File{
+				Name:    piplugin.FileNameIndexFile,
+				MIME:    mime.DetectMimeType(payload),
+				Digest:  hex.EncodeToString(util.Digest(payload)),
+				Payload: base64.StdEncoding.EncodeToString(payload),
+			}
+		}
+		files = append(files, *file)
+
+		// Setup attachment files
+		for _, fn := range attachments {
+			fp := util.CleanAndExpandPath(fn)
+			payload, err := ioutil.ReadFile(fp)
+			if err != nil {
+				return fmt.Errorf("ReadFile %v: %v", fp, err)
+			}
+
+			files = append(files, rcv1.File{
+				Name:    filepath.Base(fn),
+				MIME:    mime.DetectMimeType(payload),
+				Digest:  hex.EncodeToString(util.Digest(payload)),
+				Payload: base64.StdEncoding.EncodeToString(payload),
+			})
+		}
+
+		// Setup proposal metadata
+		switch {
+		case c.UseMD:
+			// Use the prexisting proposal name
+
+		case c.Random:
+			// Create a random proposal name
+			r, err := util.Random(int(pr.NameLengthMin))
+			if err != nil {
+				return err
+			}
+			c.Name = hex.EncodeToString(r)
+		}
+		pm := piv1.ProposalMetadata{
+			Name: c.Name,
+		}
+		pmb, err := json.Marshal(pm)
+		if err != nil {
+			return err
+		}
+		files = append(files, rcv1.File{
+			Name:    piv1.FileNameProposalMetadata,
+			MIME:    mime.DetectMimeType(pmb),
 			Digest:  hex.EncodeToString(util.Digest(pmb)),
-			Hint:    pi.HintProposalMetadata,
 			Payload: base64.StdEncoding.EncodeToString(pmb),
-		},
-	}
-
-	// Setup edit proposal request
-	sig, err := signedMerkleRoot(files, metadata, cfg.Identity)
-	if err != nil {
-		return err
-	}
-	pe := pi.ProposalEdit{
-		Token:     token,
-		State:     state,
-		Files:     files,
-		Metadata:  metadata,
-		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
-		Signature: sig,
-	}
-
-	// Send request. The request and response details are printed to
-	// the console based on the logging flags that were used.
-	err = shared.PrintJSON(pe)
-	if err != nil {
-		return err
-	}
-	per, err := client.ProposalEdit(pe)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(per)
-	if err != nil {
-		return err
-	}
-
-	// Verify proposal
-	vr, err := client.Version()
-	if err != nil {
-		return err
-	}
-	err = verifyProposal(per.Proposal, vr.PubKey)
-	if err != nil {
-		return fmt.Errorf("unable to verify proposal: %v", err)
-	}
+		})
+	*/
 
 	return nil
 }
-*/
 
 // proposalEditHelpMsg is the output of the help command.
 const proposalEditHelpMsg = `editproposal [flags] "token" "indexfile" "attachments" 

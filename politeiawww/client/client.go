@@ -132,6 +132,12 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 }
 
 // New returns a new politeiawww client.
+//
+// The cert argument is optional. Any provided cert will be added to the http
+// client's trust cert pool. This allows you to interact with a politeiawww
+// instance that uses a self signed cert.
+//
+// The cookies and headerCSRF arguments are optional.
 func New(host, cert string, cookies []*http.Cookie, headerCSRF string) (*Client, error) {
 	// Setup http client
 	h, err := util.NewHTTPClient(false, cert)

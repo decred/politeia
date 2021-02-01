@@ -92,10 +92,13 @@ func (c *proposalNewCmd) Execute(args []string) error {
 	}
 
 	// Setup index file
-	var file *rcv1.File
+	var (
+		file  *rcv1.File
+		files = make([]rcv1.File, 0, 16)
+	)
 	if c.Random {
 		// Generate random text for the index file
-		file, err = createMDFile()
+		file, err = indexFileRandom()
 		if err != nil {
 			return err
 		}
@@ -114,9 +117,7 @@ func (c *proposalNewCmd) Execute(args []string) error {
 			Payload: base64.StdEncoding.EncodeToString(payload),
 		}
 	}
-	files := []rcv1.File{
-		*file,
-	}
+	files = append(files, *file)
 
 	// Setup attachment files
 	for _, fn := range attachments {
@@ -140,7 +141,7 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		c.Name = hex.EncodeToString(r)
+		c.Name = fmt.Sprintf("Name %x", r)
 	}
 	pm := piv1.ProposalMetadata{
 		Name: c.Name,
@@ -171,7 +172,7 @@ func (c *proposalNewCmd) Execute(args []string) error {
 			return err
 		}
 		files = append(files, rcv1.File{
-			Name:    piv1.FileNameProposalMetadata,
+			Name:    piv1.FileNameVoteMetadata,
 			MIME:    mime.DetectMimeType(vmb),
 			Digest:  hex.EncodeToString(util.Digest(vmb)),
 			Payload: base64.StdEncoding.EncodeToString(vmb),
@@ -189,17 +190,8 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		Signature: sig,
 	}
 
-	// Send request. The request and response details are printed to
-	// the console based on the logging flags that were used.
-	err = shared.PrintJSON(n)
-	if err != nil {
-		return err
-	}
+	// Send request
 	nr, err := pc.RecordNew(n)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(nr)
 	if err != nil {
 		return err
 	}
@@ -209,9 +201,15 @@ func (c *proposalNewCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	err = verifyRecord(nr.Record, vr.PubKey)
+	err = pclient.RecordVerify(nr.Record, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify record: %v", err)
+	}
+
+	// Print details to stdout
+	printf("Proposal '%v' submitted\n", pm.Name)
+	for _, v := range nr.Record.Files {
+		printf("  %-22v %v\n", v.Name, v.MIME)
 	}
 
 	return nil
