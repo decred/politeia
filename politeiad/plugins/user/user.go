@@ -7,7 +7,7 @@
 package user
 
 const (
-	PluginID = "user"
+	PluginID = "politeiad-user"
 
 	// Plugin commands
 	CmdAuthor      = "author"      // Get record author

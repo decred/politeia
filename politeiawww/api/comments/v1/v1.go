@@ -31,6 +31,7 @@ const (
 	// Error codes
 	ErrorCodeInvalid      ErrorCodeT = 0
 	ErrorCodeInputInvalid ErrorCodeT = iota
+	ErrorCodeUnauthorized
 	ErrorCodePublicKeyInvalid
 	ErrorCodeSignatureInvalid
 	ErrorCodeRecordStateInvalid
@@ -41,6 +42,7 @@ var (
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid:          "error invalid",
 		ErrorCodeInputInvalid:     "input invalid",
+		ErrorCodeUnauthorized:     "unauthorized",
 		ErrorCodePublicKeyInvalid: "public key invalid",
 		ErrorCodeSignatureInvalid: "signature invalid",
 	}

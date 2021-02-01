@@ -8,16 +8,14 @@ package pi
 
 const (
 	// PluginID is the pi plugin ID.
-	PluginID = "pi"
+	PluginID = "politeiad-pi"
 
 	// Plugin commands
 	CmdVoteInv = "voteinv"
-)
 
-// Plugin setting keys and default values. Default plugin setting values can be
-// overridden by passing in a custom plugin setting key and value on startup.
-const (
-	// Plugin setting keys
+	// Plugin setting keys and default values. Default plugin setting
+	// values can be overridden by passing in a custom plugin setting
+	// key and value on startup.
 	SettingKeyTextFileSizeMax            = "textfilesizemax"
 	SettingKeyImageFileCountMax          = "imagefilecountmax"
 	SettingKeyImageFileSizeMax           = "imagefilesizemax"

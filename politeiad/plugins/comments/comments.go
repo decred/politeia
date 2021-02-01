@@ -8,7 +8,7 @@ package comments
 
 const (
 	// PluginID is the comments plugin ID.
-	PluginID = "comments"
+	PluginID = "politeiad-comments"
 
 	// Plugin commands
 	CmdNew        = "new"        // Create a new comment

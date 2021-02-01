@@ -9,7 +9,7 @@ package dcrdata
 type StatusT int
 
 const (
-	PluginID = "dcrdata"
+	PluginID = "politeiad-dcrdata"
 
 	// Plugin commands
 	CmdBestBlock    = "bestblock"    // Get best block

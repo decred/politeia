@@ -10,6 +10,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 )
@@ -23,8 +24,8 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	case config.PoliteiaWWWMode:
 		// Verify user has paid registration paywall
 		if !c.userHasPaid(u) {
-			return nil, v1.UserErrorReply{
-				// TODO ErrorCode: v1.ErrorCodeUserRegistrationNotPaid,
+			return nil, v1.PluginErrorReply{
+				ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
 			}
 		}
 	}
@@ -47,7 +48,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 		}
 		if u.ID.String() != authorID {
 			return nil, v1.UserErrorReply{
-				// TODO ErrorCode:    v1.ErrorCodeUnauthorized,
+				ErrorCode:    v1.ErrorCodeUnauthorized,
 				ErrorContext: "user is not author or admin",
 			}
 		}
@@ -210,7 +211,7 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 		}
 		if !isAllowed {
 			return nil, v1.UserErrorReply{
-				// TODO ErrorCode:    v1.ErrorCodeUnauthorized,
+				ErrorCode:    v1.ErrorCodeUnauthorized,
 				ErrorContext: "user is not author or admin",
 			}
 		}
