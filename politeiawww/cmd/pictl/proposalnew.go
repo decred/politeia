@@ -63,11 +63,6 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		return fmt.Errorf("you cannot provide file arguments and use " +
 			"the --random flag at the same time")
 
-	case !c.Random && c.Name == "":
-		return fmt.Errorf("you must either provide a proposal name " +
-			"using the --name flag or use the --random flag to generate " +
-			"a random name")
-
 	case c.RFP && c.LinkBy != 0:
 		return fmt.Errorf("you cannot use both the --rfp and --linkby " +
 			"flags at the same time")
@@ -136,7 +131,7 @@ func (c *proposalNewCmd) Execute(args []string) error {
 	}
 
 	// Setup proposal metadata
-	if c.Random {
+	if c.Random && c.Name == "" {
 		r, err := util.Random(int(pr.NameLengthMin))
 		if err != nil {
 			return err
@@ -228,8 +223,8 @@ A proposal can be submitted as an RFP submission by using the --linkto flag
 to link to and an existing RFP proposal.
 
 Arguments:
-1. indexfile     (string, required)   Index file
-2. attachments   (string, optional)   Attachment files
+1. indexfile   (string, required)  Index file
+2. attachments (string, optional)  Attachment files
 
 Flags:
  --name   (string, optional)  Name of the proposal.

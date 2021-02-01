@@ -64,7 +64,7 @@ type pictl struct {
 	Users                   shared.UsersCmd              `command:"users"`
 
 	// Proposal commands
-	// TODO ProposalPolicy
+	ProposalPolicy     proposalPolicyCmd     `command:"proposalpolicy"`
 	ProposalNew        proposalNewCmd        `command:"proposalnew"`
 	ProposalEdit       proposalEditCmd       `command:"proposaledit"`
 	ProposalSetStatus  proposalSetStatusCmd  `command:"proposalsetstatus"`
@@ -140,6 +140,7 @@ User commands
   users                   (public) Get users
 
 Proposal commands
+  proposalpolicy          (public) Get the pi api policy
   proposalnew             (user)   Submit a new proposal
   proposaledit            (user)   Edit an existing proposal
   proposalstatusset       (admin)  Set the status of a proposal
@@ -155,6 +156,7 @@ Comment commands
   commentvotes            (public) Get comment votes
 
 Vote commands
+  votepolicy              (public) Get the ticketvote api policy
   voteauthorize           (user)   Authorize a proposal vote
   votestart               (admin)  Start a proposal vote
   votestartrunoff         (admin)  Start a runoff vote

@@ -59,14 +59,13 @@ type ErrorCodeT int
 const (
 	ErrorCodeInvalid                 ErrorCodeT = 0
 	ErrorCodeIndexFileNameInvalid    ErrorCodeT = 1
-	ErrorCodeIndexFileCountInvalid   ErrorCodeT = 2
-	ErrorCodeIndexFileSizeInvalid    ErrorCodeT = 3
-	ErrorCodeTextFileCountInvalid    ErrorCodeT = 4
-	ErrorCodeImageFileCountInvalid   ErrorCodeT = 5
-	ErrorCodeImageFileSizeInvalid    ErrorCodeT = 6
-	ErrorCodeProposalMetadataInvalid ErrorCodeT = 7
-	ErrorCodeProposalNameInvalid     ErrorCodeT = 8
-	ErrorCodeVoteStatusInvalid       ErrorCodeT = 9
+	ErrorCodeIndexFileSizeInvalid    ErrorCodeT = 2
+	ErrorCodeFileMissing             ErrorCodeT = 3
+	ErrorCodeImageFileCountInvalid   ErrorCodeT = 4
+	ErrorCodeImageFileSizeInvalid    ErrorCodeT = 5
+	ErrorCodeProposalMetadataInvalid ErrorCodeT = 6
+	ErrorCodeProposalNameInvalid     ErrorCodeT = 7
+	ErrorCodeVoteStatusInvalid       ErrorCodeT = 8
 )
 
 var (

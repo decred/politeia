@@ -59,11 +59,6 @@ func (c *proposalEditCmd) Execute(args []string) error {
 			return fmt.Errorf("you cannot provide file arguments and use " +
 				"the --random flag at the same time")
 
-		case !c.Random && c.Name == "":
-			return fmt.Errorf("you must either provide a proposal name " +
-				"using the --name flag or use the --random flag to generate " +
-				"a random proposal")
-
 		case c.RFP && c.LinkBy != 0:
 			return fmt.Errorf("you cannot use both the --rfp and --linkby " +
 				"flags at the same time")
