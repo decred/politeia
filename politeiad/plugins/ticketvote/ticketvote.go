@@ -96,6 +96,13 @@ const (
 	ErrorCodeLinkByNotExpired
 )
 
+var (
+	// TODO ErrorCodes contains the human readable error messages.
+	ErrorCodes = map[ErrorCodeT]string{
+		ErrorCodeInvalid: "error code invalid",
+	}
+)
+
 const (
 	// FileNameVoteMetadata is the filename of the VoteMetadata file
 	// that is saved to politeiad. VoteMetadata is saved to politeiad

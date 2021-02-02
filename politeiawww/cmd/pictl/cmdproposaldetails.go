@@ -10,7 +10,7 @@ import (
 )
 
 // proposalDetails retrieves a full proposal record.
-type proposalDetailsCmd struct {
+type cmdProposalDetails struct {
 	Args struct {
 		Token   string `positional-arg-name:"token"`
 		Version string `postional-arg-name:"version" optional:"true"`
@@ -22,10 +22,10 @@ type proposalDetailsCmd struct {
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-// Execute executes the proposalDetailsCmd command.
+// Execute executes the cmdProposalDetails command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *proposalDetailsCmd) Execute(args []string) error {
+func (c *cmdProposalDetails) Execute(args []string) error {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert:  cfg.HTTPSCert,

@@ -25,8 +25,8 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	)
 	switch {
 	case errors.As(err, &ue):
-		// Record user error
-		m := fmt.Sprintf("Records user error: %v %v %v",
+		// Record user error from politeiawww
+		m := fmt.Sprintf("%v Records user error: %v %v",
 			util.RemoteAddr(r), ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {
 			m += fmt.Sprintf(": %v", ue.ErrorContext)
@@ -44,23 +44,23 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		var (
 			pluginID   = pe.ErrorReply.PluginID
 			errCode    = pe.ErrorReply.ErrorCode
-			errContext = pe.ErrorReply.ErrorContext
+			errContext = strings.Join(pe.ErrorReply.ErrorContext, ",")
 		)
 		e := convertPDErrorCode(errCode)
 		switch {
 		case pluginID != "":
 			// politeiad plugin error. Log it and return a 400.
-			m := fmt.Sprintf("Plugin error: %v %v %v",
+			m := fmt.Sprintf("%v Plugin error: %v %v",
 				util.RemoteAddr(r), pluginID, errCode)
-			if len(errContext) > 0 {
-				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
+			if errContext != "" {
+				m += fmt.Sprintf(": %v", errContext)
 			}
 			log.Infof(m)
 			util.RespondWithJSON(w, http.StatusBadRequest,
 				v1.PluginErrorReply{
 					PluginID:     pluginID,
 					ErrorCode:    errCode,
-					ErrorContext: strings.Join(errContext, ", "),
+					ErrorContext: errContext,
 				})
 			return
 
@@ -79,18 +79,18 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 			return
 
 		default:
-			// politeiad error does correspond to a user error. Log it and
-			// return a 400.
-			m := fmt.Sprintf("Records user error: %v %v %v",
+			// User error from politeiad that corresponds to a records user
+			// error. Log it and return a 400.
+			m := fmt.Sprintf("%v Records user error: %v %v",
 				util.RemoteAddr(r), e, v1.ErrorCodes[e])
-			if len(errContext) > 0 {
-				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
+			if errContext != "" {
+				m += fmt.Sprintf(": %v", errContext)
 			}
 			log.Infof(m)
 			util.RespondWithJSON(w, http.StatusBadRequest,
 				v1.UserErrorReply{
 					ErrorCode:    e,
-					ErrorContext: strings.Join(errContext, ", "),
+					ErrorContext: errContext,
 				})
 			return
 		}

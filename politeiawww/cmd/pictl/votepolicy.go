@@ -33,7 +33,7 @@ func (cmd *votePolicyCmd) Execute(args []string) error {
 	}
 
 	// Print policy
-	println(formatJSON(pr))
+	printJSON(pr)
 
 	return nil
 }

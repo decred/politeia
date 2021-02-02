@@ -44,10 +44,17 @@ const (
 )
 
 var (
-	// TODO fill in
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid: "error code invalid",
+		ErrorCodeInvalid:                      "error code invalid",
+		ErrorCodeUserMetadataNotFound:         "user metadata not found",
+		ErrorCodeUserIDInvalid:                "user id invalid",
+		ErrorCodePublicKeyInvalid:             "public key invalid",
+		ErrorCodeSignatureInvalid:             "signature invalid",
+		ErrorCodeStatusChangeMetadataNotFound: "status change metadata not found",
+		ErrorCodeTokenInvalid:                 "token invalid",
+		ErrorCodeStatusInvalid:                "status invalid",
+		ErrorCodeReasonInvalid:                "status reason invalid",
 	}
 )
 

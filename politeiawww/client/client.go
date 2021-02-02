@@ -31,50 +31,11 @@ type Client struct {
 	http       *http.Client
 }
 
-// ErrorReply represents the request body that is returned from politeiawww
-// when an error occurs. PluginID will only be populated if the error occured
-// during execution of a plugin command.
-type ErrorReply struct {
-	PluginID     string
-	ErrorCode    int
-	ErrorContext string
-}
-
-// httpsError represents a politeiawww error. Error is returned anytime the
-// politeiawww response is not a 200.
-type Error struct {
-	HTTPCode   int
-	ErrorReply ErrorReply
-}
-
-// Error satisfies the error interface.
-func (e Error) Error() string {
-	switch {
-	case e.HTTPCode == http.StatusNotFound:
-		return fmt.Sprintf("404 not found")
-	case e.ErrorReply.PluginID != "":
-		return fmt.Sprintf("politeiawww plugin error: %v %v %v",
-			e.HTTPCode, e.ErrorReply.PluginID, e.ErrorReply.ErrorCode)
-	default:
-		return fmt.Sprintf("politeiawww error: %v %v",
-			e.HTTPCode, e.ErrorReply.ErrorCode)
-	}
-}
-
-// formatJSON returns a pretty printed JSON string for the provided structure.
-func formatJSON(v interface{}) string {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("MarshalIndent: %v", err)
-	}
-	return string(b)
-}
-
 // makeReq makes a politeiawww http request to the method and route provided,
 // serializing the provided object as the request body, and returning a byte
 // slice of the repsonse body. An Error is returned if politeiawww responds
 // with anything other than a 200 http status code.
-func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, error) {
+func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byte, error) {
 	// Serialize body
 	var (
 		reqBody     []byte
@@ -110,7 +71,7 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 	}
 
 	// Setup route
-	fullRoute := c.host + route + queryParams
+	fullRoute := c.host + api + route + queryParams
 
 	// Print request details
 	switch {
@@ -120,7 +81,7 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 		// No JSON to print
 	case c.verbose:
 		fmt.Printf("Request: %v %v\n", method, fullRoute)
-		fmt.Printf("%v\n", formatJSON(v))
+		fmt.Printf("%v\n", util.FormatJSON(v))
 	case c.rawJSON:
 		fmt.Printf("%s\n", reqBody)
 	}
@@ -153,6 +114,7 @@ func (c *Client) makeReq(method string, route string, v interface{}) ([]byte, er
 		}
 		return nil, Error{
 			HTTPCode:   r.StatusCode,
+			API:        api,
 			ErrorReply: e,
 		}
 	}

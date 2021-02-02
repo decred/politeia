@@ -10,12 +10,13 @@ import (
 	"net/http"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	"github.com/decred/politeia/util"
 )
 
 // TicketVotePolicy sends a pi v1 Policy request to politeiawww.
 func (c *Client) TicketVotePolicy() (*tkv1.PolicyReply, error) {
-	route := tkv1.APIRoute + tkv1.RoutePolicy
-	resBody, err := c.makeReq(http.MethodGet, route, nil)
+	resBody, err := c.makeReq(http.MethodGet,
+		tkv1.APIRoute, tkv1.RoutePolicy, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +27,7 @@ func (c *Client) TicketVotePolicy() (*tkv1.PolicyReply, error) {
 		return nil, err
 	}
 	if c.verbose {
-		fmt.Printf("%v\n", formatJSON(pr))
+		fmt.Printf("%v\n", util.FormatJSON(pr))
 	}
 
 	return &pr, nil

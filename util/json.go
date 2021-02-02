@@ -9,9 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/gorilla/schema"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, message string) {
@@ -56,25 +53,11 @@ func GetErrorFromJSON(r io.Reader) (interface{}, error) {
 	return e, nil
 }
 
-// ParseGetParams parses the query params from the GET request into
-// a struct. This method requires the struct type to be defined
-// with `schema` tags.
-func ParseGetParams(r *http.Request, dst interface{}) error {
-	err := r.ParseForm()
+// FormatJSON returns a pretty printed JSON string for the provided structure.
+func FormatJSON(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Sprintf("MarshalIndent: %v", err)
 	}
-
-	return schema.NewDecoder().Decode(dst, r.Form)
-}
-
-// RemoteAddr returns a string of the remote address, i.e. the address that
-// sent the request.
-func RemoteAddr(r *http.Request) string {
-	via := r.RemoteAddr
-	xff := r.Header.Get(pdv1.Forward)
-	if xff != "" {
-		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
-	}
-	return via
+	return string(b)
 }

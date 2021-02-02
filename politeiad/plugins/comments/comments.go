@@ -48,6 +48,13 @@ const (
 	ErrorCodeVoteChangesMax     ErrorCodeT = 9
 )
 
+var (
+	// TODO ErrorCodes contains the human readable error messages.
+	ErrorCodes = map[ErrorCodeT]string{
+		ErrorCodeInvalid: "error code invalid",
+	}
+)
+
 // Comment represent a record comment.
 //
 // Signature is the client signature of Token+ParentID+Comment.

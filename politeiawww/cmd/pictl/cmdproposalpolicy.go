@@ -8,13 +8,13 @@ import (
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
 
-// proposalPolicy retrieves the pi API policy.
-type proposalPolicyCmd struct{}
+// cmdProposalPolicy retrieves the pi API policy.
+type cmdProposalPolicy struct{}
 
-// Execute executes the proposalPolicyCmd command.
+// Execute executes the cmdProposalPolicy command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *proposalPolicyCmd) Execute(args []string) error {
+func (c *cmdProposalPolicy) Execute(args []string) error {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert: cfg.HTTPSCert,
@@ -33,7 +33,7 @@ func (cmd *proposalPolicyCmd) Execute(args []string) error {
 	}
 
 	// Print policy
-	println(formatJSON(pr))
+	printJSON(pr)
 
 	return nil
 }

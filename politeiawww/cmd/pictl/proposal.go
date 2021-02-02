@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,65 +19,30 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// printf prints the provided string to stdout if the global config settings
-// allows for it.
-func printf(s string, args ...interface{}) {
-	switch {
-	case cfg.Verbose, cfg.RawJSON:
-		// These are handled by the politeiawwww client
-	case cfg.Silent:
-		// Do nothing
-	default:
-		// Print to stdout
-		fmt.Printf(s, args...)
-	}
-}
-
-// println prints the provided string to stdout if the global config settings
-// allows for it.
-func println(s string, args ...interface{}) {
-	printf(s+"\n", args...)
-}
-
-// formatJSON returns a pretty printed JSON string for the provided structure.
-func formatJSON(v interface{}) string {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return string(b)
-}
-
-// byteCountSI converts the provided bytes to a string representation of the
-// closest SI unit (kB, MB, GB, etc).
-func byteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
-}
-
 func printProposalFiles(files []rcv1.File) error {
 	for _, v := range files {
 		b, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
 			return err
 		}
-		s := byteCountSI(int64(len(b)))
-		printf("  %-22v %-26v %v\n", v.Name, v.MIME, s)
+		size := byteCountSI(int64(len(b)))
+		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
 	}
 	return nil
 }
 
 func printProposal(r rcv1.Record) error {
-	printf("Token: %v\n", r.CensorshipRecord.Token)
+	printf("Token    : %v\n", r.CensorshipRecord.Token)
+	printf("Version  : %v\n", r.Version)
+	printf("Status   : %v\n", rcv1.RecordStatuses[r.Status])
+	printf("Timestamp: %v\n", r.Timestamp)
+	printf("Username : %v\n", r.Username)
+	printf("Metadata\n")
+	for _, v := range r.Metadata {
+		size := byteCountSI(int64(len([]byte(v.Payload))))
+		printf("  %-2v %v\n", v.ID, size)
+	}
+	printf("Files\n")
 	return printProposalFiles(r.Files)
 }
 

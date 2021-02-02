@@ -22,23 +22,12 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// proposalEditCmd edits an existing proposal.
-type proposalEditCmd struct {
+// cmdProposalNew submits a new proposal.
+type cmdProposalNew struct {
 	Args struct {
-		Token       string   `positional-arg-name:"token" required:"true"`
 		IndexFile   string   `positional-arg-name:"indexfile"`
-		Attachments []string `positional-arg-name:"attachmets"`
+		Attachments []string `positional-arg-name:"attachments"`
 	} `positional-args:"true" optional:"true"`
-
-	// Unvetted is used to indicate the state of the proposal is
-	// unvetted. If this flag is not used it will be assumed that
-	// the proposal is vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
-
-	// UseMD is a flag that is intended to make editing proposal
-	// metadata easier by using exisiting proposal metadata values
-	// instead of having to pass in specific values.
-	UseMD bool `long:"usemd" optional:"true"`
 
 	// Metadata fields that can be set by the user
 	Name   string `long:"name" optional:"true"`
@@ -56,16 +45,15 @@ type proposalEditCmd struct {
 	RFP bool `long:"rfp" optional:"true"`
 }
 
-// Execute executes the proposalEditCmd command.
+// Execute executes the cmdProposalNew command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *proposalEditCmd) Execute(args []string) error {
+func (c *cmdProposalNew) Execute(args []string) error {
 	// Unpack args
-	token := c.Args.Token
 	indexFile := c.Args.IndexFile
 	attachments := c.Args.Attachments
 
-	// Verify args
+	// Verify args and flags
 	switch {
 	case !c.Random && indexFile == "":
 		return fmt.Errorf("index file not found; you must either " +
@@ -103,15 +91,6 @@ func (c *proposalEditCmd) Execute(args []string) error {
 	pr, err := pc.PiPolicy()
 	if err != nil {
 		return err
-	}
-
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = rcv1.RecordStateUnvetted
-	default:
-		state = rcv1.RecordStateVetted
 	}
 
 	// Setup index file
@@ -155,35 +134,13 @@ func (c *proposalEditCmd) Execute(args []string) error {
 		})
 	}
 
-	// Get current proposal if we are using the existing metadata
-	var curr *rcv1.Record
-	if c.UseMD {
-		d := rcv1.Details{
-			State: state,
-			Token: token,
-		}
-		curr, err = pc.RecordDetails(d)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Setup proposal metadata
-	switch {
-	case c.UseMD:
-		// Use the existing proposal name
-		pm, err := proposalMetadataDecode(curr.Files)
-		if err != nil {
-			return err
-		}
-		c.Name = pm.Name
-	case c.Random && c.Name == "":
-		// Create a random proposal name
+	if c.Random && c.Name == "" {
 		r, err := util.Random(int(pr.NameLengthMin))
 		if err != nil {
 			return err
 		}
-		c.Name = hex.EncodeToString(r)
+		c.Name = fmt.Sprintf("A Proposal Name %x", r)
 	}
 	pm := piv1.ProposalMetadata{
 		Name: c.Name,
@@ -200,14 +157,6 @@ func (c *proposalEditCmd) Execute(args []string) error {
 	})
 
 	// Setup vote metadata
-	if c.UseMD {
-		vm, err := voteMetadataDecode(curr.Files)
-		if err != nil {
-			return err
-		}
-		c.LinkBy = vm.LinkBy
-		c.LinkTo = vm.LinkTo
-	}
 	if c.RFP {
 		// Set linkby to a month from now
 		c.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
@@ -230,7 +179,7 @@ func (c *proposalEditCmd) Execute(args []string) error {
 	}
 
 	// Print proposal to stdout
-	printf("Proposal editted\n")
+	printf("Proposal submitted\n")
 	err = printProposalFiles(files)
 	if err != nil {
 		return err
@@ -241,16 +190,14 @@ func (c *proposalEditCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	e := rcv1.Edit{
-		State:     state,
-		Token:     token,
+	n := rcv1.New{
 		Files:     files,
 		PublicKey: cfg.Identity.Public.String(),
 		Signature: sig,
 	}
 
 	// Send request
-	nr, err := pc.RecordEdit(e)
+	nr, err := pc.RecordNew(n)
 	if err != nil {
 		return err
 	}
@@ -265,14 +212,16 @@ func (c *proposalEditCmd) Execute(args []string) error {
 		return fmt.Errorf("unable to verify record: %v", err)
 	}
 
+	// Print token to stdout
+	printf("Token: %v\n", nr.Record.CensorshipRecord.Token)
+
 	return nil
 }
 
-// proposalEditHelpMsg is the printed to stdout by the help command.
-const proposalEditHelpMsg = `editproposal [flags] "token" "indexfile" "attachments" 
+// proposalNewHelpMsg is the printed to stdout by the help command.
+const proposalNewHelpMsg = `proposalnew [flags] "indexfile" "attachments" 
 
-Edit a proposal. This command assumes the proposal is a vetted record. If the
-proposal is unvetted, the --unvetted flag must be used.
+Submit a new proposal to Politeia.
 
 A proposal can be submitted as an RFP (Request for Proposals) by using either
 the --rfp flag or by manually specifying a link by deadline using the --linkby
@@ -282,22 +231,19 @@ A proposal can be submitted as an RFP submission by using the --linkto flag
 to link to and an existing RFP proposal.
 
 Arguments:
-1. token         (string, required) Proposal censorship token
-2. indexfile     (string, required) Index file
-3. attachments   (string, optional) Attachment files
+1. indexfile   (string, required)  Index file
+2. attachments (string, optional)  Attachment files
 
 Flags:
- --unvetted (bool, optional)   Edit an unvetted record.
- --usemd    (bool, optional)   Use the existing proposal metadata.
- --name     (string, optional) Name of the proposal.
- --linkto   (string, optional) Token of an existing public proposal to link to.
- --linkby   (int64, optional)  UNIX timestamp of the RFP deadline. Setting this
-                               field will make the proposal an RFP with a
-                               submission deadline specified by the linkby.
- --random   (bool, optional)   Generate a random proposal. If this flag is used
-                               then the markdownfile argument is no longer
-                               required and any provided files will be ignored.
- --rfp      (bool, optional)   Make the proposal an RFP by setting the linkby
-                               to one month from the current time. This is
-                               intended to be used in place of --linkby.
+ --name   (string, optional)  Name of the proposal.
+ --linkto (string, optional)  Token of an existing public proposal to link to.
+ --linkby (int64, optional)   UNIX timestamp of the RFP deadline. Setting this
+                              field will make the proposal an RFP with a
+                              submission deadline specified by the linkby.
+ --random (bool, optional)    Generate a random proposal. If this flag is used
+                              then the markdownfile argument is no longer
+                              required and any provided files will be ignored.
+ --rfp    (bool, optional)    Make the proposal an RFP by setting the linkby to
+                              one month from the current time. This is intended
+                              to be used in place of --linkby.
 `

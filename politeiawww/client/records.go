@@ -18,8 +18,8 @@ import (
 
 // RecordNew sends a records v1 New request to politeiawww.
 func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
-	route := rcv1.APIRoute + rcv1.RouteNew
-	resBody, err := c.makeReq(http.MethodPost, route, n)
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteNew, n)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
 		return nil, err
 	}
 	if c.verbose {
-		fmt.Printf("%v\n", formatJSON(nr))
+		fmt.Printf("%v\n", util.FormatJSON(nr))
 	}
 
 	return &nr, nil
@@ -38,8 +38,8 @@ func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
 
 // RecordEdit sends a records v1 Edit request to politeiawww.
 func (c *Client) RecordEdit(e rcv1.Edit) (*rcv1.EditReply, error) {
-	route := rcv1.APIRoute + rcv1.RouteEdit
-	resBody, err := c.makeReq(http.MethodPost, route, e)
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteEdit, e)
 	if err != nil {
 		return nil, err
 	}
@@ -50,16 +50,36 @@ func (c *Client) RecordEdit(e rcv1.Edit) (*rcv1.EditReply, error) {
 		return nil, err
 	}
 	if c.verbose {
-		fmt.Printf("%v\n", formatJSON(er))
+		fmt.Printf("%v\n", util.FormatJSON(er))
 	}
 
 	return &er, nil
 }
 
+// RecordSetStatus sends a records v1 SetStatus request to politeiawww.
+func (c *Client) RecordSetStatus(ss rcv1.SetStatus) (*rcv1.SetStatusReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteSetStatus, ss)
+	if err != nil {
+		return nil, err
+	}
+
+	var ssr rcv1.SetStatusReply
+	err = json.Unmarshal(resBody, &ssr)
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", util.FormatJSON(ssr))
+	}
+
+	return &ssr, nil
+}
+
 // RecordDetails sends a records v1 Details request to politeiawww.
 func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
-	route := rcv1.APIRoute + rcv1.RouteDetails
-	resBody, err := c.makeReq(http.MethodPost, route, d)
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteDetails, d)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +90,7 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
 		return nil, err
 	}
 	if c.verbose {
-		fmt.Printf("%v\n", formatJSON(dr))
+		fmt.Printf("%v\n", util.FormatJSON(dr))
 	}
 
 	return &dr.Record, nil

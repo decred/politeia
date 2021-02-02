@@ -10,12 +10,13 @@ import (
 	"net/http"
 
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	"github.com/decred/politeia/util"
 )
 
 // PiPolicy sends a pi v1 Policy request to politeiawww.
 func (c *Client) PiPolicy() (*piv1.PolicyReply, error) {
-	route := piv1.APIRoute + piv1.RoutePolicy
-	resBody, err := c.makeReq(http.MethodGet, route, nil)
+	resBody, err := c.makeReq(http.MethodGet,
+		piv1.APIRoute, piv1.RoutePolicy, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +27,7 @@ func (c *Client) PiPolicy() (*piv1.PolicyReply, error) {
 		return nil, err
 	}
 	if c.verbose {
-		fmt.Printf("%v\n", formatJSON(pr))
+		fmt.Printf("%v\n", util.FormatJSON(pr))
 	}
 
 	return &pr, nil

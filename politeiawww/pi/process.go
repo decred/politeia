@@ -183,7 +183,7 @@ func convertStatus(s pdv1.RecordStatusT) v1.PropStatusT {
 }
 
 func statusChangesDecode(payload []byte) ([]pduser.StatusChangeMetadata, error) {
-	var statuses []pduser.StatusChangeMetadata
+	statuses := make([]pduser.StatusChangeMetadata, 0, 16)
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
 		var sc pduser.StatusChangeMetadata

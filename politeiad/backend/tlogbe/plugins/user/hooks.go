@@ -219,12 +219,10 @@ func (p *userPlugin) hookEditMetadataPre(payload string) error {
 	return userMetadataPreventUpdates(em.Current.Metadata, em.Metadata)
 }
 
-// statusChangesDecode decodes a []StatusChange from the provided metadata
-// streams. If a status change metadata stream is not found, nil is returned.
 func statusChangesDecode(metadata []backend.MetadataStream) ([]user.StatusChangeMetadata, error) {
-	var statuses []user.StatusChangeMetadata
+	statuses := make([]user.StatusChangeMetadata, 0, 16)
 	for _, v := range metadata {
-		if v.ID == user.MDStreamIDUserMetadata {
+		if v.ID == user.MDStreamIDStatusChanges {
 			d := json.NewDecoder(strings.NewReader(v.Payload))
 			for {
 				var sc user.StatusChangeMetadata

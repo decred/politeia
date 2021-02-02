@@ -64,11 +64,11 @@ type pictl struct {
 	Users                   shared.UsersCmd              `command:"users"`
 
 	// Proposal commands
-	ProposalPolicy     proposalPolicyCmd     `command:"proposalpolicy"`
-	ProposalNew        proposalNewCmd        `command:"proposalnew"`
-	ProposalEdit       proposalEditCmd       `command:"proposaledit"`
-	ProposalSetStatus  proposalSetStatusCmd  `command:"proposalsetstatus"`
-	ProposalDetails    proposalDetailsCmd    `command:"proposaldetails"`
+	ProposalPolicy     cmdProposalPolicy     `command:"proposalpolicy"`
+	ProposalNew        cmdProposalNew        `command:"proposalnew"`
+	ProposalEdit       cmdProposalEdit       `command:"proposaledit"`
+	ProposalSetStatus  cmdProposalSetStatus  `command:"proposalsetstatus"`
+	ProposalDetails    cmdProposalDetails    `command:"proposaldetails"`
 	Proposals          proposalsCmd          `command:"proposals"`
 	ProposalInv        proposalInvCmd        `command:"proposalinv"`
 	proposalTimestamps proposalTimestampsCmd `command:"proposaltimestamps"`

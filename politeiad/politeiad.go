@@ -1584,6 +1584,10 @@ func _main() error {
 			}
 
 			// Setup plugin
+			var (
+				unvetted bool // Register as unvetted plugin
+				vetted   bool // Register as vetted plugin
+			)
 			var plugin backend.Plugin
 			switch v {
 			case comments.PluginID:
@@ -1592,27 +1596,36 @@ func _main() error {
 					Settings: ps,
 					Identity: p.identity,
 				}
+				unvetted = true
+				vetted = true
 			case dcrdata.PluginID:
 				plugin = backend.Plugin{
 					ID:       dcrdata.PluginID,
 					Settings: ps,
 				}
+				vetted = true
 			case pi.PluginID:
 				plugin = backend.Plugin{
 					ID:       pi.PluginID,
 					Settings: ps,
 				}
+				unvetted = true
+				vetted = true
 			case ticketvote.PluginID:
 				plugin = backend.Plugin{
 					ID:       ticketvote.PluginID,
 					Settings: ps,
 					Identity: p.identity,
 				}
+				unvetted = true
+				vetted = true
 			case user.PluginID:
 				plugin = backend.Plugin{
 					ID:       user.PluginID,
 					Settings: ps,
 				}
+				unvetted = true
+				vetted = true
 			case decredplugin.ID:
 				// TODO plugin setup for cms
 			case cmsplugin.ID:
@@ -1622,28 +1635,35 @@ func _main() error {
 			}
 
 			// Register plugin
-			err = p.backend.RegisterUnvettedPlugin(plugin)
-			if err != nil {
-				return fmt.Errorf("register unvetted plugin %v: %v", v, err)
+			if unvetted {
+				log.Infof("Register unvetted plugin: %v", v)
+				err = p.backend.RegisterUnvettedPlugin(plugin)
+				if err != nil {
+					return fmt.Errorf("register unvetted plugin %v: %v", v, err)
+				}
 			}
-			err = p.backend.RegisterVettedPlugin(plugin)
-			if err != nil {
-				return fmt.Errorf("register vetted plugin %v: %v", v, err)
+			if vetted {
+				log.Infof("Register vetted plugin: %v", v)
+				err = p.backend.RegisterVettedPlugin(plugin)
+				if err != nil {
+					return fmt.Errorf("register vetted plugin %v: %v", v, err)
+				}
 			}
-
-			log.Infof("Registered plugin: %v", v)
 		}
 
 		// Setup plugins
-		for _, v := range cfg.Plugins {
-			log.Infof("Setting up plugin: %v", v)
-			err = p.backend.SetupUnvettedPlugin(v)
+		for _, v := range p.backend.GetUnvettedPlugins() {
+			log.Infof("Setup unvetted plugin: %v", v.ID)
+			err = p.backend.SetupUnvettedPlugin(v.ID)
 			if err != nil {
 				return fmt.Errorf("setup unvetted plugin %v: %v", v, err)
 			}
-			err = p.backend.SetupVettedPlugin(v)
+		}
+		for _, v := range p.backend.GetVettedPlugins() {
+			log.Infof("Setup vetted plugin: %v", v.ID)
+			err = p.backend.SetupVettedPlugin(v.ID)
 			if err != nil {
-				return fmt.Errorf("setup vetted plugin %v: %v", v, err)
+				return fmt.Errorf("setup vetted plugin %v: %v", v.ID, err)
 			}
 		}
 	}
