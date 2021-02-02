@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,20 +13,15 @@ import (
 // helpCmd prints a detailed help message for the specified command.
 type helpCmd struct {
 	Args struct {
-		Topic string `positional-arg-name:"topic"` // Topic to print help message for
-	} `positional-args:"true"`
+		Command string `positional-arg-name:"command"`
+	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the helpCmd command.
 //
 // This function satisfies the go-flags Commander interface.
 func (cmd *helpCmd) Execute(args []string) error {
-	if cmd.Args.Topic == "" {
-		return fmt.Errorf("Specify a command to print a detailed help " +
-			"message for.  Example: piwww help login")
-	}
-
-	switch cmd.Args.Topic {
+	switch cmd.Args.Command {
 	// Server commands
 	case "version":
 		fmt.Printf("%s\n", shared.VersionHelpMsg)
@@ -39,7 +34,9 @@ func (cmd *helpCmd) Execute(args []string) error {
 	case "me":
 		fmt.Printf("%s\n", shared.MeHelpMsg)
 
-	// Proposal commands
+		// Proposal commands
+	case "proposalpolicy":
+		fmt.Printf("%s\n", proposalPolicyHelpMsg)
 	case "proposalnew":
 		fmt.Printf("%s\n", proposalNewHelpMsg)
 	case "proposaledit":
@@ -64,6 +61,8 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", commentVotesHelpMsg)
 
 	// Vote commands
+	case "votepolicy":
+		fmt.Printf("%s\n", votePolicyHelpMsg)
 	case "voteauthorize":
 		fmt.Printf("%s\n", voteAuthorizeHelpMsg)
 	case "votestart":
@@ -126,8 +125,8 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
 
 	default:
-		fmt.Printf("invalid command: use 'piwww -h' " +
-			"to view a list of valid commands\n")
+		fmt.Printf("invalid command: use the -h,--help flag to view the " +
+			"full list of valid commands\n")
 	}
 
 	return nil

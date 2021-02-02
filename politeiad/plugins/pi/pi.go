@@ -8,7 +8,7 @@ package pi
 
 const (
 	// PluginID is the pi plugin ID.
-	PluginID = "politeiad-pi"
+	PluginID = "pi"
 
 	// Plugin commands
 	CmdVoteInv = "voteinv"

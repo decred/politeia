@@ -7,7 +7,6 @@ package main
 import (
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // proposalDetails retrieves a full proposal record.
@@ -49,24 +48,19 @@ func (c *proposalDetailsCmd) Execute(args []string) error {
 		state = rcv1.RecordStateVetted
 	}
 
-	// Setup request
+	// Get proposal details
 	d := rcv1.Details{
 		State:   state,
 		Token:   c.Args.Token,
 		Version: c.Args.Version,
 	}
+	r, err := pc.RecordDetails(d)
+	if err != nil {
+		return err
+	}
 
-	// Send request. The request and response details are printed to
-	// the console based on the logging flags that were used.
-	err = shared.PrintJSON(d)
-	if err != nil {
-		return err
-	}
-	dr, err := pc.RecordDetails(d)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(dr)
+	// Print proposal to stdout
+	err = printProposal(*r)
 	if err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func (cmd *proposalPolicyCmd) Execute(args []string) error {
 	return nil
 }
 
-// proposalPolicyHelpMsg is the command help message.
+// proposalEditHelpMsg is the printed to stdout by the help command.
 const proposalPolicyHelpMsg = `proposalpolicy
 
 Fetch the pi API policy.`

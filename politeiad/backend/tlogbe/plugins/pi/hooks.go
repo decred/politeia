@@ -117,7 +117,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			}
 
 		default:
-			return fmt.Errorf("invalid mime")
+			return fmt.Errorf("invalid mime: %v", v.MIME)
 		}
 	}
 

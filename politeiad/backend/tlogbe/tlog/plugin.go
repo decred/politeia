@@ -122,7 +122,7 @@ func (t *Tlog) PluginSetup(pluginID string) error {
 }
 
 func (t *Tlog) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("%v PluginHookPre: %v %x %v", t.id, plugins.Hooks[h])
+	log.Tracef("%v PluginHookPre: %v %v", t.id, treeID, plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
@@ -141,7 +141,7 @@ func (t *Tlog) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payloa
 }
 
 func (t *Tlog) PluginHookPost(treeID int64, token []byte, h plugins.HookT, payload string) {
-	log.Tracef("%v PluginHookPost: %v %x %v", t.id, plugins.Hooks[h])
+	log.Tracef("%v PluginHookPost: %v %v", t.id, treeID, plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {

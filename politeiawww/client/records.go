@@ -36,8 +36,28 @@ func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
 	return &nr, nil
 }
 
+// RecordEdit sends a records v1 Edit request to politeiawww.
+func (c *Client) RecordEdit(e rcv1.Edit) (*rcv1.EditReply, error) {
+	route := rcv1.APIRoute + rcv1.RouteEdit
+	resBody, err := c.makeReq(http.MethodPost, route, e)
+	if err != nil {
+		return nil, err
+	}
+
+	var er rcv1.EditReply
+	err = json.Unmarshal(resBody, &er)
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", formatJSON(er))
+	}
+
+	return &er, nil
+}
+
 // RecordDetails sends a records v1 Details request to politeiawww.
-func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.DetailsReply, error) {
+func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
 	route := rcv1.APIRoute + rcv1.RouteDetails
 	resBody, err := c.makeReq(http.MethodPost, route, d)
 	if err != nil {
@@ -53,7 +73,7 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.DetailsReply, error) {
 		fmt.Printf("%v\n", formatJSON(dr))
 	}
 
-	return &dr, nil
+	return &dr.Record, nil
 }
 
 // digestsVerify verifies that all file digests match the calculated SHA256

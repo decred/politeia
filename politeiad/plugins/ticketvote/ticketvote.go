@@ -15,7 +15,7 @@ package ticketvote
 
 const (
 	// PluginID is the ticketvote plugin ID.
-	PluginID = "politeiad-ticketvote"
+	PluginID = "ticketvote"
 
 	// Plugin commands
 	CmdAuthorize  = "authorize"  // Authorize a vote

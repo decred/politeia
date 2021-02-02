@@ -75,6 +75,11 @@ type tlogBackend struct {
 	// status change from newest to oldest. This cache is built on
 	// startup.
 	inv inventory
+
+	// recordMtxs allows a the backend to hold a lock on a record so
+	// that it can perform multiple read/write operations in a
+	// concurrency safe manner. These mutexes are lazy loaded.
+	recordMtxs map[string]*sync.Mutex
 }
 
 func tokenFromTreeID(treeID int64) []byte {
@@ -94,6 +99,22 @@ func treeIDFromToken(token []byte) int64 {
 		return 0
 	}
 	return int64(binary.LittleEndian.Uint64(token))
+}
+
+// recordMutex returns the mutex for a record.
+func (t *tlogBackend) recordMutex(token []byte) *sync.Mutex {
+	t.Lock()
+	defer t.Unlock()
+
+	ts := hex.EncodeToString(token)
+	m, ok := t.recordMtxs[ts]
+	if !ok {
+		// recordMtxs is lazy loaded
+		m = &sync.Mutex{}
+		t.recordMtxs[ts] = m
+	}
+
+	return m
 }
 
 // fullLengthToken returns the full length token given the token prefix.
@@ -619,13 +640,14 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 		return nil, backend.ErrRecordNotFound
 	}
 
-	// Apply the record changes and save the new version. The lock
-	// needs to be held for the remainder of the function.
-	t.unvetted.Lock()
-	defer t.unvetted.Unlock()
-	if t.shutdown {
+	// Apply the record changes and save the new version. The record
+	// lock needs to be held for the remainder of the function.
+	if t.isShutdown() {
 		return nil, backend.ErrShutdown
 	}
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Get existing record
 	treeID := treeIDFromToken(token)
@@ -722,13 +744,14 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 		return nil, backend.ErrRecordNotFound
 	}
 
-	// Apply the record changes and save the new version. The lock
-	// needs to be held for the remainder of the function.
-	t.vetted.Lock()
-	defer t.vetted.Unlock()
-	if t.shutdown {
+	// Apply the record changes and save the new version. The record
+	// lock needs to be held for the remainder of the function.
+	if t.isShutdown() {
 		return nil, backend.ErrShutdown
 	}
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Get existing record
 	r, err := t.vetted.RecordLatest(treeID)
@@ -827,12 +850,13 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	}
 
 	// Pull the existing record and apply the metadata updates. The
-	// unvetted lock must be held for the remainder of this function.
-	t.unvetted.Lock()
-	defer t.unvetted.Unlock()
-	if t.shutdown {
+	// record lock must be held for the remainder of this function.
+	if t.isShutdown() {
 		return backend.ErrShutdown
 	}
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Get existing record
 	treeID := treeIDFromToken(token)
@@ -919,12 +943,13 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Pull the existing record and apply the metadata updates. The
-	// vetted lock must be held for the remainder of this function.
-	t.vetted.Lock()
-	defer t.vetted.Unlock()
-	if t.shutdown {
+	// record lock must be held for the remainder of this function.
+	if t.isShutdown() {
 		return backend.ErrShutdown
 	}
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Get existing record
 	r, err := t.vetted.RecordLatest(treeID)
@@ -997,7 +1022,7 @@ func (t *tlogBackend) VettedExists(token []byte) bool {
 	return ok
 }
 
-// This function must be called WITH the unvetted lock held.
+// This function must be called WITH the record lock held.
 func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Create a vetted tree
 	vettedTreeID, err := t.vetted.TreeNew()
@@ -1029,7 +1054,7 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 	return nil
 }
 
-// This function must be called WITH the unvetted lock held.
+// This function must be called WITH the record lock held.
 func (t *tlogBackend) unvettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
@@ -1068,13 +1093,14 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 		return nil, backend.ErrRecordNotFound
 	}
 
-	// The existing record must be pulled and updated. The unvetted
+	// The existing record must be pulled and updated. The record
 	// lock must be held for the rest of this function.
-	t.unvetted.Lock()
-	defer t.unvetted.Unlock()
-	if t.shutdown {
+	if t.isShutdown() {
 		return nil, backend.ErrShutdown
 	}
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Get existing record
 	treeID := treeIDFromToken(token)
@@ -1161,7 +1187,7 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	return t.GetUnvetted(token, "")
 }
 
-// This function must be called WITH the vetted lock held.
+// This function must be called WITH the record lock held.
 func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree
 	treeID, ok := t.vettedTreeID(token)
@@ -1186,7 +1212,7 @@ func (t *tlogBackend) vettedCensor(token []byte, rm backend.RecordMetadata, meta
 	return nil
 }
 
-// This function must be called WITH the vetted lock held.
+// This function must be called WITH the record lock held.
 func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree. Nothing else needs to be done for an archived
 	// record.
@@ -1223,13 +1249,14 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 		return nil, backend.ErrRecordNotFound
 	}
 
-	// The existing record must be pulled and updated. The vetted lock
+	// The existing record must be pulled and updated. The record lock
 	// must be held for the rest of this function.
-	t.vetted.Lock()
-	defer t.vetted.Unlock()
-	if t.shutdown {
+	if t.isShutdown() {
 		return nil, backend.ErrShutdown
 	}
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Get existing record
 	r, err := t.vetted.RecordLatest(treeID)
@@ -1798,6 +1825,7 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 			unvetted: make(map[backend.MDStatusT][]string),
 			vetted:   make(map[backend.MDStatusT][]string),
 		},
+		recordMtxs: make(map[string]*sync.Mutex),
 	}
 
 	err = t.setup()

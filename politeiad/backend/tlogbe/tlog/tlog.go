@@ -1534,7 +1534,10 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 	// Launch cron
 	log.Infof("Launch %v cron anchor job", id)
 	err = t.cron.AddFunc(anchorSchedule, func() {
-		t.anchorTrees()
+		err := t.anchorTrees()
+		if err != nil {
+			log.Errorf("%v anchorTrees: %v", id, err)
+		}
 	})
 	if err != nil {
 		return nil, err

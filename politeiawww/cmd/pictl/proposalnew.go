@@ -94,16 +94,14 @@ func (c *proposalNewCmd) Execute(args []string) error {
 	}
 
 	// Setup index file
-	var (
-		file  *rcv1.File
-		files = make([]rcv1.File, 0, 16)
-	)
+	files := make([]rcv1.File, 0, 16)
 	if c.Random {
 		// Generate random text for the index file
-		file, err = indexFileRandom()
+		f, err := indexFileRandom(1024)
 		if err != nil {
 			return err
 		}
+		files = append(files, *f)
 	} else {
 		// Read index file from disk
 		fp := util.CleanAndExpandPath(indexFile)
@@ -112,14 +110,13 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		if err != nil {
 			return fmt.Errorf("ReadFile %v: %v", fp, err)
 		}
-		file = &rcv1.File{
+		files = append(files, rcv1.File{
 			Name:    piplugin.FileNameIndexFile,
 			MIME:    mime.DetectMimeType(payload),
 			Digest:  hex.EncodeToString(util.Digest(payload)),
 			Payload: base64.StdEncoding.EncodeToString(payload),
-		}
+		})
 	}
-	files = append(files, *file)
 
 	// Setup attachment files
 	for _, fn := range attachments {
@@ -143,7 +140,7 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		c.Name = fmt.Sprintf("Name %x", r)
+		c.Name = fmt.Sprintf("A Proposal Name %x", r)
 	}
 	pm := piv1.ProposalMetadata{
 		Name: c.Name,
@@ -181,6 +178,13 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		})
 	}
 
+	// Print proposal to stdout
+	printf("Proposal submitted\n")
+	err = printProposalFiles(files)
+	if err != nil {
+		return err
+	}
+
 	// Setup request
 	sig, err := signedMerkleRoot(files, cfg.Identity)
 	if err != nil {
@@ -208,16 +212,13 @@ func (c *proposalNewCmd) Execute(args []string) error {
 		return fmt.Errorf("unable to verify record: %v", err)
 	}
 
-	// Print details to stdout
-	printf("Proposal '%v' submitted\n", pm.Name)
-	for _, v := range nr.Record.Files {
-		printf("  %-22v %v\n", v.Name, v.MIME)
-	}
+	// Print token to stdout
+	printf("Token: %v\n", nr.Record.CensorshipRecord.Token)
 
 	return nil
 }
 
-// proposalNewHelpMsg is the output of the help command.
+// proposalNewHelpMsg is the printed to stdout by the help command.
 const proposalNewHelpMsg = `proposalnew [flags] "indexfile" "attachments" 
 
 Submit a new proposal to Politeia.

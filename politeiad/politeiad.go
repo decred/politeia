@@ -1535,7 +1535,6 @@ func _main() error {
 	p.addRoute(http.MethodPost, v1.UpdateUnvettedMetadataRoute,
 		p.updateUnvettedMetadata, permissionAuth)
 
-	// TODO document plugins and plugin settings in README
 	// Setup plugins
 	if len(cfg.Plugins) > 0 {
 		// Set plugin routes. Requires auth.
@@ -1619,7 +1618,7 @@ func _main() error {
 			case cmsplugin.ID:
 				// TODO plugin setup for cms
 			default:
-				return fmt.Errorf("unknown plugin '%v'", v)
+				return fmt.Errorf("unknown plugin provided by config '%v'", v)
 			}
 
 			// Register plugin

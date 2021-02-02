@@ -38,7 +38,7 @@ func (cmd *votePolicyCmd) Execute(args []string) error {
 	return nil
 }
 
-// votePolicyHelpMsg is the command help message.
+// votePolicyHelpMsg is printed to stdout by the help command.
 const votePolicyHelpMsg = `votepolicy
 
 Fetch the ticketvote API policy.`

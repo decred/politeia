@@ -53,6 +53,20 @@ type anchor struct {
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
 }
 
+func (t *Tlog) droppingAnchorGet() bool {
+	t.Lock()
+	defer t.Unlock()
+
+	return t.droppingAnchor
+}
+
+func (t *Tlog) droppingAnchorSet(b bool) {
+	t.Lock()
+	defer t.Unlock()
+
+	t.droppingAnchor = b
+}
+
 var (
 	errAnchorNotFound = errors.New("anchor not found")
 )
@@ -229,21 +243,19 @@ func (t *Tlog) anchorSave(a anchor) error {
 // saved to the key-value store and the record histories of the corresponding
 // timestamped trees are updated.
 func (t *Tlog) anchorWait(anchors []anchor, digests []string) {
-	// Ensure we are not reentrant
-	t.Lock()
-	if t.droppingAnchor {
+	// Verify we are not reentrant
+	if t.droppingAnchorGet() {
 		log.Errorf("waitForAchor: called reentrantly")
 		return
 	}
-	t.droppingAnchor = true
-	t.Unlock()
+
+	// We are now condsidered to be dropping an anchor
+	t.droppingAnchorSet(true)
 
 	// Whatever happens in this function we must clear droppingAnchor
 	var exitErr error
 	defer func() {
-		t.Lock()
-		t.droppingAnchor = false
-		t.Unlock()
+		t.droppingAnchorSet(false)
 
 		if exitErr != nil {
 			log.Errorf("anchorWait: %v", exitErr)
@@ -396,20 +408,27 @@ func (t *Tlog) anchorWait(anchors []anchor, digests []string) {
 // time of function invocation. A SHA256 digest of the tree's log root at its
 // current height is timestamped onto the decred blockchain using the dcrtime
 // service. The anchor data is saved to the key-value store.
-func (t *Tlog) anchorTrees() {
+func (t *Tlog) anchorTrees() error {
 	log.Debugf("Start %v anchor process", t.id)
 
-	var exitErr error // Set on exit if there is an error
-	defer func() {
-		if exitErr != nil {
-			log.Errorf("anchor %v: %v", t.id, exitErr)
-		}
-	}()
+	// Ensure we are not reentrant
+	if t.droppingAnchorGet() {
+		// An anchor is not considered dropped until dcrtime returns the
+		// ChainTimestamp in the VerifyReply. dcrtime does not do this
+		// until the anchor tx has 6 confirmations, therefor, this code
+		// path can be hit if 6 blocks are not mined within the period
+		// specified by the anchor schedule. Though rare, the probability
+		// of this happening is not zero and should not be considered an
+		// error. We simply exit and will drop a new anchor at the next
+		// anchor period.
+		log.Infof("Attempting to drop an anchor while previous anchor " +
+			"has not finished dropping; skipping current anchor period")
+		return nil
+	}
 
 	trees, err := t.trillian.treesAll()
 	if err != nil {
-		exitErr = fmt.Errorf("treesAll: %v", err)
-		return
+		return fmt.Errorf("treesAll: %v", err)
 	}
 
 	// digests contains the SHA256 digests of the LogRootV1.RootHash
@@ -437,8 +456,7 @@ func (t *Tlog) anchorTrees() {
 			// leaves. A tree with no leaves does not need to be anchored.
 			leavesAll, err := t.trillian.leavesAll(v.TreeId)
 			if err != nil {
-				exitErr = fmt.Errorf("leavesAll: %v", err)
-				return
+				return fmt.Errorf("leavesAll: %v", err)
 			}
 			if len(leavesAll) == 0 {
 				// Tree does not have any leaves. Nothing to do.
@@ -447,16 +465,14 @@ func (t *Tlog) anchorTrees() {
 
 		case err != nil:
 			// All other errors
-			exitErr = fmt.Errorf("anchorLatest %v: %v", v.TreeId, err)
-			return
+			return fmt.Errorf("anchorLatest %v: %v", v.TreeId, err)
 
 		default:
 			// Anchor record found. If the anchor height differs from the
 			// current height then the tree needs to be anchored.
 			_, lr, err := t.trillian.signedLogRoot(v)
 			if err != nil {
-				exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
-				return
+				return fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
 			}
 			// Subtract one from the current height to account for the
 			// anchor leaf.
@@ -471,8 +487,7 @@ func (t *Tlog) anchorTrees() {
 		// list of anchors.
 		_, lr, err := t.trillian.signedLogRoot(v)
 		if err != nil {
-			exitErr = fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
-			return
+			return fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
 		}
 		anchors = append(anchors, anchor{
 			TreeID:  v.TreeId,
@@ -488,34 +503,15 @@ func (t *Tlog) anchorTrees() {
 	}
 	if len(anchors) == 0 {
 		log.Infof("No %v trees to to anchor", t.id)
-		return
+		return nil
 	}
-
-	// Ensure we are not reentrant
-	t.Lock()
-	if t.droppingAnchor {
-		// An anchor is not considered dropped until dcrtime returns the
-		// ChainTimestamp in the VerifyReply. dcrtime does not do this
-		// until the anchor tx has 6 confirmations, therefor, this code
-		// path can be hit if 6 blocks are not mined within the period
-		// specified by the anchor schedule. Though rare, the probability
-		// of this happening is not zero and should not be considered an
-		// error. We simply exit and will drop a new anchor at the next
-		// anchor period.
-		t.Unlock()
-		log.Infof("Attempting to drop an anchor while previous anchor " +
-			"has not finished dropping; skipping current anchor period")
-		return
-	}
-	t.Unlock()
 
 	// Submit dcrtime anchor request
 	log.Infof("Anchoring %v %v trees", len(anchors), t.id)
 
 	tbr, err := t.dcrtime.timestampBatch(anchorID, digests)
 	if err != nil {
-		exitErr = fmt.Errorf("timestampBatch: %v", err)
-		return
+		return fmt.Errorf("timestampBatch: %v", err)
 	}
 	var failed bool
 	for i, v := range tbr.Results {
@@ -536,9 +532,11 @@ func (t *Tlog) anchorTrees() {
 		}
 	}
 	if failed {
-		exitErr = fmt.Errorf("dcrtime failed to timestamp digests")
-		return
+		return fmt.Errorf("dcrtime failed to timestamp digests")
 	}
 
+	// Launch go routine that polls dcrtime for the anchor tx
 	go t.anchorWait(anchors, digests)
+
+	return nil
 }

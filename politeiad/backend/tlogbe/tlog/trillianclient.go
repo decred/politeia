@@ -571,7 +571,7 @@ var (
 
 // testTClient implements the trillianClient interface and is used for testing.
 type testTClient struct {
-	sync.RWMutex
+	sync.Mutex
 
 	trees  map[int64]*trillian.Tree      // [treeID]Tree
 	leaves map[int64][]*trillian.LogLeaf // [treeID][]LogLeaf
@@ -630,8 +630,8 @@ func (t *testTClient) treeFreeze(treeID int64) (*trillian.Tree, error) {
 //
 // This function satisfies the trillianClient interface.
 func (t *testTClient) tree(treeID int64) (*trillian.Tree, error) {
-	t.RLock()
-	defer t.RUnlock()
+	t.Lock()
+	defer t.Unlock()
 
 	if tree, ok := t.trees[treeID]; ok {
 		return tree, nil
@@ -645,8 +645,8 @@ func (t *testTClient) tree(treeID int64) (*trillian.Tree, error) {
 //
 // This function satisfies the trillianClient interface.
 func (t *testTClient) treesAll() ([]*trillian.Tree, error) {
-	t.RLock()
-	defer t.RUnlock()
+	t.Lock()
+	defer t.Unlock()
 
 	trees := make([]*trillian.Tree, len(t.trees))
 	for _, t := range t.trees {
@@ -697,8 +697,8 @@ func (t *testTClient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]
 //
 // This function satisfies the trillianClient interface.
 func (t *testTClient) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
-	t.RLock()
-	defer t.RUnlock()
+	t.Lock()
+	defer t.Unlock()
 
 	// Check if treeID entry exists
 	if _, ok := t.leaves[treeID]; !ok {
