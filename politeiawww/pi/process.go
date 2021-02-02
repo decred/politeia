@@ -201,14 +201,13 @@ func statusChangesDecode(payload []byte) ([]pduser.StatusChangeMetadata, error) 
 func convertRecord(r pdv1.Record, state string) (*v1.Proposal, error) {
 	// Decode metadata streams
 	var (
-		um  *pduser.UserMetadata
+		um  pduser.UserMetadata
 		sc  = make([]pduser.StatusChangeMetadata, 0, 16)
 		err error
 	)
 	for _, v := range r.Metadata {
 		switch v.ID {
 		case pduser.MDStreamIDUserMetadata:
-			var um pduser.UserMetadata
 			err = json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err
@@ -242,6 +241,7 @@ func convertRecord(r pdv1.Record, state string) (*v1.Proposal, error) {
 			Reason:    v.Reason,
 			PublicKey: v.PublicKey,
 			Signature: v.Signature,
+			Timestamp: v.Timestamp,
 		})
 	}
 

@@ -206,6 +206,7 @@ type StatusChange struct {
 	Reason    string      `json:"message,omitempty"`
 	PublicKey string      `json:"publickey"`
 	Signature string      `json:"signature"`
+	Timestamp int64       `json:"timestamp"`
 }
 
 // Proposal represents a proposal submission and its metadata.

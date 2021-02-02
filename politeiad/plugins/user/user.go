@@ -79,6 +79,7 @@ type StatusChangeMetadata struct {
 	Reason    string `json:"message,omitempty"`
 	PublicKey string `json:"publickey"`
 	Signature string `json:"signature"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 // Author returns the user ID of a record's author. If no UserMetadata is

@@ -167,5 +167,5 @@ Arguments:
                                the backend if one is not provided.
 
 Flags:
-  --unvetted (bool, optional)    Set status of an unvetted record.
+  --unvetted (bool, optional)  Set status of an unvetted record.
 `

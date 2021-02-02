@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -14,10 +15,77 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	usplugin "github.com/decred/politeia/politeiad/plugins/user"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
 )
+
+func convertProposal(p piv1.Proposal) (*rcv1.Record, error) {
+	// Setup files
+	files := make([]rcv1.File, 0, len(p.Files))
+	for _, v := range p.Files {
+		files = append(files, rcv1.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+
+	// Setup metadata
+	um := usplugin.UserMetadata{
+		UserID:    p.UserID,
+		PublicKey: p.PublicKey,
+		Signature: p.Signature,
+	}
+	umb, err := json.Marshal(um)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	for _, v := range p.Statuses {
+		sc := rcv1.StatusChange{
+			Token:     v.Token,
+			Version:   v.Version,
+			Status:    rcv1.RecordStatusT(v.Status),
+			Reason:    v.Reason,
+			PublicKey: v.PublicKey,
+			Signature: v.Signature,
+			Timestamp: v.Timestamp,
+		}
+		b, err := json.Marshal(sc)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(b)
+	}
+	metadata := []rcv1.MetadataStream{
+		{
+			ID:      usplugin.MDStreamIDUserMetadata,
+			Payload: string(umb),
+		},
+		{
+			ID:      usplugin.MDStreamIDStatusChanges,
+			Payload: buf.String(),
+		},
+	}
+
+	return &rcv1.Record{
+		State:     p.State,
+		Status:    rcv1.RecordStatusT(p.Status),
+		Version:   p.Version,
+		Timestamp: p.Timestamp,
+		Username:  p.Username,
+		Metadata:  metadata,
+		Files:     files,
+		CensorshipRecord: rcv1.CensorshipRecord{
+			Token:     p.CensorshipRecord.Token,
+			Merkle:    p.CensorshipRecord.Merkle,
+			Signature: p.CensorshipRecord.Signature,
+		},
+	}, nil
+}
 
 func printProposalFiles(files []rcv1.File) error {
 	for _, v := range files {

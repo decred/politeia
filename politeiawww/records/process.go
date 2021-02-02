@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pduser "github.com/decred/politeia/politeiad/plugins/user"
@@ -229,6 +230,7 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 		Reason:    ss.Reason,
 		PublicKey: ss.PublicKey,
 		Signature: ss.Signature,
+		Timestamp: time.Now().Unix(),
 	}
 	b, err := json.Marshal(scm)
 	if err != nil {
