@@ -38,7 +38,6 @@ const (
 
 var (
 	// ErrorCodes contains human readable error messages.
-	// TODO fill in error status messages
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid:          "error status invalid",
 		ErrorCodeInputInvalid:     "input invalid",
@@ -139,15 +138,18 @@ const (
 
 const (
 	// FileNameIndexFile is the file name of the proposal markdown
-	// file that contains the proposal contents.
+	// file that contains the main proposal contents. All proposal
+	// submissions must contain an index file.
 	FileNameIndexFile = "index.md"
 
 	// FileNameProposalMetadata is the file name of the user submitted
-	// ProposalMetadata.
+	// ProposalMetadata. All proposal submissions must contain a
+	// proposal metadata file.
 	FileNameProposalMetadata = "proposalmetadata.json"
 
 	// FileNameVoteMetadata is the file name of the user submitted
-	// VoteMetadata.
+	// VoteMetadata. This file will only be present when proposals
+	// are hosting or participating in certain types of votes.
 	FileNameVoteMetadata = "votemetadata.json"
 )
 

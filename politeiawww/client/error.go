@@ -26,8 +26,8 @@ type ErrorReply struct {
 	ErrorContext string
 }
 
-// Error represents a politeiawww error. Error is returned anytime the
-// politeiawww response is not a 200.
+// Error represents a politeiawww response error. An Error is returned anytime
+// the politeiawww response is not a 200.
 type Error struct {
 	HTTPCode   int
 	API        string

@@ -153,8 +153,10 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
-// Proof contains an inclusion proof for the digest in the merkle root. The
-// ExtraData field is used by certain types of proofs to include additional
+// Proof contains an inclusion proof for the digest in the merkle root. All
+// digests are hex encoded SHA256 digests.
+//
+// The ExtraData field is used by certain types of proofs to include additional
 // data that is required to validate the proof.
 type Proof struct {
 	Type       string

@@ -34,7 +34,7 @@ func convertProposal(p piv1.Proposal) (*rcv1.Record, error) {
 	}
 
 	// Setup metadata
-	um := usplugin.UserMetadata{
+	um := rcv1.UserMetadata{
 		UserID:    p.UserID,
 		PublicKey: p.PublicKey,
 		Signature: p.Signature,

@@ -33,7 +33,7 @@ type Client struct {
 
 // makeReq makes a politeiawww http request to the method and route provided,
 // serializing the provided object as the request body, and returning a byte
-// slice of the repsonse body. An Error is returned if politeiawww responds
+// slice of the response body. An Error is returned if politeiawww responds
 // with anything other than a 200 http status code.
 func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byte, error) {
 	// Serialize body

@@ -18,8 +18,6 @@ import (
 	"github.com/google/trillian/merkle/hashers"
 )
 
-// TODO test all of this validation
-
 const (
 	// ProofTypeTrillianRFC6962 indicates a trillian proof that uses
 	// the trillian hashing strategy HashStrategy_RFC6962_SHA256.
@@ -174,10 +172,10 @@ func VerifyTimestamp(t backend.Timestamp) error {
 	}
 
 	// Verify proofs
-	for i, v := range t.Proofs {
+	for _, v := range t.Proofs {
 		err := verifyProof(v)
 		if err != nil {
-			return fmt.Errorf("invalid proof %v: %v", i, err)
+			return fmt.Errorf("invalid %v proof: %v", v.Type, err)
 		}
 	}
 
