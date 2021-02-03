@@ -5,56 +5,61 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
 )
 
-// proposalTimestampsCmd retrieves the timestamps for a politeiawww proposal.
-type proposalTimestampsCmd struct {
+// cmdProposalTimestamps retrieves the timestamps for a politeiawww proposal.
+type cmdProposalTimestamps struct {
 	Args struct {
 		Token   string `positional-arg-name:"token" required:"true"`
 		Version string `positional-arg-name:"version" optional:"true"`
 	} `positional-args:"true"`
 
 	// Unvetted is used to request the timestamps of an unvetted
-	// proposal.
+	// proposal. If this flag is not used it will be assume that the
+	// proposal is vetted.
 	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
-/*
-// Execute executes the proposalTimestampsCmd command.
+// Execute executes the cmdProposalTimestamps command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *proposalTimestampsCmd) Execute(args []string) error {
-
-	// Set proposal state. Defaults to vetted unless the unvetted flag
-	// is used.
-	var state rcv1.StateT
-	switch {
-	case c.Unvetted:
-		state = rcv1.StateUnvetted
-	default:
-		state = rcv1.StateVetted
+func (c *cmdProposalTimestamps) Execute(args []string) error {
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
 	}
 
-	// Setup request
+	// Setup state
+	var state string
+	switch {
+	case c.Unvetted:
+		state = piv1.ProposalStateUnvetted
+	default:
+		state = piv1.ProposalStateVetted
+	}
+
+	// Get timestamps
 	t := rcv1.Timestamps{
 		State:   state,
 		Token:   c.Args.Token,
 		Version: c.Args.Version,
 	}
-
-	// Send request
-	err := shared.PrintJSON(t)
-	if err != nil {
-		return err
-	}
-	tr, err := client.RecordTimestamps(t)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(tr)
+	tr, err := pc.RecordTimestamps(t)
 	if err != nil {
 		return err
 	}
@@ -79,7 +84,6 @@ func (c *proposalTimestampsCmd) Execute(args []string) error {
 
 	return nil
 }
-*/
 
 func verifyTimestamp(t rcv1.Timestamp) error {
 	ts := convertTimestamp(t)

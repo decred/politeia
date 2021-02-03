@@ -67,8 +67,7 @@ func (c *dcrtimeClient) makeReq(method string, route string, v interface{}) ([]b
 		return nil, fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	respBody := util.ConvertBodyToByteArray(r.Body, false)
-	return respBody, nil
+	return util.RespBody(r), nil
 }
 
 // timestampBatch posts digests to the dcrtime v2 batch timestamp route.

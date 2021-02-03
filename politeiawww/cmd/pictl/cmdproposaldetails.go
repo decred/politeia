@@ -74,7 +74,8 @@ const proposalDetailsHelpMsg = `proposaldetails [flags] "token" "version"
 Retrive a full proposal record.
 
 This command defaults to retrieving vetted proposals unless the --unvetted flag
-is used.
+is used. This command accepts both the full tokens or the shortened token
+prefixes.
 
 Arguments:
 1. token  (string, required)  Proposal token.

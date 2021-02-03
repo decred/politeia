@@ -95,8 +95,7 @@ func (c *Client) makeReq(ctx context.Context, method string, route string, v int
 		}
 	}
 
-	respBody := util.ConvertBodyToByteArray(r.Body, false)
-	return respBody, nil
+	return util.RespBody(r), nil
 }
 
 // New returns a new politeiad client.

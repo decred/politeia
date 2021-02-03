@@ -80,11 +80,16 @@ proposal attachments are not returned from this command. Use the proposal
 details command if you are trying to retieve the full proposal.
 
 This command defaults to retrieving vetted proposals unless the --unvetted flag
-is used.
+is used. This command accepts both the full tokens or the shortened token
+prefixes.
 
 Arguments:
 1. tokens  ([]string, required)  Proposal tokens.
 
 Flags:
  --unvetted  (bool, optional)  Retrieve unvetted proposals.
+
+Example:
+$ pictl proposals f6458c2d8d9ef41c 9f9af91cf609d839 917c6fde9bcc2118
+$ pictl proposals f6458c2 9f9af91 917c6fd
 `

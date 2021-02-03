@@ -107,20 +107,29 @@ func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byt
 
 	// Handle reply
 	if r.StatusCode != http.StatusOK {
-		var e ErrorReply
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&e); err != nil {
-			return nil, fmt.Errorf("status code %v: %v", r.StatusCode, err)
-		}
-		return nil, Error{
-			HTTPCode:   r.StatusCode,
-			API:        api,
-			ErrorReply: e,
+		switch r.StatusCode {
+		case http.StatusNotFound:
+			return nil, fmt.Errorf("404 not found")
+		case http.StatusForbidden:
+			return nil, fmt.Errorf("403 %s", util.RespBody(r))
+		default:
+			// All other http status codes should have a request body that
+			// decodes into a ErrorReply.
+			var e ErrorReply
+			decoder := json.NewDecoder(r.Body)
+			if err := decoder.Decode(&e); err != nil {
+				return nil, fmt.Errorf("status code %v: %v", r.StatusCode, err)
+			}
+			return nil, Error{
+				HTTPCode:   r.StatusCode,
+				API:        api,
+				ErrorReply: e,
+			}
 		}
 	}
 
 	// Decode response body
-	respBody := util.ConvertBodyToByteArray(r.Body, false)
+	respBody := util.RespBody(r)
 
 	// Print response body. Pretty printing the response body for the
 	// verbose output must be handled by the calling function once it

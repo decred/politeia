@@ -37,8 +37,6 @@ type Error struct {
 // Error satisfies the error interface.
 func (e Error) Error() string {
 	switch e.HTTPCode {
-	case http.StatusNotFound:
-		return fmt.Sprintf("404 not found")
 	case http.StatusInternalServerError:
 		return fmt.Sprintf("500 internal server error: %v",
 			e.ErrorReply.ErrorCode)

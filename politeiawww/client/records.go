@@ -96,6 +96,46 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
 	return &dr.Record, nil
 }
 
+// RecordInventory sends a records v1 Inventory request to politeiawww.
+func (c *Client) RecordInventory(i rcv1.Inventory) (*rcv1.InventoryReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteInventory, i)
+	if err != nil {
+		return nil, err
+	}
+
+	var ir rcv1.InventoryReply
+	err = json.Unmarshal(resBody, &ir)
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", util.FormatJSON(ir))
+	}
+
+	return &ir, nil
+}
+
+// RecordTimestamps sends a records v1 Timestamps request to politeiawww.
+func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteTimestamps, t)
+	if err != nil {
+		return nil, err
+	}
+
+	var tr rcv1.TimestampsReply
+	err = json.Unmarshal(resBody, &tr)
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", util.FormatJSON(tr))
+	}
+
+	return &tr, nil
+}
+
 // digestsVerify verifies that all file digests match the calculated SHA256
 // digests of the file payloads.
 func digestsVerify(files []rcv1.File) error {

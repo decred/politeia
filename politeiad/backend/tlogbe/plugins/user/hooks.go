@@ -235,7 +235,6 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]user.StatusChange
 				statuses = append(statuses, sc)
 			}
 		}
-		break
 	}
 	return statuses, nil
 }

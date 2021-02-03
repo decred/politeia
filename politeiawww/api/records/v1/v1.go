@@ -312,10 +312,19 @@ type RecordsReply struct {
 	Records map[string]Record `json:"records"` // [token]Record
 }
 
+const (
+	// TODO implement
+	InventoryPageSize = 60
+)
+
 // Inventory requests the tokens of all records in the inventory, categorized
 // by record state and record status. Unvetted record tokens will only be
 // returned to admins.
-type Inventory struct{}
+type Inventory struct {
+	State  string `json:"state,omitempty"`
+	Status string `json:"status,omitempty"`
+	Page   int32  `json:"page,omitempty"`
+}
 
 // InventoryReply is the reply to the Inventory command. The returned maps are
 // map[status][]token where the status is the human readable record status

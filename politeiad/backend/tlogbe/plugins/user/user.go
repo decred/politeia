@@ -84,7 +84,7 @@ func (p *userPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
-// TODO Settings returns the plugin's settings.
+// Settings returns the plugin's settings.
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Settings() []backend.PluginSetting {

@@ -139,8 +139,7 @@ func (p *dcrdataPlugin) makeReq(method string, route string, headers map[string]
 			r.StatusCode, method, url, body)
 	}
 
-	resBody := util.ConvertBodyToByteArray(r.Body, false)
-	return resBody, nil
+	return util.RespBody(r), nil
 }
 
 // bestBlockHTTP fetches and returns the best block from the dcrdata http API.

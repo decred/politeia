@@ -70,8 +70,8 @@ type pictl struct {
 	ProposalSetStatus  cmdProposalSetStatus  `command:"proposalsetstatus"`
 	ProposalDetails    cmdProposalDetails    `command:"proposaldetails"`
 	Proposals          cmdProposals          `command:"proposals"`
-	ProposalInv        proposalInvCmd        `command:"proposalinv"`
-	proposalTimestamps proposalTimestampsCmd `command:"proposaltimestamps"`
+	ProposalInv        cmdProposalInv        `command:"proposalinv"`
+	ProposalTimestamps cmdProposalTimestamps `command:"proposaltimestamps"`
 
 	// Comments commands
 	CommentNew        commentNewCmd        `command:"commentnew"`
@@ -147,6 +147,7 @@ Proposal commands
   proposaldetials         (public) Get a full proposal record
   proposals               (public) Get proposals without their files
   proposalinv             (public) Get inventory by proposal status
+  proposaltimestamps      (public) Get timestamps for a proposal
 
 Comment commands
   commentnew              (user)   Submit a new comment
