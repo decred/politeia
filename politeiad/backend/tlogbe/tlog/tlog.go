@@ -1332,11 +1332,11 @@ func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	}
 
 	// Setup proof for data digest inclusion in the log merkle root
-	ed := ExtraDataTrillianRFC6962{
+	edt := ExtraDataTrillianRFC6962{
 		LeafIndex: p.LeafIndex,
 		TreeSize:  int64(a.LogRoot.TreeSize),
 	}
-	extraData, err := json.Marshal(ed)
+	extraData, err := json.Marshal(edt)
 	if err != nil {
 		return nil, err
 	}
@@ -1357,7 +1357,19 @@ func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	if a.VerifyDigest.Digest != trillianProof.MerkleRoot {
 		return nil, fmt.Errorf("trillian merkle root not anchored")
 	}
-	hashes := a.VerifyDigest.ChainInformation.MerklePath.Hashes
+	var (
+		numLeaves = a.VerifyDigest.ChainInformation.MerklePath.NumLeaves
+		hashes    = a.VerifyDigest.ChainInformation.MerklePath.Hashes
+		flags     = a.VerifyDigest.ChainInformation.MerklePath.Flags
+	)
+	edd := ExtraDataDcrtime{
+		NumLeaves: numLeaves,
+		Flags:     base64.StdEncoding.EncodeToString(flags),
+	}
+	extraData, err = json.Marshal(edd)
+	if err != nil {
+		return nil, err
+	}
 	merklePath = make([]string, 0, len(hashes))
 	for _, v := range hashes {
 		merklePath = append(merklePath, hex.EncodeToString(v[:]))
@@ -1367,6 +1379,7 @@ func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 		Digest:     a.VerifyDigest.Digest,
 		MerkleRoot: a.VerifyDigest.ChainInformation.MerkleRoot,
 		MerklePath: merklePath,
+		ExtraData:  string(extraData),
 	}
 
 	// Update timestamp

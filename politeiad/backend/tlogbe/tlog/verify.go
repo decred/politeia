@@ -6,10 +6,12 @@ package tlog
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
+	"github.com/decred/dcrtime/merkle"
 	dmerkle "github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -32,6 +34,13 @@ const (
 type ExtraDataTrillianRFC6962 struct {
 	LeafIndex int64 `json:"leafindex"`
 	TreeSize  int64 `json:"treesize"`
+}
+
+// ExtraDataDcrtime requires the extra data required to verify a dcrtime
+// inclusion proof.
+type ExtraDataDcrtime struct {
+	NumLeaves uint32 // Nuber of leaves
+	Flags     string // Bitmap of merkle tree, base64 encoded
 }
 
 func verifyProofTrillian(p backend.Proof) error {
@@ -96,19 +105,38 @@ func verifyProofDcrtime(p backend.Proof) error {
 			p.Digest, p.MerklePath)
 	}
 
+	// Decode extra data
+	var ed ExtraDataDcrtime
+	err := json.Unmarshal([]byte(p.ExtraData), &ed)
+	if err != nil {
+		return err
+	}
+	flags, err := base64.StdEncoding.DecodeString(ed.Flags)
+	if err != nil {
+		return err
+	}
+
 	// Calculate merkle root
-	digests := make([]*[sha256.Size]byte, 0, len(p.MerklePath))
+	digests := make([][sha256.Size]byte, 0, len(p.MerklePath))
 	for _, v := range p.MerklePath {
 		b, err := hex.DecodeString(v)
 		if err != nil {
 			return err
 		}
-		var h [sha256.Size]byte
-		copy(h[:], b)
-		digests = append(digests, &h)
+		var d [sha256.Size]byte
+		copy(d[:], b)
+		digests = append(digests, d)
 	}
-	r := dmerkle.Root(digests)
-	merkleRoot := hex.EncodeToString(r[:])
+	mb := merkle.Branch{
+		NumLeaves: ed.NumLeaves,
+		Hashes:    digests,
+		Flags:     flags,
+	}
+	mr, err := dmerkle.VerifyAuthPath(&mb)
+	if err != nil {
+		return err
+	}
+	merkleRoot := hex.EncodeToString(mr[:])
 
 	// Verify merkle root matches
 	if merkleRoot != p.MerkleRoot {
