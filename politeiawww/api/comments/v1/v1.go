@@ -11,6 +11,7 @@ const (
 	APIRoute = "/comments/v1"
 
 	// Routes
+	RoutePolicy     = "/policy"
 	RouteNew        = "/new"
 	RouteVote       = "/vote"
 	RouteDel        = "/del"
@@ -28,23 +29,23 @@ const (
 type ErrorCodeT int
 
 const (
-	// Error codes
-	ErrorCodeInvalid      ErrorCodeT = 0
-	ErrorCodeInputInvalid ErrorCodeT = iota
-	ErrorCodeUnauthorized
-	ErrorCodePublicKeyInvalid
-	ErrorCodeSignatureInvalid
-	ErrorCodeRecordStateInvalid
+	ErrorCodeInvalid            ErrorCodeT = 0
+	ErrorCodeInputInvalid       ErrorCodeT = 1
+	ErrorCodeUnauthorized       ErrorCodeT = 2
+	ErrorCodePublicKeyInvalid   ErrorCodeT = 3
+	ErrorCodeSignatureInvalid   ErrorCodeT = 4
+	ErrorCodeRecordStateInvalid ErrorCodeT = 5
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:          "error invalid",
-		ErrorCodeInputInvalid:     "input invalid",
-		ErrorCodeUnauthorized:     "unauthorized",
-		ErrorCodePublicKeyInvalid: "public key invalid",
-		ErrorCodeSignatureInvalid: "signature invalid",
+		ErrorCodeInvalid:            "error invalid",
+		ErrorCodeInputInvalid:       "input invalid",
+		ErrorCodeUnauthorized:       "unauthorized",
+		ErrorCodePublicKeyInvalid:   "public key invalid",
+		ErrorCodeSignatureInvalid:   "signature invalid",
+		ErrorCodeRecordStateInvalid: "record state invalid",
 	}
 )
 
@@ -85,6 +86,15 @@ type ServerErrorReply struct {
 // Error satisfies the error interface.
 func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
+
+// Policy requests the comments API policy.
+type Policy struct{}
+
+// PolicyReply is the reply to the policy command.
+type PolicyReply struct {
+	LengthMax      uint32 `json:"lengthmax"` // In characters
+	VoteChangesMax uint32 `json:"votechangesmax"`
 }
 
 // Comment represent a record comment.

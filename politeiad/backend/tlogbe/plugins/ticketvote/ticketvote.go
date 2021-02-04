@@ -295,8 +295,7 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 	}
 
-	// Override default plugin settings with user provided plugin
-	// settings.
+	// Override defaults with any passed in settings
 	for _, v := range settings {
 		switch v.Key {
 		case ticketvote.SettingKeyLinkByPeriodMin:

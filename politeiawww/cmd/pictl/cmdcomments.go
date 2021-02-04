@@ -4,8 +4,8 @@
 
 package main
 
-// commentsCmd retreives the comments for the specified proposal.
-type commentsCmd struct {
+// cmdComments retreives the comments for the specified proposal.
+type cmdComments struct {
 	Args struct {
 		Token string `positional-arg-name:"token"` // Censorship token
 	} `positional-args:"true" required:"true"`
@@ -15,10 +15,10 @@ type commentsCmd struct {
 }
 
 /*
-// Execute executes the commentsCmd command.
+// Execute executes the cmdComments command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *commentsCmd) Execute(args []string) error {
+func (cmd *cmdComments) Execute(args []string) error {
 	token := cmd.Args.Token
 
 	// Verify state. Defaults to vetted if the --unvetted flag
@@ -43,8 +43,7 @@ func (cmd *commentsCmd) Execute(args []string) error {
 }
 */
 
-// commentsHelpMsg is the output for the help command when 'comments'
-// is specified.
+// commentsHelpMsg is printed to stdout by the help command.
 const commentsHelpMsg = `comments "token" 
 
 Get the comments for a record. This command assumes the record is a vetted

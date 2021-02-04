@@ -82,6 +82,9 @@ func (c *cmdProposalTimestamps) Execute(args []string) error {
 		}
 	}
 
+	// Print timestamps
+	printJSON(tr)
+
 	return nil
 }
 
@@ -114,17 +117,20 @@ func convertTimestamp(t rcv1.Timestamp) backend.Timestamp {
 	}
 }
 
+// proposalTimestampsHelpMsg is printed to stdout by the help command.
 const proposalTimestampsHelpMsg = `proposaltimestamps [flags] "token" "version"
 
 Fetch the timestamps a proposal version. The timestamp contains all necessary
 data to verify that user submitted proposal data has been timestamped onto the
 decred blockchain.
 
+This command defaults to requesting vetted proposals unless the --unvetted flag
+is used.
+
 Arguments:
 1. token    (string, required) Record token
 2. version  (string, optional) Record version
 
 Flags:
- --unvetted (bool, optional)   Request is for unvetted proposals instead of
-                               vetted ones (default: false).
+ --unvetted (bool, optional)   Request is for unvetted proposals.
 `

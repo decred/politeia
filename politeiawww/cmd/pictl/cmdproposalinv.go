@@ -42,7 +42,7 @@ func (c *cmdProposalInv) Execute(args []string) error {
 	return nil
 }
 
-// proposalInvHelpMsg is the command help message.
+// proposalInvHelpMsg is printed to stdout by the help command.
 const proposalInvHelpMsg = `proposalinv
 
 Retrieve the censorship record tokens of all proposals in the inventory,

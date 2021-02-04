@@ -630,11 +630,12 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify comment
-	if len(n.Comment) > comments.PolicyCommentLengthMax {
+	if len(n.Comment) > int(p.commentLengthMax) {
+		e := fmt.Sprintf("max length is %v characters", p.commentLengthMax)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
-			ErrorContext: "exceeds max length",
+			ErrorCode:    int(comments.ErrorCodeMaxLengthExceeded),
+			ErrorContext: e,
 		}
 	}
 
@@ -756,11 +757,12 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify comment
-	if len(e.Comment) > comments.PolicyCommentLengthMax {
+	if len(e.Comment) > int(p.commentLengthMax) {
+		e := fmt.Sprintf("max length is %v characters", p.commentLengthMax)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
-			ErrorContext: "exceeds max length",
+			ErrorCode:    int(comments.ErrorCodeMaxLengthExceeded),
+			ErrorContext: e,
 		}
 	}
 
@@ -811,9 +813,8 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	// Verify comment changes
 	if e.Comment == existing.Comment {
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeCommentTextInvalid),
-			ErrorContext: "comment did not change",
+			PluginID:  comments.PluginID,
+			ErrorCode: int(comments.ErrorCodeNoChanges),
 		}
 	}
 
@@ -1069,10 +1070,10 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	if !ok {
 		uvotes = make([]voteIndex, 0)
 	}
-	if len(uvotes) > comments.PolicyVoteChangesMax {
+	if len(uvotes) > int(p.voteChangesMax) {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeVoteChangesMax),
+			ErrorCode: int(comments.ErrorCodeVoteChangesMaxExceeded),
 		}
 	}
 

@@ -4,8 +4,8 @@
 
 package main
 
-// commentTimestampsCmd retrieves the timestamps for politeiawww comments.
-type commentTimestampsCmd struct {
+// cmdCommentTimestamps retrieves the timestamps for politeiawww comments.
+type cmdCommentTimestamps struct {
 	Args struct {
 		Token      string   `positional-arg-name:"token" required:"true"`
 		CommentIDs []uint32 `positional-arg-name:"commentids" optional:"true"`
@@ -17,10 +17,10 @@ type commentTimestampsCmd struct {
 }
 
 /*
-// Execute executes the commentTimestampsCmd command.
+// Execute executes the cmdCommentTimestamps command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *commentTimestampsCmd) Execute(args []string) error {
+func (c *cmdCommentTimestamps) Execute(args []string) error {
 
 	// Set comment state. Defaults to vetted unless the unvetted flag
 	// is used.
@@ -97,6 +97,7 @@ func convertCommentTimestamp(t cmv1.Timestamp) backend.Timestamp {
 }
 */
 
+// commentTimestampsHelpMsg is printed to stdout by the help command
 const commentTimestampsHelpMsg = `commenttimestamps [flags] "token" commentIDs
 
 Fetch the timestamps for a record's comments. The timestamp contains all

@@ -4,9 +4,9 @@
 
 package main
 
-// commentVotesCmd retreives like comment objects for
-// the specified proposal from the provided user.
-type commentVotesCmd struct {
+// cmdCommentVotes retrieves the comment upvotes/downvotes for a user on a
+// record.
+type cmdCommentVotes struct {
 	Args struct {
 		Token  string `positional-arg-name:"token" required:"true"`
 		UserID string `positional-arg-name:"userid"`
@@ -15,10 +15,10 @@ type commentVotesCmd struct {
 }
 
 /*
-// Execute executes the commentVotesCmd command.
+// Execute executes the cmdCommentVotes command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *commentVotesCmd) Execute(args []string) error {
+func (c *cmdCommentVotes) Execute(args []string) error {
 	token := c.Args.Token
 	userID := c.Args.UserID
 
@@ -48,8 +48,7 @@ func (c *commentVotesCmd) Execute(args []string) error {
 }
 */
 
-// commentVotesHelpMsg is the output for the help command when
-// 'commentvotes' is specified.
+// commentVotesHelpMsg is printed to stdout by the help command.
 const commentVotesHelpMsg = `commentvotes "token" "userid"
 
 Get the provided user comment upvote/downvotes for a proposal.

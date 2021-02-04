@@ -21,37 +21,95 @@ const (
 	CmdCount      = "count"      // Get comments count for a record
 	CmdVotes      = "votes"      // Get comment votes
 	CmdTimestamps = "timestamps" // Get timestamps
+)
 
-	// PolicyCommentLengthMax is the maximum number of characters
-	// accepted for comments.
-	PolicyCommentLengthMax = 8000
+// Plugin setting keys can be used to specify custom plugin settings. Default
+// plugin setting values can be overridden by providing a plugin setting key
+// and value to the plugin on startup.
+const (
+	// SettingKeyCommentLengthMax is the plugin setting key for the
+	// comment length max plugin setting.
+	SettingKeyCommentLengthMax = "commentlengthmax"
 
-	// PolicayVoteChangesMax is the maximum number times a user can
-	// change their vote on a comment. This prevents a malicious user
-	// from being able to spam comment votes.
-	PolicyVoteChangesMax = 5
+	// SettingKeyVoteChangesMax is the plugin setting key for the vote
+	// changes max plugin setting.
+	SettingKeyVoteChangesMax = "votechangesmax"
+)
+
+// Plugin setting default values. These can be overridden by providing a plugin
+// setting key and value to the plugin on startup.
+const (
+	// SettingCommentLengthMax is the default maximum number of
+	// characters that are allowed in a comment.
+	SettingCommentLengthMax uint32 = 8000
+
+	// SettingVoteChangesMax is the defualt maximum number of times a
+	// user can change their vote on a comment. This prevents a
+	// malicious user from being able to spam comment votes.
+	SettingVoteChangesMax uint32 = 5
 )
 
 // ErrorCodeT represents a error that was caused by the user.
 type ErrorCodeT int
 
 const (
-	ErrorCodeInvalid            ErrorCodeT = 0
-	ErrorCodeTokenInvalid       ErrorCodeT = 1
-	ErrorCodePublicKeyInvalid   ErrorCodeT = 2
-	ErrorCodeSignatureInvalid   ErrorCodeT = 3
-	ErrorCodeCommentTextInvalid ErrorCodeT = 4
-	ErrorCodeCommentNotFound    ErrorCodeT = 5
-	ErrorCodeUserUnauthorized   ErrorCodeT = 6
-	ErrorCodeParentIDInvalid    ErrorCodeT = 7
-	ErrorCodeVoteInvalid        ErrorCodeT = 8
-	ErrorCodeVoteChangesMax     ErrorCodeT = 9
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeTokenInvalid is returned when a token is invalid.
+	ErrorCodeTokenInvalid ErrorCodeT = 1
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is
+	// invalid.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 2
+
+	// ErrorCodeSignatureInvalid is returned when a signature is
+	// invalid.
+	ErrorCodeSignatureInvalid ErrorCodeT = 3
+
+	// ErrorCodeMaxLengthExceeded is returned when a comment exceeds the
+	// max length plugin setting.
+	ErrorCodeMaxLengthExceeded ErrorCodeT = 4
+
+	// ErrorCodeNoChanges is returned when a comment edit does not
+	// contain any changes.
+	ErrorCodeNoChanges ErrorCodeT = 5
+
+	// ErrorCodeCommentNotFound is returned when a comment could not be
+	// found.
+	ErrorCodeCommentNotFound ErrorCodeT = 6
+
+	// ErrorCodeUserUnauthorized is returned when a user is attempting
+	// to edit a comment that they did not submit.
+	ErrorCodeUserUnauthorized ErrorCodeT = 7
+
+	// ErrorCodeParentIDInvalid is returned when a comment parent ID
+	// does not correspond to an actual comment.
+	ErrorCodeParentIDInvalid ErrorCodeT = 8
+
+	// ErrorCodeVoteInvalid is returned when a comment vote is invalid.
+	ErrorCodeVoteInvalid ErrorCodeT = 9
+
+	// ErrorCodeVoteChangesMaxExceeded is returned when the number of
+	// times the user has changed their vote has exceeded the vote
+	// changes max plugin setting.
+	ErrorCodeVoteChangesMaxExceeded ErrorCodeT = 10
 )
 
 var (
-	// TODO ErrorCodes contains the human readable error messages.
+	// ErrorCodes contains the human readable error messages.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid: "error code invalid",
+		ErrorCodeInvalid:                "error code invalid",
+		ErrorCodeTokenInvalid:           "token invalid",
+		ErrorCodePublicKeyInvalid:       "public key invalid",
+		ErrorCodeSignatureInvalid:       "signature invalid",
+		ErrorCodeMaxLengthExceeded:      "max length exceeded",
+		ErrorCodeNoChanges:              "no changes",
+		ErrorCodeCommentNotFound:        "comment not found",
+		ErrorCodeUserUnauthorized:       "user unauthorized",
+		ErrorCodeParentIDInvalid:        "parent id invalid",
+		ErrorCodeVoteInvalid:            "vote invalid",
+		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
 	}
 )
 

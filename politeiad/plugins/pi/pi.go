@@ -13,9 +13,9 @@ const (
 	// Plugin commands
 	CmdVoteInv = "voteinv"
 
-	// Plugin setting keys and default values. Default plugin setting
-	// values can be overridden by passing in a custom plugin setting
-	// key and value on startup.
+	// Setting keys are the plugin setting keys that can be used to
+	// override a default plugin setting. Defaults will be overridden
+	// if a plugin setting is provided to the plugin on startup.
 	SettingKeyTextFileSizeMax            = "textfilesizemax"
 	SettingKeyImageFileCountMax          = "imagefilecountmax"
 	SettingKeyImageFileSizeMax           = "imagefilesizemax"

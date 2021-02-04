@@ -74,12 +74,13 @@ type pictl struct {
 	ProposalTimestamps cmdProposalTimestamps `command:"proposaltimestamps"`
 
 	// Comments commands
-	CommentNew        commentNewCmd        `command:"commentnew"`
-	CommentVote       commentVoteCmd       `command:"commentvote"`
-	CommentCensor     commentCensorCmd     `command:"commentcensor"`
-	Comments          commentsCmd          `command:"comments"`
-	CommentVotes      commentVotesCmd      `command:"commentvotes"`
-	CommentTimestamps commentTimestampsCmd `command:"commenttimestamps"`
+	CommentsPolicy    cmdCommentsPolicy    `command:"commentspolicy"`
+	CommentNew        cmdCommentNew        `command:"commentnew"`
+	CommentVote       cmdCommentVote       `command:"commentvote"`
+	CommentCensor     cmdCommentCensor     `command:"commentcensor"`
+	Comments          cmdComments          `command:"comments"`
+	CommentVotes      cmdCommentVotes      `command:"commentvotes"`
+	CommentTimestamps cmdCommentTimestamps `command:"commenttimestamps"`
 
 	// Vote commands
 	VotePolicy      votePolicyCmd      `command:"votepolicy"`

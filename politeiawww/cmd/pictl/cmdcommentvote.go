@@ -4,9 +4,9 @@
 
 package main
 
-// commentVoteCmd is used to upvote/downvote a proposal comment using the
+// cmdCommentVote is used to upvote/downvote a proposal comment using the
 // logged in the user.
-type commentVoteCmd struct {
+type cmdCommentVote struct {
 	Args struct {
 		Token     string `positional-arg-name:"token"`
 		CommentID string `positional-arg-name:"commentID"`
@@ -15,10 +15,10 @@ type commentVoteCmd struct {
 }
 
 /*
-// Execute executes the commentVoteCmd command.
+// Execute executes the cmdCommentVote command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *commentVoteCmd) Execute(args []string) error {
+func (c *cmdCommentVote) Execute(args []string) error {
 	votes := map[string]pi.CommentVoteT{
 		"upvote":   pi.CommentVoteUpvote,
 		"downvote": pi.CommentVoteDownvote,
@@ -95,7 +95,7 @@ func (c *commentVoteCmd) Execute(args []string) error {
 }
 */
 
-// commentVoteHelpMsg is the help command message.
+// commentVoteHelpMsg is printed to stdout by the help command.
 const commentVoteHelpMsg = `commentvote "token" "commentID" "vote"
 
 Upvote or downvote a comment as the logged in user.

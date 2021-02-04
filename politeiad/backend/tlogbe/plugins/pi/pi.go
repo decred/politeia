@@ -153,7 +153,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		nameSupportedChars = pi.SettingProposalNameSupportedChars
 	)
 
-	// Override default plugin settings with any passed in settings
+	// Override defaults with any passed in settings
 	for _, v := range settings {
 		switch v.Key {
 		case pi.SettingKeyTextFileSizeMax:

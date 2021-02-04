@@ -75,7 +75,6 @@ const (
 type ErrorCodeT int
 
 const (
-	// TODO number these
 	ErrorCodeInvalid      ErrorCodeT = 0
 	ErrorCodeTokenInvalid ErrorCodeT = iota
 	ErrorCodePublicKeyInvalid
@@ -99,7 +98,23 @@ const (
 var (
 	// TODO ErrorCodes contains the human readable error messages.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid: "error code invalid",
+		ErrorCodeInvalid:                 "error code invalid",
+		ErrorCodeTokenInvalid:            "token invalid",
+		ErrorCodePublicKeyInvalid:        "public key invalid",
+		ErrorCodeSignatureInvalid:        "signature invalid",
+		ErrorCodeRecordVersionInvalid:    "record version invalid",
+		ErrorCodeRecordStatusInvalid:     "record status invalid",
+		ErrorCodeAuthorizationInvalid:    "authorization invalid",
+		ErrorCodeStartDetailsMissing:     "start details missing",
+		ErrorCodeStartDetailsInvalid:     "start details invalid",
+		ErrorCodeVoteParamsInvalid:       "vote params invalid",
+		ErrorCodeVoteStatusInvalid:       "vote status invalid",
+		ErrorCodePageSizeExceeded:        "page size exceeded",
+		ErrorCodeVoteMetadataInvalid:     "vote metadata invalid",
+		ErrorCodeLinkByInvalid:           "linkby invalid",
+		ErrorCodeLinkToInvalid:           "linkto invalid",
+		ErrorCodeRunoffVoteParentInvalid: "runoff vote parent invalid",
+		ErrorCodeLinkByNotExpired:        "linkby not exipred",
 	}
 )
 

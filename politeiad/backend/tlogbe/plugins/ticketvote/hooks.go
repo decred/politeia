@@ -87,11 +87,14 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 		}
 		return err
 	}
-	if r.RecordMetadata.Status != backend.MDStatusCensored {
+	if r.RecordMetadata.Status != backend.MDStatusVetted {
+		e := fmt.Sprintf("record status is invalid: got %v, want %v",
+			backend.MDStatus[r.RecordMetadata.Status],
+			backend.MDStatus[backend.MDStatusVetted])
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
-			ErrorContext: "record is censored",
+			ErrorContext: e,
 		}
 	}
 
@@ -141,7 +144,7 @@ func (p *ticketVotePlugin) voteMetadataVerify(vm ticketvote.VoteMetadata) error 
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
-			ErrorContext: "md is empty",
+			ErrorContext: "metadata is empty",
 		}
 
 	case vm.LinkBy != 0 && vm.LinkTo != "":

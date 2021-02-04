@@ -6,8 +6,10 @@ package comments
 
 import (
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -44,6 +46,10 @@ type commentsPlugin struct {
 	// Mutexes contains a mutex for each record. The mutexes are lazy
 	// loaded.
 	mutexes map[string]*sync.Mutex // [string]mutex
+
+	// Plugin settings
+	commentLengthMax uint32
+	voteChangesMax   uint32
 }
 
 // mutex returns the mutex for a record.
@@ -123,13 +129,22 @@ func (p *commentsPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
-// TODO Settings returns the plugin's settings.
+// Settings returns the plugin's settings.
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Settings() []backend.PluginSetting {
 	log.Tracef("Settings")
 
-	return nil
+	return []backend.PluginSetting{
+		{
+			Key:   comments.SettingKeyCommentLengthMax,
+			Value: strconv.FormatUint(uint64(p.commentLengthMax), 10),
+		},
+		{
+			Key:   comments.SettingKeyVoteChangesMax,
+			Value: strconv.FormatUint(uint64(p.voteChangesMax), 10),
+		},
+	}
 }
 
 // New returns a new comments plugin.
@@ -141,10 +156,38 @@ func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir stri
 		return nil, err
 	}
 
+	// Default plugin settings
+	var (
+		commentLengthMax = comments.SettingCommentLengthMax
+		voteChangesMax   = comments.SettingVoteChangesMax
+	)
+
+	// Override defaults with any passed in settings
+	for _, v := range settings {
+		switch v.Key {
+		case comments.SettingKeyCommentLengthMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			commentLengthMax = uint32(u)
+		case comments.SettingKeyVoteChangesMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			voteChangesMax = uint32(u)
+		}
+	}
+
 	return &commentsPlugin{
-		tlog:     tlog,
-		identity: id,
-		dataDir:  dataDir,
-		mutexes:  make(map[string]*sync.Mutex),
+		tlog:             tlog,
+		identity:         id,
+		dataDir:          dataDir,
+		mutexes:          make(map[string]*sync.Mutex),
+		commentLengthMax: commentLengthMax,
+		voteChangesMax:   voteChangesMax,
 	}, nil
 }

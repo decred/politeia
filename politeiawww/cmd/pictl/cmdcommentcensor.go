@@ -4,8 +4,8 @@
 
 package main
 
-// commentCensorCmd censors a proposal comment.
-type commentCensorCmd struct {
+// cmdCommentCensor censors a proposal comment.
+type cmdCommentCensor struct {
 	Args struct {
 		Token     string `positional-arg-name:"token"`
 		CommentID string `positional-arg-name:"commentid"`
@@ -17,10 +17,10 @@ type commentCensorCmd struct {
 }
 
 /*
-// Execute executes the commentCensorCmd command.
+// Execute executes the cmdCommentCensor command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *commentCensorCmd) Execute(args []string) error {
+func (cmd *cmdCommentCensor) Execute(args []string) error {
 	// Unpack args
 	token := cmd.Args.Token
 	reason := cmd.Args.Reason
@@ -95,7 +95,7 @@ func (cmd *commentCensorCmd) Execute(args []string) error {
 }
 */
 
-// commentCensorHelpMsg is the help command message.
+// commentCensorHelpMsg is printed to stdout by the help command.
 const commentCensorHelpMsg = `commentcensor "token" "commentID" "reason"
 
 Censor a user comment. This command assumes the record is a vetted record. If

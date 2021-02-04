@@ -6,9 +6,13 @@ package comments
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
@@ -24,6 +28,14 @@ type Comments struct {
 	userdb    user.Database
 	sessions  *sessions.Sessions
 	events    *events.Manager
+	policy    *v1.PolicyReply
+}
+
+// HandlePolicy is the request handler for the comments v1 Policy route.
+func (c *Comments) HandlePolicy(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandlePolicy")
+
+	util.RespondWithJSON(w, http.StatusOK, c.policy)
 }
 
 // HandleNew is the request handler for the comments v1 New route.
@@ -236,12 +248,57 @@ func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new Comments context.
-func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager) *Comments {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, plugins []pdv1.Plugin) (*Comments, error) {
+	// Parse plugin settings
+	var (
+		lengthMax      uint32
+		voteChangesMax uint32
+	)
+	for _, p := range plugins {
+		if p.ID != comments.PluginID {
+			// Not the comments plugin; skip
+			continue
+		}
+		for _, v := range p.Settings {
+			switch v.Key {
+			case comments.SettingKeyCommentLengthMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				lengthMax = uint32(u)
+			case comments.SettingKeyVoteChangesMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				voteChangesMax = uint32(u)
+			default:
+				// Skip unknown settings
+				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
+			}
+		}
+	}
+
+	// Verify all plugin settings have been provided
+	switch {
+	case lengthMax == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			comments.SettingKeyCommentLengthMax)
+	case voteChangesMax == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			comments.SettingKeyVoteChangesMax)
+	}
+
 	return &Comments{
 		cfg:       cfg,
 		politeiad: pdc,
 		userdb:    udb,
 		sessions:  s,
 		events:    e,
-	}
+		policy: &v1.PolicyReply{
+			LengthMax:      lengthMax,
+			VoteChangesMax: voteChangesMax,
+		},
+	}, nil
 }
