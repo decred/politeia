@@ -41,24 +41,32 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", proposalNewHelpMsg)
 	case "proposaledit":
 		fmt.Printf("%s\n", proposalEditHelpMsg)
-	case "proposalstatusset":
+	case "proposalsetstatus":
 		fmt.Printf("%s\n", proposalSetStatusHelpMsg)
 	case "proposals":
 		fmt.Printf("%s\n", proposalsHelpMsg)
-	case "proposalinventory":
+	case "proposalinv":
 		fmt.Printf("%s\n", proposalInvHelpMsg)
+	case "proposaltimestamps":
+		fmt.Printf("%s\n", proposalTimestampsHelpMsg)
 
-	// Comment commands
+		// Comment commands
+	case "commentpolicy":
+		fmt.Printf("%s\n", commentPolicyHelpMsg)
 	case "commentnew":
 		fmt.Printf("%s\n", commentNewHelpMsg)
 	case "commentvote":
 		fmt.Printf("%s\n", commentVoteHelpMsg)
 	case "commentcensor":
 		fmt.Printf("%s\n", commentCensorHelpMsg)
+	case "commentcount":
+		fmt.Printf("%s\n", commentCountHelpMsg)
 	case "comments":
 		fmt.Printf("%s\n", commentsHelpMsg)
 	case "commentvotes":
 		fmt.Printf("%s\n", commentVotesHelpMsg)
+	case "commenttimestamps":
+		fmt.Printf("%s\n", commentTimestampsHelpMsg)
 
 	// Vote commands
 	case "votepolicy":

@@ -38,6 +38,7 @@ const (
 	ErrorCodeTokenInvalid       ErrorCodeT = 6
 	ErrorCodeRecordNotFound     ErrorCodeT = 7
 	ErrorCodeRecordLocked       ErrorCodeT = 8
+	ErrorCodeNoTokensFound      ErrorCodeT = 9
 )
 
 var (
@@ -52,6 +53,7 @@ var (
 		ErrorCodeTokenInvalid:       "token invalid",
 		ErrorCodeRecordNotFound:     "record not found",
 		ErrorCodeRecordLocked:       "record is locked",
+		ErrorCodeNoTokensFound:      "no tokens found",
 	}
 )
 

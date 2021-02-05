@@ -78,6 +78,7 @@ type pictl struct {
 	CommentNew        cmdCommentNew        `command:"commentnew"`
 	CommentVote       cmdCommentVote       `command:"commentvote"`
 	CommentCensor     cmdCommentCensor     `command:"commentcensor"`
+	CommentCount      cmdCommentCount      `command:"commentcount"`
 	Comments          cmdComments          `command:"comments"`
 	CommentVotes      cmdCommentVotes      `command:"commentvotes"`
 	CommentTimestamps cmdCommentTimestamps `command:"commenttimestamps"`
@@ -145,7 +146,7 @@ Proposal commands
   proposalnew             (user)   Submit a new proposal
   proposaledit            (user)   Edit an existing proposal
   proposalstatusset       (admin)  Set the status of a proposal
-  proposaldetials         (public) Get a full proposal record
+  proposaldetails         (public) Get a full proposal record
   proposals               (public) Get proposals without their files
   proposalinv             (public) Get inventory by proposal status
   proposaltimestamps      (public) Get timestamps for a proposal
@@ -155,8 +156,10 @@ Comment commands
   commentnew              (user)   Submit a new comment
   commentvote             (user)   Upvote/downvote a comment
   commentcensor           (admin)  Censor a comment
+  commentcount            (public) Get the number of comments
   comments                (public) Get comments
   commentvotes            (public) Get comment votes
+  commenttimestamps       (public) Get comment timestamps
 
 Vote commands
   votepolicy              (public) Get the ticketvote api policy

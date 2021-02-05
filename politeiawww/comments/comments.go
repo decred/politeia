@@ -137,7 +137,7 @@ func (c *Comments) HandleCount(w http.ResponseWriter, r *http.Request) {
 
 	var ct v1.Count
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&c); err != nil {
+	if err := decoder.Decode(&ct); err != nil {
 		respondWithError(w, r, "HandleCount: unmarshal",
 			v1.UserErrorReply{
 				ErrorCode: v1.ErrorCodeInputInvalid,

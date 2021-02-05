@@ -38,7 +38,7 @@ func (c *cmdCommentPolicy) Execute(args []string) error {
 	return nil
 }
 
-// commentsEditHelpMsg is the printed to stdout by the help command.
-const commentsPolicyHelpMsg = `commentspolicy
+// commentEditHelpMsg is the printed to stdout by the help command.
+const commentPolicyHelpMsg = `commentpolicy
 
 Fetch the comments API policy.`

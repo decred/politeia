@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 )
@@ -136,11 +137,11 @@ func (c *Client) CommentDel(ctx context.Context, state string, d comments.Del) (
 	return &dr, nil
 }
 
-// CommentCounts sends a batch of comment plugin Count commands to the
+// CommentCount sends a batch of comment plugin Count commands to the
 // politeiad v1 API and returns a map[token]count with the results. If a record
 // is not found for a token or any other error occurs, that token will not be
 // included in the reply.
-func (c *Client) CommentCounts(ctx context.Context, state string, tokens []string) (map[string]uint32, error) {
+func (c *Client) CommentCount(ctx context.Context, state string, tokens []string) (map[string]uint32, error) {
 	// Setup request
 	cmds := make([]pdv1.PluginCommandV2, 0, len(tokens))
 	for _, v := range tokens {
@@ -157,7 +158,7 @@ func (c *Client) CommentCounts(ctx context.Context, state string, tokens []strin
 	if err != nil {
 		return nil, err
 	}
-	if len(replies) == len(cmds) {
+	if len(replies) != len(cmds) {
 		return nil, fmt.Errorf("replies missing")
 	}
 
@@ -168,11 +169,12 @@ func (c *Client) CommentCounts(ctx context.Context, state string, tokens []strin
 		// command that errored will not be included in the reply.
 		err = extractPluginCommandError(v)
 		if err != nil {
+			spew.Dump(err)
 			continue
 		}
 
 		var cr comments.CountReply
-		err = json.Unmarshal([]byte(v.Payload), cr)
+		err = json.Unmarshal([]byte(v.Payload), &cr)
 		if err != nil {
 			continue
 		}

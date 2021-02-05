@@ -94,9 +94,9 @@ func (c *Client) CommentDel(d cmv1.Del) (*cmv1.DelReply, error) {
 }
 
 // CommentCount sends a comments v1 Count request to politeiawww.
-func (c *Client) CommentCount(cn cmv1.Count) (*cmv1.CountReply, error) {
+func (c *Client) CommentCount(cc cmv1.Count) (*cmv1.CountReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,
-		cmv1.APIRoute, cmv1.RouteCount, cn)
+		cmv1.APIRoute, cmv1.RouteCount, cc)
 	if err != nil {
 		return nil, err
 	}

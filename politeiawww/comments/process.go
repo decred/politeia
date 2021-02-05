@@ -165,7 +165,13 @@ func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.D
 func (c *Comments) processCount(ctx context.Context, ct v1.Count) (*v1.CountReply, error) {
 	log.Tracef("processCount: %v", ct.Tokens)
 
-	counts, err := c.politeiad.CommentCounts(ctx, ct.State, ct.Tokens)
+	if len(ct.Tokens) == 0 {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeNoTokensFound,
+		}
+	}
+
+	counts, err := c.politeiad.CommentCount(ctx, ct.State, ct.Tokens)
 	if err != nil {
 		return nil, err
 	}
