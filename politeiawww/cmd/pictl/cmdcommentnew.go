@@ -103,9 +103,7 @@ func (c *cmdCommentNew) Execute(args []string) error {
 	}
 
 	// Print receipt
-	fmt.Printf("Comment Submitted\n")
-	fmt.Printf("ID     : %v\n", nr.Comment.CommentID)
-	fmt.Printf("Receipt: %v\n", nr.Comment.Receipt)
+	printComment(nr.Comment)
 
 	return nil
 }

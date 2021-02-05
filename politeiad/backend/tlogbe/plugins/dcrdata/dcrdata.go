@@ -577,7 +577,7 @@ func (p *dcrdataPlugin) websocketSetup() {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Setup() error {
-	log.Tracef("setup")
+	log.Tracef("dcrdata Setup")
 
 	// Setup dcrdata websocket subscriptions and monitoring. This is
 	// done in a go routine so setup will continue in the event that
@@ -592,7 +592,7 @@ func (p *dcrdataPlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
+	log.Tracef("dcrdata Cmd: %v %x %v", treeID, token, cmd)
 
 	switch cmd {
 	case dcrdata.CmdBestBlock:
@@ -612,7 +612,7 @@ func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (st
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("dcrdata Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	return nil
 }
@@ -621,7 +621,7 @@ func (p *dcrdataPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payloa
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Fsck(treeIDs []int64) error {
-	log.Tracef("Fsck")
+	log.Tracef("dcrdata Fsck")
 
 	return nil
 }
@@ -630,7 +630,7 @@ func (p *dcrdataPlugin) Fsck(treeIDs []int64) error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
-	log.Tracef("Settings")
+	log.Tracef("dcrdata Settings")
 
 	return nil
 }

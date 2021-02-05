@@ -32,7 +32,7 @@ type userPlugin struct {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Setup() error {
-	log.Tracef("Setup")
+	log.Tracef("user Setup")
 
 	return nil
 }
@@ -41,7 +41,7 @@ func (p *userPlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %x %v %v", treeID, token, cmd, payload)
+	log.Tracef("user Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
 	case user.CmdAuthor:
@@ -57,7 +57,7 @@ func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (strin
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("user Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -79,7 +79,7 @@ func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload s
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Fsck(treeIDs []int64) error {
-	log.Tracef("Fsck")
+	log.Tracef("user Fsck")
 
 	return nil
 }
@@ -88,7 +88,7 @@ func (p *userPlugin) Fsck(treeIDs []int64) error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Settings() []backend.PluginSetting {
-	log.Tracef("Settings")
+	log.Tracef("user Settings")
 
 	return nil
 }

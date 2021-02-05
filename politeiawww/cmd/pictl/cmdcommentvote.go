@@ -67,7 +67,6 @@ func (c *cmdCommentVote) Execute(args []string) error {
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	v := cmv1.Vote{
 		Token:     c.Args.Token,
-		State:     cmv1.RecordStateVetted,
 		CommentID: c.Args.CommentID,
 		Vote:      vote,
 		Signature: hex.EncodeToString(sig[:]),
@@ -98,6 +97,10 @@ func (c *cmdCommentVote) Execute(args []string) error {
 	}
 
 	// Print receipt
+	printf("Downvotes: %v\n", int64(cvr.Downvotes)*-1)
+	printf("Upvotes  : %v\n", cvr.Upvotes)
+	printf("Timestamp: %v\n", timestampFromUnix(cvr.Timestamp))
+	printf("Receipt  : %v\n", cvr.Receipt)
 
 	return nil
 }
@@ -105,7 +108,9 @@ func (c *cmdCommentVote) Execute(args []string) error {
 // commentVoteHelpMsg is printed to stdout by the help command.
 const commentVoteHelpMsg = `commentvote "token" "commentID" "vote"
 
-Upvote or downvote a comment. Requires the user to be logged in.
+Upvote or downvote a comment.
+
+Requires the user to be logged in. Votes can only be cast on vetted records.
 
 Arguments:
 1. token      (string, required)  Proposal censorship token

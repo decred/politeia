@@ -48,7 +48,7 @@ type piPlugin struct {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Setup() error {
-	log.Tracef("Setup")
+	log.Tracef("pi Setup")
 
 	// TODO Verify vote and comment plugin dependency
 
@@ -59,7 +59,7 @@ func (p *piPlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %x %v %v", treeID, token, cmd, payload)
+	log.Tracef("pi Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
 	case pi.CmdVoteInv:
@@ -73,7 +73,7 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("pi Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -91,7 +91,7 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Fsck(treeIDs []int64) error {
-	log.Tracef("Fsck")
+	log.Tracef("pi Fsck")
 
 	return nil
 }
@@ -100,7 +100,7 @@ func (p *piPlugin) Fsck(treeIDs []int64) error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Settings() []backend.PluginSetting {
-	log.Tracef("Settings")
+	log.Tracef("pi Settings")
 
 	return []backend.PluginSetting{
 		{

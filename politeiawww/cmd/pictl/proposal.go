@@ -21,6 +21,35 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+func printProposalFiles(files []rcv1.File) error {
+	for _, v := range files {
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return err
+		}
+		size := byteCountSI(int64(len(b)))
+		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
+	}
+	return nil
+}
+
+func printProposal(r rcv1.Record) error {
+	printf("Token    : %v\n", r.CensorshipRecord.Token)
+	printf("Version  : %v\n", r.Version)
+	printf("Status   : %v\n", rcv1.RecordStatuses[r.Status])
+	printf("Timestamp: %v\n", r.Timestamp)
+	printf("Username : %v\n", r.Username)
+	printf("Merkle   : %v\n", r.CensorshipRecord.Merkle)
+	printf("Receipt  : %v\n", r.CensorshipRecord.Signature)
+	printf("Metadata\n")
+	for _, v := range r.Metadata {
+		size := byteCountSI(int64(len([]byte(v.Payload))))
+		printf("  %-2v %v\n", v.ID, size)
+	}
+	printf("Files\n")
+	return printProposalFiles(r.Files)
+}
+
 func convertProposal(p piv1.Proposal) (*rcv1.Record, error) {
 	// Setup files
 	files := make([]rcv1.File, 0, len(p.Files))
@@ -87,42 +116,13 @@ func convertProposal(p piv1.Proposal) (*rcv1.Record, error) {
 	}, nil
 }
 
-func printProposalFiles(files []rcv1.File) error {
-	for _, v := range files {
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			return err
-		}
-		size := byteCountSI(int64(len(b)))
-		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
-	}
-	return nil
-}
-
-func printProposal(r rcv1.Record) error {
-	printf("Token    : %v\n", r.CensorshipRecord.Token)
-	printf("Version  : %v\n", r.Version)
-	printf("Status   : %v\n", rcv1.RecordStatuses[r.Status])
-	printf("Timestamp: %v\n", r.Timestamp)
-	printf("Username : %v\n", r.Username)
-	printf("Merkle   : %v\n", r.CensorshipRecord.Merkle)
-	printf("Receipt  : %v\n", r.CensorshipRecord.Signature)
-	printf("Metadata\n")
-	for _, v := range r.Metadata {
-		size := byteCountSI(int64(len([]byte(v.Payload))))
-		printf("  %-2v %v\n", v.ID, size)
-	}
-	printf("Files\n")
-	return printProposalFiles(r.Files)
-}
-
 // indexFileRandom returns a proposal index file filled with random data.
 func indexFileRandom(sizeInBytes int) (*rcv1.File, error) {
 	// Create lines of text that are 80 characters long
 	charSet := "abcdefghijklmnopqrstuvwxyz"
 	var b strings.Builder
 	for i := 0; i < sizeInBytes; i++ {
-		if i%80 == 0 && i != 0 {
+		if i != 0 && i%80 == 0 {
 			b.WriteString("\n")
 			continue
 		}

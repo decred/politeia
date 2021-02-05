@@ -1185,15 +1185,8 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdGetAll: %v %x %v", treeID, token, payload)
-
-	// Decode payload
-	var ga comments.GetAll
-	err := json.Unmarshal([]byte(payload), &ga)
-	if err != nil {
-		return "", err
-	}
+func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
+	log.Tracef("cmdGetAll: %v %x", treeID, token)
 
 	// Compile comment IDs
 	ridx, err := p.recordIndex(token)
@@ -1302,15 +1295,8 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	return string(reply), nil
 }
 
-func (p *commentsPlugin) cmdCount(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdCount: %v %x %v", treeID, token, payload)
-
-	// Decode payload
-	var c comments.Count
-	err := json.Unmarshal([]byte(payload), &c)
-	if err != nil {
-		return "", err
-	}
+func (p *commentsPlugin) cmdCount(treeID int64, token []byte) (string, error) {
+	log.Tracef("cmdCount: %v %x", treeID, token)
 
 	// Get record index
 	ridx, err := p.recordIndex(token)

@@ -9,6 +9,7 @@ import (
 )
 
 // TODO verify that all batched request have a page size limit
+//      comment timestamps, vote timestamps
 // TODO module these API packages
 
 const (

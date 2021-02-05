@@ -181,7 +181,8 @@ const (
 	VoteUpvote VoteT = 1
 )
 
-// Vote casts a comment vote (upvote or downvote).
+// Vote casts a comment vote (upvote or downvote). Votes can only be cast
+// on vetted records.
 //
 // The effect of a new vote on a comment score depends on the previous vote
 // from that user ID. Example, a user upvotes a comment that they have already
@@ -190,7 +191,6 @@ const (
 //
 // Signature is the client signature of the Token+CommentID+Vote.
 type Vote struct {
-	State     string `json:"state"`
 	Token     string `json:"token"`
 	CommentID uint32 `json:"commentid"`
 	Vote      VoteT  `json:"vote"`
@@ -250,7 +250,6 @@ type CommentsReply struct {
 
 // Votes returns the comment votes that meet the provided filtering criteria.
 type Votes struct {
-	State  string `json:"state"`
 	Token  string `json:"token"`
 	UserID string `json:"userid"`
 }

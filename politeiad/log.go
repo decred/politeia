@@ -49,15 +49,12 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log           = backendLog.Logger("POLI")
-	gitbeLog      = backendLog.Logger("GITB")
-	tlogbeLog     = backendLog.Logger("BACK")
-	tlogLog       = backendLog.Logger("TLOG")
-	wsdcrdataLog  = backendLog.Logger("WSDD")
-	commentsLog   = backendLog.Logger("COMT")
-	dcrdataLog    = backendLog.Logger("DCDA")
-	ticketvoteLog = backendLog.Logger("TICK")
-	userLog       = backendLog.Logger("USER")
+	log          = backendLog.Logger("POLI")
+	gitbeLog     = backendLog.Logger("GITB")
+	tlogbeLog    = backendLog.Logger("BACK")
+	tlogLog      = backendLog.Logger("TLOG")
+	wsdcrdataLog = backendLog.Logger("WSDD")
+	pluginLog    = backendLog.Logger("PLUG")
 )
 
 // Initialize package-global logger variables.
@@ -67,10 +64,10 @@ func init() {
 	tlog.UseLogger(tlogLog)
 	filesystem.UseLogger(tlogLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
-	comments.UseLogger(commentsLog)
-	dcrdata.UseLogger(dcrdataLog)
-	ticketvote.UseLogger(ticketvoteLog)
-	user.UseLogger(userLog)
+	comments.UseLogger(pluginLog)
+	dcrdata.UseLogger(pluginLog)
+	ticketvote.UseLogger(pluginLog)
+	user.UseLogger(pluginLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
@@ -80,10 +77,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"BACK": tlogbeLog,
 	"TLOG": tlogLog,
 	"WSDD": wsdcrdataLog,
-	"COMT": commentsLog,
-	"DCDA": dcrdataLog,
-	"TICK": ticketvoteLog,
-	"USER": userLog,
+	"PLUG": pluginLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

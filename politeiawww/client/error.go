@@ -7,11 +7,13 @@ package client
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	usplugin "github.com/decred/politeia/politeiad/plugins/user"
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
@@ -58,6 +60,8 @@ func (e Error) Error() string {
 func apiUserErr(api string, e ErrorReply) string {
 	var errMsg string
 	switch api {
+	case cmv1.APIRoute:
+		errMsg = cmv1.ErrorCodes[cmv1.ErrorCodeT(e.ErrorCode)]
 	case piv1.APIRoute:
 		errMsg = piv1.ErrorCodes[piv1.ErrorCodeT(e.ErrorCode)]
 	case rcv1.APIRoute:
@@ -65,7 +69,14 @@ func apiUserErr(api string, e ErrorReply) string {
 	case tkv1.APIRoute:
 		errMsg = tkv1.ErrorCodes[tkv1.ErrorCodeT(e.ErrorCode)]
 	}
-	m := fmt.Sprintf("user error code %v", e.ErrorCode)
+
+	// Remove "/" from api string. "/records/v1" to "records v1".
+	s := strings.Split(api, "/")
+	api = strings.Join(s, " ")
+	api = strings.Trim(api, " ")
+
+	// Create error string
+	m := fmt.Sprintf("%v user error code %v", api, e.ErrorCode)
 	if errMsg != "" {
 		m += fmt.Sprintf(", %v", errMsg)
 	}

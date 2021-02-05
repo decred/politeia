@@ -4,6 +4,13 @@
 
 package main
 
+import (
+	"fmt"
+
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
+)
+
 // cmdCommentVotes retrieves the comment upvotes/downvotes for a user on a
 // record.
 type cmdCommentVotes struct {
@@ -11,52 +18,72 @@ type cmdCommentVotes struct {
 		Token  string `positional-arg-name:"token" required:"true"`
 		UserID string `positional-arg-name:"userid"`
 	} `positional-args:"true"`
-	Me bool `long:"me" optional:"true"`
 }
 
-/*
 // Execute executes the cmdCommentVotes command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdCommentVotes) Execute(args []string) error {
-	token := c.Args.Token
-	userID := c.Args.UserID
+	// Unpack args
+	var (
+		token  = c.Args.Token
+		userID = c.Args.UserID
+	)
 
-	if userID == "" && !c.Me {
-		return fmt.Errorf("you must either provide a user id or use " +
-			"the --me flag to use the user ID of the logged in user")
-	}
-
-	// Get user ID of logged in user if specified
-	if c.Me {
+	// If a user ID was not provided this command assumes the user
+	// is requesting their own comment votes.
+	if userID == "" {
+		// Get user ID of logged in user
 		lr, err := client.Me()
 		if err != nil {
+			if err.Error() == "401" {
+				return fmt.Errorf("no user ID provided and no logged in "+
+					"user found. Command usage: \n\n%v", commentVotesHelpMsg)
+			}
 			return err
 		}
 		userID = lr.UserID
 	}
 
-	cvr, err := client.CommentVotes(pi.CommentVotes{
-		Token:  token,
-		State:  pi.PropStateVetted,
-		UserID: userID,
-	})
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
 		return err
 	}
-	return shared.PrintJSON(cvr)
+
+	// Get comment votes
+	v := cmv1.Votes{
+		Token:  token,
+		UserID: userID,
+	}
+	vr, err := pc.CommentVotes(v)
+	if err != nil {
+		return err
+	}
+
+	// Print votes
+	if len(vr.Votes) == 0 {
+		printf("No comment votes found for user %v\n", userID)
+	}
+	printCommentVotes(vr.Votes)
+
+	return nil
 }
-*/
 
 // commentVotesHelpMsg is printed to stdout by the help command.
 const commentVotesHelpMsg = `commentvotes "token" "userid"
 
-Get the provided user comment upvote/downvotes for a proposal.
+Get the provided user comment upvote/downvotes for a proposal. If no user ID
+is provded then the command will assume the logged in user is requesting their
+own comment votes.
 
 Arguments:
-1. token       (string, required)  Proposal censorship token
-2. userid      (string, required)  User ID
-
-Flags:
-  --me   (bool, optional)  Use the user ID of the logged in user
-`
+1. token   (string, required)  Proposal censorship token
+2. userid  (string, optional)  User ID`

@@ -87,7 +87,7 @@ func (p *ticketVotePlugin) mutex(token []byte) *sync.Mutex {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Setup() error {
-	log.Tracef("Setup")
+	log.Tracef("ticketvote Setup")
 
 	// Verify plugin dependencies
 	var dcrdataFound bool
@@ -183,7 +183,7 @@ func (p *ticketVotePlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
+	log.Tracef("ticketvote Cmd: %v %x %v", treeID, token, cmd)
 
 	switch cmd {
 	case ticketvote.CmdAuthorize:
@@ -219,7 +219,7 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("ticketvote Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -237,7 +237,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
-	log.Tracef("Fsck")
+	log.Tracef("ticketvote Fsck")
 
 	// Verify all caches
 
@@ -248,7 +248,7 @@ func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
-	log.Tracef("Settings")
+	log.Tracef("ticketvote Settings")
 
 	return []backend.PluginSetting{
 		{

@@ -5,6 +5,8 @@
 package main
 
 import (
+	"fmt"
+
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -59,7 +61,8 @@ func (c *cmdComments) Execute(args []string) error {
 
 	// Print comments
 	for _, v := range cr.Comments {
-		_ = v
+		printComment(v)
+		fmt.Printf("\n")
 	}
 
 	return nil
@@ -78,5 +81,4 @@ Arguments:
 1. token  (string, required)  Proposal censorship token
 
 Flags:
-  --unvetted  (bool, optional)  Record is unvetted.
-`
+  --unvetted  (bool, optional)  Record is unvetted.`

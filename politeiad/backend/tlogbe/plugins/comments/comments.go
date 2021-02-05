@@ -72,7 +72,7 @@ func (p *commentsPlugin) mutex(token []byte) *sync.Mutex {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Setup() error {
-	log.Tracef("Setup")
+	log.Tracef("comments Setup")
 
 	return nil
 }
@@ -81,7 +81,7 @@ func (p *commentsPlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("Cmd: %v %x %v", treeID, token, cmd)
+	log.Tracef("comments Cmd: %v %x %v", treeID, token, cmd)
 
 	switch cmd {
 	case comments.CmdNew:
@@ -95,11 +95,11 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 	case comments.CmdGet:
 		return p.cmdGet(treeID, token, payload)
 	case comments.CmdGetAll:
-		return p.cmdGetAll(treeID, token, payload)
+		return p.cmdGetAll(treeID, token)
 	case comments.CmdGetVersion:
 		return p.cmdGetVersion(treeID, token, payload)
 	case comments.CmdCount:
-		return p.cmdCount(treeID, token, payload)
+		return p.cmdCount(treeID, token)
 	case comments.CmdVotes:
 		return p.cmdVotes(treeID, token, payload)
 	case comments.CmdTimestamps:
@@ -113,7 +113,7 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("comments Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	return nil
 }
@@ -122,7 +122,7 @@ func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, paylo
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Fsck(treeIDs []int64) error {
-	log.Tracef("Fsck")
+	log.Tracef("comments Fsck")
 
 	// Verify CommentDel blobs were actually deleted
 
@@ -133,7 +133,7 @@ func (p *commentsPlugin) Fsck(treeIDs []int64) error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *commentsPlugin) Settings() []backend.PluginSetting {
-	log.Tracef("Settings")
+	log.Tracef("comments Settings")
 
 	return []backend.PluginSetting{
 		{

@@ -70,7 +70,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 
 	// Prepare reply
 	cm := convertComment(cnr.Comment)
-	cm = commentPopulateUserData(cm, u)
+	commentPopulateUserData(&cm, u)
 
 	// Emit event
 	c.events.Emit(EventTypeNew,
@@ -99,14 +99,6 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 		}
 	}
 
-	// Verify state
-	if v.State != v1.RecordStateVetted {
-		return nil, v1.UserErrorReply{
-			ErrorCode:    v1.ErrorCodeRecordStateInvalid,
-			ErrorContext: "record must be vetted",
-		}
-	}
-
 	// Verify user signed using active identity
 	if u.PublicKey() != v.PublicKey {
 		return nil, v1.UserErrorReply{
@@ -124,7 +116,7 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 		PublicKey: v.PublicKey,
 		Signature: v.Signature,
 	}
-	vr, err := c.politeiad.CommentVote(ctx, v.State, cv)
+	vr, err := c.politeiad.CommentVote(ctx, v1.RecordStateVetted, cv)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +155,7 @@ func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.D
 
 	// Prepare reply
 	cm := convertComment(cdr.Comment)
-	cm = commentPopulateUserData(cm, u)
+	commentPopulateUserData(&cm, u)
 
 	return &v1.DelReply{
 		Comment: cm,
@@ -238,7 +230,7 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 		if err != nil {
 			return nil, err
 		}
-		cm = commentPopulateUserData(cm, *u)
+		commentPopulateUserData(&cm, *u)
 
 		// Add comment
 		comments = append(comments, cm)
@@ -256,13 +248,23 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	cm := comments.Votes{
 		UserID: v.UserID,
 	}
-	votes, err := c.politeiad.CommentVotes(ctx, v.State, v.Token, cm)
+	votes, err := c.politeiad.CommentVotes(ctx,
+		v1.RecordStateVetted, v.Token, cm)
 	if err != nil {
 		return nil, err
 	}
+	cv := convertCommentVotes(votes)
+
+	// Populate comment votes with user data
+	uid, err := uuid.Parse(v.UserID)
+	u, err := c.userdb.UserGetById(uid)
+	if err != nil {
+		return nil, err
+	}
+	commentVotePopulateUserData(cv, *u)
 
 	return &v1.VotesReply{
-		Votes: convertCommentVotes(votes),
+		Votes: cv,
 	}, nil
 }
 
@@ -299,9 +301,16 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 
 // commentPopulateUserData populates the comment with user data that is not
 // stored in politeiad.
-func commentPopulateUserData(c v1.Comment, u user.User) v1.Comment {
+func commentPopulateUserData(c *v1.Comment, u user.User) {
 	c.Username = u.Username
-	return c
+}
+
+// commentVotePopulateUserData populates the comment vote with user data that
+// is not stored in politeiad.
+func commentVotePopulateUserData(votes []v1.CommentVote, u user.User) {
+	for k := range votes {
+		votes[k].Username = u.Username
+	}
 }
 
 func convertComment(c comments.Comment) v1.Comment {

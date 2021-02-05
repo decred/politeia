@@ -115,7 +115,7 @@ Help commands
   help                    Print detailed help message for a command
 
 Basic commands
-  version                 (public) Get politeiawww server version
+  version                 (public) Get politeiawww server version and CSRF
   policy                  (public) Get politeiawww server policy
   secret                  (public) Ping the server
   login                   (public) Login to politeiawww
@@ -151,6 +151,7 @@ Proposal commands
   proposaltimestamps      (public) Get timestamps for a proposal
 
 Comment commands
+  commentpolicy           (public) Get the comments api policy
   commentnew              (user)   Submit a new comment
   commentvote             (user)   Upvote/downvote a comment
   commentcensor           (admin)  Censor a comment
