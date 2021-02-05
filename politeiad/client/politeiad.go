@@ -541,6 +541,8 @@ func (c *Client) PluginInventory(ctx context.Context) ([]pdv1.Plugin, error) {
 	return pir.Plugins, nil
 }
 
+// extractPluginCommandError extracts the error from a plugin command reply if
+// one exists and converts it to a politeiad client Error.
 func extractPluginCommandError(pcr pdv1.PluginCommandReplyV2) error {
 	switch {
 	case pcr.UserError != nil:

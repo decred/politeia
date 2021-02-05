@@ -212,8 +212,10 @@ func (c *cmdProposalNew) Execute(args []string) error {
 		return fmt.Errorf("unable to verify record: %v", err)
 	}
 
-	// Print token to stdout
-	printf("Token: %v\n", nr.Record.CensorshipRecord.Token)
+	// Print censorship record
+	printf("Token  : %v\n", nr.Record.CensorshipRecord.Token)
+	printf("Merkle : %v\n", nr.Record.CensorshipRecord.Merkle)
+	printf("Receipt: %v\n", nr.Record.CensorshipRecord.Signature)
 
 	return nil
 }

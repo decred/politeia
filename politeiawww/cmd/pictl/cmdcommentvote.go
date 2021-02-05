@@ -97,6 +97,8 @@ func (c *cmdCommentVote) Execute(args []string) error {
 		return fmt.Errorf("could not verify receipt")
 	}
 
+	// Print receipt
+
 	return nil
 }
 

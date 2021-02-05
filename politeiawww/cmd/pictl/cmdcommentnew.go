@@ -102,6 +102,11 @@ func (c *cmdCommentNew) Execute(args []string) error {
 		return fmt.Errorf("could not verify receipt")
 	}
 
+	// Print receipt
+	fmt.Printf("Comment Submitted\n")
+	fmt.Printf("ID     : %v\n", nr.Comment.CommentID)
+	fmt.Printf("Receipt: %v\n", nr.Comment.Receipt)
+
 	return nil
 }
 
@@ -110,9 +115,10 @@ const commentNewHelpMsg = `commentnew "token" "comment" parentid
 
 Comment on a record. Requires the user to be logged in.
 
-This command assumes the record is a vetted record. If the record is unvetted,
-the --unvetted flag must be used. Commenting on unvetted records requires admin
-priviledges.
+This command assumes the record is a vetted record.
+
+If the record is unvetted, the --unvetted flag must be used. Commenting on
+unvetted records requires admin priviledges.
 
 Arguments:
 1. token     (string, required)  Proposal censorship token.
@@ -121,5 +127,5 @@ Arguments:
                                  indicates that the comment is a reply.
 
 Flags:
-  --unvetted   (bool, optional)    Comment on unvetted record.
+  --unvetted   (bool, optional)  Record is unvetted.
 `

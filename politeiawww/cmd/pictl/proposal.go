@@ -105,6 +105,8 @@ func printProposal(r rcv1.Record) error {
 	printf("Status   : %v\n", rcv1.RecordStatuses[r.Status])
 	printf("Timestamp: %v\n", r.Timestamp)
 	printf("Username : %v\n", r.Username)
+	printf("Merkle   : %v\n", r.CensorshipRecord.Merkle)
+	printf("Receipt  : %v\n", r.CensorshipRecord.Signature)
 	printf("Metadata\n")
 	for _, v := range r.Metadata {
 		size := byteCountSI(int64(len([]byte(v.Payload))))

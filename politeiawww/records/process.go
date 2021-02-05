@@ -64,11 +64,10 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	}
 
 	// Get full record
-	pdr, err := r.politeiad.GetUnvetted(ctx, cr.Token, "")
+	rc, err := r.record(ctx, v1.RecordStateUnvetted, cr.Token, "")
 	if err != nil {
 		return nil, err
 	}
-	rc := convertRecordToV1(*pdr, v1.RecordStateUnvetted)
 
 	// Execute post plugin hooks. Checking the mode is a temporary
 	// measure until user plugins have been properly implemented.
@@ -84,7 +83,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	r.events.Emit(EventTypeNew,
 		EventNew{
 			User:   u,
-			Record: rc,
+			Record: *rc,
 		})
 
 	log.Infof("Record submitted: %v", rc.CensorshipRecord.Token)
@@ -93,7 +92,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	}
 
 	return &v1.NewReply{
-		Record: rc,
+		Record: *rc,
 	}, nil
 }
 
@@ -192,6 +191,7 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	}
 
 	rc := convertRecordToV1(*pdr, e.State)
+	recordPopulateUserData(&rc, u)
 
 	// Emit event
 	r.events.Emit(EventTypeEdit,
@@ -269,6 +269,7 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	}
 
 	rc := convertRecordToV1(*pdr, ss.State)
+	recordPopulateUserData(&rc, u)
 
 	// Emit event
 	r.events.Emit(EventTypeSetStatus,
