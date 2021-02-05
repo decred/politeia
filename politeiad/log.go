@@ -53,7 +53,6 @@ var (
 	gitbeLog      = backendLog.Logger("GITB")
 	tlogbeLog     = backendLog.Logger("BACK")
 	tlogLog       = backendLog.Logger("TLOG")
-	storeLog      = backendLog.Logger("STOR")
 	wsdcrdataLog  = backendLog.Logger("WSDD")
 	commentsLog   = backendLog.Logger("COMT")
 	dcrdataLog    = backendLog.Logger("DCDA")
@@ -66,7 +65,7 @@ func init() {
 	gitbe.UseLogger(gitbeLog)
 	tlogbe.UseLogger(tlogbeLog)
 	tlog.UseLogger(tlogLog)
-	filesystem.UseLogger(storeLog)
+	filesystem.UseLogger(tlogLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
 	comments.UseLogger(commentsLog)
 	dcrdata.UseLogger(dcrdataLog)
@@ -80,7 +79,6 @@ var subsystemLoggers = map[string]slog.Logger{
 	"GITB": gitbeLog,
 	"BACK": tlogbeLog,
 	"TLOG": tlogLog,
-	"STOR": storeLog,
 	"WSDD": wsdcrdataLog,
 	"COMT": commentsLog,
 	"DCDA": dcrdataLog,

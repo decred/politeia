@@ -25,7 +25,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	)
 	switch {
 	case errors.As(err, &ue):
-		// Record user error from politeiawww
+		// Records user error
 		m := fmt.Sprintf("%v Records user error: %v %v",
 			util.RemoteAddr(r), ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {

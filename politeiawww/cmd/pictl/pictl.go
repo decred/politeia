@@ -74,7 +74,7 @@ type pictl struct {
 	ProposalTimestamps cmdProposalTimestamps `command:"proposaltimestamps"`
 
 	// Comments commands
-	CommentsPolicy    cmdCommentsPolicy    `command:"commentspolicy"`
+	CommentsPolicy    cmdCommentPolicy     `command:"commentpolicy"`
 	CommentNew        cmdCommentNew        `command:"commentnew"`
 	CommentVote       cmdCommentVote       `command:"commentvote"`
 	CommentCensor     cmdCommentCensor     `command:"commentcensor"`

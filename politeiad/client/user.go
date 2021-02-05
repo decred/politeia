@@ -31,15 +31,16 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 	if err != nil {
 		return "", err
 	}
-
-	// Decode reply
 	if len(replies) == 0 {
 		return "", fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return "", pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return "", err
 	}
+
+	// Decode reply
 	var ar user.AuthorReply
 	err = json.Unmarshal([]byte(pcr.Payload), &ar)
 	if err != nil {
@@ -88,7 +89,8 @@ func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]s
 	// Decode replies
 	reply := make(map[string][]string, 2) // [recordState][]token
 	for _, v := range replies {
-		if v.Error != nil {
+		err = extractPluginCommandError(v)
+		if err != nil {
 			// Swallow individual errors
 			continue
 		}

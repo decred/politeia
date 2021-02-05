@@ -35,6 +35,9 @@ const (
 	ErrorCodePublicKeyInvalid   ErrorCodeT = 3
 	ErrorCodeSignatureInvalid   ErrorCodeT = 4
 	ErrorCodeRecordStateInvalid ErrorCodeT = 5
+	ErrorCodeTokenInvalid       ErrorCodeT = 6
+	ErrorCodeRecordNotFound     ErrorCodeT = 7
+	ErrorCodeRecordLocked       ErrorCodeT = 8
 )
 
 var (
@@ -46,6 +49,9 @@ var (
 		ErrorCodePublicKeyInvalid:   "public key invalid",
 		ErrorCodeSignatureInvalid:   "signature invalid",
 		ErrorCodeRecordStateInvalid: "record state invalid",
+		ErrorCodeTokenInvalid:       "token invalid",
+		ErrorCodeRecordNotFound:     "record not found",
+		ErrorCodeRecordLocked:       "record is locked",
 	}
 )
 

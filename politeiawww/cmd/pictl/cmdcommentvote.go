@@ -4,33 +4,56 @@
 
 package main
 
+import (
+	"encoding/hex"
+	"fmt"
+	"strconv"
+
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/decred/politeia/util"
+)
+
 // cmdCommentVote is used to upvote/downvote a proposal comment using the
 // logged in the user.
 type cmdCommentVote struct {
 	Args struct {
 		Token     string `positional-arg-name:"token"`
-		CommentID string `positional-arg-name:"commentID"`
+		CommentID uint32 `positional-arg-name:"commentID"`
 		Vote      string `positional-arg-name:"vote"`
 	} `positional-args:"true" required:"true"`
 }
 
-/*
 // Execute executes the cmdCommentVote command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdCommentVote) Execute(args []string) error {
-	votes := map[string]pi.CommentVoteT{
-		"upvote":   pi.CommentVoteUpvote,
-		"downvote": pi.CommentVoteDownvote,
-		"1":        pi.CommentVoteUpvote,
-		"-1":       pi.CommentVoteDownvote,
+	// Check for user identity. A user identity is required to sign
+	// the comment vote.
+	if cfg.Identity == nil {
+		return shared.ErrUserIdentityNotFound
 	}
 
-	// Unpack args
-	token := c.Args.Token
-	commentID, err := strconv.ParseUint(c.Args.CommentID, 10, 32)
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return fmt.Errorf("ParseUint(%v): %v", c.Args.CommentID, err)
+		return err
+	}
+
+	// Parse vote preference
+	votes := map[string]cmv1.VoteT{
+		"upvote":   cmv1.VoteUpvote,
+		"downvote": cmv1.VoteDownvote,
+		"1":        cmv1.VoteUpvote,
+		"-1":       cmv1.VoteDownvote,
 	}
 	vote, ok := votes[c.Args.Vote]
 	if !ok {
@@ -38,38 +61,21 @@ func (c *cmdCommentVote) Execute(args []string) error {
 			c.Args.Vote, commentVoteHelpMsg)
 	}
 
-	// Verify identity
-	if cfg.Identity == nil {
-		return shared.ErrUserIdentityNotFound
-	}
-
-	// Sign vote choice
-	msg := strconv.Itoa(int(pi.PropStateVetted)) + token +
-		c.Args.CommentID + strconv.FormatInt(int64(vote), 10)
-	b := cfg.Identity.SignMessage([]byte(msg))
-	signature := hex.EncodeToString(b[:])
-
 	// Setup request
-	cv := pi.CommentVote{
-		Token:     token,
-		State:     pi.PropStateVetted,
-		CommentID: uint32(commentID),
+	msg := c.Args.Token + strconv.FormatUint(uint64(c.Args.CommentID), 10) +
+		strconv.FormatInt(int64(vote), 10)
+	sig := cfg.Identity.SignMessage([]byte(msg))
+	v := cmv1.Vote{
+		Token:     c.Args.Token,
+		State:     cmv1.RecordStateVetted,
+		CommentID: c.Args.CommentID,
 		Vote:      vote,
-		Signature: signature,
+		Signature: hex.EncodeToString(sig[:]),
 		PublicKey: cfg.Identity.Public.String(),
 	}
 
-	// Send request. The request and response details are printed to
-	// the console.
-	err = shared.PrintJSON(cv)
-	if err != nil {
-		return err
-	}
-	cvr, err := client.CommentVote(cv)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(cvr)
+	// Send request
+	cvr, err := pc.CommentVote(v)
 	if err != nil {
 		return err
 	}
@@ -87,18 +93,17 @@ func (c *cmdCommentVote) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !serverID.VerifyMessage([]byte(signature), receiptb) {
+	if !serverID.VerifyMessage([]byte(v.Signature), receiptb) {
 		return fmt.Errorf("could not verify receipt")
 	}
 
 	return nil
 }
-*/
 
 // commentVoteHelpMsg is printed to stdout by the help command.
 const commentVoteHelpMsg = `commentvote "token" "commentID" "vote"
 
-Upvote or downvote a comment as the logged in user.
+Upvote or downvote a comment. Requires the user to be logged in.
 
 Arguments:
 1. token      (string, required)  Proposal censorship token
@@ -111,6 +116,6 @@ upvote (1)
 downvote (-1)
 
 Example usage
-$ commentvote d594fbadef0f93780000 3 downvote
-$ commentvote d594fbadef0f93780000 3 -1
+$ commentvote d594fbadef0f9378 3 downvote
+$ commentvote d594fbadef0f9378 3 -1
 `

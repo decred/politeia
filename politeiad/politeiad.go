@@ -28,11 +28,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiad/backend/tlogbe"
-	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
-	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/plugins/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
@@ -1259,7 +1255,7 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 		token, err := util.ConvertStringToken(pc.Token)
 		if err != nil {
 			replies[k] = v1.PluginCommandReplyV2{
-				Error: v1.UserErrorReply{
+				UserError: &v1.UserErrorReply{
 					ErrorCode: v1.ErrorStatusInvalidToken,
 				},
 			}
@@ -1277,7 +1273,7 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 				pc.ID, pc.Command, pc.Payload)
 		default:
 			replies[k] = v1.PluginCommandReplyV2{
-				Error: v1.UserErrorReply{
+				UserError: &v1.UserErrorReply{
 					ErrorCode: v1.ErrorStatusInvalidRecordState,
 				},
 			}
@@ -1291,7 +1287,7 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 					remoteAddr(r), e.PluginID, e.ErrorCode)
 
 				replies[k] = v1.PluginCommandReplyV2{
-					Error: v1.PluginErrorReply{
+					PluginError: &v1.PluginErrorReply{
 						PluginID:     e.PluginID,
 						ErrorCode:    e.ErrorCode,
 						ErrorContext: []string{e.ErrorContext},
@@ -1299,28 +1295,26 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 				}
 			case err == backend.ErrRecordNotFound:
 				replies[k] = v1.PluginCommandReplyV2{
-					Error: v1.UserErrorReply{
+					UserError: &v1.UserErrorReply{
 						ErrorCode: v1.ErrorStatusRecordNotFound,
 					},
 				}
 			case err == backend.ErrRecordLocked:
 				replies[k] = v1.PluginCommandReplyV2{
-					Error: v1.UserErrorReply{
+					UserError: &v1.UserErrorReply{
 						ErrorCode: v1.ErrorStatusRecordLocked,
 					},
 				}
 			default:
-				// Unkown error. Log is as an internal server error.
+				// Unkown error. Log is as an internal server error and
+				// respond with a server error.
 				t := time.Now().Unix()
 				log.Errorf("%v %v: batched plugin cmd failed: pluginID:%v "+
 					"cmd:%v payload:%v err:%v", remoteAddr(r), t, pc.ID,
 					pc.Command, pc.Payload, err)
 
-				replies[k] = v1.PluginCommandReplyV2{
-					Error: v1.ServerErrorReply{
-						ErrorCode: t,
-					},
-				}
+				p.respondWithServerError(w, t)
+				return
 			}
 
 			continue
@@ -1335,12 +1329,13 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 	// Fill in remaining data for the replies
 	for k, v := range replies {
 		replies[k] = v1.PluginCommandReplyV2{
-			State:   pcb.Commands[k].State,
-			Token:   pcb.Commands[k].Token,
-			ID:      pcb.Commands[k].ID,
-			Command: pcb.Commands[k].Command,
-			Payload: v.Payload,
-			Error:   v.Error,
+			State:       pcb.Commands[k].State,
+			Token:       pcb.Commands[k].Token,
+			ID:          pcb.Commands[k].ID,
+			Command:     pcb.Commands[k].Command,
+			Payload:     v.Payload,
+			UserError:   v.UserError,
+			PluginError: v.PluginError,
 		}
 	}
 
@@ -1540,6 +1535,8 @@ func _main() error {
 		// Set plugin routes. Requires auth.
 		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
 			permissionAuth)
+		p.addRoute(http.MethodPost, v1.PluginCommandBatchRoute,
+			p.pluginCommandBatch, permissionAuth)
 		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
 			permissionAuth)
 
@@ -1572,9 +1569,10 @@ func _main() error {
 
 		// Register plugins
 		for _, v := range cfg.Plugins {
-			// Verify plugin ID is lowercase
+			// Verify plugin ID format
 			if backend.PluginRE.FindString(v) != v {
-				return fmt.Errorf("invalid plugin id: %v", v)
+				return fmt.Errorf("invalid plugin id format: %v %v",
+					v, backend.PluginRE.String())
 			}
 
 			// Get plugin settings
@@ -1583,55 +1581,23 @@ func _main() error {
 				ps = make([]backend.PluginSetting, 0)
 			}
 
-			// Setup plugin
+			// Prepare plugin
 			var (
-				unvetted bool // Register as unvetted plugin
-				vetted   bool // Register as vetted plugin
+				unvetted = true // Register as unvetted plugin
+				vetted   = true // Register as vetted plugin
+				plugin   = backend.Plugin{
+					ID:       v,
+					Settings: ps,
+					Identity: p.identity,
+				}
 			)
-			var plugin backend.Plugin
 			switch v {
-			case comments.PluginID:
-				plugin = backend.Plugin{
-					ID:       comments.PluginID,
-					Settings: ps,
-					Identity: p.identity,
-				}
-				unvetted = true
-				vetted = true
 			case dcrdata.PluginID:
-				plugin = backend.Plugin{
-					ID:       dcrdata.PluginID,
-					Settings: ps,
-				}
-				vetted = true
-			case pi.PluginID:
-				plugin = backend.Plugin{
-					ID:       pi.PluginID,
-					Settings: ps,
-				}
-				unvetted = true
-				vetted = true
-			case ticketvote.PluginID:
-				plugin = backend.Plugin{
-					ID:       ticketvote.PluginID,
-					Settings: ps,
-					Identity: p.identity,
-				}
-				unvetted = true
-				vetted = true
-			case user.PluginID:
-				plugin = backend.Plugin{
-					ID:       user.PluginID,
-					Settings: ps,
-				}
-				unvetted = true
-				vetted = true
+				unvetted = false
 			case decredplugin.ID:
-				// TODO plugin setup for cms
+				// TODO decredplugin setup for cms
 			case cmsplugin.ID:
-				// TODO plugin setup for cms
-			default:
-				return fmt.Errorf("unknown plugin provided by config '%v'", v)
+				// TODO cmsplugin setup for cms
 			}
 
 			// Register plugin

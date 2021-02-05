@@ -325,7 +325,7 @@ func (t *tclient) signedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot, *
 //
 // This function satisfies the trillianClient interface.
 func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof, *types.LogRootV1, error) {
-	log.Tracef("trillian leavesAppend: %v", treeID)
+	log.Tracef("trillian leavesAppend: %v %v", treeID, len(leaves))
 
 	// Get the latest signed log root
 	tree, err := t.tree(treeID)
@@ -341,8 +341,6 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	if tree.TreeState == trillian.TreeState_FROZEN {
 		return nil, nil, fmt.Errorf("tree is frozen")
 	}
-
-	log.Debugf("Appending %v leaves to tree id %v", len(leaves), treeID)
 
 	// Append leaves to log
 	qlr, err := t.log.QueueLeaves(t.ctx, &trillian.QueueLeavesRequest{
@@ -369,7 +367,8 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		}
 	}
 
-	log.Debugf("Queued/Ignored leaves: %v/%v", len(leaves)-n, n)
+	log.Trace("Queued/Ignored leaves: %v/%v", len(leaves)-n, n)
+	log.Tracef("Waiting for inclusion of queued leaves...")
 
 	var logRoot types.LogRootV1
 	err = logRoot.UnmarshalBinary(slr.LogRoot)
@@ -388,6 +387,8 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 			return nil, nil, fmt.Errorf("WaitForInclusion: %v", err)
 		}
 	}
+
+	log.Debugf("Appended leaves (%v) to tree %v", len(leaves), treeID)
 
 	// Get the latest signed log root
 	_, lr, err := t.signedLogRoot(tree)
@@ -418,7 +419,7 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 				panic(e)
 			}
 
-			// The LeafIndex of a QueuedLogLeaf will not be set yet. Get the
+			// The LeafIndex of a QueuedLogLeaf will not be set. Get the
 			// inclusion proof by MerkleLeafHash.
 			qlp.Proof, err = t.inclusionProof(treeID, v.Leaf.MerkleLeafHash, lr)
 			if err != nil {

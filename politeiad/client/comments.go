@@ -39,8 +39,9 @@ func (c *Client) CommentNew(ctx context.Context, state string, n comments.New) (
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -79,18 +80,19 @@ func (c *Client) CommentVote(ctx context.Context, state string, v comments.Vote)
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
-	}
-
-	// Decode reply
-	var nr comments.VoteReply
-	err = json.Unmarshal([]byte(pcr.Payload), &nr)
+	err = extractPluginCommandError(pcr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &nr, nil
+	// Decode reply
+	var vr comments.VoteReply
+	err = json.Unmarshal([]byte(pcr.Payload), &vr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vr, nil
 }
 
 // CommentDel sends the comments plugin Del command to the politeiad v1 API.
@@ -118,12 +120,13 @@ func (c *Client) CommentDel(ctx context.Context, state string, d comments.Del) (
 	if len(replies) == 0 {
 		return nil, fmt.Errorf("no replies found")
 	}
+	pcr := replies[0]
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
 	// Decode reply
-	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
-	}
 	var dr comments.DelReply
 	err = json.Unmarshal([]byte(pcr.Payload), &dr)
 	if err != nil {
@@ -163,9 +166,11 @@ func (c *Client) CommentCounts(ctx context.Context, state string, tokens []strin
 	for _, v := range replies {
 		// This command swallows individual errors. The token of the
 		// command that errored will not be included in the reply.
-		if v.Error != nil {
+		err = extractPluginCommandError(v)
+		if err != nil {
 			continue
 		}
+
 		var cr comments.CountReply
 		err = json.Unmarshal([]byte(v.Payload), cr)
 		if err != nil {
@@ -199,8 +204,9 @@ func (c *Client) CommentGetAll(ctx context.Context, state, token string) ([]comm
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -240,8 +246,9 @@ func (c *Client) CommentVotes(ctx context.Context, state, token string, v commen
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -281,8 +288,9 @@ func (c *Client) CommentTimestamps(ctx context.Context, state, token string, t c
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply

@@ -1546,6 +1546,14 @@ func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload str
 		}
 	}
 
+	if len(token) > 0 {
+		log.Debugf("Unvetted '%v' plugin cmd '%v' on record %x",
+			pluginID, cmd, token)
+	} else {
+		log.Debugf("Unvetted '%v' plugin command '%v'",
+			pluginID, cmd)
+	}
+
 	// Call pre plugin hooks
 	hp := plugins.HookPluginPre{
 		State:    plugins.RecordStateUnvetted,
@@ -1606,6 +1614,14 @@ func (t *tlogBackend) VettedPluginCmd(token []byte, pluginID, cmd, payload strin
 		if !ok {
 			return "", backend.ErrRecordNotFound
 		}
+	}
+
+	if len(token) > 0 {
+		log.Debugf("Vetted '%v' plugin cmd '%v' on record %x",
+			pluginID, cmd, token)
+	} else {
+		log.Debugf("Vetted '%v' plugin command '%v'",
+			pluginID, cmd)
 	}
 
 	// Call pre plugin hooks

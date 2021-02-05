@@ -30,9 +30,8 @@ type cmdProposalEdit struct {
 		Attachments []string `positional-arg-name:"attachmets"`
 	} `positional-args:"true" optional:"true"`
 
-	// Unvetted is used to indicate the state of the proposal is
-	// unvetted. If this flag is not used it will be assumed that
-	// the proposal is vetted.
+	// Unvetted is used to edit an unvetted proposal. If this flag is
+	// not used the command assumes the proposal is vetted.
 	Unvetted bool `long:"unvetted" optional:"true"`
 
 	// UseMD is a flag that is intended to make editing proposal

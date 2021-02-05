@@ -91,6 +91,8 @@ func (f *fileSystem) Put(blobs [][]byte) ([]string, error) {
 		keys = append(keys, key)
 	}
 
+	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
 	return keys, nil
 }
 
@@ -139,6 +141,8 @@ func (f *fileSystem) Del(keys []string) error {
 
 		deleted = append(deleted, v)
 	}
+
+	log.Debugf("Deleted blobs (%v) from store", len(keys))
 
 	return nil
 }

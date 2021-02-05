@@ -35,8 +35,9 @@ func (c *Client) PiVoteInv(ctx context.Context) (*pi.VoteInventoryReply, error) 
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply

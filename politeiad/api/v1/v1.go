@@ -117,6 +117,8 @@ var (
 		ErrorStatusRecordFound:                   "record found",
 		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
 		ErrorStatusInvalidToken:                  "invalid token",
+		ErrorStatusRecordLocked:                  "record locked",
+		ErrorStatusInvalidRecordState:            "invalid record state",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
@@ -575,9 +577,15 @@ type PluginCommandReplyV2 struct {
 	Command string `json:"command"` // Plugin command
 	Payload string `json:"payload"` // Response payload
 
-	// Error will only be present if an error occured while executing
-	// the plugin command on a batched request.
-	Error error `json:"error,omitempty"`
+	// UserError will be populated if a ErrorStatusT is encountered
+	// before the plugin command could be executed. Ex, the provided
+	// token does not correspond to a record.
+	UserError *UserErrorReply `json:"usererror,omitempty"`
+
+	// PluginError will be populated if a plugin error occured during
+	// plugin command execution. These errors will be specific to the
+	// plugin.
+	PluginError *PluginErrorReply `json:"pluginerror,omitempty"`
 }
 
 // PluginCommandBatch executes a batch of plugin commands.

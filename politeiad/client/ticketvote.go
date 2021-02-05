@@ -40,8 +40,9 @@ func (c *Client) TicketVoteAuthorize(ctx context.Context, a ticketvote.Authorize
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -81,8 +82,9 @@ func (c *Client) TicketVoteStart(ctx context.Context, token string, s ticketvote
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -122,8 +124,9 @@ func (c *Client) TicketVoteCastBallot(ctx context.Context, token string, cb tick
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -159,8 +162,9 @@ func (c *Client) TicketVoteDetails(ctx context.Context, token string) (*ticketvo
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -196,8 +200,9 @@ func (c *Client) TicketVoteResults(ctx context.Context, token string) (*ticketvo
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -233,8 +238,9 @@ func (c *Client) TicketVoteSummary(ctx context.Context, token string) (*ticketvo
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -272,7 +278,8 @@ func (c *Client) TicketVoteSummaries(ctx context.Context, tokens []string) (map[
 	// Prepare reply
 	summaries := make(map[string]ticketvote.SummaryReply, len(replies))
 	for _, v := range replies {
-		if v.Error != nil {
+		err = extractPluginCommandError(v)
+		if err != nil {
 			// Individual summary errors are ignored. The token will not
 			// be included in the returned summaries map.
 			continue
@@ -313,11 +320,13 @@ func (c *Client) TicketVoteLinkedFrom(ctx context.Context, tokens []string) (map
 	// Prepare reply
 	linkedFrom := make(map[string][]string, len(replies))
 	for _, v := range replies {
-		if v.Error != nil {
+		err = extractPluginCommandError(v)
+		if err != nil {
 			// Individual record errors are ignored. The token will not be
 			// included in the returned linkedFrom map.
 			continue
 		}
+
 		var lfr ticketvote.LinkedFromReply
 		err = json.Unmarshal([]byte(v.Payload), &lfr)
 		if err != nil {
@@ -351,8 +360,9 @@ func (c *Client) TicketVoteInventory(ctx context.Context) (*ticketvote.Inventory
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply
@@ -388,8 +398,9 @@ func (c *Client) TicketVoteTimestamps(ctx context.Context, token string) (*ticke
 		return nil, fmt.Errorf("no replies found")
 	}
 	pcr := replies[0]
-	if pcr.Error != nil {
-		return nil, pcr.Error
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode reply

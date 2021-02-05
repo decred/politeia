@@ -540,3 +540,26 @@ func (c *Client) PluginInventory(ctx context.Context) ([]pdv1.Plugin, error) {
 
 	return pir.Plugins, nil
 }
+
+func extractPluginCommandError(pcr pdv1.PluginCommandReplyV2) error {
+	switch {
+	case pcr.UserError != nil:
+		return Error{
+			HTTPCode: http.StatusBadRequest,
+			ErrorReply: ErrorReply{
+				ErrorCode:    int(pcr.UserError.ErrorCode),
+				ErrorContext: pcr.UserError.ErrorContext,
+			},
+		}
+	case pcr.PluginError != nil:
+		return Error{
+			HTTPCode: http.StatusBadRequest,
+			ErrorReply: ErrorReply{
+				PluginID:     pcr.PluginError.PluginID,
+				ErrorCode:    pcr.PluginError.ErrorCode,
+				ErrorContext: pcr.PluginError.ErrorContext,
+			},
+		}
+	}
+	return nil
+}

@@ -8,13 +8,13 @@ import (
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
 
-// cmdCommentsPolicy retrieves the comments API policy.
-type cmdCommentsPolicy struct{}
+// cmdCommentPolicy retrieves the comments API policy.
+type cmdCommentPolicy struct{}
 
-// Execute executes the cmdCommentsPolicy command.
+// Execute executes the cmdCommentPolicy command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *cmdCommentsPolicy) Execute(args []string) error {
+func (c *cmdCommentPolicy) Execute(args []string) error {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert: cfg.HTTPSCert,
@@ -27,7 +27,7 @@ func (c *cmdCommentsPolicy) Execute(args []string) error {
 	}
 
 	// Get policy
-	pr, err := pc.CommentsPolicy()
+	pr, err := pc.CommentPolicy()
 	if err != nil {
 		return err
 	}
