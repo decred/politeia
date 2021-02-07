@@ -5,6 +5,7 @@
 package user
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -88,7 +89,8 @@ func userMetadataVerify(metadata []backend.MetadataStream, files []backend.File)
 	if err != nil {
 		return err
 	}
-	err = util.VerifySignature(um.Signature, um.PublicKey, string(m[:]))
+	mr := hex.EncodeToString(m[:])
+	err = util.VerifySignature(um.Signature, um.PublicKey, mr)
 	if err != nil {
 		return convertSignatureError(err)
 	}

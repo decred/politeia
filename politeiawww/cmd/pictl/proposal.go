@@ -150,11 +150,12 @@ func signedMerkleRoot(files []rcv1.File, fid *identity.FullIdentity) (string, er
 	for _, v := range files {
 		digests = append(digests, v.Digest)
 	}
-	mr, err := util.MerkleRoot(digests)
+	m, err := util.MerkleRoot(digests)
 	if err != nil {
 		return "", err
 	}
-	sig := fid.SignMessage(mr[:])
+	mr := hex.EncodeToString(m[:])
+	sig := fid.SignMessage([]byte(mr))
 	return hex.EncodeToString(sig[:]), nil
 }
 
