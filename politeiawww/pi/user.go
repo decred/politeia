@@ -11,7 +11,7 @@ package pi
 const (
 	// UserPluginID is a temporary plugin ID for user functionality
 	// that is specific to pi.
-	UserPluginID = "politeiawww-piuser"
+	UserPluginID = "piuser"
 
 	// ErrorCodeInvalid is an invalid error code.
 	ErrorCodeInvalid = 0

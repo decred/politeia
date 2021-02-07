@@ -80,7 +80,8 @@ func (r *Records) piHookNewRecordPre(u user.User) error {
 
 	// Verify user has a proposal credit
 	if !userHasProposalCredits(u) {
-		return v1.UserErrorReply{
+		return v1.PluginErrorReply{
+			PluginID:  pi.UserPluginID,
 			ErrorCode: pi.ErrorCodeUserBalanceInsufficient,
 		}
 	}

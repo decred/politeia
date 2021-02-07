@@ -25,6 +25,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 		// Verify user has paid registration paywall
 		if !c.userHasPaid(u) {
 			return nil, v1.PluginErrorReply{
+				PluginID:  pi.UserPluginID,
 				ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
 			}
 		}
@@ -87,14 +88,15 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1.VoteReply, error) {
 	log.Tracef("processVote: %v %v %v", v.Token, v.CommentID, v.Vote)
 
-	// Checking the mode is a temporary measure until user plugins
-	// have been implemented.
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
 	switch c.cfg.Mode {
 	case config.PoliteiaWWWMode:
 		// Verify user has paid registration paywall
 		if !c.userHasPaid(u) {
-			return nil, v1.UserErrorReply{
-				// ErrorCode: v1.ErrorCodeUserRegistrationNotPaid,
+			return nil, v1.PluginErrorReply{
+				PluginID:  pi.UserPluginID,
+				ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
 			}
 		}
 	}
