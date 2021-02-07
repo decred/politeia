@@ -181,7 +181,7 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 			return nil, err
 		}
 	case v1.RecordStateVetted:
-		pdr, err = r.politeiad.UpdateUnvetted(ctx, e.Token, mdAppend,
+		pdr, err = r.politeiad.UpdateVetted(ctx, e.Token, mdAppend,
 			mdOverwrite, filesAdd, filesDel)
 		if err != nil {
 			return nil, err
