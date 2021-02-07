@@ -1,21 +1,21 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
-// votesCmd retrieves vote details for the specified proposals.
-type votesCmd struct {
+// cmdVoteDetails retrieves vote details for the specified proposals.
+type cmdVoteDetails struct {
 	Args struct {
-		Tokens []string `positional-arg-name:"token"`
+		Token string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
 /*
-// Execute executes the votesCmd command.
+// Execute executes the cmdVoteDetails command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *votesCmd) Execute(args []string) error {
+func (c *cmdVoteDetails) Execute(args []string) error {
 	// Setup request
 	v := pi.Votes{
 		Tokens: c.Args.Tokens,
@@ -53,14 +53,10 @@ func (c *votesCmd) Execute(args []string) error {
 }
 */
 
-// votesHelpMsg is the help command message.
-const votesHelpMsg = `votes "tokens"
+// voteDetailsHelpMsg is printed to stdout by the help command.
+const voteDetailsHelpMsg = `votedetails "token"
 
-Fetch the vote details for the provided proposal tokens.
+Fetch the vote details for a proposal.
 
 Arguments:
-1. tokens  (string, required)  Proposal censorship tokens
-
-Example usage:
-$ piwww votes cda97ace0a4765140000 71dd3a110500fb6a0000
-`
+1. token  (string, required)  Proposal censorship token.`

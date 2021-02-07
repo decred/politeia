@@ -84,16 +84,15 @@ type pictl struct {
 	CommentTimestamps cmdCommentTimestamps `command:"commenttimestamps"`
 
 	// Vote commands
-	VotePolicy      votePolicyCmd      `command:"votepolicy"`
-	VoteAuthorize   voteAuthorizeCmd   `command:"voteauthorize"`
-	VoteStart       voteStartCmd       `command:"votestart"`
-	VoteStartRunoff voteStartRunoffCmd `command:"votestartrunoff"`
-	CastBallot      castBallotCmd      `command:"castballot"`
-	Votes           votesCmd           `command:"votes"`
-	VoteResults     voteResultsCmd     `command:"voteresults"`
-	VoteSummaries   voteSummariesCmd   `command:"votesummaries"`
-	VoteInventory   voteInventoryCmd   `command:"voteinv"`
-	VoteTimestamps  voteTimestampsCmd  `command:"votetimestamps"`
+	VotePolicy     cmdVotePolicy     `command:"votepolicy"`
+	VoteAuthorize  cmdVoteAuthorize  `command:"voteauthorize"`
+	VoteStart      cmdVoteStart      `command:"votestart"`
+	CastBallot     cmdCastBallot     `command:"castballot"`
+	Votes          cmdVoteDetails    `command:"votedetails"`
+	VoteResults    cmdVoteResults    `command:"voteresults"`
+	VoteSummaries  cmdVoteSummaries  `command:"votesummaries"`
+	VoteInv        cmdVoteInv        `command:"voteinv"`
+	VoteTimestamps cmdVoteTimestamps `command:"votetimestamps"`
 
 	// Websocket commands
 	Subscribe subscribeCmd `command:"subscribe"`
@@ -108,7 +107,7 @@ const helpMsg = `Application Options:
       --host=       politeiawww host
   -j, --json        Print raw JSON output
       --version     Display version information and exit
-      --skipverify  Skip verifying the server's certifcate chain and host name
+      --skipverify  Skip verifying the server's certificate chain and host name
   -v, --verbose     Print verbose output
       --silent      Suppress all output
 
@@ -165,12 +164,12 @@ Vote commands
   votepolicy              (public) Get the ticketvote api policy
   voteauthorize           (user)   Authorize a proposal vote
   votestart               (admin)  Start a proposal vote
-  votestartrunoff         (admin)  Start a runoff vote
   castballot              (public) Cast a ballot of votes
-  votes                   (public) Get vote details
+  votedetails             (public) Get details for a vote
   voteresults             (public) Get full vote results
   votesummaries           (public) Get vote summaries
   voteinv                 (public) Get proposal inventory by vote status
+  votetimestamps          (public) Get vote timestamps
 
 Websocket commands
   subscribe               (public) Subscribe/unsubscribe to websocket event

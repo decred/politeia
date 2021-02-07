@@ -1,21 +1,21 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
-// voteSummariesCmd retrieves the vote summaries for the provided proposals.
-type voteSummariesCmd struct {
+// cmdVoteSummaries retrieves the vote summaries for the provided proposals.
+type cmdVoteSummaries struct {
 	Args struct {
 		Tokens []string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
 /*
-// Execute executes the voteSummariesCmd command.
+// Execute executes the cmdVoteSummaries command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *voteSummariesCmd) Execute(args []string) error {
+func (c *cmdVoteSummaries) Execute(args []string) error {
 	// Setup request
 	vs := pi.VoteSummaries{
 		Tokens: cmd.Args.Tokens,
@@ -40,7 +40,7 @@ func (cmd *voteSummariesCmd) Execute(args []string) error {
 }
 */
 
-// voteSummariesHelpMsg is the help command message.
+// voteSummariesHelpMsg is printed to stdout by the help command.
 const voteSummariesHelpMsg = `votesummaries "tokens"
 
 Fetch the vote summaries for the provided proposal tokens.

@@ -9,12 +9,12 @@ import (
 )
 
 // votePolicy retrieves the ticketvote API policy.
-type votePolicyCmd struct{}
+type cmdVotePolicy struct{}
 
-// Execute executes the votePolicyCmd command.
+// Execute executes the cmdVotePolicy command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *votePolicyCmd) Execute(args []string) error {
+func (c *cmdVotePolicy) Execute(args []string) error {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert: cfg.HTTPSCert,

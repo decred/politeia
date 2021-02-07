@@ -275,8 +275,8 @@ type Start struct {
 
 // StartReply is the reply to the Start command.
 type StartReply struct {
-	StartBlockHeight uint32   `json:"startblockheight"`
 	StartBlockHash   string   `json:"startblockhash"`
+	StartBlockHeight uint32   `json:"startblockheight"`
 	EndBlockHeight   uint32   `json:"endblockheight"`
 	EligibleTickets  []string `json:"eligibletickets"`
 }
@@ -484,6 +484,11 @@ type LinkedFromReply struct {
 	LinkedFrom map[string][]string `json:"linkedfrom"`
 }
 
+const (
+	// TODO implement Inventory pagnation
+	InventoryPageSize = 60
+)
+
 // Inventory requests the tokens of all records in the inventory, categorized
 // by vote status.
 type Inventory struct{}
@@ -500,7 +505,7 @@ type Inventory struct{}
 // Statuses sorted by voting period end block height in descending order:
 // Started, Finished
 type InventoryReply struct {
-	Records map[string][]string `json:"records"`
+	Vetted map[string][]string `json:"vetted"`
 
 	// BestBlock is the best block value that was used to prepare the
 	// inventory.

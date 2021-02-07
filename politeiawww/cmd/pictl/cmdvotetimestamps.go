@@ -10,17 +10,17 @@ import (
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
 
-// voteTimestampsCmd retrieves the timestamps for a politeiawww ticket vote.
-type voteTimestampsCmd struct {
+// cmdVoteTimestamps retrieves the timestamps for a politeiawww ticket vote.
+type cmdVoteTimestamps struct {
 	Args struct {
 		Token string `positional-arg-name:"token" required:"true"`
 	} `positional-args:"true"`
 }
 
-// Execute executes the voteTimestampsCmd command.
+// Execute executes the cmdVoteTimestamps command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *voteTimestampsCmd) Execute(args []string) error {
+func (c *cmdVoteTimestamps) Execute(args []string) error {
 	/*
 		// Setup request
 		t := tkv1.Timestamps{
@@ -92,7 +92,8 @@ func convertVoteTimestamp(t tkv1.Timestamp) backend.Timestamp {
 	}
 }
 
-const voteTimestampsHelpMsg = `votetimestamps [flags] "token"
+// voteTimestampsHelpMsg is printed to stdout by the help command.
+const voteTimestampsHelpMsg = `votetimestamps "token"
 
 Fetch the timestamps for a ticket vote. This includes timestamps for all
 authorizations, the vote details, and all cast votes.

@@ -75,18 +75,18 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", voteAuthorizeHelpMsg)
 	case "votestart":
 		fmt.Printf("%s\n", voteStartHelpMsg)
-	case "votestartrunoff":
-		fmt.Printf("%s\n", voteStartRunoffHelpMsg)
-	case "voteballot":
-		fmt.Printf("%s\n", voteInventoryHelpMsg)
-	case "votes":
-		fmt.Printf("%s\n", votesHelpMsg)
+	case "castballot":
+		fmt.Printf("%s\n", castBallotHelpMsg)
+	case "votedetails":
+		fmt.Printf("%s\n", voteDetailsHelpMsg)
 	case "voteresults":
 		fmt.Printf("%s\n", voteResultsHelpMsg)
 	case "votesummaries":
 		fmt.Printf("%s\n", voteSummariesHelpMsg)
-	case "voteinventory":
-		fmt.Printf("%s\n", voteInventoryHelpMsg)
+	case "voteinv":
+		fmt.Printf("%s\n", voteInvHelpMsg)
+	case "votetimestamps":
+		fmt.Printf("%s\n", voteTimestampsHelpMsg)
 
 	// User commands
 	case "usernew":

@@ -212,7 +212,7 @@ func (t *TicketVote) processInventory(ctx context.Context) (*v1.InventoryReply, 
 	}
 
 	return &v1.InventoryReply{
-		Records:   records,
+		Vetted:    records,
 		BestBlock: ir.BestBlock,
 	}, nil
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// CommentPolicy sends a pi v1 Policy request to politeiawww.
+// CommentPolicy sends a comments v1 Policy request to politeiawww.
 func (c *Client) CommentPolicy() (*cmv1.PolicyReply, error) {
 	resBody, err := c.makeReq(http.MethodGet,
 		cmv1.APIRoute, cmv1.RoutePolicy, nil)

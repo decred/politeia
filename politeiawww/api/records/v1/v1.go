@@ -313,7 +313,7 @@ type RecordsReply struct {
 }
 
 const (
-	// TODO implement
+	// TODO implement Inventory pagnation
 	InventoryPageSize = 60
 )
 

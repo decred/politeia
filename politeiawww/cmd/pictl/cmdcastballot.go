@@ -1,11 +1,11 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
-// castBallotCmd casts a ballot of votes for the specified proposal.
-type castBallotCmd struct {
+// cmdCastBallot casts a ballot of votes.
+type cmdCastBallot struct {
 	Args struct {
 		Token  string `positional-arg-name:"token"`
 		VoteID string `positional-arg-name:"voteid"`
@@ -14,10 +14,10 @@ type castBallotCmd struct {
 }
 
 /*
-// Execute executes the castBallotCmd command.
+// Execute executes the cmdCastBallot command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *castBallotCmd) Execute(args []string) error {
+func (c *cmdCastBallot) Execute(args []string) error {
 	token := c.Args.Token
 	voteID := c.Args.VoteID
 
@@ -204,17 +204,17 @@ func (c *castBallotCmd) Execute(args []string) error {
 }
 */
 
-// castBallotHelpMsg is the help command message.
+// castBallotHelpMsg is printed to stdout by the help command.
 const castBallotHelpMsg = `castballot "token" "voteid"
 
-Cast a ballot of ticket votes for a proposal. This command will only work when
-on testnet and when running dcrwallet locally on the default port.
+Cast a ballot of dcr ticket votes. This command will only work when on testnet
+and when running dcrwallet locally on the default port.
 
 Arguments:
 1. token   (string, optional)  Proposal censorship token
 2. voteid  (string, optional)  Vote option ID (e.g. yes)
 
 Flags:
-  --password  (string, optional)  Wallet password. You will be prompted for the
-                                  password if one is not provided.
+ --password  (string, optional)  Wallet password. You will be prompted for the
+                                 password if one is not provided.
 `

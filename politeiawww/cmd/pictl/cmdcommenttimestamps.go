@@ -106,7 +106,7 @@ func convertCommentTimestamp(t cmv1.Timestamp) backend.Timestamp {
 	}
 }
 
-// commentTimestampsHelpMsg is printed to stdout by the help command
+// commentTimestampsHelpMsg is printed to stdout by the help command.
 const commentTimestampsHelpMsg = `commenttimestamps [flags] "token" commentIDs
 
 Fetch the timestamps for a record's comments. The timestamp contains all
