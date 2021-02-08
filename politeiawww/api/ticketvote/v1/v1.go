@@ -163,6 +163,15 @@ const (
 	VoteOptionIDReject = "no"
 )
 
+var (
+	// VoteType contains the human readable vote types.
+	VoteTypes = map[VoteT]string{
+		VoteTypeInvalid:  "invalid vote type",
+		VoteTypeStandard: "standard",
+		VoteTypeRunoff:   "runoff",
+	}
+)
+
 // VoteStatusT represents a vote status.
 type VoteStatusT int
 

@@ -2437,14 +2437,8 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	return string(reply), nil
 }
 
-func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdDetails: %v %x %v", treeID, token, payload)
-
-	var d ticketvote.Details
-	err := json.Unmarshal([]byte(payload), &d)
-	if err != nil {
-		return "", err
-	}
+func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte) (string, error) {
+	log.Tracef("cmdDetails: %v %x", treeID, token)
 
 	// Get vote authorizations
 	auths, err := p.auths(treeID)
@@ -2471,8 +2465,8 @@ func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte, payload string
 	return string(reply), nil
 }
 
-func (p *ticketVotePlugin) cmdResults(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdResults: %v %x %v", treeID, token, payload)
+func (p *ticketVotePlugin) cmdResults(treeID int64, token []byte) (string, error) {
+	log.Tracef("cmdResults: %v %x", treeID, token)
 
 	// Get cast votes
 	votes, err := p.castVotes(treeID)
@@ -2546,8 +2540,8 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 	return approved
 }
 
-func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdSummaries: %v %x %v", treeID, token, payload)
+func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error) {
+	log.Tracef("cmdSummaries: %v %x %v", treeID, token)
 
 	// Get best block. This cmd does not write any data so we do not
 	// have to use the safe best block.
@@ -2634,15 +2628,8 @@ func (p *ticketVotePlugin) cmdInventory() (string, error) {
 	return string(reply), nil
 }
 
-func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdTimestamps: %v %x %v", treeID, token, payload)
-
-	// Decode payload
-	var t ticketvote.Timestamps
-	err := json.Unmarshal([]byte(payload), &t)
-	if err != nil {
-		return "", err
-	}
+func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte) (string, error) {
+	log.Tracef("cmdTimestamps: %v %x", treeID, token)
 
 	// Get authorization timestamps
 	digests, err := p.tlog.DigestsByDataType(treeID, dataTypeAuthDetails)

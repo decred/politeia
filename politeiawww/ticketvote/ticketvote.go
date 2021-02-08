@@ -244,7 +244,7 @@ func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 
 	var ts v1.Timestamps
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
+	if err := decoder.Decode(&ts); err != nil {
 		respondWithError(w, r, "HandleTimestamps: unmarshal",
 			v1.UserErrorReply{
 				ErrorCode: v1.ErrorCodeInputInvalid,

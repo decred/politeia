@@ -124,7 +124,7 @@ Flags:
   --unvetted  (bool, optional)  Record is unvetted.
 
 Example: Fetch all record comment timestamps
-$ piwww commenttimestamps 0a265dd93e9bae6d 
+$ pictl commenttimestamps 0a265dd93e9bae6d 
 
 Example: Fetch comment timestamps for comment IDs 1, 6, and 7
 $ pictl commenttimestamps 0a265dd93e9bae6d  1 6 7`

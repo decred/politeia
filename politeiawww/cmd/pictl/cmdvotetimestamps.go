@@ -5,9 +5,12 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
 )
 
 // cmdVoteTimestamps retrieves the timestamps for a politeiawww ticket vote.
@@ -21,44 +24,45 @@ type cmdVoteTimestamps struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteTimestamps) Execute(args []string) error {
-	/*
-		// Setup request
-		t := tkv1.Timestamps{
-			Token: c.Args.Token,
-		}
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
+	}
 
-		// Send request
-		err := shared.PrintJSON(t)
-		if err != nil {
-			return err
-		}
-		tr, err := client.TicketVoteTimestamps(t)
-		if err != nil {
-			return err
-		}
-		err = shared.PrintJSON(tr)
-		if err != nil {
-			return err
-		}
+	// Get timestamps
+	t := tkv1.Timestamps{
+		Token: c.Args.Token,
+	}
+	tr, err := pc.TicketVoteTimestamps(t)
+	if err != nil {
+		return err
+	}
 
-		// Verify timestamps
-		for k, v := range tr.Auths {
-			err = verifyVoteTimestamp(v)
-			if err != nil {
-				return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
-			}
-		}
-		err = verifyVoteTimestamp(tr.Details)
+	// Verify timestamps
+	for k, v := range tr.Auths {
+		err = verifyVoteTimestamp(v)
 		if err != nil {
-			return fmt.Errorf("verify vote details timestamp: %v", err)
+			return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
 		}
-		for k, v := range tr.Votes {
-			err = verifyVoteTimestamp(v)
-			if err != nil {
-				return fmt.Errorf("verify vote %v timestamp: %v", k, err)
-			}
+	}
+	err = verifyVoteTimestamp(tr.Details)
+	if err != nil {
+		return fmt.Errorf("verify vote details timestamp: %v", err)
+	}
+	for k, v := range tr.Votes {
+		err = verifyVoteTimestamp(v)
+		if err != nil {
+			return fmt.Errorf("verify vote %v timestamp: %v", k, err)
 		}
-	*/
+	}
 
 	return nil
 }

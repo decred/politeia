@@ -4,59 +4,58 @@
 
 package main
 
-// cmdVoteDetails retrieves vote details for the specified proposals.
+import (
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
+)
+
+// cmdVoteDetails retrieves vote details for the provided record.
 type cmdVoteDetails struct {
 	Args struct {
 		Token string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
-/*
 // Execute executes the cmdVoteDetails command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteDetails) Execute(args []string) error {
-	// Setup request
-	v := pi.Votes{
-		Tokens: c.Args.Tokens,
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert: cfg.HTTPSCert,
+		Verbose:   cfg.Verbose,
+		RawJSON:   cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
 	}
 
-	// Send request. The request and response details are printed to
-	// the console.
-	err := shared.PrintJSON(v)
+	// Get vote details
+	d := tkv1.Details{
+		Token: c.Args.Token,
+	}
+	dr, err := pc.TicketVoteDetails(d)
 	if err != nil {
 		return err
 	}
-	vr, err := client.Votes(v)
-	if err != nil {
-		return err
+
+	// Print results
+	for _, v := range dr.Auths {
+		printAuthDetails(v)
+		printf("\n")
 	}
-	if !cfg.RawJSON {
-		// Remove the eligible ticket pool from the response for
-		// readability.
-		for k, v := range vr.Votes {
-			if v.Vote == nil {
-				continue
-			}
-			v.Vote.EligibleTickets = []string{
-				"removed by piwww for readability",
-			}
-			vr.Votes[k] = v
-		}
-	}
-	err = shared.PrintJSON(vr)
-	if err != nil {
-		return err
+	if dr.Vote != nil {
+		printVoteDetails(*dr.Vote)
 	}
 
 	return nil
 }
-*/
 
 // voteDetailsHelpMsg is printed to stdout by the help command.
 const voteDetailsHelpMsg = `votedetails "token"
 
-Fetch the vote details for a proposal.
+Fetch the vote details for a record.
 
 Arguments:
-1. token  (string, required)  Proposal censorship token.`
+1. token  (string, required)  Record token.`

@@ -4,47 +4,53 @@
 
 package main
 
-// cmdVoteResults retreives the cast votes for the provided proposal.
+import (
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
+)
+
+// cmdVoteResults retreives the cast ticket votes for a record.
 type cmdVoteResults struct {
 	Args struct {
 		Token string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
 }
 
-/*
 // Execute executes the cmdVoteResults command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteResults) Execute(args []string) error {
-	// Setup request
-	vr := pi.VoteResults{
-		Token: cmd.Args.Token,
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert: cfg.HTTPSCert,
+		Verbose:   cfg.Verbose,
+		RawJSON:   cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
 	}
 
-	// Send request. The request and response details are printed to
-	// the console.
-	err := shared.PrintJSON(vr)
+	// Get vote results
+	r := tkv1.Results{
+		Token: c.Args.Token,
+	}
+	rr, err := pc.TicketVoteResults(r)
 	if err != nil {
 		return err
 	}
-	vrr, err := client.VoteResults(vr)
-	if err != nil {
-		return err
-	}
-	err = shared.PrintJSON(vrr)
-	if err != nil {
-		return err
-	}
+
+	// Print results summary
+	printVoteResults(rr.Votes)
 
 	return nil
 }
-*/
 
 // voteResultsHelpMsg is printed to stdout by the help command.
 const voteResultsHelpMsg = `voteresults "token"
 
-Fetch vote results for the provided proposal.
+Fetch vote results for a record.
 
 Arguments:
-1. token  (string, required)  Proposal censorship token
+1. token  (string, required)  Record token.
 `

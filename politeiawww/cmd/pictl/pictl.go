@@ -88,7 +88,7 @@ type pictl struct {
 	VoteAuthorize  cmdVoteAuthorize  `command:"voteauthorize"`
 	VoteStart      cmdVoteStart      `command:"votestart"`
 	CastBallot     cmdCastBallot     `command:"castballot"`
-	Votes          cmdVoteDetails    `command:"votedetails"`
+	VoteDetails    cmdVoteDetails    `command:"votedetails"`
 	VoteResults    cmdVoteResults    `command:"voteresults"`
 	VoteSummaries  cmdVoteSummaries  `command:"votesummaries"`
 	VoteInv        cmdVoteInv        `command:"voteinv"`

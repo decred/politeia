@@ -164,7 +164,7 @@ func userDetails(u *testUser) error {
 	return nil
 }
 
-// testUser tests piwww user specific routes.
+// testUser tests pictl user specific routes.
 func testUserRoutes(admin testUser) error {
 	// sleepInterval is the time to wait in between requests
 	// when polling politeiawww for paywall tx confirmations.
