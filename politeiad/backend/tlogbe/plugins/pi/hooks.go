@@ -222,8 +222,12 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 
 // commentWritesVerify verifies that a record's vote status allows writes from
 // the comments plugin.
-func (p *piPlugin) commentWritesVerify(token []byte) error {
-	// Verify that the vote status allows comment writes
+func (p *piPlugin) commentWritesVerify(s plugins.RecordStateT, token []byte) error {
+	// Verify that the vote status allows comment writes. This only
+	// applies to vetted records.
+	if s == plugins.RecordStateUnvetted {
+		return nil
+	}
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
@@ -242,16 +246,16 @@ func (p *piPlugin) commentWritesVerify(token []byte) error {
 	}
 }
 
-func (p *piPlugin) hookCommentNew(token []byte) error {
-	return p.commentWritesVerify(token)
+func (p *piPlugin) hookCommentNew(s plugins.RecordStateT, token []byte) error {
+	return p.commentWritesVerify(s, token)
 }
 
-func (p *piPlugin) hookCommentDel(token []byte) error {
-	return p.commentWritesVerify(token)
+func (p *piPlugin) hookCommentDel(s plugins.RecordStateT, token []byte) error {
+	return p.commentWritesVerify(s, token)
 }
 
-func (p *piPlugin) hookCommentVote(token []byte) error {
-	return p.commentWritesVerify(token)
+func (p *piPlugin) hookCommentVote(s plugins.RecordStateT, token []byte) error {
+	return p.commentWritesVerify(s, token)
 }
 
 func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
@@ -267,11 +271,11 @@ func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) err
 	case comments.PluginID:
 		switch hpp.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(token)
+			return p.hookCommentNew(hpp.State, token)
 		case comments.CmdDel:
-			return p.hookCommentDel(token)
+			return p.hookCommentDel(hpp.State, token)
 		case comments.CmdVote:
-			return p.hookCommentVote(token)
+			return p.hookCommentVote(hpp.State, token)
 		}
 	}
 
