@@ -33,7 +33,7 @@ type cmdVoteStart struct {
 
 	// Runoff is used to indicate the vote is a runoff vote and the
 	// provided token is the parent token of the runoff vote.
-	Runoff bool `long:"random" optional:"true"`
+	Runoff bool `long:"runoff" optional:"true"`
 }
 
 func voteStartStandard(token string, duration, quorum, pass uint32, pc *pclient.Client) (*tkv1.StartReply, error) {

@@ -7,11 +7,8 @@ package shared
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -2321,125 +2318,6 @@ func (c *Client) VerifyTOTP(vt *www.VerifyTOTP) (*www.VerifyTOTPReply, error) {
 	}
 
 	return &vtr, nil
-}
-
-// WalletAccounts retrieves the walletprc accounts.
-func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
-	if c.wallet == nil {
-		return nil, fmt.Errorf("walletrpc client not loaded")
-	}
-
-	if c.cfg.Verbose {
-		fmt.Printf("walletrpc %v Accounts\n", c.cfg.WalletHost)
-	}
-
-	ar, err := c.wallet.Accounts(c.ctx, &walletrpc.AccountsRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(ar)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return ar, nil
-}
-
-// CommittedTickets returns the committed tickets that belong to the dcrwallet
-// instance out of the the specified list of tickets.
-func (c *Client) CommittedTickets(ct *walletrpc.CommittedTicketsRequest) (*walletrpc.CommittedTicketsResponse, error) {
-	if c.wallet == nil {
-		return nil, fmt.Errorf("walletrpc client not loaded")
-	}
-
-	if c.cfg.Verbose {
-		fmt.Printf("walletrpc %v CommittedTickets\n", c.cfg.WalletHost)
-	}
-
-	ctr, err := c.wallet.CommittedTickets(c.ctx, ct)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(ctr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return ctr, nil
-}
-
-// SignMessages signs the passed in messages using the private keys from the
-// specified addresses.
-func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.SignMessagesResponse, error) {
-	if c.wallet == nil {
-		return nil, fmt.Errorf("walletrpc client not loaded")
-	}
-
-	if c.cfg.Verbose {
-		fmt.Printf("walletrpc %v SignMessages\n", c.cfg.WalletHost)
-	}
-
-	smr, err := c.wallet.SignMessages(c.ctx, sm)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(smr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return smr, nil
-}
-
-// TODO the wallet client should be its own client and it should verify
-// that the dcrwallet client certs are set.
-// LoadWalletClient connects to a dcrwallet instance.
-func (c *Client) LoadWalletClient() error {
-	serverCAs := x509.NewCertPool()
-	serverCert, err := ioutil.ReadFile(c.cfg.WalletCert)
-	if err != nil {
-		return err
-	}
-	if !serverCAs.AppendCertsFromPEM(serverCert) {
-		return fmt.Errorf("no certificates found in %s",
-			c.cfg.WalletCert)
-	}
-	keypair, err := tls.LoadX509KeyPair(c.cfg.ClientCert, c.cfg.ClientKey)
-	if err != nil {
-		return fmt.Errorf("read client keypair: %v", err)
-	}
-	creds := credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{keypair},
-		RootCAs:      serverCAs,
-	})
-
-	conn, err := grpc.Dial(c.cfg.WalletHost,
-		grpc.WithTransportCredentials(creds))
-	if err != nil {
-		return err
-	}
-
-	c.ctx = context.Background()
-	c.creds = creds
-	c.conn = conn
-	c.wallet = walletrpc.NewWalletServiceClient(conn)
-	return nil
-}
-
-// Close all client connections.
-func (c *Client) Close() {
-	if c.conn != nil {
-		c.conn.Close()
-	}
 }
 
 // NewClient returns a new politeiawww client.

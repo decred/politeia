@@ -71,9 +71,11 @@ func printVoteSummary(token string, s tkv1.Summary) {
 		// Nothing else to print
 		return
 	}
+	pass := int(float64(s.PassPercentage) / 100 * float64(s.EligibleTickets))
+	quorum := int(float64(s.QuorumPercentage) / 100 * float64(s.EligibleTickets))
 	printf("Type              : %v\n", tkv1.VoteTypes[s.Type])
-	printf("Pass Percentage   : %v%%\n", s.PassPercentage)
-	printf("Quorum Percentage : %v%%\n", s.QuorumPercentage)
+	printf("Pass Percentage   : %v%% (%v votes)\n", s.PassPercentage, pass)
+	printf("Quorum Percentage : %v%% (%v votes)\n", s.QuorumPercentage, quorum)
 	printf("Duration          : %v blocks\n", s.Duration)
 	printf("Start Block Hash  : %v\n", s.StartBlockHash)
 	printf("Start Block Height: %v\n", s.StartBlockHeight)

@@ -4,6 +4,23 @@
 
 package main
 
+import (
+	"bytes"
+	"context"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"strconv"
+
+	"decred.org/dcrwallet/rpc/walletrpc"
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
+	"github.com/decred/politeia/util"
+	"golang.org/x/crypto/ssh/terminal"
+)
+
 // cmdCastBallot casts a ballot of votes.
 type cmdCastBallot struct {
 	Args struct {
@@ -13,32 +30,52 @@ type cmdCastBallot struct {
 	Password string `long:"password" optional:"true"`
 }
 
-/*
 // Execute executes the cmdCastBallot command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdCastBallot) Execute(args []string) error {
-	token := c.Args.Token
-	voteID := c.Args.VoteID
+	// Unpack args
+	var (
+		token  = c.Args.Token
+		voteID = c.Args.VoteID
+	)
+
+	// Setup politeiawww client
+	opts := pclient.Opts{
+		HTTPSCert: cfg.HTTPSCert,
+		Verbose:   cfg.Verbose,
+		RawJSON:   cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
+	}
+
+	// Setup dcrwallet client
+	ctx := context.Background()
+	wc, err := newDcrwalletClient(cfg.WalletHost, cfg.WalletCert,
+		cfg.ClientCert, cfg.ClientKey)
+	if err != nil {
+		return err
+	}
+	defer wc.conn.Close()
 
 	// Get vote details
-	vr, err := client.Votes(pi.Votes{
-		Tokens: []string{token},
-	})
+	d := tkv1.Details{
+		Token: token,
+	}
+	dr, err := pc.TicketVoteDetails(d)
 	if err != nil {
-		return fmt.Errorf("Votes: %v", err)
+		return err
 	}
-	pv, ok := vr.Votes[token]
-	if !ok {
-		return fmt.Errorf("proposal not found: %v", token)
+	if dr.Vote == nil {
+		return fmt.Errorf("vote not started")
 	}
-	if pv.Vote == nil {
-		return fmt.Errorf("vote hasn't started yet")
-	}
+	voteDetails := dr.Vote
 
 	// Verify provided vote ID
 	var voteBit string
-	for _, option := range pv.Vote.Params.Options {
+	for _, option := range voteDetails.Params.Options {
 		if voteID == option.ID {
 			voteBit = strconv.FormatUint(option.Bit, 16)
 			break
@@ -48,26 +85,19 @@ func (c *cmdCastBallot) Execute(args []string) error {
 		return fmt.Errorf("vote id not found: %v", voteID)
 	}
 
-	// Connect to user's wallet
-	err = client.LoadWalletClient()
-	if err != nil {
-		return fmt.Errorf("LoadWalletClient: %v", err)
-	}
-	defer client.Close()
-
 	// Get the user's tickets that are eligible to vote
-	ticketpool := make([][]byte, 0, len(pv.Vote.EligibleTickets))
-	for _, v := range pv.Vote.EligibleTickets {
+	ticketPool := make([][]byte, 0, len(voteDetails.EligibleTickets))
+	for _, v := range voteDetails.EligibleTickets {
 		h, err := chainhash.NewHashFromStr(v)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		ticketpool = append(ticketpool, h[:])
+		ticketPool = append(ticketPool, h[:])
 	}
-	ctr, err := client.CommittedTickets(
-		&walletrpc.CommittedTicketsRequest{
-			Tickets: ticketPool,
-		})
+	ct := walletrpc.CommittedTicketsRequest{
+		Tickets: ticketPool,
+	}
+	ctr, err := wc.wallet.CommittedTickets(ctx, &ct)
 	if err != nil {
 		return fmt.Errorf("CommittedTickets: %v", err)
 	}
@@ -86,7 +116,7 @@ func (c *cmdCastBallot) Execute(args []string) error {
 	}
 
 	// The next step is to have the user's wallet sign the proposal
-	// votes for each ticket. The password wallet is needed for this.
+	// votes for each ticket. The wallet password is needed for this.
 	var passphrase []byte
 	if c.Password != "" {
 		// Password was provided
@@ -94,12 +124,12 @@ func (c *cmdCastBallot) Execute(args []string) error {
 	} else {
 		// Prompt user for password
 		for len(passphrase) == 0 {
-			fmt.Printf("Enter the private passphrase of your wallet: ")
+			printf("Enter the private passphrase of your wallet: ")
 			pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
 			if err != nil {
 				return err
 			}
-			fmt.Printf("\n")
+			printf("\n")
 			passphrase = bytes.TrimSpace(pass)
 		}
 	}
@@ -115,10 +145,11 @@ func (c *cmdCastBallot) Execute(args []string) error {
 			Message: msg,
 		})
 	}
-	sigs, err := client.SignMessages(&walletrpc.SignMessagesRequest{
+	sm := walletrpc.SignMessagesRequest{
 		Passphrase: passphrase,
 		Messages:   messages,
-	})
+	}
+	sigs, err := wc.wallet.SignMessages(ctx, &sm)
 	if err != nil {
 		return fmt.Errorf("SignMessages: %v", err)
 	}
@@ -130,24 +161,24 @@ func (c *cmdCastBallot) Execute(args []string) error {
 	}
 
 	// Setup ballot request
-	votes := make([]pi.CastVote, 0, len(eligibleTickets))
+	votes := make([]tkv1.CastVote, 0, len(eligibleTickets))
 	for i, ticket := range eligibleTickets {
 		// eligibleTickets and sigs use the same index
-		votes = append(votes, pi.CastVote{
+		votes = append(votes, tkv1.CastVote{
 			Token:     token,
 			Ticket:    ticket,
 			VoteBit:   voteBit,
 			Signature: hex.EncodeToString(sigs.Replies[i].Signature),
 		})
 	}
-	cb := pi.CastBallot{
+	cb := tkv1.CastBallot{
 		Votes: votes,
 	}
 
 	// Send ballot request
-	cbr, err := client.CastBallot(cb)
+	cbr, err := pc.TicketVoteCastBallot(cb)
 	if err != nil {
-		return fmt.Errorf("CastBallot: %v", err)
+		return err
 	}
 
 	// Get the server pubkey so that we can validate the receipts.
@@ -164,7 +195,7 @@ func (c *cmdCastBallot) Execute(args []string) error {
 	// ticket hash so in order to associate a failed receipt with a
 	// specific ticket, we need  to lookup the ticket hash and store
 	// it separately.
-	failedReceipts := make([]pi.CastVoteReply, 0, len(cbr.Receipts))
+	failedReceipts := make([]tkv1.CastVoteReply, 0, len(cbr.Receipts))
 	failedTickets := make([]string, 0, len(eligibleTickets))
 	for i, v := range cbr.Receipts {
 		// Lookup ticket hash. br.Receipts and eligibleTickets use the
@@ -181,28 +212,25 @@ func (c *cmdCastBallot) Execute(args []string) error {
 		// Verify receipts
 		sig, err := identity.SignatureFromString(v.Receipt)
 		if err != nil {
-			fmt.Printf("Failed to decode receipt: %v\n", v.Ticket)
+			printf("Failed to decode receipt: %v\n", v.Ticket)
 			continue
 		}
 		clientSig := votes[i].Signature
 		if !serverID.VerifyMessage([]byte(clientSig), *sig) {
-			fmt.Printf("Failed to verify receipt: %v", v.Ticket)
+			printf("Failed to verify receipt: %v", v.Ticket)
 			continue
 		}
 	}
 
 	// Print results
-	if !cfg.Silent {
-		fmt.Printf("Votes succeeded: %v\n", len(cbr.Receipts)-len(failedReceipts))
-		fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
-		for i, v := range failedReceipts {
-			fmt.Printf("Failed vote    : %v %v\n", failedTickets[i], v.ErrorContext)
-		}
+	printf("Votes succeeded: %v\n", len(cbr.Receipts)-len(failedReceipts))
+	printf("Votes failed   : %v\n", len(failedReceipts))
+	for i, v := range failedReceipts {
+		printf("Failed vote    : %v %v\n", failedTickets[i], v.ErrorContext)
 	}
 
 	return nil
 }
-*/
 
 // castBallotHelpMsg is printed to stdout by the help command.
 const castBallotHelpMsg = `castballot "token" "voteid"
