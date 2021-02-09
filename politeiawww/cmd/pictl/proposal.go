@@ -30,6 +30,33 @@ func printProposalFiles(files []rcv1.File) error {
 		size := byteCountSI(int64(len(b)))
 		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
 	}
+
+	// Its possible for a proposal metadata to not exist if the
+	// proposal has been censored.
+	pm, err := proposalMetadataDecode(files)
+	if err != nil {
+		return err
+	}
+	if pm != nil {
+		printf("%v\n", piv1.FileNameProposalMetadata)
+		printf("  Name: %v\n", pm.Name)
+	}
+
+	// A vote metadata file is optional
+	vm, err := voteMetadataDecode(files)
+	if err != nil {
+		return err
+	}
+	if vm != nil {
+		printf("%v\n", piv1.FileNameVoteMetadata)
+		if vm.LinkTo != "" {
+			printf("  LinkTo: %v\n", vm.LinkTo)
+		}
+		if vm.LinkBy != 0 {
+			printf("  LinkBy: %v\n", timestampFromUnix(vm.LinkBy))
+		}
+	}
+
 	return nil
 }
 
@@ -160,8 +187,7 @@ func signedMerkleRoot(files []rcv1.File, fid *identity.FullIdentity) (string, er
 }
 
 // proposalMetadataDecode decodes and returns the ProposalMetadata from the
-// provided record files. An error is returned if a ProposalMetadata is not
-// found.
+// provided record files. nil is returned if a ProposalMetadata is not found.
 func proposalMetadataDecode(files []rcv1.File) (*piv1.ProposalMetadata, error) {
 	var propMD *piv1.ProposalMetadata
 	for _, v := range files {
@@ -178,9 +204,6 @@ func proposalMetadataDecode(files []rcv1.File) (*piv1.ProposalMetadata, error) {
 			propMD = &m
 			break
 		}
-	}
-	if propMD == nil {
-		return nil, fmt.Errorf("proposal metadata not found")
 	}
 	return propMD, nil
 }

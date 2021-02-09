@@ -134,7 +134,6 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 	}
 
 	// Print proposal to stdout
-	printf("Proposal status updated\n")
 	err = printProposal(ssr.Record)
 	if err != nil {
 		return err

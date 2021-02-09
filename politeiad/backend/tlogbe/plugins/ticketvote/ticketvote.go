@@ -226,6 +226,8 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 		return p.hookNewRecordPre(payload)
 	case plugins.HookTypeEditRecordPre:
 		return p.hookEditRecordPre(payload)
+	case plugins.HookTypeSetRecordStatusPre:
+		return p.hookSetRecordStatusPre(payload)
 	case plugins.HookTypeSetRecordStatusPost:
 		return p.hookSetRecordStatusPost(payload)
 	}
@@ -305,6 +307,9 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 					v.Key, v.Value, err)
 			}
 			linkByPeriodMin = i
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeyLinkByPeriodMin, linkByPeriodMin)
+
 		case ticketvote.SettingKeyLinkByPeriodMax:
 			i, err := strconv.ParseInt(v.Value, 10, 64)
 			if err != nil {
@@ -312,6 +317,9 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 					v.Key, v.Value, err)
 			}
 			linkByPeriodMax = i
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeyLinkByPeriodMax, linkByPeriodMax)
+
 		case ticketvote.SettingKeyVoteDurationMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -319,6 +327,9 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 					v.Key, v.Value, err)
 			}
 			voteDurationMin = uint32(u)
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeyVoteDurationMin, voteDurationMin)
+
 		case ticketvote.SettingKeyVoteDurationMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -326,6 +337,9 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 					v.Key, v.Value, err)
 			}
 			voteDurationMax = uint32(u)
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeyVoteDurationMax, voteDurationMax)
+
 		default:
 			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
 		}

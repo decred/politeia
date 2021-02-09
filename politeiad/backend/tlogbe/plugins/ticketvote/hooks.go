@@ -249,6 +249,62 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 	return nil
 }
 
+func (p *ticketVotePlugin) hookSetRecordStatusPre(payload string) error {
+	var srs plugins.HookSetRecordStatus
+	err := json.Unmarshal([]byte(payload), &srs)
+	if err != nil {
+		return err
+	}
+
+	// Check if the LinkTo has been set
+	vm, err := voteMetadataDecode(srs.Current.Files)
+	if err != nil {
+		return err
+	}
+	if vm != nil && vm.LinkTo != "" {
+		// LinkTo has been set. Verify that the deadline to link to this
+		// record has not expired. We only need to do this when a record
+		// is being made public since the submissions list of the parent
+		// record is only updated for public records. This update occurs
+		// in the set status post hook.
+		switch srs.RecordMetadata.Status {
+		case backend.MDStatusVetted:
+			// Get the parent record
+			token, err := tokenDecode(vm.LinkTo)
+			if err != nil {
+				return err
+			}
+			r, err := p.backend.GetVetted(token, "")
+			if err != nil {
+				return err
+			}
+
+			// Verify linkby has not expired
+			vmParent, err := voteMetadataDecode(r.Files)
+			if err != nil {
+				return err
+			}
+			if vmParent == nil {
+				e := fmt.Sprintf("vote metadata does not exist on parent record %v",
+					srs.RecordMetadata.Token)
+				panic(e)
+			}
+			if time.Now().Unix() > vmParent.LinkBy {
+				return backend.PluginError{
+					PluginID:     ticketvote.PluginID,
+					ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+					ErrorContext: "parent record linkby has expired",
+				}
+			}
+
+		default:
+			// Nothing to do
+		}
+	}
+
+	return nil
+}
+
 func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 	var srs plugins.HookSetRecordStatus
 	err := json.Unmarshal([]byte(payload), &srs)

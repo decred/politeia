@@ -32,7 +32,7 @@ type cmdProposalNew struct {
 	// Metadata fields that can be set by the user
 	Name   string `long:"name" optional:"true"`
 	LinkTo string `long:"linkto" optional:"true"`
-	LinkBy int64  `long:"linkby" optional:"true"`
+	LinkBy string `long:"linkby" optional:"true"`
 
 	// Random generates random proposal data. An IndexFile and
 	// Attachments are not required when using this flag.
@@ -63,7 +63,7 @@ func (c *cmdProposalNew) Execute(args []string) error {
 		return fmt.Errorf("you cannot provide file arguments and use " +
 			"the --random flag at the same time")
 
-	case c.RFP && c.LinkBy != 0:
+	case c.RFP && c.LinkBy != "":
 		return fmt.Errorf("you cannot use both the --rfp and --linkby " +
 			"flags at the same time")
 	}
@@ -157,14 +157,23 @@ func (c *cmdProposalNew) Execute(args []string) error {
 	})
 
 	// Setup vote metadata
-	if c.RFP {
+	var linkBy int64
+	switch {
+	case c.RFP:
 		// Set linkby to a month from now
-		c.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+		linkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	case c.LinkBy != "":
+		// Parse the provided linkby
+		d, err := time.ParseDuration(c.LinkBy)
+		if err != nil {
+			return fmt.Errorf("unable to parse linkby: %v", err)
+		}
+		linkBy = time.Now().Add(d).Unix()
 	}
-	if c.LinkBy != 0 || c.LinkTo != "" {
+	if linkBy != 0 || c.LinkTo != "" {
 		vm := piv1.VoteMetadata{
 			LinkTo: c.LinkTo,
-			LinkBy: c.LinkBy,
+			LinkBy: linkBy,
 		}
 		vmb, err := json.Marshal(vm)
 		if err != nil {
@@ -179,7 +188,7 @@ func (c *cmdProposalNew) Execute(args []string) error {
 	}
 
 	// Print proposal to stdout
-	printf("Proposal submitted\n")
+	printf("Files\n")
 	err = printProposalFiles(files)
 	if err != nil {
 		return err
@@ -234,18 +243,27 @@ to link to and an existing RFP proposal.
 
 Arguments:
 1. indexfile   (string, required)  Index file
-2. attachments (string, optional)  Attachment files
+2. attachments (string)            Attachment files
 
 Flags:
- --name   (string, optional)  Name of the proposal.
- --linkto (string, optional)  Token of an existing public proposal to link to.
- --linkby (int64, optional)   UNIX timestamp of the RFP deadline. Setting this
-                              field will make the proposal an RFP with a
-                              submission deadline specified by the linkby.
- --random (bool, optional)    Generate a random proposal. If this flag is used
-                              then the markdownfile argument is no longer
-                              required and any provided files will be ignored.
- --rfp    (bool, optional)    Make the proposal an RFP by setting the linkby to
-                              one month from the current time. This is intended
-                              to be used in place of --linkby.
+ --name   (string) Name of the proposal.
+ --linkto (string) Token of an existing public proposal to link to.
+ --linkby (string) UNIX timestamp of the RFP deadline. Setting this field will
+                   make the proposal an RFP with a submission deadline set by
+                   the linkby. Valid linkby units are:
+                   s (seconds), m (minutes), h (hours)
+ --random (bool)   Generate a random proposal. If this flag is used then the  
+                   markdownfile argument is no longer required and any
+                   provided files will be ignored.
+ --rfp    (bool)   Make the proposal an RFP by setting the linkby to one month
+                   from the current time. This is intended to be used in place
+                   of --linkby.
+
+Examples:
+
+# Set linkby 24 hours from current time
+$ pictl proposalnew --random --linkby=24h
+
+# Use --rfp to set the linky 1 month from current time
+$ pictl proposalnew --rfp index.md proposalmetadata.json
 `

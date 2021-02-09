@@ -38,7 +38,8 @@ const (
 
 	// SettingLinkByPeriodMin is the default minimum amount of time,
 	// in seconds, that the link by period can be set to. This value
-	// of 2 weeks was chosen arbitrarily.
+	// of 2 weeks was chosen assuming a 1 week voting period on
+	// mainnet.
 	SettingLinkByPeriodMin int64 = 1209600
 
 	// SettingLinkByPeriodMax is the default maximum amount of time,

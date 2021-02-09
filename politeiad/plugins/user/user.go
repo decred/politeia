@@ -13,10 +13,6 @@ const (
 	CmdAuthor      = "author"      // Get record author
 	CmdUserRecords = "userrecords" // Get user submitted records
 
-	// TODO MDStream IDs need to be plugin specific. If we can't then
-	// we need to make a mdstream package to aggregate all the mdstream
-	// IDs.
-
 	// MDStreamIDUserMetadata is the politeiad metadata stream ID for
 	// the UserMetadata structure.
 	MDStreamIDUserMetadata = 1
