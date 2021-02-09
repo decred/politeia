@@ -1500,12 +1500,12 @@ func (p *ticketVotePlugin) cmdRunoffDetails(treeID int64) (string, error) {
 
 func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs startRunoffSubmission) error {
 	// Sanity check
-	s := srs.StartDetails
-	t, err := tokenDecode(s.Params.Token)
+	sd := srs.StartDetails
+	t, err := tokenDecode(sd.Params.Token)
 	if err != nil {
 		return err
 	}
-	if bytes.Equal(token, t) {
+	if !bytes.Equal(token, t) {
 		return fmt.Errorf("invalid token")
 	}
 
@@ -1549,10 +1549,10 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	if err != nil {
 		return fmt.Errorf("GetVetted: %v", err)
 	}
-	version := strconv.FormatUint(uint64(s.Params.Version), 10)
+	version := strconv.FormatUint(uint64(sd.Params.Version), 10)
 	if r.Version != version {
 		e := fmt.Sprintf("version is not latest %v: got %v, want %v",
-			s.Params.Token, s.Params.Version, r.Version)
+			sd.Params.Token, sd.Params.Version, r.Version)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeRecordVersionInvalid),
@@ -1562,9 +1562,9 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 
 	// Prepare vote details
 	vd := ticketvote.VoteDetails{
-		Params:           s.Params,
-		PublicKey:        s.PublicKey,
-		Signature:        s.Signature,
+		Params:           sd.Params,
+		PublicKey:        sd.PublicKey,
+		Signature:        sd.Signature,
 		StartBlockHeight: srr.StartBlockHeight,
 		StartBlockHash:   srr.StartBlockHash,
 		EndBlockHeight:   srr.EndBlockHeight,
@@ -1896,8 +1896,8 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 			if errors.As(err, &ue) {
 				return nil, err
 			}
-			return nil, fmt.Errorf("VettedPluginCmd %x %v %v %v: %v",
-				token, ticketvote.PluginID, cmdStartRunoffSubmission, b, err)
+			return nil, fmt.Errorf("VettedPluginCmd %x %v %v: %v",
+				token, ticketvote.PluginID, cmdStartRunoffSubmission, err)
 		}
 	}
 

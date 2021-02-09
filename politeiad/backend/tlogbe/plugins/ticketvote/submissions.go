@@ -126,7 +126,7 @@ func (p *ticketVotePlugin) submissionsCacheAdd(parentToken, childToken string) e
 		return err
 	}
 
-	log.Debugf("Submissions list updated. Child %v added to parent %v",
+	log.Debugf("Submissions list add: child %v added to parent %v",
 		childToken, parentToken)
 
 	return nil
@@ -165,7 +165,7 @@ func (p *ticketVotePlugin) submissionsCacheDel(parentToken, childToken string) e
 		return err
 	}
 
-	log.Debugf("Submissions list updated. Child %v deleted from parent %v",
+	log.Debugf("Submissions list del: child %v deleted from parent %v",
 		childToken, parentToken)
 
 	return nil

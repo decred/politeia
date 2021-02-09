@@ -1161,30 +1161,46 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 			backend.MDStatus[status], status)
 	}
 
-	// Call post plugin hooks
-	t.unvetted.PluginHookPost(treeID, token,
-		plugins.HookTypeSetRecordStatusPost, string(b))
-
 	log.Debugf("Status change %x from %v (%v) to %v (%v)",
 		token, backend.MDStatus[currStatus], currStatus,
 		backend.MDStatus[status], status)
 
-	// Update inventory cache
-	if status == backend.MDStatusVetted {
-		// Record was made public
+	switch status {
+	case backend.MDStatusVetted:
+		// Record was made public. Actions must now be executed on the
+		// vetted tlog instance.
+
+		// Call post plugin hooks
+		t.vetted.PluginHookPost(treeID, token,
+			plugins.HookTypeSetRecordStatusPost, string(b))
+
+		// Update inventory cache
 		t.inventoryMoveToVetted(token, currStatus, status)
-	} else {
-		// All other status changes
+
+		// Retrieve record
+		r, err = t.GetVetted(token, "")
+		if err != nil {
+			return nil, err
+		}
+
+	default:
+		// All other status changes. The record is still unvetted.
+
+		// Call post plugin hooks
+		t.unvetted.PluginHookPost(treeID, token,
+			plugins.HookTypeSetRecordStatusPost, string(b))
+
+		// Update inventory cache
 		t.inventoryUpdate(stateUnvetted, token, currStatus, status)
+
+		// Retrieve record
+		r, err = t.GetUnvetted(token, "")
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Return the updated record. If the record was made public it is
-	// now a vetted record and must be fetched accordingly.
-	if status == backend.MDStatusVetted {
-		return t.GetVetted(token, "")
-	}
-
-	return t.GetUnvetted(token, "")
+	return r, nil
 }
 
 // This function must be called WITH the record lock held.

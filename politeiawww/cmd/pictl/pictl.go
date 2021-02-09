@@ -169,6 +169,7 @@ Vote commands
   votedetails             (public) Get details for a vote
   voteresults             (public) Get full vote results
   votesummaries           (public) Get vote summaries
+  votesubmissions         (public) Get runoff vote submissions
   voteinv                 (public) Get proposal inventory by vote status
   votetimestamps          (public) Get vote timestamps
 

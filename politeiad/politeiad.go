@@ -1310,8 +1310,8 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 				// respond with a server error.
 				t := time.Now().Unix()
 				log.Errorf("%v %v: batched plugin cmd failed: pluginID:%v "+
-					"cmd:%v payload:%v err:%v", remoteAddr(r), t, pc.ID,
-					pc.Command, pc.Payload, err)
+					"cmd:%v err:'%v' payload:%v", remoteAddr(r), t, pc.ID,
+					pc.Command, err, pc.Payload)
 
 				p.respondWithServerError(w, t)
 				return
