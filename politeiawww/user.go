@@ -1066,10 +1066,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 	// Get user record
 	u, err := p.db.UserGetByEmail(l.Email)
 	if err != nil {
-		fmt.Println("failing here")
-		fmt.Println(u)
 		if errors.Is(err, user.ErrUserNotFound) {
-			fmt.Println("user not found??")
 			log.Debugf("login: user not found for email '%v'",
 				l.Email)
 			err = www.UserError{
