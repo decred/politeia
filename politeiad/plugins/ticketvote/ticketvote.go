@@ -18,15 +18,15 @@ const (
 	PluginID = "ticketvote"
 
 	// Plugin commands
-	CmdAuthorize  = "authorize"  // Authorize a vote
-	CmdStart      = "start"      // Start a vote
-	CmdCastBallot = "castballot" // Cast a ballot of votes
-	CmdDetails    = "details"    // Get vote details
-	CmdResults    = "results"    // Get vote results
-	CmdSummary    = "summary"    // Get vote summary
-	CmdLinkedFrom = "linkedfrom" // Get linked from list
-	CmdInventory  = "inventory"  // Get inventory by vote status
-	CmdTimestamps = "timestamps" // Get vote data timestamps
+	CmdAuthorize   = "authorize"   // Authorize a vote
+	CmdStart       = "start"       // Start a vote
+	CmdCastBallot  = "castballot"  // Cast a ballot of votes
+	CmdDetails     = "details"     // Get vote details
+	CmdResults     = "results"     // Get vote results
+	CmdSummary     = "summary"     // Get vote summary
+	CmdSubmissions = "submissions" // Get runoff vote submissions
+	CmdInventory   = "inventory"   // Get inventory by vote status
+	CmdTimestamps  = "timestamps"  // Get vote data timestamps
 
 	// Setting keys are the plugin setting keys that can be used to
 	// override a default plugin setting. Defaults will be overridden
@@ -491,6 +491,19 @@ type SummaryReply struct {
 	BestBlock uint32 `json:"bestblock"`
 }
 
+// Submissions requests the submissions of a runoff vote. The only records that
+// will have a submissions list are the parent records in a runoff vote. The
+// list will contain all public runoff vote submissions, i.e. records that
+// have linked to the parent record using the VoteMetadata.LinkTo field.
+type Submissions struct {
+	Token string `json:"token"`
+}
+
+// SubmissionsReply is the reply to the Submissions command.
+type SubmissionsReply struct {
+	Submissions []string `json:"submissions"`
+}
+
 // Inventory requests the tokens of all public, non-abandoned records
 // categorized by vote status.
 type Inventory struct{}
@@ -547,15 +560,4 @@ type TimestampsReply struct {
 	Auths   []Timestamp          `json:"auths,omitempty"`
 	Details Timestamp            `json:"details,omitempty"`
 	Votes   map[string]Timestamp `json:"votes,omitempty"` // [ticket]Timestamp
-}
-
-// LinkedFrom requests the linked from list for a record. The only records that
-// will have a linked from list are the parent records in a runoff vote. The
-// linked from list will contain all runoff vote submissions, i.e. records that
-// linked to the runoff parent record using the VoteMetadata.LinkTo field.
-type LinkedFrom struct{}
-
-// LinkedFromReply is the reply to the LinkedFrom command.
-type LinkedFromReply struct {
-	Tokens []string `json:"tokens"`
 }

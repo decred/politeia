@@ -96,21 +96,17 @@ func voteStartStandard(token string, duration, quorum, pass uint32, pc *pclient.
 
 func voteStartRunoff(parentToken string, duration, quorum, pass uint32, pc *pclient.Client) (*tkv1.StartReply, error) {
 	// Get runoff vote submissions
-	lf := tkv1.LinkedFrom{
-		Tokens: []string{parentToken},
+	s := tkv1.Submissions{
+		Token: parentToken,
 	}
-	lfr, err := pc.TicketVoteLinkedFrom(lf)
+	sr, err := pc.TicketVoteSubmissions(s)
 	if err != nil {
-		return nil, fmt.Errorf("TicketVoteLinkedFrom: %v", err)
-	}
-	linkedFrom, ok := lfr.LinkedFrom[parentToken]
-	if !ok {
-		return nil, fmt.Errorf("linked from not found %v", parentToken)
+		return nil, fmt.Errorf("TicketVoteSubmissions: %v", err)
 	}
 
 	// Prepare start details for each submission
-	starts := make([]tkv1.StartDetails, 0, len(linkedFrom))
-	for _, v := range linkedFrom {
+	starts := make([]tkv1.StartDetails, 0, len(sr.Submissions))
+	for _, v := range sr.Submissions {
 		// Get record
 		d := rcv1.Details{
 			State: rcv1.RecordStateVetted,
@@ -167,10 +163,10 @@ func voteStartRunoff(parentToken string, duration, quorum, pass uint32, pc *pcli
 	}
 
 	// Send request
-	s := tkv1.Start{
+	ts := tkv1.Start{
 		Starts: starts,
 	}
-	return pc.TicketVoteStart(s)
+	return pc.TicketVoteStart(ts)
 }
 
 // Execute executes the cmdVoteStart command.

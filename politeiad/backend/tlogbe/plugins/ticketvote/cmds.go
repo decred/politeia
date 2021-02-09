@@ -1659,10 +1659,10 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 
 	// Compile a list of the expected submissions that should be in the
 	// runoff vote. This will be all of the public records that have
-	// linked to the parent record. The parent record's linked from
+	// linked to the parent record. The parent record's submissions
 	// list will include abandoned proposals that need to be filtered
 	// out.
-	lf, err := p.linkedFromCache(token)
+	lf, err := p.submissionsCache(token)
 	if err != nil {
 		return nil, err
 	}
@@ -1683,7 +1683,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 		}
 
 		// This is a public record that is part of the parent record's
-		// linked from list. It is required to be in the runoff vote.
+		// submissions list. It is required to be in the runoff vote.
 		expected[k] = struct{}{}
 	}
 
@@ -2705,11 +2705,11 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte) (string, er
 	return string(reply), nil
 }
 
-func (p *ticketVotePlugin) cmdLinkedFrom(token []byte) (string, error) {
-	log.Tracef("cmdLinkedFrom: %x", token)
+func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
+	log.Tracef("cmdSubmissions: %x", token)
 
-	// Get linked from list
-	lf, err := p.linkedFromCache(token)
+	// Get submissions list
+	lf, err := p.submissionsCache(token)
 	if err != nil {
 		return "", err
 	}
@@ -2719,8 +2719,8 @@ func (p *ticketVotePlugin) cmdLinkedFrom(token []byte) (string, error) {
 	for k := range lf.Tokens {
 		tokens = append(tokens, k)
 	}
-	lfr := ticketvote.LinkedFromReply{
-		Tokens: tokens,
+	lfr := ticketvote.SubmissionsReply{
+		Submissions: tokens,
 	}
 	reply, err := json.Marshal(lfr)
 	if err != nil {

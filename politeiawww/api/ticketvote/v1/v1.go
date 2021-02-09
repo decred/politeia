@@ -10,16 +10,16 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/ticketvote/v1"
 
-	RoutePolicy     = "/policy"
-	RouteAuthorize  = "/authorize"
-	RouteStart      = "/start"
-	RouteCastBallot = "/castballot"
-	RouteDetails    = "/details"
-	RouteResults    = "/results"
-	RouteSummaries  = "/summaries"
-	RouteLinkedFrom = "/linkedfrom"
-	RouteInventory  = "/inventory"
-	RouteTimestamps = "/timestamps"
+	RoutePolicy      = "/policy"
+	RouteAuthorize   = "/authorize"
+	RouteStart       = "/start"
+	RouteCastBallot  = "/castballot"
+	RouteDetails     = "/details"
+	RouteResults     = "/results"
+	RouteSummaries   = "/summaries"
+	RouteSubmissions = "/submissions"
+	RouteInventory   = "/inventory"
+	RouteTimestamps  = "/timestamps"
 )
 
 // ErrorCodeT represents a user error code.
@@ -478,19 +478,17 @@ type SummariesReply struct {
 	Summaries map[string]Summary `json:"summaries"` // [token]Summary
 }
 
-// LinkedFrom requests the linked from list for a record. The only records that
-// will have a linked from list are the parent records in a runoff vote. The
-// linked from list will contain all runoff vote submissions, i.e. records that
-// linked to the runoff parent record using the VoteMetadata.LinkTo field.
-type LinkedFrom struct {
-	Tokens []string `json:"tokens"`
+// Submissions requests the submissions of a runoff vote. The only records that
+// will have a submissions list are the parent records in a runoff vote. The
+// list will contain all public runoff vote submissions, i.e. records that
+// have linked to the parent record using the VoteMetadata.LinkTo field.
+type Submissions struct {
+	Token string `json:"token"`
 }
 
-// LinkedFromReply is the reply to the LinkedFrom command. If a provided token
-// does not correspond to a record then it will not be included in the returned
-// map.
-type LinkedFromReply struct {
-	LinkedFrom map[string][]string `json:"linkedfrom"`
+// SubmissionsReply is the reply to the Submissions command.
+type SubmissionsReply struct {
+	Submissions []string `json:"submissions"`
 }
 
 const (

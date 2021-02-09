@@ -198,12 +198,12 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 		return p.cmdResults(treeID, token)
 	case ticketvote.CmdSummary:
 		return p.cmdSummary(treeID, token)
+	case ticketvote.CmdSubmissions:
+		return p.cmdSubmissions(token)
 	case ticketvote.CmdInventory:
 		return p.cmdInventory()
 	case ticketvote.CmdTimestamps:
 		return p.cmdTimestamps(treeID, token)
-	case ticketvote.CmdLinkedFrom:
-		return p.cmdLinkedFrom(token)
 
 		// Internal plugin commands
 	case cmdStartRunoffSubmission:

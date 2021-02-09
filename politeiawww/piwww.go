@@ -138,7 +138,7 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		tkv1.RouteSummaries, t.HandleSummaries,
 		permissionPublic)
 	p.addRoute(http.MethodPost, tkv1.APIRoute,
-		tkv1.RouteLinkedFrom, t.HandleLinkedFrom,
+		tkv1.RouteSubmissions, t.HandleSubmissions,
 		permissionPublic)
 	p.addRoute(http.MethodPost, tkv1.APIRoute,
 		tkv1.RouteInventory, t.HandleInventory,

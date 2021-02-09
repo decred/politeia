@@ -197,29 +197,29 @@ func (t *TicketVote) HandleSummaries(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, sr)
 }
 
-// HandleLinkedFrom is the request handler for the ticketvote v1 LinkedFrom
+// HandleSubmissions is the request handler for the ticketvote v1 Submissions
 // route.
-func (t *TicketVote) HandleLinkedFrom(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleLinkedFrom")
+func (t *TicketVote) HandleSubmissions(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleSubmissions")
 
-	var lf v1.LinkedFrom
+	var s v1.Submissions
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&lf); err != nil {
-		respondWithError(w, r, "HandleLinkedFrom: unmarshal",
+	if err := decoder.Decode(&s); err != nil {
+		respondWithError(w, r, "HandleSubmissions: unmarshal",
 			v1.UserErrorReply{
 				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
 		return
 	}
 
-	lfr, err := t.processLinkedFrom(r.Context(), lf)
+	sr, err := t.processSubmissions(r.Context(), s)
 	if err != nil {
-		respondWithError(w, r, "HandleLinkedFrom: processLinkedFrom: %v",
+		respondWithError(w, r, "HandleSubmissions: processSubmissions: %v",
 			err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, lfr)
+	util.RespondWithJSON(w, http.StatusOK, sr)
 }
 
 // HandleInventory is the request handler for the ticketvote v1 Inventory

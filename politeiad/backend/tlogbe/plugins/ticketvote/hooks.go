@@ -263,7 +263,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 	}
 	if vm != nil && vm.LinkTo != "" {
 		// LinkTo has been set. Check if the status change requires the
-		// linked from list of the linked record to be updated.
+		// submissions list of the linked record to be updated.
 		var (
 			parentToken = vm.LinkTo
 			childToken  = srs.RecordMetadata.Token
@@ -271,17 +271,17 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 		switch srs.RecordMetadata.Status {
 		case backend.MDStatusVetted:
 			// Record has been made public. Add child token to parent's
-			// linked from list.
-			err := p.linkedFromCacheAdd(parentToken, childToken)
+			// submissions list.
+			err := p.submissionsCacheAdd(parentToken, childToken)
 			if err != nil {
-				return fmt.Errorf("linkedFromCacheAdd: %v", err)
+				return fmt.Errorf("submissionsFromCacheAdd: %v", err)
 			}
 		case backend.MDStatusCensored:
 			// Record has been censored. Delete child token from parent's
-			// linked from list.
-			err := p.linkedFromCacheDel(parentToken, childToken)
+			// submissions list.
+			err := p.submissionsCacheDel(parentToken, childToken)
 			if err != nil {
-				return fmt.Errorf("linkedFromCacheDel: %v", err)
+				return fmt.Errorf("submissionsCacheDel: %v", err)
 			}
 		}
 	}

@@ -182,16 +182,16 @@ func (t *TicketVote) processSummaries(ctx context.Context, s v1.Summaries) (*v1.
 	}, nil
 }
 
-func (t *TicketVote) processLinkedFrom(ctx context.Context, lf v1.LinkedFrom) (*v1.LinkedFromReply, error) {
-	log.Tracef("processLinkedFrom: %v", lf.Tokens)
+func (t *TicketVote) processSubmissions(ctx context.Context, s v1.Submissions) (*v1.SubmissionsReply, error) {
+	log.Tracef("processSubmissions: %v", s.Token)
 
-	tlf, err := t.politeiad.TicketVoteLinkedFrom(ctx, lf.Tokens)
+	sr, err := t.politeiad.TicketVoteSubmissions(ctx, s.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	return &v1.LinkedFromReply{
-		LinkedFrom: tlf,
+	return &v1.SubmissionsReply{
+		Submissions: sr.Submissions,
 	}, nil
 }
 

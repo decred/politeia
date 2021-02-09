@@ -10,18 +10,18 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// helpCmd prints a detailed help message for the specified command.
-type helpCmd struct {
+// cmdHelp prints a detailed help message for the specified command.
+type cmdHelp struct {
 	Args struct {
 		Command string `positional-arg-name:"command"`
 	} `positional-args:"true" required:"true"`
 }
 
-// Execute executes the helpCmd command.
+// Execute executes the cmdHelp command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *helpCmd) Execute(args []string) error {
-	switch cmd.Args.Command {
+func (c *cmdHelp) Execute(args []string) error {
+	switch c.Args.Command {
 	// Server commands
 	case "version":
 		fmt.Printf("%s\n", shared.VersionHelpMsg)
@@ -83,6 +83,8 @@ func (cmd *helpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", voteResultsHelpMsg)
 	case "votesummaries":
 		fmt.Printf("%s\n", voteSummariesHelpMsg)
+	case "votesubmissions":
+		fmt.Printf("%s\n", voteSubmissionsHelpMsg)
 	case "voteinv":
 		fmt.Printf("%s\n", voteInvHelpMsg)
 	case "votetimestamps":

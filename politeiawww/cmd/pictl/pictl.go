@@ -36,7 +36,7 @@ type pictl struct {
 	Config shared.Config
 
 	// Basic commands
-	Help helpCmd `command:"help"`
+	Help cmdHelp `command:"help"`
 
 	// Server commands
 	Version shared.VersionCmd `command:"version"`
@@ -84,15 +84,16 @@ type pictl struct {
 	CommentTimestamps cmdCommentTimestamps `command:"commenttimestamps"`
 
 	// Vote commands
-	VotePolicy     cmdVotePolicy     `command:"votepolicy"`
-	VoteAuthorize  cmdVoteAuthorize  `command:"voteauthorize"`
-	VoteStart      cmdVoteStart      `command:"votestart"`
-	CastBallot     cmdCastBallot     `command:"castballot"`
-	VoteDetails    cmdVoteDetails    `command:"votedetails"`
-	VoteResults    cmdVoteResults    `command:"voteresults"`
-	VoteSummaries  cmdVoteSummaries  `command:"votesummaries"`
-	VoteInv        cmdVoteInv        `command:"voteinv"`
-	VoteTimestamps cmdVoteTimestamps `command:"votetimestamps"`
+	VotePolicy      cmdVotePolicy      `command:"votepolicy"`
+	VoteAuthorize   cmdVoteAuthorize   `command:"voteauthorize"`
+	VoteStart       cmdVoteStart       `command:"votestart"`
+	CastBallot      cmdCastBallot      `command:"castballot"`
+	VoteDetails     cmdVoteDetails     `command:"votedetails"`
+	VoteResults     cmdVoteResults     `command:"voteresults"`
+	VoteSummaries   cmdVoteSummaries   `command:"votesummaries"`
+	VoteSubmissions cmdVoteSubmissions `command:"votesubmissions"`
+	VoteInv         cmdVoteInv         `command:"voteinv"`
+	VoteTimestamps  cmdVoteTimestamps  `command:"votetimestamps"`
 
 	// Websocket commands
 	Subscribe subscribeCmd `command:"subscribe"`

@@ -295,20 +295,18 @@ func (c *Client) TicketVoteSummaries(ctx context.Context, tokens []string) (map[
 	return summaries, nil
 }
 
-// TicketVoteLinkedFrom sends a batch of ticketvote plugin LinkedFrom commands
-// to the politeiad v1 API. Individual record errors are not returned, the
-// token will simply be left out of the returned map.
-func (c *Client) TicketVoteLinkedFrom(ctx context.Context, tokens []string) (map[string][]string, error) {
+// TicketVoteSubmissions sends the ticketvote plugin Submissions command to the
+// politeiad v1 API.
+func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) (*ticketvote.SubmissionsReply, error) {
 	// Setup request
-	cmds := make([]pdv1.PluginCommandV2, 0, len(tokens))
-	for _, v := range tokens {
-		cmds = append(cmds, pdv1.PluginCommandV2{
+	cmds := []pdv1.PluginCommandV2{
+		{
 			State:   pdv1.RecordStateVetted,
-			Token:   v,
+			Token:   token,
 			ID:      ticketvote.PluginID,
-			Command: ticketvote.CmdLinkedFrom,
+			Command: ticketvote.CmdSubmissions,
 			Payload: "",
-		})
+		},
 	}
 
 	// Send request
@@ -316,26 +314,23 @@ func (c *Client) TicketVoteLinkedFrom(ctx context.Context, tokens []string) (map
 	if err != nil {
 		return nil, err
 	}
-
-	// Prepare reply
-	linkedFrom := make(map[string][]string, len(replies))
-	for _, v := range replies {
-		err = extractPluginCommandError(v)
-		if err != nil {
-			// Individual record errors are ignored. The token will not be
-			// included in the returned linkedFrom map.
-			continue
-		}
-
-		var lfr ticketvote.LinkedFromReply
-		err = json.Unmarshal([]byte(v.Payload), &lfr)
-		if err != nil {
-			return nil, err
-		}
-		linkedFrom[v.Token] = lfr.Tokens
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
 	}
 
-	return linkedFrom, nil
+	// Decode reply
+	var sr ticketvote.SubmissionsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &sr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sr, nil
 }
 
 // TicketVoteInventory sends the ticketvote plugin Inventory command to the

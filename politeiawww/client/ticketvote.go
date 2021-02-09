@@ -154,25 +154,25 @@ func (c *Client) TicketVoteSummaries(s tkv1.Summaries) (*tkv1.SummariesReply, er
 	return &sr, nil
 }
 
-// TicketVoteLinkedFrom sends a ticketvote v1 LinkedFrom request to
+// TicketVoteSubmissions sends a ticketvote v1 Submissions request to
 // politeiawww.
-func (c *Client) TicketVoteLinkedFrom(lf tkv1.LinkedFrom) (*tkv1.LinkedFromReply, error) {
+func (c *Client) TicketVoteSubmissions(s tkv1.Submissions) (*tkv1.SubmissionsReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,
-		tkv1.APIRoute, tkv1.RouteLinkedFrom, lf)
+		tkv1.APIRoute, tkv1.RouteSubmissions, s)
 	if err != nil {
 		return nil, err
 	}
 
-	var lfr tkv1.LinkedFromReply
-	err = json.Unmarshal(resBody, &lfr)
+	var sr tkv1.SubmissionsReply
+	err = json.Unmarshal(resBody, &sr)
 	if err != nil {
 		return nil, err
 	}
 	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(lfr))
+		fmt.Printf("%v\n", util.FormatJSON(sr))
 	}
 
-	return &lfr, nil
+	return &sr, nil
 }
 
 // TicketVoteInventory sends a ticketvote v1 Inventory request to politeiawww.
