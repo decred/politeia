@@ -268,13 +268,23 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 		}
 	}
 
-	rc := convertRecordToV1(*pdr, ss.State)
+	// Convert the record. The state may need to be updated if the
+	// record was made public.
+	var state string
+	switch ss.Status {
+	case v1.RecordStatusPublic:
+		// Flip state from unvetted to vetted
+		state = pdv1.RecordStateVetted
+	default:
+		state = ss.State
+	}
+	rc := convertRecordToV1(*pdr, state)
 	recordPopulateUserData(&rc, u)
 
 	// Emit event
 	r.events.Emit(EventTypeSetStatus,
 		EventSetStatus{
-			State:  ss.State,
+			State:  state,
 			Record: rc,
 		})
 
