@@ -272,9 +272,7 @@ func (t *Tlog) anchorWait(anchors []anchor, digests []string) {
 		// enough time is given for the anchor transaction to receive 6
 		// confirmations. This is based on the fact that each block has
 		// a 99.75% chance of being mined within 30 minutes.
-		//
-		// TODO change period to 5 minutes when done testing
-		period  = 1 * time.Minute             // check every 5 minute
+		period  = 5 * time.Minute             // check every 5 minute
 		retries = 180 / int(period.Minutes()) // for up to 180 minutes
 		ticker  = time.NewTicker(period)
 	)

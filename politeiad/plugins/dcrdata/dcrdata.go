@@ -6,8 +6,6 @@
 // explorer.
 package dcrdata
 
-type StatusT int
-
 const (
 	PluginID = "dcrdata"
 
@@ -17,20 +15,41 @@ const (
 	CmdTicketPool   = "ticketpool"   // Get ticket pool
 	CmdTxsTrimmed   = "txstrimmed"   // Get trimmed transactions
 
-	// Default plugin settings
-	DefaultHostHTTPMainNet = "https://dcrdata.decred.org"
-	DefaultHostHTTPTestNet = "https://testnet.decred.org"
-	DefaultHostWSMainNet   = "wss://dcrdata.decred.org/ps"
-	DefaultHostWSTestNet   = "wss://testnet.decred.org/ps"
+	// Setting keys are the plugin setting keys that can be used to
+	// override a default plugin setting. Defaults will be overridden
+	// if a plugin setting is provided to the plugin on startup.
+	SettingKeyHostHTTP = "hosthttp"
+	SettingKeyHostWS   = "hostws"
 
-	// Dcrdata connection statuses.
-	//
-	// Some commands will return cached results with the connection
-	// status when dcrdata cannot be reached. It is the callers
-	// responsibility to determine the correct course of action when
-	// dcrdata cannot be reached.
-	StatusInvalid      StatusT = 0
-	StatusConnected    StatusT = 1
+	// SettingHostHTTPMainNet is the default dcrdata mainnet http host.
+	SettingHostHTTPMainNet = "https://dcrdata.decred.org"
+
+	// SettingHostHTTPTestNet is the default dcrdata testnet http host.
+	SettingHostHTTPTestNet = "https://testnet.decred.org"
+
+	// SettingHostWSMainNet is the default dcrdata mainnet websocket
+	// host.
+	SettingHostWSMainNet = "wss://dcrdata.decred.org/ps"
+
+	// SettingHostWSTestNet is the default dcrdata testnet websocket
+	// host.
+	SettingHostWSTestNet = "wss://testnet.decred.org/ps"
+)
+
+// StatusT represents a dcrdata connection status. Some commands will returned
+// cached results and the connection status to let the caller know that the
+// cached data may be stale. It is the callers responsibility to determine the
+// correct course of action when dcrdata cannot be reached.
+type StatusT int
+
+const (
+	// StatusInvalid is an invalid connection status.
+	StatusInvalid StatusT = 0
+
+	// StatusConnected is returned when the dcrdata connection is ok.
+	StatusConnected StatusT = 1
+
+	// StatusDisconnected is returned when dcrdata cannot be reached.
 	StatusDisconnected StatusT = 2
 )
 

@@ -491,8 +491,6 @@ type recordBlobsPrepareReply struct {
 
 // recordBlobsPrepare prepares the provided record content to be saved to
 // the blob kv store and appended onto a trillian tree.
-//
-// TODO test this function
 func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordBlobsPrepareReply, error) {
 	// Verify there are no duplicate or empty mdstream IDs
 	mdstreamIDs := make(map[uint64]struct{}, len(metadata))

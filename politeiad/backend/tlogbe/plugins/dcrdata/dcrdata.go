@@ -27,10 +27,6 @@ import (
 )
 
 const (
-	// Plugin settings
-	pluginSettingHostHTTP = "hosthttp"
-	pluginSettingHostWS   = "hostws"
-
 	// Dcrdata routes
 	routeBestBlock    = "/api/block/best"
 	routeBlockDetails = "/api/block/{height}"
@@ -626,7 +622,7 @@ func (p *dcrdataPlugin) Fsck(treeIDs []int64) error {
 	return nil
 }
 
-// TODO Settings returns the plugin's settings.
+// Settings returns the plugin's settings.
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
@@ -636,42 +632,40 @@ func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
 }
 
 func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
-	// Unpack plugin settings
+	// Plugin setting
 	var (
 		hostHTTP string
 		hostWS   string
 	)
-	for _, v := range settings {
-		switch v.Key {
-		case pluginSettingHostHTTP:
-			hostHTTP = v.Value
-		case pluginSettingHostWS:
-			hostWS = v.Value
-		default:
-			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
-		}
+
+	// Set plugin settings to defaults. These will be overwritten if
+	// the setting was specified by the user.
+	switch activeNetParams.Name {
+	case chaincfg.MainNetParams().Name:
+		hostHTTP = dcrdata.SettingHostHTTPMainNet
+		hostWS = dcrdata.SettingHostWSMainNet
+	case chaincfg.TestNet3Params().Name:
+		hostHTTP = dcrdata.SettingHostHTTPTestNet
+		hostWS = dcrdata.SettingHostWSTestNet
+	default:
+		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 	}
 
-	// Set optional plugin settings to default values if a value was
-	// not specified.
-	if hostHTTP == "" {
-		switch activeNetParams.Name {
-		case chaincfg.MainNetParams().Name:
-			hostHTTP = dcrdata.DefaultHostHTTPMainNet
-		case chaincfg.TestNet3Params().Name:
-			hostHTTP = dcrdata.DefaultHostHTTPTestNet
+	// Override defaults with any passed in settings
+	for _, v := range settings {
+		switch v.Key {
+		case dcrdata.SettingKeyHostHTTP:
+			hostHTTP = v.Value
+			log.Infof("Plugin setting updated: dcrdata %v %v",
+				dcrdata.SettingKeyHostHTTP, hostHTTP)
+
+		case dcrdata.SettingKeyHostWS:
+			hostWS = v.Value
+			log.Infof("Plugin setting updated: dcrdata %v %v",
+				dcrdata.SettingKeyHostWS, hostWS)
+
 		default:
-			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
-		}
-	}
-	if hostWS == "" {
-		switch activeNetParams.Name {
-		case chaincfg.MainNetParams().Name:
-			hostWS = dcrdata.DefaultHostWSMainNet
-		case chaincfg.TestNet3Params().Name:
-			hostWS = dcrdata.DefaultHostWSTestNet
-		default:
-			return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
+			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
 		}
 	}
 

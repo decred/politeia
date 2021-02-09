@@ -76,28 +76,27 @@ const (
 type ErrorCodeT int
 
 const (
-	ErrorCodeInvalid      ErrorCodeT = 0
-	ErrorCodeTokenInvalid ErrorCodeT = iota
-	ErrorCodePublicKeyInvalid
-	ErrorCodeSignatureInvalid
-	ErrorCodeRecordVersionInvalid
-	ErrorCodeRecordStatusInvalid
-	ErrorCodeAuthorizationInvalid
-	ErrorCodeStartDetailsMissing
-	ErrorCodeStartDetailsInvalid
-	ErrorCodeVoteParamsInvalid
-	ErrorCodeVoteStatusInvalid
-	ErrorCodePageSizeExceeded
-	ErrorCodeVoteMetadataInvalid
-	ErrorCodeLinkByInvalid
-	ErrorCodeLinkToInvalid
-
-	ErrorCodeRunoffVoteParentInvalid
-	ErrorCodeLinkByNotExpired
+	ErrorCodeInvalid                 ErrorCodeT = 0
+	ErrorCodeTokenInvalid            ErrorCodeT = 1
+	ErrorCodePublicKeyInvalid        ErrorCodeT = 2
+	ErrorCodeSignatureInvalid        ErrorCodeT = 3
+	ErrorCodeRecordVersionInvalid    ErrorCodeT = 4
+	ErrorCodeRecordStatusInvalid     ErrorCodeT = 5
+	ErrorCodeAuthorizationInvalid    ErrorCodeT = 6
+	ErrorCodeStartDetailsMissing     ErrorCodeT = 7
+	ErrorCodeStartDetailsInvalid     ErrorCodeT = 8
+	ErrorCodeVoteParamsInvalid       ErrorCodeT = 9
+	ErrorCodeVoteStatusInvalid       ErrorCodeT = 10
+	ErrorCodePageSizeExceeded        ErrorCodeT = 11
+	ErrorCodeVoteMetadataInvalid     ErrorCodeT = 12
+	ErrorCodeLinkByInvalid           ErrorCodeT = 13
+	ErrorCodeLinkToInvalid           ErrorCodeT = 14
+	ErrorCodeRunoffVoteParentInvalid ErrorCodeT = 15
+	ErrorCodeLinkByNotExpired        ErrorCodeT = 16
 )
 
 var (
-	// TODO ErrorCodes contains the human readable error messages.
+	// ErrorCodes contains the human readable error messages.
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid:                 "error code invalid",
 		ErrorCodeTokenInvalid:            "token invalid",

@@ -443,7 +443,6 @@ func recordMetadataNew(token []byte, files []backend.File, status backend.MDStat
 	}, nil
 }
 
-// TODO test this function
 func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backend.File {
 	// Put current files into a map
 	curr := make(map[string]backend.File, len(filesCurr)) // [filename]File
@@ -473,7 +472,6 @@ func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backen
 	return f
 }
 
-// TODO test this function
 func metadataStreamsUpdate(curr, mdAppend, mdOverwrite []backend.MetadataStream) []backend.MetadataStream {
 	// Put current metadata into a map
 	md := make(map[uint64]backend.MetadataStream, len(curr))

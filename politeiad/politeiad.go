@@ -1595,9 +1595,15 @@ func _main() error {
 			case dcrdata.PluginID:
 				unvetted = false
 			case decredplugin.ID:
-				// TODO decredplugin setup for cms
+				// decredplugin uses the deprecated plugin methods. This
+				// plugin is also deprecated will eventually be removed.
+				unvetted = false
+				vetted = false
 			case cmsplugin.ID:
-				// TODO cmsplugin setup for cms
+				// cmsplugin uses the deprecated plugin methods. This
+				// plugin is also deprecated will eventually be removed.
+				unvetted = false
+				vetted = false
 			}
 
 			// Register plugin
