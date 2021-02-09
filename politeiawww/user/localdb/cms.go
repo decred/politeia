@@ -57,7 +57,7 @@ func (l *localdb) cmdNewCMSUser(payload string) (string, error) {
 	}
 
 	// Get user that we just created to get the ID and other User stuff set
-	setUser, err := l.UserGet(nu.Email)
+	setUser, err := l.UserGetByEmail(nu.Email)
 	if err != nil {
 		return "", err
 	}

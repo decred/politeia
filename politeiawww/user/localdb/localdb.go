@@ -109,32 +109,6 @@ func (l *localdb) UserNew(u user.User) error {
 	return l.userdb.Put([]byte(u.Email), payload, nil)
 }
 
-// UserGet returns a user record if found in the database.
-//
-// UserGet satisfies the Database interface.
-func (l *localdb) UserGet(email string) (*user.User, error) {
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.shutdown {
-		return nil, user.ErrShutdown
-	}
-
-	payload, err := l.userdb.Get([]byte(strings.ToLower(email)), nil)
-	if errors.Is(err, leveldb.ErrNotFound) {
-		return nil, user.ErrUserNotFound
-	} else if err != nil {
-		return nil, err
-	}
-
-	u, err := user.DecodeUser(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	return u, nil
-}
-
 // UserGetByUsername returns a user record given its username, if found in the
 // database.
 //
@@ -309,13 +283,30 @@ func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
-// UserGetByEmail is a stub to satisfy the interface. The lookup function
-// is not needed on leveldb because it already implements UserGet, which
-// fetches user by email.
+// UserGetByEmail returns a user record given its email.
 //
 // UserGetByEmail satisfies the Database interface.
 func (l *localdb) UserGetByEmail(email string) (*user.User, error) {
-	return nil, nil
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+
+	payload, err := l.userdb.Get([]byte(strings.ToLower(email)), nil)
+	if errors.Is(err, leveldb.ErrNotFound) {
+		return nil, user.ErrUserNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	u, err := user.DecodeUser(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return u, nil
 }
 
 // Update existing user.
@@ -347,11 +338,10 @@ func (l *localdb) UserUpdate(u user.User) error {
 	return l.userdb.Put([]byte(u.Email), payload, nil)
 }
 
-// UserSetLookup is a stub to satisfy the interface. The lookup function
-// is not needed on leveldb because it already implements UserGet, which
-// fetches user by email.
+// UserSetLookup is a stub to satisfy the interface. The set lookup function
+// is not needed on localdb because it can fetch the user by email directly.
 //
-// UserSetLoopUp
+// UserSetLoopUp satisfies the Database interface.
 func (l *localdb) UserSetLookup(email string, id uuid.UUID) error {
 	return nil
 }
