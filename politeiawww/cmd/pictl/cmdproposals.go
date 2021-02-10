@@ -13,7 +13,7 @@ import (
 type cmdProposals struct {
 	Args struct {
 		Tokens []string `positional-arg-name:"proposals" required:"true"`
-	} `positional-args:"true" optional:"true"`
+	} `positional-args:"true"`
 
 	// Unvetted is used to indicate the state of the proposals are
 	// unvetted. If this flag is not used it will be assumed that the

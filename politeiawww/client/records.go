@@ -136,6 +136,26 @@ func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, err
 	return &tr, nil
 }
 
+// UserRecords sends a records v1 UserRecords request to politeiawww.
+func (c *Client) UserRecords(ur rcv1.UserRecords) (*rcv1.UserRecordsReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteUserRecords, ur)
+	if err != nil {
+		return nil, err
+	}
+
+	var urr rcv1.UserRecordsReply
+	err = json.Unmarshal(resBody, &urr)
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", util.FormatJSON(urr))
+	}
+
+	return &urr, nil
+}
+
 // digestsVerify verifies that all file digests match the calculated SHA256
 // digests of the file payloads.
 func digestsVerify(files []rcv1.File) error {

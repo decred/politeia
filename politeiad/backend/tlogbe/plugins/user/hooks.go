@@ -331,3 +331,30 @@ func (p *userPlugin) hookSetRecordStatusPre(payload string) error {
 
 	return nil
 }
+
+func (p *userPlugin) hookSetRecordStatusPost(payload string) error {
+	var srs plugins.HookSetRecordStatus
+	err := json.Unmarshal([]byte(payload), &srs)
+	if err != nil {
+		return err
+	}
+
+	// When a record becomes vetted the post hook will be executed on
+	// the vetted tstore instance. The record must be added to the
+	// vetted user cache.
+	if srs.RecordMetadata.Status == backend.MDStatusVetted {
+		// Decode user metadata
+		um, err := userMetadataDecode(srs.Metadata)
+		if err != nil {
+			return err
+		}
+
+		// Add token to the user cache
+		err = p.userCacheAddToken(um.UserID, srs.RecordMetadata.Token)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
