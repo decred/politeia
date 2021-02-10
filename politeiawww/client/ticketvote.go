@@ -15,7 +15,7 @@ import (
 
 // TicketVotePolicy sends a ticketvote v1 Policy request to politeiawww.
 func (c *Client) TicketVotePolicy() (*tkv1.PolicyReply, error) {
-	resBody, err := c.makeReq(http.MethodGet,
+	resBody, err := c.makeReq(http.MethodPost,
 		tkv1.APIRoute, tkv1.RoutePolicy, nil)
 	if err != nil {
 		return nil, err

@@ -151,6 +151,7 @@ Proposal commands
   proposals               (public) Get proposals without their files
   proposalinv             (public) Get inventory by proposal status
   proposaltimestamps      (public) Get timestamps for a proposal
+  userproposals           (public) Get proposals submitted by a user
 
 Comment commands
   commentpolicy           (public) Get the comments api policy

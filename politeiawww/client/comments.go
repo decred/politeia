@@ -15,7 +15,7 @@ import (
 
 // CommentPolicy sends a comments v1 Policy request to politeiawww.
 func (c *Client) CommentPolicy() (*cmv1.PolicyReply, error) {
-	resBody, err := c.makeReq(http.MethodGet,
+	resBody, err := c.makeReq(http.MethodPost,
 		cmv1.APIRoute, cmv1.RoutePolicy, nil)
 	if err != nil {
 		return nil, err

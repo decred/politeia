@@ -15,7 +15,7 @@ import (
 
 // PiPolicy sends a pi v1 Policy request to politeiawww.
 func (c *Client) PiPolicy() (*piv1.PolicyReply, error) {
-	resBody, err := c.makeReq(http.MethodGet,
+	resBody, err := c.makeReq(http.MethodPost,
 		piv1.APIRoute, piv1.RoutePolicy, nil)
 	if err != nil {
 		return nil, err

@@ -90,7 +90,7 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		permissionPublic)
 
 	// Comment routes
-	p.addRoute(http.MethodGet, cmv1.APIRoute,
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
 		cmv1.RoutePolicy, c.HandlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodPost, cmv1.APIRoute,
@@ -116,7 +116,7 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		permissionPublic)
 
 	// Ticket vote routes
-	p.addRoute(http.MethodGet, tkv1.APIRoute,
+	p.addRoute(http.MethodPost, tkv1.APIRoute,
 		tkv1.RoutePolicy, t.HandlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodPost, tkv1.APIRoute,
@@ -148,7 +148,7 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		permissionPublic)
 
 	// Pi routes
-	p.addRoute(http.MethodGet, piv1.APIRoute,
+	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RoutePolicy, pic.HandlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
