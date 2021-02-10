@@ -75,8 +75,8 @@ func (p *ticketVotePlugin) submissionsCacheWithLock(token []byte) (*submissions,
 //
 // This function must be called WITHOUT the lock held.
 func (p *ticketVotePlugin) submissionsCache(token []byte) (*submissions, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxSubs.Lock()
+	defer p.mtxSubs.Unlock()
 
 	return p.submissionsCacheWithLock(token)
 }
@@ -98,8 +98,8 @@ func (p *ticketVotePlugin) submissionsCacheSaveWithLock(token []byte, s submissi
 //
 // This function must be called WITHOUT the lock held.
 func (p *ticketVotePlugin) submissionsCacheAdd(parentToken, childToken string) error {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxSubs.Lock()
+	defer p.mtxSubs.Unlock()
 
 	// Verify tokens
 	parent, err := tokenDecode(parentToken)
@@ -137,8 +137,8 @@ func (p *ticketVotePlugin) submissionsCacheAdd(parentToken, childToken string) e
 //
 // This function must be called WITHOUT the lock held.
 func (p *ticketVotePlugin) submissionsCacheDel(parentToken, childToken string) error {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxSubs.Lock()
+	defer p.mtxSubs.Unlock()
 
 	// Verify tokens
 	parent, err := tokenDecode(parentToken)

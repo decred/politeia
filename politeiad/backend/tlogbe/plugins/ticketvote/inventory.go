@@ -92,8 +92,8 @@ func (p *ticketVotePlugin) invSetLocked(inv inventory) error {
 // This is done when a unvetted record is made vetted or when a previous vote
 // authorization is revoked.
 func (p *ticketVotePlugin) invAddToUnauthorized(token string) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxInv.Lock()
+	defer p.mtxInv.Unlock()
 
 	inv, err := p.invGetLocked()
 	if err != nil {
@@ -128,8 +128,8 @@ func (p *ticketVotePlugin) invAddToUnauthorized(token string) {
 // invAddToAuthorized moves a record from the unauthorized to the authorized
 // list. This is done by the ticketvote authorize command.
 func (p *ticketVotePlugin) invAddToAuthorized(token string) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxInv.Lock()
+	defer p.mtxInv.Unlock()
 
 	inv, err := p.invGetLocked()
 	if err != nil {
@@ -167,8 +167,8 @@ func (p *ticketVotePlugin) invAddToAuthorized(token string) {
 // invAddToStarted moves a record into the started vote status list. This is
 // done by the ticketvote start command.
 func (p *ticketVotePlugin) invAddToStarted(token string, t ticketvote.VoteT, endHeight uint32) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxInv.Lock()
+	defer p.mtxInv.Unlock()
 
 	inv, err := p.invGetLocked()
 	if err != nil {
@@ -236,8 +236,8 @@ func (p *ticketVotePlugin) invAddToStarted(token string, t ticketvote.VoteT, end
 }
 
 func (p *ticketVotePlugin) invGet(bestBlock uint32) (*inventory, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxInv.Lock()
+	defer p.mtxInv.Unlock()
 
 	inv, err := p.invGetLocked()
 	if err != nil {

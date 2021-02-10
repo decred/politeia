@@ -27,7 +27,6 @@ var (
 
 // ticketVotePlugin satisfies the plugins.PluginClient interface.
 type ticketVotePlugin struct {
-	sync.Mutex
 	backend         backend.Backend
 	tlog            plugins.TlogClient
 	activeNetParams *chaincfg.Params
@@ -46,14 +45,21 @@ type ticketVotePlugin struct {
 	// votes contains the cast votes of ongoing record votes. This
 	// cache is built on startup and record entries are removed once
 	// the vote has ended and a vote summary has been cached.
-	votes map[string]map[string]string // [token][ticket]voteBit
+	votes    map[string]map[string]string // [token][ticket]voteBit
+	mtxVotes sync.Mutex
 
 	// Mutexes contains a mutex for each record and are used to lock
 	// the trillian tree for a given record to prevent concurrent
 	// ticket vote plugin updates on the same tree. These mutexes are
 	// lazy loaded and should only be used for tree updates, not for
 	// cache updates.
-	mutexes map[string]*sync.Mutex // [string]mutex
+	mutexes    map[string]*sync.Mutex // [string]mutex
+	mtxRecords sync.Mutex
+
+	// Mutexes for on-disk caches
+	mtxInv     sync.Mutex // Vote inventory
+	mtxSummary sync.Mutex // Vote summaries
+	mtxSubs    sync.Mutex // Runoff vote submissions
 
 	// Plugin settings
 	linkByPeriodMin int64  // In seconds
@@ -64,8 +70,8 @@ type ticketVotePlugin struct {
 
 // mutex returns the mutex for the specified record.
 func (p *ticketVotePlugin) mutex(token []byte) *sync.Mutex {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxRecords.Lock()
+	defer p.mtxRecords.Unlock()
 
 	t := hex.EncodeToString(token)
 	m, ok := p.mutexes[t]

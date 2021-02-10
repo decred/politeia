@@ -209,22 +209,23 @@ func proposalMetadataDecode(files []rcv1.File) (*piv1.ProposalMetadata, error) {
 }
 
 // voteMetadataDecode decodes and returns the VoteMetadata from the provided
-// backend files. If a VoteMetadata is not found, an empty one will be
-// returned.
+// backend files. If a VoteMetadata is not found, nil will be returned.
 func voteMetadataDecode(files []rcv1.File) (*piv1.VoteMetadata, error) {
-	var vm piv1.VoteMetadata
+	var voteMD *piv1.VoteMetadata
 	for _, v := range files {
 		if v.Name == piv1.FileNameVoteMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return nil, err
 			}
+			var vm piv1.VoteMetadata
 			err = json.Unmarshal(b, &vm)
 			if err != nil {
 				return nil, err
 			}
+			voteMD = &vm
 			break
 		}
 	}
-	return &vm, nil
+	return voteMD, nil
 }

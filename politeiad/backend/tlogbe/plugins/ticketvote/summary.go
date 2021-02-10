@@ -40,8 +40,8 @@ var (
 )
 
 func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.SummaryReply, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxSummary.Lock()
+	defer p.mtxSummary.Unlock()
 
 	fp, err := p.summaryCachePath(token)
 	if err != nil {
@@ -72,8 +72,8 @@ func (p *ticketVotePlugin) summaryCacheSave(token string, sr ticketvote.SummaryR
 		return err
 	}
 
-	p.Lock()
-	defer p.Unlock()
+	p.mtxSummary.Lock()
+	defer p.mtxSummary.Unlock()
 
 	fp, err := p.summaryCachePath(token)
 	if err != nil {

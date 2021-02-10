@@ -9,8 +9,8 @@ import (
 )
 
 func (p *ticketVotePlugin) votesCache(token []byte) map[string]string {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxVotes.Lock()
+	defer p.mtxVotes.Unlock()
 
 	// Return a copy of the map
 	cv, ok := p.votes[hex.EncodeToString(token)]
@@ -26,8 +26,8 @@ func (p *ticketVotePlugin) votesCache(token []byte) map[string]string {
 }
 
 func (p *ticketVotePlugin) votesCacheSet(token, ticket, voteBit string) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxVotes.Lock()
+	defer p.mtxVotes.Unlock()
 
 	_, ok := p.votes[token]
 	if !ok {
@@ -41,8 +41,8 @@ func (p *ticketVotePlugin) votesCacheSet(token, ticket, voteBit string) {
 }
 
 func (p *ticketVotePlugin) votesCacheDel(token string) {
-	p.Lock()
-	defer p.Unlock()
+	p.mtxVotes.Lock()
+	defer p.mtxVotes.Unlock()
 
 	delete(p.votes, token)
 
