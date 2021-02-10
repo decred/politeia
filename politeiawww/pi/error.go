@@ -24,8 +24,8 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	)
 	switch {
 	case errors.As(err, &ue):
-		// Comments user error
-		m := fmt.Sprintf("Comments user error: %v %v %v",
+		// Pi user error
+		m := fmt.Sprintf("Pi user error: %v %v %v",
 			util.RemoteAddr(r), ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {
 			m += fmt.Sprintf(": %v", ue.ErrorContext)

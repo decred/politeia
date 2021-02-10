@@ -20,8 +20,9 @@ import (
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	var (
-		ue v1.UserErrorReply
-		pe pdclient.Error
+		ue  v1.UserErrorReply
+		pe  v1.PluginErrorReply
+		pde pdclient.Error
 	)
 	switch {
 	case errors.As(err, &ue):
@@ -40,11 +41,27 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		return
 
 	case errors.As(err, &pe):
+		// politeiawww plugin error
+		m := fmt.Sprintf("%v Plugin error: %v %v",
+			util.RemoteAddr(r), pe.PluginID, pe.ErrorCode)
+		if pe.ErrorContext != "" {
+			m += fmt.Sprintf(": %v", pe.ErrorContext)
+		}
+		log.Infof(m)
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			v1.PluginErrorReply{
+				PluginID:     pe.PluginID,
+				ErrorCode:    pe.ErrorCode,
+				ErrorContext: pe.ErrorContext,
+			})
+		return
+
+	case errors.As(err, &pde):
 		// Politeiad error
 		var (
-			pluginID   = pe.ErrorReply.PluginID
-			errCode    = pe.ErrorReply.ErrorCode
-			errContext = strings.Join(pe.ErrorReply.ErrorContext, ",")
+			pluginID   = pde.ErrorReply.PluginID
+			errCode    = pde.ErrorReply.ErrorCode
+			errContext = strings.Join(pde.ErrorReply.ErrorContext, ",")
 		)
 		e := convertPDErrorCode(errCode)
 		switch {
