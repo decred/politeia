@@ -61,11 +61,6 @@ func (p *piPlugin) Setup() error {
 func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
-	switch cmd {
-	case pi.CmdVoteInv:
-		return p.cmdVoteInv()
-	}
-
 	return "", backend.ErrPluginCmdInvalid
 }
 

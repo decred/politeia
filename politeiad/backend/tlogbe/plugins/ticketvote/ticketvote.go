@@ -43,11 +43,6 @@ type ticketVotePlugin struct {
 	// prove the backend received and processed a plugin command.
 	identity *identity.FullIdentity
 
-	// inv contains the record inventory categorized by vote status.
-	// The inventory will only contain public, non-abandoned records.
-	// This cache is built on startup.
-	inv inventory
-
 	// votes contains the cast votes of ongoing record votes. This
 	// cache is built on startup and record entries are removed once
 	// the vote has ended and a vote summary has been cached.
@@ -101,62 +96,25 @@ func (p *ticketVotePlugin) Setup() error {
 			dcrdata.PluginID)
 	}
 
-	// Build inventory cache
-	log.Infof("Building inventory cache")
+	// Update the inventory with the current best block. Retrieving
+	// the inventory will cause it to update.
+	log.Infof("Updating vote inv")
 
-	ibs, err := p.backend.InventoryByStatus()
-	if err != nil {
-		return fmt.Errorf("InventoryByStatus: %v", err)
-	}
-
-	bestBlock, err := p.bestBlock()
+	bb, err := p.bestBlock()
 	if err != nil {
 		return fmt.Errorf("bestBlock: %v", err)
 	}
-
-	var (
-		unauthorized = make([]string, 0, 256)
-		authorized   = make([]string, 0, 256)
-		started      = make(map[string]uint32, 256) // [token]endHeight
-		finished     = make([]string, 0, 256)
-	)
-	for _, tokens := range ibs.Vetted {
-		for _, v := range tokens {
-			token, err := tokenDecode(v)
-			if err != nil {
-				return err
-			}
-			s, err := p.summaryByToken(token)
-			switch s.Status {
-			case ticketvote.VoteStatusUnauthorized:
-				unauthorized = append(unauthorized, v)
-			case ticketvote.VoteStatusAuthorized:
-				authorized = append(authorized, v)
-			case ticketvote.VoteStatusStarted:
-				started[v] = s.EndBlockHeight
-			case ticketvote.VoteStatusFinished:
-				finished = append(finished, v)
-			default:
-				return fmt.Errorf("invalid vote status %v %v", v, s.Status)
-			}
-		}
+	inv, err := p.invGet(bb)
+	if err != nil {
+		return fmt.Errorf("invGet: %v", err)
 	}
-
-	p.Lock()
-	p.inv = inventory{
-		unauthorized: unauthorized,
-		authorized:   authorized,
-		started:      started,
-		finished:     finished,
-		bestBlock:    bestBlock,
-	}
-	p.Unlock()
 
 	// Build votes cache
 	log.Infof("Building votes cache")
 
-	for k := range started {
-		token, err := tokenDecode(k)
+	started := ticketvote.VoteStatuses[ticketvote.VoteStatusStarted]
+	for _, v := range inv.Tokens[started] {
+		token, err := tokenDecode(v)
 		if err != nil {
 			return err
 		}
@@ -358,13 +316,6 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 		tlog:            tlog,
 		dataDir:         dataDir,
 		identity:        id,
-		inv: inventory{
-			unauthorized: make([]string, 0, 1024),
-			authorized:   make([]string, 0, 1024),
-			started:      make(map[string]uint32, 1024),
-			finished:     make([]string, 0, 1024),
-			bestBlock:    0,
-		},
 		votes:           make(map[string]map[string]string),
 		mutexes:         make(map[string]*sync.Mutex),
 		linkByPeriodMin: linkByPeriodMin,

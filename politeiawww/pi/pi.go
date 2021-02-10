@@ -69,21 +69,6 @@ func (p *Pi) HandleProposals(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, psr)
 }
 
-// HandleVoteInventory is the request handler for the pi v1 VoteInventory
-// route.
-func (p *Pi) HandleVoteInventory(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleVoteInventory")
-
-	vir, err := p.processVoteInventory(r.Context())
-	if err != nil {
-		respondWithError(w, r,
-			"HandleVoteInventory: processVoteInventory: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vir)
-}
-
 // New returns a new Pi context.
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, plugins []pdv1.Plugin) (*Pi, error) {
 	// Parse plugin settings

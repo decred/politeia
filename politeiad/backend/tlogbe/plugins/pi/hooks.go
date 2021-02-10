@@ -220,6 +220,20 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	return nil
 }
 
+func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
+	reply, err := p.backend.VettedPluginCmd(token,
+		ticketvote.PluginID, ticketvote.CmdSummary, "")
+	if err != nil {
+		return nil, err
+	}
+	var sr ticketvote.SummaryReply
+	err = json.Unmarshal([]byte(reply), &sr)
+	if err != nil {
+		return nil, err
+	}
+	return &sr, nil
+}
+
 // commentWritesVerify verifies that a record's vote status allows writes from
 // the comments plugin.
 func (p *piPlugin) commentWritesVerify(s plugins.RecordStateT, token []byte) error {

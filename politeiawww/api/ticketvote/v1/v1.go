@@ -193,8 +193,22 @@ const (
 	// is still ongoing.
 	VoteStatusStarted VoteStatusT = 3
 
-	// VoteStatusFinished represents a vote that has ended.
+	// VoteStatusFinished indicates the ticket vote has finished. This
+	// vote status is used for vote types that do not have a clear
+	// approved or rejected outcome, such as multiple choice votes.
 	VoteStatusFinished VoteStatusT = 4
+
+	// VoteStatusApproved indicates that a vote has finished and the
+	// vote has met the criteria for being approved. This vote status
+	// is only used when the vote type allows for a clear approved or
+	// rejected outcome.
+	VoteStatusApproved VoteStatusT = 5
+
+	// VoteStatusRejected indicates that a vote has finished and the
+	// vote did NOT the criteria for being approved. This vote status
+	// is only used when the vote type allows for a clear approved or
+	// rejected outcome.
+	VoteStatusRejected VoteStatusT = 6
 )
 
 var (
@@ -205,6 +219,8 @@ var (
 		VoteStatusAuthorized:   "authorized",
 		VoteStatusStarted:      "started",
 		VoteStatusFinished:     "finished",
+		VoteStatusApproved:     "approved",
+		VoteStatusRejected:     "rejected",
 	}
 )
 
@@ -455,8 +471,7 @@ type Summary struct {
 	// the vote in order for the vote to pass.
 	PassPercentage uint32 `json:"passpercentage"`
 
-	Results  []VoteResult `json:"results"`
-	Approved bool         `json:"approved"` // Was the vote approved
+	Results []VoteResult `json:"results"`
 
 	// BestBlock is the best block value that was used to prepare the
 	// summary.
@@ -496,8 +511,8 @@ const (
 	InventoryPageSize = 60
 )
 
-// Inventory requests the tokens of all records in the inventory, categorized
-// by vote status.
+// Inventory requests the tokens of all public, non-abandoned records
+// categorized by vote status.
 type Inventory struct{}
 
 // InventoryReply is the reply to the Inventory command. It contains the tokens
@@ -506,11 +521,14 @@ type Inventory struct{}
 // human readable vote status defined by the VoteStatuses array in this
 // package.
 //
-// Statuses sorted by timestamp in descending order:
+// Sorted by timestamp in descending order:
 // Unauthorized, Authorized
 //
-// Statuses sorted by voting period end block height in descending order:
-// Started, Finished
+// Sorted by vote start block height in descending order:
+// Started
+//
+// Sorted by vote end block height in descending order:
+// Finished, Approved, Rejected
 type InventoryReply struct {
 	Vetted map[string][]string `json:"vetted"`
 

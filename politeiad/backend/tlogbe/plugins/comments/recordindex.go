@@ -50,10 +50,10 @@ type recordIndex struct {
 
 // recordIndexPath accepts full length token or token prefixes, but always uses
 // prefix when generating the comments index path string.
-func (p *commentsPlugin) recordIndexPath(token []byte) (string, error) {
+func (p *commentsPlugin) recordIndexPath(token []byte) string {
 	tp := util.TokenPrefix(token)
 	fn := strings.Replace(filenameRecordIndex, "{tokenPrefix}", tp, 1)
-	return filepath.Join(p.dataDir, fn), nil
+	return filepath.Join(p.dataDir, fn)
 }
 
 // recordIndexLocked returns the cached recordIndex for the provided record.
@@ -61,10 +61,7 @@ func (p *commentsPlugin) recordIndexPath(token []byte) (string, error) {
 //
 // This function must be called WITH the lock held.
 func (p *commentsPlugin) recordIndexLocked(token []byte) (*recordIndex, error) {
-	fp, err := p.recordIndexPath(token)
-	if err != nil {
-		return nil, err
-	}
+	fp := p.recordIndexPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -107,10 +104,7 @@ func (p *commentsPlugin) recordIndexSaveLocked(token []byte, ridx recordIndex) e
 	if err != nil {
 		return err
 	}
-	fp, err := p.recordIndexPath(token)
-	if err != nil {
-		return err
-	}
+	fp := p.recordIndexPath(token)
 	err = ioutil.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err

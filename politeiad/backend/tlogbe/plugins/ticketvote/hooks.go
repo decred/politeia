@@ -126,7 +126,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	if err != nil {
 		return err
 	}
-	if !vs.Approved {
+	if vs.Status != ticketvote.VoteStatusApproved {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
@@ -312,7 +312,12 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 		return err
 	}
 
-	// Check if the LinkTo has been set
+	// Update the inventory cache if the record is being made public.
+	if srs.RecordMetadata.Status == backend.MDStatusVetted {
+		p.invAddToUnauthorized(srs.RecordMetadata.Token)
+	}
+
+	// Update the submissions cache if the linkto has been set.
 	vm, err := voteMetadataDecode(srs.Current.Files)
 	if err != nil {
 		return err

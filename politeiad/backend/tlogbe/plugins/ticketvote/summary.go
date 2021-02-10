@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	// Filenames of cached data saved to the plugin data dir. Brackets
-	// are used to indicate a variable that should be replaced in the
-	// filename.
+	// filenameSummary is the file name of the vote summary for a
+	// record. These summaries are cached in the plugin data dir.
 	filenameSummary = "{tokenprefix}-summary.json"
 )
 

@@ -17,9 +17,8 @@ const (
 	APIRoute = "/pi/v1"
 
 	// Routes
-	RoutePolicy        = "/policy"
-	RouteProposals     = "/proposals"
-	RouteVoteInventory = "/voteinventory"
+	RoutePolicy    = "/policy"
+	RouteProposals = "/proposals"
 
 	// Proposal states
 	ProposalStateUnvetted = "unvetted"
@@ -254,23 +253,4 @@ type Proposals struct {
 // not correspond to a Proposal will not be included in the reply.
 type ProposalsReply struct {
 	Proposals map[string]Proposal `json:"proposals"` // [token]Proposal
-}
-
-// VoteInventory retrieves the tokens of all public, non-abandoned proposals
-// categorized by their vote status. This is the same inventory as the
-// ticketvote API returns except the Finished vote status is broken out into
-// Approved and Rejected.
-type VoteInventory struct{}
-
-// VoteInventoryReply in the reply to the VoteInventory command.
-type VoteInventoryReply struct {
-	Unauthorized []string `json:"unauthorized"`
-	Authorized   []string `json:"authorized"`
-	Started      []string `json:"started"`
-	Approved     []string `json:"approved"`
-	Rejected     []string `json:"rejected"`
-
-	// BestBlock is the best block value that was used to prepare the
-	// inventory.
-	BestBlock uint32 `json:"bestblock"`
 }

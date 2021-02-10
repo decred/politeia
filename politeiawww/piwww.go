@@ -37,7 +37,7 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
 		Methods(http.MethodGet)
 
-	// www routes. These routes have been DEPRECATED.
+	// Legacy www routes. These routes have been DEPRECATED.
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
@@ -153,9 +153,6 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteProposals, pic.HandleProposals,
-		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteVoteInventory, pic.HandleVoteInventory,
 		permissionPublic)
 }
 

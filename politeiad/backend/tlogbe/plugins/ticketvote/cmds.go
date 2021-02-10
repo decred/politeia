@@ -521,7 +521,7 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 		// Save summary
 		s := ticketvote.SummaryReply{
 			Type:             vd.Params.Type,
-			Status:           ticketvote.VoteStatusFinished,
+			Status:           ticketvote.VoteStatusRejected,
 			Duration:         vd.Params.Duration,
 			StartBlockHeight: vd.StartBlockHeight,
 			StartBlockHash:   vd.StartBlockHash,
@@ -530,7 +530,6 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 			QuorumPercentage: vd.Params.QuorumPercentage,
 			PassPercentage:   vd.Params.PassPercentage,
 			Results:          results,
-			Approved:         false,
 		}
 		summaries[v] = s
 
@@ -575,7 +574,7 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 	if winnerToken != "" {
 		// A winner was found. Mark their summary as approved.
 		s := summaries[winnerToken]
-		s.Approved = true
+		s.Status = ticketvote.VoteStatusApproved
 		summaries[winnerToken] = s
 	}
 
@@ -640,13 +639,9 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 		}, nil
 	}
 
-	// Vote has been started. Check if it is still in progress or has
-	// already ended.
-	if bestBlock < vd.EndBlockHeight {
-		status = ticketvote.VoteStatusStarted
-	} else {
-		status = ticketvote.VoteStatusFinished
-	}
+	// Vote has been started. We need to check if the vote has ended
+	// yet and if it can be considered approved or rejected.
+	status = ticketvote.VoteStatusStarted
 
 	// Tally vote results
 	results, err := p.voteOptionResults(token, vd.Params.Options)
@@ -670,7 +665,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	}
 
 	// If the vote has not finished yet then we are done for now.
-	if status == ticketvote.VoteStatusStarted {
+	if bestBlock < vd.EndBlockHeight {
 		return &summary, nil
 	}
 
@@ -679,7 +674,11 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	switch vd.Params.Type {
 	case ticketvote.VoteTypeStandard:
 		// Standard vote uses a simple approve/reject result
-		summary.Approved = voteIsApproved(*vd, results)
+		if voteIsApproved(*vd, results) {
+			summary.Status = ticketvote.VoteStatusApproved
+		} else {
+			summary.Status = ticketvote.VoteStatusRejected
+		}
 
 		// Cache summary
 		err = p.summaryCacheSave(vd.Params.Token, summary)
@@ -1080,9 +1079,9 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	// Update inventory
 	switch a.Action {
 	case ticketvote.AuthActionAuthorize:
-		p.invCacheSetToAuthorized(a.Token)
+		p.invAddToAuthorized(a.Token)
 	case ticketvote.AuthActionRevoke:
-		p.invCacheSetToUnauthorized(a.Token)
+		p.invAddToUnauthorized(a.Token)
 	default:
 		// Should not happen
 		e := fmt.Sprintf("invalid authorize action: %v", a.Action)
@@ -1396,7 +1395,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Update inventory
-	p.invCacheSetToStarted(vd.Params.Token, ticketvote.VoteTypeStandard,
+	p.invAddToStarted(vd.Params.Token, ticketvote.VoteTypeStandard,
 		vd.EndBlockHeight)
 
 	return &ticketvote.StartReply{
@@ -1578,7 +1577,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	}
 
 	// Update inventory
-	p.invCacheSetToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
+	p.invAddToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
 		vd.EndBlockHeight)
 
 	return nil
@@ -2565,43 +2564,6 @@ func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error
 	return string(reply), nil
 }
 
-func convertInventoryReply(v inventory) ticketvote.InventoryReply {
-	// Started needs to be converted from a map to a slice where the
-	// slice is sorted by end block height from smallest to largest.
-	tokensByHeight := make(map[uint32][]string, len(v.started))
-	for token, height := range v.started {
-		tokens, ok := tokensByHeight[height]
-		if !ok {
-			tokens = make([]string, 0, len(v.started))
-		}
-		tokens = append(tokens, token)
-		tokensByHeight[height] = tokens
-	}
-	sortedHeights := make([]uint32, 0, len(tokensByHeight))
-	for k := range tokensByHeight {
-		sortedHeights = append(sortedHeights, k)
-	}
-	// Sort smallest to largest block height
-	sort.SliceStable(sortedHeights, func(i, j int) bool {
-		return sortedHeights[i] < sortedHeights[j]
-	})
-	started := make([]string, 0, len(v.started))
-	for _, height := range sortedHeights {
-		tokens := tokensByHeight[height]
-		started = append(started, tokens...)
-	}
-
-	return ticketvote.InventoryReply{
-		Records: map[ticketvote.VoteStatusT][]string{
-			ticketvote.VoteStatusUnauthorized: v.unauthorized,
-			ticketvote.VoteStatusAuthorized:   v.authorized,
-			ticketvote.VoteStatusStarted:      started,
-			ticketvote.VoteStatusFinished:     v.finished,
-		},
-		BestBlock: v.bestBlock,
-	}
-}
-
 func (p *ticketVotePlugin) cmdInventory() (string, error) {
 	log.Tracef("cmdInventory")
 
@@ -2613,13 +2575,16 @@ func (p *ticketVotePlugin) cmdInventory() (string, error) {
 	}
 
 	// Get the inventory
-	inv, err := p.invCache(bb)
+	inv, err := p.invGet(bb)
 	if err != nil {
-		return "", fmt.Errorf("inventory: %v", err)
+		return "", fmt.Errorf("invGet: %v", err)
 	}
-	ir := convertInventoryReply(*inv)
 
 	// Prepare reply
+	ir := ticketvote.InventoryReply{
+		Tokens:    inv.Tokens,
+		BestBlock: inv.BestBlock,
+	}
 	reply, err := json.Marshal(ir)
 	if err != nil {
 		return "", err

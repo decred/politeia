@@ -10,9 +10,6 @@ const (
 	// PluginID is the pi plugin ID.
 	PluginID = "pi"
 
-	// Plugin commands
-	CmdVoteInv = "voteinv"
-
 	// Setting keys are the plugin setting keys that can be used to
 	// override a default plugin setting. Defaults will be overridden
 	// if a plugin setting is provided to the plugin on startup.
@@ -124,23 +121,4 @@ const (
 // needs to be included in the merkle root that politeiad signs.
 type ProposalMetadata struct {
 	Name string `json:"name"`
-}
-
-// VoteInventory requests the tokens of all proposals in the inventory
-// categorized by their vote status. This call relies on the ticketvote
-// Inventory call, but breaks the Finished vote status out into Approved and
-// Rejected categories. This functionality is specific to pi.
-type VoteInventory struct{}
-
-// VoteInventoryReply is the reply to the VoteInventory command.
-type VoteInventoryReply struct {
-	Unauthorized []string `json:"unauthorized"`
-	Authorized   []string `json:"authorized"`
-	Started      []string `json:"started"`
-	Approved     []string `json:"approved"`
-	Rejected     []string `json:"rejected"`
-
-	// BestBlock is the best block value that was used to prepare the
-	// inventory.
-	BestBlock uint32 `json:"bestblock"`
 }

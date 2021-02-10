@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -283,9 +283,9 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 		// TODO
 		var token string
 		summaries[token] = www.VoteSummary{
-			Status:           convertVoteStatusToWWW(v.Status),
-			Type:             convertVoteTypeToWWW(v.Type),
-			Approved:         v.Approved,
+			Status: convertVoteStatusToWWW(v.Status),
+			Type:   convertVoteTypeToWWW(v.Type),
+			// Approved:         v.Approved,
 			EligibleTickets:  v.EligibleTickets,
 			Duration:         v.Duration,
 			EndHeight:        uint64(v.EndBlockHeight),
@@ -352,7 +352,6 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	}
 
 	// TODO Get vote inventory
-	var vir pi.VoteInventoryReply
 
 	// Unpack record inventory
 	var (
@@ -372,11 +371,11 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	return &www.TokenInventoryReply{
 		Unreviewed: unreviewed,
 		Censored:   censored,
-		Pre:        append(vir.Unauthorized, vir.Authorized...),
-		Active:     vir.Started,
-		Approved:   vir.Approved,
-		Rejected:   vir.Rejected,
-		Abandoned:  archived,
+		// Pre:        append(vir.Unauthorized, vir.Authorized...),
+		// Active:    vir.Started,
+		// Approved:  vir.Approved,
+		// Rejected:  vir.Rejected,
+		Abandoned: archived,
 	}, nil
 }
 

@@ -118,24 +118,6 @@ func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User
 	}, nil
 }
 
-func (p *Pi) processVoteInventory(ctx context.Context) (*v1.VoteInventoryReply, error) {
-	log.Tracef("processVoteInventory")
-
-	vir, err := p.politeiad.PiVoteInv(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.VoteInventoryReply{
-		Unauthorized: vir.Unauthorized,
-		Authorized:   vir.Authorized,
-		Started:      vir.Started,
-		Approved:     vir.Approved,
-		Rejected:     vir.Rejected,
-		BestBlock:    vir.BestBlock,
-	}, nil
-}
-
 // proposalName parses the proposal name from the ProposalMetadata and returns
 // it. An empty string will be returned if any errors occur or if a name is not
 // found.

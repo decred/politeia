@@ -204,15 +204,8 @@ func (t *TicketVote) processInventory(ctx context.Context) (*v1.InventoryReply, 
 		return nil, err
 	}
 
-	// Convert vote statuses to human readable equivalents
-	records := make(map[string][]string, len(ir.Records))
-	for k, v := range ir.Records {
-		s := convertVoteStatusToV1(k)
-		records[v1.VoteStatuses[s]] = v
-	}
-
 	return &v1.InventoryReply{
-		Vetted:    records,
+		Vetted:    ir.Tokens,
 		BestBlock: ir.BestBlock,
 	}, nil
 }
@@ -435,6 +428,10 @@ func convertVoteStatusToV1(s ticketvote.VoteStatusT) v1.VoteStatusT {
 		return v1.VoteStatusStarted
 	case ticketvote.VoteStatusFinished:
 		return v1.VoteStatusFinished
+	case ticketvote.VoteStatusApproved:
+		return v1.VoteStatusApproved
+	case ticketvote.VoteStatusRejected:
+		return v1.VoteStatusRejected
 	default:
 		return v1.VoteStatusInvalid
 	}
@@ -461,7 +458,6 @@ func convertSummaryToV1(s ticketvote.SummaryReply) v1.Summary {
 		QuorumPercentage: s.QuorumPercentage,
 		PassPercentage:   s.PassPercentage,
 		Results:          results,
-		Approved:         s.Approved,
 		BestBlock:        s.BestBlock,
 	}
 }

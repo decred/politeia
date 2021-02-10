@@ -81,7 +81,6 @@ func printVoteSummary(token string, s tkv1.Summary) {
 	printf("Start Block Height: %v\n", s.StartBlockHeight)
 	printf("End Block Height  : %v\n", s.EndBlockHeight)
 	printf("Eligible Tickets  : %v tickets\n", s.EligibleTickets)
-	printf("Approved          : %v\n", s.Approved)
 	printf("Best Block        : %v\n", s.BestBlock)
 	printf("Results\n")
 	for _, v := range s.Results {
