@@ -516,7 +516,7 @@ func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *
 	if ok {
 		unvetted = tokens
 	}
-	tokens, ok = reply[v1.RecordStateUnvetted]
+	tokens, ok = reply[v1.RecordStateVetted]
 	if ok {
 		vetted = tokens
 	}
