@@ -258,9 +258,10 @@ func (p *ticketVotePlugin) invGet(bestBlock uint32) (*inventory, error) {
 	// if any votes have finished.
 	active := make([]activeVote, 0, len(inv.Active))
 	for _, v := range inv.Active {
-		if v.EndHeight >= bestBlock {
+		if bestBlock < v.EndHeight {
 			// Vote has not finished yet. Keep it in the active votes list.
 			active = append(active, v)
+			continue
 		}
 
 		// Vote has finished. Get vote summary.

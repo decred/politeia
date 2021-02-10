@@ -2151,9 +2151,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 
 	// Verify that all tokens in the ballot are valid, full length
 	// tokens and that they are all voting for the same record.
-	var (
-		receipts = make([]ticketvote.CastVoteReply, len(votes))
-	)
+	receipts := make([]ticketvote.CastVoteReply, len(votes))
 	for k, v := range votes {
 		// Verify token
 		t, err := tokenDecode(v.Token)
@@ -2512,7 +2510,7 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 		switch v.ID {
 		case ticketvote.VoteOptionIDApprove:
 			// Valid vote option
-			approvedVotes++
+			approvedVotes = v.Votes
 		case ticketvote.VoteOptionIDReject:
 			// Valid vote option
 		default:
@@ -2528,12 +2526,23 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 	case total < quorum:
 		// Quorum not met
 		approved = false
+
+		log.Debugf("Quorum not met on %v: votes cast %v, quorum %v",
+			vd.Params.Token, total, quorum)
+
 	case approvedVotes < pass:
 		// Pass percentage not met
 		approved = false
+
+		log.Debugf("Pass threshold not met on %v: approved %v, required %v",
+			vd.Params.Token, total, quorum)
+
 	default:
 		// Vote was approved
 		approved = true
+
+		log.Debugf("Vote %v approved: quorum %v, pass %v, total %v, approved %v",
+			vd.Params.Token, quorum, pass, total, approvedVotes)
 	}
 
 	return approved
