@@ -193,31 +193,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleBatchVoteSummary handles the incoming batch vote summary command. It
-// returns a VoteSummary for each of the provided censorship tokens.
-func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleBatchVoteSummary")
-
-	var bvs www.BatchVoteSummary
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bvs); err != nil {
-		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processBatchVoteSummary(r.Context(), bvs)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // websocketPing is used to verify that websockets are operational.
 func (p *politeiawww) websocketPing(id string) {
 	log.Tracef("websocketPing %v", id)
