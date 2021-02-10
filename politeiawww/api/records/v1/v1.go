@@ -393,5 +393,5 @@ type UserRecords struct {
 // UserRecordsReply is the reply to the UserRecords command.
 type UserRecordsReply struct {
 	Unvetted []string `json:"unvetted"`
-	Vetted   []string `json:"Vetted"`
+	Vetted   []string `json:"vetted"`
 }
