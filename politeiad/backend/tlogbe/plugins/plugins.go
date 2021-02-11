@@ -206,9 +206,6 @@ type TlogClient interface {
 	// to the digest.
 	Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error)
 
-	// RecordExists returns whether a record exists.
-	RecordExists(treeID int64) bool
-
 	// Record returns a version of a record.
 	Record(treeID int64, version uint32) (*backend.Record, error)
 

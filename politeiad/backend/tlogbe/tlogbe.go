@@ -1142,7 +1142,8 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 		return nil, err
 	}
 
-	// Update record
+	// Update record. When a record is made public it is moved from the
+	// unvetted instance to the vetted instance.
 	var vettedTreeID int64
 	switch status {
 	case backend.MDStatusVetted:

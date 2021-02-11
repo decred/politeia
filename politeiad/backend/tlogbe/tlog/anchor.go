@@ -30,7 +30,9 @@ const (
 	// currently drops an anchor on the hour mark so we submit new
 	// anchors a few minutes prior to that.
 	// Seconds Minutes Hours Days Months DayOfWeek
-	anchorSchedule = "0 56 * * * *" // At minute 56 of every hour
+	// TODO change back when done testing
+	// anchorSchedule = "0 56 * * * *" // At minute 56 of every hour
+	anchorSchedule = "0 */5 * * * *" // Every 5 minutes
 
 	// anchorID is included in the timestamp and verify requests as a
 	// unique identifier.
