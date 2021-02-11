@@ -71,7 +71,7 @@ func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload s
 	case plugins.HookTypeSetRecordStatusPre:
 		return p.hookSetRecordStatusPre(payload)
 	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
+		return p.hookSetRecordStatusPost(treeID, payload)
 	}
 
 	return nil

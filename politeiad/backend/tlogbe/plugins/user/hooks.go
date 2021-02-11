@@ -332,16 +332,16 @@ func (p *userPlugin) hookSetRecordStatusPre(payload string) error {
 	return nil
 }
 
-func (p *userPlugin) hookSetRecordStatusPost(payload string) error {
+func (p *userPlugin) hookSetRecordStatusPost(treeID int64, payload string) error {
 	var srs plugins.HookSetRecordStatus
 	err := json.Unmarshal([]byte(payload), &srs)
 	if err != nil {
 		return err
 	}
 
-	// When a record becomes vetted the post hook will be executed on
-	// the vetted tstore instance. The record must be added to the
-	// vetted user cache.
+	// When a record is made public it is moved from the unvetted to
+	// the vetted tstore instance. The token must be removed from the
+	// unvetted user cache and added to the vetted user cache.
 	if srs.RecordMetadata.Status == backend.MDStatusVetted {
 		// Decode user metadata
 		um, err := userMetadataDecode(srs.Metadata)
@@ -349,10 +349,25 @@ func (p *userPlugin) hookSetRecordStatusPost(payload string) error {
 			return err
 		}
 
-		// Add token to the user cache
-		err = p.userCacheAddToken(um.UserID, srs.RecordMetadata.Token)
-		if err != nil {
-			return err
+		// Determine whether to add or remove this token from the user
+		// cache. When an unvetted record is made vetted, the record is
+		// considered to not exist in the unvetted tstore instance
+		// anymore. We can determine whether we need to add the token to
+		// the user cache or remove it by checking whether the record
+		// exists. The record will not exists in unvetted but will exist
+		// in vetted.
+		if p.tlog.RecordExists(treeID) {
+			// Add token to the user cache
+			err = p.userCacheAddToken(um.UserID, srs.RecordMetadata.Token)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Del token from user cache
+			err = p.userCacheDelToken(um.UserID, srs.RecordMetadata.Token)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

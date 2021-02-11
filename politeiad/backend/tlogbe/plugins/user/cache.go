@@ -7,6 +7,7 @@ package user
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -83,8 +84,7 @@ func (p *userPlugin) userCacheSaveWithLock(userID string, uc userCache) error {
 	return ioutil.WriteFile(fp, b, 0664)
 }
 
-// userCacheAddToken adds the provided token to the cached userCache for the
-// provided user.
+// userCacheAddToken adds a token to a user cache.
 //
 // This function must be called WITHOUT the lock held.
 func (p *userPlugin) userCacheAddToken(userID string, token string) error {
@@ -101,5 +101,56 @@ func (p *userPlugin) userCacheAddToken(userID string, token string) error {
 	uc.Tokens = append(uc.Tokens, token)
 
 	// Save changes
-	return p.userCacheSaveWithLock(userID, *uc)
+	err = p.userCacheSaveWithLock(userID, *uc)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("User cache add %v %v", userID, token)
+
+	return nil
+}
+
+// userCacheDelToken deletes a token from a user cache.
+//
+// This function must be called WITHOUT the lock held.
+func (p *userPlugin) userCacheDelToken(userID string, token string) error {
+	p.Lock()
+	defer p.Unlock()
+
+	// Get current user data
+	uc, err := p.userCacheWithLock(userID)
+	if err != nil {
+		return err
+	}
+
+	// Find token index
+	var i int
+	var found bool
+	for k, v := range uc.Tokens {
+		if v == token {
+			i = k
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("user token not found %v %v", userID, token)
+	}
+
+	// Del token (linear time)
+	t := uc.Tokens
+	copy(t[i:], t[i+1:])     // Shift t[i+1:] left one index
+	t[len(t)-1] = ""         // Erase last element
+	uc.Tokens = t[:len(t)-1] // Truncate slice
+
+	// Save changes
+	err = p.userCacheSaveWithLock(userID, *uc)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("User cache del %v %v", userID, token)
+
+	return nil
 }

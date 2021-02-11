@@ -1021,17 +1021,17 @@ func (t *tlogBackend) VettedExists(token []byte) bool {
 }
 
 // This function must be called WITH the record lock held.
-func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (int64, error) {
 	// Create a vetted tree
 	vettedTreeID, err := t.vetted.TreeNew()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Save the record to the vetted tlog
 	err = t.vetted.RecordSave(vettedTreeID, rm, metadata, files)
 	if err != nil {
-		return fmt.Errorf("vetted RecordSave: %v", err)
+		return 0, fmt.Errorf("vetted RecordSave: %v", err)
 	}
 
 	log.Debugf("Unvetted record %x copied to vetted tree %v",
@@ -1041,7 +1041,7 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 	treeID := treeIDFromToken(token)
 	err = t.unvetted.TreeFreeze(treeID, rm, metadata, vettedTreeID)
 	if err != nil {
-		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
+		return 0, fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Unvetted record frozen %x", token)
@@ -1049,7 +1049,7 @@ func (t *tlogBackend) unvettedPublish(token []byte, rm backend.RecordMetadata, m
 	// Update the vetted cache
 	t.vettedTreeIDAdd(hex.EncodeToString(token), vettedTreeID)
 
-	return nil
+	return vettedTreeID, nil
 }
 
 // This function must be called WITH the record lock held.
@@ -1143,9 +1143,10 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Update record
+	var vettedTreeID int64
 	switch status {
 	case backend.MDStatusVetted:
-		err := t.unvettedPublish(token, rm, metadata, r.Files)
+		vettedTreeID, err = t.unvettedPublish(token, rm, metadata, r.Files)
 		if err != nil {
 			return nil, fmt.Errorf("unvettedPublish: %v", err)
 		}
@@ -1165,11 +1166,12 @@ func (t *tlogBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT, 
 
 	switch status {
 	case backend.MDStatusVetted:
-		// Record was made public. Actions must now be executed on the
-		// vetted tlog instance.
+		// Record was made public. Call the plugin hook on both unvetted
+		// and vetted since both instances had state changes.
+		t.unvetted.PluginHookPost(treeID, token,
+			plugins.HookTypeSetRecordStatusPost, string(b))
 
-		// Call post plugin hooks
-		t.vetted.PluginHookPost(treeID, token,
+		t.vetted.PluginHookPost(vettedTreeID, token,
 			plugins.HookTypeSetRecordStatusPost, string(b))
 
 		// Update inventory cache
