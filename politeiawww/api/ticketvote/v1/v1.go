@@ -496,7 +496,7 @@ type SummariesReply struct {
 // Submissions requests the submissions of a runoff vote. The only records that
 // will have a submissions list are the parent records in a runoff vote. The
 // list will contain all public runoff vote submissions, i.e. records that
-// have linked to the parent record using the VoteMetadata.LinkTo field.
+// have linked to the parent record using the VoteMetadata LinkTo field.
 type Submissions struct {
 	Token string `json:"token"`
 }

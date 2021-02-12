@@ -409,7 +409,7 @@ func (c *Client) Inventory(ctx context.Context) (*pdv1.InventoryReply, error) {
 }
 
 // InventoryByStatus sends a InventoryByStatus request to the politeiad v1 API.
-func (c *Client) InventoryByStatus(ctx context.Context) (*pdv1.InventoryByStatusReply, error) {
+func (c *Client) InventoryByStatus(ctx context.Context, state string, status pdv1.RecordStatusT, page uint32) (*pdv1.InventoryByStatusReply, error) {
 	// Setup request
 	challenge, err := util.Random(pdv1.ChallengeSize)
 	if err != nil {
@@ -417,6 +417,9 @@ func (c *Client) InventoryByStatus(ctx context.Context) (*pdv1.InventoryByStatus
 	}
 	ibs := pdv1.InventoryByStatus{
 		Challenge: hex.EncodeToString(challenge),
+		State:     state,
+		Status:    status,
+		Page:      page,
 	}
 
 	// Send request

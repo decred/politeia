@@ -313,22 +313,31 @@ type RecordsReply struct {
 }
 
 const (
-	// TODO implement Inventory pagnation
-	InventoryPageSize = 60
+	// InventoryPageSize is the maximum number of tokens that will be
+	// returned for any single status in an inventory reply.
+	InventoryPageSize uint32 = 20
 )
 
-// Inventory requests the tokens of all records in the inventory, categorized
-// by record state and record status. Unvetted record tokens will only be
-// returned to admins.
+// Inventory requests the tokens of the records in the inventory, categorized
+// by record state and record status. The tokens are ordered by the timestamp
+// of their most recent status change, sorted from newest to oldest.
+//
+// The state, status, and page arguments can be provided to request a specific
+// page of record tokens.
+//
+// If no status is provided then a page of tokens for all statuses are
+// returned. The state and page arguments will be ignored.
+//
+// Unvetted record tokens will only be returned to admins.
 type Inventory struct {
-	State  string `json:"state,omitempty"`
-	Status string `json:"status,omitempty"`
-	Page   int32  `json:"page,omitempty"`
+	State  string        `json:"state,omitempty"`
+	Status RecordStatusT `json:"status,omitempty"`
+	Page   uint32        `json:"page,omitempty"`
 }
 
 // InventoryReply is the reply to the Inventory command. The returned maps are
 // map[status][]token where the status is the human readable record status
-// defined by the Statuses array in this package.
+// defined by the RecordStatuses array in this package.
 type InventoryReply struct {
 	Unvetted map[string][]string `json:"unvetted"`
 	Vetted   map[string][]string `json:"vetted"`

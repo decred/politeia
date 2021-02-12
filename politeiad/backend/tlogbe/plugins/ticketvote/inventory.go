@@ -81,11 +81,7 @@ func (p *ticketVotePlugin) invSetLocked(inv inventory) error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(p.invPath(), b, 0664)
-	if err != nil {
-		return err
-	}
-	return nil
+	return ioutil.WriteFile(p.invPath(), b, 0664)
 }
 
 // invAddToUnauthorized adds the token to the unauthorized vote status list.
@@ -347,7 +343,7 @@ func invDel(inv map[string][]string, status, token string) bool {
 
 	// Remove token (linear time)
 	copy(list[i:], list[i+1:]) // Shift list[i+1:] left one index
-	list[len(list)-1] = ""     // Erase last element (write zero token)
+	list[len(list)-1] = ""     // Del last element (write zero value)
 	list = list[:len(list)-1]  // Truncate slice
 
 	// Update inv

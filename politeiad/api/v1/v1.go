@@ -22,17 +22,17 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute               = "/v1/identity/"          // Retrieve identity
-	NewRecordRoute              = "/v1/newrecord/"         // New record
-	UpdateUnvettedRoute         = "/v1/updateunvetted/"    // Update unvetted record
-	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/"  // Update unvetted metadata
-	UpdateVettedRoute           = "/v1/updatevetted/"      // Update vetted record
-	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"    // Update vetted metadata
-	GetUnvettedRoute            = "/v1/getunvetted/"       // Retrieve unvetted record
-	GetVettedRoute              = "/v1/getvetted/"         // Retrieve vetted record
-	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"     // Get unvetted timestamps
-	GetVettedTimestampsRoute    = "/v1/getvettedts/"       // Get vetted timestamps
-	InventoryByStatusRoute      = "/v1/inventorybystatus/" // Get token inventory
+	IdentityRoute               = "/v1/identity/"         // Retrieve identity
+	NewRecordRoute              = "/v1/newrecord/"        // New record
+	UpdateUnvettedRoute         = "/v1/updateunvetted/"   // Update unvetted record
+	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/" // Update unvetted metadata
+	UpdateVettedRoute           = "/v1/updatevetted/"     // Update vetted record
+	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
+	GetUnvettedRoute            = "/v1/getunvetted/"      // Retrieve unvetted record
+	GetVettedRoute              = "/v1/getvetted/"        // Retrieve vetted record
+	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"    // Get unvetted timestamps
+	GetVettedTimestampsRoute    = "/v1/getvettedts/"      // Get vetted timestamps
+	InventoryByStatusRoute      = "/v1/inventorybystatus/"
 
 	// Auth required
 	InventoryRoute          = "/v1/inventory/"         // Inventory records
@@ -468,10 +468,23 @@ type InventoryReply struct {
 	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
 }
 
-// InventoryByStatus requests for the censhorship tokens from all records
-// filtered by their status.
+const (
+	// InventoryPageSize is the maximum number of tokens that will be
+	// returned for any single status in an inventory reply.
+	InventoryPageSize uint32 = 20
+)
+
+// InventoryByStatus requests the tokens of the records in the inventory,
+// categorized by record state and record status. Each status will contain a
+// list of tokens of size InventoryPageSize.
+//
+// The client can alternatively request the tokens for a specific status and
+// page number.
 type InventoryByStatus struct {
-	Challenge string `json:"challenge"` // Random challenge
+	Challenge string        `json:"challenge"` // Random challenge
+	State     string        `json:"state,omitempty"`
+	Status    RecordStatusT `json:"status,omitempty"`
+	Page      uint32        `json:"page,omitempty"`
 }
 
 // InventoryByStatusReply returns all censorship record tokens categorized by

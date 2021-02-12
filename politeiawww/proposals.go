@@ -28,7 +28,8 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	log.Tracef("processTokenInventory")
 
 	// Get record inventory
-	ir, err := p.politeiad.InventoryByStatus(ctx)
+	ir, err := p.politeiad.InventoryByStatus(ctx, "",
+		pdv1.RecordStatusInvalid, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -208,7 +208,7 @@ func (c *Records) HandleInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ir, err := c.processInventory(r.Context(), u)
+	ir, err := c.processInventory(r.Context(), i, u)
 	if err != nil {
 		respondWithError(w, r,
 			"HandleInventory: processInventory: %v", err)

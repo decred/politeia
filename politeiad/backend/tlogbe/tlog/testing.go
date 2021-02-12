@@ -47,10 +47,14 @@ func newTestTlog(t *testing.T, tlogID, dataDir string, encrypt bool) *Tlog {
 	}
 }
 
+// NewTestTlogEncrypted returns a tlog instance that encrypts all data blobs
+// and that has been setup for testing.
 func NewTestTlogEncrypted(t *testing.T, tlogID, dataDir string) *Tlog {
 	return newTestTlog(t, tlogID, dataDir, true)
 }
 
+// NewTestTlogUnencrypted returns a tlog instance that save all data blobs
+// as plaintext and that has been setup for testing.
 func NewTestTlogUnencrypted(t *testing.T, tlogID, dataDir string) *Tlog {
 	return newTestTlog(t, tlogID, dataDir, false)
 }

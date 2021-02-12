@@ -210,9 +210,19 @@ type Plugin struct {
 	Identity *identity.FullIdentity
 }
 
-// InventoryByStatus contains the record tokens of all records in the inventory
-// categorized by state and MDStatusT. Each list is sorted by the timestamp of
-// the status change from newest to oldest.
+const (
+	// StateUnvetted is used to request the inventory of an unvetted
+	// status.
+	StateUnvetted = "unvetted"
+
+	// StateVetted is used to request the inventory of a vetted status.
+	StateVetted = "vetted"
+)
+
+// InventoryByStatus contains the tokens of the records in the inventory
+// categorized by record state and record status. Each list contains a page of
+// tokens that are sorted by the timestamp of the status change from newest to
+// oldest.
 type InventoryByStatus struct {
 	Unvetted map[MDStatusT][]string
 	Vetted   map[MDStatusT][]string
@@ -270,9 +280,9 @@ type Backend interface {
 	GetVettedTimestamps(token []byte,
 		version string) (*RecordTimestamps, error)
 
-	// InventoryByStatus returns the record tokens of all records in the
-	// inventory categorized by MDStatusT
-	InventoryByStatus() (*InventoryByStatus, error)
+	// Get record tokens categorized by MDStatusT
+	InventoryByStatus(state string, s MDStatusT,
+		pageSize, page uint32) (*InventoryByStatus, error)
 
 	// Register an unvetted plugin with the backend
 	RegisterUnvettedPlugin(Plugin) error

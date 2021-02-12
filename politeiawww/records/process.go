@@ -413,10 +413,30 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 	}, nil
 }
 
-func (r *Records) processInventory(ctx context.Context, u *user.User) (*v1.InventoryReply, error) {
-	log.Tracef("processInventory")
+func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.User) (*v1.InventoryReply, error) {
+	log.Tracef("processInventory: %v %v %v", i.State, i.Status, i.Page)
 
-	ir, err := r.politeiad.InventoryByStatus(ctx)
+	// Verify state
+	switch i.State {
+	case v1.RecordStateUnvetted, v1.RecordStateVetted:
+		// Allowed; continue
+	default:
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Verify status. The status is optional so only validate it if one
+	// was provided.
+	s := convertStatusToPD(i.Status)
+	if i.Status != v1.RecordStatusInvalid && s == pdv1.RecordStatusInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStatusInvalid,
+		}
+	}
+
+	// Get inventory
+	ir, err := r.politeiad.InventoryByStatus(ctx, i.State, s, i.Page)
 	if err != nil {
 		return nil, err
 	}

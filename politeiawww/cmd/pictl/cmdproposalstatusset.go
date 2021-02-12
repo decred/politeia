@@ -63,28 +63,9 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 
 	// Parse status. This can be either the numeric status code or the
 	// human readable equivalent.
-	var (
-		status rcv1.RecordStatusT
-
-		statuses = map[string]rcv1.RecordStatusT{
-			"public":    rcv1.RecordStatusPublic,
-			"censored":  rcv1.RecordStatusCensored,
-			"abandoned": rcv1.RecordStatusArchived,
-			"2":         rcv1.RecordStatusPublic,
-			"3":         rcv1.RecordStatusCensored,
-			"4":         rcv1.RecordStatusArchived,
-		}
-	)
-	s, err := strconv.ParseUint(c.Args.Status, 10, 32)
-	if err == nil {
-		// Numeric status code found
-		status = rcv1.RecordStatusT(s)
-	} else if s, ok := statuses[c.Args.Status]; ok {
-		// Human readable status code found
-		status = s
-	} else {
-		return fmt.Errorf("invalid proposal status '%v'\n %v",
-			c.Args.Status, proposalSetStatusHelpMsg)
+	status, err := parseStatus(c.Args.Status)
+	if err != nil {
+		return err
 	}
 
 	// Setup version
@@ -140,6 +121,36 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 	}
 
 	return nil
+}
+
+func parseStatus(status string) (rcv1.RecordStatusT, error) {
+	// Parse status. This can be either the numeric status code or the
+	// human readable equivalent.
+	var (
+		rc rcv1.RecordStatusT
+
+		statuses = map[string]rcv1.RecordStatusT{
+			"public":    rcv1.RecordStatusPublic,
+			"censored":  rcv1.RecordStatusCensored,
+			"abandoned": rcv1.RecordStatusArchived,
+			"archived":  rcv1.RecordStatusArchived,
+			"2":         rcv1.RecordStatusPublic,
+			"3":         rcv1.RecordStatusCensored,
+			"4":         rcv1.RecordStatusArchived,
+		}
+	)
+	u, err := strconv.ParseUint(status, 10, 32)
+	if err == nil {
+		// Numeric status code found
+		rc = rcv1.RecordStatusT(u)
+	} else if s, ok := statuses[status]; ok {
+		// Human readable status code found
+		rc = s
+	} else {
+		return rc, fmt.Errorf("invalid status '%v'", status)
+	}
+
+	return rc, nil
 }
 
 // proposalSetStatusHelpMsg is printed to stdout by the help command.

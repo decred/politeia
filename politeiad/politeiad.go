@@ -788,7 +788,9 @@ func (p *politeia) inventoryByStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inv, err := p.backend.InventoryByStatus()
+	s := convertFrontendStatus(ibs.Status)
+	inv, err := p.backend.InventoryByStatus(ibs.State, s,
+		v1.InventoryPageSize, ibs.Page)
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()

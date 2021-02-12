@@ -7,11 +7,6 @@
 package ticketvote
 
 // TODO should VoteDetails, StartReply, StartRunoffReply contain a receipt?
-// TODO the timestamps reply is going to be too large. Each ticket vote
-// timestamp is ~2000 bytes.
-// Avg   (15k votes): 30MB
-// Large (25k votes): 50MB
-// Max   (41k votes): 82MB
 
 const (
 	// PluginID is the ticketvote plugin ID.

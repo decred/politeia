@@ -2843,7 +2843,7 @@ func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (strin
 // InventoryByStatus has not been not implemented.
 //
 // This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) InventoryByStatus() (*backend.InventoryByStatus, error) {
+func (g *gitBackEnd) InventoryByStatus(state string, s backend.MDStatusT, pageSize, page uint32) (*backend.InventoryByStatus, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
