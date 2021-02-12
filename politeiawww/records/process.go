@@ -352,13 +352,15 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 	// unvetted record files. Remove files if the user is not an admin
 	// or the author. This is a public route so a user may not be
 	// present.
-	var (
-		authorID = userIDFromMetadataStreams(rc.Metadata)
-		isAuthor = u != nil && u.ID.String() == authorID
-		isAdmin  = u != nil && u.Admin
-	)
-	if !isAuthor && !isAdmin {
-		rc.Files = []v1.File{}
+	if d.State == v1.RecordStateUnvetted {
+		var (
+			authorID = userIDFromMetadataStreams(rc.Metadata)
+			isAuthor = u != nil && u.ID.String() == authorID
+			isAdmin  = u != nil && u.Admin
+		)
+		if !isAuthor && !isAdmin {
+			rc.Files = []v1.File{}
+		}
 	}
 
 	return &v1.DetailsReply{

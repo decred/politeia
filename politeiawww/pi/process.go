@@ -113,6 +113,22 @@ func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User
 		proposals[pr.CensorshipRecord.Token] = *pr
 	}
 
+	// Only admins and the proposal author are allowed to retrieve
+	// unvetted files. Remove files if the user is not an admin or the
+	// author. This is a public route so a user may not be present.
+	if ps.State == v1.ProposalStateUnvetted {
+		for k, v := range proposals {
+			var (
+				isAuthor = u != nil && u.ID.String() == v.UserID
+				isAdmin  = u != nil && u.Admin
+			)
+			if !isAuthor && !isAdmin {
+				v.Files = []v1.File{}
+				proposals[k] = v
+			}
+		}
+	}
+
 	return &v1.ProposalsReply{
 		Proposals: proposals,
 	}, nil
