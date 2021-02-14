@@ -227,7 +227,17 @@ func (t *TicketVote) HandleSubmissions(w http.ResponseWriter, r *http.Request) {
 func (t *TicketVote) HandleInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleInventory")
 
-	ir, err := t.processInventory(r.Context())
+	var i v1.Inventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&i); err != nil {
+		respondWithError(w, r, "HandleInventory: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	ir, err := t.processInventory(r.Context(), i)
 	if err != nil {
 		respondWithError(w, r, "HandleInventory: processInventory: %v",
 			err)

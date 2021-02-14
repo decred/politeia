@@ -56,7 +56,7 @@ func (c *cmdProposalInv) Execute(args []string) error {
 	if c.Args.Status != "" {
 		// Parse status. This can be either the numeric status code or the
 		// human readable equivalent.
-		status, err = parseStatus(c.Args.Status)
+		status, err = parseRecordStatus(c.Args.Status)
 		if err != nil {
 			return err
 		}

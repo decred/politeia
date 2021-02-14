@@ -63,7 +63,7 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 
 	// Parse status. This can be either the numeric status code or the
 	// human readable equivalent.
-	status, err := parseStatus(c.Args.Status)
+	status, err := parseRecordStatus(c.Args.Status)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 	return nil
 }
 
-func parseStatus(status string) (rcv1.RecordStatusT, error) {
+func parseRecordStatus(status string) (rcv1.RecordStatusT, error) {
 	// Parse status. This can be either the numeric status code or the
 	// human readable equivalent.
 	var (

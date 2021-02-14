@@ -195,11 +195,15 @@ func (t *TicketVote) processSubmissions(ctx context.Context, s v1.Submissions) (
 	}, nil
 }
 
-func (t *TicketVote) processInventory(ctx context.Context) (*v1.InventoryReply, error) {
-	log.Tracef("processInventory")
+func (t *TicketVote) processInventory(ctx context.Context, i v1.Inventory) (*v1.InventoryReply, error) {
+	log.Tracef("processInventory: %v %v", i.Status, i.Page)
 
-	// Send plugin command
-	ir, err := t.politeiad.TicketVoteInventory(ctx)
+	// Get inventory
+	ti := ticketvote.Inventory{
+		Status: convertVoteStatusToPlugin(i.Status),
+		Page:   i.Page,
+	}
+	ir, err := t.politeiad.TicketVoteInventory(ctx, ti)
 	if err != nil {
 		return nil, err
 	}
@@ -238,6 +242,25 @@ func (t *TicketVote) processTimestamps(ctx context.Context, ts v1.Timestamps) (*
 		Details: details,
 		Votes:   votes,
 	}, nil
+}
+
+func convertVoteStatusToPlugin(s v1.VoteStatusT) ticketvote.VoteStatusT {
+	switch s {
+	case v1.VoteStatusUnauthorized:
+		return ticketvote.VoteStatusUnauthorized
+	case v1.VoteStatusAuthorized:
+		return ticketvote.VoteStatusAuthorized
+	case v1.VoteStatusStarted:
+		return ticketvote.VoteStatusStarted
+	case v1.VoteStatusFinished:
+		return ticketvote.VoteStatusFinished
+	case v1.VoteStatusApproved:
+		return ticketvote.VoteStatusApproved
+	case v1.VoteStatusRejected:
+		return ticketvote.VoteStatusRejected
+	default:
+		return ticketvote.VoteStatusInvalid
+	}
 }
 
 func convertVoteTypeToPlugin(t v1.VoteT) ticketvote.VoteT {

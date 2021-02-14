@@ -312,9 +312,12 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 		return err
 	}
 
-	// Update the inventory cache if the record is being made public.
-	if srs.RecordMetadata.Status == backend.MDStatusVetted {
-		p.invAddToUnauthorized(srs.RecordMetadata.Token)
+	// Update the inventory cache
+	switch srs.RecordMetadata.Status {
+	case backend.MDStatusVetted:
+		// Add to inventory
+		p.inventoryAdd(srs.RecordMetadata.Token,
+			ticketvote.VoteStatusUnauthorized)
 	}
 
 	// Update the submissions cache if the linkto has been set.

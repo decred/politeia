@@ -176,9 +176,9 @@ func (c *Client) TicketVoteSubmissions(s tkv1.Submissions) (*tkv1.SubmissionsRep
 }
 
 // TicketVoteInventory sends a ticketvote v1 Inventory request to politeiawww.
-func (c *Client) TicketVoteInventory() (*tkv1.InventoryReply, error) {
+func (c *Client) TicketVoteInventory(i tkv1.Inventory) (*tkv1.InventoryReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,
-		tkv1.APIRoute, tkv1.RouteInventory, nil)
+		tkv1.APIRoute, tkv1.RouteInventory, i)
 	if err != nil {
 		return nil, err
 	}

@@ -22,22 +22,21 @@ const (
 	filenameInventory = "inventory.json"
 )
 
-// inventory contains the record inventory categorized by vote status. The
-// unauthorized, authorized, and started lists are updated in real-time since
-// ticket vote plugin commands or hooks initiate those actions. The finished,
-// approved, and rejected statuses are lazy loaded since those lists depends on
-// external state (DCR block height).
-type inventory struct {
-	Tokens    map[string][]string `json:"tokens"`    // [status][]token
-	Active    []activeVote        `json:"active"`    // Active votes
-	BestBlock uint32              `json:"bestblock"` // Last updated
+// entry is an inventory entry.
+type entry struct {
+	Token     string                 `json:"token"`
+	Status    ticketvote.VoteStatusT `json:"status"`
+	EndHeight uint32                 `json:"endheight,omitempty"`
 }
 
-// activeVote is used to track active votes. The end height is stored so that
-// we can check what votes have finished when a new best blocks come in.
-type activeVote struct {
-	Token     string `json:"token"`
-	EndHeight uint32 `json:"endheight"`
+// inventory contains the ticketvote inventory. The unauthorized, authorized,
+// and started lists are updated in real-time since ticket vote plugin commands
+// or hooks initiate those actions. The finished, approved, and rejected
+// statuses are lazy loaded since those lists depends on external state (DCR
+// block height).
+type inventory struct {
+	Entries   []entry `json:"entries"`
+	BestBlock uint32  `json:"bestblock"`
 }
 
 // invPath returns the full path for the cached ticket vote inventory.
@@ -48,7 +47,7 @@ func (p *ticketVotePlugin) invPath() string {
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
 // if one does not exist yet.
 //
-// This function must be called WITH the lock held.
+// This function must be called WITH the read lock held.
 func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
 	b, err := ioutil.ReadFile(p.invPath())
 	if err != nil {
@@ -56,8 +55,7 @@ func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
 		if errors.As(err, &e) && !os.IsExist(err) {
 			// File does't exist. Return a new inventory.
 			return &inventory{
-				Tokens:    make(map[string][]string, 256),
-				Active:    make([]activeVote, 0, 256),
+				Entries:   make([]entry, 0, 256),
 				BestBlock: 0,
 			}, nil
 		}
@@ -73,10 +71,21 @@ func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
 	return &inv, nil
 }
 
-// invSetLocked writes the inventory to disk.
+// invGetLocked retrieves the inventory from disk. A new inventory is returned
+// if one does not exist yet.
 //
-// This function must be called WITH the lock held.
-func (p *ticketVotePlugin) invSetLocked(inv inventory) error {
+// This function must be called WITHOUT the read lock held.
+func (p *ticketVotePlugin) invGet() (*inventory, error) {
+	p.mtxInv.RLock()
+	defer p.mtxInv.RUnlock()
+
+	return p.invGetLocked()
+}
+
+// invSaveLocked writes the inventory to disk.
+//
+// This function must be called WITH the read/write lock held.
+func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	b, err := json.Marshal(inv)
 	if err != nil {
 		return err
@@ -84,283 +93,318 @@ func (p *ticketVotePlugin) invSetLocked(inv inventory) error {
 	return ioutil.WriteFile(p.invPath(), b, 0664)
 }
 
-// invAddToUnauthorized adds the token to the unauthorized vote status list.
-// This is done when a unvetted record is made vetted or when a previous vote
-// authorization is revoked.
-func (p *ticketVotePlugin) invAddToUnauthorized(token string) {
+func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
+	// Get inventory
 	inv, err := p.invGetLocked()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	var (
-		// Human readable vote statuses
-		unauth = ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized]
-		auth   = ticketvote.VoteStatuses[ticketvote.VoteStatusAuthorized]
-	)
-
-	// Remove token from the authorized list. It will only exit in the
-	// authorized list if the user is revoking a previous authorization.
-	ok := invDel(inv.Tokens, auth, token)
-	if ok {
-		log.Debugf("Vote inv del %v from authorized", token)
+	// Prepend token
+	e := entry{
+		Token:  token,
+		Status: s,
 	}
-
-	// Add the token to unauthorized
-	invAdd(inv.Tokens, unauth, token)
-
-	log.Debugf("Vote inv add %v to unauthorized", token)
+	inv.Entries = append([]entry{e}, inv.Entries...)
 
 	// Save inventory
-	err = p.invSetLocked(*inv)
+	err = p.invSaveLocked(*inv)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	log.Debugf("Vote inv add %v %v", token, ticketvote.VoteStatuses[s])
+
+	return nil
 }
 
-// invAddToAuthorized moves a record from the unauthorized to the authorized
-// list. This is done by the ticketvote authorize command.
-func (p *ticketVotePlugin) invAddToAuthorized(token string) {
+func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
+	// Get inventory
 	inv, err := p.invGetLocked()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	var (
-		// Human readable vote statuses
-		unauth = ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized]
-		auth   = ticketvote.VoteStatuses[ticketvote.VoteStatusAuthorized]
-	)
-
-	// Remove the token from unauthorized list. The token should always
-	// be in the unauthorized list.
-	ok := invDel(inv.Tokens, unauth, token)
-	if !ok {
-		e := fmt.Sprintf("token not found in unauthorized list %v", token)
+	// Del entry
+	entries, err := entryDel(inv.Entries, token)
+	if err != nil {
+		// This should not happen. Panic if it does.
+		e := fmt.Sprintf("entry del: %v", err)
 		panic(e)
 	}
 
-	log.Debugf("Vote inv del %v from unauthorized", token)
-
-	// Prepend the token to the authorized list
-	invAdd(inv.Tokens, auth, token)
-
-	log.Debugf("Vote inv add %v to authorized", token)
-
-	// Save inventory
-	err = p.invSetLocked(*inv)
-	if err != nil {
-		panic(err)
-	}
-}
-
-// invAddToStarted moves a record into the started vote status list. This is
-// done by the ticketvote start command.
-func (p *ticketVotePlugin) invAddToStarted(token string, t ticketvote.VoteT, endHeight uint32) {
-	p.mtxInv.Lock()
-	defer p.mtxInv.Unlock()
-
-	inv, err := p.invGetLocked()
-	if err != nil {
-		panic(err)
-	}
-
-	var (
-		// Human readable vote statuses
-		unauth  = ticketvote.VoteStatuses[ticketvote.VoteStatusUnauthorized]
-		auth    = ticketvote.VoteStatuses[ticketvote.VoteStatusAuthorized]
-		started = ticketvote.VoteStatuses[ticketvote.VoteStatusStarted]
-	)
-
-	switch t {
-	case ticketvote.VoteTypeStandard:
-		// Remove the token from the authorized list. The token should
-		// always be in the authorized list prior to the vote being
-		// started for standard votes.
-		ok := invDel(inv.Tokens, auth, token)
-		if !ok {
-			e := fmt.Sprintf("token not found in authorized list %v", token)
-			panic(e)
-		}
-
-		log.Debugf("Vote inv del %v from authorized", token)
-
-	case ticketvote.VoteTypeRunoff:
-		// A runoff vote does not require the submissions be authorized
-		// prior to the vote starting. The token should always be in the
-		// unauthorized list.
-		ok := invDel(inv.Tokens, unauth, token)
-		if !ok {
-			e := fmt.Sprintf("token not found in unauthorized list %v", token)
-			panic(e)
-		}
-
-		log.Debugf("Vote inv del %v from unauthorized", token)
-
-	default:
-		e := fmt.Sprintf("invalid vote type %v", t)
-		panic(e)
-	}
-
-	// Add token to started list
-	invAdd(inv.Tokens, started, token)
-
-	// Add token to active votes list
-	vt := activeVote{
+	// Prepend new entry to inventory
+	e := entry{
 		Token:     token,
+		Status:    s,
 		EndHeight: endHeight,
 	}
-	inv.Active = append([]activeVote{vt}, inv.Active...)
-
-	// Sort active votes
-	sortActiveVotes(inv.Active)
-
-	log.Debugf("Vote inv add %v to started with end height %v",
-		token, endHeight)
+	inv.Entries = append([]entry{e}, entries...)
 
 	// Save inventory
-	err = p.invSetLocked(*inv)
+	err = p.invSaveLocked(*inv)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	log.Debugf("Vote inv update %v to %v", token, ticketvote.VoteStatuses[s])
+
+	return nil
 }
 
-func (p *ticketVotePlugin) invGet(bestBlock uint32) (*inventory, error) {
+func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, error) {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
 	inv, err := p.invGetLocked()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	// Check if the inventory has been updated for this block height.
 	if inv.BestBlock == bestBlock {
-		// Inventory already updated. Nothing else to do.
 		return inv, nil
 	}
 
-	// The active votes should already be sorted, but sort them again
-	// just to be sure.
-	sortActiveVotes(inv.Active)
-
-	// The inventory has not been updated for this block height. Check
-	// if any votes have finished.
-	active := make([]activeVote, 0, len(inv.Active))
-	for _, v := range inv.Active {
-		if bestBlock < v.EndHeight {
-			// Vote has not finished yet. Keep it in the active votes list.
-			active = append(active, v)
+	// Compile the votes that have ended
+	ended := make([]entry, 0, 256)
+	for _, v := range inv.Entries {
+		if v.EndHeight == 0 {
 			continue
 		}
+		if voteHasEnded(bestBlock, v.EndHeight) {
+			ended = append(ended, v)
+		}
+	}
 
-		// Vote has finished. Get vote summary.
-		t, err := tokenDecode(v.Token)
+	// Sort by end height from smallest to largest so that they're
+	// added to the inventory in the correct order.
+	sort.SliceStable(ended, func(i, j int) bool {
+		return ended[i].EndHeight < ended[j].EndHeight
+	})
+
+	// Update the inventory for the ended entries
+	for _, v := range ended {
+		// Get the vote summary
+		token, err := tokenDecode(v.Token)
 		if err != nil {
 			return nil, err
 		}
-		sr, err := p.summaryByToken(t)
+		sr, err := p.summaryByToken(token)
 		if err != nil {
 			return nil, err
 		}
 
-		// Remove token from started list
-		started := ticketvote.VoteStatuses[ticketvote.VoteStatusStarted]
-		ok := invDel(inv.Tokens, started, v.Token)
-		if !ok {
-			return nil, fmt.Errorf("token not found in started %v", v.Token)
-		}
-
-		log.Debugf("Vote inv del %v from started", v.Token)
-
-		// Add token to the appropriate list
+		// Update inventory
 		switch sr.Status {
 		case ticketvote.VoteStatusFinished, ticketvote.VoteStatusApproved,
 			ticketvote.VoteStatusRejected:
 			// These statuses are allowed
-			status := ticketvote.VoteStatuses[sr.Status]
-			invAdd(inv.Tokens, status, v.Token)
+			err := p.invUpdate(v.Token, sr.Status, 0)
+			if err != nil {
+				return nil, err
+			}
 		default:
-			// Something went wrong
 			return nil, fmt.Errorf("unexpected vote status %v %v",
 				v.Token, sr.Status)
 		}
-
-		log.Debugf("Vote inv add %v to %v",
-			v.Token, ticketvote.VoteStatuses[sr.Status])
 	}
 
-	// Update active votes list
-	inv.Active = active
-
 	// Update best block
+	inv, err = p.invGetLocked()
+	if err != nil {
+		return nil, err
+	}
 	inv.BestBlock = bestBlock
+
+	// Save inventory
+	err = p.invSaveLocked(*inv)
+	if err != nil {
+		return nil, err
+	}
 
 	log.Debugf("Vote inv updated for block %v", bestBlock)
 
-	// Save inventory
-	err = p.invSetLocked(*inv)
+	return inv, nil
+}
+
+// inventoryAdd is a wrapper around the invAdd method that allows us to decide
+// how disk read/write errors should be handled. For now we just panic.
+func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
+	err := p.invAdd(token, s)
 	if err != nil {
-		panic(err)
+		e := fmt.Sprintf("invAdd %v %v: %v", token, s, err)
+		panic(e)
+	}
+}
+
+func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
+	err := p.invUpdate(token, s, 0)
+	if err != nil {
+		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
+		panic(e)
+	}
+}
+
+func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
+	err := p.invUpdate(token, s, endHeight)
+	if err != nil {
+		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
+		panic(e)
+	}
+}
+
+func (p *ticketVotePlugin) inventory(bestBlock uint32) (*inventory, error) {
+	// Get inventory
+	inv, err := p.invGet()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the inventory has been updated for this block height.
+	if bestBlock > inv.BestBlock {
+		// Inventory has not been update for this block. Update it.
+		return p.invUpdateForBlock(bestBlock)
 	}
 
 	return inv, nil
 }
 
-func sortActiveVotes(v []activeVote) {
-	// Sort by end height from smallest to largest
-	sort.SliceStable(v, func(i, j int) bool {
-		return v[i].EndHeight < v[j].EndHeight
-	})
+// invByStatus contains the inventory categorized by vote status. Each list
+// contains a page of tokens that are sorted by the timestamp of the status
+// change from newest to oldest.
+type invByStatus struct {
+	Tokens    map[ticketvote.VoteStatusT][]string
+	BestBlock uint32
 }
 
-func invDel(inv map[string][]string, status, token string) bool {
-	list, ok := inv[status]
-	if !ok {
-		inv[status] = make([]string, 0, 1056)
-		return false
+func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
+	// Get inventory
+	i, err := p.inventory(bestBlock)
+	if err != nil {
+		return nil, err
 	}
 
-	// Find token (linear time)
+	// Prepare reply
+	var (
+		unauth = tokensParse(i.Entries, ticketvote.VoteStatusUnauthorized,
+			pageSize, 1)
+		auth = tokensParse(i.Entries, ticketvote.VoteStatusAuthorized,
+			pageSize, 1)
+		started = tokensParse(i.Entries, ticketvote.VoteStatusStarted,
+			pageSize, 1)
+		finished = tokensParse(i.Entries, ticketvote.VoteStatusFinished,
+			pageSize, 1)
+		approved = tokensParse(i.Entries, ticketvote.VoteStatusApproved,
+			pageSize, 1)
+		rejected = tokensParse(i.Entries, ticketvote.VoteStatusRejected,
+			pageSize, 1)
+
+		tokens = make(map[ticketvote.VoteStatusT][]string, 16)
+	)
+	if len(unauth) != 0 {
+		tokens[ticketvote.VoteStatusUnauthorized] = unauth
+	}
+	if len(auth) != 0 {
+		tokens[ticketvote.VoteStatusAuthorized] = auth
+	}
+	if len(started) != 0 {
+		tokens[ticketvote.VoteStatusStarted] = started
+	}
+	if len(finished) != 0 {
+		tokens[ticketvote.VoteStatusFinished] = finished
+	}
+	if len(approved) != 0 {
+		tokens[ticketvote.VoteStatusApproved] = approved
+	}
+	if len(rejected) != 0 {
+		tokens[ticketvote.VoteStatusRejected] = rejected
+	}
+
+	return &invByStatus{
+		Tokens:    tokens,
+		BestBlock: i.BestBlock,
+	}, nil
+}
+
+func (p *ticketVotePlugin) invByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
+	pageSize := ticketvote.InventoryPageSize
+
+	// If no status is provided a page of tokens for each status should
+	// be returned.
+	if s == ticketvote.VoteStatusInvalid {
+		return p.invByStatusAll(bestBlock, pageSize)
+	}
+
+	// A status was provided. Return a page of tokens for the status.
+	inv, err := p.inventory(bestBlock)
+	if err != nil {
+		return nil, err
+	}
+	tokens := tokensParse(inv.Entries, s, pageSize, page)
+
+	return &invByStatus{
+		Tokens: map[ticketvote.VoteStatusT][]string{
+			s: tokens,
+		},
+		BestBlock: inv.BestBlock,
+	}, nil
+}
+
+// entryDel removes the entry for the token and returns the updated slice.
+func entryDel(entries []entry, token string) ([]entry, error) {
+	// Find token in entries
 	var i int
 	var found bool
-	for k, v := range list {
-		if v == token {
+	for k, v := range entries {
+		if v.Token == token {
 			i = k
 			found = true
 			break
 		}
 	}
 	if !found {
-		return found
+		return nil, fmt.Errorf("token not found %v", token)
 	}
 
-	// Remove token (linear time)
-	copy(list[i:], list[i+1:]) // Shift list[i+1:] left one index
-	list[len(list)-1] = ""     // Del last element (write zero value)
-	list = list[:len(list)-1]  // Truncate slice
+	// Del token from entries (linear time)
+	copy(entries[i:], entries[i+1:])   // Shift entries[i+1:] left one index
+	entries[len(entries)-1] = entry{}  // Del last element (write zero value)
+	entries = entries[:len(entries)-1] // Truncate slice
 
-	// Update inv
-	inv[status] = list
-
-	return found
+	return entries, nil
 }
 
-func invAdd(inv map[string][]string, status, token string) {
-	list, ok := inv[status]
-	if !ok {
-		list = make([]string, 0, 1056)
+// tokensParse parses a page of tokens from the provided entries.
+func tokensParse(entries []entry, s ticketvote.VoteStatusT, countPerPage, page uint32) []string {
+	tokens := make([]string, 0, countPerPage)
+	if countPerPage == 0 || page == 0 {
+		return tokens
 	}
 
-	// Prepend token
-	list = append([]string{token}, list...)
+	startAt := (page - 1) * countPerPage
+	var foundCount uint32
+	for _, v := range entries {
+		if v.Status != s {
+			// Status does not match
+			continue
+		}
 
-	// Update inv
-	inv[status] = list
+		// Matching status found
+		if foundCount >= startAt {
+			tokens = append(tokens, v.Token)
+			if len(tokens) == int(countPerPage) {
+				// We got a full page. We're done.
+				return tokens
+			}
+		}
+
+		foundCount++
+	}
+
+	return tokens
 }

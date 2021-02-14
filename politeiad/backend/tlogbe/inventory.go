@@ -227,6 +227,37 @@ func (t *tlogBackend) invMoveToVetted(token []byte, s backend.MDStatusT) error {
 	return nil
 }
 
+// inventoryAdd is a wrapper around the invAdd method that allows us to decide
+// how disk read/write errors should be handled. For now we just panic.
+func (t *tlogBackend) inventoryAdd(state string, token []byte, s backend.MDStatusT) {
+	err := t.invAdd(state, token, s)
+	if err != nil {
+		e := fmt.Sprintf("invAdd %v %x %v: %v", state, token, s, err)
+		panic(e)
+	}
+}
+
+// inventoryUpdate is a wrapper around the invUpdate method that allows us to
+// decide how disk read/write errors should be handled. For now we just panic.
+func (t *tlogBackend) inventoryUpdate(state string, token []byte, s backend.MDStatusT) {
+	err := t.invUpdate(state, token, s)
+	if err != nil {
+		e := fmt.Sprintf("invUpdate %v %x %v: %v", state, token, s, err)
+		panic(e)
+	}
+}
+
+// inventoryMoveToVetted is a wrapper around the invMoveToVetted method that
+// allows us to decide how disk read/write errors should be handled. For now we
+// just panic.
+func (t *tlogBackend) inventoryMoveToVetted(token []byte, s backend.MDStatusT) {
+	err := t.invMoveToVetted(token, s)
+	if err != nil {
+		e := fmt.Sprintf("invMoveToVetted %x %v: %v", token, s, err)
+		panic(e)
+	}
+}
+
 // invByStatus contains the inventory categorized by record state and record
 // status. Each list contains a page of tokens that are sorted by the timestamp
 // of the status change from newest to oldest.
@@ -290,43 +321,7 @@ func (t *tlogBackend) invByStatusAll(pageSize uint32) (*invByStatus, error) {
 	}, nil
 }
 
-// inventoryAdd is a wrapper around the invAdd method that allows us to decide
-// how disk read/write errors should be handled. For now we simply panic. The
-// best thing to do would be to kick off a non-block fsck job that checks the
-// inventory cache and corrects any mistakes that it finds.
-func (t *tlogBackend) inventoryAdd(state string, token []byte, s backend.MDStatusT) {
-	err := t.invAdd(state, token, s)
-	if err != nil {
-		e := fmt.Sprintf("invAdd %v %x %v: %v", state, token, s, err)
-		panic(e)
-	}
-}
-
-// inventoryUpdate is a wrapper around the invUpdate method that allows us to
-// decide how disk read/write errors should be handled. For now we simply
-// panic. The best thing to do would be to kick off a non-block fsck job that
-// checks the inventory cache and corrects any mistakes that it finds.
-func (t *tlogBackend) inventoryUpdate(state string, token []byte, s backend.MDStatusT) {
-	err := t.invUpdate(state, token, s)
-	if err != nil {
-		e := fmt.Sprintf("invUpdate %v %x %v: %v", state, token, s, err)
-		panic(e)
-	}
-}
-
-// inventoryMoveToVetted is a wrapper around the invMoveToVetted method that
-// allows us to decide how disk read/write errors should be handled. For now we
-// simply panic. The best thing to do would be to kick off a non-block fsck job
-// that checks the inventory cache and corrects any mistakes that it finds.
-func (t *tlogBackend) inventoryMoveToVetted(token []byte, s backend.MDStatusT) {
-	err := t.invMoveToVetted(token, s)
-	if err != nil {
-		e := fmt.Sprintf("invMoveToVetted %x %v: %v", token, s, err)
-		panic(e)
-	}
-}
-
-func (t *tlogBackend) inventory(state string, s backend.MDStatusT, pageSize, page uint32) (*invByStatus, error) {
+func (t *tlogBackend) invByStatus(state string, s backend.MDStatusT, pageSize, page uint32) (*invByStatus, error) {
 	// If no status is provided a page of tokens for each status should
 	// be returned.
 	if s == backend.MDStatusInvalid {

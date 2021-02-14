@@ -13,7 +13,7 @@ import (
 	"time"
 
 	pdclient "github.com/decred/politeia/politeiad/client"
-	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/util"
 )
 

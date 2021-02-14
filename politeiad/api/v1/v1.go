@@ -470,16 +470,19 @@ type InventoryReply struct {
 
 const (
 	// InventoryPageSize is the maximum number of tokens that will be
-	// returned for any single status in an inventory reply.
+	// returned for any single status in an InventoryReply.
 	InventoryPageSize uint32 = 20
 )
 
-// InventoryByStatus requests the tokens of the records in the inventory,
-// categorized by record state and record status. Each status will contain a
-// list of tokens of size InventoryPageSize.
+// Inventory requests the tokens of the records in the inventory, categorized
+// by record state and record status. The tokens are ordered by the timestamp
+// of their most recent status change, sorted from newest to oldest.
 //
-// The client can alternatively request the tokens for a specific status and
-// page number.
+// The state, status, and page arguments can be provided to request a specific
+// page of record tokens.
+//
+// If no status is provided then a page of tokens for all statuses will be
+// returned. The page argument will be ignored.
 type InventoryByStatus struct {
 	Challenge string        `json:"challenge"` // Random challenge
 	State     string        `json:"state,omitempty"`

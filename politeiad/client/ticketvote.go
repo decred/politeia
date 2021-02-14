@@ -335,14 +335,18 @@ func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) (*tick
 
 // TicketVoteInventory sends the ticketvote plugin Inventory command to the
 // politeiad v1 API.
-func (c *Client) TicketVoteInventory(ctx context.Context) (*ticketvote.InventoryReply, error) {
+func (c *Client) TicketVoteInventory(ctx context.Context, i ticketvote.Inventory) (*ticketvote.InventoryReply, error) {
 	// Setup request
+	b, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
 	cmds := []pdv1.PluginCommandV2{
 		{
 			State:   pdv1.RecordStateVetted,
 			ID:      ticketvote.PluginID,
 			Command: ticketvote.CmdInventory,
-			Payload: "",
+			Payload: string(b),
 		},
 	}
 

@@ -509,15 +509,28 @@ type SubmissionsReply struct {
 	Submissions []string `json:"submissions"`
 }
 
-// Inventory requests the tokens of all public, non-abandoned records
-// categorized by vote status.
-type Inventory struct{}
+const (
+	// InventoryPageSize is the maximum number of tokens that will be
+	// returned for any single status in an InventoryReply.
+	InventoryPageSize uint32 = 20
+)
 
-// InventoryReply is the reply to the Inventory command. It contains the tokens
-// of all public, non-abandoned records categorized by vote status. The
-// returned map is a map[votestatus][]token where the votestatus key is the
-// human readable vote status defined by the VoteStatuses array in this
-// package.
+// Inventory requests the tokens of public records in the inventory categorized
+// by vote status.
+//
+// The status and page arguments can be provided to request a specific page of
+// record tokens.
+//
+// If no status is provided then a page of tokens for all statuses will be
+// returned. The page argument will be ignored.
+type Inventory struct {
+	Status VoteStatusT `json:"status,omitempty"`
+	Page   uint32      `json:"page,omitempty"`
+}
+
+// InventoryReply is the reply to the Inventory command. The returned map is a
+// map[votestatus][]token where the votestatus key is the human readable vote
+// status defined by the VoteStatuses array in this package.
 //
 // Sorted by timestamp in descending order:
 // Unauthorized, Authorized

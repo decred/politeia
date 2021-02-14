@@ -57,9 +57,9 @@ type ticketVotePlugin struct {
 	mtxRecords sync.Mutex
 
 	// Mutexes for on-disk caches
-	mtxInv     sync.Mutex // Vote inventory
-	mtxSummary sync.Mutex // Vote summaries
-	mtxSubs    sync.Mutex // Runoff vote submissions
+	mtxInv     sync.RWMutex // Vote inventory cache
+	mtxSummary sync.Mutex   // Vote summaries cache
+	mtxSubs    sync.Mutex   // Runoff vote submission cache
 
 	// Plugin settings
 	linkByPeriodMin int64  // In seconds
@@ -104,22 +104,27 @@ func (p *ticketVotePlugin) Setup() error {
 
 	// Update the inventory with the current best block. Retrieving
 	// the inventory will cause it to update.
-	log.Infof("Updating vote inv")
+	log.Infof("Updating vote inventory")
 
 	bb, err := p.bestBlock()
 	if err != nil {
 		return fmt.Errorf("bestBlock: %v", err)
 	}
-	inv, err := p.invGet(bb)
+	inv, err := p.inventory(bb)
 	if err != nil {
-		return fmt.Errorf("invGet: %v", err)
+		return fmt.Errorf("inventory: %v", err)
 	}
 
 	// Build votes cache
 	log.Infof("Building votes cache")
 
-	started := ticketvote.VoteStatuses[ticketvote.VoteStatusStarted]
-	for _, v := range inv.Tokens[started] {
+	started := make([]string, 0, len(inv.Entries))
+	for _, v := range inv.Entries {
+		if v.Status == ticketvote.VoteStatusStarted {
+			started = append(started, v.Token)
+		}
+	}
+	for _, v := range started {
 		token, err := tokenDecode(v)
 		if err != nil {
 			return err
@@ -165,7 +170,7 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 	case ticketvote.CmdSubmissions:
 		return p.cmdSubmissions(token)
 	case ticketvote.CmdInventory:
-		return p.cmdInventory()
+		return p.cmdInventory(payload)
 	case ticketvote.CmdTimestamps:
 		return p.cmdTimestamps(treeID, token)
 

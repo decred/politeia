@@ -14,6 +14,7 @@ import (
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	tvplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	usplugin "github.com/decred/politeia/politeiad/plugins/user"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -35,7 +36,8 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	}
 
 	// Get vote inventory
-	vir, err := p.politeiad.TicketVoteInventory(ctx)
+	ti := ticketvote.Inventory{}
+	vir, err := p.politeiad.TicketVoteInventory(ctx, ti)
 	if err != nil {
 		return nil, err
 	}

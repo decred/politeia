@@ -47,6 +47,11 @@ const (
 	cmdRunoffDetails         = "runoffdetails"
 )
 
+// voteHasEnded returns whether the vote has ended.
+func voteHasEnded(bestBlock, endHeight uint32) bool {
+	return bestBlock >= endHeight
+}
+
 // tokenDecode decodes a record token and only accepts full length tokens.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTlog, token)
@@ -665,7 +670,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	}
 
 	// If the vote has not finished yet then we are done for now.
-	if bestBlock < vd.EndBlockHeight {
+	if !voteHasEnded(bestBlock, vd.EndBlockHeight) {
 		return &summary, nil
 	}
 
@@ -1077,16 +1082,17 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	}
 
 	// Update inventory
+	var status ticketvote.VoteStatusT
 	switch a.Action {
 	case ticketvote.AuthActionAuthorize:
-		p.invAddToAuthorized(a.Token)
+		status = ticketvote.VoteStatusAuthorized
 	case ticketvote.AuthActionRevoke:
-		p.invAddToUnauthorized(a.Token)
+		status = ticketvote.VoteStatusUnauthorized
 	default:
 		// Should not happen
-		e := fmt.Sprintf("invalid authorize action: %v", a.Action)
-		panic(e)
+		return "", fmt.Errorf("invalid action %v", a.Action)
 	}
+	p.inventoryUpdate(a.Token, status)
 
 	// Prepare reply
 	ar := ticketvote.AuthorizeReply{
@@ -1395,7 +1401,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Update inventory
-	p.invAddToStarted(vd.Params.Token, ticketvote.VoteTypeStandard,
+	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
 		vd.EndBlockHeight)
 
 	return &ticketvote.StartReply{
@@ -1577,7 +1583,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	}
 
 	// Update inventory
-	p.invAddToStarted(vd.Params.Token, ticketvote.VoteTypeRunoff,
+	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
 		vd.EndBlockHeight)
 
 	return nil
@@ -2222,7 +2228,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 				ticketvote.VoteErrors[e])
 			continue
 		}
-		if bestBlock >= voteDetails.EndBlockHeight {
+		if voteHasEnded(bestBlock, voteDetails.EndBlockHeight) {
 			// Vote has ended
 			e := ticketvote.VoteErrorVoteStatusInvalid
 			receipts[k].Ticket = v.Ticket
@@ -2573,8 +2579,14 @@ func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error
 	return string(reply), nil
 }
 
-func (p *ticketVotePlugin) cmdInventory() (string, error) {
+func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 	log.Tracef("cmdInventory")
+
+	var i ticketvote.Inventory
+	err := json.Unmarshal([]byte(payload), &i)
+	if err != nil {
+		return "", err
+	}
 
 	// Get best block. This command does not write any data so we can
 	// use the unsafe best block.
@@ -2584,15 +2596,20 @@ func (p *ticketVotePlugin) cmdInventory() (string, error) {
 	}
 
 	// Get the inventory
-	inv, err := p.invGet(bb)
+	ibs, err := p.invByStatus(bb, i.Status, i.Page)
 	if err != nil {
-		return "", fmt.Errorf("invGet: %v", err)
+		return "", fmt.Errorf("invByStatus: %v", err)
 	}
 
 	// Prepare reply
+	tokens := make(map[string][]string, len(ibs.Tokens))
+	for k, v := range ibs.Tokens {
+		vs := ticketvote.VoteStatuses[k]
+		tokens[vs] = v
+	}
 	ir := ticketvote.InventoryReply{
-		Tokens:    inv.Tokens,
-		BestBlock: inv.BestBlock,
+		Tokens:    tokens,
+		BestBlock: ibs.BestBlock,
 	}
 	reply, err := json.Marshal(ir)
 	if err != nil {

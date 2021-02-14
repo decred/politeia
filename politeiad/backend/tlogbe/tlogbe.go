@@ -67,11 +67,6 @@ type tlogBackend struct {
 	// This cache memoizes those results and is lazy loaded.
 	vettedTreeIDs map[string]int64 // [token]treeID
 
-	// inv contains the full record inventory grouped by record status.
-	// Each list of tokens is sorted by the timestamp of the status
-	// change from newest to oldest. This cache is built on startup.
-	inv inventory
-
 	// recordMtxs allows a the backend to hold a lock on a record so
 	// that it can perform multiple read/write operations in a
 	// concurrent safe manner. These mutexes are lazy loaded.
@@ -1475,7 +1470,7 @@ func (t *tlogBackend) GetVettedTimestamps(token []byte, version string) (*backen
 func (t *tlogBackend) InventoryByStatus(state string, status backend.MDStatusT, pageSize, page uint32) (*backend.InventoryByStatus, error) {
 	log.Tracef("InventoryByStatus: %v %v %v %v", state, status, pageSize, page)
 
-	inv, err := t.inventory(state, status, pageSize, page)
+	inv, err := t.invByStatus(state, status, pageSize, page)
 	if err != nil {
 		return nil, err
 	}
