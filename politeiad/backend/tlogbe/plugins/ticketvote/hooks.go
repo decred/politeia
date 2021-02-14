@@ -305,15 +305,26 @@ func (p *ticketVotePlugin) hookSetRecordStatusPre(payload string) error {
 	return nil
 }
 
-func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
+func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string) error {
 	var srs plugins.HookSetRecordStatus
 	err := json.Unmarshal([]byte(payload), &srs)
 	if err != nil {
 		return err
 	}
+	status := srs.RecordMetadata.Status
+
+	// When a record is moved to vetted the plugin hooks are executed
+	// on both the unvetted and vetted tstore instances. We only need
+	// to update cached data if this is the vetted instance. We can
+	// determine this by checking if the record exists. The unvetted
+	// instance will return false.
+	if status == backend.MDStatusVetted && !p.tlog.RecordExists(treeID) {
+		// This is the unvetted instance. Nothing to do.
+		return nil
+	}
 
 	// Update the inventory cache
-	switch srs.RecordMetadata.Status {
+	switch status {
 	case backend.MDStatusVetted:
 		// Add to inventory
 		p.inventoryAdd(srs.RecordMetadata.Token,
@@ -332,7 +343,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 			parentToken = vm.LinkTo
 			childToken  = srs.RecordMetadata.Token
 		)
-		switch srs.RecordMetadata.Status {
+		switch status {
 		case backend.MDStatusVetted:
 			// Record has been made public. Add child token to parent's
 			// submissions list.

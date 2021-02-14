@@ -198,7 +198,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 	case plugins.HookTypeSetRecordStatusPre:
 		return p.hookSetRecordStatusPre(payload)
 	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
+		return p.hookSetRecordStatusPost(treeID, payload)
 	}
 
 	return nil

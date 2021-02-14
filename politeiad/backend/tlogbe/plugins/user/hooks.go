@@ -349,30 +349,24 @@ func (p *userPlugin) hookSetRecordStatusPost(treeID int64, payload string) error
 			return err
 		}
 
-		// Determine whether to add or remove this token from the user
-		// cache. The token will need to be removed from the unvetted
-		// tstore user cache and added to the vetted tstore user cache.
-		// We can determine what tstore instance this is by checking if
-		// the record exists. Once a record has been made vetted, the
-		// unvetted tstore instance will return a record not found error
-		// when queried.
-		_, err = p.tlog.RecordLatest(treeID)
-		switch err {
-		case nil:
-			// Record exists. Add token to the user cache.
+		// When a record is moved to vetted the plugin hooks are executed
+		// on both the unvetted and vetted tstore instances. The token
+		// needs to be removed from the unvetted tstore user cache and
+		// added to the vetted tstore user cache. We can determine this
+		// by checking if the record exists. The unvetted instance will
+		// return false.
+		if p.tlog.RecordExists(treeID) {
+			// This is the vetted tstore. Add token to the user cache.
 			err = p.userCacheAddToken(um.UserID, srs.RecordMetadata.Token)
 			if err != nil {
 				return err
 			}
-		case backend.ErrRecordNotFound:
-			// Record does not exist. Del token from user cache.
+		} else {
+			// This is the unvetted tstore. Del token from user cache.
 			err = p.userCacheDelToken(um.UserID, srs.RecordMetadata.Token)
 			if err != nil {
 				return err
 			}
-		default:
-			// Unexpected error
-			return fmt.Errorf("RecordLatest %v: %v", treeID, err)
 		}
 	}
 
