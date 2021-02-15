@@ -121,10 +121,8 @@ func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error 
 	return nil
 }
 
-func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
-	p.mtxInv.Lock()
-	defer p.mtxInv.Unlock()
-
+// This function must be called WITH the read/write lock held.
+func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	// Get inventory
 	inv, err := p.invGetLocked()
 	if err != nil {
@@ -156,6 +154,13 @@ func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, end
 	log.Debugf("Vote inv update %v to %v", token, ticketvote.VoteStatuses[s])
 
 	return nil
+}
+
+func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
+	p.mtxInv.Lock()
+	defer p.mtxInv.Unlock()
+
+	return p.invUpdateLocked(token, s, endHeight)
 }
 
 func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, error) {
@@ -204,7 +209,7 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 		case ticketvote.VoteStatusFinished, ticketvote.VoteStatusApproved,
 			ticketvote.VoteStatusRejected:
 			// These statuses are allowed
-			err := p.invUpdate(v.Token, sr.Status, 0)
+			err := p.invUpdateLocked(v.Token, sr.Status, 0)
 			if err != nil {
 				return nil, err
 			}

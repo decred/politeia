@@ -6,8 +6,6 @@
 // tickets to participate.
 package ticketvote
 
-// TODO should VoteDetails, StartReply, StartRunoffReply contain a receipt?
-
 const (
 	// PluginID is the ticketvote plugin ID.
 	PluginID = "ticketvote"
