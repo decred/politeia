@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,8 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/user"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store/fs"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store/mysql"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
@@ -59,15 +60,23 @@ var (
 
 // Initialize package-global logger variables.
 func init() {
+	// Backend loggers
 	gitbe.UseLogger(gitbeLog)
 	tlogbe.UseLogger(tlogbeLog)
+
+	// Tlog loggers
 	tlog.UseLogger(tlogLog)
-	filesystem.UseLogger(tlogLog)
-	wsdcrdata.UseLogger(wsdcrdataLog)
+	fs.UseLogger(tlogLog)
+	mysql.UseLogger(tlogLog)
+
+	// Plugin loggers
 	comments.UseLogger(pluginLog)
 	dcrdata.UseLogger(pluginLog)
 	ticketvote.UseLogger(pluginLog)
 	user.UseLogger(pluginLog)
+
+	// Other loggers
+	wsdcrdata.UseLogger(wsdcrdataLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.

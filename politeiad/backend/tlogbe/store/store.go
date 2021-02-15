@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
-	"errors"
 
 	"github.com/decred/politeia/util"
 )
@@ -18,11 +17,6 @@ import (
 const (
 	// Data descriptor types
 	DataTypeStructure = "struct"
-)
-
-var (
-	// ErrNotFound is emitted when a blob is not found.
-	ErrNotFound = errors.New("not found")
 )
 
 // DataDescriptor provides hints about a data blob. In practise we JSON encode
@@ -81,8 +75,8 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 	return &be, nil
 }
 
-// Blob represents a blob key-value store.
-type Blob interface {
+// BlobKV represents a blob key-value store.
+type BlobKV interface {
 	// Put saves the provided blobs to the store. The keys for the
 	// blobs are returned using the same odering that the blobs were
 	// provided in. This operation is performed atomically.
@@ -97,10 +91,6 @@ type Blob interface {
 	// found. It is the responsibility of the caller to ensure a blob
 	// was returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
-
-	// Enum enumerates over all blobs in the store, invoking the
-	// provided function for each blob.
-	Enum(func(key string, blob []byte) error) error
 
 	// Closes closes the blob store connection.
 	Close()

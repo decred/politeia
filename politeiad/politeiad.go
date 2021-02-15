@@ -1484,8 +1484,9 @@ func _main() error {
 	case backendTlog:
 		b, err := tlogbe.New(activeNetParams.Params, cfg.HomeDir, cfg.DataDir,
 			cfg.TrillianHostUnvetted, cfg.TrillianKeyUnvetted,
-			cfg.TrillianHostVetted, cfg.TrillianKeyVetted,
-			cfg.EncryptionKey, cfg.DcrtimeHost, cfg.DcrtimeCert)
+			cfg.TrillianHostVetted, cfg.TrillianKeyVetted, cfg.EncryptionKey,
+			cfg.DBType, cfg.DBHost, cfg.DBRootCert, cfg.DBCert, cfg.DBKey,
+			cfg.DcrtimeHost, cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("new tlogbe: %v", err)
 		}

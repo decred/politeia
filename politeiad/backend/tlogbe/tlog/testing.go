@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store/fs"
 	"github.com/marcopeereboom/sbox"
 )
 
@@ -27,7 +27,7 @@ func newTestTlog(t *testing.T, tlogID, dataDir string, encrypt bool) *Tlog {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := filesystem.New(fp)
+	store := fs.New(fp)
 
 	// Setup encryptin key if specified
 	var ek *encryptionKey

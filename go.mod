@@ -27,6 +27,7 @@ require (
 	github.com/decred/dcrtime/api/v2 v2.0.0-20200912200806-b1e4dbc46be9
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.1.0
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/go-test/deep v1.0.1
 	github.com/golang/protobuf v1.4.2
 	github.com/golang/snappy v0.0.1 // indirect

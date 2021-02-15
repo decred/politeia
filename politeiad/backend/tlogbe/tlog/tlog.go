@@ -20,7 +20,8 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store/filesystem"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store/fs"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/store/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/robfig/cron"
@@ -28,6 +29,10 @@ import (
 )
 
 const (
+	DBTypeFileSystem = "filesystem"
+	DBTypeMySQL      = "mysql"
+	dbUser           = "politeiad"
+
 	defaultTrillianKeyFilename = "trillian.key"
 	defaultStoreDirname        = "store"
 
@@ -63,7 +68,7 @@ type Tlog struct {
 	dataDir         string
 	activeNetParams *chaincfg.Params
 	trillian        trillianClient
-	store           store.Blob
+	store           store.BlobKV
 	dcrtime         *dcrtimeClient
 	cron            *cron.Cron
 	plugins         map[string]plugin // [pluginID]plugin
@@ -1310,7 +1315,7 @@ func (t *Tlog) Close() {
 	}
 }
 
-func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tlog, error) {
+func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianKeyFile, encryptionKeyFile, dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert string) (*Tlog, error) {
 	// Load encryption key if provided. An encryption key is optional.
 	var ek *encryptionKey
 	if encryptionKeyFile != "" {
@@ -1339,14 +1344,6 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		return nil, err
 	}
 
-	// Setup key-value store
-	fp := filepath.Join(dataDir, defaultStoreDirname)
-	err = os.MkdirAll(fp, 0700)
-	if err != nil {
-		return nil, err
-	}
-	store := filesystem.New(fp)
-
 	// Setup trillian client
 	if trillianKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -1362,6 +1359,31 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		return nil, err
 	}
 
+	// Setup key-value store
+	log.Infof("Database type %v: %v", id, dbType)
+	var kvstore store.BlobKV
+	switch dbType {
+	case DBTypeFileSystem:
+		fp := filepath.Join(dataDir, defaultStoreDirname)
+		err = os.MkdirAll(fp, 0700)
+		if err != nil {
+			return nil, err
+		}
+		kvstore = fs.New(fp)
+
+	case DBTypeMySQL:
+		// Example db name: testnet3_unvetted_kv
+		dbName := fmt.Sprintf("%v_%v_kv", anp.Name, id)
+		kvstore, err = mysql.New(dbHost, dbUser, dbName,
+			dbRootCert, dbCert, dbKey)
+		if err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, fmt.Errorf("invalid db type: %v", dbType)
+	}
+
 	// Setup dcrtime client
 	dcrtimeClient, err := newDcrtimeClient(dcrtimeHost, dcrtimeCert)
 	if err != nil {
@@ -1374,7 +1396,7 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		dataDir:         dataDir,
 		activeNetParams: anp,
 		trillian:        trillianClient,
-		store:           store,
+		store:           kvstore,
 		dcrtime:         dcrtimeClient,
 		cron:            cron.New(),
 		plugins:         make(map[string]plugin),

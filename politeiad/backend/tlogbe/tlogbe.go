@@ -1752,7 +1752,7 @@ func (t *tlogBackend) setup() error {
 }
 
 // New returns a new tlogBackend.
-func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedTrillianKeyFile, vettedTrillianHost, vettedTrillianKeyFile, encryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*tlogBackend, error) {
+func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedTrillianKeyFile, vettedTrillianHost, vettedTrillianKeyFile, encryptionKeyFile, dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert string) (*tlogBackend, error) {
 	// Setup encryption key file
 	if encryptionKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -1783,13 +1783,13 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 	// Setup tlog instances
 	unvetted, err := tlog.New(tlogIDUnvetted, homeDir, dataDir, anp,
 		unvettedTrillianHost, unvettedTrillianKeyFile, encryptionKeyFile,
-		dcrtimeHost, dcrtimeCert)
+		dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tlog unvetted: %v", err)
 	}
 	vetted, err := tlog.New(tlogIDVetted, homeDir, dataDir, anp,
 		vettedTrillianHost, vettedTrillianKeyFile, "",
-		dcrtimeHost, dcrtimeCert)
+		dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tlog vetted: %v", err)
 	}

@@ -1,8 +1,8 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package filesystem
+package fs
 
 import (
 	"errors"
@@ -17,13 +17,15 @@ import (
 )
 
 var (
-	_ store.Blob = (*fileSystem)(nil)
+	_ store.BlobKV = (*fs)(nil)
+
+	errNotFound = errors.New("not found")
 )
 
-// fileSystem implements the Blob interface using the file system.
+// fs implements the store.BlobKV interface using the file system.
 //
 // This implementation should be used for TESTING ONLY.
-type fileSystem struct {
+type fs struct {
 	sync.RWMutex
 	root string // Location of files
 }
@@ -31,16 +33,16 @@ type fileSystem struct {
 // put saves a files to the file system.
 //
 // This function must be called WITH the lock held.
-func (f *fileSystem) put(key string, value []byte) error {
+func (f *fs) put(key string, value []byte) error {
 	return ioutil.WriteFile(filepath.Join(f.root, key), value, 0600)
 }
 
 // This function must be called WITH the lock held.
-func (f *fileSystem) del(key string) error {
+func (f *fs) del(key string) error {
 	err := os.Remove(filepath.Join(f.root, key))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return store.ErrNotFound
+			return errNotFound
 		}
 		return err
 	}
@@ -50,11 +52,11 @@ func (f *fileSystem) del(key string) error {
 // get retrieves a file from the file system.
 //
 // This function must be called WITH the lock held.
-func (f *fileSystem) get(key string) ([]byte, error) {
+func (f *fs) get(key string) ([]byte, error) {
 	b, err := ioutil.ReadFile(filepath.Join(f.root, key))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, store.ErrNotFound
+			return nil, errNotFound
 		}
 		return nil, err
 	}
@@ -64,8 +66,8 @@ func (f *fileSystem) get(key string) ([]byte, error) {
 // Put saves the provided blobs to the file system. The keys for the blobs
 // are generated in this function and returned.
 //
-// This function satisfies the Blob interface.
-func (f *fileSystem) Put(blobs [][]byte) ([]string, error) {
+// This function satisfies the BlobKV interface.
+func (f *fs) Put(blobs [][]byte) ([]string, error) {
 	log.Tracef("Put: %v", len(blobs))
 
 	f.Lock()
@@ -99,8 +101,8 @@ func (f *fileSystem) Put(blobs [][]byte) ([]string, error) {
 // Del deletes the files from the file system that correspond to the provided
 // keys.
 //
-// This function satisfies the Blob interface.
-func (f *fileSystem) Del(keys []string) error {
+// This function satisfies the BlobKV interface.
+func (f *fs) Del(keys []string) error {
 	log.Tracef("Del: %v", keys)
 
 	f.Lock()
@@ -121,7 +123,7 @@ func (f *fileSystem) Del(keys []string) error {
 	for _, v := range keys {
 		err := f.del(v)
 		if err != nil {
-			if errors.Is(err, store.ErrNotFound) {
+			if errors.Is(err, errNotFound) {
 				// File does not exist. This is ok.
 				continue
 			}
@@ -152,8 +154,8 @@ func (f *fileSystem) Del(keys []string) error {
 // responsibility of the caller to ensure a blob was returned for all provided
 // keys.
 //
-// This function satisfies the Blob interface.
-func (f *fileSystem) Get(keys []string) (map[string][]byte, error) {
+// This function satisfies the BlobKV interface.
+func (f *fs) Get(keys []string) (map[string][]byte, error) {
 	log.Tracef("Get: %v", keys)
 
 	f.RLock()
@@ -163,7 +165,7 @@ func (f *fileSystem) Get(keys []string) (map[string][]byte, error) {
 	for _, v := range keys {
 		b, err := f.get(v)
 		if err != nil {
-			if errors.Is(err, store.ErrNotFound) {
+			if errors.Is(err, errNotFound) {
 				// File does not exist. This is ok.
 				continue
 			}
@@ -177,9 +179,7 @@ func (f *fileSystem) Get(keys []string) (map[string][]byte, error) {
 
 // Enum enumerates over all blobs in the store, invoking the provided function
 // for each blob.
-//
-// This function satisfies the Blob interface.
-func (f *fileSystem) Enum(cb func(key string, blob []byte) error) error {
+func (f *fs) Enum(cb func(key string, blob []byte) error) error {
 	log.Tracef("Enum")
 
 	f.RLock()
@@ -209,12 +209,12 @@ func (f *fileSystem) Enum(cb func(key string, blob []byte) error) error {
 
 // Closes closes the blob store connection.
 //
-// This function satisfies the Blob interface.
-func (f *fileSystem) Close() {}
+// This function satisfies the BlobKV interface.
+func (f *fs) Close() {}
 
-// New returns a new fileSystem.
-func New(root string) *fileSystem {
-	return &fileSystem{
+// New returns a new fs.
+func New(root string) *fs {
+	return &fs{
 		root: root,
 	}
 }

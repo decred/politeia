@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	v1 "github.com/decred/dcrtime/api/v1"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -45,6 +46,7 @@ const (
 
 	defaultTrillianHostUnvetted = "localhost:8090"
 	defaultTrillianHostVetted   = "localhost:8094"
+	defaultDBType               = tlog.DBTypeFileSystem
 )
 
 var (
@@ -88,15 +90,23 @@ type config struct {
 	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
-	// TODO validate these config params
-	Backend              string   `long:"backend"`
-	TrillianHostUnvetted string   `long:"trillianhostunvetted"`
-	TrillianHostVetted   string   `long:"trillianhostvetted"`
-	TrillianKeyUnvetted  string   `long:"trilliankeyunvetted"`
-	TrillianKeyVetted    string   `long:"trilliankeyvetted"`
-	EncryptionKey        string   `long:"encryptionkey"`
-	Plugins              []string `long:"plugin"`
-	PluginSettings       []string `long:"pluginsetting"`
+	// TODO validate these config params and set defaults. Also consider
+	// making them specific to tstore. Ex: tstore.TrillianHostUnvetted.
+	Backend              string `long:"backend"`
+	TrillianHostUnvetted string `long:"trillianhostunvetted"`
+	TrillianHostVetted   string `long:"trillianhostvetted"`
+	TrillianKeyUnvetted  string `long:"trilliankeyunvetted"`
+	TrillianKeyVetted    string `long:"trilliankeyvetted"`
+	EncryptionKey        string `long:"encryptionkey"`
+	DBType               string `long:"dbtype"`
+	DBHost               string `long:"dbhost" description:"Database ip:port"`
+	DBRootCert           string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+	DBCert               string `long:"dbcert" description:"File containing the client certificate for the database"`
+	DBKey                string `long:"dbkey" description:"File containing the client certificate key for the database"`
+
+	// Plugin settings
+	Plugins        []string `long:"plugin"`
+	PluginSettings []string `long:"pluginsetting"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -248,6 +258,7 @@ func loadConfig() (*config, []string, error) {
 		Backend:              defaultBackend,
 		TrillianHostUnvetted: defaultTrillianHostUnvetted,
 		TrillianHostVetted:   defaultTrillianHostVetted,
+		DBType:               defaultDBType,
 	}
 
 	// Service options which are only added on Windows.
