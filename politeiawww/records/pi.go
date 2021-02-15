@@ -24,10 +24,7 @@ func (r *Records) paywallIsEnabled() bool {
 //
 // This function is a temporary function that will be removed once user plugins
 // have been implemented.
-func (r *Records) userHasPaid(u user.User) bool {
-	if !r.paywallIsEnabled() {
-		return true
-	}
+func userHasPaid(u user.User) bool {
 	return u.NewUserPaywallTx != ""
 }
 
@@ -46,11 +43,6 @@ func userHasProposalCredits(u user.User) bool {
 // This function is a temporary function that will be removed once user plugins
 // have been implemented.
 func (r *Records) spendProposalCredit(u user.User, token string) error {
-	// Skip if the paywall is enabled
-	if !r.paywallIsEnabled() {
-		return nil
-	}
-
 	// Verify there are credits to be spent
 	if !userHasProposalCredits(u) {
 		return fmt.Errorf("no proposal credits found")
@@ -70,8 +62,12 @@ func (r *Records) spendProposalCredit(u user.User, token string) error {
 // This function is a temporary function that will be removed once user plugins
 // have been implemented.
 func (r *Records) piHookNewRecordPre(u user.User) error {
+	if !r.paywallIsEnabled() {
+		return nil
+	}
+
 	// Verify user has paid registration paywall
-	if !r.userHasPaid(u) {
+	if !userHasPaid(u) {
 		return v1.PluginErrorReply{
 			PluginID:  pi.UserPluginID,
 			ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
@@ -93,5 +89,8 @@ func (r *Records) piHookNewRecordPre(u user.User) error {
 // This function is a temporary function that will be removed once user plugins
 // have been implemented.
 func (r *Records) piHookNewRecordPost(u user.User, token string) error {
+	if !r.paywallIsEnabled() {
+		return nil
+	}
 	return r.spendProposalCredit(u, token)
 }

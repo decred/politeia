@@ -10,26 +10,12 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/politeiawww/config"
-	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 )
 
 func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.NewReply, error) {
 	log.Tracef("processNew: %v %v %v", n.Token, u.Username)
-
-	// Execute pre plugin hooks. Checking the mode is a temporary
-	// measure until user plugins have been properly implemented.
-	switch c.cfg.Mode {
-	case config.PoliteiaWWWMode:
-		// Verify user has paid registration paywall
-		if !c.userHasPaid(u) {
-			return nil, v1.PluginErrorReply{
-				PluginID:  pi.UserPluginID,
-				ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
-			}
-		}
-	}
 
 	// Verify user signed using active identity
 	if u.PublicKey() != n.PublicKey {
@@ -52,6 +38,16 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 				ErrorCode:    v1.ErrorCodeUnauthorized,
 				ErrorContext: "user is not author or admin",
 			}
+		}
+	}
+
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch c.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		err := c.piHookNewPre(u)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -88,24 +84,21 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1.VoteReply, error) {
 	log.Tracef("processVote: %v %v %v", v.Token, v.CommentID, v.Vote)
 
-	// Execute pre plugin hooks. Checking the mode is a temporary
-	// measure until user plugins have been properly implemented.
-	switch c.cfg.Mode {
-	case config.PoliteiaWWWMode:
-		// Verify user has paid registration paywall
-		if !c.userHasPaid(u) {
-			return nil, v1.PluginErrorReply{
-				PluginID:  pi.UserPluginID,
-				ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
-			}
-		}
-	}
-
 	// Verify user signed using active identity
 	if u.PublicKey() != v.PublicKey {
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
 			ErrorContext: "not active identity",
+		}
+	}
+
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch c.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		err := c.piHookVotePre(u)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -383,23 +376,4 @@ func convertTimestamp(t comments.Timestamp) v1.Timestamp {
 		MerkleRoot: t.MerkleRoot,
 		Proofs:     proofs,
 	}
-}
-
-// paywallIsEnabled returns whether the user paywall is enabled.
-//
-// This function is a temporary function that will be removed once user plugins
-// have been implemented.
-func (c *Comments) paywallIsEnabled() bool {
-	return c.cfg.PaywallAmount != 0 && c.cfg.PaywallXpub != ""
-}
-
-// userHasPaid returns whether the user has paid their user registration fee.
-//
-// This function is a temporary function that will be removed once user plugins
-// have been implemented.
-func (c *Comments) userHasPaid(u user.User) bool {
-	if !c.paywallIsEnabled() {
-		return true
-	}
-	return u.NewUserPaywallTx != ""
 }
