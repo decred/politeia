@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -20,7 +19,6 @@ import (
 )
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
-	spew.Dump(err)
 	var (
 		ue  v1.UserErrorReply
 		pe  v1.PluginErrorReply

@@ -416,22 +416,26 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.User) (*v1.InventoryReply, error) {
 	log.Tracef("processInventory: %v %v %v", i.State, i.Status, i.Page)
 
-	// Verify state
-	switch i.State {
-	case v1.RecordStateUnvetted, v1.RecordStateVetted:
-		// Allowed; continue
-	default:
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+	// The inventory arguments are optional. If a status is provided
+	// then they all arguments must be provided.
+	var s pdv1.RecordStatusT
+	if i.Status != v1.RecordStatusInvalid {
+		// Verify state
+		switch i.State {
+		case v1.RecordStateUnvetted, v1.RecordStateVetted:
+			// Allowed; continue
+		default:
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordStateInvalid,
+			}
 		}
-	}
 
-	// Verify status. The status is optional so only validate it if one
-	// was provided.
-	s := convertStatusToPD(i.Status)
-	if i.Status != v1.RecordStatusInvalid && s == pdv1.RecordStatusInvalid {
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStatusInvalid,
+		// Verify status
+		s = convertStatusToPD(i.Status)
+		if s == pdv1.RecordStatusInvalid {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordStatusInvalid,
+			}
 		}
 	}
 
