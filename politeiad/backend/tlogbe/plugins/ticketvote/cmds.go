@@ -2619,67 +2619,84 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte) (string, error) {
-	log.Tracef("cmdTimestamps: %v %x", treeID, token)
+func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
+	log.Tracef("cmdTimestamps: %v %x %v", treeID, token, payload)
 
-	// Get authorization timestamps
-	digests, err := p.tlog.DigestsByDataType(treeID, dataTypeAuthDetails)
+	// Decode payload
+	var t ticketvote.Timestamps
+	err := json.Unmarshal([]byte(payload), &t)
 	if err != nil {
-		return "", fmt.Errorf("DigestByDataType %v %v: %v",
-			treeID, dataTypeAuthDetails, err)
+		return "", err
 	}
 
-	auths := make([]ticketvote.Timestamp, 0, len(digests))
-	for _, v := range digests {
-		ts, err := p.timestamp(treeID, v)
+	var (
+		auths   []ticketvote.Timestamp
+		details *ticketvote.Timestamp
+
+		pageSize = ticketvote.VoteTimestampsPageSize
+		votes    = make([]ticketvote.Timestamp, 0, pageSize)
+	)
+	switch {
+	case t.VotesPage > 0:
+		// Return a page of vote timestamps
+		digests, err := p.tlog.DigestsByDataType(treeID, dataTypeCastVoteDetails)
 		if err != nil {
-			return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
-		}
-		auths = append(auths, *ts)
-	}
-
-	// Get vote details timestamp. There should never be more than one
-	// vote details.
-	digests, err = p.tlog.DigestsByDataType(treeID, dataTypeVoteDetails)
-	if err != nil {
-		return "", fmt.Errorf("DigestsByDataType %v %v: %v",
-			treeID, dataTypeVoteDetails, err)
-	}
-	if len(digests) > 1 {
-		return "", fmt.Errorf("invalid vote details count: got %v, want 1",
-			len(digests))
-	}
-
-	var details ticketvote.Timestamp
-	for _, v := range digests {
-		ts, err := p.timestamp(treeID, v)
-		if err != nil {
-			return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
-		}
-		details = *ts
-	}
-
-	// Get cast vote timestamps
-	digests, err = p.tlog.DigestsByDataType(treeID, dataTypeCastVoteDetails)
-	if err != nil {
-		return "", fmt.Errorf("digestsByKeyPrefix %v %v: %v",
-			treeID, dataTypeVoteDetails, err)
-	}
-
-	votes := make(map[string]ticketvote.Timestamp, len(digests))
-	for _, v := range digests {
-		ts, err := p.timestamp(treeID, v)
-		if err != nil {
-			return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+			return "", fmt.Errorf("digestsByKeyPrefix %v %v: %v",
+				treeID, dataTypeVoteDetails, err)
 		}
 
-		var cv ticketvote.CastVoteDetails
-		err = json.Unmarshal([]byte(ts.Data), &cv)
-		if err != nil {
-			return "", err
+		startAt := (t.VotesPage - 1) * pageSize
+		for i, v := range digests {
+			if i < int(startAt) {
+				continue
+			}
+			ts, err := p.timestamp(treeID, v)
+			if err != nil {
+				return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+			}
+			votes = append(votes, *ts)
+			if len(votes) == int(pageSize) {
+				// We have a full page. We're done.
+				break
+			}
 		}
 
-		votes[cv.Ticket] = *ts
+	default:
+		// Return authorization timestamps and the vote details timestamp.
+
+		// Auth timestamps
+		digests, err := p.tlog.DigestsByDataType(treeID, dataTypeAuthDetails)
+		if err != nil {
+			return "", fmt.Errorf("DigestByDataType %v %v: %v",
+				treeID, dataTypeAuthDetails, err)
+		}
+		auths = make([]ticketvote.Timestamp, 0, len(digests))
+		for _, v := range digests {
+			ts, err := p.timestamp(treeID, v)
+			if err != nil {
+				return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+			}
+			auths = append(auths, *ts)
+		}
+
+		// Vote details timestamp
+		digests, err = p.tlog.DigestsByDataType(treeID, dataTypeVoteDetails)
+		if err != nil {
+			return "", fmt.Errorf("DigestsByDataType %v %v: %v",
+				treeID, dataTypeVoteDetails, err)
+		}
+		// There should never be more than a one vote details
+		if len(digests) > 1 {
+			return "", fmt.Errorf("invalid vote details count: got %v, want 1",
+				len(digests))
+		}
+		for _, v := range digests {
+			ts, err := p.timestamp(treeID, v)
+			if err != nil {
+				return "", fmt.Errorf("timestamp %x %x: %v", token, v, err)
+			}
+			details = ts
+		}
 	}
 
 	// Prepare reply

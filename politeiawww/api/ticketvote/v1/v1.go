@@ -395,7 +395,8 @@ type AuthDetails struct {
 	Receipt   string `json:"receipt"`   // Server sig of client sig
 }
 
-// VoteDetails contains the details of a record vote.
+// VoteDetails contains the details of a record vote. A vote details with the
+// eligible tickets snapshot will be ~0.35MB.
 //
 // Signature is the client signature of the SHA256 digest of the JSON encoded
 // VoteParams struct.
@@ -420,7 +421,8 @@ type DetailsReply struct {
 	Vote  *VoteDetails  `json:"vote"`
 }
 
-// CastVoteDetails contains the details of a cast vote.
+// CastVoteDetails contains the details of a cast vote. A JSON encoded cast
+// vote details is 405 bytes (could vary slightly depending on the votebit).
 //
 // Signature is the client signature of the Token+Ticket+VoteBit.
 type CastVoteDetails struct {
@@ -575,14 +577,25 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
+const (
+	// VoteTimetsampsPageSize is the maximum number of vote timestamps
+	// that will be returned for any single request.
+	VoteTimestampsPageSize uint32 = 100
+)
+
 // Timestamps requests the timestamps for ticket vote data.
+//
+// If no votes page number is provided then the vote authorization and vote
+// details timestamps will be returned. If a votes page number is provided then
+// the specified page of votes will be returned.
 type Timestamps struct {
-	Token string `json:"token"`
+	Token     string `json:"token"`
+	VotesPage uint32 `json:"votespage,omitempty"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
-	Auths   []Timestamp          `json:"auths,omitempty"`
-	Details Timestamp            `json:"details,omitempty"`
-	Votes   map[string]Timestamp `json:"votes,omitempty"` // [ticket]Timestamp
+	Auths   []Timestamp `json:"auths,omitempty"`
+	Details *Timestamp  `json:"details,omitempty"`
+	Votes   []Timestamp `json:"votes,omitempty"`
 }

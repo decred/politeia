@@ -215,10 +215,14 @@ func (t *TicketVote) processInventory(ctx context.Context, i v1.Inventory) (*v1.
 }
 
 func (t *TicketVote) processTimestamps(ctx context.Context, ts v1.Timestamps) (*v1.TimestampsReply, error) {
-	log.Tracef("processTimestamps: %v", ts.Token)
+	log.Tracef("processTimestamps: %v %v", ts.Token, ts.VotesPage)
 
 	// Send plugin command
-	tsr, err := t.politeiad.TicketVoteTimestamps(ctx, ts.Token)
+	tt := ticketvote.Timestamps{
+		Token:     ts.Token,
+		VotesPage: ts.VotesPage,
+	}
+	tsr, err := t.politeiad.TicketVoteTimestamps(ctx, tt)
 	if err != nil {
 		return nil, err
 	}
@@ -226,15 +230,19 @@ func (t *TicketVote) processTimestamps(ctx context.Context, ts v1.Timestamps) (*
 	// Prepare reply
 	var (
 		auths = make([]v1.Timestamp, 0, len(tsr.Auths))
-		votes = make(map[string]v1.Timestamp, len(tsr.Votes))
+		votes = make([]v1.Timestamp, 0, len(tsr.Votes))
 
-		details = convertTimestampToV1(tsr.Details)
+		details *v1.Timestamp
 	)
+	if tsr.Details != nil {
+		dt := convertTimestampToV1(*tsr.Details)
+		details = &dt
+	}
 	for _, v := range tsr.Auths {
 		auths = append(auths, convertTimestampToV1(v))
 	}
-	for k, v := range tsr.Votes {
-		votes[k] = convertTimestampToV1(v)
+	for _, v := range tsr.Votes {
+		votes = append(votes, convertTimestampToV1(v))
 	}
 
 	return &v1.TimestampsReply{

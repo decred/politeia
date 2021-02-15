@@ -19,7 +19,7 @@ func printAuthDetails(a tkv1.AuthDetails) {
 
 func printVoteDetails(v tkv1.VoteDetails) {
 	printf("Token             : %v\n", v.Params.Token)
-	printf("Type              : %v\n", v.Params.Type)
+	printf("Type              : %v\n", tkv1.VoteTypes[v.Params.Type])
 	if v.Params.Type == tkv1.VoteTypeRunoff {
 		printf("Parent            : %v\n", v.Params.Parent)
 	}

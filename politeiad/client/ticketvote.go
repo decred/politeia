@@ -376,15 +376,19 @@ func (c *Client) TicketVoteInventory(ctx context.Context, i ticketvote.Inventory
 
 // TicketVoteTimestamps sends the ticketvote plugin Timestamps command to the
 // politeiad v1 API.
-func (c *Client) TicketVoteTimestamps(ctx context.Context, token string) (*ticketvote.TimestampsReply, error) {
+func (c *Client) TicketVoteTimestamps(ctx context.Context, t ticketvote.Timestamps) (*ticketvote.TimestampsReply, error) {
 	// Setup request
+	b, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
 	cmds := []pdv1.PluginCommandV2{
 		{
 			State:   pdv1.RecordStateVetted,
 			ID:      ticketvote.PluginID,
 			Command: ticketvote.CmdTimestamps,
-			Token:   token,
-			Payload: "",
+			Token:   t.Token,
+			Payload: string(b),
 		},
 	}
 

@@ -415,7 +415,7 @@ func tokensParse(entries []entry, s backend.MDStatusT, countPerPage, page uint32
 		if foundCount >= startAt {
 			tokens = append(tokens, v.Token)
 			if len(tokens) == int(countPerPage) {
-				// We got a full page. We're done.
+				// We have a full page. We're done.
 				return tokens
 			}
 		}
