@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 // Author sends the user plugin Author command to the politeiad v1 API.
@@ -20,8 +20,8 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 		{
 			State:   state,
 			Token:   token,
-			ID:      user.PluginID,
-			Command: user.CmdAuthor,
+			ID:      usermd.PluginID,
+			Command: usermd.CmdAuthor,
 			Payload: "",
 		},
 	}
@@ -41,7 +41,7 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 	}
 
 	// Decode reply
-	var ar user.AuthorReply
+	var ar usermd.AuthorReply
 	err = json.Unmarshal([]byte(pcr.Payload), &ar)
 	if err != nil {
 		return "", err
@@ -55,7 +55,7 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 // returned map is a map[recordState][]token.
 func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]string, error) {
 	// Setup request
-	ur := user.UserRecords{
+	ur := usermd.UserRecords{
 		UserID: userID,
 	}
 	b, err := json.Marshal(ur)
@@ -65,14 +65,14 @@ func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]s
 	cmds := []pdv1.PluginCommandV2{
 		{
 			State:   pdv1.RecordStateUnvetted,
-			ID:      user.PluginID,
-			Command: user.CmdUserRecords,
+			ID:      usermd.PluginID,
+			Command: usermd.CmdUserRecords,
 			Payload: string(b),
 		},
 		{
 			State:   pdv1.RecordStateVetted,
-			ID:      user.PluginID,
-			Command: user.CmdUserRecords,
+			ID:      usermd.PluginID,
+			Command: usermd.CmdUserRecords,
 			Payload: string(b),
 		},
 	}
@@ -94,7 +94,7 @@ func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]s
 			// Swallow individual errors
 			continue
 		}
-		var urr user.UserRecordsReply
+		var urr usermd.UserRecordsReply
 		err = json.Unmarshal([]byte(v.Payload), &urr)
 		if err != nil {
 			return nil, err

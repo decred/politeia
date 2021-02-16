@@ -15,7 +15,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	usplugin "github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
@@ -118,11 +118,11 @@ func convertProposal(p piv1.Proposal) (*rcv1.Record, error) {
 	}
 	metadata := []rcv1.MetadataStream{
 		{
-			ID:      usplugin.MDStreamIDUserMetadata,
+			ID:      usermd.MDStreamIDUserMetadata,
 			Payload: string(umb),
 		},
 		{
-			ID:      usplugin.MDStreamIDStatusChanges,
+			ID:      usermd.MDStreamIDStatusChanges,
 			Payload: buf.String(),
 		},
 	}

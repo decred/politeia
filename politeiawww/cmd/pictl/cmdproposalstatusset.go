@@ -131,8 +131,11 @@ func parseRecordStatus(status string) (rcv1.RecordStatusT, error) {
 
 		statuses = map[string]rcv1.RecordStatusT{
 			"public":    rcv1.RecordStatusPublic,
+			"censor":    rcv1.RecordStatusCensored,
 			"censored":  rcv1.RecordStatusCensored,
+			"abandon":   rcv1.RecordStatusArchived,
 			"abandoned": rcv1.RecordStatusArchived,
+			"archive":   rcv1.RecordStatusArchived,
 			"archived":  rcv1.RecordStatusArchived,
 			"2":         rcv1.RecordStatusPublic,
 			"3":         rcv1.RecordStatusCensored,
@@ -162,12 +165,12 @@ admin priviledges.
 
 Valid statuses:
   public
-  censored
-  abandoned
+  censor
+  abandon
 
 The following statuses require a status change reason to be included:
-  censored
-  abandoned
+  censor
+  abandon
 
 Arguments:
 1. token   (string, required)  Proposal censorship token

@@ -16,12 +16,12 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/user"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/usermd"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
-	userplugin "github.com/decred/politeia/politeiad/plugins/user"
+	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 const (
@@ -93,8 +93,8 @@ func (t *Tlog) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		if err != nil {
 			return err
 		}
-	case userplugin.PluginID:
-		client, err = user.New(t, p.Settings, dataDir)
+	case umplugin.PluginID:
+		client, err = usermd.New(t, p.Settings, dataDir)
 	default:
 		return backend.ErrPluginInvalid
 	}

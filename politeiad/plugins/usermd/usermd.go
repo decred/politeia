@@ -2,12 +2,13 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package user provides a politeiad plugin that extends records with user
+// Package usermd provides a politeiad plugin that extends records with user
 // metadata and provides an API for retrieving records by user metadata.
-package user
+package usermd
 
 const (
-	PluginID = "user"
+	// PluginID is the unique identifier for this plugin.
+	PluginID = "usermd"
 
 	// Plugin commands
 	CmdAuthor      = "author"      // Get record author

@@ -16,7 +16,7 @@ import (
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	tvplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
-	usplugin "github.com/decred/politeia/politeiad/plugins/user"
+	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
@@ -458,11 +458,11 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []v1.MetadataStream) (*usplugin.UserMetadata, error) {
-	var userMD *usplugin.UserMetadata
+func userMetadataDecode(ms []v1.MetadataStream) (*umplugin.UserMetadata, error) {
+	var userMD *umplugin.UserMetadata
 	for _, v := range ms {
-		if v.ID == usplugin.MDStreamIDUserMetadata {
-			var um usplugin.UserMetadata
+		if v.ID == umplugin.MDStreamIDUserMetadata {
+			var um umplugin.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err
@@ -505,10 +505,10 @@ func convertStatusToWWW(status pdv1.RecordStatusT) www.PropStatusT {
 // TODO convertRecordToProposal
 func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 	// Decode metadata
-	var um *usplugin.UserMetadata
+	var um *umplugin.UserMetadata
 	for _, v := range r.Metadata {
 		switch v.ID {
-		case usplugin.MDStreamIDUserMetadata:
+		case umplugin.MDStreamIDUserMetadata:
 		}
 	}
 

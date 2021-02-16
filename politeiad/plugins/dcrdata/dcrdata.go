@@ -7,6 +7,7 @@
 package dcrdata
 
 const (
+	// PluginID is the unique identifier for this plugin.
 	PluginID = "dcrdata"
 
 	// Plugin commands

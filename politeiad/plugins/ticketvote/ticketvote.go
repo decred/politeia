@@ -7,7 +7,7 @@
 package ticketvote
 
 const (
-	// PluginID is the ticketvote plugin ID.
+	// PluginID is the unique identifier for this plugin.
 	PluginID = "ticketvote"
 
 	// Plugin commands

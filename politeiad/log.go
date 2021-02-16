@@ -14,7 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/user"
+	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/usermd"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/fs"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store/mysql"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
@@ -73,7 +73,7 @@ func init() {
 	comments.UseLogger(pluginLog)
 	dcrdata.UseLogger(pluginLog)
 	ticketvote.UseLogger(pluginLog)
-	user.UseLogger(pluginLog)
+	usermd.UseLogger(pluginLog)
 
 	// Other loggers
 	wsdcrdata.UseLogger(wsdcrdataLog)

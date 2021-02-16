@@ -7,7 +7,7 @@
 package comments
 
 const (
-	// PluginID is the comments plugin ID.
+	// PluginID is the unique identifier for this plugin.
 	PluginID = "comments"
 
 	// Plugin commands

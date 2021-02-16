@@ -15,7 +15,7 @@ import (
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/plugins/pi"
-	pduser "github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -180,11 +180,11 @@ func convertStatus(s pdv1.RecordStatusT) v1.PropStatusT {
 	return v1.PropStatusInvalid
 }
 
-func statusChangesDecode(payload []byte) ([]pduser.StatusChangeMetadata, error) {
-	statuses := make([]pduser.StatusChangeMetadata, 0, 16)
+func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
+	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		var sc pduser.StatusChangeMetadata
+		var sc usermd.StatusChangeMetadata
 		err := d.Decode(&sc)
 		if errors.Is(err, io.EOF) {
 			break
@@ -199,18 +199,18 @@ func statusChangesDecode(payload []byte) ([]pduser.StatusChangeMetadata, error) 
 func convertRecord(r pdv1.Record, state string) (*v1.Proposal, error) {
 	// Decode metadata streams
 	var (
-		um  pduser.UserMetadata
-		sc  = make([]pduser.StatusChangeMetadata, 0, 16)
+		um  usermd.UserMetadata
+		sc  = make([]usermd.StatusChangeMetadata, 0, 16)
 		err error
 	)
 	for _, v := range r.Metadata {
 		switch v.ID {
-		case pduser.MDStreamIDUserMetadata:
+		case usermd.MDStreamIDUserMetadata:
 			err = json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err
 			}
-		case pduser.MDStreamIDStatusChanges:
+		case usermd.MDStreamIDStatusChanges:
 			sc, err = statusChangesDecode([]byte(v.Payload))
 			if err != nil {
 				return nil, err
@@ -267,11 +267,11 @@ func convertRecord(r pdv1.Record, state string) (*v1.Proposal, error) {
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []pdv1.MetadataStream) (*pduser.UserMetadata, error) {
-	var userMD *pduser.UserMetadata
+func userMetadataDecode(ms []pdv1.MetadataStream) (*usermd.UserMetadata, error) {
+	var userMD *usermd.UserMetadata
 	for _, v := range ms {
-		if v.ID == pduser.MDStreamIDUserMetadata {
-			var um pduser.UserMetadata
+		if v.ID == usermd.MDStreamIDUserMetadata {
+			var um usermd.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err

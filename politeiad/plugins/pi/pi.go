@@ -7,7 +7,7 @@
 package pi
 
 const (
-	// PluginID is the pi plugin ID.
+	// PluginID is the unique identifier for this plugin.
 	PluginID = "pi"
 
 	// Setting keys are the plugin setting keys that can be used to

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	usplugin "github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
@@ -40,7 +40,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	}
 
 	// Setup metadata stream
-	um := usplugin.UserMetadata{
+	um := usermd.UserMetadata{
 		UserID:    u.ID.String(),
 		PublicKey: n.PublicKey,
 		Signature: n.Signature,
@@ -51,8 +51,8 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	}
 	metadata := []pdv1.MetadataStream{
 		{
-			PluginID: usplugin.PluginID,
-			ID:       usplugin.MDStreamIDUserMetadata,
+			PluginID: usermd.PluginID,
+			ID:       usermd.MDStreamIDUserMetadata,
 			Payload:  string(b),
 		},
 	}
@@ -155,7 +155,7 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	filesDel := filesToDel(curr.Files, filesAdd)
 
 	// Setup metadata
-	um := usplugin.UserMetadata{
+	um := usermd.UserMetadata{
 		UserID:    u.ID.String(),
 		PublicKey: e.PublicKey,
 		Signature: e.Signature,
@@ -166,8 +166,8 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	}
 	mdOverwrite := []pdv1.MetadataStream{
 		{
-			PluginID: usplugin.PluginID,
-			ID:       usplugin.MDStreamIDUserMetadata,
+			PluginID: usermd.PluginID,
+			ID:       usermd.MDStreamIDUserMetadata,
 			Payload:  string(b),
 		},
 	}
@@ -225,7 +225,7 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	}
 
 	// Setup status change metadata
-	scm := usplugin.StatusChangeMetadata{
+	scm := usermd.StatusChangeMetadata{
 		Token:     ss.Token,
 		Version:   ss.Version,
 		Status:    int(ss.Status),
@@ -240,8 +240,8 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	}
 	mdAppend := []pdv1.MetadataStream{
 		{
-			PluginID: usplugin.PluginID,
-			ID:       usplugin.MDStreamIDStatusChanges,
+			PluginID: usermd.PluginID,
+			ID:       usermd.MDStreamIDStatusChanges,
 			Payload:  string(b),
 		},
 	}
@@ -578,15 +578,15 @@ func recordPopulateUserData(r *v1.Record, u user.User) {
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []v1.MetadataStream) (*usplugin.UserMetadata, error) {
-	var userMD *usplugin.UserMetadata
+func userMetadataDecode(ms []v1.MetadataStream) (*usermd.UserMetadata, error) {
+	var userMD *usermd.UserMetadata
 	for _, v := range ms {
-		if v.PluginID != usplugin.PluginID ||
-			v.ID != usplugin.MDStreamIDUserMetadata {
+		if v.PluginID != usermd.PluginID ||
+			v.ID != usermd.MDStreamIDUserMetadata {
 			// Not the mdstream we're looking for
 			continue
 		}
-		var um usplugin.UserMetadata
+		var um usermd.UserMetadata
 		err := json.Unmarshal([]byte(v.Payload), &um)
 		if err != nil {
 			return nil, err

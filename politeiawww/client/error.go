@@ -12,7 +12,7 @@ import (
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
-	usplugin "github.com/decred/politeia/politeiad/plugins/user"
+	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -95,8 +95,8 @@ func pluginUserErr(e ErrorReply) string {
 		errMsg = piplugin.ErrorCodes[piplugin.ErrorCodeT(e.ErrorCode)]
 	case tkplugin.PluginID:
 		errMsg = tkplugin.ErrorCodes[tkplugin.ErrorCodeT(e.ErrorCode)]
-	case usplugin.PluginID:
-		errMsg = usplugin.ErrorCodes[usplugin.ErrorCodeT(e.ErrorCode)]
+	case umplugin.PluginID:
+		errMsg = umplugin.ErrorCodes[umplugin.ErrorCodeT(e.ErrorCode)]
 	}
 	m := fmt.Sprintf("%v plugin error code %v", e.PluginID, e.ErrorCode)
 	if errMsg != "" {

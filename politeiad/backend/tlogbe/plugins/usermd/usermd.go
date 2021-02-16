@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package user
+package usermd
 
 import (
 	"os"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
-	"github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 var (
@@ -32,7 +32,7 @@ type userPlugin struct {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Setup() error {
-	log.Tracef("user Setup")
+	log.Tracef("usermd Setup")
 
 	return nil
 }
@@ -41,12 +41,12 @@ func (p *userPlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("user Cmd: %v %x %v %v", treeID, token, cmd, payload)
+	log.Tracef("usermd Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
-	case user.CmdAuthor:
+	case usermd.CmdAuthor:
 		return p.cmdAuthor(treeID)
-	case user.CmdUserRecords:
+	case usermd.CmdUserRecords:
 		return p.cmdUserRecords(payload)
 	}
 
@@ -57,7 +57,7 @@ func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (strin
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("user Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("usermd Hook: %v %x %v", treeID, token, plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -81,7 +81,7 @@ func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload s
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Fsck(treeIDs []int64) error {
-	log.Tracef("user Fsck")
+	log.Tracef("usermd Fsck")
 
 	return nil
 }
@@ -90,7 +90,7 @@ func (p *userPlugin) Fsck(treeIDs []int64) error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *userPlugin) Settings() []backend.PluginSetting {
-	log.Tracef("user Settings")
+	log.Tracef("usermd Settings")
 
 	return nil
 }
@@ -98,7 +98,7 @@ func (p *userPlugin) Settings() []backend.PluginSetting {
 // New returns a new userPlugin.
 func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir string) (*userPlugin, error) {
 	// Create plugin data directory
-	dataDir = filepath.Join(dataDir, user.PluginID)
+	dataDir = filepath.Join(dataDir, usermd.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err

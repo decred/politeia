@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package user
+package usermd
 
 import (
 	"encoding/hex"
@@ -15,24 +15,24 @@ import (
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
-	"github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
 
 func convertSignatureError(err error) backend.PluginError {
 	var e util.SignatureError
-	var s user.ErrorCodeT
+	var s usermd.ErrorCodeT
 	if errors.As(err, &e) {
 		switch e.ErrorCode {
 		case util.ErrorStatusPublicKeyInvalid:
-			s = user.ErrorCodePublicKeyInvalid
+			s = usermd.ErrorCodePublicKeyInvalid
 		case util.ErrorStatusSignatureInvalid:
-			s = user.ErrorCodeSignatureInvalid
+			s = usermd.ErrorCodeSignatureInvalid
 		}
 	}
 	return backend.PluginError{
-		PluginID:     user.PluginID,
+		PluginID:     usermd.PluginID,
 		ErrorCode:    int(s),
 		ErrorContext: e.ErrorContext,
 	}
@@ -40,15 +40,15 @@ func convertSignatureError(err error) backend.PluginError {
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // backend metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(metadata []backend.MetadataStream) (*user.UserMetadata, error) {
-	var userMD *user.UserMetadata
+func userMetadataDecode(metadata []backend.MetadataStream) (*usermd.UserMetadata, error) {
+	var userMD *usermd.UserMetadata
 	for _, v := range metadata {
-		if v.PluginID != user.PluginID ||
-			v.ID != user.MDStreamIDUserMetadata {
+		if v.PluginID != usermd.PluginID ||
+			v.ID != usermd.MDStreamIDUserMetadata {
 			// Not the mdstream we're looking for
 			continue
 		}
-		var um user.UserMetadata
+		var um usermd.UserMetadata
 		err := json.Unmarshal([]byte(v.Payload), &um)
 		if err != nil {
 			return nil, err
@@ -69,8 +69,8 @@ func userMetadataVerify(metadata []backend.MetadataStream, files []backend.File)
 	}
 	if um == nil {
 		return backend.PluginError{
-			PluginID:  user.PluginID,
-			ErrorCode: int(user.ErrorCodeUserMetadataNotFound),
+			PluginID:  usermd.PluginID,
+			ErrorCode: int(usermd.ErrorCodeUserMetadataNotFound),
 		}
 	}
 
@@ -78,8 +78,8 @@ func userMetadataVerify(metadata []backend.MetadataStream, files []backend.File)
 	_, err = uuid.Parse(um.UserID)
 	if err != nil {
 		return backend.PluginError{
-			PluginID:  user.PluginID,
-			ErrorCode: int(user.ErrorCodeUserIDInvalid),
+			PluginID:  usermd.PluginID,
+			ErrorCode: int(usermd.ErrorCodeUserIDInvalid),
 		}
 	}
 
@@ -119,8 +119,8 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 		e := fmt.Sprintf("user id cannot change: got %v, want %v",
 			u.UserID, c.UserID)
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodeUserIDInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodeUserIDInvalid),
 			ErrorContext: e,
 		}
 
@@ -128,8 +128,8 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 		e := fmt.Sprintf("public key cannot change: got %v, want %v",
 			u.PublicKey, c.PublicKey)
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodePublicKeyInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodePublicKeyInvalid),
 			ErrorContext: e,
 		}
 
@@ -137,8 +137,8 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 		e := fmt.Sprintf("signature cannot change: got %v, want %v",
 			u.Signature, c.Signature)
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodeSignatureInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodeSignatureInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -204,8 +204,8 @@ func (p *userPlugin) hookEditRecordPre(payload string) error {
 		e := fmt.Sprintf("user id cannot change: got %v, want %v",
 			um.UserID, umCurr.UserID)
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodeUserIDInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodeUserIDInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -224,17 +224,17 @@ func (p *userPlugin) hookEditMetadataPre(payload string) error {
 	return userMetadataPreventUpdates(em.Current.Metadata, em.Metadata)
 }
 
-func statusChangesDecode(metadata []backend.MetadataStream) ([]user.StatusChangeMetadata, error) {
-	statuses := make([]user.StatusChangeMetadata, 0, 16)
+func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
+	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
 	for _, v := range metadata {
-		if v.PluginID != user.PluginID ||
-			v.ID != user.MDStreamIDStatusChanges {
+		if v.PluginID != usermd.PluginID ||
+			v.ID != usermd.MDStreamIDStatusChanges {
 			// Not the mdstream we're looking for
 			continue
 		}
 		d := json.NewDecoder(strings.NewReader(v.Payload))
 		for {
-			var sc user.StatusChangeMetadata
+			var sc usermd.StatusChangeMetadata
 			err := d.Decode(&sc)
 			if errors.Is(err, io.EOF) {
 				break
@@ -269,8 +269,8 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	// Verify that status change metadata is present
 	if len(statusChanges) == 0 {
 		return backend.PluginError{
-			PluginID:  user.PluginID,
-			ErrorCode: int(user.ErrorCodeStatusChangeMetadataNotFound),
+			PluginID:  usermd.PluginID,
+			ErrorCode: int(usermd.ErrorCodeStatusChangeMetadataNotFound),
 		}
 	}
 	scm := statusChanges[len(statusChanges)-1]
@@ -280,8 +280,8 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 		e := fmt.Sprintf("status change token does not match record "+
 			"metadata token: got %v, want %v", scm.Token, rm.Token)
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodeTokenInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -291,8 +291,8 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 		e := fmt.Sprintf("status from metadata does not match status from "+
 			"record metadata: got %v, want %v", scm.Status, rm.Status)
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodeStatusInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodeStatusInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -301,8 +301,8 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	_, ok := statusReasonRequired[rm.Status]
 	if ok && scm.Reason == "" {
 		return backend.PluginError{
-			PluginID:     user.PluginID,
-			ErrorCode:    int(user.ErrorCodeReasonInvalid),
+			PluginID:     usermd.PluginID,
+			ErrorCode:    int(usermd.ErrorCodeReasonInvalid),
 			ErrorContext: "a reason must be given for this status change",
 		}
 	}

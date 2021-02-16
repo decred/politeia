@@ -12,7 +12,7 @@ import (
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
-	usplugin "github.com/decred/politeia/politeiad/plugins/user"
+	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -162,7 +162,7 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 		piplugin.PluginID: false,
 		cmplugin.PluginID: false,
 		tkplugin.PluginID: false,
-		usplugin.PluginID: false,
+		umplugin.PluginID: false,
 	}
 	for _, v := range plugins {
 		_, ok := required[v.ID]

@@ -2,12 +2,12 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package user
+package usermd
 
 import (
 	"encoding/json"
 
-	"github.com/decred/politeia/politeiad/plugins/user"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
@@ -24,7 +24,7 @@ func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
 	}
 
 	// Prepare reply
-	ar := user.AuthorReply{
+	ar := usermd.AuthorReply{
 		UserID: um.UserID,
 	}
 	reply, err := json.Marshal(ar)
@@ -39,7 +39,7 @@ func (p *userPlugin) cmdUserRecords(payload string) (string, error) {
 	log.Tracef("cmdUserRecords: %v", payload)
 
 	// Decode payload
-	var ur user.UserRecords
+	var ur usermd.UserRecords
 	err := json.Unmarshal([]byte(payload), &ur)
 	if err != nil {
 		return "", err
@@ -52,7 +52,7 @@ func (p *userPlugin) cmdUserRecords(payload string) (string, error) {
 	}
 
 	// Prepare reply
-	urr := user.UserRecordsReply{
+	urr := usermd.UserRecordsReply{
 		Records: uc.Tokens,
 	}
 	reply, err := json.Marshal(urr)
