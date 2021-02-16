@@ -5,9 +5,10 @@
 package tlog
 
 import (
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/store"
@@ -20,13 +21,19 @@ import (
 // encryption key set. The digest of the data, i.e. BlobEntry.Digest, can be
 // thought of as the blob ID and can be used to get/del the blob from tlog.
 //
-// This function satisfies the plugins.TlogClient interface.
-func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error {
-	log.Tracef("%v BlobSave: %v %v", t.id, treeID, dataType)
+// This function satisfies the plugins TlogClient interface.
+func (t *Tlog) BlobSave(treeID int64, be store.BlobEntry) error {
+	log.Tracef("%v BlobSave: %v %v", t.id, treeID)
 
-	// Verify data type
-	if strings.Contains(dataType, dataTypeSeperator) {
-		return fmt.Errorf("data type cannot contain '%v'", dataTypeSeperator)
+	// Parse the data descriptor
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return err
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return err
 	}
 
 	// Prepare blob and digest
@@ -64,7 +71,10 @@ func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error
 	}
 
 	// Prepare log leaf
-	extraData := leafExtraData(dataType, keys[0])
+	extraData, err := extraDataEncode(keys[0], dd.Descriptor)
+	if err != nil {
+		return err
+	}
 	leaves = []*trillian.LogLeaf{
 		newLogLeaf(digest, extraData),
 	}
@@ -88,7 +98,7 @@ func (t *Tlog) BlobSave(treeID int64, dataType string, be store.BlobEntry) error
 
 // BlobsDel deletes the blobs that correspond to the provided digests.
 //
-// This function satisfies the plugins.TlogClient interface.
+// This function satisfies the plugins TlogClient interface.
 func (t *Tlog) BlobsDel(treeID int64, digests [][]byte) error {
 	log.Tracef("%v BlobsDel: %v %x", t.id, treeID, digests)
 
@@ -119,7 +129,11 @@ func (t *Tlog) BlobsDel(treeID int64, digests [][]byte) error {
 	for _, v := range leaves {
 		_, ok := merkleHashes[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
-			keys = append(keys, extractKeyFromLeaf(v))
+			ed, err := extraDataDecode(v.ExtraData)
+			if err != nil {
+				return err
+			}
+			keys = append(keys, ed.Key)
 		}
 	}
 
@@ -135,7 +149,7 @@ func (t *Tlog) BlobsDel(treeID int64, digests [][]byte) error {
 // Blobs returns the blobs that correspond to the provided digests. If a blob
 // does not exist it will not be included in the returned map.
 //
-// This function satisfies the plugins.TlogClient interface.
+// This function satisfies the plugins TlogClient interface.
 func (t *Tlog) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error) {
 	log.Tracef("%v Blobs: %v %x", t.id, treeID, digests)
 
@@ -181,7 +195,11 @@ func (t *Tlog) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry
 		if !ok {
 			return nil, fmt.Errorf("leaf not found: %x", v)
 		}
-		keys = append(keys, extractKeyFromLeaf(l))
+		ed, err := extraDataDecode(l.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, ed.Key)
 	}
 
 	// Pull the blobs from the store. It's ok if one or more blobs is
@@ -212,11 +230,12 @@ func (t *Tlog) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry
 	return entries, nil
 }
 
-// BlobsByDataType returns all blobs that match the data type.
+// BlobsByDataDesc returns all blobs that match the provided data descriptor.
+// The blobs will be ordered from oldest to newest.
 //
-// This function satisfies the plugins.TlogClient interface.
-func (t *Tlog) BlobsByDataType(treeID int64, dataType string) ([]store.BlobEntry, error) {
-	log.Tracef("%v BlobsByDataType: %v %v", t.id, treeID, dataType)
+// This function satisfies the plugins TlogClient interface.
+func (t *Tlog) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEntry, error) {
+	log.Tracef("%v BlobsByDataDesc: %v %v", t.id, treeID, dataDesc)
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
@@ -233,8 +252,12 @@ func (t *Tlog) BlobsByDataType(treeID int64, dataType string) ([]store.BlobEntry
 	// leaves with a matching key prefix.
 	keys := make([]string, 0, len(leaves))
 	for _, v := range leaves {
-		if leafDataType(v) == dataType {
-			keys = append(keys, extractKeyFromLeaf(v))
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDesc {
+			keys = append(keys, ed.Key)
 		}
 	}
 
@@ -273,11 +296,12 @@ func (t *Tlog) BlobsByDataType(treeID int64, dataType string) ([]store.BlobEntry
 	return entries, nil
 }
 
-// DigestsByDataType returns the digests of all blobs that match the data type.
+// DigestsByDataDesc returns the digests of all blobs that match the provided
+// data descriptor.
 //
-// This function satisfies the plugins.TlogClient interface.
-func (t *Tlog) DigestsByDataType(treeID int64, dataType string) ([][]byte, error) {
-	log.Tracef("%v DigestsByDataType: %v %v", t.id, treeID, dataType)
+// This function satisfies the plugins TlogClient interface.
+func (t *Tlog) DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, error) {
+	log.Tracef("%v DigestsByDataDesc: %v %v", t.id, treeID, dataDesc)
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
@@ -294,7 +318,11 @@ func (t *Tlog) DigestsByDataType(treeID int64, dataType string) ([][]byte, error
 	// all leaves that match the provided data type.
 	digests := make([][]byte, 0, len(leaves))
 	for _, v := range leaves {
-		if leafDataType(v) == dataType {
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDesc {
 			digests = append(digests, v.LeafValue)
 		}
 	}
@@ -305,7 +333,7 @@ func (t *Tlog) DigestsByDataType(treeID int64, dataType string) ([][]byte, error
 // Timestamp returns the timestamp for the data blob that corresponds to the
 // provided digest.
 //
-// This function satisfies the plugins.TlogClient interface.
+// This function satisfies the plugins TlogClient interface.
 func (t *Tlog) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error) {
 	log.Tracef("%v Timestamp: %v %x", t.id, treeID, digest)
 

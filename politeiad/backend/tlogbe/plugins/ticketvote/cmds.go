@@ -30,17 +30,13 @@ import (
 )
 
 const (
-	// Blob entry data descriptors
-	dataDescriptorAuthDetails     = "authdetails-v1"
-	dataDescriptorVoteDetails     = "votedetails-v1"
-	dataDescriptorCastVoteDetails = "castvotedetails-v1"
-	dataDescriptorStartRunoff     = "startrunoff-v1"
+	pluginID = ticketvote.PluginID
 
-	// Data types
-	dataTypeAuthDetails     = "authdetails"
-	dataTypeVoteDetails     = "votedetails"
-	dataTypeCastVoteDetails = "castvotedetails"
-	dataTypeStartRunoff     = "startrunoff"
+	// Blob entry data descriptors
+	dataDescriptorAuthDetails     = pluginID + "-auth-v1"
+	dataDescriptorVoteDetails     = pluginID + "-vote-v1"
+	dataDescriptorCastVoteDetails = pluginID + "-cvote-v1"
+	dataDescriptorStartRunoff     = pluginID + "-startrunoff-v1"
 
 	// Internal plugin commands
 	cmdStartRunoffSubmission = "startrunoffsub"
@@ -309,12 +305,12 @@ func (p *ticketVotePlugin) authSave(treeID int64, ad ticketvote.AuthDetails) err
 	}
 
 	// Save blob
-	return p.tlog.BlobSave(treeID, dataTypeAuthDetails, *be)
+	return p.tlog.BlobSave(treeID, *be)
 }
 
 func (p *ticketVotePlugin) auths(treeID int64) ([]ticketvote.AuthDetails, error) {
 	// Retrieve blobs
-	blobs, err := p.tlog.BlobsByDataType(treeID, dataTypeAuthDetails)
+	blobs, err := p.tlog.BlobsByDataDesc(treeID, dataDescriptorAuthDetails)
 	if err != nil {
 		return nil, err
 	}
@@ -346,12 +342,12 @@ func (p *ticketVotePlugin) voteDetailsSave(treeID int64, vd ticketvote.VoteDetai
 	}
 
 	// Save blob
-	return p.tlog.BlobSave(treeID, dataTypeVoteDetails, *be)
+	return p.tlog.BlobSave(treeID, *be)
 }
 
 func (p *ticketVotePlugin) voteDetails(treeID int64) (*ticketvote.VoteDetails, error) {
 	// Retrieve blobs
-	blobs, err := p.tlog.BlobsByDataType(treeID, dataTypeVoteDetails)
+	blobs, err := p.tlog.BlobsByDataDesc(treeID, dataDescriptorVoteDetails)
 	if err != nil {
 		return nil, err
 	}
@@ -399,12 +395,12 @@ func (p *ticketVotePlugin) castVoteSave(treeID int64, cv ticketvote.CastVoteDeta
 	}
 
 	// Save blob
-	return p.tlog.BlobSave(treeID, dataTypeCastVoteDetails, *be)
+	return p.tlog.BlobSave(treeID, *be)
 }
 
 func (p *ticketVotePlugin) castVotes(treeID int64) ([]ticketvote.CastVoteDetails, error) {
 	// Retrieve blobs
-	blobs, err := p.tlog.BlobsByDataType(treeID, dataTypeCastVoteDetails)
+	blobs, err := p.tlog.BlobsByDataDesc(treeID, dataDescriptorCastVoteDetails)
 	if err != nil {
 		return nil, err
 	}
@@ -1436,10 +1432,10 @@ func (p *ticketVotePlugin) startRunoffRecordSave(treeID int64, srr startRunoffRe
 	if err != nil {
 		return err
 	}
-	err = p.tlog.BlobSave(treeID, dataTypeStartRunoff, *be)
+	err = p.tlog.BlobSave(treeID, *be)
 	if err != nil {
 		return fmt.Errorf("BlobSave %v %v: %v",
-			treeID, dataTypeStartRunoff, err)
+			treeID, dataDescriptorStartRunoff, err)
 	}
 	return nil
 }
@@ -1447,10 +1443,10 @@ func (p *ticketVotePlugin) startRunoffRecordSave(treeID int64, srr startRunoffRe
 // startRunoffRecord returns the startRunoff record if one exists on a tree.
 // nil will be returned if a startRunoff record is not found.
 func (p *ticketVotePlugin) startRunoffRecord(treeID int64) (*startRunoffRecord, error) {
-	blobs, err := p.tlog.BlobsByDataType(treeID, dataTypeStartRunoff)
+	blobs, err := p.tlog.BlobsByDataDesc(treeID, dataDescriptorStartRunoff)
 	if err != nil {
-		return nil, fmt.Errorf("BlobsByDataType %v %v: %v",
-			treeID, dataTypeStartRunoff, err)
+		return nil, fmt.Errorf("BlobsByDataDesc %v %v: %v",
+			treeID, dataDescriptorStartRunoff, err)
 	}
 
 	var srr *startRunoffRecord
@@ -2639,10 +2635,11 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 	switch {
 	case t.VotesPage > 0:
 		// Return a page of vote timestamps
-		digests, err := p.tlog.DigestsByDataType(treeID, dataTypeCastVoteDetails)
+		digests, err := p.tlog.DigestsByDataDesc(treeID,
+			dataDescriptorCastVoteDetails)
 		if err != nil {
 			return "", fmt.Errorf("digestsByKeyPrefix %v %v: %v",
-				treeID, dataTypeVoteDetails, err)
+				treeID, dataDescriptorVoteDetails, err)
 		}
 
 		startAt := (t.VotesPage - 1) * pageSize
@@ -2665,10 +2662,10 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 		// Return authorization timestamps and the vote details timestamp.
 
 		// Auth timestamps
-		digests, err := p.tlog.DigestsByDataType(treeID, dataTypeAuthDetails)
+		digests, err := p.tlog.DigestsByDataDesc(treeID, dataDescriptorAuthDetails)
 		if err != nil {
-			return "", fmt.Errorf("DigestByDataType %v %v: %v",
-				treeID, dataTypeAuthDetails, err)
+			return "", fmt.Errorf("DigestByDataDesc %v %v: %v",
+				treeID, dataDescriptorAuthDetails, err)
 		}
 		auths = make([]ticketvote.Timestamp, 0, len(digests))
 		for _, v := range digests {
@@ -2680,10 +2677,10 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 		}
 
 		// Vote details timestamp
-		digests, err = p.tlog.DigestsByDataType(treeID, dataTypeVoteDetails)
+		digests, err = p.tlog.DigestsByDataDesc(treeID, dataDescriptorVoteDetails)
 		if err != nil {
-			return "", fmt.Errorf("DigestsByDataType %v %v: %v",
-				treeID, dataTypeVoteDetails, err)
+			return "", fmt.Errorf("DigestsByDataDesc %v %v: %v",
+				treeID, dataDescriptorVoteDetails, err)
 		}
 		// There should never be more than a one vote details
 		if len(digests) > 1 {

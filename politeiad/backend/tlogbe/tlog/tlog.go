@@ -42,19 +42,6 @@ const (
 	dataDescriptorMetadataStream = "mdstream-v1"
 	dataDescriptorRecordIndex    = "rindex-v1"
 	dataDescriptorAnchor         = "anchor-v1"
-
-	// The keys for kv store blobs are saved by stuffing them into the
-	// ExtraData field of their corresponding trillian log leaf. The
-	// keys are prefixed with one of the follwing identifiers before
-	// being added to the log leaf so that we can correlate the leaf
-	// to the type of data it represents without having to pull the
-	// data out of the store, which can become an issue in situations
-	// such as searching for a record index that has been buried by
-	// thousands of leaves from plugin data.
-	dataTypeSeperator     = ":"
-	dataTypeRecordIndex   = "rindex"
-	dataTypeRecordContent = "rcontent"
-	dataTypeAnchorRecord  = "anchor"
 )
 
 var (
@@ -90,28 +77,33 @@ func blobIsEncrypted(b []byte) bool {
 	return bytes.HasPrefix(b, []byte("sbox"))
 }
 
-func leafExtraData(dataType, storeKey string) []byte {
-	return []byte(dataType + ":" + storeKey)
+// extraData is the data that is stored in the log leaf ExtraData field. It is
+// saved as a JSON encoded byte slice. The JSON keys have been abbreviated to
+// minimize the size of a trillian log leaf.
+type extraData struct {
+	Key  string `json:"k"` // Key-value store key
+	Desc string `json:"d"` // Blob entry data descriptor
 }
 
-func leafDataType(l *trillian.LogLeaf) string {
-	s := bytes.Split(l.ExtraData, []byte(":"))
-	if len(s) != 2 {
-		e := fmt.Sprintf("invalid key '%s' for leaf %x",
-			l.ExtraData, l.MerkleLeafHash)
-		panic(e)
+func extraDataEncode(key, desc string) ([]byte, error) {
+	ed := extraData{
+		Key:  key,
+		Desc: desc,
 	}
-	return string(s[0])
+	b, err := json.Marshal(ed)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
-func extractKeyFromLeaf(l *trillian.LogLeaf) string {
-	s := bytes.SplitAfter(l.ExtraData, []byte(":"))
-	if len(s) != 2 {
-		e := fmt.Sprintf("invalid key '%s' for leaf %x",
-			l.ExtraData, l.MerkleLeafHash)
-		panic(e)
+func extraDataDecode(b []byte) (*extraData, error) {
+	var ed extraData
+	err := json.Unmarshal(b, &ed)
+	if err != nil {
+		return nil, err
 	}
-	return string(s[1])
+	return &ed, nil
 }
 
 func (t *Tlog) blobify(be store.BlobEntry) ([]byte, error) {
@@ -213,7 +205,10 @@ func (t *Tlog) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []ba
 	}
 
 	// Append record index leaf to the trillian tree
-	extraData := leafExtraData(dataTypeRecordIndex, keys[0])
+	extraData, err := extraDataEncode(keys[0], dataDescriptorRecordIndex)
+	if err != nil {
+		return err
+	}
 	leaves := []*trillian.LogLeaf{
 		newLogLeaf(idxDigest, extraData),
 	}
@@ -323,14 +318,18 @@ type recordBlobsPrepareReply struct {
 	recordHashes recordHashes
 
 	// blobs contains the blobified record content that needs to be
-	// saved to the kv store. Hashes contains the hashes of the record
-	// content prior to being blobified. These hashes are saved to
-	// trilian log leaves. The hashes are SHA256 hashes of the JSON
-	// encoded data.
+	// saved to the kv store.
 	//
-	// blobs and hashes share the same ordering.
+	// Hashes contains the hashes of the record content prior to being
+	// blobified. These hashes are saved to trilian log leaves. The
+	// hashes are SHA256 hashes of the JSON encoded data.
+	//
+	// hints contains the data hints of the blob entries.
+	//
+	// blobs, hashes, and descriptors share the same ordering.
 	blobs  [][]byte
 	hashes [][]byte
+	hints  []string
 }
 
 // recordBlobsPrepare prepares the provided record content to be saved to
@@ -442,6 +441,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 	l := len(metadata) + len(files) + 1
 	hashes := make([][]byte, 0, l)
 	blobs := make([][]byte, 0, l)
+	hints := make([]string, 0, l)
 
 	// Prepare record metadata blob
 	be, err := convertBlobEntryFromRecordMetadata(recordMD)
@@ -461,6 +461,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 		// Not a duplicate. Save blob to the store.
 		hashes = append(hashes, h)
 		blobs = append(blobs, b)
+		hints = append(hints, be.DataHint)
 	}
 
 	// Prepare metadata blobs
@@ -482,6 +483,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 			// Not a duplicate. Save blob to the store.
 			hashes = append(hashes, h)
 			blobs = append(blobs, b)
+			hints = append(hints, be.DataHint)
 		}
 	}
 
@@ -504,6 +506,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 			// Not a duplicate. Save blob to the store.
 			hashes = append(hashes, h)
 			blobs = append(blobs, b)
+			hints = append(hints, be.DataHint)
 		}
 	}
 
@@ -512,6 +515,7 @@ func (t *Tlog) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backen
 		recordHashes: rhashes,
 		blobs:        blobs,
 		hashes:       hashes,
+		hints:        hints,
 	}, nil
 }
 
@@ -526,6 +530,7 @@ func (t *Tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 		rhashes = rbpr.recordHashes
 		blobs   = rbpr.blobs
 		hashes  = rbpr.hashes
+		hints   = rbpr.hints
 	)
 
 	// Save blobs to store
@@ -541,7 +546,10 @@ func (t *Tlog) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*rec
 	// Prepare log leaves. hashes and keys share the same ordering.
 	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
 	for k := range blobs {
-		extraData := leafExtraData(dataTypeRecordContent, keys[k])
+		extraData, err := extraDataEncode(keys[k], hints[k])
+		if err != nil {
+			return nil, err
+		}
 		leaves = append(leaves, newLogLeaf(hashes[k], extraData))
 	}
 
@@ -848,7 +856,7 @@ func (t *Tlog) RecordDel(treeID int64) error {
 		return fmt.Errorf("tree is not frozen")
 	}
 
-	// Retrieve all the record indexes
+	// Retrieve all record indexes
 	indexes, err := t.recordIndexes(leavesAll)
 	if err != nil {
 		return err
@@ -867,7 +875,11 @@ func (t *Tlog) RecordDel(treeID int64) error {
 	for _, v := range leavesAll {
 		_, ok := merkles[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
-			keys = append(keys, extractKeyFromLeaf(v))
+			ed, err := extraDataDecode(v.ExtraData)
+			if err != nil {
+				return err
+			}
+			keys = append(keys, ed.Key)
 		}
 	}
 
@@ -996,7 +1008,11 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 		}
 
 		// Leaf is part of record content. Save the kv store key.
-		keys = append(keys, extractKeyFromLeaf(v))
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, ed.Key)
 	}
 
 	// Get record content from store
@@ -1120,8 +1136,11 @@ func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	}
 
 	// Get blob entry from the kv store
-	key := extractKeyFromLeaf(l)
-	blobs, err := t.store.Get([]string{key})
+	ed, err := extraDataDecode(l.ExtraData)
+	if err != nil {
+		return nil, err
+	}
+	blobs, err := t.store.Get([]string{ed.Key})
 	if err != nil {
 		return nil, fmt.Errorf("store get: %v", err)
 	}
@@ -1131,9 +1150,9 @@ func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	// rest of the timestamp.
 	var data []byte
 	if len(blobs) == 1 {
-		b, ok := blobs[key]
+		b, ok := blobs[ed.Key]
 		if !ok {
-			return nil, fmt.Errorf("blob not found %v", key)
+			return nil, fmt.Errorf("blob not found %v", ed.Key)
 		}
 		be, err := t.deblob(b)
 		if err != nil {

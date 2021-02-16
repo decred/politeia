@@ -19,7 +19,7 @@ const (
 	DataTypeStructure = "struct"
 )
 
-// DataDescriptor provides hints about a data blob. In practise we JSON encode
+// DataDescriptor provides hints about a data blob. In practice we JSON encode
 // this struture and stuff it into BlobEntry.DataHint.
 type DataDescriptor struct {
 	Type       string `json:"type"`                // Type of data

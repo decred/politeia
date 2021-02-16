@@ -93,8 +93,12 @@ func (t *Tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tril
 	var anchorKey string
 	for i := int(l.LeafIndex); i < len(leaves); i++ {
 		l := leaves[i]
-		if leafDataType(l) == dataTypeAnchorRecord {
-			anchorKey = extractKeyFromLeaf(l)
+		ed, err := extraDataDecode(l.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDescriptorAnchor {
+			anchorKey = ed.Key
 			break
 		}
 	}
@@ -136,9 +140,13 @@ func (t *Tlog) anchorLatest(treeID int64) (*anchor, error) {
 	// Find the most recent anchor leaf
 	var key string
 	for i := len(leavesAll) - 1; i >= 0; i-- {
-		l := leavesAll[i]
-		if leafDataType(l) == dataTypeAnchorRecord {
-			key = extractKeyFromLeaf(l)
+		ed, err := extraDataDecode(leavesAll[i].ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDescriptorAnchor {
+			key = ed.Key
+			break
 		}
 	}
 	if key == "" {
@@ -206,7 +214,10 @@ func (t *Tlog) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	extraData := leafExtraData(dataTypeAnchorRecord, keys[0])
+	extraData, err := extraDataEncode(keys[0], dataDescriptorAnchor)
+	if err != nil {
+		return err
+	}
 	leaves := []*trillian.LogLeaf{
 		newLogLeaf(d, extraData),
 	}

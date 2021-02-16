@@ -160,7 +160,10 @@ func (t *Tlog) recordIndexSave(treeID int64, ri recordIndex) error {
 	if err != nil {
 		return err
 	}
-	extraData := leafExtraData(dataTypeRecordIndex, keys[0])
+	extraData, err := extraDataEncode(keys[0], dataDescriptorRecordIndex)
+	if err != nil {
+		return err
+	}
 	leaves := []*trillian.LogLeaf{
 		newLogLeaf(d, extraData),
 	}
@@ -197,9 +200,13 @@ func (t *Tlog) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) 
 	// version.
 	keys := make([]string, 0, 64)
 	for _, v := range leaves {
-		if leafDataType(v) == dataTypeRecordIndex {
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDescriptorRecordIndex {
 			// This is a record index leaf. Save the kv store key.
-			keys = append(keys, extractKeyFromLeaf(v))
+			keys = append(keys, ed.Key)
 		}
 	}
 

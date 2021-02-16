@@ -183,7 +183,7 @@ type TlogClient interface {
 	// instance has an encryption key set. The digest of the data,
 	// i.e. BlobEntry.Digest, can be thought of as the blob ID and can
 	// be used to get/del the blob from tlog.
-	BlobSave(treeID int64, dataType string, be store.BlobEntry) error
+	BlobSave(treeID int64, be store.BlobEntry) error
 
 	// BlobsDel deletes the blobs that correspond to the provided
 	// digests.
@@ -194,13 +194,13 @@ type TlogClient interface {
 	// map.
 	Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error)
 
-	// BlobsByDataType returns all blobs that match the data type. The
-	// blobs will be ordered from oldest to newest.
-	BlobsByDataType(treeID int64, keyPrefix string) ([]store.BlobEntry, error)
+	// BlobsByDataDesc returns all blobs that match the provided data
+	// descriptor. The blobs will be ordered from oldest to newest.
+	BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEntry, error)
 
-	// DigestsByDataType returns the digests of all blobs that match
-	// the data type.
-	DigestsByDataType(treeID int64, dataType string) ([][]byte, error)
+	// DigestsByDataDesc returns the digests of all blobs that match
+	// the provided data descriptor.
+	DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, error)
 
 	// Timestamp returns the timestamp for the blob that correpsonds
 	// to the digest.

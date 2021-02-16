@@ -22,15 +22,12 @@ import (
 )
 
 const (
-	// Blob entry data descriptors
-	dataDescriptorCommentAdd  = "cadd-v1"
-	dataDescriptorCommentDel  = "cdel-v1"
-	dataDescriptorCommentVote = "cvote-v1"
+	pluginID = comments.PluginID
 
-	// Data types
-	dataTypeCommentAdd  = "cadd"
-	dataTypeCommentDel  = "cdel"
-	dataTypeCommentVote = "cvote"
+	// Blob entry data descriptors
+	dataDescriptorCommentAdd  = pluginID + "-add-v1"
+	dataDescriptorCommentDel  = pluginID + "-del-v1"
+	dataDescriptorCommentVote = pluginID + "-vote-v1"
 )
 
 func tokenDecode(token string) ([]byte, error) {
@@ -297,7 +294,7 @@ func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([
 	if err != nil {
 		return nil, err
 	}
-	err = p.tlog.BlobSave(treeID, dataTypeCommentAdd, *be)
+	err = p.tlog.BlobSave(treeID, *be)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +342,7 @@ func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([
 	if err != nil {
 		return nil, err
 	}
-	err = p.tlog.BlobSave(treeID, dataTypeCommentDel, *be)
+	err = p.tlog.BlobSave(treeID, *be)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +389,7 @@ func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) 
 	if err != nil {
 		return nil, err
 	}
-	err = p.tlog.BlobSave(treeID, dataTypeCommentVote, *be)
+	err = p.tlog.BlobSave(treeID, *be)
 	if err != nil {
 		return nil, err
 	}
