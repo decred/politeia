@@ -43,15 +43,18 @@ func convertSignatureError(err error) backend.PluginError {
 func userMetadataDecode(metadata []backend.MetadataStream) (*user.UserMetadata, error) {
 	var userMD *user.UserMetadata
 	for _, v := range metadata {
-		if v.ID == user.MDStreamIDUserMetadata {
-			var um user.UserMetadata
-			err := json.Unmarshal([]byte(v.Payload), &um)
-			if err != nil {
-				return nil, err
-			}
-			userMD = &um
-			break
+		if v.PluginID != user.PluginID ||
+			v.ID != user.MDStreamIDUserMetadata {
+			// Not the mdstream we're looking for
+			continue
 		}
+		var um user.UserMetadata
+		err := json.Unmarshal([]byte(v.Payload), &um)
+		if err != nil {
+			return nil, err
+		}
+		userMD = &um
+		break
 	}
 	return userMD, nil
 }
@@ -224,19 +227,23 @@ func (p *userPlugin) hookEditMetadataPre(payload string) error {
 func statusChangesDecode(metadata []backend.MetadataStream) ([]user.StatusChangeMetadata, error) {
 	statuses := make([]user.StatusChangeMetadata, 0, 16)
 	for _, v := range metadata {
-		if v.ID == user.MDStreamIDStatusChanges {
-			d := json.NewDecoder(strings.NewReader(v.Payload))
-			for {
-				var sc user.StatusChangeMetadata
-				err := d.Decode(&sc)
-				if errors.Is(err, io.EOF) {
-					break
-				} else if err != nil {
-					return nil, err
-				}
-				statuses = append(statuses, sc)
-			}
+		if v.PluginID != user.PluginID ||
+			v.ID != user.MDStreamIDStatusChanges {
+			// Not the mdstream we're looking for
+			continue
 		}
+		d := json.NewDecoder(strings.NewReader(v.Payload))
+		for {
+			var sc user.StatusChangeMetadata
+			err := d.Decode(&sc)
+			if errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+			statuses = append(statuses, sc)
+		}
+		break
 	}
 	return statuses, nil
 }

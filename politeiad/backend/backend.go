@@ -140,8 +140,9 @@ type RecordMetadata struct {
 
 // MetadataStream describes a single metada stream.
 type MetadataStream struct {
-	ID      uint64 `json:"id"`      // Stream identity
-	Payload string `json:"payload"` // String encoded metadata
+	PluginID string `json:"pluginid,omitempty"` // Plugin identity
+	ID       uint64 `json:"id"`                 // Stream identity
+	Payload  string `json:"payload"`            // String encoded metadata
 }
 
 // Record is a permanent Record that includes the submitted files, metadata and

@@ -89,9 +89,8 @@ type AuthorReply struct {
 	UserID string `json:"userid"`
 }
 
-// UserRecords retrieves the tokens of all records that were
-// submitted by the provided user ID. The returned tokens are sorted from
-// newest to oldest.
+// UserRecords retrieves the tokens of all records that were submitted by the
+// provided user ID. The returned tokens are sorted from newest to oldest.
 type UserRecords struct {
 	UserID string `json:"userid"`
 }

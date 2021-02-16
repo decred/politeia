@@ -169,8 +169,9 @@ type File struct {
 
 // MetadataStream describes a record metadata stream.
 type MetadataStream struct {
-	ID      uint64 `json:"id"`
-	Payload string `json:"payload"` // JSON encoded
+	PluginID string `json:"pluginid,omitempty"` // Plugin ID
+	ID       uint64 `json:"id"`                 // Metadata stream ID
+	Payload  string `json:"payload"`            // JSON encoded
 }
 
 // CensorshipRecord contains cryptographic proof that a record was accepted for

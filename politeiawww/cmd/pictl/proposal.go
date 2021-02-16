@@ -71,7 +71,7 @@ func printProposal(r rcv1.Record) error {
 	printf("Metadata\n")
 	for _, v := range r.Metadata {
 		size := byteCountSI(int64(len([]byte(v.Payload))))
-		printf("  %-2v %v\n", v.ID, size)
+		printf("  %-8v %-2v %v\n", v.PluginID, v.ID, size)
 	}
 	printf("Files\n")
 	return printProposalFiles(r.Files)

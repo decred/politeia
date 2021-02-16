@@ -229,8 +229,9 @@ type File struct {
 
 // MetadataStream identifies a metadata stream by its identity.
 type MetadataStream struct {
-	ID      uint64 `json:"id"`      // Stream identity
-	Payload string `json:"payload"` // String encoded metadata
+	PluginID string `json:"pluginid,omitempty"` // Plugin identity
+	ID       uint64 `json:"id"`                 // Stream identity
+	Payload  string `json:"payload"`            // String encoded metadata
 }
 
 // Record is an entire record and it's content.

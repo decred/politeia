@@ -85,8 +85,9 @@ func convertBackendPlugins(bplugins []backend.Plugin) []v1.Plugin {
 // metadata stream.
 func convertBackendMetadataStream(mds backend.MetadataStream) v1.MetadataStream {
 	return v1.MetadataStream{
-		ID:      mds.ID,
-		Payload: mds.Payload,
+		PluginID: mds.PluginID,
+		ID:       mds.ID,
+		Payload:  mds.Payload,
 	}
 }
 
@@ -187,8 +188,9 @@ func convertFrontendMetadataStream(mds []v1.MetadataStream) []backend.MetadataSt
 	m := make([]backend.MetadataStream, 0, len(mds))
 	for _, v := range mds {
 		m = append(m, backend.MetadataStream{
-			ID:      v.ID,
-			Payload: v.Payload,
+			PluginID: v.PluginID,
+			ID:       v.ID,
+			Payload:  v.Payload,
 		})
 	}
 	return m
