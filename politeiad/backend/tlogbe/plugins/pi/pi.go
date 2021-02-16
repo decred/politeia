@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"sync"
 
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins"
@@ -25,7 +24,6 @@ var (
 
 // piPlugin satisfies the plugins.PluginClient interface.
 type piPlugin struct {
-	sync.Mutex
 	backend backend.Backend
 
 	// dataDir is the pi plugin data directory. The only data that is

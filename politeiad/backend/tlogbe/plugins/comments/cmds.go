@@ -636,14 +636,8 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 		}
 	}
 
-	// The record index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Get record index
-	ridx, err := p.recordIndexLocked(token)
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
@@ -691,7 +685,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Save index
-	err = p.recordIndexSaveLocked(token, *ridx)
+	err = p.recordIndexSave(token, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -763,14 +757,8 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 		}
 	}
 
-	// The record index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Get record index
-	ridx, err := p.recordIndexLocked(token)
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
@@ -842,7 +830,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	ridx.Comments[ca.CommentID].Adds[ca.Version] = digest
 
 	// Save index
-	err = p.recordIndexSaveLocked(token, *ridx)
+	err = p.recordIndexSave(token, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -904,14 +892,8 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 		return "", convertSignatureError(err)
 	}
 
-	// The record index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Get record index
-	ridx, err := p.recordIndexLocked(token)
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
@@ -960,7 +942,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	ridx.Comments[d.CommentID] = cidx
 
 	// Save index
-	err = p.recordIndexSaveLocked(token, *ridx)
+	err = p.recordIndexSave(token, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -1041,14 +1023,8 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 		return "", convertSignatureError(err)
 	}
 
-	// The record index must be pulled and updated. The record lock
-	// must be held for the remainder of this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Get record index
-	ridx, err := p.recordIndexLocked(token)
+	ridx, err := p.recordIndex(token)
 	if err != nil {
 		return "", err
 	}
@@ -1125,7 +1101,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	ridx.Comments[cv.CommentID] = cidx
 
 	// Save index
-	err = p.recordIndexSaveLocked(token, *ridx)
+	err = p.recordIndexSave(token, *ridx)
 	if err != nil {
 		return "", err
 	}

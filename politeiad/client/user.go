@@ -18,6 +18,7 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   state,
 			Token:   token,
 			ID:      usermd.PluginID,
@@ -64,6 +65,7 @@ func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]s
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateUnvetted,
 			ID:      usermd.PluginID,
 			Command: usermd.CmdUserRecords,

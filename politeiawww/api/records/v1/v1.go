@@ -279,10 +279,11 @@ type SetStatusReply struct {
 }
 
 // Details requests the details of a record. The full record will be returned.
+// If no version is specified then the most recent version will be returned.
 type Details struct {
 	Token   string `json:"token"`
 	State   string `json:"state"`
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 }
 
 // DetailsReply is the reply to the Details command.

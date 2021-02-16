@@ -23,6 +23,7 @@ func (c *Client) TicketVoteAuthorize(ctx context.Context, a ticketvote.Authorize
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionWrite,
 			State:   pdv1.RecordStateVetted,
 			Token:   a.Token,
 			ID:      ticketvote.PluginID,
@@ -65,6 +66,7 @@ func (c *Client) TicketVoteStart(ctx context.Context, token string, s ticketvote
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionWrite,
 			State:   pdv1.RecordStateVetted,
 			Token:   token,
 			ID:      ticketvote.PluginID,
@@ -107,6 +109,7 @@ func (c *Client) TicketVoteCastBallot(ctx context.Context, token string, cb tick
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionWrite,
 			State:   pdv1.RecordStateVetted,
 			Token:   token,
 			ID:      ticketvote.PluginID,
@@ -145,6 +148,7 @@ func (c *Client) TicketVoteDetails(ctx context.Context, token string) (*ticketvo
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			Token:   token,
 			ID:      ticketvote.PluginID,
@@ -183,6 +187,7 @@ func (c *Client) TicketVoteResults(ctx context.Context, token string) (*ticketvo
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			Token:   token,
 			ID:      ticketvote.PluginID,
@@ -221,6 +226,7 @@ func (c *Client) TicketVoteSummary(ctx context.Context, token string) (*ticketvo
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			ID:      ticketvote.PluginID,
 			Command: ticketvote.CmdSummary,
@@ -261,6 +267,7 @@ func (c *Client) TicketVoteSummaries(ctx context.Context, tokens []string) (map[
 	cmds := make([]pdv1.PluginCommandV2, 0, len(tokens))
 	for _, v := range tokens {
 		cmds = append(cmds, pdv1.PluginCommandV2{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			Token:   v,
 			ID:      ticketvote.PluginID,
@@ -301,6 +308,7 @@ func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) (*tick
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			Token:   token,
 			ID:      ticketvote.PluginID,
@@ -343,6 +351,7 @@ func (c *Client) TicketVoteInventory(ctx context.Context, i ticketvote.Inventory
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			ID:      ticketvote.PluginID,
 			Command: ticketvote.CmdInventory,
@@ -384,6 +393,7 @@ func (c *Client) TicketVoteTimestamps(ctx context.Context, t ticketvote.Timestam
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			ID:      ticketvote.PluginID,
 			Command: ticketvote.CmdTimestamps,

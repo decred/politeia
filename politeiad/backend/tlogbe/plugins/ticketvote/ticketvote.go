@@ -5,7 +5,6 @@
 package ticketvote
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -48,14 +47,6 @@ type ticketVotePlugin struct {
 	votes    map[string]map[string]string // [token][ticket]voteBit
 	mtxVotes sync.Mutex
 
-	// Mutexes contains a mutex for each record and are used to lock
-	// the trillian tree for a given record to prevent concurrent
-	// ticket vote plugin updates on the same tree. These mutexes are
-	// lazy loaded and should only be used for tree updates, not for
-	// cache updates.
-	mutexes    map[string]*sync.Mutex // [string]mutex
-	mtxRecords sync.Mutex
-
 	// Mutexes for on-disk caches
 	mtxInv     sync.RWMutex // Vote inventory cache
 	mtxSummary sync.Mutex   // Vote summaries cache
@@ -66,22 +57,6 @@ type ticketVotePlugin struct {
 	linkByPeriodMax int64  // In seconds
 	voteDurationMin uint32 // In blocks
 	voteDurationMax uint32 // In blocks
-}
-
-// mutex returns the mutex for the specified record.
-func (p *ticketVotePlugin) mutex(token []byte) *sync.Mutex {
-	p.mtxRecords.Lock()
-	defer p.mtxRecords.Unlock()
-
-	t := hex.EncodeToString(token)
-	m, ok := p.mutexes[t]
-	if !ok {
-		// Mutexes is lazy loaded
-		m = &sync.Mutex{}
-		p.mutexes[t] = m
-	}
-
-	return m
 }
 
 // Setup performs any plugin setup that is required.
@@ -129,8 +104,8 @@ func (p *ticketVotePlugin) Setup() error {
 		if err != nil {
 			return err
 		}
-		reply, err := p.backend.VettedPluginCmd(token, ticketvote.PluginID,
-			ticketvote.CmdResults, "")
+		reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+			token, ticketvote.PluginID, ticketvote.CmdResults, "")
 		if err != nil {
 			return fmt.Errorf("VettedPluginCmd %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdResults, err)
@@ -328,7 +303,6 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 		dataDir:         dataDir,
 		identity:        id,
 		votes:           make(map[string]map[string]string),
-		mutexes:         make(map[string]*sync.Mutex),
 		linkByPeriodMin: linkByPeriodMin,
 		linkByPeriodMax: linkByPeriodMax,
 		voteDurationMin: voteDurationMin,

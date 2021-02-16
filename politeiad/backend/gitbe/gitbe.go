@@ -2878,14 +2878,14 @@ func (g *gitBackEnd) SetupVettedPlugin(pluginID string) error {
 // UnvettedPluginCmd has not been implemented.
 //
 // This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) UnvettedPluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
+func (g *gitBackEnd) UnvettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
 // VettedPluginCmd has not been implemented.
 //
 // This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) VettedPluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
+func (g *gitBackEnd) VettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 

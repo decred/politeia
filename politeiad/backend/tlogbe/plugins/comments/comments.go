@@ -5,7 +5,6 @@
 package comments
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,7 +29,7 @@ var (
 //
 // commentsPlugin satisfies the plugins.PluginClient interface.
 type commentsPlugin struct {
-	sync.Mutex
+	sync.RWMutex
 	tlog plugins.TlogClient
 
 	// dataDir is the comments plugin data directory. The only data
@@ -43,29 +42,9 @@ type commentsPlugin struct {
 	// prove the backend received and processed a plugin command.
 	identity *identity.FullIdentity
 
-	// Mutexes contains a mutex for each record. The mutexes are lazy
-	// loaded.
-	mutexes map[string]*sync.Mutex // [string]mutex
-
 	// Plugin settings
 	commentLengthMax uint32
 	voteChangesMax   uint32
-}
-
-// mutex returns the mutex for a record.
-func (p *commentsPlugin) mutex(token []byte) *sync.Mutex {
-	p.Lock()
-	defer p.Unlock()
-
-	t := hex.EncodeToString(token)
-	m, ok := p.mutexes[t]
-	if !ok {
-		// Mutexes is lazy loaded
-		m = &sync.Mutex{}
-		p.mutexes[t] = m
-	}
-
-	return m
 }
 
 // Setup performs any plugin setup that is required.
@@ -186,7 +165,6 @@ func New(tlog plugins.TlogClient, settings []backend.PluginSetting, dataDir stri
 		tlog:             tlog,
 		identity:         id,
 		dataDir:          dataDir,
-		mutexes:          make(map[string]*sync.Mutex),
 		commentLengthMax: commentLengthMax,
 		voteChangesMax:   voteChangesMax,
 	}, nil

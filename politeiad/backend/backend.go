@@ -50,6 +50,11 @@ var (
 	// used.
 	ErrPluginCmdInvalid = errors.New("plugin command invalid")
 
+	// ErrPluginActionInvalid is emitted when an invalid plugin action
+	// is used. See PluginActionRead and PluginActionWrite for valid
+	// plugin actions.
+	ErrPluginActionInvalid = errors.New("plugin action invalid")
+
 	// Plugin names must be all lowercase letters and have a length of <20
 	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
 )
@@ -109,19 +114,6 @@ type StateTransitionError struct {
 func (s StateTransitionError) Error() string {
 	return fmt.Sprintf("invalid record status transition %v (%v) -> %v (%v)",
 		s.From, MDStatus[s.From], s.To, MDStatus[s.To])
-}
-
-// PluginError represents a plugin error that is caused by the user.
-type PluginError struct {
-	PluginID     string
-	ErrorCode    int
-	ErrorContext string
-}
-
-// Error satisfies the error interface.
-func (e PluginError) Error() string {
-	return fmt.Sprintf("plugin id '%v' error code %v",
-		e.PluginID, e.ErrorCode)
 }
 
 // RecordMetadata is the metadata of a record.
@@ -193,6 +185,21 @@ type RecordTimestamps struct {
 	Files          map[string]Timestamp // [filename]Timestamp
 }
 
+const (
+	// PluginActionRead is provided to the backend methods that execute
+	// plugin commands to indicate that the plugin command is a read
+	// only command.
+	PluginActionRead = "read"
+
+	// PluginActionWrite is provided to the backend methods that execute
+	// plugin commands to indicate that the plugin command writes data
+	// to the backend. This allows the backend to prevent concurrent
+	// writes to the record so that individual plugin implementations
+	// do not need to worry about implementing logic to prevent race
+	// conditions.
+	PluginActionWrite = "write"
+)
+
 // PluginSettings are used to specify settings for a plugin at runtime.
 type PluginSetting struct {
 	Key   string // Name of setting
@@ -209,6 +216,19 @@ type Plugin struct {
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
 	Identity *identity.FullIdentity
+}
+
+// PluginError represents a plugin error that is caused by the user.
+type PluginError struct {
+	PluginID     string
+	ErrorCode    int
+	ErrorContext string
+}
+
+// Error satisfies the error interface.
+func (e PluginError) Error() string {
+	return fmt.Sprintf("plugin id '%v' error code %v",
+		e.PluginID, e.ErrorCode)
 }
 
 const (
@@ -298,11 +318,11 @@ type Backend interface {
 	SetupVettedPlugin(pluginID string) error
 
 	// Execute a unvetted plugin command
-	UnvettedPluginCmd(token []byte, pluginID,
+	UnvettedPluginCmd(action string, token []byte, pluginID,
 		cmd, payload string) (string, error)
 
 	// Execute a vetted plugin command
-	VettedPluginCmd(token []byte, pluginID,
+	VettedPluginCmd(action string, token []byte, pluginID,
 		cmd, payload string) (string, error)
 
 	// Get unvetted plugins

@@ -23,6 +23,7 @@ func (c *Client) CommentNew(ctx context.Context, state string, n comments.New) (
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionWrite,
 			State:   state,
 			Token:   n.Token,
 			ID:      comments.PluginID,
@@ -64,6 +65,7 @@ func (c *Client) CommentVote(ctx context.Context, state string, v comments.Vote)
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionWrite,
 			State:   state,
 			Token:   v.Token,
 			ID:      comments.PluginID,
@@ -105,6 +107,7 @@ func (c *Client) CommentDel(ctx context.Context, state string, d comments.Del) (
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionWrite,
 			State:   state,
 			Token:   d.Token,
 			ID:      comments.PluginID,
@@ -146,6 +149,7 @@ func (c *Client) CommentCount(ctx context.Context, state string, tokens []string
 	cmds := make([]pdv1.PluginCommandV2, 0, len(tokens))
 	for _, v := range tokens {
 		cmds = append(cmds, pdv1.PluginCommandV2{
+			Action:  pdv1.PluginActionRead,
 			State:   state,
 			Token:   v,
 			ID:      comments.PluginID,
@@ -190,6 +194,7 @@ func (c *Client) CommentGetAll(ctx context.Context, state, token string) ([]comm
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   state,
 			Token:   token,
 			ID:      comments.PluginID,
@@ -231,6 +236,7 @@ func (c *Client) CommentVotes(ctx context.Context, state, token string, v commen
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   state,
 			Token:   token,
 			ID:      comments.PluginID,
@@ -273,6 +279,7 @@ func (c *Client) CommentTimestamps(ctx context.Context, state, token string, t c
 	}
 	cmds := []pdv1.PluginCommandV2{
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   state,
 			Token:   token,
 			ID:      comments.PluginID,

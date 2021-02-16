@@ -56,11 +56,14 @@ func (p *commentsPlugin) recordIndexPath(token []byte) string {
 	return filepath.Join(p.dataDir, fn)
 }
 
-// recordIndexLocked returns the cached recordIndex for the provided record.
-// If a cached recordIndex does not exist, a new one will be returned.
+// recordIndex returns the cached recordIndex for the provided record. If a
+// cached recordIndex does not exist, a new one will be returned.
 //
-// This function must be called WITH the lock held.
-func (p *commentsPlugin) recordIndexLocked(token []byte) (*recordIndex, error) {
+// This function must be called WITHOUT the read lock held.
+func (p *commentsPlugin) recordIndex(token []byte) (*recordIndex, error) {
+	p.RLock()
+	defer p.RUnlock()
+
 	fp := p.recordIndexPath(token)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
@@ -83,23 +86,14 @@ func (p *commentsPlugin) recordIndexLocked(token []byte) (*recordIndex, error) {
 	return &ridx, nil
 }
 
-// recordIndex returns the cached recordIndex for the provided record. If a
-// cached recordIndex does not exist, a new one will be returned.
+// recordIndexSave saves the provided recordIndex to the comments plugin data
+// dir.
 //
-// This function must be called WITHOUT the lock held.
-func (p *commentsPlugin) recordIndex(token []byte) (*recordIndex, error) {
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
+// This function must be called WITHOUT the read/write lock held.
+func (p *commentsPlugin) recordIndexSave(token []byte, ridx recordIndex) error {
+	p.Lock()
+	defer p.Unlock()
 
-	return p.recordIndexLocked(token)
-}
-
-// recordIndexSaveLocked saves the provided recordIndex to the comments
-// plugin data dir.
-//
-// This function must be called WITH the lock held.
-func (p *commentsPlugin) recordIndexSaveLocked(token []byte, ridx recordIndex) error {
 	b, err := json.Marshal(ridx)
 	if err != nil {
 		return err

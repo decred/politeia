@@ -73,10 +73,7 @@ const (
 	ErrorStatusInvalidToken                  ErrorStatusT = 18
 	ErrorStatusRecordLocked                  ErrorStatusT = 19
 	ErrorStatusInvalidRecordState            ErrorStatusT = 20
-
-	// Record states
-	RecordStateUnvetted = "unvetted"
-	RecordStateVetted   = "vetted"
+	ErrorStatusInvalidPluginAction           ErrorStatusT = 21
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -119,6 +116,7 @@ var (
 		ErrorStatusInvalidToken:                  "invalid token",
 		ErrorStatusRecordLocked:                  "record locked",
 		ErrorStatusInvalidRecordState:            "invalid record state",
+		ErrorStatusInvalidPluginAction:           "invalid plugin action",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
@@ -577,8 +575,29 @@ type PluginCommandReply struct {
 	Payload   string `json:"payload"`   // Actual command reply
 }
 
+const (
+	// PluginActionRead is passed in as the Action of a PluginCommandV2
+	// to indicate that the plugin command is a read only command.
+	PluginActionRead = "read"
+
+	// PluginActionWrite is passed in as the Action of a PluginCommandV2
+	// to indicate that the plugin command requires writing data.
+	PluginActionWrite = "write"
+
+	// RecordStateUnvetted is passed in as the State field of a
+	// PluginCommandV2 to indicate that the plugin command is being
+	// executed on an unvetted record.
+	RecordStateUnvetted = "unvetted"
+
+	// RecordStateVetted is passed in as the State field of a
+	// PluginCommandV2 to indicate that the plugin command is being
+	// executed on an vetted record.
+	RecordStateVetted = "vetted"
+)
+
 // PluginCommandV2 sends a command to a plugin.
 type PluginCommandV2 struct {
+	Action  string `json:"action"`  // Read or write
 	State   string `json:"state"`   // Unvetted or vetted
 	Token   string `json:"token"`   // Censorship token
 	ID      string `json:"id"`      // Plugin identifier

@@ -67,9 +67,9 @@ type tlogBackend struct {
 	// This cache memoizes those results and is lazy loaded.
 	vettedTreeIDs map[string]int64 // [token]treeID
 
-	// recordMtxs allows a the backend to hold a lock on a record so
-	// that it can perform multiple read/write operations in a
-	// concurrent safe manner. These mutexes are lazy loaded.
+	// recordMtxs allows the backend to hold a lock on an individual
+	// record so that it can perform multiple read/write operations
+	// in a concurrent safe manner. These mutexes are lazy loaded.
 	recordMtxs map[string]*sync.Mutex
 }
 
@@ -1535,16 +1535,7 @@ func (t *tlogBackend) SetupVettedPlugin(pluginID string) error {
 	return t.vetted.PluginSetup(pluginID)
 }
 
-// UnvettedPluginCmd executes a plugin command on an unvetted record.
-//
-// This function satisfies the backend.Backend interface.
-func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("UnvettedPluginCmd: %x %v %v", token, pluginID, cmd)
-
-	if t.isShutdown() {
-		return "", backend.ErrShutdown
-	}
-
+func (t *tlogBackend) unvettedPluginRead(token []byte, pluginID, cmd, payload string) (string, error) {
 	// The token is optional. If a token is not provided then a tree ID
 	// will not be provided to the plugin.
 	var treeID int64
@@ -1566,6 +1557,28 @@ func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload str
 			pluginID, cmd)
 	}
 
+	return t.unvetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+}
+
+func (t *tlogBackend) unvettedPluginWrite(token []byte, pluginID, cmd, payload string) (string, error) {
+	// Get tree ID
+	treeID := t.unvettedTreeIDFromToken(token)
+
+	// Verify unvetted record exists
+	if !t.UnvettedExists(token) {
+		return "", backend.ErrRecordNotFound
+	}
+
+	log.Debugf("Unvetted '%v' plugin cmd '%v' on record %x",
+		pluginID, cmd, token)
+
+	// Hold the record lock for the remainder of this function. We
+	// do this here in the backend so that the individual plugins
+	// implementations don't need to worry about race conditions.
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
+
 	// Call pre plugin hooks
 	hp := plugins.HookPluginPre{
 		State:    plugins.RecordStateUnvetted,
@@ -1583,6 +1596,7 @@ func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload str
 		return "", err
 	}
 
+	// Execute plugin command
 	reply, err := t.unvetted.PluginCmd(treeID, token, pluginID, cmd, payload)
 	if err != nil {
 		return "", err
@@ -1606,16 +1620,39 @@ func (t *tlogBackend) UnvettedPluginCmd(token []byte, pluginID, cmd, payload str
 	return reply, nil
 }
 
-// VettedPluginCmd executes a plugin command on an unvetted record.
+// UnvettedPluginCmd executes a plugin command on an unvetted record.
 //
 // This function satisfies the backend.Backend interface.
-func (t *tlogBackend) VettedPluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("VettedPluginCmd: %x %v %v", token, pluginID, cmd)
+func (t *tlogBackend) UnvettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("UnvettedPluginCmd: %v %x %v %v", action, token, pluginID, cmd)
 
 	if t.isShutdown() {
 		return "", backend.ErrShutdown
 	}
 
+	var (
+		reply string
+		err   error
+	)
+	switch action {
+	case backend.PluginActionRead:
+		reply, err = t.unvettedPluginRead(token, pluginID, cmd, payload)
+		if err != nil {
+			return "", err
+		}
+	case backend.PluginActionWrite:
+		reply, err = t.unvettedPluginWrite(token, pluginID, cmd, payload)
+		if err != nil {
+			return "", err
+		}
+	default:
+		return "", backend.ErrPluginActionInvalid
+	}
+
+	return reply, nil
+}
+
+func (t *tlogBackend) vettedPluginRead(token []byte, pluginID, cmd, payload string) (string, error) {
 	// The token is optional. If a token is not provided then a tree ID
 	// will not be provided to the plugin.
 	var treeID int64
@@ -1635,6 +1672,26 @@ func (t *tlogBackend) VettedPluginCmd(token []byte, pluginID, cmd, payload strin
 		log.Debugf("Vetted '%v' plugin command '%v'",
 			pluginID, cmd)
 	}
+
+	return t.vetted.PluginCmd(treeID, token, pluginID, cmd, payload)
+}
+
+func (t *tlogBackend) vettedPluginWrite(token []byte, pluginID, cmd, payload string) (string, error) {
+	// Get tree ID
+	treeID, ok := t.vettedTreeIDFromToken(token)
+	if !ok {
+		return "", backend.ErrRecordNotFound
+	}
+
+	log.Debugf("Vetted '%v' plugin cmd '%v' on record %x",
+		pluginID, cmd, token)
+
+	// Hold the record lock for the remainder of this function. We
+	// do this here in the backend so that the individual plugins
+	// implementations don't need to worry about race conditions.
+	m := t.recordMutex(token)
+	m.Lock()
+	defer m.Unlock()
 
 	// Call pre plugin hooks
 	hp := plugins.HookPluginPre{
@@ -1673,6 +1730,38 @@ func (t *tlogBackend) VettedPluginCmd(token []byte, pluginID, cmd, payload strin
 	}
 	t.vetted.PluginHookPost(treeID, token,
 		plugins.HookTypePluginPost, string(b))
+
+	return reply, nil
+}
+
+// VettedPluginCmd executes a plugin command on an unvetted record.
+//
+// This function satisfies the backend.Backend interface.
+func (t *tlogBackend) VettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("VettedPluginCmd: %v %x %v %v", action, token, pluginID, cmd)
+
+	if t.isShutdown() {
+		return "", backend.ErrShutdown
+	}
+
+	var (
+		reply string
+		err   error
+	)
+	switch action {
+	case backend.PluginActionRead:
+		reply, err = t.vettedPluginRead(token, pluginID, cmd, payload)
+		if err != nil {
+			return "", err
+		}
+	case backend.PluginActionWrite:
+		reply, err = t.vettedPluginWrite(token, pluginID, cmd, payload)
+		if err != nil {
+			return "", err
+		}
+	default:
+		return "", backend.ErrPluginActionInvalid
+	}
 
 	return reply, nil
 }

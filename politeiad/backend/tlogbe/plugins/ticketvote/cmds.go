@@ -374,8 +374,8 @@ func (p *ticketVotePlugin) voteDetails(treeID int64) (*ticketvote.VoteDetails, e
 }
 
 func (p *ticketVotePlugin) voteDetailsByToken(token []byte) (*ticketvote.VoteDetails, error) {
-	reply, err := p.backend.VettedPluginCmd(token, ticketvote.PluginID,
-		ticketvote.CmdDetails, "")
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		token, ticketvote.PluginID, ticketvote.CmdDetails, "")
 	if err != nil {
 		return nil, err
 	}
@@ -440,8 +440,8 @@ func (p *ticketVotePlugin) voteOptionResults(token []byte, options []ticketvote.
 
 	default:
 		// Votes are not in the cache. Pull them from the backend.
-		reply, err := p.backend.VettedPluginCmd(token, ticketvote.PluginID,
-			ticketvote.CmdResults, "")
+		reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+			token, ticketvote.PluginID, ticketvote.CmdResults, "")
 		var rr ticketvote.ResultsReply
 		err = json.Unmarshal([]byte(reply), &rr)
 		if err != nil {
@@ -477,8 +477,8 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.VettedPluginCmd(parent, ticketvote.PluginID,
-		cmdRunoffDetails, "")
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		parent, ticketvote.PluginID, cmdRunoffDetails, "")
 	if err != nil {
 		return nil, fmt.Errorf("VettedPluginCmd %x %v %v: %v",
 			parent, ticketvote.PluginID, cmdRunoffDetails, err)
@@ -720,8 +720,8 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 }
 
 func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.SummaryReply, error) {
-	reply, err := p.backend.VettedPluginCmd(token, ticketvote.PluginID,
-		ticketvote.CmdSummary, "")
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		token, ticketvote.PluginID, ticketvote.CmdSummary, "")
 	if err != nil {
 		return nil, fmt.Errorf("VettedPluginCmd %x %v %v: %v",
 			token, ticketvote.PluginID, ticketvote.CmdSummary, err)
@@ -768,8 +768,8 @@ func (p *ticketVotePlugin) bestBlock() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.PluginID,
-		dcrdata.CmdBestBlock, string(payload))
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		[]byte{}, dcrdata.PluginID, dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
 		return 0, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdBestBlock, err)
@@ -804,8 +804,8 @@ func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.PluginID,
-		dcrdata.CmdBestBlock, string(payload))
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		[]byte{}, dcrdata.PluginID, dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
 		return 0, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdBestBlock, err)
@@ -839,8 +839,8 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmen
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.PluginID,
-		dcrdata.CmdTxsTrimmed, string(payload))
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		[]byte{}, dcrdata.PluginID, dcrdata.CmdTxsTrimmed, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdTxsTrimmed, err)
@@ -909,8 +909,8 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.VettedPluginCmd([]byte{}, dcrdata.PluginID,
-		dcrdata.CmdBlockDetails, string(payload))
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		[]byte{}, dcrdata.PluginID, dcrdata.CmdBlockDetails, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdBlockDetails, err)
@@ -933,8 +933,8 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	reply, err = p.backend.VettedPluginCmd([]byte{}, dcrdata.PluginID,
-		dcrdata.CmdTicketPool, string(payload))
+	reply, err = p.backend.VettedPluginCmd(backend.PluginActionRead,
+		[]byte{}, dcrdata.PluginID, dcrdata.CmdTicketPool, string(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Plugin %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdTicketPool, err)
@@ -1013,13 +1013,6 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 			ErrorContext: e,
 		}
 	}
-
-	// The previous authorize votes must be retrieved to validate the
-	// new autorize vote. The lock must be held for the remainder of
-	// this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
 
 	// Get any previous authorizations to verify that the new action
 	// is allowed based on the previous action.
@@ -1322,12 +1315,6 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 		return nil, err
 	}
 
-	// Validate existing record state. The lock for this record must be
-	// held for the remainder of this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Verify record version
 	r, err := p.backend.GetVetted(token, "")
 	if err != nil {
@@ -1611,12 +1598,6 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 		return nil, err
 	}
 
-	// The parent record must be validated. Hold the lock on the parent
-	// record for the remainder of this function.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Verify parent has a LinkBy and the LinkBy deadline is expired.
 	r, err := p.backend.GetVetted(token, "")
 	if err != nil {
@@ -1890,8 +1871,8 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 		if err != nil {
 			return nil, err
 		}
-		_, err = p.backend.VettedPluginCmd(token, ticketvote.PluginID,
-			cmdStartRunoffSubmission, string(b))
+		_, err = p.backend.VettedPluginCmd(backend.PluginActionWrite,
+			token, ticketvote.PluginID, cmdStartRunoffSubmission, string(b))
 		if err != nil {
 			var ue backend.PluginError
 			if errors.As(err, &ue) {
@@ -2298,12 +2279,6 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			continue
 		}
 	}
-
-	// The record lock must be held for the remainder of the function to
-	// ensure duplicate votes cannot be cast.
-	m := p.mutex(token)
-	m.Lock()
-	defer m.Unlock()
 
 	// votesCache contains the tickets that have alread voted
 	votesCache := p.votesCache(token)

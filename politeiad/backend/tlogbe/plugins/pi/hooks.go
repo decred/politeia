@@ -221,8 +221,8 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 }
 
 func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
-	reply, err := p.backend.VettedPluginCmd(token,
-		ticketvote.PluginID, ticketvote.CmdSummary, "")
+	reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+		token, ticketvote.PluginID, ticketvote.CmdSummary, "")
 	if err != nil {
 		return nil, err
 	}

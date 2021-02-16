@@ -1270,10 +1270,10 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 		var payload string
 		switch pc.State {
 		case v1.RecordStateUnvetted:
-			payload, err = p.backend.UnvettedPluginCmd(token,
+			payload, err = p.backend.UnvettedPluginCmd(pc.Action, token,
 				pc.ID, pc.Command, pc.Payload)
 		case v1.RecordStateVetted:
-			payload, err = p.backend.VettedPluginCmd(token,
+			payload, err = p.backend.VettedPluginCmd(pc.Action, token,
 				pc.ID, pc.Command, pc.Payload)
 		default:
 			replies[k] = v1.PluginCommandReplyV2{
@@ -1295,6 +1295,12 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 						PluginID:     e.PluginID,
 						ErrorCode:    e.ErrorCode,
 						ErrorContext: []string{e.ErrorContext},
+					},
+				}
+			case err == backend.ErrPluginActionInvalid:
+				replies[k] = v1.PluginCommandReplyV2{
+					UserError: &v1.UserErrorReply{
+						ErrorCode: v1.ErrorStatusInvalidPluginAction,
 					},
 				}
 			case err == backend.ErrRecordNotFound:
