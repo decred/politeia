@@ -139,8 +139,8 @@ func (cmd *userNewCmd) Execute(args []string) error {
 	}
 
 	// Pays paywall fee using faucet
-	if cmd.Paywall {
-		faucet := sendFaucetTxCmd{}
+	if pr.PaywallEnabled && cmd.Paywall {
+		faucet := cmdSendFaucetTx{}
 		faucet.Args.Address = lr.PaywallAddress
 		faucet.Args.Amount = lr.PaywallAmount
 		err = faucet.Execute(nil)

@@ -1,11 +1,11 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
-// testRunCmd performs a test run of all the politeiawww routes.
-type testRunCmd struct {
+// cmdTestRun performs a test run of all the politeiawww routes.
+type cmdTestRun struct {
 	Args struct {
 		AdminEmail    string `positional-arg-name:"adminemail"`
 		AdminPassword string `positional-arg-name:"adminpassword"`
@@ -1391,10 +1391,10 @@ func testCommentRoutes(admin testUser) error {
 	return nil
 }
 
-// Execute executes the testRunCmd command.
+// Execute executes the cmdTestRun command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *testRunCmd) Execute(args []string) error {
+func (cmd *cmdTestRun) Execute(args []string) error {
 	// Suppress output from cli commands
 	cfg.Silent = true
 

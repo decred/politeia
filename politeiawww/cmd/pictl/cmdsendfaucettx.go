@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,9 +11,9 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// sendFaucetTxCmd uses the Decred testnet faucet to send the specified amount
+// cmdSendFaucetTx uses the Decred testnet faucet to send the specified amount
 // of DCR (in atoms) to the specified address.
-type sendFaucetTxCmd struct {
+type cmdSendFaucetTx struct {
 	Args struct {
 		Address       string `positional-arg-name:"address" required:"true"`
 		Amount        uint64 `positional-arg-name:"amount" required:"true"`
@@ -21,16 +21,16 @@ type sendFaucetTxCmd struct {
 	} `positional-args:"true"`
 }
 
-// Execute executes the sendFaucetTxCmd command.
+// Execute executes the cmdSendFaucetTx command.
 //
 // This function satisfies the go-flags Commander interface.
-func (cmd *sendFaucetTxCmd) Execute(args []string) error {
-	address := cmd.Args.Address
-	atoms := cmd.Args.Amount
+func (c *cmdSendFaucetTx) Execute(args []string) error {
+	address := c.Args.Address
+	atoms := c.Args.Amount
 	dcr := float64(atoms) / 1e8
 
 	txID, err := util.PayWithTestnetFaucet(context.Background(),
-		cfg.FaucetHost, address, atoms, cmd.Args.OverrideToken)
+		cfg.FaucetHost, address, atoms, c.Args.OverrideToken)
 	if err != nil {
 		return err
 	}

@@ -100,8 +100,9 @@ type pictl struct {
 	Subscribe subscribeCmd `command:"subscribe"`
 
 	// Dev commands
-	TestRun      testRunCmd      `command:"testrun"`
-	SendFaucetTx sendFaucetTxCmd `command:"sendfaucettx"`
+	SendFaucetTx        cmdSendFaucetTx         `command:"sendfaucettx"`
+	TestRun             cmdTestRun              `command:"testrun"`
+	TestProposalCapcity cmdTestProposalCapacity `command:"testproposalcapacity"`
 }
 
 const helpMsg = `Application Options:

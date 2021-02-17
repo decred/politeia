@@ -9,12 +9,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
@@ -42,47 +39,61 @@ type cmdProposalEdit struct {
 	// Metadata fields that can be set by the user
 	Name   string `long:"name" optional:"true"`
 	LinkTo string `long:"linkto" optional:"true"`
-	LinkBy int64  `long:"linkby" optional:"true"`
-
-	// Random generates random proposal data. An IndexFile and
-	// Attachments are not required when using this flag.
-	Random bool `long:"random" optional:"true"`
+	LinkBy string `long:"linkby" optional:"true"`
 
 	// RFP is a flag that is intended to make submitting an RFP easier
 	// by calculating and inserting a linkby timestamp automatically
 	// instead of having to pass in a timestamp using the --linkby
 	// flag.
 	RFP bool `long:"rfp" optional:"true"`
+
+	// Random generates a random index file. The IndexFile argument is
+	// not allowed when using this flag.
+	Random bool `long:"random" optional:"true"`
+
+	// RandomImages generates random image attachments. The Attachments
+	// argument is not allowed when using this flag.
+	RandomImages bool `long:"randomimages" optional:"true"`
 }
 
 // Execute executes the cmdProposalEdit command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdProposalEdit) Execute(args []string) error {
+	_, err := proposalEdit(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// proposalEdit edits a proposal. This function has been pulled out of the
+// Execute method so that is can be used in the test commands.
+func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 	// Unpack args
 	token := c.Args.Token
 	indexFile := c.Args.IndexFile
 	attachments := c.Args.Attachments
 
-	// Verify args
+	// Verify args and flags
 	switch {
 	case !c.Random && indexFile == "":
-		return fmt.Errorf("index file not found; you must either " +
+		return nil, fmt.Errorf("index file not found; you must either " +
 			"provide an index.md file or use --random")
 
-	case c.Random && indexFile != "":
-		return fmt.Errorf("you cannot provide file arguments and use " +
-			"the --random flag at the same time")
+	case c.RandomImages && len(attachments) == 0:
+		return nil, fmt.Errorf("you cannot provide file arguments and use " +
+			"the --randomimages flag at the same time")
 
-	case c.RFP && c.LinkBy != 0:
-		return fmt.Errorf("you cannot use both the --rfp and --linkby " +
+	case c.RFP && c.LinkBy != "":
+		return nil, fmt.Errorf("you cannot use both the --rfp and --linkby " +
 			"flags at the same time")
 	}
 
 	// Check for user identity. A user identity is required to sign
 	// the proposal files.
 	if cfg.Identity == nil {
-		return shared.ErrUserIdentityNotFound
+		return nil, shared.ErrUserIdentityNotFound
 	}
 
 	// Setup client
@@ -95,13 +106,13 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get the pi policy. It contains the proposal requirements.
 	pr, err := pc.PiPolicy()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup state
@@ -113,45 +124,28 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 		state = rcv1.RecordStateVetted
 	}
 
-	// Setup index file
-	files := make([]rcv1.File, 0, 16)
-	if c.Random {
-		// Generate random text for the index file
-		f, err := indexFileRandom(1024)
+	// Setup proposal files
+	var files []rcv1.File
+	switch {
+	case c.Random && c.RandomImages:
+		// Create a random index file and random attachments
+		files, err = proposalFilesRandom(int(pr.TextFileSizeMax),
+			int(pr.ImageFileCountMax))
 		if err != nil {
-			return err
+			return nil, err
 		}
-		files = append(files, *f)
-	} else {
-		// Read index file from disk
-		fp := util.CleanAndExpandPath(indexFile)
-		var err error
-		payload, err := ioutil.ReadFile(fp)
+	case c.Random:
+		// Create a random index file
+		files, err = proposalFilesRandom(int(pr.TextFileSizeMax), 0)
 		if err != nil {
-			return fmt.Errorf("ReadFile %v: %v", fp, err)
+			return nil, err
 		}
-		files = append(files, rcv1.File{
-			Name:    piplugin.FileNameIndexFile,
-			MIME:    mime.DetectMimeType(payload),
-			Digest:  hex.EncodeToString(util.Digest(payload)),
-			Payload: base64.StdEncoding.EncodeToString(payload),
-		})
-	}
-
-	// Setup attachment files
-	for _, fn := range attachments {
-		fp := util.CleanAndExpandPath(fn)
-		payload, err := ioutil.ReadFile(fp)
+	default:
+		// Read files from disk
+		files, err = proposalFilesFromDisk(indexFile, attachments)
 		if err != nil {
-			return fmt.Errorf("ReadFile %v: %v", fp, err)
+			return nil, err
 		}
-
-		files = append(files, rcv1.File{
-			Name:    filepath.Base(fn),
-			MIME:    mime.DetectMimeType(payload),
-			Digest:  hex.EncodeToString(util.Digest(payload)),
-			Payload: base64.StdEncoding.EncodeToString(payload),
-		})
 	}
 
 	// Get current proposal if we are using the existing metadata
@@ -163,7 +157,7 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 		}
 		curr, err = pc.RecordDetails(d)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -173,14 +167,14 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 		// Use the existing proposal name
 		pm, err := proposalMetadataDecode(curr.Files)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		c.Name = pm.Name
 	case c.Random && c.Name == "":
 		// Create a random proposal name
 		r, err := util.Random(int(pr.NameLengthMin))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		c.Name = hex.EncodeToString(r)
 	}
@@ -189,7 +183,7 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	files = append(files, rcv1.File{
 		Name:    piv1.FileNameProposalMetadata,
@@ -199,26 +193,35 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 	})
 
 	// Setup vote metadata
-	if c.UseMD {
+	var linkBy int64
+	switch {
+	case c.UseMD:
+		// Use existing vote metadata values
 		vm, err := voteMetadataDecode(curr.Files)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		c.LinkBy = vm.LinkBy
+		linkBy = vm.LinkBy
 		c.LinkTo = vm.LinkTo
-	}
-	if c.RFP {
+	case c.RFP:
 		// Set linkby to a month from now
-		c.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+		linkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	case c.LinkBy != "":
+		// Parse the provided linkby
+		d, err := time.ParseDuration(c.LinkBy)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse linkby: %v", err)
+		}
+		linkBy = time.Now().Add(d).Unix()
 	}
-	if c.LinkBy != 0 || c.LinkTo != "" {
+	if linkBy != 0 || c.LinkTo != "" {
 		vm := piv1.VoteMetadata{
 			LinkTo: c.LinkTo,
-			LinkBy: c.LinkBy,
+			LinkBy: linkBy,
 		}
 		vmb, err := json.Marshal(vm)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		files = append(files, rcv1.File{
 			Name:    piv1.FileNameVoteMetadata,
@@ -228,10 +231,10 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 		})
 	}
 
-	// Setup request
+	// Edit record
 	sig, err := signedMerkleRoot(files, cfg.Identity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	e := rcv1.Edit{
 		State:     state,
@@ -240,31 +243,29 @@ func (c *cmdProposalEdit) Execute(args []string) error {
 		PublicKey: cfg.Identity.Public.String(),
 		Signature: sig,
 	}
-
-	// Send request
 	er, err := pc.RecordEdit(e)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verify record
 	vr, err := client.Version()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = pclient.RecordVerify(er.Record, vr.PubKey)
 	if err != nil {
-		return fmt.Errorf("unable to verify record: %v", err)
+		return nil, fmt.Errorf("unable to verify record: %v", err)
 	}
 
 	// Print proposal to stdout
 	printf("Proposal editted\n")
 	err = printProposal(er.Record)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &er.Record, nil
 }
 
 // proposalEditHelpMsg is the printed to stdout by the help command.
@@ -281,22 +282,34 @@ A proposal can be submitted as an RFP submission by using the --linkto flag
 to link to and an existing RFP proposal.
 
 Arguments:
-1. token         (string, required) Proposal censorship token
-2. indexfile     (string, required) Index file
-3. attachments   (string, optional) Attachment files
+1. token       (string, required) Proposal censorship token.
+2. indexfile   (string, optional) Index file.
+3. attachments (string, optional) Attachment files.
 
 Flags:
- --unvetted (bool, optional)   Edit an unvetted record.
- --usemd    (bool, optional)   Use the existing proposal metadata.
- --name     (string, optional) Name of the proposal.
- --linkto   (string, optional) Token of an existing public proposal to link to.
- --linkby   (int64, optional)  UNIX timestamp of the RFP deadline. Setting this
-                               field will make the proposal an RFP with a
-                               submission deadline specified by the linkby.
- --random   (bool, optional)   Generate a random proposal. If this flag is used
-                               then the markdownfile argument is no longer
-                               required and any provided files will be ignored.
- --rfp      (bool, optional)   Make the proposal an RFP by setting the linkby
-                               to one month from the current time. This is
-                               intended to be used in place of --linkby.
+ --unvetted     (bool)   Edit an unvetted record.
+
+ --usemd        (bool)   Use the existing proposal metadata.
+
+ --name         (string) Name of the proposal.
+
+ --linkto       (string) Token of an existing public proposal to link to.
+
+ --linkby       (string) Make the proposal and RFP by setting the linkby
+                         deadline. Other proposals must be entered as RFP
+                         submissions by this linkby deadline. The provided
+                         string should be a duration that will be added onto
+                         the current time. Valid duration units are:
+                         s (seconds), m (minutes), h (hours).
+
+ --rfp          (bool)   Make the proposal an RFP by setting the linkby to one
+                         month from the current time. This is intended to be
+                         used in place of --linkby.
+
+ --random       (bool)   Generate random proposal data, not including
+                         attachments. The indexFile argument is not allowed
+                         when using this flag.
+
+ --randomimages (bool)   Generate random attachments. The attachments argument
+                         is not allowed when using this flag.
 `

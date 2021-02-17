@@ -33,10 +33,21 @@ type cmdProposalSetStatus struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdProposalSetStatus) Execute(args []string) error {
+	_, err := proposalSetStatus(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// proposalSetStatus sets the status of a proposal. This function has been
+// pulled out of the Execute method so that is can be used in the test
+// commands.
+func proposalSetStatus(c *cmdProposalSetStatus) (*rcv1.Record, error) {
 	// Verify user identity. This will be needed to sign the status
 	// change.
 	if cfg.Identity == nil {
-		return shared.ErrUserIdentityNotFound
+		return nil, shared.ErrUserIdentityNotFound
 	}
 
 	// Setup client
@@ -49,7 +60,7 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup state
@@ -65,7 +76,7 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 	// human readable equivalent.
 	status, err := parseRecordStatus(c.Args.Status)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup version
@@ -80,7 +91,7 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 		}
 		r, err := pc.RecordDetails(d)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		version = r.Version
 	}
@@ -101,26 +112,26 @@ func (c *cmdProposalSetStatus) Execute(args []string) error {
 	// Send request
 	ssr, err := pc.RecordSetStatus(ss)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verify record
 	vr, err := client.Version()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = pclient.RecordVerify(ssr.Record, vr.PubKey)
 	if err != nil {
-		return fmt.Errorf("unable to verify record: %v", err)
+		return nil, fmt.Errorf("unable to verify record: %v", err)
 	}
 
 	// Print proposal to stdout
 	err = printProposal(ssr.Record)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &ssr.Record, nil
 }
 
 func parseRecordStatus(status string) (rcv1.RecordStatusT, error) {
