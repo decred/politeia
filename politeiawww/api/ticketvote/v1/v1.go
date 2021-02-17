@@ -27,18 +27,19 @@ type ErrorCodeT int
 
 const (
 	// Error codes
-	ErrorCodeInvalid      ErrorCodeT = 0
-	ErrorCodeInputInvalid ErrorCodeT = 1
-
-	ErrorCodePublicKeyInvalid ErrorCodeT = iota
-	ErrorCodeUnauthorized
+	ErrorCodeInvalid          ErrorCodeT = 0
+	ErrorCodeInputInvalid     ErrorCodeT = 1
+	ErrorCodePublicKeyInvalid ErrorCodeT = 2
+	ErrorCodeUnauthorized     ErrorCodeT = 3
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:      "error invalid",
-		ErrorCodeInputInvalid: "input invalid",
+		ErrorCodeInvalid:          "error invalid",
+		ErrorCodeInputInvalid:     "input invalid",
+		ErrorCodePublicKeyInvalid: "public key invalid",
+		ErrorCodeUnauthorized:     "unauthorized",
 	}
 )
 

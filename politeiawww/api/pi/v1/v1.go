@@ -8,10 +8,6 @@ import (
 	"fmt"
 )
 
-// TODO verify that all batched request have a page size limit
-//      comment timestamps, vote timestamps
-// TODO module these API packages
-
 const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/pi/v1"
