@@ -17,7 +17,7 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-type cmdProposalLoadTest struct {
+type cmdSeedProposals struct {
 	Args struct {
 		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
 		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
@@ -31,13 +31,13 @@ type cmdProposalLoadTest struct {
 	IncludeImages bool `long:"includeimages"`
 }
 
-// Execute executes the cmdProposalLoadTest command.
+// Execute executes the cmdSeedProposals command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *cmdProposalLoadTest) Execute(args []string) error {
+func (c *cmdSeedProposals) Execute(args []string) error {
 	fmt.Printf("Warn: this cmd should be run on a clean politeia instance\n")
 
-	// Setup default test parameters
+	// Setup default parameters
 	var (
 		userCount               = 10
 		proposalCount           = 25
@@ -508,9 +508,9 @@ func proposalUnreviewed(u user, includeImages bool) (*rcv1.Record, error) {
 // proposalUnvettedCensored creates a new proposal then censors the proposal.
 //
 // This function returns with all users logged out.
-func proposalUnvettedCensored(u user, admin user, includeImages bool) (*rcv1.Record, error) {
+func proposalUnvettedCensored(author, admin user, includeImages bool) (*rcv1.Record, error) {
 	// Setup an unvetted proposal
-	r, err := proposalUnreviewed(u, includeImages)
+	r, err := proposalUnreviewed(author, includeImages)
 	if err != nil {
 		return nil, err
 	}
@@ -546,9 +546,9 @@ func proposalUnvettedCensored(u user, admin user, includeImages bool) (*rcv1.Rec
 // proposalPublic creates and new proposal then makes the proposal public.
 //
 // This function returns with all users logged out.
-func proposalPublic(u user, admin user, includeImages bool) (*rcv1.Record, error) {
+func proposalPublic(author, admin user, includeImages bool) (*rcv1.Record, error) {
 	// Setup an unvetted proposal
-	r, err := proposalUnreviewed(u, includeImages)
+	r, err := proposalUnreviewed(author, includeImages)
 	if err != nil {
 		return nil, err
 	}
@@ -577,8 +577,8 @@ func proposalPublic(u user, admin user, includeImages bool) (*rcv1.Record, error
 		return nil, err
 	}
 
-	// Login user
-	err = userLogin(u)
+	// Login author
+	err = userLogin(author)
 	if err != nil {
 		return nil, err
 	}
@@ -595,7 +595,7 @@ func proposalPublic(u user, admin user, includeImages bool) (*rcv1.Record, error
 		return nil, fmt.Errorf("cmdProposalEdit: %v", err)
 	}
 
-	// Logout user
+	// Logout author
 	err = userLogout()
 	if err != nil {
 		return nil, err
@@ -608,9 +608,9 @@ func proposalPublic(u user, admin user, includeImages bool) (*rcv1.Record, error
 // then censors the proposal.
 //
 // This function returns with all users logged out.
-func proposalVettedCensored(u user, admin user, includeImages bool) (*rcv1.Record, error) {
+func proposalVettedCensored(author, admin user, includeImages bool) (*rcv1.Record, error) {
 	// Create a public proposal
-	r, err := proposalPublic(u, admin, includeImages)
+	r, err := proposalPublic(author, admin, includeImages)
 	if err != nil {
 		return nil, err
 	}
@@ -647,9 +647,9 @@ func proposalVettedCensored(u user, admin user, includeImages bool) (*rcv1.Recor
 // then abandones the proposal.
 //
 // This function returns with all users logged out.
-func proposalAbandoned(u user, admin user, includeImages bool) (*rcv1.Record, error) {
+func proposalAbandoned(author, admin user, includeImages bool) (*rcv1.Record, error) {
 	// Create a public proposal
-	r, err := proposalPublic(u, admin, includeImages)
+	r, err := proposalPublic(author, admin, includeImages)
 	if err != nil {
 		return nil, err
 	}

@@ -100,9 +100,10 @@ type pictl struct {
 	Subscribe subscribeCmd `command:"subscribe"`
 
 	// Dev commands
-	SendFaucetTx     cmdSendFaucetTx     `command:"sendfaucettx"`
-	TestRun          cmdTestRun          `command:"testrun"`
-	ProposalLoadTest cmdProposalLoadTest `command:"proposalloadtest"`
+	SendFaucetTx  cmdSendFaucetTx  `command:"sendfaucettx"`
+	TestRun       cmdTestRun       `command:"testrun"`
+	SeedProposals cmdSeedProposals `command:"seedproposals"`
+	SetupVoteTest cmdSetupVoteTest `command:"setupvotetest"`
 }
 
 const helpMsg = `Application Options:
@@ -181,8 +182,10 @@ Websocket commands
 
 Dev commands
   sendfaucettx            Send a dcr faucet tx
-  testrun                 Execute a test run of pi routes
-  proposalloadtest        Execute a load test using proposals
+  testrun                 Execute a test run of the pi routes
+  seedproposals           Seed the backend with proposals
+  setupvotetest           Setup a vote test
+  votetest                Execute a vote test
 `
 
 func _main() error {
