@@ -1828,10 +1828,16 @@ func (t *tlogBackend) setup() error {
 
 	log.Infof("Building backend token prefix cache")
 
+	// A record token is created using the unvetted tree ID so we
+	// only need to retrieve the unvetted trees in order to build the
+	// token prefix cache.
 	treeIDs, err := t.unvetted.TreesAll()
 	if err != nil {
 		return fmt.Errorf("unvetted TreesAll: %v", err)
 	}
+
+	log.Infof("%v records in the backend", len(treeIDs))
+
 	for _, v := range treeIDs {
 		token := tokenFromTreeID(v)
 		t.prefixAdd(token)

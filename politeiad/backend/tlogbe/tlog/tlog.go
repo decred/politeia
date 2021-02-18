@@ -1146,8 +1146,8 @@ func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian
 	}
 
 	// Extract the data blob. Its possible for the data blob to not
-	// exist if has been censored. This is ok. We'll still return the
-	// rest of the timestamp.
+	// exist if it has been censored. This is ok. We'll still return
+	// the rest of the timestamp.
 	var data []byte
 	if len(blobs) == 1 {
 		b, ok := blobs[ed.Key]

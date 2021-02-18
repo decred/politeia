@@ -89,8 +89,11 @@ func (t *Tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tril
 		return nil, fmt.Errorf("leaf not found")
 	}
 
-	// Find the first anchor that occurs after the leaf
-	var anchorKey string
+	// Find the first two anchor that occurs after the leaf. If the
+	// leaf was added in the middle of an anchor drop then it will not
+	// be part of the first anchor. It will be part of the second
+	// anchor.
+	keys := make([]string, 0, 2)
 	for i := int(l.LeafIndex); i < len(leaves); i++ {
 		l := leaves[i]
 		ed, err := extraDataDecode(l.ExtraData)
@@ -98,34 +101,54 @@ func (t *Tlog) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tril
 			return nil, err
 		}
 		if ed.Desc == dataDescriptorAnchor {
-			anchorKey = ed.Key
-			break
+			keys = append(keys, ed.Key)
+			if len(keys) == 2 {
+				break
+			}
 		}
 	}
-	if anchorKey == "" {
-		// This record version has not been anchored yet
+	if len(keys) == 0 {
+		// This leaf has not been anchored yet
 		return nil, errAnchorNotFound
 	}
 
-	// Get the anchor record
-	blobs, err := t.store.Get([]string{anchorKey})
+	// Get the anchor records
+	blobs, err := t.store.Get(keys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
-	b, ok := blobs[anchorKey]
-	if !ok {
-		return nil, fmt.Errorf("blob not found %v", anchorKey)
-	}
-	be, err := store.Deblob(b)
-	if err != nil {
-		return nil, err
-	}
-	a, err := convertAnchorFromBlobEntry(*be)
-	if err != nil {
-		return nil, err
+	if len(blobs) != len(keys) {
+		return nil, fmt.Errorf("unexpected blobs count: got %v, want %v",
+			len(blobs), len(keys))
 	}
 
-	return a, nil
+	// Find the correct anchor for the leaf
+	var leafAnchor *anchor
+	for _, v := range keys {
+		b, ok := blobs[v]
+		if !ok {
+			return nil, fmt.Errorf("blob not found %v", v)
+		}
+		be, err := store.Deblob(b)
+		if err != nil {
+			return nil, err
+		}
+		a, err := convertAnchorFromBlobEntry(*be)
+		if err != nil {
+			return nil, err
+		}
+		if uint64(l.LeafIndex) < a.LogRoot.TreeSize {
+			// The leaf is included in this anchor. We're done.
+			leafAnchor = a
+			break
+		}
+	}
+	if leafAnchor == nil {
+		// This leaf has not been anchored yet
+		return nil, errAnchorNotFound
+	}
+
+	return leafAnchor, nil
 }
 
 // anchorLatest returns the most recent anchor for the provided tree. A
@@ -309,7 +332,7 @@ func (t *Tlog) anchorWait(anchors []anchor, digests []string) {
 		//
 		// Ex: politeiad submits a digest for treeA to dcrtime. politeiad
 		// gets shutdown before an anchor record is added to treeA.
-		// dcrtime timestamps the treeA digest onto block 1000. politeiad
+		// dcrtime timestamps the treeA digest into block 1000. politeiad
 		// gets turned back on and a new record, treeB, is submitted
 		// prior to an anchor drop attempt. On the next anchor drop,
 		// politeiad will try to drop an anchor for both treeA and treeB
