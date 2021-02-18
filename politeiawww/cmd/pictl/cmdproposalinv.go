@@ -29,6 +29,16 @@ type cmdProposalInv struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdProposalInv) Execute(args []string) error {
+	_, err := proposalInv(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// proposalInv retrieves the proposal inventory. This function has been pulled
+// out of the Execute method so that it can be used in test commands.
+func proposalInv(c *cmdProposalInv) (*rcv1.InventoryReply, error) {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert:  cfg.HTTPSCert,
@@ -39,7 +49,7 @@ func (c *cmdProposalInv) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup state
@@ -58,7 +68,7 @@ func (c *cmdProposalInv) Execute(args []string) error {
 		// human readable equivalent.
 		status, err = parseRecordStatus(c.Args.Status)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// If a status was given but no page number was give, default
@@ -76,13 +86,13 @@ func (c *cmdProposalInv) Execute(args []string) error {
 	}
 	ir, err := pc.RecordInventory(i)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Print inventory
 	printJSON(ir)
 
-	return nil
+	return ir, nil
 }
 
 // proposalInvHelpMsg is printed to stdout by the help command.

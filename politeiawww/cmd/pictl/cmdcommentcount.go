@@ -5,8 +5,6 @@
 package main
 
 import (
-	"fmt"
-
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -27,6 +25,17 @@ type cmdCommentCount struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdCommentCount) Execute(args []string) error {
+	_, err := commentCount(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// commentCount returns the number of comments that have been made on the
+// provided records. This function has been pulled out of the Execute method so
+// that it can be used in test commands.
+func commentCount(c *cmdCommentCount) (map[string]uint32, error) {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert:  cfg.HTTPSCert,
@@ -37,7 +46,7 @@ func (c *cmdCommentCount) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup state
@@ -56,15 +65,15 @@ func (c *cmdCommentCount) Execute(args []string) error {
 	}
 	cr, err := pc.CommentCount(cc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Print counts
 	for k, v := range cr.Counts {
-		fmt.Printf("%v %v\n", k, v)
+		printf("%v %v\n", k, v)
 	}
 
-	return nil
+	return cr.Counts, nil
 }
 
 // commentCountHelpMsg is printed to stdout by the help command.

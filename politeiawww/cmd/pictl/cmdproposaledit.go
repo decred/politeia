@@ -81,9 +81,9 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		return nil, fmt.Errorf("index file not found; you must either " +
 			"provide an index.md file or use --random")
 
-	case c.RandomImages && len(attachments) == 0:
-		return nil, fmt.Errorf("you cannot provide file arguments and use " +
-			"the --randomimages flag at the same time")
+	case c.RandomImages && len(attachments) > 0:
+		return nil, fmt.Errorf("you cannot provide attachment files and " +
+			"use the --randomimages flag at the same time")
 
 	case c.RFP && c.LinkBy != "":
 		return nil, fmt.Errorf("you cannot use both the --rfp and --linkby " +
@@ -125,18 +125,19 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 	}
 
 	// Setup proposal files
+	indexFileSize := 10000 // In bytes
 	var files []rcv1.File
 	switch {
 	case c.Random && c.RandomImages:
 		// Create a random index file and random attachments
-		files, err = proposalFilesRandom(int(pr.TextFileSizeMax),
+		files, err = proposalFilesRandom(indexFileSize,
 			int(pr.ImageFileCountMax))
 		if err != nil {
 			return nil, err
 		}
 	case c.Random:
 		// Create a random index file
-		files, err = proposalFilesRandom(int(pr.TextFileSizeMax), 0)
+		files, err = proposalFilesRandom(indexFileSize, 0)
 		if err != nil {
 			return nil, err
 		}

@@ -163,6 +163,7 @@ func indexFileRandom(sizeInBytes int) (*rcv1.File, error) {
 		char := charSet[r]
 		b.WriteString(string(char))
 	}
+	b.WriteString("\n")
 	payload := []byte(b.String())
 
 	return &rcv1.File{
@@ -207,13 +208,11 @@ func pngFileRandom() (*rcv1.File, error) {
 	}, nil
 }
 
-func proposalFilesRandom(textFileSizeMax, imageFileCountMax int) ([]rcv1.File, error) {
+func proposalFilesRandom(textFileSize, imageFileCountMax int) ([]rcv1.File, error) {
 	files := make([]rcv1.File, 0, 16)
 
-	// Generate random text for the index file. The size of the index
-	// file is also randomly chosen
-	size := rand.Intn(textFileSizeMax)
-	f, err := indexFileRandom(size)
+	// Generate random text for the index file
+	f, err := indexFileRandom(textFileSize)
 	if err != nil {
 		return nil, err
 	}
