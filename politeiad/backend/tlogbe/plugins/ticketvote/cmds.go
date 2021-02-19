@@ -2107,7 +2107,18 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 
 // cmdCastBallot casts a ballot of votes. This function will not return a user
 // error if one occurs. It will instead return the ballot reply with the error
-// included in the invidiual cast vote reply that it applies to.
+// included in the individual cast vote reply that it applies to.
+//
+// NOTE: Record locking is currently handled by the backend, not by individual
+// plugins. This makes the plugin implementations simpler and easier to reason
+// about, but it can also lead to performance bottlenecks for expensive plugin
+// write commands. This cast ballot command is one such command because of the
+// external dcrdata calls that it makes to verify the largest commitment
+// addresses. If this becomes an issue then we will need to cache all of the
+// valid commitment addresses when we start the voting period. It takes ~1.5
+// minutes to compile this data for 41k eligible tickets. We would need to make
+// the start vote call kick off an asynchronous job that fetches and caches
+// this data.
 func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload string) (string, error) {
 	log.Tracef("cmdCastBallot: %v %x %v", treeID, token, payload)
 
@@ -2160,7 +2171,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	// From this point forward, it can be assumed that all votes that
 	// have not had their error set are voting for the same record. Get
 	// the record and vote data that we need to perform the remaining
-	// inexpensive validation before we have to hold the lock.
+	// validation.
 	voteDetails, err := p.voteDetails(treeID)
 	if err != nil {
 		return "", err
@@ -2188,7 +2199,10 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		return "", fmt.Errorf("largestCommitmentAddrs: %v", err)
 	}
 
-	// Perform validation that doesn't require holding the record lock.
+	// votesCache contains the tickets that have alread voted
+	votesCache := p.votesCache(token)
+
+	// Perform remaining validation
 	for k, v := range votes {
 		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
 			// Vote has an error. Skip it.
@@ -2278,18 +2292,9 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
-	}
-
-	// votesCache contains the tickets that have alread voted
-	votesCache := p.votesCache(token)
-	for k, v := range votes {
-		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
-			// Vote has an error. Skip it.
-			continue
-		}
 
 		// Verify ticket has not already vote
-		_, ok := votesCache[v.Ticket]
+		_, ok = votesCache[v.Ticket]
 		if ok {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
@@ -2310,7 +2315,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	// to be fully appended before considering the trillian call
 	// successful. A person casting hundreds of votes in a single ballot
 	// would cause UX issues for all the voting clients since the backend
-	// lock is held during these calls.
+	// lock for this record is held during these calls.
 	//
 	// The second variable that we must watch out for is the max trillian
 	// queued leaf batch size. This is also a configurable trillian value
@@ -2318,14 +2323,14 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	// in the queue for all trees in the trillian instance. This value is
 	// typically around the order of magnitude of 1000 queued leaves.
 	//
-	// This is why a vote batch size of 5 was chosen. It is large enough
+	// This is why a vote batch size of 10 was chosen. It is large enough
 	// to alleviate performance bottlenecks from the log signer interval,
 	// but small enough to still allow multiple records votes be held
 	// concurrently without running into the queued leaf batch size limit.
 
 	// Prepare work
 	var (
-		batchSize = 5
+		batchSize = 10
 		batch     = make([]ticketvote.CastVote, 0, batchSize)
 		queue     = make([][]ticketvote.CastVote, 0, len(votes)/batchSize)
 
