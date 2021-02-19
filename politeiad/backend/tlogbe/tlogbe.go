@@ -1550,10 +1550,10 @@ func (t *tlogBackend) unvettedPluginRead(token []byte, pluginID, cmd, payload st
 	}
 
 	if len(token) > 0 {
-		log.Debugf("Unvetted '%v' plugin cmd '%v' on record %x",
+		log.Infof("Unvetted '%v' plugin read cmd '%v' on %x",
 			pluginID, cmd, token)
 	} else {
-		log.Debugf("Unvetted '%v' plugin command '%v'",
+		log.Infof("Unvetted '%v' plugin read cmd '%v'",
 			pluginID, cmd)
 	}
 
@@ -1569,15 +1569,15 @@ func (t *tlogBackend) unvettedPluginWrite(token []byte, pluginID, cmd, payload s
 		return "", backend.ErrRecordNotFound
 	}
 
-	log.Debugf("Unvetted '%v' plugin cmd '%v' on record %x",
-		pluginID, cmd, token)
-
 	// Hold the record lock for the remainder of this function. We
 	// do this here in the backend so that the individual plugins
 	// implementations don't need to worry about race conditions.
 	m := t.recordMutex(token)
 	m.Lock()
 	defer m.Unlock()
+
+	log.Infof("Unvetted '%v' plugin write cmd '%v' on %x",
+		pluginID, cmd, token)
 
 	// Call pre plugin hooks
 	hp := plugins.HookPluginPre{
@@ -1666,10 +1666,10 @@ func (t *tlogBackend) vettedPluginRead(token []byte, pluginID, cmd, payload stri
 	}
 
 	if len(token) > 0 {
-		log.Debugf("Vetted '%v' plugin cmd '%v' on record %x",
+		log.Infof("Vetted '%v' plugin read cmd '%v' on %x",
 			pluginID, cmd, token)
 	} else {
-		log.Debugf("Vetted '%v' plugin command '%v'",
+		log.Infof("Vetted '%v' plugin read cmd '%v'",
 			pluginID, cmd)
 	}
 
@@ -1683,15 +1683,15 @@ func (t *tlogBackend) vettedPluginWrite(token []byte, pluginID, cmd, payload str
 		return "", backend.ErrRecordNotFound
 	}
 
-	log.Debugf("Vetted '%v' plugin cmd '%v' on record %x",
-		pluginID, cmd, token)
-
 	// Hold the record lock for the remainder of this function. We
 	// do this here in the backend so that the individual plugins
 	// implementations don't need to worry about race conditions.
 	m := t.recordMutex(token)
 	m.Lock()
 	defer m.Unlock()
+
+	log.Infof("Vetted '%v' plugin write cmd '%v' on %x",
+		pluginID, cmd, token)
 
 	// Call pre plugin hooks
 	hp := plugins.HookPluginPre{

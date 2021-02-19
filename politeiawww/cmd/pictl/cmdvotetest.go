@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
+	"time"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
@@ -43,6 +44,9 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		votes = append(votes, tokens...)
 		page++
 	}
+	if len(votes) == 0 {
+		return fmt.Errorf("no ongoing votes")
+	}
 
 	// Setup vote options
 	voteOptions := []string{
@@ -66,10 +70,16 @@ func (c *cmdVoteTest) Execute(args []string) error {
 
 			// Cast ballot
 			fmt.Printf("Casting ballot for %v %v\n", token, voteOption)
+			start := time.Now()
 			err := castBallot(token, voteOption, password)
 			if err != nil {
 				fmt.Printf("castBallot %v: %v", token, err)
 			}
+			end := time.Now()
+			elapsed := end.Sub(start)
+
+			fmt.Printf("%v elapsed time %v\n", token, elapsed)
+
 		}(&wg, v, voteOption, c.Args.Password)
 	}
 

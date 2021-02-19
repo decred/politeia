@@ -48,10 +48,10 @@ func NewHTTPClient(skipVerify bool, certPath string) (*http.Client, error) {
 	}
 
 	return &http.Client{
-		Timeout: 1 * time.Minute,
+		Timeout: 2 * time.Minute,
 		Transport: &http.Transport{
-			IdleConnTimeout:       1 * time.Minute,
-			ResponseHeaderTimeout: 1 * time.Minute,
+			IdleConnTimeout:       2 * time.Minute,
+			ResponseHeaderTimeout: 2 * time.Minute,
 			TLSClientConfig:       tlsConfig,
 		}}, nil
 }

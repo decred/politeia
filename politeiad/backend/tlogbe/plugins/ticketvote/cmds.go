@@ -2309,8 +2309,8 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	// the ballot will take 200 milliseconds since we wait for the leaf
 	// to be fully appended before considering the trillian call
 	// successful. A person casting hundreds of votes in a single ballot
-	// would cause UX issues for all the voting clients since the lock is
-	// held during these calls.
+	// would cause UX issues for all the voting clients since the backend
+	// lock is held during these calls.
 	//
 	// The second variable that we must watch out for is the max trillian
 	// queued leaf batch size. This is also a configurable trillian value
