@@ -25,6 +25,16 @@ type cmdVoteInv struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteInv) Execute(args []string) error {
+	_, err := voteInv(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// voteInv returns the vote inventory. It has been pulled out of Execute so
+// that it can be used in test commands.
+func voteInv(c *cmdVoteInv) (map[string][]string, error) {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert: cfg.HTTPSCert,
@@ -33,7 +43,7 @@ func (c *cmdVoteInv) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup status and page number
@@ -43,7 +53,7 @@ func (c *cmdVoteInv) Execute(args []string) error {
 		// human readable equivalent.
 		status, err = parseVoteStatus(c.Args.Status)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// If a status was given but no page number was give, default
@@ -60,13 +70,14 @@ func (c *cmdVoteInv) Execute(args []string) error {
 	}
 	ir, err := pc.TicketVoteInventory(i)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Print inventory
 	printJSON(ir)
 
-	return nil
+	return ir.Vetted, nil
+
 }
 
 func parseVoteStatus(status string) (tkv1.VoteStatusT, error) {

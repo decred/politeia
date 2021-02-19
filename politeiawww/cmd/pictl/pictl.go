@@ -103,7 +103,8 @@ type pictl struct {
 	SendFaucetTx  cmdSendFaucetTx  `command:"sendfaucettx"`
 	TestRun       cmdTestRun       `command:"testrun"`
 	SeedProposals cmdSeedProposals `command:"seedproposals"`
-	SetupVoteTest cmdSetupVoteTest `command:"setupvotetest"`
+	VoteTestSetup cmdVoteTestSetup `command:"votetestsetup"`
+	VoteTest      cmdVoteTest      `command:"votetest"`
 }
 
 const helpMsg = `Application Options:
@@ -184,7 +185,7 @@ Dev commands
   sendfaucettx            Send a dcr faucet tx
   testrun                 Execute a test run of the pi routes
   seedproposals           Seed the backend with proposals
-  setupvotetest           Setup a vote test
+  votetestsetup           Setup a vote test
   votetest                Execute a vote test
 `
 

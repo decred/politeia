@@ -8,11 +8,14 @@ import (
 	"fmt"
 )
 
-type cmdSetupVoteTest struct {
+type cmdVoteTestSetup struct {
 	Args struct {
-		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
-		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
-		Votes         uint32 `positional-arg-name:"votes"`
+		AdminEmail       string `positional-arg-name:"adminemail" required:"true"`
+		AdminPassword    string `positional-arg-name:"adminpassword" required:"true"`
+		Votes            uint32 `positional-arg-name:"votes"`
+		Duration         uint32 `positional-arg-name:"duration"`
+		QuorumPercentage uint32 `positional-arg-name:"quorumpercentage"`
+		PassPercentage   uint32 `positional-arg-name:"passpercentage"`
 	} `positional-args:"true"`
 
 	// IncludeImages is used to include a random number of images when
@@ -20,10 +23,10 @@ type cmdSetupVoteTest struct {
 	IncludeImages bool `long:"includeimages"`
 }
 
-// Execute executes the cmdSetupVoteTest command.
+// Execute executes the cmdVoteTestSetup command.
 //
 // This function satisfies the go-flags Commander interface.
-func (c *cmdSetupVoteTest) Execute(args []string) error {
+func (c *cmdVoteTestSetup) Execute(args []string) error {
 	// Setup test parameters
 	var (
 		votes    uint32 = 10
@@ -33,6 +36,15 @@ func (c *cmdSetupVoteTest) Execute(args []string) error {
 	)
 	if c.Args.Votes > 0 {
 		votes = c.Args.Votes
+	}
+	if c.Args.Duration > 0 {
+		duration = c.Args.Duration
+	}
+	if c.Args.QuorumPercentage > 0 {
+		quorum = c.Args.QuorumPercentage
+	}
+	if c.Args.PassPercentage > 0 {
+		pass = c.Args.PassPercentage
 	}
 
 	// We don't want the output of individual commands printed.
