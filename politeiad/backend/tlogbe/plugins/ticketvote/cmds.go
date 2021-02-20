@@ -428,15 +428,14 @@ func (p *ticketVotePlugin) voteOptionResults(token []byte, options []ticketvote.
 	// results using the cached votes if we can since it will be much
 	// faster.
 	var (
-		tally = make(map[string]int, len(options))
-		votes = p.votesCache(token)
+		tally  = make(map[string]uint32, len(options))
+		t      = hex.EncodeToString(token)
+		ctally = p.activeVotes.Tally(t)
 	)
 	switch {
-	case len(votes) > 0:
-		// Vote are in the cache. Tally the results.
-		for _, voteBit := range votes {
-			tally[voteBit]++
-		}
+	case len(ctally) > 0:
+		// Vote are in the cache. Use the cached results.
+		tally = ctally
 
 	default:
 		// Votes are not in the cache. Pull them from the backend.
@@ -687,9 +686,8 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 			return nil, err
 		}
 
-		// Remove record from votes cache. The votes cache is only for
-		// records with ongoing votes.
-		p.votesCacheDel(vd.Params.Token)
+		// Remove record from the active votes cache
+		p.activeVotes.Del(vd.Params.Token)
 
 	case ticketvote.VoteTypeRunoff:
 		// A runoff vote requires that we pull all other runoff vote
@@ -705,9 +703,8 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 				return nil, err
 			}
 
-			// Remove record from votes cache. The votes cache is only for
-			// records with ongoing votes.
-			p.votesCacheDel(k)
+			// Remove record from active votes cache
+			p.activeVotes.Del(k)
 		}
 
 		summary = summaries[vd.Params.Token]
@@ -825,12 +822,14 @@ func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
 }
 
 type commitmentAddr struct {
-	ticket string // Ticket hash
-	addr   string // Commitment address
-	err    error  // Error if one occurred
+	addr string // Commitment address
+	err  error  // Error if one occurred
 }
 
-func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmentAddr, error) {
+// largestCommitmentAddrs retrieves the largest commitment addresses for each
+// of the provided tickets from dcrdata. A map[ticket]commitmentAddr is
+// returned.
+func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) (map[string]commitmentAddr, error) {
 	// Get tx details
 	tt := dcrdata.TxsTrimmed{
 		TxIDs: tickets,
@@ -852,7 +851,7 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmen
 	}
 
 	// Find the largest commitment address for each tx
-	addrs := make([]commitmentAddr, 0, len(ttr.Txs))
+	addrs := make(map[string]commitmentAddr, len(ttr.Txs))
 	for _, tx := range ttr.Txs {
 		var (
 			bestAddr string  // Addr with largest commitment amount
@@ -877,11 +876,10 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) ([]commitmen
 		}
 
 		// Store result
-		addrs = append(addrs, commitmentAddr{
-			ticket: tx.TxID,
-			addr:   bestAddr,
-			err:    addrErr,
-		})
+		addrs[tx.TxID] = commitmentAddr{
+			addr: bestAddr,
+			err:  addrErr,
+		}
 	}
 
 	return addrs, nil
@@ -1387,6 +1385,9 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
 		vd.EndBlockHeight)
 
+	// Update active votes cache
+	p.activeVotesAdd(vd)
+
 	return &ticketvote.StartReply{
 		StartBlockHeight: sr.StartBlockHeight,
 		StartBlockHash:   sr.StartBlockHash,
@@ -1568,6 +1569,9 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	// Update inventory
 	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
 		vd.EndBlockHeight)
+
+	// Update active votes cache
+	p.activeVotesAdd(vd)
 
 	return nil
 }
@@ -2093,7 +2097,7 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 			cvr.Receipt = cv.Receipt
 
 			// Update cast votes cache
-			p.votesCacheSet(v.Token, v.Ticket, v.VoteBit)
+			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
 
 		sendResult:
 			// Send result back to calling function
@@ -2108,17 +2112,6 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 // cmdCastBallot casts a ballot of votes. This function will not return a user
 // error if one occurs. It will instead return the ballot reply with the error
 // included in the individual cast vote reply that it applies to.
-//
-// NOTE: Record locking is currently handled by the backend, not by individual
-// plugins. This makes the plugin implementations simpler and easier to reason
-// about, but it can also lead to performance bottlenecks for expensive plugin
-// write commands. This cast ballot command is one such command because of the
-// external dcrdata calls that it makes to verify the largest commitment
-// addresses. If this becomes an issue then we will need to cache all of the
-// valid commitment addresses when we start the voting period. It takes ~1.5
-// minutes to compile this data for 41k eligible tickets. We would need to make
-// the start vote call kick off an asynchronous job that fetches and caches
-// this data.
 func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload string) (string, error) {
 	log.Tracef("cmdCastBallot: %v %x %v", treeID, token, payload)
 
@@ -2143,11 +2136,19 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		return string(reply), nil
 	}
 
-	// Verify that all tokens in the ballot are valid, full length
-	// tokens and that they are all voting for the same record.
+	// Get the data that we need to validate the votes
+	voteDetails := p.activeVotes.VoteDetails(token)
+	eligible := p.activeVotes.EligibleTickets(token)
+	bestBlock, err := p.bestBlock()
+	if err != nil {
+		return "", err
+	}
+
+	// Perform all validation that does not require fetching the
+	// commitment addresses.
 	receipts := make([]ticketvote.CastVoteReply, len(votes))
 	for k, v := range votes {
-		// Verify token
+		// Verify token is a valid token
 		t, err := tokenDecode(v.Token)
 		if err != nil {
 			e := ticketvote.VoteErrorTokenInvalid
@@ -2158,7 +2159,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			continue
 		}
 
-		// Verify token is the same
+		// Verify vote token and command token are the same
 		if !bytes.Equal(t, token) {
 			e := ticketvote.VoteErrorMultipleRecordVotes
 			receipts[k].Ticket = v.Ticket
@@ -2166,61 +2167,17 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
-	}
 
-	// From this point forward, it can be assumed that all votes that
-	// have not had their error set are voting for the same record. Get
-	// the record and vote data that we need to perform the remaining
-	// validation.
-	voteDetails, err := p.voteDetails(treeID)
-	if err != nil {
-		return "", err
-	}
-	bestBlock, err := p.bestBlock()
-	if err != nil {
-		return "", err
-	}
-
-	// eligible contains the ticket hashes of all eligble tickets. They
-	// are put into a map for O(n) lookups.
-	eligible := make(map[string]struct{}, len(voteDetails.EligibleTickets))
-	for _, v := range voteDetails.EligibleTickets {
-		eligible[v] = struct{}{}
-	}
-
-	// addrs contains the largest commitment addresses for each ticket.
-	// The vote must be signed using the largest commitment address.
-	tickets := make([]string, 0, len(cb.Ballot))
-	for _, v := range cb.Ballot {
-		tickets = append(tickets, v.Ticket)
-	}
-	addrs, err := p.largestCommitmentAddrs(tickets)
-	if err != nil {
-		return "", fmt.Errorf("largestCommitmentAddrs: %v", err)
-	}
-
-	// votesCache contains the tickets that have alread voted
-	votesCache := p.votesCache(token)
-
-	// Perform remaining validation
-	for k, v := range votes {
-		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
-			// Vote has an error. Skip it.
-			continue
-		}
-
-		// Verify record vote status
+		// Verify vote is still active
 		if voteDetails == nil {
-			// Vote has not been started yet
 			e := ticketvote.VoteErrorVoteStatusInvalid
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = fmt.Sprintf("%v: vote not started",
+			receipts[k].ErrorContext = fmt.Sprintf("%v: vote is not active",
 				ticketvote.VoteErrors[e])
 			continue
 		}
 		if voteHasEnded(bestBlock, voteDetails.EndBlockHeight) {
-			// Vote has ended
 			e := ticketvote.VoteErrorVoteStatusInvalid
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
@@ -2249,12 +2206,72 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			continue
 		}
 
+		// Verify ticket is eligible to vote
+		_, ok := eligible[v.Ticket]
+		if !ok {
+			e := ticketvote.VoteErrorTicketNotEligible
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
+			continue
+		}
+
+		// Verify ticket has not already vote
+		if p.activeVotes.VoteIsDuplicate(v.Token, v.Ticket) {
+			e := ticketvote.VoteErrorTicketAlreadyVoted
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
+			continue
+		}
+	}
+
+	// Get the largest commitment address for each ticket and verify
+	// that the vote was signed using the private key from this
+	// address. We first check the active votes cache to see if the
+	// commitment addresses have already been fetched. Any tickets
+	// that are not found in the cache are fetched manually.
+	tickets := make([]string, 0, len(cb.Ballot))
+	for _, v := range cb.Ballot {
+		tickets = append(tickets, v.Ticket)
+	}
+	addrs := p.activeVotes.CommitmentAddrs(token, tickets)
+	notInCache := make([]string, 0, len(cb.Ballot))
+	for _, v := range tickets {
+		_, ok := addrs[v]
+		if !ok {
+			notInCache = append(notInCache, v)
+		}
+	}
+
+	log.Debugf("%v commitment addresses not found in cache", len(notInCache))
+
+	if len(notInCache) > 0 {
+		// Get commitment addresses from dcrdata
+		caddrs, err := p.largestCommitmentAddrs(tickets)
+		if err != nil {
+			return "", fmt.Errorf("largestCommitmentAddrs: %v", err)
+		}
+
+		// Add addresses to the existing map
+		for k, v := range caddrs {
+			addrs[k] = v
+		}
+	}
+
+	// Verify the signatures
+	for k, v := range votes {
+		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+			// Vote has an error. Skip it.
+			continue
+		}
+
 		// Verify vote signature
-		commitmentAddr := addrs[k]
-		if commitmentAddr.ticket != v.Ticket {
+		commitmentAddr, ok := addrs[v.Ticket]
+		if !ok {
 			t := time.Now().Unix()
-			log.Errorf("cmdCastBallot: commitment addr mismatch %v: %v %v",
-				t, commitmentAddr.ticket, v.Ticket)
+			log.Errorf("cmdCastBallot: commitment addr not found %v: %v",
+				t, v.Ticket)
 			e := ticketvote.VoteErrorInternalError
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
@@ -2265,7 +2282,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		if commitmentAddr.err != nil {
 			t := time.Now().Unix()
 			log.Errorf("cmdCastBallot: commitment addr error %v: %v %v",
-				t, commitmentAddr.ticket, commitmentAddr.err)
+				t, v.Ticket, commitmentAddr.err)
 			e := ticketvote.VoteErrorInternalError
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e
@@ -2280,26 +2297,6 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			receipts[k].ErrorCode = e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteErrors[e], err)
-			continue
-		}
-
-		// Verify ticket is eligible to vote
-		_, ok := eligible[v.Ticket]
-		if !ok {
-			e := ticketvote.VoteErrorTicketNotEligible
-			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
-			continue
-		}
-
-		// Verify ticket has not already vote
-		_, ok = votesCache[v.Ticket]
-		if ok {
-			e := ticketvote.VoteErrorTicketAlreadyVoted
-			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
-			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
 	}

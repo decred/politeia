@@ -41,11 +41,9 @@ type ticketVotePlugin struct {
 	// prove the backend received and processed a plugin command.
 	identity *identity.FullIdentity
 
-	// votes contains the cast votes of ongoing record votes. This
-	// cache is built on startup and record entries are removed once
-	// the vote has ended and a vote summary has been cached.
-	votes    map[string]map[string]string // [token][ticket]voteBit
-	mtxVotes sync.Mutex
+	// activeVotes is a memeory cache that contains data required to
+	// validate vote ballots in a time efficient manner.
+	activeVotes *activeVotes
 
 	// Mutexes for on-disk caches
 	mtxInv     sync.RWMutex // Vote inventory cache
@@ -90,7 +88,7 @@ func (p *ticketVotePlugin) Setup() error {
 		return fmt.Errorf("inventory: %v", err)
 	}
 
-	// Build votes cache
+	// Build active votes cache
 	log.Infof("Building votes cache")
 
 	started := make([]string, 0, len(inv.Entries))
@@ -100,11 +98,34 @@ func (p *ticketVotePlugin) Setup() error {
 		}
 	}
 	for _, v := range started {
+		// Get the vote details
 		token, err := tokenDecode(v)
 		if err != nil {
 			return err
 		}
+
 		reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+			token, ticketvote.PluginID, ticketvote.CmdDetails, "")
+		if err != nil {
+			return fmt.Errorf("VettedPluginCmd %x %v %v: %v",
+				token, ticketvote.PluginID, ticketvote.CmdDetails, err)
+		}
+		var dr ticketvote.DetailsReply
+		err = json.Unmarshal([]byte(reply), &dr)
+		if err != nil {
+			return err
+		}
+		if dr.Vote == nil {
+			// Something is wrong. This should not happen.
+			return fmt.Errorf("vote details not found for record in "+
+				"started inventory %x", token)
+		}
+
+		// Add active votes entry
+		p.activeVotesAdd(*dr.Vote)
+
+		// Get cast votes
+		reply, err = p.backend.VettedPluginCmd(backend.PluginActionRead,
 			token, ticketvote.PluginID, ticketvote.CmdResults, "")
 		if err != nil {
 			return fmt.Errorf("VettedPluginCmd %x %v %v: %v",
@@ -116,7 +137,8 @@ func (p *ticketVotePlugin) Setup() error {
 			return err
 		}
 		for _, v := range rr.Votes {
-			p.votesCacheSet(v.Token, v.Ticket, v.VoteBit)
+			// Add cast vote to the active votes cache
+			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
 		}
 	}
 
@@ -302,7 +324,7 @@ func New(backend backend.Backend, tlog plugins.TlogClient, settings []backend.Pl
 		tlog:            tlog,
 		dataDir:         dataDir,
 		identity:        id,
-		votes:           make(map[string]map[string]string),
+		activeVotes:     newActiveVotes(),
 		linkByPeriodMin: linkByPeriodMin,
 		linkByPeriodMax: linkByPeriodMax,
 		voteDurationMin: voteDurationMin,
