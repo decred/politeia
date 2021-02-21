@@ -39,7 +39,6 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
-	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -1015,124 +1014,25 @@ func verifyV1Vote(params *chaincfg.Params, address string, vote *v1.CastVote) bo
 	return true
 }
 
-// XXX remove this once BatchVoteSummary is live.
-func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
-	route := "/proposals/" + token + "/votestatus"
-	responseBody, err := c.makeRequest(http.MethodGet, route, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var vsr v1.VoteStatusReply
-	err = json.Unmarshal(responseBody, &vsr)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal ActiveVoteReply: %v",
-			err)
-	}
-
-	return &vsr, nil
-}
-
-// XXX remove this once BatchVoteSummary is live
-func (c *ctx) _bestBlock() (uint32, error) {
-	var url string
-	if c.cfg.TestNet {
-		url = "https://testnet.decred.org:443/api/block/best"
-	} else {
-		url = "https://dcrdata.decred.org:443/api/block/best"
-	}
-
-	log.Debugf("Request: GET %v", url)
-
-	r, err := c.client.Get(url)
-	if err != nil {
-		return 0, err
-	}
-	defer r.Body.Close()
-
-	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
-
-	if r.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("dcrdata error: %v %v %s",
-			r.StatusCode, url, string(responseBody))
-	}
-
-	var bdb dcrdataapi.BlockDataBasic
-	err = json.Unmarshal(responseBody, &bdb)
-	if err != nil {
-		return 0, err
-	}
-
-	return bdb.Height, nil
-}
-
-// bestBlock requests the best block from dcrdata and returns the best block
-// height. A bug in dcrdata has caused a best block height of 0 to be returned
-// intermittently. This function retries the dcrdata call until a valid best
-// block height is returned or the maxRetries limit is exceeded.
-func (c *ctx) bestBlock() (uint32, error) {
-	var (
-		maxRetries    = 100
-		sleepInterval = 5 * time.Second
-		done          bool
-		bestBlock     uint32
-	)
-	for retries := 0; !done; retries++ {
-		if retries == maxRetries {
-			return 0, fmt.Errorf("max retries exceeded")
-		}
-
-		bb, err := c._bestBlock()
-		if err != nil {
-			return 0, err
-		}
-		if bb == 0 {
-			log.Infof("dcrdata returned a best block height of 0; retrying in %v",
-				sleepInterval)
-			time.Sleep(sleepInterval)
-			continue
-		}
-
-		bestBlock = bb
-		done = true
-	}
-
-	return bestBlock, nil
-}
-
 func (c *ctx) _vote(token, voteId string) error {
 	seed, err := generateSeed()
 	if err != nil {
 		return err
 	}
 
-	/*
-		XXX Add this back in once BatchVoteSummary is live
-		// Pull the vote summary first to make sure the vote is still active.
-		bvsr, err := c._summary(token)
-		if err != nil {
-			return err
-		}
-		summary, ok := bvsr.Summaries[token]
-		if !ok {
-			return fmt.Errorf("Proposal does not exist: %v", token)
-		}
-		if bvsr.BestBlock > summary.EndHeight {
-			return fmt.Errorf("Proposal vote has already completed: %v",
-				token)
-		}
-	*/
-
-	// Make sure vote is active
-	// XXX Remove this once BatchVoteSummary is live
-	vsr, err := c.voteStatus(token)
+	// Verify vote is still active
+	vsr, err := c._summary(token)
 	if err != nil {
 		return err
 	}
-	if vsr.Status != v1.PropVoteStatusStarted {
-		return fmt.Errorf("Proposal vote is not active: %v", token)
+	vs, ok := vsr.Summaries[token]
+	if !ok {
+		return fmt.Errorf("proposal does not exist: %v", token)
 	}
+	if vs.Status != v1.PropVoteStatusStarted {
+		return fmt.Errorf("proposal vote is not active: %v", vs.Status)
+	}
+	bestBlock := vsr.BestBlock
 
 	// _tally provides the eligible tickets snapshot as well as a list of
 	// the votes that have already been cast. We use these to filter out
@@ -1237,16 +1137,7 @@ func (c *ctx) _vote(token, voteId string) error {
 
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
-			bestBlock, err := c.bestBlock()
-			if err != nil {
-				return err
-			}
-			endHeight, err := strconv.ParseUint(vsr.EndHeight, 10, 64)
-			if err != nil {
-				return fmt.Errorf("parse end height '%v': %v",
-					vsr.EndHeight, err)
-			}
-			blocksLeft := endHeight - uint64(bestBlock)
+			blocksLeft := vs.EndHeight - bestBlock
 			if blocksLeft < c.cfg.blocksPerDay {
 				return fmt.Errorf("less than a day left to " +
 					"vote, please set --voteduration " +
@@ -1727,13 +1618,17 @@ func (c *ctx) verifyVote(vote string) error {
 	dir := filepath.Join(c.cfg.voteDir, vote)
 
 	// See if vote is ongoing
-	vsr, err := c.voteStatus(vote)
+	vsr, err := c._summary(vote)
 	if err != nil {
 		return fmt.Errorf("could not obtain proposal status: %v\n",
 			err)
 	}
-	if vsr.Status != v1.PropVoteStatusFinished {
-		return fmt.Errorf("proposal not finished: %v\n", vsr.Status)
+	vs, ok := vsr.Summaries[vote]
+	if !ok {
+		return fmt.Errorf("proposal does not exist: %v", vote)
+	}
+	if vs.Status != v1.PropVoteStatusFinished {
+		return fmt.Errorf("proposal vote not finished: %v\n", vs.Status)
 	}
 
 	// Get and cache vote results
