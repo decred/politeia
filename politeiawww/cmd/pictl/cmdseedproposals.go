@@ -35,13 +35,11 @@ type cmdSeedProposals struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdSeedProposals) Execute(args []string) error {
-	fmt.Printf("Warn: this cmd should be run on a clean politeia instance\n")
-
 	// Setup default parameters
 	var (
 		userCount               = 10
 		proposalCount           = 25
-		commentsPerProposal     = 100
+		commentsPerProposal     = 150
 		commentSize             = 32 // In characters
 		commentVotesPerProposal = 500
 
@@ -69,7 +67,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 		return fmt.Errorf("user count must be >= 2")
 	}
 
-	// Verify the the provided login credentials are for an admin.
+	// Verify admin login credentials
 	admin := user{
 		Email:    c.Args.AdminEmail,
 		Password: c.Args.AdminPassword,
@@ -87,7 +85,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	}
 	admin.Username = lr.Username
 
-	// Verify that the paywall is disabled.
+	// Verify paywall is disabled
 	policyWWW, err := client.Policy()
 	if err != nil {
 		return err
@@ -95,6 +93,9 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	if policyWWW.PaywallEnabled {
 		return fmt.Errorf("paywall is not disabled")
 	}
+
+	// Log start time
+	fmt.Printf("Start time: %v\n", timestampFromUnix(time.Now().Unix()))
 
 	// Setup users
 	users := make([]user, 0, userCount)
@@ -110,9 +111,6 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 		users = append(users, *u)
 	}
 	fmt.Printf("\n")
-
-	// Log start time
-	fmt.Printf("Start time: %v\n", timestampFromUnix(time.Now().Unix()))
 
 	// Setup proposals
 	var (
@@ -284,6 +282,14 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	users1 := users[:len(users)/2]
 	users2 := users[len(users)/2:]
 
+	// Reverse the ordering of the public records so that comments are
+	// added to the most recent record first.
+	reverse := make([]string, 0, len(public))
+	for i := len(public) - 1; i >= 0; i-- {
+		reverse = append(reverse, public[i])
+	}
+	public = reverse
+
 	// Setup comments
 	for i, token := range public {
 		for j := 0; j < commentsPerProposal; j++ {
@@ -291,9 +297,16 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 				"comment %v/%v", i+1, len(public), j+1, commentsPerProposal)
 			printInPlace(log)
 
-			// Select a random user
-			r := rand.Intn(len(users1))
-			u := users1[r]
+			// Login a new, random user every 10 comments. Selecting a
+			// new user every comment is too slow.
+			if j%10 == 0 {
+				// Select a random user
+				r := rand.Intn(len(users1))
+				u := users1[r]
+
+				// Login user
+				userLogin(u)
+			}
 
 			// Every 5th comment should be the start of a comment thread, not
 			// a reply. All other comments should be replies to a random
@@ -315,9 +328,13 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 			comment := hex.EncodeToString(b)
 
 			// Submit comment
-			err = commentNew(u, token, comment, parentID)
+			c := cmdCommentNew{}
+			c.Args.Token = token
+			c.Args.Comment = comment
+			c.Args.ParentID = parentID
+			err = c.Execute(nil)
 			if err != nil {
-				return err
+				return fmt.Errorf("cmdCommentNew: %v", err)
 			}
 		}
 	}
@@ -335,8 +352,9 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 		// to vote on comments randomly can cause max vote changes
 		// exceeded errors.
 		var (
-			userIdx   int
-			commentID uint32 = 1
+			userIdx     int
+			needToLogin bool   = true
+			commentID   uint32 = 1
 		)
 		for j := 0; j < commentVotesPerProposal; j++ {
 			log := fmt.Sprintf("Submitting comment votes for proposal %v/%v, "+
@@ -349,12 +367,22 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 				// with a different user.
 				userIdx++
 				commentID = 1
+
+				userLogout()
+				needToLogin = true
 			}
 			if userIdx == len(users2) {
 				// We've reached the end of the users. Start back over.
 				userIdx = 0
+				userLogout()
+				needToLogin = true
 			}
+
 			u := users2[userIdx]
+			if needToLogin {
+				userLogin(u)
+				needToLogin = false
+			}
 
 			// Select a random vote preference
 			var vote string
@@ -365,7 +393,11 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 			}
 
 			// Cast comment vote
-			err := commentVote(u, token, commentID, vote)
+			c := cmdCommentVote{}
+			c.Args.Token = token
+			c.Args.CommentID = commentID
+			c.Args.Vote = vote
+			err = c.Execute(nil)
 			if err != nil {
 				return err
 			}
