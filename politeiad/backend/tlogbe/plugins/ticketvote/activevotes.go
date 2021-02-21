@@ -235,6 +235,10 @@ func (a *activeVotes) Del(token string) {
 }
 
 // Add adds a active vote to the active votes cache.
+//
+// This function should NOT be used directly. The activeVotesAdd function,
+// which also kicks of an async job to fetch the commitment addresses for this
+// active votes entry, should be used instead.
 func (a *activeVotes) Add(vd ticketvote.VoteDetails) {
 	a.Lock()
 	defer a.Unlock()

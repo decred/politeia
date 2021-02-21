@@ -623,6 +623,124 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func convertFrontendRecordRequest(r v1.RecordRequest) backend.RecordRequest {
+	token, _ := util.ConvertStringToken(r.Token)
+	return backend.RecordRequest{
+		Token:     token,
+		Version:   r.Version,
+		OmitFiles: r.OmitFiles,
+		Filenames: r.Filenames,
+	}
+}
+
+func (p *politeia) convertBackendRecords(br map[string]backend.Record) map[string]v1.Record {
+	r := make(map[string]v1.Record, len(br))
+	for k, v := range br {
+		r[k] = p.convertBackendRecord(v)
+	}
+	return r
+}
+
+func (p *politeia) getUnvettedBatch(w http.ResponseWriter, r *http.Request) {
+	var gub v1.GetUnvettedBatch
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&gub); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(gub.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	// Setup backend requests
+	reqs := make([]backend.RecordRequest, 0, len(gub.Requests))
+	for _, v := range gub.Requests {
+		// Verify token
+		_, err := util.ConvertStringToken(v.Token)
+		if err != nil {
+			// Not a valid token. Do not include it in the reply.
+			continue
+		}
+		reqs = append(reqs, convertFrontendRecordRequest(v))
+	}
+
+	// Get records batch
+	records, err := p.backend.GetUnvettedBatch(reqs)
+	if err != nil {
+		// Generic internal error
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Get unvetted batch error code %v: %v",
+			remoteAddr(r), errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	log.Infof("%v Get unvetted batch %v/%v found",
+		remoteAddr(r), len(records), len(gub.Requests))
+
+	// Prepare reply
+	response := p.identity.SignMessage(challenge)
+	reply := v1.GetUnvettedBatchReply{
+		Response: hex.EncodeToString(response[:]),
+		Records:  p.convertBackendRecords(records),
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) getVettedBatch(w http.ResponseWriter, r *http.Request) {
+	var gvb v1.GetVettedBatch
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&gvb); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(gvb.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	// Setup backend requests
+	reqs := make([]backend.RecordRequest, 0, len(gvb.Requests))
+	for _, v := range gvb.Requests {
+		// Verify token
+		_, err := util.ConvertStringToken(v.Token)
+		if err != nil {
+			// Not a valid token. Do not include it in the reply.
+			continue
+		}
+		reqs = append(reqs, convertFrontendRecordRequest(v))
+	}
+
+	// Get records batch
+	records, err := p.backend.GetVettedBatch(reqs)
+	if err != nil {
+		// Generic internal error
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Get vetted batch error code %v: %v",
+			remoteAddr(r), errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	log.Infof("%v Get vetted batch %v/%v found",
+		remoteAddr(r), len(records), len(gvb.Requests))
+
+	// Prepare reply
+	response := p.identity.SignMessage(challenge)
+	reply := v1.GetVettedBatchReply{
+		Response: hex.EncodeToString(response[:]),
+		Records:  p.convertBackendRecords(records),
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeia) getUnvettedTimestamps(w http.ResponseWriter, r *http.Request) {
 	var t v1.GetUnvettedTimestamps
 	decoder := json.NewDecoder(r.Body)
@@ -1522,6 +1640,10 @@ func _main() error {
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
 		permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetUnvettedBatchRoute,
+		p.getUnvettedBatch, permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetVettedBatchRoute,
+		p.getVettedBatch, permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetUnvettedTimestampsRoute,
 		p.getUnvettedTimestamps, permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedTimestampsRoute,

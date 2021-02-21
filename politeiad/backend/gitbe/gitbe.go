@@ -2428,6 +2428,20 @@ func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, e
 	return g.getRecordLock(token, version, g.vetted, true)
 }
 
+// GetUnvettedBatch is not implemented.
+//
+// This function satisfies the Backend interface.
+func (g *gitBackEnd) GetUnvettedBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// GetVettedBatch is not implemented.
+//
+// This function satisfies the Backend interface.
+func (g *gitBackEnd) GetVettedBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 // GetUnvettedTimestamps is not implemented.
 //
 // This function satisfies the Backend interface.

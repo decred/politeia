@@ -146,6 +146,25 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
+// RecordRequest is used to requests a record. It gives the client granular
+// control over what is returned. The only required field is the token. All
+// other fields are optional.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// OmitFiles can be used to retrieve a record without any of the record files
+// being returned.
+//
+// Filenames can be used to request specific files. When filenames is not
+// empty, the only files that are returned will be those that are specified.
+type RecordRequest struct {
+	Token     []byte   `json:"token"`
+	Version   string   `json:"version,omitempty"`
+	OmitFiles bool     `json:"omitfiles,omitempty"`
+	Filenames []string `json:"filenames,omitempty"`
+}
+
 // Proof contains an inclusion proof for the digest in the merkle root. All
 // digests are hex encoded SHA256 digests.
 //
@@ -292,6 +311,12 @@ type Backend interface {
 
 	// Get vetted record
 	GetVetted(token []byte, version string) (*Record, error)
+
+	// Get a batch of unvetted records
+	GetUnvettedBatch(reqs []RecordRequest) (map[string]Record, error)
+
+	// Get a batch of vetted records
+	GetVettedBatch(reqs []RecordRequest) (map[string]Record, error)
 
 	// Get unvetted record timestamps
 	GetUnvettedTimestamps(token []byte,

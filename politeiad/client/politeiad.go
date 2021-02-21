@@ -306,6 +306,72 @@ func (c *Client) GetVetted(ctx context.Context, token, version string) (*pdv1.Re
 	return &gvr.Record, nil
 }
 
+// GetUnvettedBatch sends a GetUnvettedBatch request to the politeiad v1 API.
+func (c *Client) GetUnvettedBatch(ctx context.Context, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
+	// Setup request
+	challenge, err := util.Random(pdv1.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	gub := pdv1.GetUnvettedBatch{
+		Challenge: hex.EncodeToString(challenge),
+		Requests:  reqs,
+	}
+
+	// Send request
+	resBody, err := c.makeReq(ctx, http.MethodPost,
+		pdv1.GetUnvettedBatchRoute, gub)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var r pdv1.GetUnvettedBatchReply
+	err = json.Unmarshal(resBody, &r)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(c.pid, challenge, r.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.Records, nil
+}
+
+// GetVettedBatch sends a GetVettedBatch request to the politeiad v1 API.
+func (c *Client) GetVettedBatch(ctx context.Context, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
+	// Setup request
+	challenge, err := util.Random(pdv1.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	gvb := pdv1.GetVettedBatch{
+		Challenge: hex.EncodeToString(challenge),
+		Requests:  reqs,
+	}
+
+	// Send request
+	resBody, err := c.makeReq(ctx, http.MethodPost,
+		pdv1.GetVettedBatchRoute, gvb)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var r pdv1.GetVettedBatchReply
+	err = json.Unmarshal(resBody, &r)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(c.pid, challenge, r.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.Records, nil
+}
+
 // GetUnvettedTimestamps sends a GetUnvettedTimestamps request to the politeiad
 // v1 API.
 func (c *Client) GetUnvettedTimestamps(ctx context.Context, token, version string) (*pdv1.RecordTimestamps, error) {

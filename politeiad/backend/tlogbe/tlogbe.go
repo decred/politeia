@@ -42,7 +42,7 @@ var (
 	_ backend.Backend = (*tlogBackend)(nil)
 )
 
-// tlogBackend implements the backend.Backend interface.
+// tlogBackend implements the Backend interface.
 type tlogBackend struct {
 	sync.RWMutex
 	homeDir  string
@@ -513,7 +513,7 @@ func (t *tlogBackend) isShutdown() bool {
 // New submites a new record. Records are considered unvetted until their
 // status is changed to a public status.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.File) (*backend.RecordMetadata, error) {
 	log.Tracef("New")
 
@@ -595,7 +595,7 @@ func (t *tlogBackend) New(metadata []backend.MetadataStream, files []backend.Fil
 	return rm, nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("UpdateUnvettedRecord: %x", token)
 
@@ -698,7 +698,7 @@ func (t *tlogBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite [
 	return r, nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("UpdateVettedRecord: %x", token)
 
@@ -801,7 +801,7 @@ func (t *tlogBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []b
 	return r, nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
 	// Validate record contents. Send in a single metadata array to
 	// verify there are no dups.
@@ -891,7 +891,7 @@ func (t *tlogBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwrite
 	return nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) error {
 	log.Tracef("UpdateVettedMetadata: %x", token)
 
@@ -986,7 +986,7 @@ func (t *tlogBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite [
 // UnvettedExists returns whether the provided token corresponds to an unvetted
 // record.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) UnvettedExists(token []byte) bool {
 	log.Tracef("UnvettedExists %x", token)
 
@@ -1003,7 +1003,7 @@ func (t *tlogBackend) UnvettedExists(token []byte) bool {
 	return t.unvetted.RecordExists(treeID)
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) VettedExists(token []byte) bool {
 	log.Tracef("VettedExists %x", token)
 
@@ -1238,7 +1238,7 @@ func (t *tlogBackend) vettedArchive(token []byte, rm backend.RecordMetadata, met
 	return nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("SetVettedStatus: %x %v (%v)",
 		token, status, backend.MDStatus[status])
@@ -1344,7 +1344,7 @@ func (t *tlogBackend) SetVettedStatus(token []byte, status backend.MDStatusT, md
 	return r, nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetUnvetted: %x %v", token, version)
 
@@ -1362,21 +1362,19 @@ func (t *tlogBackend) GetUnvetted(token []byte, version string) (*backend.Record
 		v = uint32(u)
 	}
 
-	// Verify record exists and is unvetted
-	if !t.UnvettedExists(token) {
-		return nil, backend.ErrRecordNotFound
-	}
-
 	// Get unvetted record
 	r, err := t.unvetted.Record(treeID, v)
 	if err != nil {
+		if err == backend.ErrRecordNotFound {
+			return nil, err
+		}
 		return nil, fmt.Errorf("unvetted record: %v", err)
 	}
 
 	return r, nil
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, error) {
 	log.Tracef("GetVetted: %x %v", token, version)
 
@@ -1408,7 +1406,107 @@ func (t *tlogBackend) GetVetted(token []byte, version string) (*backend.Record, 
 	return r, nil
 }
 
-// This function satisfies the backend.Backend interface.
+// GetUnvettedBatch returns a batch of unvetted records.
+//
+// This function satisfies the Backend interface.
+func (t *tlogBackend) GetUnvettedBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
+	log.Tracef("GetUnvettedBatch: %v records	", len(reqs))
+
+	if t.isShutdown() {
+		return nil, backend.ErrShutdown
+	}
+
+	records := make(map[string]backend.Record, len(reqs))
+	for _, v := range reqs {
+		// Get tree ID
+		treeID := t.unvettedTreeIDFromToken(v.Token)
+
+		// Parse version
+		var version uint32
+		if v.Version != "" {
+			u, err := strconv.ParseUint(v.Version, 10, 64)
+			if err != nil {
+				// Not a valid version. Don't include this token in the
+				// reply.
+				continue
+			}
+			version = uint32(u)
+		}
+
+		// Get the record
+		r, err := t.unvetted.RecordPartial(treeID, version,
+			v.OmitFiles, v.Filenames)
+		if err != nil {
+			if err == backend.ErrRecordNotFound {
+				// Record doesn't exist. This is ok. It will not be included
+				// in the reply.
+				continue
+			}
+			// An unexpected error occured. Log it and continue.
+			log.Debug("RecordPartial %v: %v", treeID, err)
+			continue
+		}
+
+		// Update reply
+		records[r.RecordMetadata.Token] = *r
+	}
+
+	return records, nil
+}
+
+// GetVettedBatch returns a batch of unvetted records.
+//
+// This function satisfies the Backend interface.
+func (t *tlogBackend) GetVettedBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
+	log.Tracef("GetVettedBatch: %v records	", len(reqs))
+
+	if t.isShutdown() {
+		return nil, backend.ErrShutdown
+	}
+
+	records := make(map[string]backend.Record, len(reqs))
+	for _, v := range reqs {
+		// Get tree ID
+		treeID, ok := t.vettedTreeIDFromToken(v.Token)
+		if !ok {
+			// Record doesn't exist
+			continue
+		}
+
+		// Parse the version
+		var version uint32
+		if v.Version != "" {
+			u, err := strconv.ParseUint(v.Version, 10, 64)
+			if err != nil {
+				// Not a valid version. Don't include this token in the
+				// reply.
+				continue
+			}
+			version = uint32(u)
+		}
+
+		// Get the record
+		r, err := t.vetted.RecordPartial(treeID, version,
+			v.OmitFiles, v.Filenames)
+		if err != nil {
+			if err == backend.ErrRecordNotFound {
+				// Record doesn't exist. This is ok. It will not be included
+				// in the reply.
+				continue
+			}
+			// An unexpected error occured. Log it and continue.
+			log.Debug("RecordPartial %v: %v", treeID, err)
+			continue
+		}
+
+		// Update reply
+		records[r.RecordMetadata.Token] = *r
+	}
+
+	return records, nil
+}
+
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetUnvettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
 	log.Tracef("GetUnvettedTimestamps: %x %v", token, version)
 
@@ -1435,7 +1533,7 @@ func (t *tlogBackend) GetUnvettedTimestamps(token []byte, version string) (*back
 	return t.unvetted.RecordTimestamps(treeID, v, token)
 }
 
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetVettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
 	log.Tracef("GetVettedTimestamps: %x %v", token, version)
 
@@ -1466,7 +1564,7 @@ func (t *tlogBackend) GetVettedTimestamps(token []byte, version string) (*backen
 // InventoryByStatus returns the record tokens of all records in the inventory
 // categorized by MDStatusT.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) InventoryByStatus(state string, status backend.MDStatusT, pageSize, page uint32) (*backend.InventoryByStatus, error) {
 	log.Tracef("InventoryByStatus: %v %v %v %v", state, status, pageSize, page)
 
@@ -1483,7 +1581,7 @@ func (t *tlogBackend) InventoryByStatus(state string, status backend.MDStatusT, 
 
 // RegisterUnvettedPlugin registers a plugin with the unvetted tlog instance.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) RegisterUnvettedPlugin(p backend.Plugin) error {
 	log.Tracef("RegisterUnvettedPlugin: %v", p.ID)
 
@@ -1496,7 +1594,7 @@ func (t *tlogBackend) RegisterUnvettedPlugin(p backend.Plugin) error {
 
 // RegisterVettedPlugin has not been implemented.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) RegisterVettedPlugin(p backend.Plugin) error {
 	log.Tracef("RegisterVettedPlugin: %v", p.ID)
 
@@ -1510,7 +1608,7 @@ func (t *tlogBackend) RegisterVettedPlugin(p backend.Plugin) error {
 // SetupUnvettedPlugin performs plugin setup for a previously registered
 // unvetted plugin.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) SetupUnvettedPlugin(pluginID string) error {
 	log.Tracef("SetupUnvettedPlugin: %v", pluginID)
 
@@ -1524,7 +1622,7 @@ func (t *tlogBackend) SetupUnvettedPlugin(pluginID string) error {
 // SetupVettedPlugin performs plugin setup for a previously registered vetted
 // plugin.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) SetupVettedPlugin(pluginID string) error {
 	log.Tracef("SetupVettedPlugin: %v", pluginID)
 
@@ -1622,7 +1720,7 @@ func (t *tlogBackend) unvettedPluginWrite(token []byte, pluginID, cmd, payload s
 
 // UnvettedPluginCmd executes a plugin command on an unvetted record.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) UnvettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
 	log.Tracef("UnvettedPluginCmd: %v %x %v %v", action, token, pluginID, cmd)
 
@@ -1736,7 +1834,7 @@ func (t *tlogBackend) vettedPluginWrite(token []byte, pluginID, cmd, payload str
 
 // VettedPluginCmd executes a plugin command on an unvetted record.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) VettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
 	log.Tracef("VettedPluginCmd: %v %x %v %v", action, token, pluginID, cmd)
 
@@ -1768,7 +1866,7 @@ func (t *tlogBackend) VettedPluginCmd(action string, token []byte, pluginID, cmd
 
 // GetUnvettedPlugins returns the unvetted plugins that have been registered.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetUnvettedPlugins() []backend.Plugin {
 	log.Tracef("GetUnvettedPlugins")
 
@@ -1777,7 +1875,7 @@ func (t *tlogBackend) GetUnvettedPlugins() []backend.Plugin {
 
 // GetVettedPlugins returns the vetted plugins that have been registered.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetVettedPlugins() []backend.Plugin {
 	log.Tracef("GetVettedPlugins")
 
@@ -1786,28 +1884,28 @@ func (t *tlogBackend) GetVettedPlugins() []backend.Plugin {
 
 // Inventory has been DEPRECATED.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) Inventory(vettedCount, vettedStart, unvettedCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
 // GetPlugins has been DEPRECATED.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) GetPlugins() ([]backend.Plugin, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
 // Plugin has been DEPRECATED.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) Plugin(pluginID, cmd, cmdID, payload string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
 // Close shuts the backend down and performs cleanup.
 //
-// This function satisfies the backend.Backend interface.
+// This function satisfies the Backend interface.
 func (t *tlogBackend) Close() {
 	log.Tracef("Close")
 

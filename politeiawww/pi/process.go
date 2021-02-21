@@ -21,21 +21,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// proposal returns a version of a proposal record from politeiad. If version
-// is an empty string then the most recent version will be returned.
-func (p *Pi) proposal(ctx context.Context, state, token, version string) (*v1.Proposal, error) {
+func (p *Pi) proposals(ctx context.Context, state string, reqs []pdv1.RecordRequest) (map[string]v1.Proposal, error) {
 	var (
-		r   *pdv1.Record
-		err error
+		records map[string]pdv1.Record
+		err     error
 	)
 	switch state {
 	case v1.ProposalStateUnvetted:
-		r, err = p.politeiad.GetUnvetted(ctx, token, version)
+		records, err = p.politeiad.GetUnvettedBatch(ctx, reqs)
 		if err != nil {
 			return nil, err
 		}
 	case v1.ProposalStateVetted:
-		r, err = p.politeiad.GetVetted(ctx, token, version)
+		records, err = p.politeiad.GetVettedBatch(ctx, reqs)
 		if err != nil {
 			return nil, err
 		}
@@ -43,22 +41,27 @@ func (p *Pi) proposal(ctx context.Context, state, token, version string) (*v1.Pr
 		return nil, fmt.Errorf("invalid state %v", state)
 	}
 
-	// Convert to a proposal
-	pr, err := convertRecord(*r, state)
-	if err != nil {
-		return nil, err
+	proposals := make(map[string]v1.Proposal, len(records))
+	for k, v := range records {
+		// Convert to a proposal
+		pr, err := convertRecord(v, state)
+		if err != nil {
+			return nil, err
+		}
+
+		// Fill in user data
+		userID := userIDFromMetadataStreams(v.Metadata)
+		uid, err := uuid.Parse(userID)
+		u, err := p.userdb.UserGetById(uid)
+		if err != nil {
+			return nil, err
+		}
+		proposalPopulateUserData(pr, *u)
+
+		proposals[k] = *pr
 	}
 
-	// Fill in user data
-	userID := userIDFromMetadataStreams(r.Metadata)
-	uid, err := uuid.Parse(userID)
-	u, err := p.userdb.UserGetById(uid)
-	if err != nil {
-		return nil, err
-	}
-	proposalPopulateUserData(pr, *u)
-
-	return pr, nil
+	return proposals, nil
 }
 
 func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User) (*v1.ProposalsReply, error) {
@@ -83,34 +86,23 @@ func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User
 		}
 	}
 
-	// Get all proposals in the batch. This should be a batched call to
-	// politeiad, but the politeiad API does not provided a batched
-	// records endpoint.
-	proposals := make(map[string]v1.Proposal, len(ps.Tokens))
+	// Setup record requests. We don't retreive any index files or
+	// attachment files in order to keep the payload size minimal.
+	reqs := make([]pdv1.RecordRequest, 0, len(ps.Tokens))
 	for _, v := range ps.Tokens {
-		pr, err := p.proposal(ctx, ps.State, v, "")
-		if err != nil {
-			// If any error occured simply skip this proposal. It will not
-			// be included in the reply.
-			continue
-		}
+		reqs = append(reqs, pdv1.RecordRequest{
+			Token: v,
+			Filenames: []string{
+				v1.FileNameProposalMetadata,
+				v1.FileNameVoteMetadata,
+			},
+		})
+	}
 
-		// The only files that are returned in this call are the
-		// ProposalMetadata and the VoteMetadata files.
-		files := make([]v1.File, 0, len(pr.Files))
-		for k := range pr.Files {
-			switch pr.Files[k].Name {
-			case v1.FileNameProposalMetadata, v1.FileNameVoteMetadata:
-				// Include file
-				files = append(files, pr.Files[k])
-			default:
-				// All other files are disregarded. Do nothing.
-			}
-		}
-
-		pr.Files = files
-
-		proposals[pr.CensorshipRecord.Token] = *pr
+	// Get proposals
+	proposals, err := p.proposals(ctx, ps.State, reqs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Only admins and the proposal author are allowed to retrieve

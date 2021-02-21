@@ -28,8 +28,10 @@ const (
 	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/" // Update unvetted metadata
 	UpdateVettedRoute           = "/v1/updatevetted/"     // Update vetted record
 	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
-	GetUnvettedRoute            = "/v1/getunvetted/"      // Retrieve unvetted record
-	GetVettedRoute              = "/v1/getvetted/"        // Retrieve vetted record
+	GetUnvettedRoute            = "/v1/getunvetted/"      // Get unvetted record
+	GetVettedRoute              = "/v1/getvetted/"        // Get vetted record
+	GetUnvettedBatchRoute       = "/v1/getunvettedbatch/" // Get unvetted records
+	GetVettedBatchRoute         = "/v1/getvettedbatch/"   // Get vetted records
 	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"    // Get unvetted timestamps
 	GetVettedTimestampsRoute    = "/v1/getvettedts/"      // Get vetted timestamps
 	InventoryByStatusRoute      = "/v1/inventorybystatus/"
@@ -39,7 +41,7 @@ const (
 	SetUnvettedStatusRoute  = "/v1/setunvettedstatus/" // Set unvetted status
 	SetVettedStatusRoute    = "/v1/setvettedstatus/"   // Set vetted status
 	PluginCommandRoute      = "/v1/plugin/"            // Send a command to a plugin
-	PluginCommandBatchRoute = "/v1/plugin/batch"       // Send a batch of plugin cmds
+	PluginCommandBatchRoute = "/v1/plugin/batch"       // Send commands to plugins
 	PluginInventoryRoute    = "/v1/plugin/inventory/"  // Inventory all plugins
 
 	ChallengeSize = 32 // Size of challenge token in bytes
@@ -614,8 +616,7 @@ type PluginCommandReplyV2 struct {
 	Payload string `json:"payload"` // Response payload
 
 	// UserError will be populated if a ErrorStatusT is encountered
-	// before the plugin command could be executed. Ex, the provided
-	// token does not correspond to a record.
+	// before the plugin command could be executed.
 	UserError *UserErrorReply `json:"usererror,omitempty"`
 
 	// PluginError will be populated if a plugin error occured during
@@ -634,4 +635,51 @@ type PluginCommandBatch struct {
 type PluginCommandBatchReply struct {
 	Response string                 `json:"response"` // Challenge response
 	Replies  []PluginCommandReplyV2 `json:"replies"`
+}
+
+// RecordRequest is used to requests a record. It gives the client granular
+// control over what is returned. The only required field is the token. All
+// other fields are optional.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// OmitFiles can be used to retrieve a record without any of the record files
+// being returned.
+//
+// Filenames can be used to request specific files. When filenames is not
+// empty, the only files that are returned will be those that are specified.
+type RecordRequest struct {
+	Token     string   `json:"token"`
+	Version   string   `json:"version,omitempty"`
+	OmitFiles bool     `json:"omitfiles,omitempty"`
+	Filenames []string `json:"filenames,omitempty"`
+}
+
+// GetUnvettedBatch requests a batch of unvetted records.
+type GetUnvettedBatch struct {
+	Challenge string          `json:"challenge"` // Random challenge
+	Requests  []RecordRequest `json:"requests"`
+}
+
+// GetUnvettedBatchReply is the reply to the GetUnvettedBatch command. If a
+// record was not found or an error occured while retrieving it the token will
+// not be included in the returned map.
+type GetUnvettedBatchReply struct {
+	Response string            `json:"response"` // Challenge response
+	Records  map[string]Record `json:"record"`
+}
+
+// GetVettedBatch requests a batch of unvetted records.
+type GetVettedBatch struct {
+	Challenge string          `json:"challenge"` // Random challenge
+	Requests  []RecordRequest `json:"requests"`
+}
+
+// GetVettedBatchReply is the reply to the GetVettedBatch command. If a record
+// was not found or an error occured while retrieving it the token will not be
+// included in the returned map.
+type GetVettedBatchReply struct {
+	Response string            `json:"response"` // Challenge response
+	Records  map[string]Record `json:"record"`
 }

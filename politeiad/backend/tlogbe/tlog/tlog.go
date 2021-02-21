@@ -947,9 +947,17 @@ printErr:
 	return false
 }
 
-func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
-	log.Tracef("%v record: %v %v", t.id, treeID, version)
-
+// record returns the specified record.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// OmitFiles can be used to retrieve a record without any of the record files
+// being returned.
+//
+// Filenames can be used to request specific files. When filenames is not
+// empty, the only files that are returned will be those that are specified.
+func (t *Tlog) record(treeID int64, version uint32, omitFiles bool, filenames []string) (*backend.Record, error) {
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
 		return nil, backend.ErrRecordNotFound
@@ -994,8 +1002,25 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 	for _, v := range idx.Metadata {
 		merkles[hex.EncodeToString(v)] = struct{}{}
 	}
-	for _, v := range idx.Files {
-		merkles[hex.EncodeToString(v)] = struct{}{}
+	switch {
+	case omitFiles:
+		// Don't include any files
+	case len(filenames) > 0:
+		// Only included the specified files
+		filesToInclude := make(map[string]struct{}, len(filenames))
+		for _, v := range filenames {
+			filesToInclude[v] = struct{}{}
+		}
+		for fn, v := range idx.Files {
+			if _, ok := filesToInclude[fn]; ok {
+				merkles[hex.EncodeToString(v)] = struct{}{}
+			}
+		}
+	default:
+		// Include all files
+		for _, v := range idx.Files {
+			merkles[hex.EncodeToString(v)] = struct{}{}
+		}
 	}
 
 	// Walk the tree and extract the record content keys
@@ -1117,9 +1142,28 @@ func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
 	}, nil
 }
 
+// Record returns the specified version of the record.
+func (t *Tlog) Record(treeID int64, version uint32) (*backend.Record, error) {
+	log.Tracef("%v record: %v %v", t.id, treeID, version)
+
+	return t.record(treeID, version, false, []string{})
+}
+
+// RecordLatest returns the latest version of a record.
 func (t *Tlog) RecordLatest(treeID int64) (*backend.Record, error) {
 	log.Tracef("%v RecordLatest: %v", t.id, treeID)
-	return t.Record(treeID, 0)
+
+	return t.record(treeID, 0, false, []string{})
+}
+
+// RecordPartial returns a partial record. This method gives the caller fine
+// grained control over what version and what files are returned. The only
+// required field is the token. All other fields are optional.
+func (t *Tlog) RecordPartial(treeID int64, version uint32, omitFiles bool, filenames []string) (*backend.Record, error) {
+	log.Tracef("%v RecordPartial: %v %v %v %v",
+		t.id, treeID, version, omitFiles, filenames)
+
+	return t.record(treeID, version, omitFiles, filenames)
 }
 
 func (t *Tlog) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
