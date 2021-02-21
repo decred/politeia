@@ -5,6 +5,7 @@
 package github
 
 import (
+	"strings"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/codetracker"
@@ -47,9 +48,12 @@ func New(apiToken, host, rootCert, cert, key string) (*github, error) {
 // users' information once the info is fully received.  If repoRequest is
 // included then only that repo will be fetched and updated, typically
 // used for speeding up testing.
-func (g *github) Update(org string, repos []string, start, end int64) {
+func (g *github) Update(repos []string, start, end int64) {
 	for _, repo := range repos {
 		log.Infof("%s", repo)
+		orgRepo := strings.Split(repo, "-")
+		org := orgRepo[0]
+		repo = orgRepo[1]
 		log.Infof("Syncing %s/%s", org, repo)
 
 		// Grab latest sync time
@@ -184,7 +188,7 @@ func (g *github) fetchPullRequestCommits(org, repoName string, prNum int) ([]*da
 
 // UserInfo provides the converted information from pull requests and
 // reviews for a given user of a given period of time.
-func (g *github) UserInfo(org string, user string, year, month int) (*codetracker.UserInformationResult, error) {
+func (g *github) UserInfo(user string, year, month int) (*codetracker.UserInformationResult, error) {
 	startDate := time.Date(year, time.Month(month), 0, 0, 0, 0, 0,
 		time.UTC).Unix()
 	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0,
@@ -252,7 +256,6 @@ func (g *github) UserInfo(org string, user string, year, month int) (*codetracke
 	userInfo.Reviews = convertDBPullRequestReviewsToReviews(dbReviews)
 	userInfo.Commits = convertDBCommitsToCommits(dbCommits)
 	userInfo.User = user
-	userInfo.Organization = org
 	return userInfo, nil
 }
 

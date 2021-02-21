@@ -492,11 +492,6 @@ func loadConfig() (*config.Config, []string, error) {
 	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 	cfg.RPCCert = util.CleanAndExpandPath(cfg.RPCCert)
 
-	if cfg.CodeStatOrganization != "" && len(cfg.CodeStatRepos) < 1 {
-		return nil, nil, fmt.Errorf("you must specify repos if code stat " +
-			"organization is given")
-	}
-
 	if cfg.CodeStatStart > 0 &&
 		(time.Unix(cfg.CodeStatStart, 0).Before(codeStatCheck) ||
 			time.Unix(cfg.CodeStatStart, 0).After(time.Now())) {

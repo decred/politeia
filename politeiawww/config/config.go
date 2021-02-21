@@ -94,10 +94,11 @@ type Config struct {
 	MinConfirmationsRequired uint64   `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
 	BuildCMSDB               bool     `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
 	GithubAPIToken           string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
-	CodeStatRepos            []string `long:"codestatrepos" description:"Repositories under the organization to crawl for code statistics"`
+	CodeStatRepos            []string `long:"codestatrepos" description:"Org/Repositories to crawl for code statistics"`
 	CodeStatOrganization     string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
 	CodeStatStart            int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
 	CodeStatEnd              int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
+	CodeStatSkipSync         bool     `long:"codestatskipsync" description:"Skip pull request crawl on startup"`
 	VoteDurationMin          uint32   `long:"votedurationmin" description:"Minimum duration of a dcc vote in blocks"`
 	VoteDurationMax          uint32   `long:"votedurationmax" description:"Maximum duration of a dcc vote in blocks"`
 

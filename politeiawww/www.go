@@ -475,14 +475,14 @@ func (p *politeiawww) setupCMS() error {
 			return fmt.Errorf("build cache: %v", err)
 		}
 	}
-	if p.cfg.GithubAPIToken != "" && p.cfg.CodeStatOrganization != "" {
+	if p.cfg.GithubAPIToken != "" {
 		p.tracker, err = ghtracker.New(p.cfg.GithubAPIToken,
 			p.cfg.DBHost, p.cfg.DBRootCert, p.cfg.DBCert, p.cfg.DBKey)
 		if err != nil {
 			return fmt.Errorf("code tracker failed to load: %v", err)
 		}
 		go func() {
-			err = p.updateCodeStats(p.cfg.CodeStatOrganization,
+			err = p.updateCodeStats(p.cfg.CodeStatSkipSync,
 				p.cfg.CodeStatRepos, p.cfg.CodeStatStart, p.cfg.CodeStatEnd)
 			if err != nil {
 				log.Errorf("erroring updating code stats %v", err)

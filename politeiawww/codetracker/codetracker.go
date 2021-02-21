@@ -8,23 +8,22 @@ package codetracker
 // site (Github/Gitlab etc).
 type CodeTracker interface {
 	// Update updates the code stats for a (organization, repos, start end date)
-	Update(org string, repos []string, start, end int64)
+	Update(repos []string, start, end int64)
 
 	// UserInfo returns pull request, review and commit information about
 	// a given user over a given start and stop time.
-	UserInfo(org, username string, start, end int) (*UserInformationResult, error)
+	UserInfo(username string, start, end int) (*UserInformationResult, error)
 }
 
 // UserInformationResult models the data from the userinformation command.
 type UserInformationResult struct {
-	User         string                   `json:"user"`
-	Organization string                   `json:"organization"`
-	MergedPRs    []PullRequestInformation `json:"mergedprs"`
-	UpdatedPRs   []PullRequestInformation `json:"updatedprs"`
-	Commits      []CommitInformation      `json:"commits"`
-	Reviews      []ReviewInformation      `json:"reviews"`
-	Year         int                      `json:"year"`
-	Month        int                      `json:"month"`
+	User       string                   `json:"user"`
+	MergedPRs  []PullRequestInformation `json:"mergedprs"`
+	UpdatedPRs []PullRequestInformation `json:"updatedprs"`
+	Commits    []CommitInformation      `json:"commits"`
+	Reviews    []ReviewInformation      `json:"reviews"`
+	Year       int                      `json:"year"`
+	Month      int                      `json:"month"`
 }
 
 // PullRequestInformation contains all the specific details of pull request.
