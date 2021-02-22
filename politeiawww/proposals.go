@@ -207,61 +207,6 @@ func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchPro
 	return nil, nil
 }
 
-func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
-	log.Tracef("processVoteResults: %v", token)
-
-	// TODO Get vote details
-	var vd tkplugin.VoteDetails
-
-	// Convert to www
-	startHeight := strconv.FormatUint(uint64(vd.StartBlockHeight), 10)
-	endHeight := strconv.FormatUint(uint64(vd.EndBlockHeight), 10)
-	options := make([]www.VoteOption, 0, len(vd.Params.Options))
-	for _, o := range vd.Params.Options {
-		options = append(options, www.VoteOption{
-			Id:          o.ID,
-			Description: o.Description,
-			Bits:        o.Bit,
-		})
-	}
-
-	// TODO Get cast votes
-	var rr tkplugin.ResultsReply
-
-	// Convert to www
-	votes := make([]www.CastVote, 0, len(rr.Votes))
-	for _, v := range rr.Votes {
-		votes = append(votes, www.CastVote{
-			Token:     v.Token,
-			Ticket:    v.Ticket,
-			VoteBit:   v.VoteBit,
-			Signature: v.Signature,
-		})
-	}
-
-	return &www.VoteResultsReply{
-		StartVote: www.StartVote{
-			PublicKey: vd.PublicKey,
-			Signature: vd.Signature,
-			Vote: www.Vote{
-				Token:            vd.Params.Token,
-				Mask:             vd.Params.Mask,
-				Duration:         vd.Params.Duration,
-				QuorumPercentage: vd.Params.QuorumPercentage,
-				PassPercentage:   vd.Params.PassPercentage,
-				Options:          options,
-			},
-		},
-		StartVoteReply: www.StartVoteReply{
-			StartBlockHeight: startHeight,
-			StartBlockHash:   vd.StartBlockHash,
-			EndHeight:        endHeight,
-			EligibleTickets:  vd.EligibleTickets,
-		},
-		CastVotes: votes,
-	}, nil
-}
-
 func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
@@ -306,7 +251,40 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 	}, nil
 }
 
+func convertVoteDetails(vd tkplugin.VoteDetails) (www.StartVote, www.StartVoteReply) {
+	options := make([]www.VoteOption, 0, len(vd.Params.Options))
+	for _, v := range vd.Params.Options {
+		options = append(options, www.VoteOption{
+			Id:          v.ID,
+			Description: v.Description,
+			Bits:        v.Bit,
+		})
+	}
+	sv := www.StartVote{
+		Vote: www.Vote{
+			Token:            vd.Params.Token,
+			Mask:             vd.Params.Mask,
+			Duration:         vd.Params.Duration,
+			QuorumPercentage: vd.Params.QuorumPercentage,
+			PassPercentage:   vd.Params.PassPercentage,
+			Options:          options,
+		},
+		PublicKey: vd.PublicKey,
+		Signature: vd.Signature,
+	}
+	svr := www.StartVoteReply{
+		StartBlockHeight: strconv.FormatUint(uint64(vd.StartBlockHeight), 10),
+		StartBlockHash:   vd.StartBlockHash,
+		EndHeight:        strconv.FormatUint(uint64(vd.EndBlockHeight), 10),
+		EligibleTickets:  vd.EligibleTickets,
+	}
+
+	return sv, svr
+}
+
 func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
+	log.Tracef("processActiveVotes")
+
 	// Get a page of ongoing votes. This route is deprecated and should
 	// be deleted before the time comes when more than a page of ongoing
 	// votes is required.
@@ -369,38 +347,13 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 		}
 		vd, ok := voteDetails[v]
 		if ok {
-			options := make([]www.VoteOption, 0, len(vd.Params.Options))
-			for _, v := range vd.Params.Options {
-				options = append(options, www.VoteOption{
-					Id:          v.ID,
-					Description: v.Description,
-					Bits:        v.Bit,
-				})
-			}
-			sv = www.StartVote{
-				Vote: www.Vote{
-					Token:            vd.Params.Token,
-					Mask:             vd.Params.Mask,
-					Duration:         vd.Params.Duration,
-					QuorumPercentage: vd.Params.QuorumPercentage,
-					PassPercentage:   vd.Params.PassPercentage,
-					Options:          options,
-				},
-				PublicKey: vd.PublicKey,
-				Signature: vd.Signature,
-			}
-			svr = www.StartVoteReply{
-				StartBlockHeight: strconv.FormatUint(uint64(vd.StartBlockHeight), 10),
-				StartBlockHash:   vd.StartBlockHash,
-				EndHeight:        strconv.FormatUint(uint64(vd.EndBlockHeight), 10),
-				EligibleTickets:  vd.EligibleTickets,
-			}
+			sv, svr = convertVoteDetails(vd)
+			votes = append(votes, www.ProposalVoteTuple{
+				Proposal:       proposal,
+				StartVote:      sv,
+				StartVoteReply: svr,
+			})
 		}
-		votes = append(votes, www.ProposalVoteTuple{
-			Proposal:       proposal,
-			StartVote:      sv,
-			StartVoteReply: svr,
-		})
 	}
 
 	return &www.ActiveVoteReply{
@@ -441,6 +394,45 @@ func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) 
 
 	return &www.BallotReply{
 		Receipts: receipts,
+	}, nil
+}
+
+func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
+	log.Tracef("processVoteResults: %v", token)
+
+	// Get vote details
+	dr, err := p.politeiad.TicketVoteDetails(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	if dr.Vote == nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+	sv, svr := convertVoteDetails(*dr.Vote)
+
+	// Get cast votes
+	rr, err := p.politeiad.TicketVoteResults(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to www
+	votes := make([]www.CastVote, 0, len(rr.Votes))
+	for _, v := range rr.Votes {
+		votes = append(votes, www.CastVote{
+			Token:     v.Token,
+			Ticket:    v.Ticket,
+			VoteBit:   v.VoteBit,
+			Signature: v.Signature,
+		})
+	}
+
+	return &www.VoteResultsReply{
+		StartVote:      sv,
+		StartVoteReply: svr,
+		CastVotes:      votes,
 	}, nil
 }
 
@@ -556,6 +548,29 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleBatchVoteSummary")
+
+	var bvs www.BatchVoteSummary
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bvs); err != nil {
+		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processBatchVoteSummary(r.Context(), bvs)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleActiveVote")
 
@@ -606,29 +621,6 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
-}
-
-func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleBatchVoteSummary")
-
-	var bvs www.BatchVoteSummary
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bvs); err != nil {
-		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processBatchVoteSummary(r.Context(), bvs)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
