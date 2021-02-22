@@ -185,6 +185,7 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 
 func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
 	log.Tracef("processAllVetted: %v %v", gav.Before, gav.After)
+
 	// TODO
 
 	return nil, nil
@@ -196,20 +197,57 @@ func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.Proposa
 	// This route will now only return vetted proposal. This is fine
 	// since API consumers of this legacy route will only need public
 	// proposals.
+	pr, err := p.proposal(ctx, pd.Token, pd.Version)
+	if err != nil {
+		return nil, err
+	}
 
-	// Remove files if the user is not an admin or the author
-
-	return nil, nil
+	return &www.ProposalDetailsReply{
+		Proposal: *pr,
+	}, nil
 }
 
 func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
-	return nil, nil
+	if len(bp.Tokens) > www.ProposalListPageSize {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
+		}
+	}
+
+	reqs := make([]pdv1.RecordRequest, 0, len(bp.Tokens))
+	for _, v := range bp.Tokens {
+		reqs = append(reqs, pdv1.RecordRequest{
+			Token: v,
+			Filenames: []string{
+				piplugin.FileNameProposalMetadata,
+				tkplugin.FileNameVoteMetadata,
+			},
+		})
+	}
+	props, err := p.proposals(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+	prs := make([]www.ProposalRecord, 0, len(props))
+	for _, v := range props {
+		prs = append(prs, v)
+	}
+
+	return &www.BatchProposalsReply{
+		Proposals: prs,
+	}, nil
 }
 
 func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
+
+	if len(bvs.Tokens) > www.ProposalListPageSize {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
+		}
+	}
 
 	// Get vote summaries
 	vs, err := p.politeiad.TicketVoteSummaries(ctx, bvs.Tokens)
