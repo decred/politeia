@@ -265,30 +265,32 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
-	// TODO
-	var bestBlock uint32
-	var vs []tkplugin.SummaryReply
+	// Get vote summaries
+	vs, err := p.politeiad.TicketVoteSummaries(ctx, bvs.Tokens)
+	if err != nil {
+		return nil, err
+	}
 
 	// Prepare reply
+	var bestBlock uint32
 	summaries := make(map[string]www.VoteSummary, len(vs))
-	for _, v := range vs {
-		results := make([]www.VoteOptionResult, 0, len(v.Results))
-		for _, r := range v.Results {
-			results = append(results, www.VoteOptionResult{
+	for token, v := range vs {
+		bestBlock = v.BestBlock
+		results := make([]www.VoteOptionResult, len(v.Results))
+		for k, r := range v.Results {
+			results[k] = www.VoteOptionResult{
 				VotesReceived: r.Votes,
 				Option: www.VoteOption{
 					Id:          r.ID,
 					Description: r.Description,
 					Bits:        r.VoteBit,
 				},
-			})
+			}
 		}
-		// TODO
-		var token string
 		summaries[token] = www.VoteSummary{
-			// Status: convertVoteStatusToWWW(v.Status),
-			// Type:   convertVoteTypeToWWW(v.Type),
-			// Approved:         v.Approved,
+			Status:           convertVoteStatusToWWW(v.Status),
+			Type:             convertVoteTypeToWWW(v.Type),
+			Approved:         v.Status == tkplugin.VoteStatusApproved,
 			EligibleTickets:  v.EligibleTickets,
 			Duration:         v.Duration,
 			EndHeight:        uint64(v.EndBlockHeight),
@@ -818,7 +820,6 @@ func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 	}, nil
 }
 
-/*
 func convertVoteStatusToWWW(status tkplugin.VoteStatusT) www.PropVoteStatusT {
 	switch status {
 	case tkplugin.VoteStatusInvalid:
@@ -830,6 +831,10 @@ func convertVoteStatusToWWW(status tkplugin.VoteStatusT) www.PropVoteStatusT {
 	case tkplugin.VoteStatusStarted:
 		return www.PropVoteStatusStarted
 	case tkplugin.VoteStatusFinished:
+		return www.PropVoteStatusFinished
+	case tkplugin.VoteStatusApproved:
+		return www.PropVoteStatusFinished
+	case tkplugin.VoteStatusRejected:
 		return www.PropVoteStatusFinished
 	default:
 		return www.PropVoteStatusInvalid
@@ -849,6 +854,7 @@ func convertVoteTypeToWWW(t tkplugin.VoteT) www.VoteT {
 	}
 }
 
+/*
 func convertVoteErrorCodeToWWW(errcode tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
 	switch errcode {
 	case tkplugin.VoteErrorInvalid:
