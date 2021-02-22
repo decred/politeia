@@ -105,6 +105,10 @@ type pictl struct {
 	SeedProposals cmdSeedProposals `command:"seedproposals"`
 	VoteTestSetup cmdVoteTestSetup `command:"votetestsetup"`
 	VoteTest      cmdVoteTest      `command:"votetest"`
+
+	// Legacy www routes (deprecated)
+	TokenInventory shared.TokenInventoryCmd `command:"tokeninventory"`
+	ActiveVotes    cmdActiveVotes           `command:"activevotes"`
 }
 
 const helpMsg = `Application Options:

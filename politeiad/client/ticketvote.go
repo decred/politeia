@@ -304,7 +304,7 @@ func (c *Client) TicketVoteSummaries(ctx context.Context, tokens []string) (map[
 
 // TicketVoteSubmissions sends the ticketvote plugin Submissions command to the
 // politeiad v1 API.
-func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) (*ticketvote.SubmissionsReply, error) {
+func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) ([]string, error) {
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{
@@ -338,7 +338,7 @@ func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) (*tick
 		return nil, err
 	}
 
-	return &sr, nil
+	return sr.Submissions, nil
 }
 
 // TicketVoteInventory sends the ticketvote plugin Inventory command to the

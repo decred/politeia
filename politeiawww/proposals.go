@@ -6,17 +6,22 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	tvplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
+	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
@@ -24,6 +29,77 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
+
+func (p *politeiawww) proposal(ctx context.Context, token, version string) (*www.ProposalRecord, error) {
+	// Get record
+	r, err := p.politeiad.GetVetted(ctx, token, version)
+	if err != nil {
+		return nil, err
+	}
+	pr, err := convertRecordToProposal(*r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get submissions list if this is an RFP
+	if pr.LinkBy != 0 {
+		subs, err := p.politeiad.TicketVoteSubmissions(ctx, token)
+		if err != nil {
+			return nil, err
+		}
+		pr.LinkedFrom = subs
+	}
+
+	// Fill in user data
+	userID := userIDFromMetadataStreams(r.Metadata)
+	uid, err := uuid.Parse(userID)
+	u, err := p.db.UserGetById(uid)
+	if err != nil {
+		return nil, err
+	}
+	pr.Username = u.Username
+
+	return pr, nil
+}
+
+func (p *politeiawww) proposals(ctx context.Context, reqs []pdv1.RecordRequest) (map[string]www.ProposalRecord, error) {
+	records, err := p.politeiad.GetVettedBatch(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+
+	proposals := make(map[string]www.ProposalRecord, len(records))
+	for k, v := range records {
+		// Convert to a proposal
+		pr, err := convertRecordToProposal(v)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get submissions list if this is an RFP
+		if pr.LinkBy != 0 {
+			subs, err := p.politeiad.TicketVoteSubmissions(ctx,
+				pr.CensorshipRecord.Token)
+			if err != nil {
+				return nil, err
+			}
+			pr.LinkedFrom = subs
+		}
+
+		// Fill in user data
+		userID := userIDFromMetadataStreams(v.Metadata)
+		uid, err := uuid.Parse(userID)
+		u, err := p.db.UserGetById(uid)
+		if err != nil {
+			return nil, err
+		}
+		pr.Username = u.Username
+
+		proposals[k] = *pr
+	}
+
+	return proposals, nil
+}
 
 func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
@@ -50,11 +126,11 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 		censored        = ir.Unvetted[pdv1.RecordStatusCensored]
 
 		// Human readable vote statuses
-		statusUnauth   = tvplugin.VoteStatuses[tvplugin.VoteStatusUnauthorized]
-		statusAuth     = tvplugin.VoteStatuses[tvplugin.VoteStatusAuthorized]
-		statusStarted  = tvplugin.VoteStatuses[tvplugin.VoteStatusStarted]
-		statusApproved = tvplugin.VoteStatuses[tvplugin.VoteStatusApproved]
-		statusRejected = tvplugin.VoteStatuses[tvplugin.VoteStatusRejected]
+		statusUnauth   = tkplugin.VoteStatuses[tkplugin.VoteStatusUnauthorized]
+		statusAuth     = tkplugin.VoteStatuses[tkplugin.VoteStatusAuthorized]
+		statusStarted  = tkplugin.VoteStatuses[tkplugin.VoteStatusStarted]
+		statusApproved = tkplugin.VoteStatuses[tkplugin.VoteStatusApproved]
+		statusRejected = tkplugin.VoteStatuses[tkplugin.VoteStatusRejected]
 
 		// Vetted
 		unauth    = vir.Tokens[statusUnauth]
@@ -68,8 +144,31 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 
 	// Only return unvetted tokens to admins
 	if isAdmin {
-		unreviewed = nil
-		censored = nil
+		unreviewed = []string{}
+		censored = []string{}
+	}
+
+	// Return empty arrays and not nils
+	if unreviewed == nil {
+		unreviewed = []string{}
+	}
+	if censored == nil {
+		censored = []string{}
+	}
+	if pre == nil {
+		pre = []string{}
+	}
+	if active == nil {
+		active = []string{}
+	}
+	if approved == nil {
+		approved = []string{}
+	}
+	if rejected == nil {
+		rejected = []string{}
+	}
+	if abandoned == nil {
+		abandoned = []string{}
 	}
 
 	return &www.TokenInventoryReply{
@@ -88,29 +187,6 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 	// TODO
 
 	return nil, nil
-}
-
-func (p *politeiawww) proposal(ctx context.Context, token, version string) (*www.ProposalRecord, error) {
-	// Get record
-	r, err := p.politeiad.GetVetted(ctx, token, version)
-	if err != nil {
-		return nil, err
-	}
-	pr, err := convertRecordToProposal(*r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fill in user data
-	userID := userIDFromMetadataStreams(r.Metadata)
-	uid, err := uuid.Parse(userID)
-	u, err := p.db.UserGetById(uid)
-	if err != nil {
-		return nil, err
-	}
-	pr.Username = u.Username
-
-	return pr, nil
 }
 
 func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
@@ -135,7 +211,7 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 	log.Tracef("processVoteResults: %v", token)
 
 	// TODO Get vote details
-	var vd tvplugin.VoteDetails
+	var vd tkplugin.VoteDetails
 
 	// Convert to www
 	startHeight := strconv.FormatUint(uint64(vd.StartBlockHeight), 10)
@@ -150,7 +226,7 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 	}
 
 	// TODO Get cast votes
-	var rr tvplugin.ResultsReply
+	var rr tkplugin.ResultsReply
 
 	// Convert to www
 	votes := make([]www.CastVote, 0, len(rr.Votes))
@@ -191,7 +267,7 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 
 	// TODO
 	var bestBlock uint32
-	var vs []tvplugin.SummaryReply
+	var vs []tkplugin.SummaryReply
 
 	// Prepare reply
 	summaries := make(map[string]www.VoteSummary, len(vs))
@@ -229,29 +305,126 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 }
 
 func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
-	// TODO
-	return nil, nil
+	// Get a page of ongoing votes. This route is deprecated and should
+	// be deleted before the time comes when more than a page of ongoing
+	// votes is required.
+	i := ticketvote.Inventory{}
+	ir, err := p.politeiad.TicketVoteInventory(ctx, i)
+	if err != nil {
+		return nil, err
+	}
+	s := ticketvote.VoteStatuses[ticketvote.VoteStatusStarted]
+	started := ir.Tokens[s]
+
+	if len(started) == 0 {
+		// No active votes
+		return &www.ActiveVoteReply{
+			Votes: []www.ProposalVoteTuple{},
+		}, nil
+	}
+
+	// Get proposals
+	reqs := make([]pdv1.RecordRequest, 0, len(started))
+	for _, v := range started {
+		reqs = append(reqs, pdv1.RecordRequest{
+			Token: v,
+			Filenames: []string{
+				piplugin.FileNameProposalMetadata,
+				tkplugin.FileNameVoteMetadata,
+			},
+		})
+	}
+	props, err := p.proposals(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get vote details
+	voteDetails := make(map[string]tkplugin.VoteDetails, len(started))
+	for _, v := range started {
+		dr, err := p.politeiad.TicketVoteDetails(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		if dr.Vote == nil {
+			continue
+		}
+		voteDetails[v] = *dr.Vote
+	}
+
+	// Prepare reply
+	votes := make([]www.ProposalVoteTuple, 0, len(started))
+	for _, v := range started {
+		var (
+			proposal www.ProposalRecord
+			sv       www.StartVote
+			svr      www.StartVoteReply
+			ok       bool
+		)
+		proposal, ok = props[v]
+		if !ok {
+			continue
+		}
+		vd, ok := voteDetails[v]
+		if ok {
+			options := make([]www.VoteOption, 0, len(vd.Params.Options))
+			for _, v := range vd.Params.Options {
+				options = append(options, www.VoteOption{
+					Id:          v.ID,
+					Description: v.Description,
+					Bits:        v.Bit,
+				})
+			}
+			sv = www.StartVote{
+				Vote: www.Vote{
+					Token:            vd.Params.Token,
+					Mask:             vd.Params.Mask,
+					Duration:         vd.Params.Duration,
+					QuorumPercentage: vd.Params.QuorumPercentage,
+					PassPercentage:   vd.Params.PassPercentage,
+					Options:          options,
+				},
+				PublicKey: vd.PublicKey,
+				Signature: vd.Signature,
+			}
+			svr = www.StartVoteReply{
+				StartBlockHeight: strconv.FormatUint(uint64(vd.StartBlockHeight), 10),
+				StartBlockHash:   vd.StartBlockHash,
+				EndHeight:        strconv.FormatUint(uint64(vd.EndBlockHeight), 10),
+				EligibleTickets:  vd.EligibleTickets,
+			}
+		}
+		votes = append(votes, www.ProposalVoteTuple{
+			Proposal:       proposal,
+			StartVote:      sv,
+			StartVoteReply: svr,
+		})
+	}
+
+	return &www.ActiveVoteReply{
+		Votes: votes,
+	}, nil
 }
 
 func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
 	// Prepare plugin command
-	votes := make([]tvplugin.CastVote, 0, len(ballot.Votes))
+	votes := make([]tkplugin.CastVote, 0, len(ballot.Votes))
 	for _, vote := range ballot.Votes {
-		votes = append(votes, tvplugin.CastVote{
+		votes = append(votes, tkplugin.CastVote{
 			Token:     vote.Ticket,
 			Ticket:    vote.Ticket,
 			VoteBit:   vote.VoteBit,
 			Signature: vote.Signature,
 		})
 	}
-	cb := tvplugin.CastBallot{
+	cb := tkplugin.CastBallot{
 		Ballot: votes,
 	}
 	// TODO
 	_ = cb
-	var cbr tvplugin.CastBallotReply
+	var cbr tkplugin.CastBallotReply
 
 	// Prepare reply
 	receipts := make([]www.CastVoteReply, 0, len(cbr.Receipts))
@@ -502,27 +675,74 @@ func convertStatusToWWW(status pdv1.RecordStatusT) www.PropStatusT {
 	}
 }
 
-// TODO convertRecordToProposal
 func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 	// Decode metadata
-	var um *umplugin.UserMetadata
+	var (
+		um       *umplugin.UserMetadata
+		statuses = make([]umplugin.StatusChangeMetadata, 0, 16)
+	)
 	for _, v := range r.Metadata {
+		if v.PluginID != umplugin.PluginID {
+			continue
+		}
+
+		// This is a usermd plugin metadata stream
 		switch v.ID {
 		case umplugin.MDStreamIDUserMetadata:
+			var m umplugin.UserMetadata
+			err := json.Unmarshal([]byte(v.Payload), &m)
+			if err != nil {
+				return nil, err
+			}
+			um = &m
+		case umplugin.MDStreamIDStatusChanges:
+			d := json.NewDecoder(strings.NewReader(v.Payload))
+			for {
+				var sc umplugin.StatusChangeMetadata
+				err := d.Decode(&sc)
+				if errors.Is(err, io.EOF) {
+					break
+				} else if err != nil {
+					return nil, err
+				}
+				statuses = append(statuses, sc)
+			}
 		}
 	}
 
 	// Convert files
 	var (
-		pm       *piplugin.ProposalMetadata
-		vm       *tvplugin.VoteMetadata
-		files    = make([]www.File, 0, len(r.Files))
-		metadata = make([]www.Metadata, 0, len(r.Files))
+		name, linkTo string
+		linkBy       int64
+		files        = make([]www.File, 0, len(r.Files))
 	)
 	for _, v := range r.Files {
 		switch v.Name {
 		case piplugin.FileNameProposalMetadata:
-		case tvplugin.FileNameVoteMetadata:
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			var pm piplugin.ProposalMetadata
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, err
+			}
+			name = pm.Name
+
+		case tkplugin.FileNameVoteMetadata:
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			var vm tkplugin.VoteMetadata
+			err = json.Unmarshal(b, &vm)
+			if err != nil {
+				return nil, err
+			}
+			linkTo = vm.LinkTo
+			linkBy = vm.LinkBy
+
 		default:
 			files = append(files, www.File{
 				Name:    v.Name,
@@ -533,47 +753,63 @@ func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 		}
 	}
 
-	/*
-		var (
-			publishedAt, censoredAt, abandonedAt int64
-			changeMsg                            string
-			changeMsgTimestamp                   int64
-		)
-		for _, v := range pr.Statuses {
-			if v.Timestamp > changeMsgTimestamp {
-				changeMsg = v.Reason
-				changeMsgTimestamp = v.Timestamp
-			}
-			switch v.Status {
-			case piv1.PropStatusPublic:
-				publishedAt = v.Timestamp
-			case piv1.PropStatusCensored:
-				censoredAt = v.Timestamp
-			case piv1.PropStatusAbandoned:
-				abandonedAt = v.Timestamp
-			}
+	// Setup user defined metadata
+	pm := www.ProposalMetadata{
+		Name:   name,
+		LinkTo: linkTo,
+		LinkBy: linkBy,
+	}
+	b, err := json.Marshal(pm)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []www.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(b)),
+			Hint:    www.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(b),
+		},
+	}
+
+	var (
+		publishedAt, censoredAt, abandonedAt int64
+		changeMsg                            string
+		changeMsgTimestamp                   int64
+	)
+	for _, v := range statuses {
+		if v.Timestamp > changeMsgTimestamp {
+			changeMsg = v.Reason
+			changeMsgTimestamp = v.Timestamp
 		}
-	*/
+		switch rcv1.RecordStatusT(v.Status) {
+		case rcv1.RecordStatusPublic:
+			publishedAt = v.Timestamp
+		case rcv1.RecordStatusCensored:
+			censoredAt = v.Timestamp
+		case rcv1.RecordStatusArchived:
+			abandonedAt = v.Timestamp
+		}
+	}
 
 	return &www.ProposalRecord{
-		Name:      pm.Name,
-		State:     www.PropStateVetted,
-		Status:    convertStatusToWWW(r.Status),
-		Timestamp: r.Timestamp,
-		UserId:    um.UserID,
-		Username:  "", // Intentionally omitted
-		PublicKey: um.PublicKey,
-		Signature: um.Signature,
-		Version:   r.Version,
-		// StatusChangeMessage: changeMsg,
-		// PublishedAt:         publishedAt,
-		// CensoredAt:          censoredAt,
-		// AbandonedAt:         abandonedAt,
-		LinkTo: vm.LinkTo,
-		LinkBy: vm.LinkBy,
-		// LinkedFrom: submissions,
-		Files:    files,
-		Metadata: metadata,
+		Name:                pm.Name,
+		State:               www.PropStateVetted,
+		Status:              convertStatusToWWW(r.Status),
+		Timestamp:           r.Timestamp,
+		UserId:              um.UserID,
+		Username:            "", // Intentionally omitted
+		PublicKey:           um.PublicKey,
+		Signature:           um.Signature,
+		Version:             r.Version,
+		StatusChangeMessage: changeMsg,
+		PublishedAt:         publishedAt,
+		CensoredAt:          censoredAt,
+		AbandonedAt:         abandonedAt,
+		LinkTo:              pm.LinkTo,
+		LinkBy:              pm.LinkBy,
+		LinkedFrom:          []string{},
+		Files:               files,
+		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
@@ -583,51 +819,51 @@ func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 }
 
 /*
-func convertVoteStatusToWWW(status tvplugin.VoteStatusT) www.PropVoteStatusT {
+func convertVoteStatusToWWW(status tkplugin.VoteStatusT) www.PropVoteStatusT {
 	switch status {
-	case tvplugin.VoteStatusInvalid:
+	case tkplugin.VoteStatusInvalid:
 		return www.PropVoteStatusInvalid
-	case tvplugin.VoteStatusUnauthorized:
+	case tkplugin.VoteStatusUnauthorized:
 		return www.PropVoteStatusNotAuthorized
-	case tvplugin.VoteStatusAuthorized:
+	case tkplugin.VoteStatusAuthorized:
 		return www.PropVoteStatusAuthorized
-	case tvplugin.VoteStatusStarted:
+	case tkplugin.VoteStatusStarted:
 		return www.PropVoteStatusStarted
-	case tvplugin.VoteStatusFinished:
+	case tkplugin.VoteStatusFinished:
 		return www.PropVoteStatusFinished
 	default:
 		return www.PropVoteStatusInvalid
 	}
 }
 
-func convertVoteTypeToWWW(t tvplugin.VoteT) www.VoteT {
+func convertVoteTypeToWWW(t tkplugin.VoteT) www.VoteT {
 	switch t {
-	case tvplugin.VoteTypeInvalid:
+	case tkplugin.VoteTypeInvalid:
 		return www.VoteTypeInvalid
-	case tvplugin.VoteTypeStandard:
+	case tkplugin.VoteTypeStandard:
 		return www.VoteTypeStandard
-	case tvplugin.VoteTypeRunoff:
+	case tkplugin.VoteTypeRunoff:
 		return www.VoteTypeRunoff
 	default:
 		return www.VoteTypeInvalid
 	}
 }
 
-func convertVoteErrorCodeToWWW(errcode tvplugin.VoteErrorT) decredplugin.ErrorStatusT {
+func convertVoteErrorCodeToWWW(errcode tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
 	switch errcode {
-	case tvplugin.VoteErrorInvalid:
+	case tkplugin.VoteErrorInvalid:
 		return decredplugin.ErrorStatusInvalid
-	case tvplugin.VoteErrorInternalError:
+	case tkplugin.VoteErrorInternalError:
 		return decredplugin.ErrorStatusInternalError
-	case tvplugin.VoteErrorRecordNotFound:
+	case tkplugin.VoteErrorRecordNotFound:
 		return decredplugin.ErrorStatusProposalNotFound
-	case tvplugin.VoteErrorVoteBitInvalid:
+	case tkplugin.VoteErrorVoteBitInvalid:
 		return decredplugin.ErrorStatusInvalidVoteBit
-	case tvplugin.VoteErrorVoteStatusInvalid:
+	case tkplugin.VoteErrorVoteStatusInvalid:
 		return decredplugin.ErrorStatusVoteHasEnded
-	case tvplugin.VoteErrorTicketAlreadyVoted:
+	case tkplugin.VoteErrorTicketAlreadyVoted:
 		return decredplugin.ErrorStatusDuplicateVote
-	case tvplugin.VoteErrorTicketNotEligible:
+	case tkplugin.VoteErrorTicketNotEligible:
 		return decredplugin.ErrorStatusIneligibleTicket
 	default:
 		return decredplugin.ErrorStatusInternalError

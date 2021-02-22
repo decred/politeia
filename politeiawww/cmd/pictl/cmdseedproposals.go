@@ -23,7 +23,8 @@ type cmdSeedProposals struct {
 		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
 		Users         int    `positional-arg-name:"users"`
 		Proposals     int    `positional-arg-name:"proposals"`
-		CommentVotes  int    `positional-arg-name:"commentvotes"`
+		Comments      *int   `positional-arg-name:"comments"`
+		CommentVotes  *int   `positional-arg-name:"commentvotes"`
 	} `positional-args:"true"`
 
 	// IncludeImages is used to include a random number of images when
@@ -51,8 +52,11 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	if c.Args.Proposals != 0 {
 		proposalCount = c.Args.Proposals
 	}
-	if c.Args.CommentVotes != 0 {
-		commentVotesPerProposal = c.Args.CommentVotes
+	if c.Args.Comments != nil {
+		commentsPerProposal = *c.Args.Comments
+	}
+	if c.Args.CommentVotes != nil {
+		commentVotesPerProposal = *c.Args.CommentVotes
 	}
 
 	// We don't want the output of individual commands printed.

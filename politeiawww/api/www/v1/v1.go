@@ -1032,7 +1032,7 @@ type ProposalVoteTuple struct {
 
 // ActiveVoteReply returns all proposals that have active votes.
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type ActiveVoteReply struct {
 	Votes []ProposalVoteTuple `json:"votes"` // Active votes
 }

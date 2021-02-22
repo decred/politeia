@@ -1468,6 +1468,33 @@ func (c *Client) GetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
 	return &avsr, nil
 }
 
+// ActiveVotes retreives the vote status of all public proposals.
+func (c *Client) ActiveVotes() (*www.ActiveVoteReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteActiveVote, nil)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode != http.StatusOK {
+		return nil, wwwError(respBody, statusCode)
+	}
+
+	var avr www.ActiveVoteReply
+	err = json.Unmarshal(respBody, &avr)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(avr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &avr, nil
+}
+
 // ActiveVotesDCC retreives all dccs that are currently being voted on.
 func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
 	statusCode, respBody, err := c.makeRequest(http.MethodGet,

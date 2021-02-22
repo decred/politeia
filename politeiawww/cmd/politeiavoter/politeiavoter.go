@@ -1332,96 +1332,6 @@ func (c *ctx) tally(args []string) error {
 	return nil
 }
 
-func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
-	l := v1.Login{
-		Email:    email,
-		Password: password,
-	}
-
-	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteLogin, l)
-	if err != nil {
-		return nil, err
-	}
-
-	var lr v1.LoginReply
-	err = json.Unmarshal(responseBody, &lr)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal LoginReply: %v",
-			err)
-	}
-
-	return &lr, nil
-}
-
-func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
-	responseBody, err := c.makeRequest(http.MethodPost, v1.RouteStartVote, sv)
-	if err != nil {
-		return nil, err
-	}
-
-	var svr v1.StartVoteReply
-	err = json.Unmarshal(responseBody, &svr)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal StartVoteReply: %v",
-			err)
-	}
-
-	return &svr, nil
-}
-
-func (c *ctx) startVote(args []string) error {
-	if len(args) != 4 {
-		return fmt.Errorf("startvote: not enough arguments, expected:" +
-			"identityfile email password token")
-	}
-
-	// startvote identityfile email password token
-	fi, err := identity.LoadFullIdentity(args[0])
-	if err != nil {
-		return err
-	}
-
-	// Login as admin
-	lr, err := c.login(args[1], args[2])
-	if err != nil {
-		return err
-	}
-	if !lr.IsAdmin {
-		return fmt.Errorf("user is not an admin")
-	}
-
-	sv := v1.StartVote{
-		PublicKey: hex.EncodeToString(c.id.Key[:]),
-		Vote: v1.Vote{
-			Token:    args[3],
-			Mask:     0x03, // bit 0 no, bit 1 yes
-			Duration: 2016, // 1 week
-			Options: []v1.VoteOption{
-				{
-					Id:          "no",
-					Description: "Don't approve proposal",
-					Bits:        0x01,
-				},
-				{
-					Id:          "yes",
-					Description: "Approve proposal",
-					Bits:        0x02,
-				},
-			},
-		},
-	}
-	sig := fi.SignMessage([]byte(args[1]))
-	sv.Signature = hex.EncodeToString(sig[:])
-
-	svr, err := c._startVote(&sv)
-	if err != nil {
-		return err
-	}
-	_ = svr
-
-	return nil
-}
-
 type failedTuple struct {
 	Time  JSONTime
 	Votes v1.Ballot `json:"votes"`
@@ -1942,10 +1852,6 @@ func _main() error {
 	switch action {
 	case "inventory":
 		err = c.inventory()
-	case "startvote":
-		// This remains undocumented because it is for
-		// testing only.
-		err = c.startVote(args[1:])
 	case "tally":
 		err = c.tally(args[1:])
 	case "vote":
