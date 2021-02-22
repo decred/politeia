@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -79,7 +79,7 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 
 func verifyCommentTimestamp(t cmv1.Timestamp) error {
 	ts := convertCommentTimestamp(t)
-	return tlog.VerifyTimestamp(ts)
+	return tstore.VerifyTimestamp(ts)
 }
 
 func convertCommentProof(p cmv1.Proof) backend.Proof {

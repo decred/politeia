@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
@@ -90,7 +90,7 @@ func (c *cmdProposalTimestamps) Execute(args []string) error {
 
 func verifyTimestamp(t rcv1.Timestamp) error {
 	ts := convertTimestamp(t)
-	return tlog.VerifyTimestamp(ts)
+	return tstore.VerifyTimestamp(ts)
 }
 
 func convertProof(p rcv1.Proof) backend.Proof {

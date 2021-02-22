@@ -12,16 +12,16 @@ import (
 )
 
 var (
-	TokenTypeGit  = "git"
-	TokenTypeTlog = "tlog"
+	TokenTypeGit    = "git"
+	TokenTypeTstore = "tstore"
 )
 
 // TokenIsFullLength returns whether a token is a valid, full length politeiad
 // censorship token.
 func TokenIsFullLength(tokenType string, token []byte) bool {
 	switch tokenType {
-	case TokenTypeTlog:
-		return len(token) == pdv1.TokenSizeTlog
+	case TokenTypeTstore:
+		return len(token) == pdv1.TokenSizeTstore
 	case TokenTypeGit:
 		return len(token) == pdv1.TokenSizeGit
 	default:
@@ -89,8 +89,8 @@ func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
 		// regardless of token type.
 	case tokenType == TokenTypeGit && TokenIsFullLength(TokenTypeGit, t):
 		// Token is a valid git backend token
-	case tokenType == TokenTypeTlog && TokenIsFullLength(TokenTypeTlog, t):
-		// Token is a valid tlog backend token
+	case tokenType == TokenTypeTstore && TokenIsFullLength(TokenTypeTstore, t):
+		// Token is a valid tstore backend token
 	default:
 		return nil, fmt.Errorf("invalid token size")
 	}

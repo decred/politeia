@@ -35,8 +35,8 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 // prefixes.
 func ConvertStringToken(token string) ([]byte, error) {
 	switch {
-	case len(token) == pd.TokenSizeTlog*2:
-		// Tlog backend token; continue
+	case len(token) == pd.TokenSizeTstore*2:
+		// Tstore backend token; continue
 	case len(token) != pd.TokenSizeGit*2:
 		// Git backend token; continue
 	case len(token) == pd.TokenPrefixLength:

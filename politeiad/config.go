@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	v1 "github.com/decred/dcrtime/api/v1"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -41,12 +41,12 @@ const (
 
 	// Backend options
 	backendGit     = "git"
-	backendTlog    = "tlog"
-	defaultBackend = backendTlog
+	backendTstore  = "tstore"
+	defaultBackend = backendTstore
 
 	defaultTrillianHostUnvetted = "localhost:8090"
 	defaultTrillianHostVetted   = "localhost:8094"
-	defaultDBType               = tlog.DBTypeFileSystem
+	defaultDBType               = tstore.DBTypeFileSystem
 )
 
 var (

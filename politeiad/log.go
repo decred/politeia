@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 
 	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiad/backend/tlogbe"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/comments"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/dcrdata"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/plugins/usermd"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store/fs"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/store/mysql"
-	"github.com/decred/politeia/politeiad/backend/tlogbe/tlog"
+	"github.com/decred/politeia/politeiad/backend/tstorebe"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/comments"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/usermd"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/store/fs"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/store/mysql"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
@@ -52,8 +52,8 @@ var (
 
 	log          = backendLog.Logger("POLI")
 	gitbeLog     = backendLog.Logger("GITB")
-	tlogbeLog    = backendLog.Logger("BACK")
-	tlogLog      = backendLog.Logger("TLOG")
+	tstorebeLog  = backendLog.Logger("BACK")
+	tstoreLog    = backendLog.Logger("TSTR")
 	wsdcrdataLog = backendLog.Logger("WSDD")
 	pluginLog    = backendLog.Logger("PLUG")
 )
@@ -62,12 +62,12 @@ var (
 func init() {
 	// Backend loggers
 	gitbe.UseLogger(gitbeLog)
-	tlogbe.UseLogger(tlogbeLog)
+	tstorebe.UseLogger(tstorebeLog)
 
-	// Tlog loggers
-	tlog.UseLogger(tlogLog)
-	fs.UseLogger(tlogLog)
-	mysql.UseLogger(tlogLog)
+	// Tstore loggers
+	tstore.UseLogger(tstoreLog)
+	fs.UseLogger(tstoreLog)
+	mysql.UseLogger(tstoreLog)
 
 	// Plugin loggers
 	comments.UseLogger(pluginLog)
@@ -83,8 +83,8 @@ func init() {
 var subsystemLoggers = map[string]slog.Logger{
 	"POLI": log,
 	"GITB": gitbeLog,
-	"BACK": tlogbeLog,
-	"TLOG": tlogLog,
+	"BACK": tstorebeLog,
+	"TSTR": tstoreLog,
 	"WSDD": wsdcrdataLog,
 	"PLUG": pluginLog,
 }

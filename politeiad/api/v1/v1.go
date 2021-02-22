@@ -48,8 +48,8 @@ const (
 
 	// Token sizes. The size of the token depends on the politeiad
 	// backend configuration.
-	TokenSizeTlog = 8
-	TokenSizeGit  = 32
+	TokenSizeTstore = 8
+	TokenSizeGit    = 32
 
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
