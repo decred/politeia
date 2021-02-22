@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/politeia/decredplugin"
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
@@ -364,22 +365,34 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
+	// Verify there is work to do
+	if len(ballot.Votes) == 0 {
+		return &www.BallotReply{
+			Receipts: []www.CastVoteReply{},
+		}, nil
+	}
+
 	// Prepare plugin command
 	votes := make([]tkplugin.CastVote, 0, len(ballot.Votes))
-	for _, vote := range ballot.Votes {
+	var token string
+	for _, v := range ballot.Votes {
+		token = v.Token
 		votes = append(votes, tkplugin.CastVote{
-			Token:     vote.Ticket,
-			Ticket:    vote.Ticket,
-			VoteBit:   vote.VoteBit,
-			Signature: vote.Signature,
+			Token:     v.Token,
+			Ticket:    v.Ticket,
+			VoteBit:   v.VoteBit,
+			Signature: v.Signature,
 		})
 	}
 	cb := tkplugin.CastBallot{
 		Ballot: votes,
 	}
-	// TODO
-	_ = cb
-	var cbr tkplugin.CastBallotReply
+
+	// Send plugin command
+	cbr, err := p.politeiad.TicketVoteCastBallot(ctx, token, cb)
+	if err != nil {
+		return nil, err
+	}
 
 	// Prepare reply
 	receipts := make([]www.CastVoteReply, 0, len(cbr.Receipts))
@@ -388,7 +401,7 @@ func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) 
 			ClientSignature: ballot.Votes[k].Signature,
 			Signature:       v.Receipt,
 			Error:           v.ErrorContext,
-			// ErrorStatus:     convertVoteErrorCodeToWWW(v.ErrorCode),
+			ErrorStatus:     convertVoteErrorCodeToWWW(v.ErrorCode),
 		})
 	}
 
@@ -846,25 +859,27 @@ func convertVoteTypeToWWW(t tkplugin.VoteT) www.VoteT {
 	}
 }
 
-/*
-func convertVoteErrorCodeToWWW(errcode tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
-	switch errcode {
+func convertVoteErrorCodeToWWW(e tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
+	switch e {
 	case tkplugin.VoteErrorInvalid:
 		return decredplugin.ErrorStatusInvalid
 	case tkplugin.VoteErrorInternalError:
 		return decredplugin.ErrorStatusInternalError
 	case tkplugin.VoteErrorRecordNotFound:
 		return decredplugin.ErrorStatusProposalNotFound
-	case tkplugin.VoteErrorVoteBitInvalid:
-		return decredplugin.ErrorStatusInvalidVoteBit
+	case tkplugin.VoteErrorMultipleRecordVotes:
+		// There is not decredplugin error code for this
 	case tkplugin.VoteErrorVoteStatusInvalid:
 		return decredplugin.ErrorStatusVoteHasEnded
-	case tkplugin.VoteErrorTicketAlreadyVoted:
-		return decredplugin.ErrorStatusDuplicateVote
+	case tkplugin.VoteErrorVoteBitInvalid:
+		return decredplugin.ErrorStatusInvalidVoteBit
+	case tkplugin.VoteErrorSignatureInvalid:
+		// There is not decredplugin error code for this
 	case tkplugin.VoteErrorTicketNotEligible:
 		return decredplugin.ErrorStatusIneligibleTicket
+	case tkplugin.VoteErrorTicketAlreadyVoted:
+		return decredplugin.ErrorStatusDuplicateVote
 	default:
-		return decredplugin.ErrorStatusInternalError
 	}
+	return decredplugin.ErrorStatusInternalError
 }
-*/
