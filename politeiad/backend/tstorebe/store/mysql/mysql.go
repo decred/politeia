@@ -8,11 +8,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/decred/politeia/politeiad/backend/tstorebe/store"
 	"github.com/google/uuid"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 	connTimeout     = 1 * time.Minute
 	connMaxLifetime = 1 * time.Minute
 	maxOpenConns    = 0 // 0 is unlimited
-	maxIdleConns    = 10
+	maxIdleConns    = 100
 )
 
 // tableKeyValue defines the key-value table. The key is a uuid.
@@ -155,6 +156,8 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 	}
 	sql += ");"
 
+	log.Tracef("%v", sql)
+
 	// The keys must be converted to []interface{} for the query method
 	// to accept them.
 	args := make([]interface{}, len(keys))
@@ -192,17 +195,11 @@ func (s *mysql) Close() {
 	s.db.Close()
 }
 
-func New(host, user, dbname, sslRootCert, sslCert, sslKey string) (*mysql, error) {
-	// Setup database connection
-	v := url.Values{}
-	v.Add("sslmode", "require")
-	v.Add("sslca", sslRootCert)
-	v.Add("sslcert", sslCert)
-	v.Add("sslkey", sslKey)
+func New(host, user, password, dbname string) (*mysql, error) {
+	// Connect to database
+	log.Infof("Host: %v:[password]@tcp(%v)/%v", user, host, dbname)
 
-	h := fmt.Sprintf("%v@tcp(%v)/%v?%v", user, host, dbname, v.Encode())
-	log.Infof("Store host: %v", h)
-
+	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
 	db, err := sql.Open("mysql", h)
 	if err != nil {
 		return nil, err
@@ -216,12 +213,12 @@ func New(host, user, dbname, sslRootCert, sslCert, sslKey string) (*mysql, error
 	// Verify database connection
 	err = db.Ping()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("db ping: %v", err)
 	}
 
 	// Setup key-value table
-	sql := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS kv (%s)`, tableKeyValue)
-	_, err = db.Exec(sql)
+	q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS kv (%s)`, tableKeyValue)
+	_, err = db.Exec(q)
 	if err != nil {
 		return nil, fmt.Errorf("create table: %v", err)
 	}

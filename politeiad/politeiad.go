@@ -1611,8 +1611,7 @@ func _main() error {
 		b, err := tstorebe.New(activeNetParams.Params, cfg.HomeDir, cfg.DataDir,
 			cfg.TrillianHostUnvetted, cfg.TrillianKeyUnvetted,
 			cfg.TrillianHostVetted, cfg.TrillianKeyVetted, cfg.EncryptionKey,
-			cfg.DBType, cfg.DBHost, cfg.DBRootCert, cfg.DBCert, cfg.DBKey,
-			cfg.DcrtimeHost, cfg.DcrtimeCert)
+			cfg.DBType, cfg.DBHost, cfg.DBPass, cfg.DcrtimeHost, cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("new tstorebe: %v", err)
 		}

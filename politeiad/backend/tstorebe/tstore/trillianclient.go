@@ -35,6 +35,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	waitForInclusionTimeout = 60 * time.Second
+)
+
 // queuedLeafProof contains the results of a leaf append command, i.e. the
 // QueuedLeaf, and the inclusion proof for that leaf. If the leaf append
 // command fails the QueuedLeaf will contain an error code from the failure and
@@ -379,7 +383,8 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		return nil, nil, err
 	}
 	for _, v := range qlr.QueuedLeaves {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(),
+			waitForInclusionTimeout)
 		defer cancel()
 		err = c.WaitForInclusion(ctx, v.Leaf.LeafValue)
 		if err != nil {

@@ -2237,7 +2237,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		tickets = append(tickets, v.Ticket)
 	}
 	addrs := p.activeVotes.CommitmentAddrs(token, tickets)
-	notInCache := make([]string, 0, len(cb.Ballot))
+	notInCache := make([]string, 0, len(tickets))
 	for _, v := range tickets {
 		_, ok := addrs[v]
 		if !ok {
@@ -2245,7 +2245,8 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		}
 	}
 
-	log.Debugf("%v commitment addresses not found in cache", len(notInCache))
+	log.Debugf("%v/%v commitment addresses found in cache",
+		len(tickets)-len(notInCache), len(tickets))
 
 	if len(notInCache) > 0 {
 		// Get commitment addresses from dcrdata
@@ -2321,14 +2322,21 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	// in the queue for all trees in the trillian instance. This value is
 	// typically around the order of magnitude of 1000 queued leaves.
 	//
-	// This is why a vote batch size of 10 was chosen. It is large enough
+	// The third variable that can cause errors is reaching the trillian
+	// datastore max connection limits. Each vote being cast creates a
+	// trillian connection. Overloading the trillian connections will
+	// cause max connection exceeded errors. The max allowed connections
+	// is a configurable trillian value, but should also be adjusted on
+	// the key-value store too.
+	//
+	// This is why a vote batch size of 5 was chosen. It is large enough
 	// to alleviate performance bottlenecks from the log signer interval,
 	// but small enough to still allow multiple records votes be held
 	// concurrently without running into the queued leaf batch size limit.
 
 	// Prepare work
 	var (
-		batchSize = 10
+		batchSize = 5
 		batch     = make([]ticketvote.CastVote, 0, batchSize)
 		queue     = make([][]ticketvote.CastVote, 0, len(votes)/batchSize)
 

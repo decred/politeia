@@ -1945,7 +1945,7 @@ func (t *tstoreBackend) setup() error {
 }
 
 // New returns a new tstoreBackend.
-func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedTrillianKeyFile, vettedTrillianHost, vettedTrillianKeyFile, encryptionKeyFile, dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
+func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedTrillianKeyFile, vettedTrillianHost, vettedTrillianKeyFile, encryptionKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
 	// Setup encryption key file
 	if encryptionKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -1976,13 +1976,13 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 	// Setup tstore instances
 	unvetted, err := tstore.New(tstoreIDUnvetted, homeDir, dataDir, anp,
 		unvettedTrillianHost, unvettedTrillianKeyFile, encryptionKeyFile,
-		dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert)
+		dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore unvetted: %v", err)
 	}
 	vetted, err := tstore.New(tstoreIDVetted, homeDir, dataDir, anp,
 		vettedTrillianHost, vettedTrillianKeyFile, "",
-		dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert)
+		dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore vetted: %v", err)
 	}

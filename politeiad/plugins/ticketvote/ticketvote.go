@@ -80,12 +80,11 @@ const (
 	ErrorCodeStartDetailsInvalid     ErrorCodeT = 8
 	ErrorCodeVoteParamsInvalid       ErrorCodeT = 9
 	ErrorCodeVoteStatusInvalid       ErrorCodeT = 10
-	ErrorCodePageSizeExceeded        ErrorCodeT = 11
-	ErrorCodeVoteMetadataInvalid     ErrorCodeT = 12
-	ErrorCodeLinkByInvalid           ErrorCodeT = 13
-	ErrorCodeLinkToInvalid           ErrorCodeT = 14
-	ErrorCodeRunoffVoteParentInvalid ErrorCodeT = 15
-	ErrorCodeLinkByNotExpired        ErrorCodeT = 16
+	ErrorCodeVoteMetadataInvalid     ErrorCodeT = 11
+	ErrorCodeLinkByInvalid           ErrorCodeT = 12
+	ErrorCodeLinkToInvalid           ErrorCodeT = 13
+	ErrorCodeRunoffVoteParentInvalid ErrorCodeT = 14
+	ErrorCodeLinkByNotExpired        ErrorCodeT = 15
 )
 
 var (
@@ -102,7 +101,6 @@ var (
 		ErrorCodeStartDetailsInvalid:     "start details invalid",
 		ErrorCodeVoteParamsInvalid:       "vote params invalid",
 		ErrorCodeVoteStatusInvalid:       "vote status invalid",
-		ErrorCodePageSizeExceeded:        "page size exceeded",
 		ErrorCodeVoteMetadataInvalid:     "vote metadata invalid",
 		ErrorCodeLinkByInvalid:           "linkby invalid",
 		ErrorCodeLinkToInvalid:           "linkto invalid",

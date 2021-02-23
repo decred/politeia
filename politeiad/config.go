@@ -46,7 +46,10 @@ const (
 
 	defaultTrillianHostUnvetted = "localhost:8090"
 	defaultTrillianHostVetted   = "localhost:8094"
-	defaultDBType               = tstore.DBTypeFileSystem
+
+	// Database defaults
+	defaultDBType = tstore.DBTypeLevelDB
+	defaultDBHost = "127.0.0.1:3306" // MySQL default host
 )
 
 var (
@@ -92,17 +95,16 @@ type config struct {
 
 	// TODO validate these config params and set defaults. Also consider
 	// making them specific to tstore. Ex: tstore.TrillianHostUnvetted.
+	// TODO Verify that the trillian key is being used
 	Backend              string `long:"backend"`
 	TrillianHostUnvetted string `long:"trillianhostunvetted"`
 	TrillianHostVetted   string `long:"trillianhostvetted"`
 	TrillianKeyUnvetted  string `long:"trilliankeyunvetted"`
 	TrillianKeyVetted    string `long:"trilliankeyvetted"`
-	EncryptionKey        string `long:"encryptionkey"`
 	DBType               string `long:"dbtype"`
 	DBHost               string `long:"dbhost" description:"Database ip:port"`
-	DBRootCert           string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert               string `long:"dbcert" description:"File containing the client certificate for the database"`
-	DBKey                string `long:"dbkey" description:"File containing the client certificate key for the database"`
+	DBPass               string `long:"dbpass" description:"Database password"`
+	EncryptionKey        string `long:"encryptionkey" description:"Database encryption key"`
 
 	// Plugin settings
 	Plugins        []string `long:"plugin"`
@@ -259,6 +261,7 @@ func loadConfig() (*config, []string, error) {
 		TrillianHostUnvetted: defaultTrillianHostUnvetted,
 		TrillianHostVetted:   defaultTrillianHostVetted,
 		DBType:               defaultDBType,
+		DBHost:               defaultDBHost,
 	}
 
 	// Service options which are only added on Windows.

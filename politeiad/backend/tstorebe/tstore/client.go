@@ -260,6 +260,9 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEnt
 			keys = append(keys, ed.Key)
 		}
 	}
+	if len(keys) == 0 {
+		return []store.BlobEntry{}, nil
+	}
 
 	// Pull the blobs from the store
 	blobs, err := t.store.Get(keys)

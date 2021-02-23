@@ -79,11 +79,11 @@ func (p *ticketVotePlugin) Setup() error {
 	// the inventory will cause it to update.
 	log.Infof("Updating vote inventory")
 
-	bb, err := p.bestBlock()
+	bestBlock, err := p.bestBlock()
 	if err != nil {
 		return fmt.Errorf("bestBlock: %v", err)
 	}
-	inv, err := p.inventory(bb)
+	inv, err := p.inventory(bestBlock)
 	if err != nil {
 		return fmt.Errorf("inventory: %v", err)
 	}
@@ -139,6 +139,42 @@ func (p *ticketVotePlugin) Setup() error {
 		for _, v := range rr.Votes {
 			// Add cast vote to the active votes cache
 			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
+		}
+	}
+
+	// Verify votes
+	finished := make([]string, 0, len(inv.Entries))
+	for _, v := range inv.Entries {
+		if v.Status == ticketvote.VoteStatusApproved ||
+			v.Status == ticketvote.VoteStatusRejected {
+			finished = append(finished, v.Token)
+		}
+	}
+	for _, v := range finished {
+		// Get all cast votes
+		token, err := tokenDecode(v)
+		if err != nil {
+			return err
+		}
+		reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+			token, ticketvote.PluginID, ticketvote.CmdResults, "")
+		if err != nil {
+			return err
+		}
+		var rr ticketvote.ResultsReply
+		err = json.Unmarshal([]byte(reply), &rr)
+		if err != nil {
+			return err
+		}
+
+		// Verify that there are no duplicates
+		tickets := make(map[string]struct{}, len(rr.Votes))
+		for _, v := range rr.Votes {
+			_, ok := tickets[v.Ticket]
+			if ok {
+				return fmt.Errorf("duplicate ticket found %v %v", v.Token, v.Ticket)
+			}
+			tickets[v.Ticket] = struct{}{}
 		}
 	}
 
@@ -208,6 +244,46 @@ func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("ticketvote Fsck")
 
 	// Verify all caches
+
+	// Audit all finished votes
+	//  - All votes that were cast were eligible
+	//  - No duplicate votes
+	/*
+		finished := make([]string, 0, len(inv.Entries))
+		for _, v := range inv.Entries {
+			if v.Status == ticketvote.VoteStatusApproved ||
+				v.Status == ticketvote.VoteStatusRejected {
+				finished = append(finished, v.Token)
+			}
+		}
+		for _, v := range finished {
+			// Get all cast votes
+			token, err := tokenDecode(v)
+			if err != nil {
+				return err
+			}
+			reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
+				token, ticketvote.PluginID, ticketvote.CmdResults, "")
+			if err != nil {
+				return err
+			}
+			var rr ticketvote.ResultsReply
+			err = json.Unmarshal([]byte(reply), &rr)
+			if err != nil {
+				return err
+			}
+
+			// Verify that there are no duplicates
+			tickets := make(map[string]struct{}, len(rr.Votes))
+			for _, v := range rr.Votes {
+				_, ok := tickets[v.Ticket]
+				if ok {
+					return fmt.Errorf("duplicate ticket found %v %v", v.Token, v.Ticket)
+				}
+				tickets[v.Ticket] = struct{}{}
+			}
+		}
+	*/
 
 	return nil
 }

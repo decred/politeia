@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	DBTypeFileSystem = "filesystem"
-	DBTypeMySQL      = "mysql"
-	dbUser           = "politeiad"
+	DBTypeLevelDB = "leveldb"
+	DBTypeMySQL   = "mysql"
+	dbUser        = "politeiad"
 
 	defaultTrillianKeyFilename = "trillian.key"
 	defaultStoreDirname        = "store"
@@ -1379,7 +1379,7 @@ func (t *Tstore) Close() {
 	}
 }
 
-func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianKeyFile, encryptionKeyFile, dbType, dbHost, dbRootCert, dbCert, dbKey, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianKeyFile, encryptionKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Load encryption key if provided. An encryption key is optional.
 	var ek *encryptionKey
 	if encryptionKeyFile != "" {
@@ -1427,7 +1427,7 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 	log.Infof("Database type %v: %v", id, dbType)
 	var kvstore store.BlobKV
 	switch dbType {
-	case DBTypeFileSystem:
+	case DBTypeLevelDB:
 		fp := filepath.Join(dataDir, defaultStoreDirname)
 		err = os.MkdirAll(fp, 0700)
 		if err != nil {
@@ -1438,8 +1438,7 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 	case DBTypeMySQL:
 		// Example db name: testnet3_unvetted_kv
 		dbName := fmt.Sprintf("%v_%v_kv", anp.Name, id)
-		kvstore, err = mysql.New(dbHost, dbUser, dbName,
-			dbRootCert, dbCert, dbKey)
+		kvstore, err = mysql.New(dbHost, dbUser, dbPass, dbName)
 		if err != nil {
 			return nil, err
 		}
