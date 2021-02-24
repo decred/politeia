@@ -142,42 +142,6 @@ func (p *ticketVotePlugin) Setup() error {
 		}
 	}
 
-	// Verify votes
-	finished := make([]string, 0, len(inv.Entries))
-	for _, v := range inv.Entries {
-		if v.Status == ticketvote.VoteStatusApproved ||
-			v.Status == ticketvote.VoteStatusRejected {
-			finished = append(finished, v.Token)
-		}
-	}
-	for _, v := range finished {
-		// Get all cast votes
-		token, err := tokenDecode(v)
-		if err != nil {
-			return err
-		}
-		reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
-			token, ticketvote.PluginID, ticketvote.CmdResults, "")
-		if err != nil {
-			return err
-		}
-		var rr ticketvote.ResultsReply
-		err = json.Unmarshal([]byte(reply), &rr)
-		if err != nil {
-			return err
-		}
-
-		// Verify that there are no duplicates
-		tickets := make(map[string]struct{}, len(rr.Votes))
-		for _, v := range rr.Votes {
-			_, ok := tickets[v.Ticket]
-			if ok {
-				return fmt.Errorf("duplicate ticket found %v %v", v.Token, v.Ticket)
-			}
-			tickets[v.Ticket] = struct{}{}
-		}
-	}
-
 	return nil
 }
 
