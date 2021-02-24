@@ -153,6 +153,10 @@ func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
 func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error) {
 	log.Tracef("%v Blobs: %v %x", t.id, treeID, digests)
 
+	if len(digests) == 0 {
+		return map[string]store.BlobEntry{}, nil
+	}
+
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
 		return nil, backend.ErrRecordNotFound
