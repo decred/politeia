@@ -48,7 +48,6 @@ require (
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
-	github.com/prometheus/common v0.15.0
 	github.com/robfig/cron v1.2.0
 	github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636
 	github.com/syndtr/goleveldb v1.0.0
@@ -56,7 +55,6 @@ require (
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	google.golang.org/appengine v1.6.6
 	google.golang.org/genproto v0.0.0-20200707001353-8e8330bf89df
 	google.golang.org/grpc v1.29.1
 )
