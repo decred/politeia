@@ -17,7 +17,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	tmerkle "github.com/google/trillian/merkle"
-	"github.com/google/trillian/merkle/hashers"
+	"github.com/google/trillian/merkle/hashers/registry"
 )
 
 const (
@@ -52,7 +52,7 @@ func verifyProofTrillian(p backend.Proof) error {
 	// The digest of the data is stored in trillian as the leaf value.
 	// The digest of the leaf value is the digest that is included in
 	// the log merkle root.
-	h, err := hashers.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
+	h, err := registry.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
 	if err != nil {
 		return err
 	}

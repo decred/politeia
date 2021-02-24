@@ -25,7 +25,7 @@ import (
 	"github.com/google/trillian/crypto/keys/der"
 	"github.com/google/trillian/crypto/keyspb"
 	"github.com/google/trillian/crypto/sigpb"
-	"github.com/google/trillian/merkle/hashers"
+	"github.com/google/trillian/merkle/hashers/registry"
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/google/trillian/types"
 	"google.golang.org/genproto/protobuf/field_mask"
@@ -274,7 +274,7 @@ func (t *tclient) inclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *type
 	proof := resp.Proof[0]
 
 	// Verify inclusion proof
-	lh, err := hashers.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
+	lh, err := registry.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
 	if err != nil {
 		return nil, err
 	}

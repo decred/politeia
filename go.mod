@@ -29,9 +29,9 @@ require (
 	github.com/decred/slog v1.1.0
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/go-test/deep v1.0.1
-	github.com/golang/protobuf v1.4.2
+	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/google/trillian v1.3.11
+	github.com/google/trillian v1.3.13
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/csrf v1.6.2
 	github.com/gorilla/mux v1.7.3
@@ -48,7 +48,7 @@ require (
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
-	github.com/prometheus/common v0.10.0
+	github.com/prometheus/common v0.15.0
 	github.com/robfig/cron v1.2.0
 	github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636
 	github.com/syndtr/goleveldb v1.0.0
