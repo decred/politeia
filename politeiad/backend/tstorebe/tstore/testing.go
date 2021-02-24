@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/decred/politeia/politeiad/backend/tstorebe/store/fs"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/store/localdb"
 	"github.com/marcopeereboom/sbox"
 )
 
@@ -27,7 +27,10 @@ func newTestTstore(t *testing.T, tstoreID, dataDir string, encrypt bool) *Tstore
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := fs.New(fp)
+	store, err := localdb.New(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Setup encryptin key if specified
 	var ek *encryptionKey

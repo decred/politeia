@@ -20,7 +20,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/store"
-	"github.com/decred/politeia/politeiad/backend/tstorebe/store/fs"
+	"github.com/decred/politeia/politeiad/backend/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/store/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
@@ -1433,8 +1433,10 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		if err != nil {
 			return nil, err
 		}
-		kvstore = fs.New(fp)
-
+		kvstore, err = localdb.New(fp)
+		if err != nil {
+			return nil, err
+		}
 	case DBTypeMySQL:
 		// Example db name: testnet3_unvetted_kv
 		dbName := fmt.Sprintf("%v_%v_kv", anp.Name, id)
@@ -1442,7 +1444,6 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		if err != nil {
 			return nil, err
 		}
-
 	default:
 		return nil, fmt.Errorf("invalid db type: %v", dbType)
 	}

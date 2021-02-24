@@ -92,6 +92,6 @@ type BlobKV interface {
 	// was returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
 
-	// Closes closes the blob store connection.
+	// Closes closes the store connection.
 	Close()
 }

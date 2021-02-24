@@ -15,9 +15,9 @@ import (
 	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/plugins/usermd"
-	"github.com/decred/politeia/politeiad/backend/tstorebe/store/fs"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/store/mysql"
 	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
+	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
@@ -66,7 +66,7 @@ func init() {
 
 	// Tstore loggers
 	tstore.UseLogger(tstoreLog)
-	fs.UseLogger(tstoreLog)
+	localdb.UseLogger(tstoreLog)
 	mysql.UseLogger(tstoreLog)
 
 	// Plugin loggers
