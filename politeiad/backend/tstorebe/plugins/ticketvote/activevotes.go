@@ -143,6 +143,10 @@ func (a *activeVotes) VoteIsDuplicate(token, ticket string) bool {
 // returned if the provided token does not correspond to a record in the active
 // votes cache.
 func (a *activeVotes) CommitmentAddrs(token []byte, tickets []string) map[string]commitmentAddr {
+	if len(tickets) == 0 {
+		return map[string]commitmentAddr{}
+	}
+
 	a.RLock()
 	defer a.RUnlock()
 

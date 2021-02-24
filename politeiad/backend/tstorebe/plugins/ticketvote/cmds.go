@@ -2233,7 +2233,11 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 	// commitment addresses have already been fetched. Any tickets
 	// that are not found in the cache are fetched manually.
 	tickets := make([]string, 0, len(cb.Ballot))
-	for _, v := range cb.Ballot {
+	for k, v := range votes {
+		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+			// Vote has an error. Skip it.
+			continue
+		}
 		tickets = append(tickets, v.Ticket)
 	}
 	addrs := p.activeVotes.CommitmentAddrs(token, tickets)
