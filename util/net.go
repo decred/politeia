@@ -41,7 +41,10 @@ func NewHTTPClient(skipVerify bool, certPath string) (*http.Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		certPool := x509.NewCertPool()
+		certPool, err := x509.SystemCertPool()
+		if err != nil {
+			certPool = x509.NewCertPool()
+		}
 		certPool.AppendCertsFromPEM(cert)
 
 		tlsConfig.RootCAs = certPool
