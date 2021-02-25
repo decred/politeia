@@ -200,7 +200,7 @@ type RecordTimestamps struct {
 	Token          string // Censorship token
 	Version        string // Version of files
 	RecordMetadata Timestamp
-	Metadata       map[uint64]Timestamp // [metadataID]Timestamp
+	Metadata       map[string]Timestamp // [metadataID]Timestamp
 	Files          map[string]Timestamp // [filename]Timestamp
 }
 

@@ -116,7 +116,7 @@ func convertBackendTimestamp(t backend.Timestamp) v1.Timestamp {
 }
 
 func convertBackendRecordTimestamps(rt backend.RecordTimestamps) v1.RecordTimestamps {
-	md := make(map[uint64]v1.Timestamp, len(rt.Metadata))
+	md := make(map[string]v1.Timestamp, len(rt.Metadata))
 	for k, v := range rt.Metadata {
 		md[k] = convertBackendTimestamp(v)
 	}

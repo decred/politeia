@@ -407,8 +407,8 @@ type RecordTimestamps struct {
 	Version        string    `json:"version"` // Version of files
 	RecordMetadata Timestamp `json:"recordmetadata"`
 
-	// map[metadataID]Timestamp
-	Metadata map[uint64]Timestamp `json:"metadata"`
+	// map[pluginID+metadataID]Timestamp
+	Metadata map[string]Timestamp `json:"metadata"`
 
 	// map[filename]Timestamp
 	Files map[string]Timestamp `json:"files"`

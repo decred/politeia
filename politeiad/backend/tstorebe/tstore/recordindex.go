@@ -55,7 +55,7 @@ type recordIndex struct {
 	// can be used to lookup the log leaf. The log leaf ExtraData field
 	// contains the key for the record content in the key-value store.
 	RecordMetadata []byte            `json:"recordmetadata"`
-	Metadata       map[uint64][]byte `json:"metadata"` // [metadataID]merkle
+	Metadata       map[string][]byte `json:"metadata"` // [pluginID+ID]merkle
 	Files          map[string][]byte `json:"files"`    // [filename]merkle
 
 	// Frozen is used to indicate that the tree for this record has

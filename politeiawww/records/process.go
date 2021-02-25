@@ -497,7 +497,7 @@ func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmi
 
 	var (
 		recordMD = convertTimestampToV1(rt.RecordMetadata)
-		metadata = make(map[uint64]v1.Timestamp, len(rt.Files))
+		metadata = make(map[string]v1.Timestamp, len(rt.Files))
 		files    = make(map[string]v1.Timestamp, len(rt.Files))
 	)
 	for k, v := range rt.Metadata {

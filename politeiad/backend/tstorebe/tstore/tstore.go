@@ -299,7 +299,7 @@ func (t *Tstore) treeIsFrozen(leaves []*trillian.LogLeaf) bool {
 
 type recordHashes struct {
 	recordMetadata string            // Record metadata hash
-	metadata       map[string]uint64 // [hash]metadataID
+	metadata       map[string]string // [hash]metadataID
 	files          map[string]string // [hash]filename
 }
 
@@ -370,7 +370,7 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 
 	// Compute record content hashes
 	rhashes := recordHashes{
-		metadata: make(map[string]uint64, len(metadata)), // [hash]metadataID
+		metadata: make(map[string]string, len(metadata)), // [hash]metadataID
 		files:    make(map[string]string, len(files)),    // [hash]filename
 	}
 	b, err := json.Marshal(recordMD)
@@ -384,7 +384,7 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 			return nil, err
 		}
 		h := hex.EncodeToString(util.Digest(b))
-		rhashes.metadata[h] = v.ID
+		rhashes.metadata[h] = v.PluginID + strconv.FormatUint(v.ID, 10)
 	}
 	for _, v := range files {
 		b, err := json.Marshal(v)
@@ -404,7 +404,7 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 		// Any duplicates that are found are added to the record index
 		// since we already have the leaf data for them.
 		index = recordIndex{
-			Metadata: make(map[uint64][]byte, len(metadata)),
+			Metadata: make(map[string][]byte, len(metadata)),
 			Files:    make(map[string][]byte, len(files)),
 		}
 	)
@@ -631,7 +631,7 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 	if errors.Is(err, backend.ErrRecordNotFound) {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
-			Metadata: make(map[uint64][]byte),
+			Metadata: make(map[string][]byte),
 			Files:    make(map[string][]byte),
 		}
 	} else if err != nil {
@@ -1330,7 +1330,7 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 	}
 
 	// Get metadata timestamps
-	metadata := make(map[uint64]backend.Timestamp, len(idx.Metadata))
+	metadata := make(map[string]backend.Timestamp, len(idx.Metadata))
 	for k, v := range idx.Metadata {
 		ts, err := t.timestamp(treeID, v, leaves)
 		if err != nil {
@@ -1358,7 +1358,6 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 	}, nil
 }
 
-// TODO run fsck episodically
 func (t *Tstore) Fsck() {
 	// Set tree status to frozen for any trees that are frozen and have
 	// been anchored one last time.

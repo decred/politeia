@@ -167,9 +167,9 @@ type File struct {
 
 // MetadataStream describes a record metadata stream.
 type MetadataStream struct {
-	PluginID string `json:"pluginid,omitempty"` // Plugin ID
-	ID       uint64 `json:"id"`                 // Metadata stream ID
-	Payload  string `json:"payload"`            // JSON encoded
+	PluginID string `json:"pluginid"` // Plugin ID
+	ID       uint64 `json:"id"`       // Metadata stream ID
+	Payload  string `json:"payload"`  // JSON encoded
 }
 
 // CensorshipRecord contains cryptographic proof that a record was accepted for
@@ -386,8 +386,8 @@ type Timestamps struct {
 type TimestampsReply struct {
 	RecordMetadata Timestamp `json:"recordmetadata"`
 
-	// map[metadataID]Timestamp
-	Metadata map[uint64]Timestamp `json:"metadata"`
+	// map[pluginID+metadataID]Timestamp
+	Metadata map[string]Timestamp `json:"metadata"`
 
 	// map[filename]Timestamp
 	Files map[string]Timestamp `json:"files"`
