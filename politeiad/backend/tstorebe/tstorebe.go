@@ -648,10 +648,8 @@ func (t *tstoreBackend) UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite
 	// Apply changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 	files := filesUpdate(r.Files, filesAdd, filesDel)
-
-	// Create record metadata
 	recordMD, err := recordMetadataNew(token, files,
-		backend.MDStatusUnvetted, r.RecordMetadata.Iteration+1)
+		r.RecordMetadata.Status, r.RecordMetadata.Iteration+1)
 	if err != nil {
 		return nil, err
 	}
@@ -751,8 +749,6 @@ func (t *tstoreBackend) UpdateVettedRecord(token []byte, mdAppend, mdOverwrite [
 	// Apply changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 	files := filesUpdate(r.Files, filesAdd, filesDel)
-
-	// Create record metadata
 	recordMD, err := recordMetadataNew(token, files,
 		r.RecordMetadata.Status, r.RecordMetadata.Iteration+1)
 	if err != nil {
@@ -856,6 +852,11 @@ func (t *tstoreBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwri
 
 	// Apply changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+	recordMD, err := recordMetadataNew(token, r.Files,
+		r.RecordMetadata.Status, r.RecordMetadata.Iteration+1)
+	if err != nil {
+		return err
+	}
 
 	// Call pre plugin hooks
 	hem := plugins.HookEditMetadata{
@@ -874,7 +875,7 @@ func (t *tstoreBackend) UpdateUnvettedMetadata(token []byte, mdAppend, mdOverwri
 	}
 
 	// Update metadata
-	err = t.unvetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
+	err = t.unvetted.RecordMetadataSave(treeID, *recordMD, metadata)
 	if err != nil {
 		switch err {
 		case backend.ErrRecordLocked, backend.ErrNoChanges:
@@ -948,6 +949,11 @@ func (t *tstoreBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite
 
 	// Apply changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+	recordMD, err := recordMetadataNew(token, r.Files,
+		r.RecordMetadata.Status, r.RecordMetadata.Iteration+1)
+	if err != nil {
+		return err
+	}
 
 	// Call pre plugin hooks
 	hem := plugins.HookEditMetadata{
@@ -966,7 +972,7 @@ func (t *tstoreBackend) UpdateVettedMetadata(token []byte, mdAppend, mdOverwrite
 	}
 
 	// Update metadata
-	err = t.vetted.RecordMetadataSave(treeID, r.RecordMetadata, metadata)
+	err = t.vetted.RecordMetadataSave(treeID, *recordMD, metadata)
 	if err != nil {
 		switch err {
 		case backend.ErrRecordLocked, backend.ErrNoChanges:
@@ -1097,8 +1103,7 @@ func (t *tstoreBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT
 	if err != nil {
 		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
-	rm := r.RecordMetadata
-	currStatus := rm.Status
+	currStatus := r.RecordMetadata.Status
 
 	// Validate status change
 	if !statusChangeIsAllowed(currStatus, status) {
@@ -1109,9 +1114,11 @@ func (t *tstoreBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT
 	}
 
 	// Apply status change
-	rm.Status = status
-	rm.Iteration += 1
-	rm.Timestamp = time.Now().Unix()
+	recordMD, err := recordMetadataNew(token, r.Files, status,
+		r.RecordMetadata.Iteration+1)
+	if err != nil {
+		return nil, err
+	}
 
 	// Apply metadata changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
@@ -1120,7 +1127,7 @@ func (t *tstoreBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT
 	hsrs := plugins.HookSetRecordStatus{
 		State:          plugins.RecordStateUnvetted,
 		Current:        *r,
-		RecordMetadata: rm,
+		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 	}
 	b, err := json.Marshal(hsrs)
@@ -1138,12 +1145,13 @@ func (t *tstoreBackend) SetUnvettedStatus(token []byte, status backend.MDStatusT
 	var vettedTreeID int64
 	switch status {
 	case backend.MDStatusVetted:
-		vettedTreeID, err = t.unvettedPublish(token, rm, metadata, r.Files)
+		vettedTreeID, err = t.unvettedPublish(token, *recordMD,
+			metadata, r.Files)
 		if err != nil {
 			return nil, fmt.Errorf("unvettedPublish: %v", err)
 		}
 	case backend.MDStatusCensored:
-		err := t.unvettedCensor(token, rm, metadata)
+		err := t.unvettedCensor(token, *recordMD, metadata)
 		if err != nil {
 			return nil, fmt.Errorf("unvettedCensor: %v", err)
 		}
@@ -1271,11 +1279,10 @@ func (t *tstoreBackend) SetVettedStatus(token []byte, status backend.MDStatusT, 
 	if err != nil {
 		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
-	rm := r.RecordMetadata
-	currStatus := rm.Status
+	currStatus := r.RecordMetadata.Status
 
 	// Validate status change
-	if !statusChangeIsAllowed(rm.Status, status) {
+	if !statusChangeIsAllowed(currStatus, status) {
 		return nil, backend.StateTransitionError{
 			From: currStatus,
 			To:   status,
@@ -1283,9 +1290,11 @@ func (t *tstoreBackend) SetVettedStatus(token []byte, status backend.MDStatusT, 
 	}
 
 	// Apply status change
-	rm.Status = status
-	rm.Iteration += 1
-	rm.Timestamp = time.Now().Unix()
+	recordMD, err := recordMetadataNew(token, r.Files, status,
+		r.RecordMetadata.Iteration+1)
+	if err != nil {
+		return nil, err
+	}
 
 	// Apply metdata changes
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
@@ -1294,7 +1303,7 @@ func (t *tstoreBackend) SetVettedStatus(token []byte, status backend.MDStatusT, 
 	srs := plugins.HookSetRecordStatus{
 		State:          plugins.RecordStateVetted,
 		Current:        *r,
-		RecordMetadata: rm,
+		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 	}
 	b, err := json.Marshal(srs)
@@ -1310,12 +1319,12 @@ func (t *tstoreBackend) SetVettedStatus(token []byte, status backend.MDStatusT, 
 	// Update record
 	switch status {
 	case backend.MDStatusCensored:
-		err := t.vettedCensor(token, rm, metadata)
+		err := t.vettedCensor(token, *recordMD, metadata)
 		if err != nil {
 			return nil, fmt.Errorf("vettedCensor: %v", err)
 		}
 	case backend.MDStatusArchived:
-		err := t.vettedArchive(token, rm, metadata)
+		err := t.vettedArchive(token, *recordMD, metadata)
 		if err != nil {
 			return nil, fmt.Errorf("vettedArchive: %v", err)
 		}

@@ -46,17 +46,8 @@ type recordIndex struct {
 
 	// Iteration represents the iteration of the record. The iteration
 	// is incremented anytime any record content changes. This includes
-	// file changes that bump the version as well metadata stream and
-	// record metadata changes that don't bump the version.
-	//
-	// Note, this field is not the same as the backend RecordMetadata
-	// iteration field, which does not get incremented on metadata
-	// updates.
-	//
-	// TODO maybe it should be the same. The original iteration field
-	// was to track unvetted changes in gitbe since unvetted gitbe
-	// records are not versioned. tstorebe unvetted records are versioned
-	// so the original use for the iteration field isn't needed anymore.
+	// file changes that bump the version, metadata stream only updates
+	// that don't bump the version, and status changes.
 	Iteration uint32 `json:"iteration"`
 
 	// The following fields contain the merkle leaf hashes of the
@@ -76,7 +67,6 @@ type recordIndex struct {
 	// allow any additional leaves to be appended onto the tree.
 	Frozen bool `json:"frozen,omitempty"`
 
-	// TODO make this a generic ExtraData field
 	// TreePointer is the tree ID of the tree that is the new location
 	// of this record. A record can be copied to a new tree after
 	// certain status changes, such as when a record is made public and
