@@ -228,7 +228,7 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	scm := usermd.StatusChangeMetadata{
 		Token:     ss.Token,
 		Version:   ss.Version,
-		Status:    int(ss.Status),
+		Status:    uint32(ss.Status),
 		Reason:    ss.Reason,
 		PublicKey: ss.PublicKey,
 		Signature: ss.Signature,

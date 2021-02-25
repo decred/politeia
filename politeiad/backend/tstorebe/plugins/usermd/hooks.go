@@ -287,7 +287,7 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	}
 
 	// Verify status matches
-	if scm.Status != int(rm.Status) {
+	if scm.Status != uint32(rm.Status) {
 		e := fmt.Sprintf("status from metadata does not match status from "+
 			"record metadata: got %v, want %v", scm.Status, rm.Status)
 		return backend.PluginError{
@@ -308,7 +308,8 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	}
 
 	// Verify signature
-	msg := scm.Token + scm.Version + strconv.Itoa(scm.Status) + scm.Reason
+	s := strconv.FormatUint(uint64(scm.Status), 10)
+	msg := scm.Token + scm.Version + s + scm.Reason
 	err = util.VerifySignature(scm.Signature, scm.PublicKey, msg)
 	if err != nil {
 		return convertSignatureError(err)

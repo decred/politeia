@@ -74,7 +74,7 @@ type UserMetadata struct {
 type StatusChangeMetadata struct {
 	Token     string `json:"token"`
 	Version   string `json:"version"`
-	Status    int    `json:"status"`
+	Status    uint32 `json:"status"`
 	Reason    string `json:"message,omitempty"`
 	PublicKey string `json:"publickey"`
 	Signature string `json:"signature"`
