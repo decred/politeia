@@ -63,7 +63,7 @@ func (p *politeiawww) makeRequest(ctx context.Context, method string, route stri
 		return nil, err
 	}
 	req.SetBasicAuth(p.cfg.RPCUser, p.cfg.RPCPass)
-	r, err := p.client.Do(req)
+	r, err := p.http.Do(req)
 	if err != nil {
 		return nil, err
 	}

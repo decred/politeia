@@ -2,16 +2,16 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package pi
+package user
 
 // Everything defined in this file is a temporary measure until proper user
 // plugins have been added to politeiawww, at which point these errors will be
 // deprecated.
 
 const (
-	// UserPluginID is a temporary plugin ID for user functionality
+	// PiUserPluginID is a temporary plugin ID for user functionality
 	// that is specific to pi.
-	UserPluginID = "piuser"
+	PiUserPluginID = "piuser"
 
 	// ErrorCodeInvalid is an invalid error code.
 	ErrorCodeInvalid = 0

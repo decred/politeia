@@ -480,7 +480,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		// Send reply. Only return the verification token in
 		// the reply if the mail server has been disabled.
 		var t string
-		if p.smtp.disabled {
+		if !p.mail.IsEnabled() {
 			t = hex.EncodeToString(u.NewUserVerificationToken)
 		}
 		return &www.NewUserReply{
@@ -589,7 +589,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 	// Only return the verification token in the reply
 	// if the mail server has been disabled.
 	var t string
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		t = hex.EncodeToString(u.NewUserVerificationToken)
 	}
 	return &www.NewUserReply{
@@ -862,7 +862,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	}
 
 	// Only set the token if email verification is disabled.
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		rvr.VerificationToken = hex.EncodeToString(token)
 	}
 	return &rvr, nil
@@ -939,7 +939,7 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 
 	// Only set the token if email verification is disabled.
 	var t string
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		t = token
 	}
 	return &www.UpdateUserKeyReply{
@@ -1415,7 +1415,7 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 	// Only include the verification token in the reply if the
 	// email server has been disabled.
 	var reply www.ResetPasswordReply
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		reply.VerificationToken = hex.EncodeToString(tokenb)
 	}
 

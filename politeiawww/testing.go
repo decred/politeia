@@ -28,6 +28,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -337,10 +338,10 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		t.Fatalf("setup database: %v", err)
 	}
 
-	// Setup smtp
-	smtp, err := newSMTP("", "", "", "", nil, false)
+	// Setup mail client
+	mailClient, err := mail.New("", "", "", "", "", false)
 	if err != nil {
-		t.Fatalf("setup SMTP: %v", err)
+		t.Fatal(err)
 	}
 
 	// Setup sessions
@@ -356,7 +357,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		router:          mux.NewRouter(),
 		auth:            mux.NewRouter(),
 		sessions:        sessions.New(db, cookieKey),
-		smtp:            smtp,
+		mail:            mailClient,
 		db:              db,
 		test:            true,
 		userEmails:      make(map[string]uuid.UUID),
@@ -443,7 +444,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup smtp
-	smtp, err := newSMTP("", "", "", "", nil, false)
+	mailClient, err := mail.New("", "", "", "", "", false)
 	if err != nil {
 		t.Fatalf("setup SMTP: %v", err)
 	}
@@ -465,7 +466,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		router:          mux.NewRouter(),
 		auth:            mux.NewRouter(),
 		sessions:        sessions.New(db, cookieKey),
-		smtp:            smtp,
+		mail:            mailClient,
 		test:            true,
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),

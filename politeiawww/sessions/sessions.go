@@ -66,12 +66,19 @@ func (s *Sessions) GetSessionUserID(w http.ResponseWriter, r *http.Request) (str
 		return "", err
 	}
 	if session.IsNew {
+		// If the session is new it means the request did not contain a
+		// valid session. This could be because it was expired or it
+		// did not exist.
+		log.Debugf("Session not found for user")
 		return "", ErrSessionNotFound
 	}
 
-	// Delete the session if its expired. Setting the MaxAge
-	// to <= 0 and then saving it will trigger a deletion.
+	// Delete the session if its expired. Setting the MaxAge to <= 0
+	// and saving the session will trigger a deletion. The previous
+	// GetSession call should already filter out expired sessions so
+	// this is really just a sanity check.
 	if sessionIsExpired(session) {
+		log.Debug("Session is expired")
 		session.Options.MaxAge = -1
 		s.store.Save(r, w, session)
 		return "", ErrSessionNotFound
@@ -101,12 +108,15 @@ func (s *Sessions) GetSessionUser(w http.ResponseWriter, r *http.Request) (*user
 	}
 
 	if user.Deactivated {
+		log.Debugf("User has been deactivated")
 		err := s.DelSession(w, r)
 		if err != nil {
 			return nil, err
 		}
 		return nil, ErrSessionNotFound
 	}
+
+	log.Debugf("Session found for user %v", user.ID)
 
 	return user, nil
 }
@@ -123,8 +133,7 @@ func (s *Sessions) DelSession(w http.ResponseWriter, r *http.Request) error {
 		return ErrSessionNotFound
 	}
 
-	log.Debugf("Deleting user session: %v %v",
-		session.ID, session.Values[sessionValueUserID])
+	log.Debugf("Deleting user session %v", session.Values[sessionValueUserID])
 
 	// Saving the session with a negative MaxAge will cause it to be
 	// deleted.
@@ -148,6 +157,8 @@ func (s *Sessions) NewSession(w http.ResponseWriter, r *http.Request, userID str
 	// Update session with politeiawww specific values
 	session.Values[sessionValueCreatedAt] = time.Now().Unix()
 	session.Values[sessionValueUserID] = userID
+
+	log.Debugf("Session created for user %v", userID)
 
 	// Update session in the store and update the response cookie
 	return s.store.Save(r, w, session)

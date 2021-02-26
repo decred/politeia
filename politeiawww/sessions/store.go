@@ -49,7 +49,7 @@ func newSessionID() string {
 //
 // This function satisfies the sessions.Store interface.
 func (s *sessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
-	log.Tracef("Get: %v", name)
+	log.Tracef("SessionStore Get: %v", name)
 
 	return sessions.GetRegistry(r).Get(s, name)
 }
@@ -66,7 +66,7 @@ func (s *sessionStore) Get(r *http.Request, name string) (*sessions.Session, err
 //
 // This function satisfies the sessions.Store interface.
 func (s *sessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
-	log.Tracef("New: %v", name)
+	log.Tracef("SessionStore New: %v", name)
 
 	// Setup new session
 	session := sessions.NewSession(s, name)
@@ -78,7 +78,7 @@ func (s *sessionStore) New(r *http.Request, name string) (*sessions.Session, err
 	// Check if the session cookie already exists
 	c, err := r.Cookie(name)
 	if errors.Is(err, http.ErrNoCookie) {
-		log.Debugf("Session cookie not found; returning new session")
+		log.Tracef("Session cookie not found; returning a new session")
 		return session, nil
 	} else if err != nil {
 		return session, err
@@ -91,11 +91,11 @@ func (s *sessionStore) New(r *http.Request, name string) (*sessions.Session, err
 	// Decode session ID (overwrites existing session ID)
 	err = securecookie.DecodeMulti(name, c.Value, &session.ID, s.Codecs...)
 	if err != nil {
-		// If there are any issues decoding the session ID, the
-		// existing session is considered invalid and the newly
-		// created session is returned.
-		log.Debugf("securecookie.DecodeMulti: %v", err)
-		log.Debugf("Invalid session ID; returning new session")
+		// If there are any issues decoding the session ID, the existing
+		// session is considered invalid and the newly created session is
+		// returned.
+		log.Tracef("Decode session: %v", err)
+		log.Tracef("Session invalid; returning a new one")
 		return session, nil
 	}
 
@@ -111,11 +111,11 @@ func (s *sessionStore) New(r *http.Request, name string) (*sessions.Session, err
 		if err != nil {
 			return session, err
 		}
-		log.Debugf("Session found in store; returning existing session")
+		log.Tracef("Session found %v", session.ID)
 	case user.ErrSessionNotFound:
 		// Session not found in database; no action needed since the new
 		// session will be returned.
-		log.Debugf("Session not found in store; returning new session")
+		log.Tracef("Session not found; returning new session")
 	default:
 		return session, err
 	}
@@ -133,7 +133,7 @@ func (s *sessionStore) New(r *http.Request, name string) (*sessions.Session, err
 //
 // This function satisfies the sessions.Store interface.
 func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
-	log.Tracef("Save: %v", session.ID)
+	log.Tracef("SessionStore Save: %v", session.ID)
 
 	// Delete session if max-age is <= 0
 	if session.Options.MaxAge <= 0 {

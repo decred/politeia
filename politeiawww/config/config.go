@@ -83,9 +83,9 @@ type Config struct {
 	MailUser         string `long:"mailuser" description:"Email server username"`
 	MailPass         string `long:"mailpass" description:"Email server password"`
 	MailAddress      string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
-	SMTPCert         string `long:"smtpcert" description:"File containing the smtp certificate file"`
-	SMTPSkipVerify   bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
-	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
+	MailCert         string `long:"mailcert" description:"Email server certificate file"`
+	MailSkipVerify   bool   `long:"mailskipverify" description:"Skip TLS verification when connecting to the mail server"`
+	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
 
 	// XXX These should all be plugin settings
 	DcrdataHost              string   `long:"dcrdatahost" description:"Dcrdata ip:port"`

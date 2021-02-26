@@ -37,7 +37,8 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
 		Methods(http.MethodGet)
 
-	// Legacy www routes. These routes have been DEPRECATED.
+	// Legacy www routes. These routes have been DEPRECATED. Support
+	// will be removed in a future release.
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
@@ -183,25 +184,26 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 	}
 
 	// Setup api contexts
-	r := records.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
-	c, err := comments.New(p.cfg, p.politeiad, p.db,
+	recordsCtx := records.New(p.cfg, p.politeiad, p.db, p.sessions, p.events)
+	commentsCtx, err := comments.New(p.cfg, p.politeiad, p.db,
 		p.sessions, p.events, plugins)
 	if err != nil {
 		return fmt.Errorf("new comments api: %v", err)
 	}
-	tv, err := ticketvote.New(p.cfg, p.politeiad,
+	voteCtx, err := ticketvote.New(p.cfg, p.politeiad,
 		p.sessions, p.events, plugins)
 	if err != nil {
 		return fmt.Errorf("new ticketvote api: %v", err)
 	}
-	pic, err := pi.New(p.cfg, p.politeiad, p.db, p.sessions, plugins)
+	piCtx, err := pi.New(p.cfg, p.politeiad, p.db,
+		p.sessions, p.events, plugins)
 	if err != nil {
 		return fmt.Errorf("new pi api: %v", err)
 	}
 
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setupPiRoutes(r, c, tv, pic)
+	p.setupPiRoutes(recordsCtx, commentsCtx, voteCtx, piCtx)
 
 	// Verify paywall settings
 	switch {
@@ -226,9 +228,6 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 	if err != nil {
 		return err
 	}
-
-	// Setup event manager
-	p.setupEventListenersPi()
 
 	return nil
 }

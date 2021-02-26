@@ -6,7 +6,6 @@ package comments
 
 import (
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -34,8 +33,8 @@ func (c *Comments) piHookNewPre(u user.User) error {
 	// Verify user has paid registration paywall
 	if !userHasPaid(u) {
 		return v1.PluginErrorReply{
-			PluginID:  pi.UserPluginID,
-			ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
+			PluginID:  user.PiUserPluginID,
+			ErrorCode: user.ErrorCodeUserRegistrationNotPaid,
 		}
 	}
 
@@ -50,8 +49,8 @@ func (c *Comments) piHookVotePre(u user.User) error {
 	// Verify user has paid registration paywall
 	if !userHasPaid(u) {
 		return v1.PluginErrorReply{
-			PluginID:  pi.UserPluginID,
-			ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
+			PluginID:  user.PiUserPluginID,
+			ErrorCode: user.ErrorCodeUserRegistrationNotPaid,
 		}
 	}
 

@@ -36,6 +36,7 @@ import (
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -628,7 +629,7 @@ func _main() error {
 	}
 
 	// Setup user database
-	log.Infof("User db: %v", loadedCfg.UserDB)
+	log.Infof("User database: %v", loadedCfg.UserDB)
 
 	var userDB user.Database
 	switch loadedCfg.UserDB {
@@ -688,15 +689,15 @@ func _main() error {
 	}
 
 	// Setup smtp client
-	smtp, err := newSMTP(loadedCfg.MailHost, loadedCfg.MailUser,
-		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.SystemCerts,
-		loadedCfg.SMTPSkipVerify)
+	mailClient, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
+		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
+		loadedCfg.MailSkipVerify)
 	if err != nil {
-		return fmt.Errorf("newSMTP: %v", err)
+		return fmt.Errorf("new mail client: %v", err)
 	}
 
 	// Setup politeiad client
-	client, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
+	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
 	if err != nil {
 		return err
 	}
@@ -708,8 +709,8 @@ func _main() error {
 		router:     router,
 		auth:       auth,
 		politeiad:  pdc,
-		client:     client,
-		smtp:       smtp,
+		http:       httpClient,
+		mail:       mailClient,
 		db:         userDB,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),

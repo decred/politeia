@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -69,16 +68,16 @@ func (r *Records) piHookNewRecordPre(u user.User) error {
 	// Verify user has paid registration paywall
 	if !userHasPaid(u) {
 		return v1.PluginErrorReply{
-			PluginID:  pi.UserPluginID,
-			ErrorCode: pi.ErrorCodeUserRegistrationNotPaid,
+			PluginID:  user.PiUserPluginID,
+			ErrorCode: user.ErrorCodeUserRegistrationNotPaid,
 		}
 	}
 
 	// Verify user has a proposal credit
 	if !userHasProposalCredits(u) {
 		return v1.PluginErrorReply{
-			PluginID:  pi.UserPluginID,
-			ErrorCode: pi.ErrorCodeUserBalanceInsufficient,
+			PluginID:  user.PiUserPluginID,
+			ErrorCode: user.ErrorCodeUserBalanceInsufficient,
 		}
 	}
 	return nil

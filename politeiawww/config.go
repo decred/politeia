@@ -619,17 +619,17 @@ func loadConfig() (*config.Config, []string, error) {
 	cfg.WebServerAddress = u.String()
 
 	// Validate smtp root cert.
-	if cfg.SMTPCert != "" {
-		cfg.SMTPCert = util.CleanAndExpandPath(cfg.SMTPCert)
+	if cfg.MailCert != "" {
+		cfg.MailCert = util.CleanAndExpandPath(cfg.MailCert)
 
-		b, err := ioutil.ReadFile(cfg.SMTPCert)
+		b, err := ioutil.ReadFile(cfg.MailCert)
 		if err != nil {
-			return nil, nil, fmt.Errorf("read smtpcert: %v", err)
+			return nil, nil, fmt.Errorf("read mailcert: %v", err)
 		}
 		block, _ := pem.Decode(b)
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse smtpcert: %v", err)
+			return nil, nil, fmt.Errorf("parse mailcert: %v", err)
 		}
 		systemCerts, err := x509.SystemCertPool()
 		if err != nil {
@@ -638,8 +638,9 @@ func loadConfig() (*config.Config, []string, error) {
 		systemCerts.AddCert(cert)
 		cfg.SystemCerts = systemCerts
 
-		if cfg.SMTPSkipVerify {
-			log.Warnf("SMTPCert has been set so SMTPSkipVerify is being disregarded")
+		if cfg.MailSkipVerify && cfg.MailCert != "" {
+			return nil, nil, fmt.Errorf("cannot set MailSkipVerify and provide " +
+				"a MailCert at the same time")
 		}
 	}
 

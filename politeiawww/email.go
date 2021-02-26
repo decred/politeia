@@ -6,13 +6,11 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"net/url"
 	"strings"
 	"text/template"
 	"time"
 
-	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
@@ -56,261 +54,6 @@ func (p *politeiawww) createEmailLink(path, email, token, username string) (stri
 	return l.String(), nil
 }
 
-// emailProposalSubmitted send a proposal submitted notification email to
-// the provided list of emails.
-func (p *politeiawww) emailProposalSubmitted(token, name, username string, emails []string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	tmplData := proposalSubmitted{
-		Username: username,
-		Name:     name,
-		Link:     l.String(),
-	}
-
-	subject := "New Proposal Submitted"
-	body, err := createBody(proposalSubmittedTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalEdited sends a proposal edited notification email to the
-// provided list of emails.
-func (p *politeiawww) emailProposalEdited(name, username, token, version string, emails []string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	tmplData := proposalEdited{
-		Name:     name,
-		Version:  version,
-		Username: username,
-		Link:     l.String(),
-	}
-
-	subject := "Proposal Edited"
-	body, err := createBody(proposalEditedTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalStatusChange sends a proposal status change email to the
-// provided email addresses.
-func (p *politeiawww) emailProposalStatusChange(d dataProposalStatusChange, proposalName string, emails []string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	var (
-		subject string
-		body    string
-	)
-	switch d.status {
-	case rcv1.RecordStatusPublic:
-		subject = "New Proposal Published"
-		tmplData := proposalVetted{
-			Name: proposalName,
-			Link: l.String(),
-		}
-		body, err = createBody(tmplProposalVetted, tmplData)
-		if err != nil {
-			return err
-		}
-
-	default:
-		log.Debugf("no user notification for prop status %v", d.status)
-		return nil
-	}
-
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalStatusChangeAuthor sends a proposal status change notification
-// email to the provided email address.
-func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChange, proposalName, authorEmail string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	var (
-		subject string
-		body    string
-	)
-	switch d.status {
-	case rcv1.RecordStatusPublic:
-		subject = "Your Proposal Has Been Published"
-		tmplData := proposalVettedToAuthor{
-			Name: proposalName,
-			Link: l.String(),
-		}
-		body, err = createBody(proposalVettedToAuthorTmpl, tmplData)
-		if err != nil {
-			return err
-		}
-
-	case rcv1.RecordStatusCensored:
-		subject = "Your Proposal Has Been Censored"
-		tmplData := proposalCensoredToAuthor{
-			Name:   proposalName,
-			Reason: d.reason,
-		}
-		body, err = createBody(tmplProposalCensoredForAuthor, tmplData)
-		if err != nil {
-			return err
-		}
-
-	default:
-		return fmt.Errorf("no author notification for prop status %v", d.status)
-	}
-
-	return p.smtp.sendEmailTo(subject, body, []string{authorEmail})
-}
-
-// emailProposalCommentSubmitted sends a proposal comment submitted email to
-// the provided email address.
-func (p *politeiawww) emailProposalCommentSubmitted(token, commentID, commentUsername, proposalName, proposalAuthorEmail string) error {
-	// Setup comment URL
-	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
-	route = strings.Replace(route, "{id}", commentID, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "New Comment On Your Proposal"
-	tmplData := proposalCommentSubmitted{
-		Username: commentUsername,
-		Name:     proposalName,
-		Link:     l.String(),
-	}
-	body, err := createBody(proposalCommentSubmittedTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{proposalAuthorEmail})
-}
-
-// emailProposalCommentReply sends a proposal comment reply email to the
-// provided email address.
-func (p *politeiawww) emailProposalCommentReply(token, commentID, commentUsername, proposalName, parentCommentEmail string) error {
-	// Setup comment URL
-	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
-	route = strings.Replace(route, "{id}", commentID, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "New Reply To Your Comment"
-	tmplData := proposalCommentReply{
-		Username: commentUsername,
-		Name:     proposalName,
-		Link:     l.String(),
-	}
-	body, err := createBody(proposalCommentReplyTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{parentCommentEmail})
-}
-
-// emailProposalVoteAuthorized sends a proposal vote authorized email to the
-// provided list of emails.
-func (p *politeiawww) emailProposalVoteAuthorized(token, name, username string, emails []string) error {
-	// Setup URL
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "Proposal Authorized To Start Voting"
-	tplData := proposalVoteAuthorized{
-		Username: username,
-		Name:     name,
-		Link:     l.String(),
-	}
-	body, err := createBody(proposalVoteAuthorizedTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalVoteStarted sends a proposal vote started email notification
-// to the provided email addresses.
-func (p *politeiawww) emailProposalVoteStarted(token, name string, emails []string) error {
-	// Setup URL
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "Voting Started for Proposal"
-	tplData := proposalVoteStarted{
-		Name: name,
-		Link: l.String(),
-	}
-	body, err := createBody(proposalVoteStartedTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalVoteStartedToAuthor sends a proposal vote started email to
-// the provided email address.
-func (p *politeiawww) emailProposalVoteStartedToAuthor(token, name, username, email string) error {
-	// Setup URL
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "Your Proposal Has Started Voting"
-	tplData := proposalVoteStartedToAuthor{
-		Name: name,
-		Link: l.String(),
-	}
-	body, err := createBody(proposalVoteStartedToAuthorTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{email})
-}
-
 // emailUserEmailVerify sends a new user verification email to the
 // provided email address.
 func (p *politeiawww) emailUserEmailVerify(email, token, username string) error {
@@ -332,7 +75,7 @@ func (p *politeiawww) emailUserEmailVerify(email, token, username string) error 
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailUserKeyUpdate emails the link with the verification token used for
@@ -356,7 +99,7 @@ func (p *politeiawww) emailUserKeyUpdate(username, email, publicKey, token strin
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailUserPasswordReset emails the link with the reset password verification
@@ -383,7 +126,7 @@ func (p *politeiawww) emailUserPasswordReset(email, username, token string) erro
 	}
 
 	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{email})
+	return p.mail.SendTo(subject, body, []string{email})
 }
 
 // emailUserAccountLocked notifies the user its account has been locked and
@@ -408,7 +151,7 @@ func (p *politeiawww) emailUserAccountLocked(username, email string) error {
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailUserPasswordChanged notifies the user that his password was changed,
@@ -425,7 +168,7 @@ func (p *politeiawww) emailUserPasswordChanged(username, email string) error {
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailUserCMSInvite emails the invitation link for the Contractor Management
@@ -448,7 +191,7 @@ func (p *politeiawww) emailUserCMSInvite(email, token string) error {
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailUserDCCApproved emails the link to invite a user that has been approved
@@ -465,7 +208,7 @@ func (p *politeiawww) emailUserDCCApproved(email string) error {
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailDCCSubmitted sends email regarding the DCC New event. Sends email
@@ -487,7 +230,7 @@ func (p *politeiawww) emailDCCSubmitted(token string, emails []string) error {
 		return err
 	}
 
-	return p.smtp.sendEmailTo(subject, body, emails)
+	return p.mail.SendTo(subject, body, emails)
 }
 
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
@@ -509,7 +252,7 @@ func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error
 		return err
 	}
 
-	return p.smtp.sendEmailTo(subject, body, emails)
+	return p.mail.SendTo(subject, body, emails)
 }
 
 // emailInvoiceStatusUpdate sends email for the invoice status update event.
@@ -526,7 +269,7 @@ func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) e
 	}
 	recipients := []string{userEmail}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailInvoiceNotSent sends a invoice not sent email notification to the
@@ -547,7 +290,7 @@ func (p *politeiawww) emailInvoiceNotSent(email, username string) error {
 	}
 	recipients := []string{email}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailInvoiceNewComment sends email for the invoice new comment event. Send
@@ -562,5 +305,5 @@ func (p *politeiawww) emailInvoiceNewComment(userEmail string) error {
 	}
 	recipients := []string{userEmail}
 
-	return p.smtp.sendEmailTo(subject, body, recipients)
+	return p.mail.SendTo(subject, body, recipients)
 }

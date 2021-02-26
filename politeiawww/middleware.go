@@ -19,7 +19,7 @@ import (
 // function.
 func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedIn: %v %v %v %v",
+		log.Tracef("%v isLoggedIn: %v %v %v",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 		id, err := p.sessions.GetSessionUserID(w, r)
@@ -56,7 +56,7 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 // before calling the next function.
 func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedInAsAdmin: %v %v %v %v",
+		log.Tracef("%v isLoggedInAsAdmin: %v %v %v",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 		// Check if user is admin

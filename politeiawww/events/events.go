@@ -27,6 +27,8 @@ func (e *Manager) Register(event string, listener chan interface{}) {
 
 	l = append(l, listener)
 	e.listeners[event] = l
+
+	log.Debugf("Register event %v", event)
 }
 
 // Emit emits an event by passing it to all channels that have been registered
@@ -43,6 +45,8 @@ func (e *Manager) Emit(event string, data interface{}) {
 	for _, ch := range listeners {
 		ch <- data
 	}
+
+	log.Debugf("Emit event %v", event)
 }
 
 // NewManager returns a new Manager context.
