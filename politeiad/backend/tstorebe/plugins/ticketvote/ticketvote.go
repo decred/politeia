@@ -281,8 +281,8 @@ func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
 func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
 	// Plugin settings
 	var (
-		linkByPeriodMin = ticketvote.SettingLinkByPeriodMin
-		linkByPeriodMax = ticketvote.SettingLinkByPeriodMax
+		linkByPeriodMin int64
+		linkByPeriodMax int64
 		voteDurationMin uint32
 		voteDurationMax uint32
 	)
@@ -291,14 +291,21 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 	// the setting was specified by the user.
 	switch activeNetParams.Name {
 	case chaincfg.MainNetParams().Name:
+		linkByPeriodMin = ticketvote.SettingMainNetLinkByPeriodMin
+		linkByPeriodMax = ticketvote.SettingMainNetLinkByPeriodMax
 		voteDurationMin = ticketvote.SettingMainNetVoteDurationMin
 		voteDurationMax = ticketvote.SettingMainNetVoteDurationMax
 	case chaincfg.TestNet3Params().Name:
+		linkByPeriodMin = ticketvote.SettingTestNetLinkByPeriodMin
+		linkByPeriodMax = ticketvote.SettingTestNetLinkByPeriodMax
 		voteDurationMin = ticketvote.SettingTestNetVoteDurationMin
 		voteDurationMax = ticketvote.SettingTestNetVoteDurationMax
 	case chaincfg.SimNetParams().Name:
-		voteDurationMin = ticketvote.SettingSimNetVoteDurationMin
-		voteDurationMax = ticketvote.SettingSimNetVoteDurationMax
+		// Use testnet defaults for simnet
+		linkByPeriodMin = ticketvote.SettingTestNetLinkByPeriodMin
+		linkByPeriodMax = ticketvote.SettingTestNetLinkByPeriodMax
+		voteDurationMin = ticketvote.SettingTestNetVoteDurationMin
+		voteDurationMax = ticketvote.SettingTestNetVoteDurationMax
 	default:
 		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 	}

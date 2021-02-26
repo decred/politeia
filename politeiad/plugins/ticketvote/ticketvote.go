@@ -29,16 +29,28 @@ const (
 	SettingKeyVoteDurationMin = "votedurationmin"
 	SettingKeyVoteDurationMax = "votedurationmax"
 
-	// SettingLinkByPeriodMin is the default minimum amount of time,
-	// in seconds, that the link by period can be set to. This value
-	// of 2 weeks was chosen assuming a 1 week voting period on
+	// SettingMainNetLinkByPeriodMin is the default minimum amount of
+	// time, in seconds, that the link by period can be set to. This
+	// value of 2 weeks was chosen assuming a 1 week voting period on
 	// mainnet.
-	SettingLinkByPeriodMin int64 = 1209600
+	SettingMainNetLinkByPeriodMin int64 = 1209600
 
-	// SettingLinkByPeriodMax is the default maximum amount of time,
-	// in seconds, that the link by period can be set to. This value
-	// of 3 months was chosen arbitrarily.
-	SettingLinkByPeriodMax int64 = 7776000
+	// SettingMainNetLinkByPeriodMax is the default maximum amount of
+	// time, in seconds, that the link by period can be set to. This
+	// value of 3 months was chosen arbitrarily.
+	SettingMainNetLinkByPeriodMax int64 = 7776000
+
+	// SettingTestNeLinkByPeriodMin is the default minimum amount of
+	// time, in seconds, that the link by period can be set to. This
+	// value of 1 second was chosen because this is the testnet
+	// default and a 1 second miniumum makes testing various scenerios
+	// easier.
+	SettingTestNetLinkByPeriodMin int64 = 1
+
+	// SettingTestNetLinkByPeriodMax is the default maximum amount of
+	// time, in seconds, that the link by period can be set to. This
+	// value of 3 months was chosen arbitrarily.
+	SettingTestNetLinkByPeriodMax int64 = 7776000
 
 	// SettingMainNetVoteDurationMin is the default minimum vote
 	// duration on mainnet in blocks.
@@ -55,14 +67,6 @@ const (
 	// SettingTestNetVoteDurationMax is the default maximum vote
 	// duration on testnet in blocks.
 	SettingTestNetVoteDurationMax uint32 = 4032
-
-	// SettingSimNetVoteDurationMin is the default minimum vote
-	// duration on simnet in blocks.
-	SettingSimNetVoteDurationMin uint32 = 1
-
-	// SettingSimNetVoteDurationMax is the default maximum vote
-	// duration on simnet in blocks.
-	SettingSimNetVoteDurationMax uint32 = 4032
 )
 
 // ErrorCodeT represents and error that is caused by the user.
