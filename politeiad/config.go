@@ -99,10 +99,10 @@ type config struct {
 	TrillianHostVetted   string `long:"trillianhostvetted"`
 	TrillianSigningKey   string `long:"trilliansigningkey"`
 
-	DBType          string `long:"dbtype" description:"Database type`
+	DBType          string `long:"dbtype" description:"Database type"`
 	DBHost          string `long:"dbhost" description:"Database ip:port"`
 	DBPass          string `long:"dbpass" description:"Database password"`
-	DBEncryptionKey string `long:"encryptionkey" description:"Database encryption key file"`
+	DBEncryptionKey string `long:"dbencryptionkey" description:"Database encryption key file"`
 
 	// Plugin settings
 	Plugins        []string `long:"plugin"`
