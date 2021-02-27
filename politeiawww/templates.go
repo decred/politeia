@@ -6,68 +6,6 @@ package main
 
 import "text/template"
 
-// Proposal status change - Vetted - Send to users
-type proposalVetted struct {
-	Name string // Proposal name
-	Link string // GUI proposal details URL
-}
-
-const proposalVettedText = `
-A new proposal has just been published on Politeia.
-
-{{.Name}}
-{{.Link}}
-`
-
-var tmplProposalVetted = template.Must(
-	template.New("proposalVetted").Parse(proposalVettedText))
-
-// Proposal status change - Vetted - Send to author
-type proposalVettedToAuthor struct {
-	Name string // Proposal name
-	Link string // GUI proposal details URL
-}
-
-const proposalVettedToAuthorText = `
-Your proposal has just been made public on Politeia!  
-
-Your proposal has now entered the discussion phase where the community can
-leave comments and provide feedback.  Be sure to keep an eye out for new
-comments and to answer any questions that the community may have.  You are
-allowed to edit your proposal at any point prior to the start of voting.
-
-Once you feel that enough time has been given for discussion you may authorize
-the vote to commence on your proposal.  An admin is not able to start the
-voting process until you explicitly authorize it.  You can authorize a proposal
-vote by opening the proposal page and clicking on the "Authorize Voting to
-Start" button.
-
-{{.Name}}
-{{.Link}}
-
-If you have any questions, drop by the proposals channel on matrix.
-https://chat.decred.org/#/room/#proposals:decred.org
-`
-
-var proposalVettedToAuthorTmpl = template.Must(
-	template.New("proposalVettedToAuthor").Parse(proposalVettedToAuthorText))
-
-// Proposal status change - Censored - Send to author
-type proposalCensoredToAuthor struct {
-	Name   string // Proposal name
-	Reason string // Reason for censoring
-}
-
-const proposalCensoredToAuthorText = `
-Your proposal on Politeia has been censored.
-
-{{.Name}}
-Reason: {{.Reason}}
-`
-
-var tmplProposalCensoredForAuthor = template.Must(
-	template.New("proposalCensoredToAuthor").Parse(proposalCensoredToAuthorText))
-
 // Proposal comment submitted - Send to proposal author
 type proposalCommentSubmitted struct {
 	Username string // Comment author username

@@ -6,18 +6,12 @@ package pi
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"strings"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
-	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 )
@@ -51,8 +45,11 @@ func (p *Pi) proposals(ctx context.Context, state string, reqs []pdv1.RecordRequ
 		}
 
 		// Fill in user data
-		userID := userIDFromMetadataStreams(v.Metadata)
+		userID := userIDFromMetadataStreamsPD(v.Metadata)
 		uid, err := uuid.Parse(userID)
+		if err != nil {
+			return nil, err
+		}
 		u, err := p.userdb.UserGetById(uid)
 		if err != nil {
 			return nil, err
@@ -127,28 +124,6 @@ func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User
 	}, nil
 }
 
-// proposalName parses the proposal name from the ProposalMetadata file and
-// returns it. An empty string will be returned if any errors occur or if a
-// name is not found.
-func proposalName(r rcv1.Record) string {
-	var name string
-	for _, v := range r.Files {
-		if v.Name == pi.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return ""
-			}
-			var pm pi.ProposalMetadata
-			err = json.Unmarshal(b, &pm)
-			if err != nil {
-				return ""
-			}
-			name = pm.Name
-		}
-	}
-	return name
-}
-
 // proposalPopulateUserData populates a proposal with user data that is stored
 // in the user database and not in politeiad.
 func proposalPopulateUserData(pr *v1.Proposal, u user.User) {
@@ -171,22 +146,6 @@ func convertStatus(s pdv1.RecordStatusT) v1.PropStatusT {
 		return v1.PropStatusAbandoned
 	}
 	return v1.PropStatusInvalid
-}
-
-func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
-	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var sc usermd.StatusChangeMetadata
-		err := d.Decode(&sc)
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		statuses = append(statuses, sc)
-	}
-	return statuses, nil
 }
 
 func convertRecord(r pdv1.Record, state string) (*v1.Proposal, error) {
@@ -260,7 +219,7 @@ func convertRecord(r pdv1.Record, state string) (*v1.Proposal, error) {
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []pdv1.MetadataStream) (*usermd.UserMetadata, error) {
+func userMetadataDecodePD(ms []pdv1.MetadataStream) (*usermd.UserMetadata, error) {
 	var userMD *usermd.UserMetadata
 	for _, v := range ms {
 		if v.ID == usermd.MDStreamIDUserMetadata {
@@ -278,8 +237,8 @@ func userMetadataDecode(ms []pdv1.MetadataStream) (*usermd.UserMetadata, error) 
 
 // userIDFromMetadataStreams searches for a UserMetadata and parses the user ID
 // from it if found. An empty string is returned if no UserMetadata is found.
-func userIDFromMetadataStreams(ms []pdv1.MetadataStream) string {
-	um, err := userMetadataDecode(ms)
+func userIDFromMetadataStreamsPD(ms []pdv1.MetadataStream) string {
+	um, err := userMetadataDecodePD(ms)
 	if err != nil {
 		return ""
 	}
