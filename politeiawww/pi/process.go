@@ -17,6 +17,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 )
@@ -126,10 +127,10 @@ func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User
 	}, nil
 }
 
-// proposalName parses the proposal name from the ProposalMetadata and returns
-// it. An empty string will be returned if any errors occur or if a name is not
-// found.
-func proposalName(r pdv1.Record) string {
+// proposalName parses the proposal name from the ProposalMetadata file and
+// returns it. An empty string will be returned if any errors occur or if a
+// name is not found.
+func proposalName(r rcv1.Record) string {
 	var name string
 	for _, v := range r.Files {
 		if v.Name == pi.FileNameProposalMetadata {

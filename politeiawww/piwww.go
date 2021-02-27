@@ -196,7 +196,7 @@ func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
 		return fmt.Errorf("new ticketvote api: %v", err)
 	}
 	piCtx, err := pi.New(p.cfg, p.politeiad, p.db,
-		p.sessions, p.events, plugins)
+		p.sessions, p.events, p.mail, plugins)
 	if err != nil {
 		return fmt.Errorf("new pi api: %v", err)
 	}

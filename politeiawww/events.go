@@ -5,7 +5,6 @@
 package main
 
 import (
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -37,26 +36,6 @@ func (p *politeiawww) setupEventListenersCMS() {
 	ch = make(chan interface{})
 	p.events.Register(eventDCCSupportOppose, ch)
 	go p.handleEventDCCSupportOppose(ch)
-}
-
-// notificationIsSet returns whether the provided user has the provided
-// notification bit set.
-func notificationIsSet(emailNotifications uint64, n www.EmailNotificationT) bool {
-	return emailNotifications&uint64(n) != 0
-}
-
-// userNotificationEnabled returns whether the user should receive the provided
-// notification.
-func userNotificationEnabled(u user.User, n www.EmailNotificationT) bool {
-	// Never send notification to deactivated users
-	if u.Deactivated {
-		return false
-	}
-	// Check if notification bit is set
-	if !notificationIsSet(u.EmailNotifications, n) {
-		return false
-	}
-	return true
 }
 
 type dataInvoiceComment struct {

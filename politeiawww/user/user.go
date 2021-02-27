@@ -352,6 +352,16 @@ func (u *User) ActivateIdentity(key []byte) error {
 	return nil
 }
 
+// NotificationIsEnabled returns whether the user has the provided notification
+// bit enabled. This function will always return false if the user has been
+// deactivated.
+func (u *User) NotificationIsEnabled(ntfnBit uint64) bool {
+	if u.Deactivated {
+		return false
+	}
+	return u.EmailNotifications&ntfnBit != 0
+}
+
 // EncodeUser encodes User into a JSON byte slice.
 func EncodeUser(u User) ([]byte, error) {
 	b, err := json.Marshal(u)

@@ -72,7 +72,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 
 	log.Infof("Record submitted: %v", rc.CensorshipRecord.Token)
 	for k, f := range rc.Files {
-		log.Infof("%02v: %v", k, f.Name)
+		log.Debugf("%02v: %v", k, f.Name)
 	}
 
 	// Execute post plugin hooks. Checking the mode is a temporary
@@ -197,7 +197,7 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 
 	log.Infof("Record edited: %v %v", e.State, rc.CensorshipRecord.Token)
 	for k, f := range rc.Files {
-		log.Infof("%02v: %v", k, f.Name)
+		log.Debugf("%02v: %v", k, f.Name)
 	}
 
 	// Emit event

@@ -17,10 +17,8 @@ import (
 const (
 	// GUI routes. These are used in notification emails to direct the
 	// user to the correct GUI pages.
-	guiRouteProposalDetails  = "/proposals/{token}"
-	guirouteProposalComments = "/proposals/{token}/comments/{id}"
-	guiRouteRegisterNewUser  = "/register"
-	guiRouteDCCDetails       = "/dcc/{token}"
+	guiRouteRegisterNewUser = "/register"
+	guiRouteDCCDetails      = "/dcc/{token}"
 )
 
 func createBody(tpl *template.Template, tplData interface{}) (string, error) {

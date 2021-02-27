@@ -6,41 +6,6 @@ package main
 
 import "text/template"
 
-// Proposal submitted - Send to admins
-type proposalSubmitted struct {
-	Username string // Author username
-	Name     string // Proposal name
-	Link     string // GUI proposal details URL
-}
-
-const proposalSubmittedText = `
-A new proposal has been submitted on Politeia by {{.Username}}:
-
-{{.Name}}
-{{.Link}}
-`
-
-var proposalSubmittedTmpl = template.Must(
-	template.New("proposalSubmitted").Parse(proposalSubmittedText))
-
-// Proposal edited - Send to users
-type proposalEdited struct {
-	Name     string // Proposal name
-	Version  string // ProposalVersion
-	Username string // Author username
-	Link     string // GUI proposal details URL
-}
-
-const proposalEditedText = `
-A proposal by {{.Username}} has just been edited:
-
-{{.Name}} (Version: {{.Version}})
-{{.Link}}
-`
-
-var proposalEditedTmpl = template.Must(
-	template.New("proposalEdited").Parse(proposalEditedText))
-
 // Proposal status change - Vetted - Send to users
 type proposalVetted struct {
 	Name string // Proposal name

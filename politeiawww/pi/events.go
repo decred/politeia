@@ -5,9 +5,12 @@
 package pi
 
 import (
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/ticketvote"
+	"github.com/decred/politeia/politeiawww/user"
 )
 
 func (p *Pi) setupEventListeners() {
@@ -16,6 +19,8 @@ func (p *Pi) setupEventListeners() {
 	// 2. Register the channel with the event manager.
 	// 3. Launch an event handler to listen for events emitted into the
 	//    channel by the event manager.
+
+	log.Debugf("Setting up pi event listeners")
 
 	// Record new
 	ch := make(chan interface{})
@@ -56,36 +61,41 @@ func (p *Pi) handleEventRecordNew(ch chan interface{}) {
 			continue
 		}
 
-		/*
-			// Compile a list of users to send the notification to
-			emails := make([]string, 0, 256)
-			err := p.db.AllUsers(func(u *user.User) {
-				switch {
-				case !u.Admin:
-					// Only admins get this notification
-					return
-				case !userNotificationEnabled(*u,
-					www.NotificationEmailAdminProposalNew):
-					// Admin doesn't have notification bit set
-					return
-				}
-
-				// Add user to notification list
-				emails = append(emails, u.Email)
-			})
-			if err != nil {
-				log.Errorf("handleEventRecordNew: AllUsers: %v", err)
+		// Compile notification email list
+		var (
+			emails  = make([]string, 0, 256)
+			ntfnBit = uint64(www.NotificationEmailAdminProposalNew)
+		)
+		err := p.userdb.AllUsers(func(u *user.User) {
+			switch {
+			case !u.Admin:
+				// Only admins get this notification
 				return
+			case !u.NotificationIsEnabled(ntfnBit):
+				// Admin doesn't have notification bit set
+				return
+			default:
+				// User is an admin and has the notification bit set. Add
+				// them to the email list.
+				emails = append(emails, u.Email)
 			}
+		})
+		if err != nil {
+			log.Errorf("handleEventRecordNew: AllUsers: %v", err)
+			return
+		}
 
-			// Send email notification
-			err = p.emailRecordNew(d.token, d.name, d.username, emails)
-			if err != nil {
-				log.Errorf("emailRecordNew: %v", err)
-			}
+		// Send notfication email
+		var (
+			token = e.Record.CensorshipRecord.Token
+			name  = proposalName(e.Record)
+		)
+		err = p.mailNtfnProposalNew(token, name, e.User.Username, emails)
+		if err != nil {
+			log.Errorf("mailNtfnProposalNew: %v", err)
+		}
 
-		*/
-		log.Debugf("Proposal new ntfn sent %v", e.Record.CensorshipRecord.Token)
+		log.Debugf("Proposal new ntfn sent %v", token)
 	}
 }
 
@@ -97,38 +107,53 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 			continue
 		}
 
-		/*
-			// Compile a list of users to send the notification to
-			emails := make([]string, 0, 256)
-			err := p.db.AllUsers(func(u *user.User) {
-				// Check circumstances where we don't notify
-				switch {
-				case u.ID.String() == d.userID:
-					// User is the author
-					return
-				case !userNotificationEnabled(*u,
-					www.NotificationEmailRegularRecordEdit):
-					// User doesn't have notification bit set
-					return
-				}
+		// Only send edit notifications for public proposals
+		if e.State == rcv1.RecordStateUnvetted {
+			log.Debugf("Proposal is unvetted no edit ntfn %v",
+				e.Record.CensorshipRecord.Token)
+			continue
+		}
 
-				// Add user to notification list
+		// Compile notification email list
+		var (
+			emails   = make([]string, 0, 256)
+			authorID = e.User.ID.String()
+			ntfnBit  = uint64(www.NotificationEmailRegularProposalEdited)
+		)
+		err := p.userdb.AllUsers(func(u *user.User) {
+			switch {
+			case u.ID.String() == authorID:
+				// User is the author. No need to send the notification to
+				// the author.
+				return
+			case u.NotificationIsEnabled(ntfnBit):
+				// User doesn't have notification bit set
+				return
+			default:
+				// User has the notification bit set. Add them to the email
+				// list.
 				emails = append(emails, u.Email)
-			})
-			if err != nil {
-				log.Errorf("handleEventRecordEdit: AllUsers: %v", err)
-				continue
 			}
+		})
+		if err != nil {
+			log.Errorf("handleEventRecordEdit: AllUsers: %v", err)
+			continue
+		}
 
-			err = p.emailRecordEdit(d.name, d.username,
-				d.token, d.version, emails)
-			if err != nil {
-				log.Errorf("emailRecordEdit: %v", err)
-				continue
-			}
+		// Send notification email
+		var (
+			token    = e.Record.CensorshipRecord.Token
+			version  = e.Record.Version
+			name     = proposalName(e.Record)
+			username = e.User.Username
+		)
+		err = p.mailNtfnProposalEdit(token, version, name, username, emails)
+		if err != nil {
+			log.Errorf("mailNtfnProposaledit: %v", err)
+			continue
+		}
 
-		*/
-		log.Debugf("Proposal edit ntfn sent %v", e.Record.CensorshipRecord.Token)
+		log.Debugf("Proposal edit ntfn sent %v", token)
 	}
 }
 
@@ -435,57 +460,6 @@ func (p *Pi) handleEventVoteStart(ch chan interface{}) {
 }
 
 /*
-// emailProposalSubmitted send a proposal submitted notification email to
-// the provided list of emails.
-func (p *politeiawww) emailProposalSubmitted(token, name, username string, emails []string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	tmplData := proposalSubmitted{
-		Username: username,
-		Name:     name,
-		Link:     l.String(),
-	}
-
-	subject := "New Proposal Submitted"
-	body, err := createBody(proposalSubmittedTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalEdited sends a proposal edited notification email to the
-// provided list of emails.
-func (p *politeiawww) emailProposalEdited(name, username, token, version string, emails []string) error {
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	tmplData := proposalEdited{
-		Name:     name,
-		Version:  version,
-		Username: username,
-		Link:     l.String(),
-	}
-
-	subject := "Proposal Edited"
-	body, err := createBody(proposalEditedTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalStatusChange sends a proposal status change email to the
-// provided email addresses.
 func (p *politeiawww) emailProposalStatusChange(d dataProposalStatusChange, proposalName string, emails []string) error {
 	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
@@ -517,8 +491,6 @@ func (p *politeiawww) emailProposalStatusChange(d dataProposalStatusChange, prop
 	return p.smtp.sendEmailTo(subject, body, emails)
 }
 
-// emailProposalStatusChangeAuthor sends a proposal status change notification
-// email to the provided email address.
 func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChange, proposalName, authorEmail string) error {
 	route := strings.Replace(guiRouteProposalDetails, "{token}", d.token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
@@ -560,8 +532,6 @@ func (p *politeiawww) emailProposalStatusChangeToAuthor(d dataProposalStatusChan
 	return p.smtp.sendEmailTo(subject, body, []string{authorEmail})
 }
 
-// emailProposalCommentSubmitted sends a proposal comment submitted email to
-// the provided email address.
 func (p *politeiawww) emailProposalCommentSubmitted(token, commentID, commentUsername, proposalName, proposalAuthorEmail string) error {
 	// Setup comment URL
 	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
