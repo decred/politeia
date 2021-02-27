@@ -137,12 +137,11 @@ func (t *tclient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 			TreeType:           trillian.TreeType_LOG,
 			HashStrategy:       trillian.HashStrategy_RFC6962_SHA256,
 			HashAlgorithm:      sigpb.DigitallySigned_SHA256,
-			SignatureAlgorithm: sigpb.DigitallySigned_ECDSA,
-			// TODO SignatureAlgorithm: sigpb.DigitallySigned_ED25519,
-			DisplayName:     "",
-			Description:     "",
-			MaxRootDuration: ptypes.DurationProto(0),
-			PrivateKey:      pk,
+			SignatureAlgorithm: sigpb.DigitallySigned_ED25519,
+			DisplayName:        "",
+			Description:        "",
+			MaxRootDuration:    ptypes.DurationProto(0),
+			PrivateKey:         pk,
 		},
 	})
 	if err != nil {
@@ -499,8 +498,7 @@ func (t *tclient) close() {
 
 func newTrillianKey() (crypto.Signer, error) {
 	return keys.NewFromSpec(&keyspb.Specification{
-		// TODO Params: &keyspb.Specification_Ed25519Params{},
-		Params: &keyspb.Specification_EcdsaParams{},
+		Params: &keyspb.Specification_Ed25519Params{},
 	})
 }
 
@@ -605,7 +603,7 @@ func (t *testTClient) treeNew() (*trillian.Tree, *trillian.SignedLogRoot, error)
 		TreeType:           trillian.TreeType_LOG,
 		HashStrategy:       trillian.HashStrategy_RFC6962_SHA256,
 		HashAlgorithm:      sigpb.DigitallySigned_SHA256,
-		SignatureAlgorithm: sigpb.DigitallySigned_ECDSA,
+		SignatureAlgorithm: sigpb.DigitallySigned_ED25519,
 		DisplayName:        "",
 		Description:        "",
 		MaxRootDuration:    ptypes.DurationProto(0),

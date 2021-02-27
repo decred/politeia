@@ -1609,9 +1609,9 @@ func _main() error {
 		p.backend = b
 	case backendTstore:
 		b, err := tstorebe.New(activeNetParams.Params, cfg.HomeDir, cfg.DataDir,
-			cfg.TrillianHostUnvetted, cfg.TrillianKeyUnvetted,
-			cfg.TrillianHostVetted, cfg.TrillianKeyVetted, cfg.EncryptionKey,
-			cfg.DBType, cfg.DBHost, cfg.DBPass, cfg.DcrtimeHost, cfg.DcrtimeCert)
+			cfg.TrillianHostUnvetted, cfg.TrillianHostVetted, cfg.TrillianSigningKey,
+			cfg.DBType, cfg.DBHost, cfg.DBPass, cfg.DBEncryptionKey,
+			cfg.DcrtimeHost, cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("new tstorebe: %v", err)
 		}

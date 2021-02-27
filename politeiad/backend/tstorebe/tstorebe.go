@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	defaultEncryptionKeyFilename = "tstorebe.key"
+	defaultEncryptionKeyFilename = "tstore-sbox.key"
 
 	// Tstore instance IDs
 	tstoreIDUnvetted = "unvetted"
@@ -1954,25 +1954,25 @@ func (t *tstoreBackend) setup() error {
 }
 
 // New returns a new tstoreBackend.
-func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedTrillianKeyFile, vettedTrillianHost, vettedTrillianKeyFile, encryptionKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
+func New(anp *chaincfg.Params, homeDir, dataDir, trillianHostUnvetted, trillianHostVetted, trillianSigningKey, dbType, dbHost, dbPass, dbEncryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
 	// Setup encryption key file
-	if encryptionKeyFile == "" {
+	if dbEncryptionKeyFile == "" {
 		// No file path was given. Use the default path.
-		encryptionKeyFile = filepath.Join(homeDir, defaultEncryptionKeyFilename)
+		dbEncryptionKeyFile = filepath.Join(homeDir, defaultEncryptionKeyFilename)
 	}
-	if !util.FileExists(encryptionKeyFile) {
+	if !util.FileExists(dbEncryptionKeyFile) {
 		// Encryption key file does not exist. Create one.
 		log.Infof("Generating encryption key")
 		key, err := sbox.NewKey()
 		if err != nil {
 			return nil, err
 		}
-		err = ioutil.WriteFile(encryptionKeyFile, key[:], 0400)
+		err = ioutil.WriteFile(dbEncryptionKeyFile, key[:], 0400)
 		if err != nil {
 			return nil, err
 		}
 		util.Zero(key[:])
-		log.Infof("Encryption key created: %v", encryptionKeyFile)
+		log.Infof("Encryption key created: %v", dbEncryptionKeyFile)
 	}
 
 	// Verify dcrtime host
@@ -1984,14 +1984,14 @@ func New(anp *chaincfg.Params, homeDir, dataDir, unvettedTrillianHost, unvettedT
 
 	// Setup tstore instances
 	unvetted, err := tstore.New(tstoreIDUnvetted, homeDir, dataDir, anp,
-		unvettedTrillianHost, unvettedTrillianKeyFile, encryptionKeyFile,
-		dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
+		trillianHostUnvetted, trillianSigningKey, dbType, dbHost, dbPass,
+		dbEncryptionKeyFile, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore unvetted: %v", err)
 	}
 	vetted, err := tstore.New(tstoreIDVetted, homeDir, dataDir, anp,
-		vettedTrillianHost, vettedTrillianKeyFile, "",
-		dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
+		trillianHostVetted, trillianSigningKey, dbType, dbHost, dbPass, "",
+		dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore vetted: %v", err)
 	}

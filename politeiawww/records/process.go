@@ -70,6 +70,11 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 		return nil, err
 	}
 
+	log.Infof("Record submitted: %v", rc.CensorshipRecord.Token)
+	for k, f := range rc.Files {
+		log.Infof("%02v: %v", k, f.Name)
+	}
+
 	// Execute post plugin hooks. Checking the mode is a temporary
 	// measure until user plugins have been properly implemented.
 	switch r.cfg.Mode {
@@ -86,11 +91,6 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 			User:   u,
 			Record: *rc,
 		})
-
-	log.Infof("Record submitted: %v", rc.CensorshipRecord.Token)
-	for k, f := range rc.Files {
-		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
-	}
 
 	return &v1.NewReply{
 		Record: *rc,
@@ -195,6 +195,11 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	rc := convertRecordToV1(*pdr, e.State)
 	recordPopulateUserData(&rc, u)
 
+	log.Infof("Record edited: %v %v", e.State, rc.CensorshipRecord.Token)
+	for k, f := range rc.Files {
+		log.Infof("%02v: %v", k, f.Name)
+	}
+
 	// Emit event
 	r.events.Emit(EventTypeEdit,
 		EventEdit{
@@ -202,11 +207,6 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 			State:  e.State,
 			Record: rc,
 		})
-
-	log.Infof("Record edited: %v %v", e.State, rc.CensorshipRecord.Token)
-	for k, f := range rc.Files {
-		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
-	}
 
 	return &v1.EditReply{
 		Record: rc,

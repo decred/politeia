@@ -97,8 +97,8 @@ politeiad
    will be accessing the databse from `localhost`. See the setup script
    comments for more complex setups.
 
-   Run the following commands. You will need to replace "rootpass" with the
-   existing password of your root user. The "politeiadpass" and "trillianpass"
+   Run the following commands. You will need to replace `rootpass` with the
+   existing password of your root user. The `politeiadpass` and `trillianpass`
    are the password that will be set for the politeiad and trillian users when
    the script creates them.
 
@@ -116,7 +116,7 @@ politeiad
    These can only be run once the trillian MySQL user has been created in the
    previous step.
 
-   The "trillianpass" and "rootpass" will need to be updated to the passwords
+   The `trillianpass` and `rootpass` will need to be updated to the passwords
    for your trillian and root users.
 
     ```
@@ -149,7 +149,7 @@ politeiad
    for unvetted records and a trillian instance for vetted records. You will be
    starting up 4 seperate processes in this step.
 
-   You will need to replace the "trillianpass" with the trillian user's
+   You will need to replace the `trillianpass` with the trillian user's
    password that you setup in previous steps.
 
    Startup unvetted log server
@@ -219,8 +219,8 @@ politeiad
 
    [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf)
 
-   Copy the sample configuration file to the politeiad data directory. The data
-   directory will depend on your OS.
+   Copy the sample configuration file to the politeiad app data directory. The
+   app data directory will depend on your OS.
 
    * **macOS**
 
@@ -241,7 +241,8 @@ politeiad
     ```
 
     Use the following config settings to spin up a development politeiad
-    instance.
+    instance. You'll need to replace the `politeiadpass` with the password
+    you created for your politeiad MySQL user.
 
    **politeiad.conf**
 
@@ -249,6 +250,10 @@ politeiad
     rpcuser=user
     rpcpass=pass
     testnet=true
+
+    ; Tstore database settings
+    dbtype=mysql
+    dbpass=politeiadpass
 
     ; Pi plugin configuration
     plugin=pi
@@ -263,6 +268,9 @@ politeiad
     ```
     $ politeiad
     ```
+
+   A database encryption key and a trillian signing key will be created on
+   startup and saved to the politeiad app data directory.
 
 # Tools and reference clients
 

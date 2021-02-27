@@ -85,7 +85,7 @@ func (p *Pi) handleEventRecordNew(ch chan interface{}) {
 			}
 
 		*/
-		log.Debugf("Record new event sent %v", e.Record.CensorshipRecord.Token)
+		log.Debugf("Proposal new ntfn sent %v", e.Record.CensorshipRecord.Token)
 	}
 }
 
@@ -128,7 +128,7 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 			}
 
 		*/
-		log.Debugf("Record edit event sent %v", e.Record.CensorshipRecord.Token)
+		log.Debugf("Proposal edit ntfn sent %v", e.Record.CensorshipRecord.Token)
 	}
 }
 
@@ -332,7 +332,7 @@ func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 				continue
 		*/
 
-		log.Debugf("Comment new event sent %v", d.Comment.Token)
+		log.Debugf("Proposal comment ntfn sent %v", d.Comment.Token)
 	}
 }
 
@@ -374,7 +374,7 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 			}
 		*/
 
-		log.Debugf("Vote authorized event sent %v", e.Auth.Token)
+		log.Debugf("Proposal vote authorized ntfn sent %v", e.Auth.Token)
 	}
 }
 
@@ -430,7 +430,7 @@ func (p *Pi) handleEventVoteStart(ch chan interface{}) {
 
 		_ = e
 		token := "fix me"
-		log.Debugf("Vote start event sent %v", token)
+		log.Debugf("Proposal vote started ntfn sent %v", token)
 	}
 }
 

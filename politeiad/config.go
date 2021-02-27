@@ -93,18 +93,16 @@ type config struct {
 	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
-	// TODO validate these config params and set defaults. Also consider
-	// making them specific to tstore. Ex: tstore.TrillianHostUnvetted.
-	// TODO Verify that the trillian key is being used
+	// TODO validate these config params
 	Backend              string `long:"backend"`
 	TrillianHostUnvetted string `long:"trillianhostunvetted"`
 	TrillianHostVetted   string `long:"trillianhostvetted"`
-	TrillianKeyUnvetted  string `long:"trilliankeyunvetted"`
-	TrillianKeyVetted    string `long:"trilliankeyvetted"`
-	DBType               string `long:"dbtype"`
-	DBHost               string `long:"dbhost" description:"Database ip:port"`
-	DBPass               string `long:"dbpass" description:"Database password"`
-	EncryptionKey        string `long:"encryptionkey" description:"Database encryption key"`
+	TrillianSigningKey   string `long:"trilliansigningkey"`
+
+	DBType          string `long:"dbtype" description:"Database type`
+	DBHost          string `long:"dbhost" description:"Database ip:port"`
+	DBPass          string `long:"dbpass" description:"Database password"`
+	DBEncryptionKey string `long:"encryptionkey" description:"Database encryption key file"`
 
 	// Plugin settings
 	Plugins        []string `long:"plugin"`

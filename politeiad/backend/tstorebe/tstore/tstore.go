@@ -33,8 +33,8 @@ const (
 	DBTypeMySQL   = "mysql"
 	dbUser        = "politeiad"
 
-	defaultTrillianKeyFilename = "trillian.key"
-	defaultStoreDirname        = "store"
+	defaultTrillianSigningKeyFilename = "trillian.key"
+	defaultStoreDirname               = "store"
 
 	// Blob entry data descriptors
 	dataDescriptorFile           = "file-v1"
@@ -1378,11 +1378,12 @@ func (t *Tstore) Close() {
 	}
 }
 
-func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianKeyFile, encryptionKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
-	// Load encryption key if provided. An encryption key is optional.
+func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dbEncryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+	// Load database encryption key if provided. An encryption key is
+	// optional.
 	var ek *encryptionKey
-	if encryptionKeyFile != "" {
-		f, err := os.Open(encryptionKeyFile)
+	if dbEncryptionKeyFile != "" {
+		f, err := os.Open(dbEncryptionKeyFile)
 		if err != nil {
 			return nil, err
 		}
@@ -1397,7 +1398,7 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 		f.Close()
 		ek = newEncryptionKey(&key)
 
-		log.Infof("Encryption key %v: %v", id, encryptionKeyFile)
+		log.Infof("Encryption key %v: %v", id, dbEncryptionKeyFile)
 	}
 
 	// Setup datadir for this tstore instance
@@ -1408,16 +1409,16 @@ func New(id, homeDir, dataDir string, anp *chaincfg.Params, trillianHost, trilli
 	}
 
 	// Setup trillian client
-	if trillianKeyFile == "" {
+	if trillianSigningKeyFile == "" {
 		// No file path was given. Use the default path.
-		fn := fmt.Sprintf("%v-%v", id, defaultTrillianKeyFilename)
-		trillianKeyFile = filepath.Join(homeDir, fn)
+		fn := fmt.Sprintf("%v", defaultTrillianSigningKeyFilename)
+		trillianSigningKeyFile = filepath.Join(homeDir, fn)
 	}
 
-	log.Infof("Trillian key %v: %v", id, trillianKeyFile)
+	log.Infof("Trillian key %v: %v", id, trillianSigningKeyFile)
 	log.Infof("Trillian host %v: %v", id, trillianHost)
 
-	trillianClient, err := newTClient(trillianHost, trillianKeyFile)
+	trillianClient, err := newTClient(trillianHost, trillianSigningKeyFile)
 	if err != nil {
 		return nil, err
 	}
