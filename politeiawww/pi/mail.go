@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -222,6 +223,85 @@ func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.R
 	}
 
 	return p.mail.SendTo(subject, body, []string{authorEmail})
+}
+
+type commentNewToProposalAuthor struct {
+	Username string // Comment author username
+	Name     string // Proposal name
+	Link     string // Comment link
+}
+
+const commentNewToProposalAuthorText = `
+{{.Username}} has commented on your proposal "{{.Name}}".
+
+{{.Link}}
+`
+
+var commentNewToProposalAuthorTmpl = template.Must(
+	template.New("commentNewToProposalAuthor").
+		Parse(commentNewToProposalAuthorText))
+
+func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, commentUsername, proposalName, proposalAuthorEmail string) error {
+	cid := strconv.FormatUint(uint64(commentID), 10)
+	route := strings.Replace(guiRouteRecordComment, "{token}", token, 1)
+	route = strings.Replace(route, "{id}", cid, 1)
+
+	u, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	subject := "New Comment On Your Proposal"
+	tmplData := commentNewToProposalAuthor{
+		Username: commentUsername,
+		Name:     proposalName,
+		Link:     u.String(),
+	}
+	body, err := populateTemplate(commentNewToProposalAuthorTmpl, tmplData)
+	if err != nil {
+		return err
+	}
+
+	return p.mail.SendTo(subject, body, []string{proposalAuthorEmail})
+}
+
+type commentReply struct {
+	Username string // Comment author username
+	Name     string // Proposal name
+	Link     string // Comment link
+}
+
+const commentReplyText = `
+{{.Username}} has replied to your comment on "{{.Name}}".
+
+{{.Link}}
+`
+
+var commentReplyTmpl = template.Must(
+	template.New("commentReply").Parse(commentReplyText))
+
+func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsername, proposalName, parentAuthorEmail string) error {
+	cid := strconv.FormatUint(uint64(commentID), 10)
+	route := strings.Replace(guiRouteRecordComment, "{token}", token, 1)
+	route = strings.Replace(route, "{id}", cid, 1)
+
+	u, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	subject := "New Reply To Your Comment"
+	tmplData := commentReply{
+		Username: commentUsername,
+		Name:     proposalName,
+		Link:     u.String(),
+	}
+	body, err := populateTemplate(commentReplyTmpl, tmplData)
+	if err != nil {
+		return err
+	}
+
+	return p.mail.SendTo(subject, body, []string{parentAuthorEmail})
 }
 
 func populateTemplate(tpl *template.Template, tplData interface{}) (string, error) {

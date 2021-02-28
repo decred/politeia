@@ -6,40 +6,6 @@ package main
 
 import "text/template"
 
-// Proposal comment submitted - Send to proposal author
-type proposalCommentSubmitted struct {
-	Username string // Comment author username
-	Name     string // Proposal name
-	Link     string // Comment link
-}
-
-const proposalCommentSubmittedText = `
-{{.Username}} has commented on your proposal!
-
-Proposal: {{.Name}}
-Comment: {{.Link}}
-`
-
-var proposalCommentSubmittedTmpl = template.Must(
-	template.New("proposalCommentSubmitted").Parse(proposalCommentSubmittedText))
-
-// Proposal comment reply - Send to parent comment author
-type proposalCommentReply struct {
-	Username string // Comment author username
-	Name     string // Proposal name
-	Link     string // Comment link
-}
-
-const proposalCommentReplyText = `
-{{.Username}} has replied to your comment!
-
-Proposal: {{.Name}}
-Comment: {{.Link}}
-`
-
-var proposalCommentReplyTmpl = template.Must(
-	template.New("proposalCommentReply").Parse(proposalCommentReplyText))
-
 // Proposal vote authorized - Send to admins
 type proposalVoteAuthorized struct {
 	Username string // Author username

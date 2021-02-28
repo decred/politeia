@@ -676,27 +676,23 @@ func convertMetadataStreamsToV1(ms []pdv1.MetadataStream) []v1.MetadataStream {
 	return metadata
 }
 
-func convertCensorshipRecordToV1(cr pdv1.CensorshipRecord) v1.CensorshipRecord {
-	return v1.CensorshipRecord{
-		Token:     cr.Token,
-		Merkle:    cr.Merkle,
-		Signature: cr.Signature,
-	}
-}
-
 func convertRecordToV1(r pdv1.Record, state string) v1.Record {
 	// User fields that are not part of the politeiad record have
 	// been intentionally left blank. These fields must be pulled
 	// from the user database.
 	return v1.Record{
-		State:            state,
-		Status:           convertStatusToV1(r.Status),
-		Version:          r.Version,
-		Timestamp:        r.Timestamp,
-		Username:         "", // Intentionally left blank
-		Metadata:         convertMetadataStreamsToV1(r.Metadata),
-		Files:            convertFilesToV1(r.Files),
-		CensorshipRecord: convertCensorshipRecordToV1(r.CensorshipRecord),
+		State:     state,
+		Status:    convertStatusToV1(r.Status),
+		Version:   r.Version,
+		Timestamp: r.Timestamp,
+		Username:  "", // Intentionally left blank
+		Metadata:  convertMetadataStreamsToV1(r.Metadata),
+		Files:     convertFilesToV1(r.Files),
+		CensorshipRecord: v1.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
 	}
 }
 

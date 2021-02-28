@@ -211,7 +211,7 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 	}
 
 	// Send plugin command
-	pcomments, err := c.politeiad.CommentGetAll(ctx, cs.State, cs.Token)
+	pcomments, err := c.politeiad.CommentsGetAll(ctx, cs.State, cs.Token)
 	if err != nil {
 		return nil, err
 	}

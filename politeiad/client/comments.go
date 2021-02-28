@@ -188,9 +188,51 @@ func (c *Client) CommentCount(ctx context.Context, state string, tokens []string
 	return counts, nil
 }
 
-// CommentGetAll sends the comments plugin GetAll command to the politeiad v1
+// CommentsGet sends the comments plugin Get command to the politeiad v1 API.
+func (c *Client) CommentsGet(ctx context.Context, state, token string, g comments.Get) (map[uint32]comments.Comment, error) {
+	// Setup request
+	b, err := json.Marshal(g)
+	if err != nil {
+		return nil, err
+	}
+	cmds := []pdv1.PluginCommandV2{
+		{
+			Action:  pdv1.PluginActionRead,
+			State:   state,
+			Token:   token,
+			ID:      comments.PluginID,
+			Command: comments.CmdGet,
+			Payload: string(b),
+		},
+	}
+
+	// Send request
+	replies, err := c.PluginCommandBatch(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCommandError(pcr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var gr comments.GetReply
+	err = json.Unmarshal([]byte(pcr.Payload), &gr)
+	if err != nil {
+		return nil, err
+	}
+
+	return gr.Comments, nil
+}
+
+// CommentsGetAll sends the comments plugin GetAll command to the politeiad v1
 // API.
-func (c *Client) CommentGetAll(ctx context.Context, state, token string) ([]comments.Comment, error) {
+func (c *Client) CommentsGetAll(ctx context.Context, state, token string) ([]comments.Comment, error) {
 	// Setup request
 	cmds := []pdv1.PluginCommandV2{
 		{

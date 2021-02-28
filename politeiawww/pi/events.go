@@ -5,6 +5,7 @@
 package pi
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -12,8 +13,12 @@ import (
 	"io"
 	"strings"
 
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
+	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
@@ -98,7 +103,7 @@ func (p *Pi) handleEventRecordNew(ch chan interface{}) {
 		// Send notfication email
 		var (
 			token = e.Record.CensorshipRecord.Token
-			name  = proposalName(e.Record)
+			name  = proposalNameFromRecord(e.Record)
 		)
 		err = p.mailNtfnProposalNew(token, name, e.User.Username, emails)
 		if err != nil {
@@ -154,7 +159,7 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 		var (
 			token    = e.Record.CensorshipRecord.Token
 			version  = e.Record.Version
-			name     = proposalName(e.Record)
+			name     = proposalNameFromRecord(e.Record)
 			username = e.User.Username
 		)
 		err = p.mailNtfnProposalEdit(token, version, name, username, emails)
@@ -180,7 +185,7 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 			token    = e.Record.CensorshipRecord.Token
 			status   = e.Record.Status
 			reason   = "" // Populated below
-			name     = proposalName(e.Record)
+			name     = proposalNameFromRecord(e.Record)
 			authorID = userIDFromMetadata(e.Record.Metadata)
 
 			author  *user.User
@@ -192,11 +197,11 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 		sc, err := statusChangesFromMetadata(e.Record.Metadata)
 		if err != nil {
 			err = fmt.Errorf("decode status changes: %v", err)
-			goto ntfnFailed
+			goto failed
 		}
 		if len(sc) == 0 {
 			err = fmt.Errorf("not status changes found %v", token)
-			goto ntfnFailed
+			goto failed
 		}
 		reason = sc[len(sc)-1].Reason
 
@@ -215,12 +220,12 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 		// Send author notification
 		uid, err = uuid.Parse(authorID)
 		if err != nil {
-			goto ntfnFailed
+			goto failed
 		}
 		author, err = p.userdb.UserGetById(uid)
 		if err != nil {
 			err = fmt.Errorf("UserGetById %v: %v", uid, err)
-			goto ntfnFailed
+			goto failed
 		}
 		switch {
 		case !author.NotificationIsEnabled(ntfnBit):
@@ -266,145 +271,175 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 		})
 		if err != nil {
 			err = fmt.Errorf("AllUsers: %v", err)
-			goto ntfnFailed
+			goto failed
 		}
 
 		// Send user notifications
 		err = p.mailNtfnProposalSetStatus(token, name, status, emails)
 		if err != nil {
 			err = fmt.Errorf("mailNtfnProposalSetStatus: %v", err)
-			goto ntfnFailed
+			goto failed
 		}
 
 		log.Debugf("Record set status ntfn sent to users %v", token)
+		continue
 
-	ntfnFailed:
+	failed:
 		log.Errorf("handleEventRecordSetStatus %v %v: %v",
 			token, rcv1.RecordStatuses[status], err)
 		continue
 	}
 }
 
-/*
-func (p *Pi) notifyProposalAuthorOnComment(d dataCommentNew, userID, proposalName string) error {
-	// Lookup proposal author to see if they should be sent a
-	// notification.
-	uuid, err := uuid.Parse(userID)
+func (p *Pi) ntfnCommentNewProposalAuthor(c cmv1.Comment, proposalAuthorID, proposalName string) error {
+	// Get the proposal author
+	uid, err := uuid.Parse(proposalAuthorID)
 	if err != nil {
 		return err
 	}
-	author, err := p.db.UserGetById(uuid)
+	pauthor, err := p.userdb.UserGetById(uid)
 	if err != nil {
-		return fmt.Errorf("UserGetByID %v: %v", uuid.String(), err)
+		return fmt.Errorf("UserGetByID %v: %v", uid.String(), err)
 	}
 
-	// Check if notification should be sent to author
+	// Check if notification should be sent
+	ntfnBit := uint64(www.NotificationEmailCommentOnMyProposal)
 	switch {
-	case d.username == author.Username:
+	case c.Username == pauthor.Username:
 		// Author commented on their own proposal
+		log.Debugf("Comment ntfn to proposal author not needed %v", c.Token)
 		return nil
-	case !userNotificationEnabled(*author,
-		www.NotificationEmailCommentOnMyProposal):
+	case !pauthor.NotificationIsEnabled(ntfnBit):
 		// Author does not have notification bit set on
+		log.Debugf("Comment ntfn to proposal author not enabled %v", c.Token)
 		return nil
 	}
 
-	// Send notification eamil
-	commentID := strconv.FormatUint(uint64(d.commentID), 10)
-	return p.emailCommentNewSubmitted(d.token, commentID, d.username,
-		proposalName, author.Email)
+	// Send notification email
+	err = p.mailNtfnCommentNewToProposalAuthor(c.Token, c.CommentID,
+		c.Username, proposalName, pauthor.Email)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Comment new ntfn to proposal author sent %v", c.Token)
+
+	return nil
 }
 
-func (p *Pi) notifyParentAuthorOnComment(d dataCommentNew, proposalName string) error {
-	// Verify this is a reply comment
-	if d.parentID == 0 {
+func (p *Pi) ntfnCommentReply(state string, c cmv1.Comment, proposalName string) error {
+	// Verify there is work to do. This notification only applies to
+	// reply comments.
+	if c.ParentID == 0 {
+		log.Debugf("Comment reply ntfn not needed %v", c.Token)
 		return nil
 	}
 
-	// Lookup the parent comment author to check if they should receive
-	// a reply notification.
-	g := comments.Get{
-		CommentIDs: []uint32{d.parentID},
+	// Get the parent comment author
+	g := cmplugin.Get{
+		CommentIDs: []uint32{c.ParentID},
 	}
-	_ = g
-	var parentComment comments.GetReply
-		parentComment, err := p.commentsGet(context.Background(), g)
-		if err != nil {
-			return err
-		}
-	userID, err := uuid.Parse(parentComment.Comments[0].UserID)
+	cs, err := p.politeiad.CommentsGet(context.Background(), state, c.Token, g)
 	if err != nil {
 		return err
 	}
-	author, err := p.db.UserGetById(userID)
+	parent, ok := cs[c.ParentID]
+	if !ok {
+		return fmt.Errorf("parent comment %v not found", c.ParentID)
+	}
+	userID, err := uuid.Parse(parent.UserID)
+	if err != nil {
+		return err
+	}
+	pauthor, err := p.userdb.UserGetById(userID)
 	if err != nil {
 		return err
 	}
 
 	// Check if notification should be sent
+	ntfnBit := uint64(www.NotificationEmailCommentOnMyComment)
 	switch {
-	case d.username == author.Username:
+	case c.UserID == pauthor.ID.String():
 		// Author replied to their own comment
+		log.Debugf("Comment reply ntfn not needed %v", c.Token)
 		return nil
-	case !userNotificationEnabled(*author,
-		www.NotificationEmailCommentOnMyComment):
+	case !pauthor.NotificationIsEnabled(ntfnBit):
 		// Author does not have notification bit set on
+		log.Debugf("Comment reply ntfn not enabled %v", c.Token)
 		return nil
 	}
 
-	// Send notification email to parent comment author
-	commentID := strconv.FormatUint(uint64(d.commentID), 10)
-	return p.emailCommentNewReply(d.token, commentID, d.username,
-		proposalName, author.Email)
+	// Send notification email
+	err = p.mailNtfnCommentReply(c.Token, c.CommentID,
+		c.Username, proposalName, pauthor.Email)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Comment reply ntfn sent %v", c.Token)
+
+	return nil
 }
-*/
 
 func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 	for msg := range ch {
-		d, ok := msg.(comments.EventNew)
+		e, ok := msg.(comments.EventNew)
 		if !ok {
 			log.Errorf("handleEventCommentNew invalid msg: %v", msg)
 			continue
 		}
 
-		_ = d
-		/*
-				// Fetch the proposal record here to avoid calling this two times
-				// on the notify functions below
-				pr, err := p.proposalRecordLatest(context.Background(), d.state,
-					d.token)
-				if err != nil {
-					err = fmt.Errorf("proposalRecordLatest %v %v: %v",
-						d.state, d.token, err)
-					goto next
-				}
+		// Get the record author and record name
+		var (
+			pdr              pdv1.Record
+			r                rcv1.Record
+			proposalAuthorID string
+			proposalName     string
+		)
+		reqs := []pdv1.RecordRequest{
+			{
+				Token: e.Comment.Token,
+				Filenames: []string{
+					v1.FileNameProposalMetadata,
+				},
+			},
+		}
+		rs, err := p.records(e.State, reqs)
+		if err != nil {
+			err = fmt.Errorf("politeiad records: %v", err)
+			goto failed
+		}
+		pdr, ok = rs[e.Comment.Token]
+		if !ok {
+			err = fmt.Errorf("record %v not found for comment %v",
+				e.Comment.Token, e.Comment.CommentID)
+			goto failed
+		}
+		r = convertRecordToV1(pdr, e.State)
+		proposalAuthorID = userIDFromMetadata(r.Metadata)
+		proposalName = proposalNameFromRecord(r)
 
-				// Notify the proposal author
-				err = p.notifyProposalAuthorOnComment(d, pr.UserID, proposalName(*pr))
-				if err != nil {
-					err = fmt.Errorf("notifyProposalAuthorOnComment: %v", err)
-					goto next
-				}
+		// Notify the proposal author
+		err = p.ntfnCommentNewProposalAuthor(e.Comment,
+			proposalAuthorID, proposalName)
+		if err != nil {
+			// Log error and continue so the other notifications are still
+			// sent.
+			log.Errorf("ntfnCommentNewProposalAuthor: %v", err)
+		}
 
-				// Notify the parent comment author
-				err = p.notifyParentAuthorOnComment(d, proposalName(*pr))
-				if err != nil {
-					err = fmt.Errorf("notifyParentAuthorOnComment: %v", err)
-					goto next
-				}
+		// Notify the parent comment author
+		err = p.ntfnCommentReply(e.State, e.Comment, proposalName)
+		if err != nil {
+			log.Errorf("ntfnCommentReply: %v", err)
+		}
 
-				// Notifications successfully sent
-				log.Debugf("Sent proposal commment notification %v", d.token)
-				continue
+		// Notifications sent!
+		continue
 
-			next:
-				// If we made it here then there was an error. Log the error
-				// before listening for the next event.
-				log.Errorf("handleEventCommentNew: %v", err)
-				continue
-		*/
-
-		log.Debugf("Proposal comment ntfn sent %v", d.Comment.Token)
+	failed:
+		log.Errorf("handleEventCommentNew: %v", err)
+		continue
 	}
 }
 
@@ -507,58 +542,6 @@ func (p *Pi) handleEventVoteStart(ch chan interface{}) {
 }
 
 /*
-func (p *politeiawww) emailProposalCommentSubmitted(token, commentID, commentUsername, proposalName, proposalAuthorEmail string) error {
-	// Setup comment URL
-	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
-	route = strings.Replace(route, "{id}", commentID, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "New Comment On Your Proposal"
-	tmplData := proposalCommentSubmitted{
-		Username: commentUsername,
-		Name:     proposalName,
-		Link:     l.String(),
-	}
-	body, err := createBody(proposalCommentSubmittedTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{proposalAuthorEmail})
-}
-
-// emailProposalCommentReply sends a proposal comment reply email to the
-// provided email address.
-func (p *politeiawww) emailProposalCommentReply(token, commentID, commentUsername, proposalName, parentCommentEmail string) error {
-	// Setup comment URL
-	route := strings.Replace(guirouteProposalComments, "{token}", token, 1)
-	route = strings.Replace(route, "{id}", commentID, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "New Reply To Your Comment"
-	tmplData := proposalCommentReply{
-		Username: commentUsername,
-		Name:     proposalName,
-		Link:     l.String(),
-	}
-	body, err := createBody(proposalCommentReplyTmpl, tmplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{parentCommentEmail})
-}
-
 // emailProposalVoteAuthorized sends a proposal vote authorized email to the
 // provided list of emails.
 func (p *politeiawww) emailProposalVoteAuthorized(token, name, username string, emails []string) error {
@@ -636,6 +619,29 @@ func (p *politeiawww) emailProposalVoteStartedToAuthor(token, name, username, em
 }
 */
 
+func (p *Pi) records(state string, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
+	var (
+		records map[string]pdv1.Record
+		err     error
+	)
+	switch state {
+	case rcv1.RecordStateUnvetted:
+		records, err = p.politeiad.GetUnvettedBatch(context.Background(), reqs)
+		if err != nil {
+			return nil, err
+		}
+	case rcv1.RecordStateVetted:
+		records, err = p.politeiad.GetVettedBatch(context.Background(), reqs)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("invalid state %v", state)
+	}
+
+	return records, nil
+}
+
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
 func userMetadataDecode(ms []rcv1.MetadataStream) (*usermd.UserMetadata, error) {
@@ -667,10 +673,10 @@ func userIDFromMetadata(ms []rcv1.MetadataStream) string {
 	return um.UserID
 }
 
-// proposalName parses the proposal name from the ProposalMetadata file and
-// returns it. An empty string will be returned if any errors occur or if a
-// name is not found.
-func proposalName(r rcv1.Record) string {
+// proposalNameFromRecord parses the proposal name from the ProposalMetadata
+// file and returns it. An empty string will be returned if any errors occur or
+// if a name is not found.
+func proposalNameFromRecord(r rcv1.Record) string {
 	var name string
 	for _, v := range r.Files {
 		if v.Name == pi.FileNameProposalMetadata {
@@ -719,4 +725,63 @@ func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usermd.StatusC
 		}
 	}
 	return sc, nil
+}
+
+func convertStatusToV1(s pdv1.RecordStatusT) rcv1.RecordStatusT {
+	switch s {
+	case pdv1.RecordStatusNotReviewed:
+		return rcv1.RecordStatusUnreviewed
+	case pdv1.RecordStatusPublic:
+		return rcv1.RecordStatusPublic
+	case pdv1.RecordStatusCensored:
+		return rcv1.RecordStatusCensored
+	case pdv1.RecordStatusArchived:
+		return rcv1.RecordStatusArchived
+	}
+	return rcv1.RecordStatusInvalid
+}
+
+func convertFilesToV1(f []pdv1.File) []rcv1.File {
+	files := make([]rcv1.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, rcv1.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+	return files
+}
+
+func convertMetadataStreamsToV1(ms []pdv1.MetadataStream) []rcv1.MetadataStream {
+	metadata := make([]rcv1.MetadataStream, 0, len(ms))
+	for _, v := range ms {
+		metadata = append(metadata, rcv1.MetadataStream{
+			PluginID: v.PluginID,
+			ID:       v.ID,
+			Payload:  v.Payload,
+		})
+	}
+	return metadata
+}
+
+func convertRecordToV1(r pdv1.Record, state string) rcv1.Record {
+	// User fields that are not part of the politeiad record have
+	// been intentionally left blank. These fields must be pulled
+	// from the user database.
+	return rcv1.Record{
+		State:     state,
+		Status:    convertStatusToV1(r.Status),
+		Version:   r.Version,
+		Timestamp: r.Timestamp,
+		Username:  "", // Intentionally left blank
+		Metadata:  convertMetadataStreamsToV1(r.Metadata),
+		Files:     convertFilesToV1(r.Files),
+		CensorshipRecord: rcv1.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+	}
 }
