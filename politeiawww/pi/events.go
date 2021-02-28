@@ -78,7 +78,7 @@ func (p *Pi) handleEventRecordNew(ch chan interface{}) {
 
 		// Compile notification email list
 		var (
-			emails  = make([]string, 0, 256)
+			emails  = make([]string, 0, 1024)
 			ntfnBit = uint64(www.NotificationEmailAdminProposalNew)
 		)
 		err := p.userdb.AllUsers(func(u *user.User) {
@@ -131,7 +131,7 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 
 		// Compile notification email list
 		var (
-			emails   = make([]string, 0, 256)
+			emails   = make([]string, 0, 1024)
 			authorID = e.User.ID.String()
 			ntfnBit  = uint64(www.NotificationEmailRegularProposalEdited)
 		)
@@ -172,6 +172,98 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 	}
 }
 
+func (p *Pi) ntfnRecordSetStatusToAuthor(r rcv1.Record) error {
+	// Unpack args
+	var (
+		token    = r.CensorshipRecord.Token
+		status   = r.Status
+		name     = proposalNameFromRecord(r)
+		authorID = userIDFromMetadata(r.Metadata)
+	)
+
+	// Parse the status change reason
+	sc, err := statusChangesFromMetadata(r.Metadata)
+	if err != nil {
+		return fmt.Errorf("decode status changes: %v", err)
+	}
+	if len(sc) == 0 {
+		return fmt.Errorf("not status changes found %v", token)
+	}
+	reason := sc[len(sc)-1].Reason
+
+	// Get author
+	uid, err := uuid.Parse(authorID)
+	if err != nil {
+		return err
+	}
+	author, err := p.userdb.UserGetById(uid)
+	if err != nil {
+		return fmt.Errorf("UserGetById %v: %v", uid, err)
+	}
+
+	// Send notification to author
+	ntfnBit := uint64(www.NotificationEmailRegularProposalVetted)
+	if !author.NotificationIsEnabled(ntfnBit) {
+		// Author does not have notification enabled
+		log.Debugf("Record set status ntfn to author not enabled %v", token)
+		return nil
+	}
+
+	// Author has notification enabled
+	err = p.mailNtfnProposalSetStatusToAuthor(token, name,
+		status, reason, author.Email)
+	if err != nil {
+		return fmt.Errorf("mailNtfnProposalSetStatusToAuthor: %v", err)
+	}
+
+	log.Debugf("Record set status ntfn to author sent %v", token)
+
+	return nil
+}
+
+func (p *Pi) ntfnRecordSetStatus(r rcv1.Record) error {
+	// Unpack args
+	var (
+		token    = r.CensorshipRecord.Token
+		status   = r.Status
+		name     = proposalNameFromRecord(r)
+		authorID = userIDFromMetadata(r.Metadata)
+	)
+
+	// Compile user notification email list
+	var (
+		emails  = make([]string, 0, 1024)
+		ntfnBit = uint64(www.NotificationEmailRegularProposalVetted)
+	)
+	err := p.userdb.AllUsers(func(u *user.User) {
+		switch {
+		case u.ID.String() == authorID:
+			// User is the author. The author is sent a different
+			// notification. Don't include them in the users list.
+			return
+		case !u.NotificationIsEnabled(ntfnBit):
+			// User does not have notification bit set
+			return
+		default:
+			// Add user to notification list
+			emails = append(emails, u.Email)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("AllUsers: %v", err)
+	}
+
+	// Send user notifications
+	err = p.mailNtfnProposalSetStatus(token, name, status, emails)
+	if err != nil {
+		return fmt.Errorf("mailNtfnProposalSetStatus: %v", err)
+	}
+
+	log.Debugf("Record set status ntfn to users sent %v", token)
+
+	return nil
+}
+
 func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 	for msg := range ch {
 		e, ok := msg.(records.EventSetStatus)
@@ -182,111 +274,45 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 
 		// Unpack args
 		var (
-			token    = e.Record.CensorshipRecord.Token
-			status   = e.Record.Status
-			reason   = "" // Populated below
-			name     = proposalNameFromRecord(e.Record)
-			authorID = userIDFromMetadata(e.Record.Metadata)
-
-			author  *user.User
-			uid     uuid.UUID
-			ntfnBit = uint64(www.NotificationEmailRegularProposalVetted)
-			emails  = make([]string, 0, 256)
+			token  = e.Record.CensorshipRecord.Token
+			status = e.Record.Status
 		)
-
-		sc, err := statusChangesFromMetadata(e.Record.Metadata)
-		if err != nil {
-			err = fmt.Errorf("decode status changes: %v", err)
-			goto failed
-		}
-		if len(sc) == 0 {
-			err = fmt.Errorf("not status changes found %v", token)
-			goto failed
-		}
-		reason = sc[len(sc)-1].Reason
 
 		// Verify a notification should be sent
 		switch status {
 		case rcv1.RecordStatusPublic, rcv1.RecordStatusCensored:
-			// The status requires a notification be sent
+			// Status requires a notification be sent
 		default:
-			// The status does not require a notification be sent. Listen
-			// for next event.
+			// Status does not require a notification be sent
 			log.Debugf("Record set status ntfn not needed for %v status %v",
 				rcv1.RecordStatuses[status], token)
 			continue
 		}
 
-		// Send author notification
-		uid, err = uuid.Parse(authorID)
+		// Send notification to the author
+		err := p.ntfnRecordSetStatusToAuthor(e.Record)
 		if err != nil {
-			goto failed
-		}
-		author, err = p.userdb.UserGetById(uid)
-		if err != nil {
-			err = fmt.Errorf("UserGetById %v: %v", uid, err)
-			goto failed
-		}
-		switch {
-		case !author.NotificationIsEnabled(ntfnBit):
-			// Author does not have notification enabled
-			log.Debugf("Record set status ntfn to author not enabled %v", token)
-
-		default:
-			// Author does have notification enabled
-			err = p.mailNtfnProposalSetStatusToAuthor(token, name,
-				status, reason, author.Email)
-			if err != nil {
-				// Log the error and continue. This error should not prevent
-				// the other notifications from being sent.
-				log.Errorf("mailNtfnProposalSetStatusToAuthor: %v", err)
-				break
-			}
-
-			log.Debugf("Record set status ntfn to author sent %v", token)
+			// Log the error and continue. This error should not prevent
+			// the other notifications from attempting to be sent.
+			log.Errorf("ntfnRecordSetStatusToAuthor: %v", err)
 		}
 
 		// Only send a notification to non-author users if the proposal
 		// is being made public.
 		if status != rcv1.RecordStatusPublic {
-			log.Debugf("Record set status ntfn not needed for %v status %v",
+			log.Debugf("Record set status ntfn to users not needed for %v status %v",
 				rcv1.RecordStatuses[status], token)
 			continue
 		}
 
-		// Compile user notification email list
-		err = p.userdb.AllUsers(func(u *user.User) {
-			switch {
-			case u.ID.String() == author.ID.String():
-				// User is the author. The author is sent a different
-				// notification. Don't include them in the users list.
-				return
-			case !u.NotificationIsEnabled(ntfnBit):
-				// User does not have notification bit set
-				return
-			default:
-				// Add user to notification list
-				emails = append(emails, u.Email)
-			}
-		})
+		// Send notification to the users
+		err = p.ntfnRecordSetStatus(e.Record)
 		if err != nil {
-			err = fmt.Errorf("AllUsers: %v", err)
-			goto failed
+			log.Errorf("ntfnRecordSetStatus: %v", err)
+			continue
 		}
 
-		// Send user notifications
-		err = p.mailNtfnProposalSetStatus(token, name, status, emails)
-		if err != nil {
-			err = fmt.Errorf("mailNtfnProposalSetStatus: %v", err)
-			goto failed
-		}
-
-		log.Debugf("Record set status ntfn sent %v", token)
-		continue
-
-	failed:
-		log.Errorf("handleEventRecordSetStatus %v %v: %v",
-			token, rcv1.RecordStatuses[status], err)
+		// Notifications sent!
 		continue
 	}
 }
@@ -451,7 +477,7 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 			token        = e.Auth.Token
 			proposalName string
 			r            rcv1.Record
-			emails       = make([]string, 0, 256)
+			emails       = make([]string, 0, 1024)
 			ntfnBit      = uint64(www.NotificationEmailAdminProposalVoteAuthorized)
 			err          error
 		)
@@ -568,7 +594,7 @@ func (p *Pi) ntfnVoteStarted(sd tkv1.StartDetails, eventUser user.User, authorID
 		return fmt.Errorf("mailNtfnVoteStarted: %v", err)
 	}
 
-	log.Debugf("Vote started ntfn sent %v", token)
+	log.Debugf("Vote started ntfn to users sent %v", token)
 
 	return nil
 }
