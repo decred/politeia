@@ -100,8 +100,8 @@ func (t *TicketVote) processStart(ctx context.Context, s v1.Start, u user.User) 
 	// Emit notification for each start
 	t.events.Emit(EventTypeStart,
 		EventStart{
-			Start: s,
-			User:  u,
+			Starts: s.Starts,
+			User:   u,
 		})
 
 	return &v1.StartReply{

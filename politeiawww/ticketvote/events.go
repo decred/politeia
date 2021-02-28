@@ -25,6 +25,6 @@ type EventAuthorize struct {
 
 // EventStart is the event data for EventTypeStart.
 type EventStart struct {
-	Start v1.Start
-	User  user.User
+	Starts []v1.StartDetails
+	User   user.User
 }

@@ -339,6 +339,76 @@ func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
 	return p.mail.SendTo(subject, body, emails)
 }
 
+type voteStarted struct {
+	Name string // Proposal name
+	Link string // GUI proposal details url
+}
+
+const voteStartedText = `
+Voting has started on a Politeia proposal.
+
+{{.Name}}
+{{.Link}}
+`
+
+var voteStartedTmpl = template.Must(
+	template.New("voteStarted").Parse(voteStartedText))
+
+func (p *Pi) mailNtfnVoteStarted(token, name string, emails []string) error {
+	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
+	u, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	subject := "Voting Started for Proposal"
+	tmplData := voteStarted{
+		Name: name,
+		Link: u.String(),
+	}
+	body, err := populateTemplate(voteStartedTmpl, tmplData)
+	if err != nil {
+		return err
+	}
+
+	return p.mail.SendTo(subject, body, emails)
+}
+
+type voteStartedToAuthor struct {
+	Name string // Proposal name
+	Link string // GUI proposal details url
+}
+
+const voteStartedToAuthorText = `
+Voting has just started on your Politeia proposal.
+
+{{.Name}}
+{{.Link}}
+`
+
+var voteStartedToAuthorTmpl = template.Must(
+	template.New("voteStartedToAuthor").Parse(voteStartedToAuthorText))
+
+func (p *Pi) mailNtfnVoteStartedToAuthor(token, name, email string) error {
+	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
+	u, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	subject := "Voting Has Started On Your Proposal"
+	tmplData := voteStartedToAuthor{
+		Name: name,
+		Link: u.String(),
+	}
+	body, err := populateTemplate(voteStartedToAuthorTmpl, tmplData)
+	if err != nil {
+		return err
+	}
+
+	return p.mail.SendTo(subject, body, []string{email})
+}
+
 func populateTemplate(tmpl *template.Template, tmplData interface{}) (string, error) {
 	var b bytes.Buffer
 	err := tmpl.Execute(&b, tmplData)

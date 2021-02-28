@@ -6,39 +6,6 @@ package main
 
 import "text/template"
 
-// Proposal vote started - Send to users
-type proposalVoteStarted struct {
-	Name string // Proposal name
-	Link string // GUI proposal details url
-}
-
-const proposalVoteStartedText = `
-Voting has started on a Politeia proposal!
-
-{{.Name}}
-{{.Link}}
-`
-
-var proposalVoteStartedTmpl = template.Must(
-	template.New("proposalVoteStarted").Parse(proposalVoteStartedText))
-
-// Proposal vote started - Send to author
-type proposalVoteStartedToAuthor struct {
-	Name string // Proposal name
-	Link string // GUI proposal details url
-}
-
-const proposalVoteStartedToAuthorText = `
-Voting has just started on your Politeia proposal!
-
-{{.Name}}
-{{.Link}}
-`
-
-var proposalVoteStartedToAuthorTmpl = template.Must(
-	template.New("proposalVoteStartedToAuthor").
-		Parse(proposalVoteStartedToAuthorText))
-
 // User email verify - Send verification link to new user
 type userEmailVerify struct {
 	Username string // User username

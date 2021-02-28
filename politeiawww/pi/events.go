@@ -65,7 +65,7 @@ func (p *Pi) setupEventListeners() {
 	// Ticket vote started
 	ch = make(chan interface{})
 	p.events.Register(ticketvote.EventTypeStart, ch)
-	go p.handleEventVoteStart(ch)
+	go p.handleEventVoteStarted(ch)
 }
 
 func (p *Pi) handleEventRecordNew(ch chan interface{}) {
@@ -212,8 +212,8 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 		default:
 			// The status does not require a notification be sent. Listen
 			// for next event.
-			log.Debugf("Record set status ntfn not needed for %v %v",
-				token, rcv1.RecordStatuses[status])
+			log.Debugf("Record set status ntfn not needed for %v status %v",
+				rcv1.RecordStatuses[status], token)
 			continue
 		}
 
@@ -243,14 +243,14 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 				break
 			}
 
-			log.Debugf("Record set status ntfn sent to author %v", token)
+			log.Debugf("Record set status ntfn to author sent %v", token)
 		}
 
 		// Only send a notification to non-author users if the proposal
 		// is being made public.
 		if status != rcv1.RecordStatusPublic {
-			log.Debugf("Record set status ntfn to users not needed for %v %v",
-				token, rcv1.RecordStatuses[status])
+			log.Debugf("Record set status ntfn not needed for %v status %v",
+				rcv1.RecordStatuses[status], token)
 			continue
 		}
 
@@ -281,7 +281,7 @@ func (p *Pi) handleEventRecordSetStatus(ch chan interface{}) {
 			goto failed
 		}
 
-		log.Debugf("Record set status ntfn sent to users %v", token)
+		log.Debugf("Record set status ntfn sent %v", token)
 		continue
 
 	failed:
@@ -361,11 +361,11 @@ func (p *Pi) ntfnCommentReply(state string, c cmv1.Comment, proposalName string)
 	switch {
 	case c.UserID == pauthor.ID.String():
 		// Author replied to their own comment
-		log.Debugf("Comment reply ntfn not needed %v", c.Token)
+		log.Debugf("Comment reply ntfn to parent author not needed %v", c.Token)
 		return nil
 	case !pauthor.NotificationIsEnabled(ntfnBit):
 		// Author does not have notification bit set
-		log.Debugf("Comment reply ntfn not enabled %v", c.Token)
+		log.Debugf("Comment reply ntfn to parent author not enabled %v", c.Token)
 		return nil
 	}
 
@@ -376,7 +376,7 @@ func (p *Pi) ntfnCommentReply(state string, c cmv1.Comment, proposalName string)
 		return err
 	}
 
-	log.Debugf("Comment reply ntfn sent %v", c.Token)
+	log.Debugf("Comment reply ntfn to parent author sent %v", c.Token)
 
 	return nil
 }
@@ -409,15 +409,16 @@ func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 		err = p.ntfnCommentNewProposalAuthor(e.Comment,
 			proposalAuthorID, proposalName)
 		if err != nil {
-			// Log error and continue so the other notifications are still
-			// sent.
+			// Log error and continue. This error should not prevent the
+			// other notifications from attempting to be sent.
 			log.Errorf("ntfnCommentNewProposalAuthor: %v", err)
 		}
 
 		// Notify the parent comment author
 		err = p.ntfnCommentReply(e.State, e.Comment, proposalName)
 		if err != nil {
-			log.Errorf("ntfnCommentReply: %v", err)
+			err = fmt.Errorf("ntfnCommentReply: %v", err)
+			goto failed
 		}
 
 		// Notifications sent!
@@ -440,7 +441,7 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 		// Verify there is work to do. We don't need to send a
 		// notification on revocations.
 		if e.Auth.Action != tkv1.AuthActionAuthorize {
-			log.Debugf("Vote authorize ntfn not needed %v", e.Auth.Token)
+			log.Debugf("Vote authorize ntfn to admin not needed %v", e.Auth.Token)
 			continue
 		}
 
@@ -489,122 +490,142 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 			goto failed
 		}
 
-		log.Debugf("Vote authorized ntfn sent %v", e.Auth.Token)
+		log.Debugf("Vote authorized ntfn to admin sent %v", e.Auth.Token)
 		continue
 
 	failed:
-		log.Debugf("handleEventVoteAuthorized: %v", err)
+		log.Errorf("handleEventVoteAuthorized: %v", err)
 		continue
 	}
 }
 
-func (p *Pi) handleEventVoteStart(ch chan interface{}) {
+func (p *Pi) ntfnVoteStartedToAuthor(sd tkv1.StartDetails, authorID, proposalName string) error {
+	var (
+		token   = sd.Params.Token
+		ntfnBit = uint64(www.NotificationEmailRegularProposalVoteStarted)
+	)
+
+	// Get record author
+	uid, err := uuid.Parse(authorID)
+	if err != nil {
+		return err
+	}
+	author, err := p.userdb.UserGetById(uid)
+	if err != nil {
+		return fmt.Errorf("UserGetByID %v: %v", authorID, err)
+	}
+
+	// Verify author notification settings
+	if !author.NotificationIsEnabled(ntfnBit) {
+		log.Debugf("Vote started ntfn to author not enabled %v", token)
+		return nil
+	}
+
+	// Send notification to author
+	err = p.mailNtfnVoteStartedToAuthor(token, proposalName, author.Email)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Vote started ntfn to author sent %v", token)
+
+	return nil
+}
+
+func (p *Pi) ntfnVoteStarted(sd tkv1.StartDetails, eventUser user.User, authorID, proposalName string) error {
+	var (
+		token   = sd.Params.Token
+		ntfnBit = uint64(www.NotificationEmailRegularProposalVoteStarted)
+	)
+
+	// Compile user notification list
+	emails := make([]string, 0, 1024)
+	err := p.userdb.AllUsers(func(u *user.User) {
+		switch {
+		case u.ID.String() == eventUser.ID.String():
+			// Don't send a notification to the user that sent the request
+			// to start the vote.
+			return
+		case u.ID.String() == authorID:
+			// Don't send the notification to the author. They are sent a
+			// seperate notification.
+			return
+		case !u.NotificationIsEnabled(ntfnBit):
+			// User does not have notification bit set
+			return
+		default:
+			// User has notification bit set
+			emails = append(emails, u.Email)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("AllUsers: %v", err)
+	}
+
+	// Email users
+	err = p.mailNtfnVoteStarted(token, proposalName, emails)
+	if err != nil {
+		return fmt.Errorf("mailNtfnVoteStarted: %v", err)
+	}
+
+	log.Debugf("Vote started ntfn sent %v", token)
+
+	return nil
+}
+
+func (p *Pi) handleEventVoteStarted(ch chan interface{}) {
 	for msg := range ch {
 		e, ok := msg.(ticketvote.EventStart)
 		if !ok {
-			log.Errorf("handleEventVoteStart invalid msg: %v", msg)
+			log.Errorf("handleEventVoteStarted invalid msg: %v", msg)
 			continue
 		}
 
-		/*
-			// Email author
-			notification := www.NotificationEmailRegularVoteStart
-			if userNotificationEnabled(d.author, notification) {
-				err := p.emailVoteStartToAuthor(d.token, d.name,
-					d.author.Username, d.author.Email)
-				if err != nil {
-					log.Errorf("emailVoteStartToAuthor: %v", err)
-					continue
-				}
-			}
+		for _, v := range e.Starts {
+			// Setup args to prevent goto errors
+			var (
+				state = rcv1.RecordStateVetted
+				token = v.Params.Token
 
-			// Compile a list of users to send the notification to.
-			emails := make([]string, 0, 256)
-			err := p.db.AllUsers(func(u *user.User) {
-				switch {
-				case u.ID.String() == d.adminID:
-					// Don't notify admin who started the vote
-					return
-				case u.ID.String() == d.author.ID.String():
-					// Don't send this notification to the author
-					return
-				case !userNotificationEnabled(*u, notification):
-					// User does not have notification bit set
-					return
-				}
+				pdr *pdv1.Record
+				r   rcv1.Record
+				err error
 
-				// Add user to notification list
-				emails = append(emails, u.Email)
-			})
+				authorID     string
+				proposalName string
+			)
+			pdr, err = p.recordAbridged(state, token)
 			if err != nil {
-				log.Errorf("handleEventVoteStart: AllUsers: %v", err)
+				goto failed
 			}
+			r = convertRecordToV1(*pdr, state)
+			authorID = userIDFromMetadata(r.Metadata)
+			proposalName = proposalNameFromRecord(r)
 
-			// Email users
-			err = p.emailVoteStart(d.token, d.name, emails)
+			// Send notification to record author
+			err = p.ntfnVoteStartedToAuthor(v, authorID, proposalName)
 			if err != nil {
-				log.Errorf("emailVoteStartToUsers: %v", err)
-				continue
+				// Log the error and continue. This error should not prevent
+				// the other notifications from attempting to be sent.
+				log.Errorf("ntfnVoteStartedToAuthor: %v", err)
 			}
-		*/
 
-		_ = e
-		token := "fix me"
-		log.Debugf("Vote started ntfn sent %v", token)
+			// Send notification to users
+			err = p.ntfnVoteStarted(v, e.User, authorID, proposalName)
+			if err != nil {
+				err = fmt.Errorf("ntfnVoteStarted: %v", err)
+				goto failed
+			}
+
+			// Notifications sent!
+			continue
+
+		failed:
+			log.Errorf("handleVoteStarted %v: %v", token, err)
+			continue
+		}
 	}
 }
-
-/*
-// emailProposalVoteStarted sends a proposal vote started email notification
-// to the provided email addresses.
-func (p *politeiawww) emailProposalVoteStarted(token, name string, emails []string) error {
-	// Setup URL
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "Voting Started for Proposal"
-	tplData := proposalVoteStarted{
-		Name: name,
-		Link: l.String(),
-	}
-	body, err := createBody(proposalVoteStartedTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
-// emailProposalVoteStartedToAuthor sends a proposal vote started email to
-// the provided email address.
-func (p *politeiawww) emailProposalVoteStartedToAuthor(token, name, username, email string) error {
-	// Setup URL
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "Your Proposal Has Started Voting"
-	tplData := proposalVoteStartedToAuthor{
-		Name: name,
-		Link: l.String(),
-	}
-	body, err := createBody(proposalVoteStartedToAuthorTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, []string{email})
-}
-*/
 
 func (p *Pi) records(state string, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
 	var (
