@@ -15,11 +15,11 @@ import (
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
-	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/usermd"
+	usplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/records"
@@ -364,7 +364,7 @@ func (p *Pi) ntfnCommentReply(state string, c cmv1.Comment, proposalName string)
 		log.Debugf("Comment reply ntfn not needed %v", c.Token)
 		return nil
 	case !pauthor.NotificationIsEnabled(ntfnBit):
-		// Author does not have notification bit set on
+		// Author does not have notification bit set
 		log.Debugf("Comment reply ntfn not enabled %v", c.Token)
 		return nil
 	}
@@ -391,31 +391,17 @@ func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 
 		// Get the record author and record name
 		var (
-			pdr              pdv1.Record
+			pdr              *pdv1.Record
 			r                rcv1.Record
 			proposalAuthorID string
 			proposalName     string
+			err              error
 		)
-		reqs := []pdv1.RecordRequest{
-			{
-				Token: e.Comment.Token,
-				Filenames: []string{
-					v1.FileNameProposalMetadata,
-				},
-			},
-		}
-		rs, err := p.records(e.State, reqs)
+		pdr, err = p.recordAbridged(e.State, e.Comment.Token)
 		if err != nil {
-			err = fmt.Errorf("politeiad records: %v", err)
 			goto failed
 		}
-		pdr, ok = rs[e.Comment.Token]
-		if !ok {
-			err = fmt.Errorf("record %v not found for comment %v",
-				e.Comment.Token, e.Comment.CommentID)
-			goto failed
-		}
-		r = convertRecordToV1(pdr, e.State)
+		r = convertRecordToV1(*pdr, e.State)
 		proposalAuthorID = userIDFromMetadata(r.Metadata)
 		proposalName = proposalNameFromRecord(r)
 
@@ -451,37 +437,64 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 			continue
 		}
 
-		/*
-			// Compile a list of emails to send the notification to.
-			emails := make([]string, 0, 256)
-			err := p.db.AllUsers(func(u *user.User) {
-				switch {
-				case !u.Admin:
-					// Only notify admin users
-					return
-				case !userNotificationEnabled(*u,
-					www.NotificationEmailAdminVoteAuthorized):
-					// User does not have notification bit set
-					return
-				}
+		// Verify there is work to do. We don't need to send a
+		// notification on revocations.
+		if e.Auth.Action != tkv1.AuthActionAuthorize {
+			log.Debugf("Vote authorize ntfn not needed %v", e.Auth.Token)
+			continue
+		}
 
-				// Add user to notification list
+		// Setup args to prevent goto errors
+		var (
+			state        = rcv1.RecordStateVetted
+			token        = e.Auth.Token
+			proposalName string
+			r            rcv1.Record
+			emails       = make([]string, 0, 256)
+			ntfnBit      = uint64(www.NotificationEmailAdminProposalVoteAuthorized)
+			err          error
+		)
+
+		// Get record
+		pdr, err := p.recordAbridged(state, token)
+		if err != nil {
+			goto failed
+		}
+		r = convertRecordToV1(*pdr, state)
+		proposalName = proposalNameFromRecord(r)
+
+		// Compile notification email list
+		err = p.userdb.AllUsers(func(u *user.User) {
+			switch {
+			case !u.Admin:
+				// Only notify admin users
+				return
+			case !u.NotificationIsEnabled(ntfnBit):
+				// Admin does not have notfication enabled
+				return
+			default:
+				// Admin has notification enabled
 				emails = append(emails, u.Email)
-			})
-			if err != nil {
-				log.Errorf("handleEventVoteAuthorized: AllUsers: %v", err)
-				continue
 			}
+		})
+		if err != nil {
+			err = fmt.Errorf("AllUsers: %v", err)
+			goto failed
+		}
 
-			// Send notification email
-			err = p.emailVoteAuthorized(d.token, d.name, d.username, emails)
-			if err != nil {
-				log.Errorf("emailVoteAuthorized: %v", err)
-				continue
-			}
-		*/
+		// Send notification email
+		err = p.mailNtfnVoteAuthorized(token, proposalName, emails)
+		if err != nil {
+			err = fmt.Errorf("mailNtfnVoteAuthorized: %v", err)
+			goto failed
+		}
 
-		log.Debugf("Proposal vote authorized ntfn sent %v", e.Auth.Token)
+		log.Debugf("Vote authorized ntfn sent %v", e.Auth.Token)
+		continue
+
+	failed:
+		log.Debugf("handleEventVoteAuthorized: %v", err)
+		continue
 	}
 }
 
@@ -537,37 +550,11 @@ func (p *Pi) handleEventVoteStart(ch chan interface{}) {
 
 		_ = e
 		token := "fix me"
-		log.Debugf("Proposal vote started ntfn sent %v", token)
+		log.Debugf("Vote started ntfn sent %v", token)
 	}
 }
 
 /*
-// emailProposalVoteAuthorized sends a proposal vote authorized email to the
-// provided list of emails.
-func (p *politeiawww) emailProposalVoteAuthorized(token, name, username string, emails []string) error {
-	// Setup URL
-	route := strings.Replace(guiRouteProposalDetails, "{token}", token, 1)
-	l, err := url.Parse(p.cfg.WebServerAddress + route)
-	if err != nil {
-		return err
-	}
-
-	// Setup email
-	subject := "Proposal Authorized To Start Voting"
-	tplData := proposalVoteAuthorized{
-		Username: username,
-		Name:     name,
-		Link:     l.String(),
-	}
-	body, err := createBody(proposalVoteAuthorizedTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.smtp.sendEmailTo(subject, body, emails)
-}
-
 // emailProposalVoteStarted sends a proposal vote started email notification
 // to the provided email addresses.
 func (p *politeiawww) emailProposalVoteStarted(token, name string, emails []string) error {
@@ -642,13 +629,36 @@ func (p *Pi) records(state string, reqs []pdv1.RecordRequest) (map[string]pdv1.R
 	return records, nil
 }
 
+// recordAbridged returns a proposal record without its index file or any
+// attachment files. This allows the request to be light weight.
+func (p *Pi) recordAbridged(state, token string) (*pdv1.Record, error) {
+	reqs := []pdv1.RecordRequest{
+		{
+			Token: token,
+			Filenames: []string{
+				piv1.FileNameProposalMetadata,
+				piv1.FileNameVoteMetadata,
+			},
+		},
+	}
+	rs, err := p.records(state, reqs)
+	if err != nil {
+		return nil, fmt.Errorf("politeiad records: %v", err)
+	}
+	r, ok := rs[token]
+	if !ok {
+		return nil, fmt.Errorf("record not found %v", token)
+	}
+	return &r, nil
+}
+
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []rcv1.MetadataStream) (*usermd.UserMetadata, error) {
-	var userMD *usermd.UserMetadata
+func userMetadataDecode(ms []rcv1.MetadataStream) (*usplugin.UserMetadata, error) {
+	var userMD *usplugin.UserMetadata
 	for _, v := range ms {
-		if v.ID == usermd.MDStreamIDUserMetadata {
-			var um usermd.UserMetadata
+		if v.ID == usplugin.MDStreamIDUserMetadata {
+			var um usplugin.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err
@@ -679,12 +689,12 @@ func userIDFromMetadata(ms []rcv1.MetadataStream) string {
 func proposalNameFromRecord(r rcv1.Record) string {
 	var name string
 	for _, v := range r.Files {
-		if v.Name == pi.FileNameProposalMetadata {
+		if v.Name == piv1.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return ""
 			}
-			var pm pi.ProposalMetadata
+			var pm piv1.ProposalMetadata
 			err = json.Unmarshal(b, &pm)
 			if err != nil {
 				return ""
@@ -695,11 +705,11 @@ func proposalNameFromRecord(r rcv1.Record) string {
 	return name
 }
 
-func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
-	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
+func statusChangesDecode(payload []byte) ([]usplugin.StatusChangeMetadata, error) {
+	statuses := make([]usplugin.StatusChangeMetadata, 0, 16)
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		var sc usermd.StatusChangeMetadata
+		var sc usplugin.StatusChangeMetadata
 		err := d.Decode(&sc)
 		if errors.Is(err, io.EOF) {
 			break
@@ -711,13 +721,13 @@ func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) 
 	return statuses, nil
 }
 
-func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
+func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usplugin.StatusChangeMetadata, error) {
 	var (
-		sc  []usermd.StatusChangeMetadata
+		sc  []usplugin.StatusChangeMetadata
 		err error
 	)
 	for _, v := range metadata {
-		if v.ID == usermd.MDStreamIDStatusChanges {
+		if v.ID == usplugin.MDStreamIDStatusChanges {
 			sc, err = statusChangesDecode([]byte(v.Payload))
 			if err != nil {
 				return nil, err

@@ -231,7 +231,7 @@ type commentNewToProposalAuthor struct {
 	Link     string // Comment link
 }
 
-const commentNewToProposalAuthorText = `
+var commentNewToProposalAuthorText = `
 {{.Username}} has commented on your proposal "{{.Name}}".
 
 {{.Link}}
@@ -271,7 +271,7 @@ type commentReply struct {
 	Link     string // Comment link
 }
 
-const commentReplyText = `
+var commentReplyText = `
 {{.Username}} has replied to your comment on "{{.Name}}".
 
 {{.Link}}
@@ -304,11 +304,46 @@ func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsernam
 	return p.mail.SendTo(subject, body, []string{parentAuthorEmail})
 }
 
-func populateTemplate(tpl *template.Template, tplData interface{}) (string, error) {
-	var buf bytes.Buffer
-	err := tpl.Execute(&buf, tplData)
+type voteAuthorized struct {
+	Name string // Proposal name
+	Link string // GUI proposal details url
+}
+
+var voteAuthorizedText = `
+A proposal vote has been authorized.
+
+{{.Name}}
+{{.Link}}
+`
+
+var voteAuthorizedTmpl = template.Must(
+	template.New("voteAuthorized").Parse(voteAuthorizedText))
+
+func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
+	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
+	u, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return err
+	}
+
+	subject := "Proposal Vote Authorized"
+	tmplData := voteAuthorized{
+		Name: name,
+		Link: u.String(),
+	}
+	body, err := populateTemplate(voteAuthorizedTmpl, tmplData)
+	if err != nil {
+		return err
+	}
+
+	return p.mail.SendTo(subject, body, emails)
+}
+
+func populateTemplate(tmpl *template.Template, tmplData interface{}) (string, error) {
+	var b bytes.Buffer
+	err := tmpl.Execute(&b, tmplData)
 	if err != nil {
 		return "", err
 	}
-	return buf.String(), nil
+	return b.String(), nil
 }

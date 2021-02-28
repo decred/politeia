@@ -6,23 +6,6 @@ package main
 
 import "text/template"
 
-// Proposal vote authorized - Send to admins
-type proposalVoteAuthorized struct {
-	Username string // Author username
-	Name     string // Proposal name
-	Link     string // GUI proposal details url
-}
-
-const proposalVoteAuthorizedText = `
-{{.Username}} has authorized a vote on their proposal.
-
-{{.Name}}
-{{.Link}}
-`
-
-var proposalVoteAuthorizedTmpl = template.Must(
-	template.New("proposalVoteAuthorized").Parse(proposalVoteAuthorizedText))
-
 // Proposal vote started - Send to users
 type proposalVoteStarted struct {
 	Name string // Proposal name
