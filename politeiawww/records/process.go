@@ -371,8 +371,47 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 	}, nil
 }
 
+func (r *Records) records(ctx context.Context, state string, reqs []pdv1.RecordRequest) (map[string]v1.Record, error) {
+	var (
+		pdr = make(map[string]pdv1.Record)
+		err error
+	)
+	switch state {
+	case v1.RecordStateUnvetted:
+		pdr, err = r.politeiad.GetUnvettedBatch(ctx, reqs)
+		if err != nil {
+			return nil, err
+		}
+	case v1.RecordStateVetted:
+		pdr, err = r.politeiad.GetVettedBatch(ctx, reqs)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("invalid state %v", state)
+	}
+
+	records := make(map[string]v1.Record, len(pdr))
+	for k, v := range pdr {
+		rc := convertRecordToV1(v, state)
+
+		// Fill in user data
+		userID := userIDFromMetadataStreams(rc.Metadata)
+		uid, err := uuid.Parse(userID)
+		u, err := r.userdb.UserGetById(uid)
+		if err != nil {
+			return nil, err
+		}
+		recordPopulateUserData(&rc, *u)
+
+		records[k] = rc
+	}
+
+	return records, nil
+}
+
 func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.User) (*v1.RecordsReply, error) {
-	log.Tracef("processRecords: %v %v", rs.State, len(rs.Tokens))
+	log.Tracef("processRecords: %v %v", rs.State, len(rs.Requests))
 
 	// Verify state
 	switch rs.State {
@@ -385,7 +424,7 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 	}
 
 	// Verify page size
-	if len(rs.Tokens) > v1.RecordsPageSize {
+	if len(rs.Requests) > v1.RecordsPageSize {
 		e := fmt.Sprintf("max page size is %v", v1.RecordsPageSize)
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodePageSizeExceeded,
@@ -393,22 +432,11 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 		}
 	}
 
-	// Get all records in the batch. This should be a batched call to
-	// politeiad, but the politeiad API does not provided a batched
-	// records endpoint.
-	records := make(map[string]v1.Record, len(rs.Tokens))
-	for _, v := range rs.Tokens {
-		rc, err := r.record(ctx, rs.State, v, "")
-		if err != nil {
-			// If any error occured simply skip this record. It will not
-			// be included in the reply.
-			continue
-		}
-
-		// Record files are not returned in this call
-		rc.Files = []v1.File{}
-
-		records[rc.CensorshipRecord.Token] = *rc
+	// Get records
+	reqs := convertRequestsToPD(rs.Requests)
+	records, err := r.records(ctx, rs.State, reqs)
+	if err != nil {
+		return nil, err
 	}
 
 	return &v1.RecordsReply{
@@ -610,33 +638,6 @@ func userIDFromMetadataStreams(ms []v1.MetadataStream) string {
 	return um.UserID
 }
 
-func convertFilesToPD(f []v1.File) []pdv1.File {
-	files := make([]pdv1.File, 0, len(f))
-	for _, v := range f {
-		files = append(files, pdv1.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		})
-	}
-	return files
-}
-
-func convertStatusToPD(s v1.RecordStatusT) pdv1.RecordStatusT {
-	switch s {
-	case v1.RecordStatusUnreviewed:
-		return pdv1.RecordStatusNotReviewed
-	case v1.RecordStatusPublic:
-		return pdv1.RecordStatusPublic
-	case v1.RecordStatusCensored:
-		return pdv1.RecordStatusCensored
-	case v1.RecordStatusArchived:
-		return pdv1.RecordStatusArchived
-	}
-	return pdv1.RecordStatusInvalid
-}
-
 func convertStatusToV1(s pdv1.RecordStatusT) v1.RecordStatusT {
 	switch s {
 	case pdv1.RecordStatusNotReviewed:
@@ -718,4 +719,43 @@ func convertTimestampToV1(t pdv1.Timestamp) v1.Timestamp {
 		MerkleRoot: t.MerkleRoot,
 		Proofs:     proofs,
 	}
+}
+
+func convertFilesToPD(f []v1.File) []pdv1.File {
+	files := make([]pdv1.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, pdv1.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+	return files
+}
+
+func convertStatusToPD(s v1.RecordStatusT) pdv1.RecordStatusT {
+	switch s {
+	case v1.RecordStatusUnreviewed:
+		return pdv1.RecordStatusNotReviewed
+	case v1.RecordStatusPublic:
+		return pdv1.RecordStatusPublic
+	case v1.RecordStatusCensored:
+		return pdv1.RecordStatusCensored
+	case v1.RecordStatusArchived:
+		return pdv1.RecordStatusArchived
+	}
+	return pdv1.RecordStatusInvalid
+}
+
+func convertRequestsToPD(reqs []v1.RecordRequest) []pdv1.RecordRequest {
+	r := make([]pdv1.RecordRequest, 0, len(reqs))
+	for _, v := range reqs {
+		r = append(r, pdv1.RecordRequest{
+			Token:     v.Token,
+			Version:   v.Version,
+			Filenames: v.Filenames,
+		})
+	}
+	return r
 }

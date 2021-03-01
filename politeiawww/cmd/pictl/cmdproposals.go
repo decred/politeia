@@ -6,6 +6,7 @@ package main
 
 import (
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
 
@@ -47,23 +48,29 @@ func (c *cmdProposals) Execute(args []string) error {
 		state = piv1.ProposalStateVetted
 	}
 
-	// Get proposal details
-	p := piv1.Proposals{
-		State:  state,
-		Tokens: c.Args.Tokens,
+	// Get records
+	reqs := make([]rcv1.RecordRequest, 0, len(c.Args.Tokens))
+	for _, v := range c.Args.Tokens {
+		reqs = append(reqs, rcv1.RecordRequest{
+			Token: v,
+			Filenames: []string{
+				piv1.FileNameProposalMetadata,
+				piv1.FileNameVoteMetadata,
+			},
+		})
 	}
-	pr, err := pc.PiProposals(p)
+	r := rcv1.Records{
+		State:    state,
+		Requests: reqs,
+	}
+	records, err := pc.Records(r)
 	if err != nil {
 		return err
 	}
 
 	// Print proposals to stdout
-	for _, v := range pr.Proposals {
-		r, err := convertProposal(v)
-		if err != nil {
-			return err
-		}
-		err = printProposal(*r)
+	for _, v := range records {
+		err = printProposal(v)
 		if err != nil {
 			return err
 		}

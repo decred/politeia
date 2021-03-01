@@ -15,7 +15,7 @@ import (
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
-	usplugin "github.com/decred/politeia/politeiad/plugins/usermd"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -701,11 +701,11 @@ func (p *Pi) recordAbridged(state, token string) (*pdv1.Record, error) {
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []rcv1.MetadataStream) (*usplugin.UserMetadata, error) {
-	var userMD *usplugin.UserMetadata
+func userMetadataDecode(ms []rcv1.MetadataStream) (*usermd.UserMetadata, error) {
+	var userMD *usermd.UserMetadata
 	for _, v := range ms {
-		if v.ID == usplugin.MDStreamIDUserMetadata {
-			var um usplugin.UserMetadata
+		if v.ID == usermd.MDStreamIDUserMetadata {
+			var um usermd.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
 				return nil, err
@@ -752,11 +752,11 @@ func proposalNameFromRecord(r rcv1.Record) string {
 	return name
 }
 
-func statusChangesDecode(payload []byte) ([]usplugin.StatusChangeMetadata, error) {
-	statuses := make([]usplugin.StatusChangeMetadata, 0, 16)
+func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
+	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		var sc usplugin.StatusChangeMetadata
+		var sc usermd.StatusChangeMetadata
 		err := d.Decode(&sc)
 		if errors.Is(err, io.EOF) {
 			break
@@ -768,13 +768,13 @@ func statusChangesDecode(payload []byte) ([]usplugin.StatusChangeMetadata, error
 	return statuses, nil
 }
 
-func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usplugin.StatusChangeMetadata, error) {
+func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
 	var (
-		sc  []usplugin.StatusChangeMetadata
+		sc  []usermd.StatusChangeMetadata
 		err error
 	)
 	for _, v := range metadata {
-		if v.ID == usplugin.MDStreamIDStatusChanges {
+		if v.ID == usermd.MDStreamIDStatusChanges {
 			sc, err = statusChangesDecode([]byte(v.Payload))
 			if err != nil {
 				return nil, err

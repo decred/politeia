@@ -9,10 +9,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"path/filepath"
@@ -147,6 +149,91 @@ func convertProposal(p piv1.Proposal) (*rcv1.Record, error) {
 			Signature: p.CensorshipRecord.Signature,
 		},
 	}, nil
+}
+
+func convertRecord(r rcv1.Record) (*piv1.Proposal, error) {
+	// Decode metadata streams
+	var (
+		um  usermd.UserMetadata
+		sc  = make([]usermd.StatusChangeMetadata, 0, 16)
+		err error
+	)
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case usermd.MDStreamIDUserMetadata:
+			err = json.Unmarshal([]byte(v.Payload), &um)
+			if err != nil {
+				return nil, err
+			}
+		case usermd.MDStreamIDStatusChanges:
+			sc, err = statusChangesDecode([]byte(v.Payload))
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Convert files
+	files := make([]piv1.File, 0, len(r.Files))
+	for _, v := range r.Files {
+		files = append(files, piv1.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+
+	// Convert statuses
+	statuses := make([]piv1.StatusChange, 0, len(sc))
+	for _, v := range sc {
+		statuses = append(statuses, piv1.StatusChange{
+			Token:     v.Token,
+			Version:   v.Version,
+			Status:    piv1.PropStatusT(v.Status),
+			Reason:    v.Reason,
+			PublicKey: v.PublicKey,
+			Signature: v.Signature,
+			Timestamp: v.Timestamp,
+		})
+	}
+
+	// Some fields are intentionally omitted because they are user data
+	// that is not saved to politeiad and needs to be pulled from the
+	// user database.
+	return &piv1.Proposal{
+		Version:   r.Version,
+		Timestamp: r.Timestamp,
+		State:     r.State,
+		Status:    piv1.PropStatusT(r.Status),
+		UserID:    um.UserID,
+		Username:  r.Username,
+		PublicKey: um.PublicKey,
+		Signature: um.Signature,
+		Statuses:  statuses,
+		Files:     files,
+		CensorshipRecord: piv1.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+	}, nil
+}
+
+func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
+	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var sc usermd.StatusChangeMetadata
+		err := d.Decode(&sc)
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, sc)
+	}
+	return statuses, nil
 }
 
 // indexFileRandom returns a proposal index file filled with random data.

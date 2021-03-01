@@ -292,8 +292,21 @@ type DetailsReply struct {
 const (
 	// RecordsPageSize is the maximum number of records that can be
 	// requested in a Records request.
-	RecordsPageSize = 10
+	RecordsPageSize = 5
 )
+
+// RecordRequest requests a record and gives the client more granular control
+// of parts of the record are returned. The only required field is the token.
+// All other fields are optional.
+//
+// Only the record metadata, without any record files, will be returned by
+// default. The client can request specific files be returned by specifying
+// them in the Filenames field.
+type RecordRequest struct {
+	Token     string   `json:"token"`
+	Version   string   `json:"version,omitempty"`
+	Filenames []string `json:"filenames,omitempty"`
+}
 
 // Records requests a batch of records.
 //
@@ -302,8 +315,8 @@ const (
 // files are not included in the reply, unvetted records are returned to all
 // users.
 type Records struct {
-	State  string   `json:"state"`
-	Tokens []string `json:"tokens"`
+	State    string          `json:"state"`
+	Requests []RecordRequest `json:"requests"`
 }
 
 // RecordsReply is the reply to the Records command. Any tokens that did not

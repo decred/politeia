@@ -96,6 +96,26 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
 	return &dr.Record, nil
 }
 
+// Records sends a records v1 Records request to politeiawww.
+func (c *Client) Records(r rcv1.Records) (map[string]rcv1.Record, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteRecords, r)
+	if err != nil {
+		return nil, err
+	}
+
+	var rr rcv1.RecordsReply
+	err = json.Unmarshal(resBody, &rr)
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		fmt.Printf("%v\n", util.FormatJSON(rr))
+	}
+
+	return rr.Records, nil
+}
+
 // RecordInventory sends a records v1 Inventory request to politeiawww.
 func (c *Client) RecordInventory(i rcv1.Inventory) (*rcv1.InventoryReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,
