@@ -752,9 +752,10 @@ func convertRequestsToPD(reqs []v1.RecordRequest) []pdv1.RecordRequest {
 	r := make([]pdv1.RecordRequest, 0, len(reqs))
 	for _, v := range reqs {
 		r = append(r, pdv1.RecordRequest{
-			Token:     v.Token,
-			Version:   v.Version,
-			Filenames: v.Filenames,
+			Token:        v.Token,
+			Version:      v.Version,
+			Filenames:    v.Filenames,
+			OmitAllFiles: v.OmitAllFiles,
 		})
 	}
 	return r

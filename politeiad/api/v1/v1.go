@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -644,16 +644,16 @@ type PluginCommandBatchReply struct {
 // Version is used to request a specific version of a record. If no version is
 // provided then the most recent version of the record will be returned.
 //
-// OmitFiles can be used to retrieve a record without any of the record files
-// being returned.
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files returned.
 //
-// Filenames can be used to request specific files. When filenames is not
-// empty, the only files that are returned will be those that are specified.
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
 type RecordRequest struct {
-	Token     string   `json:"token"`
-	Version   string   `json:"version,omitempty"`
-	OmitFiles bool     `json:"omitfiles,omitempty"`
-	Filenames []string `json:"filenames,omitempty"`
+	Token        string   `json:"token"`
+	Version      string   `json:"version,omitempty"`
+	Filenames    []string `json:"filenames,omitempty"`
+	OmitAllFiles bool     `json:"omitallfiles,omitempty"`
 }
 
 // GetUnvettedBatch requests a batch of unvetted records.

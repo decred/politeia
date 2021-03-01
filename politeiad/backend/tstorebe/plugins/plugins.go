@@ -214,4 +214,22 @@ type TstoreClient interface {
 
 	// RecordLatest returns the most recent version of a record.
 	RecordLatest(treeID int64) (*backend.Record, error)
+
+	// RecordPartial returns a partial record. This method gives the
+	// caller fine grained control over what version and what files are
+	// returned. The only required field is the token. All other fields
+	// are optional.
+	//
+	// Version is used to request a specific version of a record. If no
+	// version is provided then the most recent version of the record
+	// will be returned.
+	//
+	// Filenames can be used to request specific files. If filenames is
+	// not empty then the specified files will be the only files that
+	// are returned.
+	//
+	// OmitAllFiles can be used to retrieve a record without any of the
+	// record files. This supersedes the filenames argument.
+	RecordPartial(treeID int64, version uint32, filenames []string,
+		omitAllFiles bool) (*backend.Record, error)
 }

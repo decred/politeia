@@ -626,10 +626,10 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 func convertFrontendRecordRequest(r v1.RecordRequest) backend.RecordRequest {
 	token, _ := util.ConvertStringToken(r.Token)
 	return backend.RecordRequest{
-		Token:     token,
-		Version:   r.Version,
-		OmitFiles: r.OmitFiles,
-		Filenames: r.Filenames,
+		Token:        token,
+		Version:      r.Version,
+		Filenames:    r.Filenames,
+		OmitAllFiles: r.OmitAllFiles,
 	}
 }
 

@@ -295,17 +295,23 @@ const (
 	RecordsPageSize = 5
 )
 
-// RecordRequest requests a record and gives the client more granular control
-// of parts of the record are returned. The only required field is the token.
-// All other fields are optional.
+// RecordRequest is used to requests a record. It gives the client granular
+// control over what is returned. The only required field is the token. All
+// other fields are optional.
 //
-// Only the record metadata, without any record files, will be returned by
-// default. The client can request specific files be returned by specifying
-// them in the Filenames field.
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files returned.
+//
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
 type RecordRequest struct {
-	Token     string   `json:"token"`
-	Version   string   `json:"version,omitempty"`
-	Filenames []string `json:"filenames,omitempty"`
+	Token        string   `json:"token"`
+	Version      string   `json:"version,omitempty"`
+	Filenames    []string `json:"filenames,omitempty"`
+	OmitAllFiles bool     `json:"omitallfiles,omitempty"`
 }
 
 // Records requests a batch of records.

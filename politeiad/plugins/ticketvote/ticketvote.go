@@ -43,7 +43,7 @@ const (
 	// SettingTestNeLinkByPeriodMin is the default minimum amount of
 	// time, in seconds, that the link by period can be set to. This
 	// value of 1 second was chosen because this is the testnet
-	// default and a 1 second miniumum makes testing various scenerios
+	// default and a 1 second miniumum makes testing various scenarios
 	// easier.
 	SettingTestNetLinkByPeriodMin int64 = 1
 

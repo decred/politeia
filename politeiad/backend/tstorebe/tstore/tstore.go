@@ -953,12 +953,12 @@ printErr:
 // Version is used to request a specific version of a record. If no version is
 // provided then the most recent version of the record will be returned.
 //
-// OmitFiles can be used to retrieve a record without any of the record files
-// being returned.
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files returned.
 //
-// Filenames can be used to request specific files. When filenames is not
-// empty, the only files that are returned will be those that are specified.
-func (t *Tstore) record(treeID int64, version uint32, omitFiles bool, filenames []string) (*backend.Record, error) {
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
+func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
 		return nil, backend.ErrRecordNotFound
@@ -1004,7 +1004,7 @@ func (t *Tstore) record(treeID int64, version uint32, omitFiles bool, filenames 
 		merkles[hex.EncodeToString(v)] = struct{}{}
 	}
 	switch {
-	case omitFiles:
+	case omitAllFiles:
 		// Don't include any files
 	case len(filenames) > 0:
 		// Only included the specified files
@@ -1147,24 +1147,33 @@ func (t *Tstore) record(treeID int64, version uint32, omitFiles bool, filenames 
 func (t *Tstore) Record(treeID int64, version uint32) (*backend.Record, error) {
 	log.Tracef("%v record: %v %v", t.id, treeID, version)
 
-	return t.record(treeID, version, false, []string{})
+	return t.record(treeID, version, []string{}, false)
 }
 
 // RecordLatest returns the latest version of a record.
 func (t *Tstore) RecordLatest(treeID int64) (*backend.Record, error) {
 	log.Tracef("%v RecordLatest: %v", t.id, treeID)
 
-	return t.record(treeID, 0, false, []string{})
+	return t.record(treeID, 0, []string{}, false)
 }
 
 // RecordPartial returns a partial record. This method gives the caller fine
 // grained control over what version and what files are returned. The only
 // required field is the token. All other fields are optional.
-func (t *Tstore) RecordPartial(treeID int64, version uint32, omitFiles bool, filenames []string) (*backend.Record, error) {
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files returned.
+//
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
+func (t *Tstore) RecordPartial(treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	log.Tracef("%v RecordPartial: %v %v %v %v",
-		t.id, treeID, version, omitFiles, filenames)
+		t.id, treeID, version, omitAllFiles, filenames)
 
-	return t.record(treeID, version, omitFiles, filenames)
+	return t.record(treeID, version, filenames, omitAllFiles)
 }
 
 func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {

@@ -1444,7 +1444,7 @@ func (t *tstoreBackend) GetUnvettedBatch(reqs []backend.RecordRequest) (map[stri
 
 		// Get the record
 		r, err := t.unvetted.RecordPartial(treeID, version,
-			v.OmitFiles, v.Filenames)
+			v.Filenames, v.OmitAllFiles)
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
 				// Record doesn't exist. This is ok. It will not be included
@@ -1496,7 +1496,7 @@ func (t *tstoreBackend) GetVettedBatch(reqs []backend.RecordRequest) (map[string
 
 		// Get the record
 		r, err := t.vetted.RecordPartial(treeID, version,
-			v.OmitFiles, v.Filenames)
+			v.Filenames, v.OmitAllFiles)
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
 				// Record doesn't exist. This is ok. It will not be included

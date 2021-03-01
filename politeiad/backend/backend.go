@@ -153,16 +153,16 @@ type Record struct {
 // Version is used to request a specific version of a record. If no version is
 // provided then the most recent version of the record will be returned.
 //
-// OmitFiles can be used to retrieve a record without any of the record files
-// being returned.
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files returned.
 //
-// Filenames can be used to request specific files. When filenames is not
-// empty, the only files that are returned will be those that are specified.
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
 type RecordRequest struct {
-	Token     []byte   `json:"token"`
-	Version   string   `json:"version,omitempty"`
-	OmitFiles bool     `json:"omitfiles,omitempty"`
-	Filenames []string `json:"filenames,omitempty"`
+	Token        []byte
+	Version      string
+	Filenames    []string
+	OmitAllFiles bool
 }
 
 // Proof contains an inclusion proof for the digest in the merkle root. All
