@@ -83,9 +83,9 @@ func (p *ticketVotePlugin) Setup() error {
 	if err != nil {
 		return fmt.Errorf("bestBlock: %v", err)
 	}
-	inv, err := p.inventory(bestBlock)
+	inv, err := p.Inventory(bestBlock)
 	if err != nil {
-		return fmt.Errorf("inventory: %v", err)
+		return fmt.Errorf("Inventory: %v", err)
 	}
 
 	// Build active votes cache

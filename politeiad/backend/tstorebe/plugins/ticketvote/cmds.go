@@ -1080,7 +1080,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		// Should not happen
 		return "", fmt.Errorf("invalid action %v", a.Action)
 	}
-	p.inventoryUpdate(a.Token, status)
+	p.InventoryUpdate(a.Token, status)
 
 	// Prepare reply
 	ar := ticketvote.AuthorizeReply{
@@ -1383,7 +1383,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
+	p.InventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
 		vd.EndBlockHeight)
 
 	// Update active votes cache
@@ -1568,7 +1568,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	}
 
 	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
+	p.InventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
 		vd.EndBlockHeight)
 
 	// Update active votes cache
@@ -2582,7 +2582,7 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 	}
 
 	// Get the inventory
-	ibs, err := p.invByStatus(bb, i.Status, i.Page)
+	ibs, err := p.InventoryByStatus(bb, i.Status, i.Page)
 	if err != nil {
 		return "", fmt.Errorf("invByStatus: %v", err)
 	}

@@ -210,6 +210,10 @@ const (
 	// is only used when the vote type allows for a clear approved or
 	// rejected outcome.
 	VoteStatusRejected VoteStatusT = 6
+
+	// VoteStatusIneligible indicates that a record is not eligible to
+	// be voted on. This happens when a record is censored or archived.
+	VoteStatusIneligible VoteStatusT = 7
 )
 
 var (
@@ -222,6 +226,7 @@ var (
 		VoteStatusFinished:     "finished",
 		VoteStatusApproved:     "approved",
 		VoteStatusRejected:     "rejected",
+		VoteStatusIneligible:   "ineligible",
 	}
 )
 

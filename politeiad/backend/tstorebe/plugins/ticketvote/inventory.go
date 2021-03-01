@@ -237,9 +237,9 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	return inv, nil
 }
 
-// inventoryAdd is a wrapper around the invAdd method that allows us to decide
+// InventoryAdd is a wrapper around the invAdd method that allows us to decide
 // how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
+func (p *ticketVotePlugin) InventoryAdd(token string, s ticketvote.VoteStatusT) {
 	err := p.invAdd(token, s)
 	if err != nil {
 		e := fmt.Sprintf("invAdd %v %v: %v", token, s, err)
@@ -247,7 +247,9 @@ func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) 
 	}
 }
 
-func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
+// InventoryUpdate is a wrapper around the invUpdate method that allows us to
+// decide how disk read/write errors should be handled. For now we just panic.
+func (p *ticketVotePlugin) InventoryUpdate(token string, s ticketvote.VoteStatusT) {
 	err := p.invUpdate(token, s, 0)
 	if err != nil {
 		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
@@ -255,7 +257,10 @@ func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatus
 	}
 }
 
-func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
+// InventoryUpdateToStarted is a wrapper around the invUpdate method that
+// allows us to decide how disk read/write errors should be handled. For now we
+// just panic.
+func (p *ticketVotePlugin) InventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
 	err := p.invUpdate(token, s, endHeight)
 	if err != nil {
 		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
@@ -263,7 +268,8 @@ func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.V
 	}
 }
 
-func (p *ticketVotePlugin) inventory(bestBlock uint32) (*inventory, error) {
+// inventory returns the full ticketvote inventory.
+func (p *ticketVotePlugin) Inventory(bestBlock uint32) (*inventory, error) {
 	// Get inventory
 	inv, err := p.invGet()
 	if err != nil {
@@ -289,7 +295,7 @@ type invByStatus struct {
 
 func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
 	// Get inventory
-	i, err := p.inventory(bestBlock)
+	i, err := p.Inventory(bestBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +313,8 @@ func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invBySta
 		approved = tokensParse(i.Entries, ticketvote.VoteStatusApproved,
 			pageSize, 1)
 		rejected = tokensParse(i.Entries, ticketvote.VoteStatusRejected,
+			pageSize, 1)
+		ineligible = tokensParse(i.Entries, ticketvote.VoteStatusIneligible,
 			pageSize, 1)
 
 		tokens = make(map[ticketvote.VoteStatusT][]string, 16)
@@ -329,6 +337,9 @@ func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invBySta
 	if len(rejected) != 0 {
 		tokens[ticketvote.VoteStatusRejected] = rejected
 	}
+	if len(ineligible) != 0 {
+		tokens[ticketvote.VoteStatusIneligible] = ineligible
+	}
 
 	return &invByStatus{
 		Tokens:    tokens,
@@ -336,7 +347,9 @@ func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invBySta
 	}, nil
 }
 
-func (p *ticketVotePlugin) invByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
+// InventoryByStatus returns a page of tokens for the provided status. If no
+// status is provided then a page for each status will be returned.
+func (p *ticketVotePlugin) InventoryByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
 	pageSize := ticketvote.InventoryPageSize
 
 	// If no status is provided a page of tokens for each status should
@@ -346,7 +359,7 @@ func (p *ticketVotePlugin) invByStatus(bestBlock uint32, s ticketvote.VoteStatus
 	}
 
 	// A status was provided. Return a page of tokens for the status.
-	inv, err := p.inventory(bestBlock)
+	inv, err := p.Inventory(bestBlock)
 	if err != nil {
 		return nil, err
 	}
