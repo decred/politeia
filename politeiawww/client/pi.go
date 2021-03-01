@@ -6,11 +6,9 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/util"
 )
 
 // PiPolicy sends a pi v1 Policy request to politeiawww.
@@ -25,9 +23,6 @@ func (c *Client) PiPolicy() (*piv1.PolicyReply, error) {
 	err = json.Unmarshal(resBody, &pr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(pr))
 	}
 
 	return &pr, nil

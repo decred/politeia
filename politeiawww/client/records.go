@@ -29,9 +29,6 @@ func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(nr))
-	}
 
 	return &nr, nil
 }
@@ -48,9 +45,6 @@ func (c *Client) RecordEdit(e rcv1.Edit) (*rcv1.EditReply, error) {
 	err = json.Unmarshal(resBody, &er)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(er))
 	}
 
 	return &er, nil
@@ -69,9 +63,6 @@ func (c *Client) RecordSetStatus(ss rcv1.SetStatus) (*rcv1.SetStatusReply, error
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(ssr))
-	}
 
 	return &ssr, nil
 }
@@ -88,9 +79,6 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
 	err = json.Unmarshal(resBody, &dr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(dr))
 	}
 
 	return &dr.Record, nil
@@ -109,9 +97,6 @@ func (c *Client) Records(r rcv1.Records) (map[string]rcv1.Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(rr))
-	}
 
 	return rr.Records, nil
 }
@@ -128,9 +113,6 @@ func (c *Client) RecordInventory(i rcv1.Inventory) (*rcv1.InventoryReply, error)
 	err = json.Unmarshal(resBody, &ir)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(ir))
 	}
 
 	return &ir, nil
@@ -149,9 +131,6 @@ func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, err
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(tr))
-	}
 
 	return &tr, nil
 }
@@ -168,9 +147,6 @@ func (c *Client) UserRecords(ur rcv1.UserRecords) (*rcv1.UserRecordsReply, error
 	err = json.Unmarshal(resBody, &urr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(urr))
 	}
 
 	return &urr, nil

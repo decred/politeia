@@ -33,8 +33,8 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		t.Fatal(err)
 	}
 
-	// Encode the supported chars so that they can be returned as a
-	// string plugin setting.
+	// Encode the supported chars. This is done so that they can be
+	// returned as a plugin setting string.
 	b, err := json.Marshal(nameSupportedChars)
 	if err != nil {
 		t.Fatal(err)

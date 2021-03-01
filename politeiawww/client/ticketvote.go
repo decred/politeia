@@ -6,11 +6,9 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
-	"github.com/decred/politeia/util"
 )
 
 // TicketVotePolicy sends a ticketvote v1 Policy request to politeiawww.
@@ -25,9 +23,6 @@ func (c *Client) TicketVotePolicy() (*tkv1.PolicyReply, error) {
 	err = json.Unmarshal(resBody, &pr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(pr))
 	}
 
 	return &pr, nil
@@ -46,9 +41,6 @@ func (c *Client) TicketVoteAuthorize(a tkv1.Authorize) (*tkv1.AuthorizeReply, er
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(ar))
-	}
 
 	return &ar, nil
 }
@@ -65,9 +57,6 @@ func (c *Client) TicketVoteStart(s tkv1.Start) (*tkv1.StartReply, error) {
 	err = json.Unmarshal(resBody, &sr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(sr))
 	}
 
 	return &sr, nil
@@ -87,9 +76,6 @@ func (c *Client) TicketVoteCastBallot(cb tkv1.CastBallot) (*tkv1.CastBallotReply
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(cbr))
-	}
 
 	return &cbr, nil
 }
@@ -106,9 +92,6 @@ func (c *Client) TicketVoteDetails(d tkv1.Details) (*tkv1.DetailsReply, error) {
 	err = json.Unmarshal(resBody, &dr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(dr))
 	}
 
 	return &dr, nil
@@ -127,9 +110,6 @@ func (c *Client) TicketVoteResults(r tkv1.Results) (*tkv1.ResultsReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(rr))
-	}
 
 	return &rr, nil
 }
@@ -146,9 +126,6 @@ func (c *Client) TicketVoteSummaries(s tkv1.Summaries) (*tkv1.SummariesReply, er
 	err = json.Unmarshal(resBody, &sr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(sr))
 	}
 
 	return &sr, nil
@@ -168,9 +145,6 @@ func (c *Client) TicketVoteSubmissions(s tkv1.Submissions) (*tkv1.SubmissionsRep
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(sr))
-	}
 
 	return &sr, nil
 }
@@ -187,9 +161,6 @@ func (c *Client) TicketVoteInventory(i tkv1.Inventory) (*tkv1.InventoryReply, er
 	err = json.Unmarshal(resBody, &ir)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(ir))
 	}
 
 	return &ir, nil
@@ -208,9 +179,6 @@ func (c *Client) TicketVoteTimestamps(t tkv1.Timestamps) (*tkv1.TimestampsReply,
 	err = json.Unmarshal(resBody, &tr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(tr))
 	}
 
 	return &tr, nil

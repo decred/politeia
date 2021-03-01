@@ -6,11 +6,9 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	"github.com/decred/politeia/util"
 )
 
 // CommentPolicy sends a comments v1 Policy request to politeiawww.
@@ -25,9 +23,6 @@ func (c *Client) CommentPolicy() (*cmv1.PolicyReply, error) {
 	err = json.Unmarshal(resBody, &pr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(pr))
 	}
 
 	return &pr, nil
@@ -46,9 +41,6 @@ func (c *Client) CommentNew(n cmv1.New) (*cmv1.NewReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(nr))
-	}
 
 	return &nr, nil
 }
@@ -65,9 +57,6 @@ func (c *Client) CommentVote(v cmv1.Vote) (*cmv1.VoteReply, error) {
 	err = json.Unmarshal(resBody, &vr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(vr))
 	}
 
 	return &vr, nil
@@ -86,9 +75,6 @@ func (c *Client) CommentDel(d cmv1.Del) (*cmv1.DelReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(dr))
-	}
 
 	return &dr, nil
 }
@@ -105,9 +91,6 @@ func (c *Client) CommentCount(cc cmv1.Count) (*cmv1.CountReply, error) {
 	err = json.Unmarshal(resBody, &cr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(cr))
 	}
 
 	return &cr, nil
@@ -126,9 +109,6 @@ func (c *Client) Comments(cm cmv1.Comments) (*cmv1.CommentsReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(cr))
-	}
 
 	return &cr, nil
 }
@@ -146,9 +126,6 @@ func (c *Client) CommentVotes(v cmv1.Votes) (*cmv1.VotesReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(vr))
-	}
 
 	return &vr, nil
 }
@@ -165,9 +142,6 @@ func (c *Client) CommentTimestamps(t cmv1.Timestamps) (*cmv1.TimestampsReply, er
 	err = json.Unmarshal(resBody, &tr)
 	if err != nil {
 		return nil, err
-	}
-	if c.verbose {
-		fmt.Printf("%v\n", util.FormatJSON(tr))
 	}
 
 	return &tr, nil

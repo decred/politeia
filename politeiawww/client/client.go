@@ -81,9 +81,13 @@ func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byt
 		// No JSON to print
 	case c.verbose:
 		fmt.Printf("Request: %v %v\n", method, fullRoute)
-		fmt.Printf("%v\n", util.FormatJSON(v))
+		if len(reqBody) > 0 {
+			fmt.Printf("%s\n", reqBody)
+		}
 	case c.rawJSON:
-		fmt.Printf("%s\n", reqBody)
+		if len(reqBody) > 0 {
+			fmt.Printf("%s\n", reqBody)
+		}
 	}
 
 	// Send request
@@ -134,7 +138,7 @@ func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byt
 	// Print response body. Pretty printing the response body for the
 	// verbose output must be handled by the calling function once it
 	// has unmarshalled the body.
-	if c.rawJSON {
+	if c.verbose || c.rawJSON {
 		fmt.Printf("%s\n", respBody)
 	}
 
