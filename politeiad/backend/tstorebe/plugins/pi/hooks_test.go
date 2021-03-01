@@ -7,6 +7,10 @@ package pi
 import "testing"
 
 func TestProposalNameIsValid(t *testing.T) {
+	// Setup pi plugin
+	p, cleanup := newTestPiPlugin(t)
+	defer cleanup()
+
 	tests := []struct {
 		name string
 		want bool
@@ -69,13 +73,12 @@ func TestProposalNameIsValid(t *testing.T) {
 			true,
 		},
 	}
-	// TODO
-	/*
-		for _, test := range tests {
-			isValid := proposalNameIsValid(test.name)
+	for _, test := range tests {
+		t.Run("", func(t *testing.T) {
+			isValid := p.proposalNameIsValid(test.name)
 			if isValid != test.want {
 				t.Errorf("got %v, want %v", isValid, test.want)
 			}
-		}
-	*/
+		})
+	}
 }

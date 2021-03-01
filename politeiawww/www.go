@@ -28,7 +28,6 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -86,36 +85,12 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 	return www.ErrorStatusInvalid
 }
 
-func convertWWWErrorStatusFromTicketVote(e ticketvote.ErrorCodeT) www.ErrorStatusT {
-	switch e {
-	case ticketvote.ErrorCodeTokenInvalid:
-		return www.ErrorStatusInvalidCensorshipToken
-	case ticketvote.ErrorCodePublicKeyInvalid:
-		return www.ErrorStatusInvalidPublicKey
-	case ticketvote.ErrorCodeSignatureInvalid:
-		return www.ErrorStatusInvalidSignature
-	case ticketvote.ErrorCodeRecordStatusInvalid:
-		return www.ErrorStatusWrongStatus
-	case ticketvote.ErrorCodeVoteParamsInvalid:
-		return www.ErrorStatusInvalidPropVoteParams
-	case ticketvote.ErrorCodeVoteStatusInvalid:
-		return www.ErrorStatusInvalidPropVoteStatus
-	}
-	return www.ErrorStatusInvalid
-}
-
-// TODO make sure the legacy www routes have the plugin error conversions that
-// they need.
 func convertWWWErrorStatus(pluginID string, errCode int) www.ErrorStatusT {
 	switch pluginID {
 	case "":
 		// politeiad API
 		e := pd.ErrorStatusT(errCode)
 		return convertWWWErrorStatusFromPD(e)
-	case ticketvote.PluginID:
-		// Ticket vote plugin
-		e := ticketvote.ErrorCodeT(errCode)
-		return convertWWWErrorStatusFromTicketVote(e)
 	}
 
 	// No corresponding www error status found

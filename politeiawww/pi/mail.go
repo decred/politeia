@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	// TODO GUI links needs to be updated
 	// The following routes are used in notification emails to direct
 	// the user to the correct GUI pages.
 	guiRouteRecordDetails = "/record/{token}"
