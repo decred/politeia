@@ -311,28 +311,34 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 	if err != nil {
 		return err
 	}
-	status := srs.RecordMetadata.Status
+	var (
+		oldStatus = srs.Current.RecordMetadata.Status
+		newStatus = srs.RecordMetadata.Status
+	)
 
 	// When a record is moved to vetted the plugin hooks are executed
 	// on both the unvetted and vetted tstore instances. We only need
 	// to update cached data if this is the vetted instance. We can
 	// determine this by checking if the record exists. The unvetted
 	// instance will return false.
-	if status == backend.MDStatusVetted && !p.tstore.RecordExists(treeID) {
+	if newStatus == backend.MDStatusVetted && !p.tstore.RecordExists(treeID) {
 		// This is the unvetted instance. Nothing to do.
 		return nil
 	}
 
 	// Update the inventory cache
-	switch status {
+	switch newStatus {
 	case backend.MDStatusVetted:
 		// Add to inventory
 		p.InventoryAdd(srs.RecordMetadata.Token,
 			ticketvote.VoteStatusUnauthorized)
 	case backend.MDStatusCensored, backend.MDStatusArchived:
 		// These statuses do not allow for a vote. Mark as ineligible.
-		p.InventoryUpdate(srs.RecordMetadata.Token,
-			ticketvote.VoteStatusIneligible)
+		// We only need to do this if the record is vetted.
+		if oldStatus == backend.MDStatusVetted {
+			p.InventoryUpdate(srs.RecordMetadata.Token,
+				ticketvote.VoteStatusIneligible)
+		}
 	}
 
 	// Update the submissions cache if the linkto has been set.
@@ -347,7 +353,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 			parentToken = vm.LinkTo
 			childToken  = srs.RecordMetadata.Token
 		)
-		switch status {
+		switch newStatus {
 		case backend.MDStatusVetted:
 			// Record has been made public. Add child token to parent's
 			// submissions list.
@@ -357,10 +363,13 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 			}
 		case backend.MDStatusCensored:
 			// Record has been censored. Delete child token from parent's
-			// submissions list.
-			err := p.submissionsCacheDel(parentToken, childToken)
-			if err != nil {
-				return fmt.Errorf("submissionsCacheDel: %v", err)
+			// submissions list. We only need to do this if the record is
+			// vetted.
+			if oldStatus == backend.MDStatusVetted {
+				err := p.submissionsCacheDel(parentToken, childToken)
+				if err != nil {
+					return fmt.Errorf("submissionsCacheDel: %v", err)
+				}
 			}
 		}
 	}
