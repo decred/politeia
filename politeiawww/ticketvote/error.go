@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/util"
@@ -19,8 +20,8 @@ import (
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	var (
-		ue v1.UserErrorReply
-		pe pdclient.Error
+		ue  v1.UserErrorReply
+		pde pdclient.Error
 	)
 	switch {
 	case errors.As(err, &ue):
@@ -38,43 +39,9 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 			})
 		return
 
-	case errors.As(err, &pe):
+	case errors.As(err, &pde):
 		// Politeiad error
-		var (
-			pluginID   = pe.ErrorReply.PluginID
-			errCode    = pe.ErrorReply.ErrorCode
-			errContext = pe.ErrorReply.ErrorContext
-		)
-		switch {
-		case pluginID != "":
-			// Politeiad plugin error. Log it and return a 400.
-			m := fmt.Sprintf("Plugin error: %v %v %v",
-				util.RemoteAddr(r), pluginID, errCode)
-			if len(errContext) > 0 {
-				m += fmt.Sprintf(": %v", strings.Join(errContext, ", "))
-			}
-			log.Infof(m)
-			util.RespondWithJSON(w, http.StatusBadRequest,
-				v1.PluginErrorReply{
-					PluginID:     pluginID,
-					ErrorCode:    errCode,
-					ErrorContext: strings.Join(errContext, ", "),
-				})
-			return
-
-		default:
-			// Unknown politeiad error. Log it and return a 500.
-			ts := time.Now().Unix()
-			log.Errorf("%v %v %v %v Internal error %v: error code "+
-				"from politeiad: %v", util.RemoteAddr(r), r.Method, r.URL,
-				r.Proto, ts, errCode)
-
-			util.RespondWithJSON(w, http.StatusInternalServerError,
-				v1.ServerErrorReply{
-					ErrorCode: ts,
-				})
-			return
-		}
+		handlePoliteiadError(w, r, format, pde)
 
 	default:
 		// Internal server error. Log it and return a 500.
@@ -90,4 +57,75 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 			})
 		return
 	}
+}
+
+func handlePoliteiadError(w http.ResponseWriter, r *http.Request, format string, pde pdclient.Error) {
+	var (
+		pluginID   = pde.ErrorReply.PluginID
+		errCode    = pde.ErrorReply.ErrorCode
+		errContext = strings.Join(pde.ErrorReply.ErrorContext, ",")
+	)
+	e := convertPDErrorCode(errCode)
+	switch {
+	case pluginID != "":
+		// politeiad plugin error. Log it and return a 400.
+		m := fmt.Sprintf("%v Plugin error: %v %v",
+			util.RemoteAddr(r), pluginID, errCode)
+		if errContext != "" {
+			m += fmt.Sprintf(": %v", errContext)
+		}
+		log.Infof(m)
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			v1.PluginErrorReply{
+				PluginID:     pluginID,
+				ErrorCode:    errCode,
+				ErrorContext: errContext,
+			})
+		return
+
+	case e != v1.ErrorCodeInvalid:
+		// User error from politeiad that corresponds to a records user
+		// error. Log it and return a 400.
+		m := fmt.Sprintf("%v Ticketvote user error: %v %v",
+			util.RemoteAddr(r), e, v1.ErrorCodes[e])
+		if errContext != "" {
+			m += fmt.Sprintf(": %v", errContext)
+		}
+		log.Infof(m)
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			v1.UserErrorReply{
+				ErrorCode:    e,
+				ErrorContext: errContext,
+			})
+		return
+
+	default:
+		// politeiad error does not correspond to a user error. Log it
+		// and return a 500.
+		ts := time.Now().Unix()
+		log.Errorf("%v %v %v %v Internal error %v: error code "+
+			"from politeiad: %v", util.RemoteAddr(r), r.Method, r.URL,
+			r.Proto, ts, errCode)
+
+		util.RespondWithJSON(w, http.StatusInternalServerError,
+			v1.ServerErrorReply{
+				ErrorCode: ts,
+			})
+		return
+	}
+}
+
+func convertPDErrorCode(errCode int) v1.ErrorCodeT {
+	// This list is only populated with politeiad errors that we expect
+	// for the ticketvote plugin commands. Any politeiad errors not
+	// included in this list will cause politeiawww to 500.
+	switch pdv1.ErrorStatusT(errCode) {
+	case pdv1.ErrorStatusRecordNotFound:
+		return v1.ErrorCodeRecordNotFound
+	case pdv1.ErrorStatusInvalidToken:
+		return v1.ErrorCodeTokenInvalid
+	case pdv1.ErrorStatusRecordLocked:
+		return v1.ErrorCodeRecordLocked
+	}
+	return v1.ErrorCodeInvalid
 }

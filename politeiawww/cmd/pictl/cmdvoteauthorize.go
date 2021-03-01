@@ -20,8 +20,9 @@ import (
 // authorization.
 type cmdVoteAuthorize struct {
 	Args struct {
-		Token  string `positional-arg-name:"token" required:"true"`
-		Action string `positional-arg-name:"action"`
+		Token   string `positional-arg-name:"token" required:"true"`
+		Action  string `positional-arg-name:"action"`
+		Version uint32 `positional-arg-name:"version"`
 	} `positional-args:"true"`
 }
 
@@ -63,25 +64,30 @@ func (c *cmdVoteAuthorize) Execute(args []string) error {
 	}
 
 	// Get record version
-	d := rcv1.Details{
-		State: rcv1.RecordStateVetted,
-		Token: c.Args.Token,
-	}
-	r, err := pc.RecordDetails(d)
-	if err != nil {
-		return err
-	}
-	version, err := strconv.ParseUint(r.Version, 10, 64)
-	if err != nil {
-		return err
+	version := c.Args.Version
+	if version == 0 {
+		d := rcv1.Details{
+			State: rcv1.RecordStateVetted,
+			Token: c.Args.Token,
+		}
+		r, err := pc.RecordDetails(d)
+		if err != nil {
+			return err
+		}
+		u, err := strconv.ParseUint(r.Version, 10, 64)
+		if err != nil {
+			return err
+		}
+		version = uint32(u)
 	}
 
 	// Setup request
-	msg := c.Args.Token + r.Version + string(action)
+	msg := c.Args.Token + strconv.FormatUint(uint64(version), 10) +
+		string(action)
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	a := tkv1.Authorize{
 		Token:     c.Args.Token,
-		Version:   uint32(version),
+		Version:   version,
 		Action:    action,
 		PublicKey: cfg.Identity.Public.String(),
 		Signature: hex.EncodeToString(sig[:]),

@@ -31,6 +31,9 @@ const (
 	ErrorCodeInputInvalid     ErrorCodeT = 1
 	ErrorCodePublicKeyInvalid ErrorCodeT = 2
 	ErrorCodeUnauthorized     ErrorCodeT = 3
+	ErrorCodeRecordNotFound   ErrorCodeT = 4
+	ErrorCodeRecordLocked     ErrorCodeT = 5
+	ErrorCodeTokenInvalid     ErrorCodeT = 6
 )
 
 var (
@@ -40,6 +43,9 @@ var (
 		ErrorCodeInputInvalid:     "input invalid",
 		ErrorCodePublicKeyInvalid: "public key invalid",
 		ErrorCodeUnauthorized:     "unauthorized",
+		ErrorCodeRecordNotFound:   "record not found",
+		ErrorCodeRecordLocked:     "record locked",
+		ErrorCodeTokenInvalid:     "token is invalid",
 	}
 )
 
