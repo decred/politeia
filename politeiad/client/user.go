@@ -52,7 +52,7 @@ func (c *Client) Author(ctx context.Context, state, token string) (string, error
 }
 
 // UserRecords sends the user plugin UserRecords command to the politeiad v1
-// API. A seperate command is sent for the unvetted and vetted records. The
+// API. A separate command is sent for the unvetted and vetted records. The
 // returned map is a map[recordState][]token.
 func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]string, error) {
 	// Setup request

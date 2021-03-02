@@ -81,7 +81,7 @@ func (c *cmdCommentVotes) Execute(args []string) error {
 const commentVotesHelpMsg = `commentvotes "token" "userid"
 
 Get the provided user comment upvote/downvotes for a proposal. If no user ID
-is provded then the command will assume the logged in user is requesting their
+is provided then the command will assume the logged in user is requesting their
 own comment votes.
 
 Arguments:

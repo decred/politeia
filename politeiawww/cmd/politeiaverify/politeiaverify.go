@@ -9,24 +9,20 @@ import (
 	"path"
 	"strings"
 
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
 )
 
-// proposal is used to unmarshal the data that is cointaned in the proposal
-// JSON bundles downloded from the GUI.
-type proposal struct {
-	PublicKey        string              `json:"publickey"`
-	Signature        string              `json:"signature"`
-	CensorshipRecord pi.CensorshipRecord `json:"censorshiprecord"`
-	Files            []pi.File           `json:"files"`
-	Metadata         []pi.Metadata       `json:"metadata"`
-	ServerPublicKey  string              `json:"serverpublickey"`
+// record is used to unmarshal the data that is contained in the record JSON
+// bundle downloded from the GUI.
+type record struct {
+	Record          rcv1.Record `json:"record"`
+	ServerPublicKey string      `json:"serverpublickey"`
 }
 
-// comments is used to unmarshal the data that is cointaned in the comments
-// JSON bundles downloded from the GUI.
+// comments is used to unmarshal the data that is contained in the comments
+// JSON bundle downloded from the GUI.
 type comments []struct {
 	CommentID       string `json:"commentid"`
 	Receipt         string `json:"receipt"`
@@ -35,7 +31,7 @@ type comments []struct {
 }
 
 var (
-	flagVerifyProposal = flag.Bool("proposal", false, "Verify proposal bundle")
+	flagVerifyRecord   = flag.Bool("record", false, "Verify record bundle")
 	flagVerifyComments = flag.Bool("comments", false, "Verify comments bundle")
 )
 
@@ -48,59 +44,25 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
-func verifyProposal(payload []byte) error {
-	var prop proposal
-	err := json.Unmarshal(payload, &prop)
+func verifyRecord(payload []byte) error {
+	var r record
+	err := json.Unmarshal(payload, &r)
 	if err != nil {
-		return fmt.Errorf("Proposal bundle JSON in bad format, make sure to " +
+		return fmt.Errorf("Record bundle JSON in bad format, make sure to " +
 			"download it from the GUI.")
 	}
 
-	// Verify merkle root
-	merkle, err := wwwutil.MerkleRoot(prop.Files, prop.Metadata)
+	err = client.RecordVerify(r.Record, r.ServerPublicKey)
 	if err != nil {
-		return err
-	}
-	if merkle != prop.CensorshipRecord.Merkle {
-		return fmt.Errorf("Merkle roots do not match: %v and %v",
-			prop.CensorshipRecord.Merkle, merkle)
+		return fmt.Errorf("Failed to verify record: %v", err)
 	}
 
-	// Verify proposal signature
-	id, err := util.IdentityFromString(prop.PublicKey)
-	if err != nil {
-		return err
-	}
-	sig, err := util.ConvertSignature(prop.Signature)
-	if err != nil {
-		return err
-	}
-	if !id.VerifyMessage([]byte(merkle), sig) {
-		return fmt.Errorf("Invalid proposal signature %v", prop.Signature)
-	}
-
-	// Verify censorship record signature
-	id, err = util.IdentityFromString(prop.ServerPublicKey)
-	if err != nil {
-		return err
-	}
-	sig, err = util.ConvertSignature(prop.CensorshipRecord.Signature)
-	if err != nil {
-		return err
-	}
-	if !id.VerifyMessage([]byte(merkle+prop.CensorshipRecord.Token), sig) {
-		return fmt.Errorf("Invalid censhorship record signature %v",
-			prop.CensorshipRecord.Signature)
-	}
-
-	fmt.Println("Proposal signature:")
-	fmt.Printf("  Public key: %s\n", prop.PublicKey)
-	fmt.Printf("  Signature : %s\n", prop.Signature)
-	fmt.Println("Proposal censorship record signature:")
-	fmt.Printf("  Merkle root: %s\n", prop.CensorshipRecord.Merkle)
-	fmt.Printf("  Public key : %s\n", prop.ServerPublicKey)
-	fmt.Printf("  Signature  : %s\n\n", prop.CensorshipRecord.Signature)
-	fmt.Println("Proposal successfully verified")
+	fmt.Println("Censorship record:")
+	fmt.Printf("  Token      : %s\n", r.Record.CensorshipRecord.Token)
+	fmt.Printf("  Merkle root: %s\n", r.Record.CensorshipRecord.Merkle)
+	fmt.Printf("  Public key : %s\n", r.ServerPublicKey)
+	fmt.Printf("  Signature  : %s\n\n", r.Record.CensorshipRecord.Signature)
+	fmt.Println("Record successfully verified")
 
 	return nil
 }
@@ -147,7 +109,7 @@ func _main() error {
 	case len(args) != 1:
 		usage()
 		return fmt.Errorf("Must provide json bundle path as input")
-	case *flagVerifyProposal && *flagVerifyComments:
+	case *flagVerifyRecord && *flagVerifyComments:
 		usage()
 		return fmt.Errorf("Must choose only one verification type")
 	}
@@ -162,8 +124,8 @@ func _main() error {
 
 	// Call verify method
 	switch {
-	case *flagVerifyProposal:
-		return verifyProposal(payload)
+	case *flagVerifyRecord:
+		return verifyRecord(payload)
 	case *flagVerifyComments:
 		return verifyComments(payload)
 	default:
@@ -172,7 +134,7 @@ func _main() error {
 		if strings.Contains(path.Base(file), "comments") {
 			return verifyComments(payload)
 		}
-		return verifyProposal(payload)
+		return verifyRecord(payload)
 	}
 }
 

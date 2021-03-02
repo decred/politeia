@@ -442,6 +442,9 @@ func (p *ticketVotePlugin) voteOptionResults(token []byte, options []ticketvote.
 		// Votes are not in the cache. Pull them from the backend.
 		reply, err := p.backend.VettedPluginCmd(backend.PluginActionRead,
 			token, ticketvote.PluginID, ticketvote.CmdResults, "")
+		if err != nil {
+			return nil, err
+		}
 		var rr ticketvote.ResultsReply
 		err = json.Unmarshal([]byte(reply), &rr)
 		if err != nil {

@@ -172,7 +172,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		},
 	}
 
-	// Setup event listners
+	// Setup event listeners
 	p.setupEventListeners()
 
 	return &p, nil

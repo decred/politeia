@@ -591,7 +591,7 @@ const (
 	// that will be returned for any single request. A vote timestamp
 	// is ~2000 bytes so a page of 100 votes will only be 0.2MB, but
 	// the bottleneck on this call is performance, not size. Its
-	// expensive to retreive a large number of inclusion proofs from
+	// expensive to retrieve a large number of inclusion proofs from
 	// trillian. A 100 timestamps will take ~1 second to compile.
 	VoteTimestampsPageSize uint32 = 100
 )

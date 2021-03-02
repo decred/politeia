@@ -73,7 +73,7 @@ func (c *cmdCommentCensor) Execute(args []string) error {
 	d := cmv1.Del{
 		State:     state,
 		Token:     token,
-		CommentID: uint32(commentID),
+		CommentID: commentID,
 		Reason:    reason,
 		Signature: hex.EncodeToString(sig[:]),
 		PublicKey: cfg.Identity.Public.String(),

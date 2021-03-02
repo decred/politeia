@@ -26,13 +26,9 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/mail"
-	"github.com/decred/politeia/politeiawww/pi"
-	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -364,15 +360,8 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 	}
 
-	// TODO setup testing
-	var c *comments.Comments
-	var tv *ticketvote.TicketVote
-	var r *records.Records
-	var pic *pi.Pi
-
 	// Setup routes
 	p.setUserWWWRoutes()
-	p.setupPiRoutes(r, c, tv, pic)
 
 	// The cleanup is handled using a closure so that the temp dir
 	// can be deleted using the local variable and not cfg.DataDir.

@@ -18,6 +18,9 @@ func TestHandleVersion(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
 	expectedReply := www.VersionReply{
 		Version:      www.PoliteiaWWWAPIVersion,
 		BuildVersion: version.BuildMainVersion(),

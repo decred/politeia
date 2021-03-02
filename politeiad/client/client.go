@@ -26,8 +26,8 @@ type Client struct {
 }
 
 // ErrorReply represents the request body that is returned from politeaid when
-// an error occurs. PluginID will only be populated if the error occured during
-// execution of a plugin command.
+// an error occurs. PluginID will only be populated if the error occurred
+// during execution of a plugin command.
 type ErrorReply struct {
 	PluginID     string   `json:"pluginid"`
 	ErrorCode    int      `json:"errorcode"`
@@ -53,7 +53,7 @@ func (e Error) Error() string {
 
 // makeReq makes a politeiad http request to the method and route provided,
 // serializing the provided object as the request body, and returning a byte
-// slice of the repsonse body. An Error is returned if politeiad responds with
+// slice of the response body. An Error is returned if politeiad responds with
 // anything other than a 200 http status code.
 func (c *Client) makeReq(ctx context.Context, method string, route string, v interface{}) ([]byte, error) {
 	// Serialize body

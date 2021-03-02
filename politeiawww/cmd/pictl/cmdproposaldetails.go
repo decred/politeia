@@ -71,7 +71,7 @@ func (c *cmdProposalDetails) Execute(args []string) error {
 // proposalDetailsHelpMsg is printed to stdout by the help command.
 const proposalDetailsHelpMsg = `proposaldetails [flags] "token" "version"
 
-Retrive a full proposal record.
+Retrieve a full proposal record.
 
 This command defaults to retrieving vetted proposals unless the --unvetted flag
 is used. This command accepts both the full tokens or the shortened token

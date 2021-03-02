@@ -48,8 +48,6 @@ type piPlugin struct {
 func (p *piPlugin) Setup() error {
 	log.Tracef("pi Setup")
 
-	// TODO Verify vote and comment plugin dependency
-
 	return nil
 }
 

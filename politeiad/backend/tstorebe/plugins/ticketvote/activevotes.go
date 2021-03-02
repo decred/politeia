@@ -49,7 +49,7 @@ type activeVote struct {
 	// premise dcrdata instance with minimal latency. Any functions
 	// that rely of this cache should fallback to fetching the
 	// commitment addresses manually in the event the cache has not
-	// been fully populated yet or has experienced unforseen errors
+	// been fully populated yet or has experienced unforeseen errors
 	// during creation (ex. network errors). If the initial job fails
 	// to complete it will not be retried.
 	Addrs map[string]string // [ticket]address

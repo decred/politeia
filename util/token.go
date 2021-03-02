@@ -25,8 +25,7 @@ func TokenIsFullLength(tokenType string, token []byte) bool {
 	case TokenTypeGit:
 		return len(token) == pdv1.TokenSizeGit
 	default:
-		e := fmt.Sprintf("invalid token type")
-		panic(e)
+		panic("invalid token type")
 	}
 }
 

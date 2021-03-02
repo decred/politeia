@@ -323,6 +323,9 @@ func (r *Records) record(ctx context.Context, state, token, version string) (*v1
 	// Fill in user data
 	userID := userIDFromMetadataStreams(rc.Metadata)
 	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
 	u, err := r.userdb.UserGetById(uid)
 	if err != nil {
 		return nil, err
@@ -373,7 +376,7 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 
 func (r *Records) records(ctx context.Context, state string, reqs []pdv1.RecordRequest) (map[string]v1.Record, error) {
 	var (
-		pdr = make(map[string]pdv1.Record)
+		pdr map[string]pdv1.Record
 		err error
 	)
 	switch state {
@@ -398,6 +401,9 @@ func (r *Records) records(ctx context.Context, state string, reqs []pdv1.RecordR
 		// Fill in user data
 		userID := userIDFromMetadataStreams(rc.Metadata)
 		uid, err := uuid.Parse(userID)
+		if err != nil {
+			return nil, err
+		}
 		u, err := r.userdb.UserGetById(uid)
 		if err != nil {
 			return nil, err

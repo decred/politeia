@@ -43,7 +43,7 @@ const (
 	// characters that are allowed in a comment.
 	SettingCommentLengthMax uint32 = 8000
 
-	// SettingVoteChangesMax is the defualt maximum number of times a
+	// SettingVoteChangesMax is the default maximum number of times a
 	// user can change their vote on a comment. This prevents a
 	// malicious user from being able to spam comment votes.
 	SettingVoteChangesMax uint32 = 5

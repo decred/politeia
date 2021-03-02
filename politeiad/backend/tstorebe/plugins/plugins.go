@@ -86,7 +86,7 @@ const (
 )
 
 // HookNewRecordPre is the payload for the pre new record hook. The record
-// state is not inlcuded since all new records will have a record state of
+// state is not included since all new records will have a record state of
 // unvetted.
 type HookNewRecordPre struct {
 	Metadata []backend.MetadataStream `json:"metadata"`
@@ -94,7 +94,7 @@ type HookNewRecordPre struct {
 }
 
 // HookNewRecordPost is the payload for the post new record hook. The record
-// state is not inlcuded since all new records will have a record state of
+// state is not included since all new records will have a record state of
 // unvetted.  RecordMetadata is only be present on the post new record hook
 // since the record metadata requires the creation of a trillian tree and the
 // pre new record hook should execute before any politeiad state is changed in

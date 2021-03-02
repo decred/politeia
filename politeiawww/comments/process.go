@@ -258,6 +258,9 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 
 	// Populate comment votes with user data
 	uid, err := uuid.Parse(v.UserID)
+	if err != nil {
+		return nil, err
+	}
 	u, err := c.userdb.UserGetById(uid)
 	if err != nil {
 		return nil, err

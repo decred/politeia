@@ -173,11 +173,35 @@ Voting on a proposal can be done using the `politeiavoter` tool.
 
 ### pictl
 
-You can also vote on proposals using the `pictl voteballot` command. This casts
-a ballot of votes. This will only work on testnet and if you are running your
-dcrwallet locally using the default port.
+You can vote on testnet proposals using `pictl` if you have the following
+setup:
+- dcrwallet is running locally on testnet and on the default port.
+- A dcrwallet client cert has been setup for `pictl` using the instructions
+  in the `Dcrwallet Authentication` section of this README. 
 
-    $ pictl voteballot [token] [voteID]
+Cast a ballot of DCR ticket votes.
+
+    $ pictl castballot [token] [voteID]
+
+# Dcrwallet Authentication
+
+Voting requires access to wallet GRPC. Therefore this tool needs the wallet's
+server certificate to authenticate the server, as well as a local client
+keypair to authenticate the client to `dcrwallet`.  The server certificate by
+default will be found in `~/.dcrwallet/rpc.cert`, and this can be modified to
+another path using the `--walletgrpccert` flag.  Client certs can be generated
+using [`gencerts`](https://github.com/decred/dcrd/blob/master/cmd/gencerts/)
+and `pictl` will read `client.pem` and `client-key.pem` from its
+application directory by default.  The certificate (`client.pem`) must be
+appended to `~/.dcrwallet/clients.pem` in order for `dcrwallet` to trust the
+client.
+
+For example:
+
+```
+$ gencerts ~/.pictl/client{,-key}.pem
+$ cat ~/.pictl/client.pem >> ~/.dcrwallet/clients.pem
+```
 
 # Reference implementation
 

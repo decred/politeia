@@ -20,7 +20,7 @@ import (
 )
 
 // ErrorReply represents the request body that is returned from politeiawww
-// when an error occurs. PluginID will only be populated if the error occured
+// when an error occurs. PluginID will only be populated if the error occurred
 // during execution of a plugin command.
 type ErrorReply struct {
 	PluginID     string

@@ -83,7 +83,7 @@ func (c *cmdProposals) Execute(args []string) error {
 // proposalsHelpMsg is printed to stdout by the help command.
 const proposalsHelpMsg = `proposals [flags] "tokens..."
 
-Retrive the proposals for the provided tokens. The proposal index file and the
+Retrieve the proposals for the provided tokens. The proposal index file and the
 proposal attachments are not returned from this command. Use the proposal
 details command if you are trying to retieve the full proposal.
 

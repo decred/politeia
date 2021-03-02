@@ -13,7 +13,7 @@ import (
 
 // Regexp returns a compiled Regexp for the provided parameters.
 func Regexp(supportedChars []string, lengthMin, lengthMax uint64) (*regexp.Regexp, error) {
-	// Match begining of string
+	// Match beginning of string
 	var b bytes.Buffer
 	b.WriteString("^")
 

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -54,6 +55,9 @@ func (p *politeiawww) proposal(ctx context.Context, token, version string) (*www
 	// Fill in user data
 	userID := userIDFromMetadataStreams(r.Metadata)
 	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
 	u, err := p.db.UserGetById(uid)
 	if err != nil {
 		return nil, err
@@ -90,6 +94,9 @@ func (p *politeiawww) proposals(ctx context.Context, reqs []pdv1.RecordRequest) 
 		// Fill in user data
 		userID := userIDFromMetadataStreams(v.Metadata)
 		uid, err := uuid.Parse(userID)
+		if err != nil {
+			return nil, err
+		}
 		u, err := p.db.UserGetById(uid)
 		if err != nil {
 			return nil, err
@@ -186,9 +193,7 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
 	log.Tracef("processAllVetted: %v %v", gav.Before, gav.After)
 
-	// TODO
-
-	return nil, nil
+	return nil, fmt.Errorf("not implemented yet")
 }
 
 func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {

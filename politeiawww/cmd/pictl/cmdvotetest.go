@@ -73,7 +73,7 @@ func (c *cmdVoteTest) Execute(args []string) error {
 			start := time.Now()
 			err := castBallot(token, voteOption, password)
 			if err != nil {
-				fmt.Printf("castBallot %v: %v", token, err)
+				fmt.Printf("castBallot %v: %v\n", token, err)
 			}
 			end := time.Now()
 			elapsed := end.Sub(start)

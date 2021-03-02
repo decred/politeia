@@ -84,7 +84,7 @@ func (p *Pi) processProposals(ctx context.Context, ps v1.Proposals, u *user.User
 		}
 	}
 
-	// Setup record requests. We don't retreive any index files or
+	// Setup record requests. We don't retrieve any index files or
 	// attachment files in order to keep the payload size minimal.
 	reqs := make([]pdv1.RecordRequest, 0, len(ps.Tokens))
 	for _, v := range ps.Tokens {

@@ -43,7 +43,7 @@ func NewHTTPClient(skipVerify bool, certPath string) (*http.Client, error) {
 		}
 		certPool, err := x509.SystemCertPool()
 		if err != nil {
-			fmt.Printf("WARN: unable to get system cert pool: %v\n")
+			fmt.Printf("WARN: unable to get system cert pool: %v\n", err)
 			certPool = x509.NewCertPool()
 		}
 		certPool.AppendCertsFromPEM(cert)
@@ -88,7 +88,7 @@ func ParseGetParams(r *http.Request, dst interface{}) error {
 	return schema.NewDecoder().Decode(dst, r.Form)
 }
 
-// RespBody returns the reponse body as a byte slice.
+// RespBody returns the response body as a byte slice.
 func RespBody(r *http.Response) []byte {
 	var mw io.Writer
 	var body bytes.Buffer

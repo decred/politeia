@@ -1434,7 +1434,7 @@ func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 			default:
-				// Unkown error. Log is as an internal server error and
+				// Unknown error. Log is as an internal server error and
 				// respond with a server error.
 				t := time.Now().Unix()
 				log.Errorf("%v %v: batched plugin cmd failed: pluginID:%v "+

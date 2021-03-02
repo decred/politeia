@@ -1451,7 +1451,7 @@ func (t *tstoreBackend) GetUnvettedBatch(reqs []backend.RecordRequest) (map[stri
 				// in the reply.
 				continue
 			}
-			// An unexpected error occured. Log it and continue.
+			// An unexpected error occurred. Log it and continue.
 			log.Debug("RecordPartial %v: %v", treeID, err)
 			continue
 		}
@@ -1503,7 +1503,7 @@ func (t *tstoreBackend) GetVettedBatch(reqs []backend.RecordRequest) (map[string
 				// in the reply.
 				continue
 			}
-			// An unexpected error occured. Log it and continue.
+			// An unexpected error occurred. Log it and continue.
 			log.Debug("RecordPartial %v: %v", treeID, err)
 			continue
 		}

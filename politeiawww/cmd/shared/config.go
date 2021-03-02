@@ -55,7 +55,6 @@ type Config struct {
 	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
 	Silent      bool   `long:"silent" description:"Suppress all output"`
 
-	// TODO add docs for this to the piwww README
 	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
 	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 

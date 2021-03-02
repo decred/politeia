@@ -22,6 +22,20 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+const (
+	testSessionMaxAge = 86400 // One day
+)
+
+func newSessionOptions() *sessions.Options {
+	return &sessions.Options{
+		Path:     "/",
+		MaxAge:   testSessionMaxAge,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+}
+
 // newPostReq returns an httptest post request that was created using the
 // passed in data.
 func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
@@ -44,7 +58,7 @@ func addSessionToReq(t *testing.T, p *politeiawww, req *http.Request, userID str
 	// Init session adds a session cookie onto the http response.
 	r := httptest.NewRequest(http.MethodGet, "/", bytes.NewReader([]byte{}))
 	w := httptest.NewRecorder()
-	err := p.initSession(w, r, userID)
+	err := p.sessions.NewSession(w, r, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +77,7 @@ func addSessionToReq(t *testing.T, p *politeiawww, req *http.Request, userID str
 	req.AddCookie(c)
 
 	// Verify the session was added successfully.
-	s, err := p.getSession(req)
+	s, err := p.sessions.GetSession(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +426,7 @@ func TestHandleLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	successReply.SessionMaxAge = sessionMaxAge
+	successReply.SessionMaxAge = testSessionMaxAge
 
 	// Setup tests
 	var tests = []struct {
@@ -492,7 +506,7 @@ func TestHandleLogin(t *testing.T) {
 				opts := newSessionOptions()
 				c := sessions.NewCookie(www.CookieSession, sessionID, opts)
 				req.AddCookie(c)
-				s, err := p.getSession(req)
+				s, err := p.sessions.GetSession(req)
 				if err != nil {
 					t.Error(err)
 				}
@@ -956,7 +970,7 @@ func TestHandleUserDetails(t *testing.T) {
 
 			// Initialize the user session
 			if v.loggedIn {
-				err := p.initSession(w, r, usr.ID.String())
+				err := p.sessions.NewSession(w, r, usr.ID.String())
 				if err != nil {
 					t.Fatalf("%v", err)
 				}

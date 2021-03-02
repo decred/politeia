@@ -311,9 +311,7 @@ func (p *politeiawww) getPluginInventory() ([]pdv1.Plugin, error) {
 			time.Sleep(sleepInterval)
 			continue
 		}
-		for _, v := range pi {
-			plugins = append(plugins, v)
-		}
+		plugins = append(plugins, pi...)
 
 		done = true
 	}

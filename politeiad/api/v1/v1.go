@@ -619,7 +619,7 @@ type PluginCommandReplyV2 struct {
 	// before the plugin command could be executed.
 	UserError *UserErrorReply `json:"usererror,omitempty"`
 
-	// PluginError will be populated if a plugin error occured during
+	// PluginError will be populated if a plugin error occurred during
 	// plugin command execution. These errors will be specific to the
 	// plugin.
 	PluginError *PluginErrorReply `json:"pluginerror,omitempty"`
@@ -663,7 +663,7 @@ type GetUnvettedBatch struct {
 }
 
 // GetUnvettedBatchReply is the reply to the GetUnvettedBatch command. If a
-// record was not found or an error occured while retrieving it the token will
+// record was not found or an error occurred while retrieving it the token will
 // not be included in the returned map.
 type GetUnvettedBatchReply struct {
 	Response string            `json:"response"` // Challenge response
@@ -677,7 +677,7 @@ type GetVettedBatch struct {
 }
 
 // GetVettedBatchReply is the reply to the GetVettedBatch command. If a record
-// was not found or an error occured while retrieving it the token will not be
+// was not found or an error occurred while retrieving it the token will not be
 // included in the returned map.
 type GetVettedBatchReply struct {
 	Response string            `json:"response"` // Challenge response

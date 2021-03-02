@@ -17,10 +17,6 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 )
 
-// TODO prevent duplicate comments
-// TODO upvoting a comment twice in the same second causes a duplicate leaf
-// error which causes a 500. Solution: add the timestamp to the vote index.
-
 var (
 	_ plugins.PluginClient = (*commentsPlugin)(nil)
 )

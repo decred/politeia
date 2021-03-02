@@ -574,7 +574,7 @@ func (p *Pi) ntfnVoteStarted(sd tkv1.StartDetails, eventUser user.User, authorID
 			return
 		case u.ID.String() == authorID:
 			// Don't send the notification to the author. They are sent a
-			// seperate notification.
+			// separate notification.
 			return
 		case !u.NotificationIsEnabled(ntfnBit):
 			// User does not have notification bit set
