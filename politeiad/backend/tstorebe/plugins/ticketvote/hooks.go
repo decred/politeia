@@ -330,13 +330,13 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 	switch newStatus {
 	case backend.MDStatusVetted:
 		// Add to inventory
-		p.InventoryAdd(srs.RecordMetadata.Token,
+		p.inventoryAdd(srs.RecordMetadata.Token,
 			ticketvote.VoteStatusUnauthorized)
 	case backend.MDStatusCensored, backend.MDStatusArchived:
 		// These statuses do not allow for a vote. Mark as ineligible.
 		// We only need to do this if the record is vetted.
 		if oldStatus == backend.MDStatusVetted {
-			p.InventoryUpdate(srs.RecordMetadata.Token,
+			p.inventoryUpdate(srs.RecordMetadata.Token,
 				ticketvote.VoteStatusIneligible)
 		}
 	}

@@ -237,9 +237,9 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	return inv, nil
 }
 
-// InventoryAdd is a wrapper around the invAdd method that allows us to decide
+// inventoryAdd is a wrapper around the invAdd method that allows us to decide
 // how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) InventoryAdd(token string, s ticketvote.VoteStatusT) {
+func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
 	err := p.invAdd(token, s)
 	if err != nil {
 		e := fmt.Sprintf("invAdd %v %v: %v", token, s, err)
@@ -247,9 +247,9 @@ func (p *ticketVotePlugin) InventoryAdd(token string, s ticketvote.VoteStatusT) 
 	}
 }
 
-// InventoryUpdate is a wrapper around the invUpdate method that allows us to
+// inventoryUpdate is a wrapper around the invUpdate method that allows us to
 // decide how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) InventoryUpdate(token string, s ticketvote.VoteStatusT) {
+func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
 	err := p.invUpdate(token, s, 0)
 	if err != nil {
 		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
@@ -257,10 +257,10 @@ func (p *ticketVotePlugin) InventoryUpdate(token string, s ticketvote.VoteStatus
 	}
 }
 
-// InventoryUpdateToStarted is a wrapper around the invUpdate method that
+// inventoryUpdateToStarted is a wrapper around the invUpdate method that
 // allows us to decide how disk read/write errors should be handled. For now we
 // just panic.
-func (p *ticketVotePlugin) InventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
+func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
 	err := p.invUpdate(token, s, endHeight)
 	if err != nil {
 		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
@@ -347,9 +347,9 @@ func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invBySta
 	}, nil
 }
 
-// InventoryByStatus returns a page of tokens for the provided status. If no
+// inventoryByStatus returns a page of tokens for the provided status. If no
 // status is provided then a page for each status will be returned.
-func (p *ticketVotePlugin) InventoryByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
+func (p *ticketVotePlugin) inventoryByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
 	pageSize := ticketvote.InventoryPageSize
 
 	// If no status is provided a page of tokens for each status should

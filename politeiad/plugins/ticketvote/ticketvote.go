@@ -20,15 +20,32 @@ const (
 	CmdSubmissions = "submissions" // Get runoff vote submissions
 	CmdInventory   = "inventory"   // Get inventory by vote status
 	CmdTimestamps  = "timestamps"  // Get vote data timestamps
+)
 
-	// Setting keys are the plugin setting keys that can be used to
-	// override a default plugin setting. Defaults will be overridden
-	// if a plugin setting is provided to the plugin on startup.
+// Plugin setting keys can be used to specify custom plugin settings. Default
+// plugin setting values can be overridden by providing a plugin setting key
+// and value to the plugin on startup.
+const (
+	// SettingKeyLinkByPeriodMin is the plugin setting key for the link
+	// by period min plugin setting.
 	SettingKeyLinkByPeriodMin = "linkbyperiodmin"
-	SettingKeyLinkByPeriodMax = "linkbyperiodmax"
-	SettingKeyVoteDurationMin = "votedurationmin"
-	SettingKeyVoteDurationMax = "votedurationmax"
 
+	// SettingKeyLinkByPeriodMax is the plugin setting key for the link
+	// by period max plugin setting.
+	SettingKeyLinkByPeriodMax = "linkbyperiodmax"
+
+	// SettingKeyVoteDurationMin is the plugin setting key for the vote
+	// duration min plugin setting.
+	SettingKeyVoteDurationMin = "votedurationmin"
+
+	// SettingKeyVoteDurationMax is the plugin setting key for the vote
+	// duration max plugin setting.
+	SettingKeyVoteDurationMax = "votedurationmax"
+)
+
+// Plugin setting default values. These can be overridden by providing a plugin
+// setting key and value to the plugin on startup.
+const (
 	// SettingMainNetLinkByPeriodMin is the default minimum amount of
 	// time, in seconds, that the link by period can be set to. This
 	// value of 2 weeks was chosen assuming a 1 week voting period on
@@ -73,43 +90,114 @@ const (
 type ErrorCodeT int
 
 const (
-	ErrorCodeInvalid                 ErrorCodeT = 0
-	ErrorCodeTokenInvalid            ErrorCodeT = 1
-	ErrorCodePublicKeyInvalid        ErrorCodeT = 2
-	ErrorCodeSignatureInvalid        ErrorCodeT = 3
-	ErrorCodeRecordVersionInvalid    ErrorCodeT = 4
-	ErrorCodeRecordStatusInvalid     ErrorCodeT = 5
-	ErrorCodeAuthorizationInvalid    ErrorCodeT = 6
-	ErrorCodeStartDetailsMissing     ErrorCodeT = 7
-	ErrorCodeStartDetailsInvalid     ErrorCodeT = 8
-	ErrorCodeVoteParamsInvalid       ErrorCodeT = 9
-	ErrorCodeVoteStatusInvalid       ErrorCodeT = 10
-	ErrorCodeVoteMetadataInvalid     ErrorCodeT = 11
-	ErrorCodeLinkByInvalid           ErrorCodeT = 12
-	ErrorCodeLinkToInvalid           ErrorCodeT = 13
-	ErrorCodeRunoffVoteParentInvalid ErrorCodeT = 14
-	ErrorCodeLinkByNotExpired        ErrorCodeT = 15
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeTokenInvalid is returned when a record token is
+	// provided as part of a plugin command payload and is not a valid
+	// token or the payload token does not match the token that was
+	// used in the API request.
+	ErrorCodeTokenInvalid ErrorCodeT = 1
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is not
+	// a valid hex encoded, Ed25519 public key.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 2
+
+	// ErrorCodeSignatureInvalid is returned when a signature is not
+	// a valid hex encoded, Ed25519 signature or when the signature is
+	// wrong.
+	ErrorCodeSignatureInvalid ErrorCodeT = 3
+
+	// ErrorCodeRecordVersionInvalid is returned when the record
+	// version used in a plugin command is not the most recent record
+	// version.
+	ErrorCodeRecordVersionInvalid ErrorCodeT = 4
+
+	// ErrorCodeAuthorizationInvalid is returned when a vote
+	// authorization is invalid.
+	ErrorCodeAuthorizationInvalid ErrorCodeT = 5
+
+	// ErrorCodeStartDetailsMissing is returned when a start command
+	// is missing one or more of the start details that it expects to
+	// be present.
+	ErrorCodeStartDetailsMissing ErrorCodeT = 6
+
+	// ErrorCodeStartDetailsInvalid is returned when a start command
+	// contains a start details that is not suppose to be included.
+	ErrorCodeStartDetailsInvalid ErrorCodeT = 7
+
+	// ErrorCodeVoteTypeInvalid is returned when a start details vote
+	// type is invalid.
+	ErrorCodeVoteTypeInvalid ErrorCodeT = 8
+
+	// ErrorCodeVoteDurationInvalid is returned when a start details
+	// vote duration is invalid.
+	ErrorCodeVoteDurationInvalid ErrorCodeT = 9
+
+	// ErrorCodeVoteQuorumInvalid is returned when a start details
+	// quorum percentage is invalid.
+	ErrorCodeVoteQuorumInvalid ErrorCodeT = 10
+
+	// ErrorCodeVotePassRateInvalid is returned when a start details
+	// pass percentage is invalid.
+	ErrorCodeVotePassRateInvalid ErrorCodeT = 11
+
+	// ErrorCodeVoteOptionsInvalid is returned when a start details
+	// vote options are invalid.
+	ErrorCodeVoteOptionsInvalid ErrorCodeT = 12
+
+	// ErrorCodeVoteBitsInvalid is returned when a vote bit or the mask
+	// of a start details is invalid.
+	ErrorCodeVoteBitsInvalid ErrorCodeT = 13
+
+	// ErrorCodeVoteParentInvalid is returned when a parent record
+	// of a runoff submission's start details is invalid.
+	ErrorCodeVoteParentInvalid ErrorCodeT = 14
+
+	// ErrorCodeVoteStatusInvalid is returned when the record's vote
+	// status does not allow for the command to be executed.
+	ErrorCodeVoteStatusInvalid ErrorCodeT = 15
+
+	// ErrorCodeVoteMetadataInvalid is returned when vote metadata
+	// attached to a record is invalid.
+	ErrorCodeVoteMetadataInvalid ErrorCodeT = 16
+
+	// ErrorCodeLinkByInvalid is returned when a vote metadata link by
+	// is invalid.
+	ErrorCodeLinkByInvalid ErrorCodeT = 17
+
+	// ErrorCodeLinkToInvalid is returned when a vote metadata link to
+	// is invalid.
+	ErrorCodeLinkToInvalid ErrorCodeT = 18
+
+	// ErrorCodeLinkByNotExpired is returned when a runoff vote is
+	// attempted to be started before the link by deadline has expired.
+	ErrorCodeLinkByNotExpired ErrorCodeT = 19
 )
 
 var (
 	// ErrorCodes contains the human readable error messages.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:                 "error code invalid",
-		ErrorCodeTokenInvalid:            "token invalid",
-		ErrorCodePublicKeyInvalid:        "public key invalid",
-		ErrorCodeSignatureInvalid:        "signature invalid",
-		ErrorCodeRecordVersionInvalid:    "record version invalid",
-		ErrorCodeRecordStatusInvalid:     "record status invalid",
-		ErrorCodeAuthorizationInvalid:    "authorization invalid",
-		ErrorCodeStartDetailsMissing:     "start details missing",
-		ErrorCodeStartDetailsInvalid:     "start details invalid",
-		ErrorCodeVoteParamsInvalid:       "vote params invalid",
-		ErrorCodeVoteStatusInvalid:       "vote status invalid",
-		ErrorCodeVoteMetadataInvalid:     "vote metadata invalid",
-		ErrorCodeLinkByInvalid:           "linkby invalid",
-		ErrorCodeLinkToInvalid:           "linkto invalid",
-		ErrorCodeRunoffVoteParentInvalid: "runoff vote parent invalid",
-		ErrorCodeLinkByNotExpired:        "linkby not exipred",
+		ErrorCodeInvalid:              "error code invalid",
+		ErrorCodeTokenInvalid:         "token invalid",
+		ErrorCodePublicKeyInvalid:     "public key invalid",
+		ErrorCodeSignatureInvalid:     "signature invalid",
+		ErrorCodeRecordVersionInvalid: "record version invalid",
+		ErrorCodeAuthorizationInvalid: "authorization invalid",
+		ErrorCodeStartDetailsMissing:  "start details missing",
+		ErrorCodeStartDetailsInvalid:  "start details invalid",
+		ErrorCodeVoteTypeInvalid:      "vote type invalid",
+		ErrorCodeVoteDurationInvalid:  "vote duration invalid",
+		ErrorCodeVoteQuorumInvalid:    "quorum percentage invalid",
+		ErrorCodeVotePassRateInvalid:  "pass rate invalid",
+		ErrorCodeVoteOptionsInvalid:   "vote options invalid",
+		ErrorCodeVoteBitsInvalid:      "vote bits invalid",
+		ErrorCodeVoteParentInvalid:    "vote parent invalid",
+		ErrorCodeVoteStatusInvalid:    "vote status invalid",
+		ErrorCodeVoteMetadataInvalid:  "vote metadata invalid",
+		ErrorCodeLinkByInvalid:        "linkby invalid",
+		ErrorCodeLinkToInvalid:        "linkto invalid",
+		ErrorCodeLinkByNotExpired:     "linkby not exipred",
 	}
 )
 
