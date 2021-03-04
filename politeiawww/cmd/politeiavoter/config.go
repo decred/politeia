@@ -79,10 +79,10 @@ type config struct {
 	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication (default: client.pem)"`
 	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key (default: client-key.pem)"`
 
-	voteDir      string
-	dial         func(string, string) (net.Conn, error)
-	voteDuration time.Duration // Parsed VoteDuration
-	blocksPerDay uint64
+	voteDir       string
+	dial          func(string, string) (net.Conn, error)
+	voteDuration  time.Duration // Parsed VoteDuration
+	blocksPerHour uint64
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -359,8 +359,7 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Calculate blocks per day
-	cfg.blocksPerDay = uint64(24 * time.Hour /
-		activeNetParams.TargetTimePerBlock)
+	cfg.blocksPerHour = uint64(time.Hour / activeNetParams.TargetTimePerBlock)
 
 	// Determine default connections
 	if cfg.PoliteiaWWW == "" {
