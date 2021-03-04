@@ -17,10 +17,6 @@ import (
 func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
 	votes := len(ctres.TicketAddresses)
 	duration := c.cfg.voteDuration
-	//maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
-	//minAvgInterval := uint64(35)
-	//votes := 10
-	//duration := time.Hour * 24 * 3
 	voteDuration := duration - time.Hour
 	if voteDuration < time.Hour {
 		return fmt.Errorf("not enough time left to trickle votes")
@@ -40,20 +36,8 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 	}
 	sort.Slice(ts, func(i, j int) bool { return ts[i] < ts[j] })
 	var previous, t time.Duration
-	//for k := range ts {
-	//	fmt.Printf("  %v: %v - %v = %v\n", k, time.Duration(ts[k]), previous,
-	//		ts[k]-previous)
-	//	t += ts[k] - previous
-	//	previous = ts[k]
-	//}
-	//fmt.Printf("t %v\n", t)
-	//if t > voteDuration {
-	//	panic("x")
-	//}
-	//return nil
 
 	buckets := make([]*voteInterval, votes)
-	//previous = 0
 	for k := range ts {
 		// Assemble missing vote bits
 		h, err := chainhash.NewHash(ctres.TicketAddresses[k].Ticket)
@@ -74,6 +58,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 		t += ts[k] - previous
 		previous = ts[k]
 	}
+
 	// Should not happen
 	if t > voteDuration {
 		return fmt.Errorf("assert t > voteDuration - %v > %v",
