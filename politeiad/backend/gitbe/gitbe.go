@@ -1281,7 +1281,7 @@ func (g *gitBackEnd) populateTokenPrefixCache() error {
 func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 	TRIES := 1000
 	for i := 0; i < TRIES; i++ {
-		token, err := util.Random(pd.TokenSizeGit)
+		token, err := util.Random(pd.TokenSize)
 		if err != nil {
 			return nil, err
 		}
@@ -2428,34 +2428,6 @@ func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, e
 	return g.getRecordLock(token, version, g.vetted, true)
 }
 
-// GetUnvettedBatch is not implemented.
-//
-// This function satisfies the Backend interface.
-func (g *gitBackEnd) GetUnvettedBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// GetVettedBatch is not implemented.
-//
-// This function satisfies the Backend interface.
-func (g *gitBackEnd) GetVettedBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// GetUnvettedTimestamps is not implemented.
-//
-// This function satisfies the Backend interface.
-func (g *gitBackEnd) GetUnvettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// GetVettedTimestamps is not implemented.
-//
-// This function satisfies the Backend interface.
-func (g *gitBackEnd) GetVettedTimestamps(token []byte, version string) (*backend.RecordTimestamps, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
 // getVettedMetadataStream returns a byte slice of the given metadata stream.
 //
 // This function must be called with the read lock held.
@@ -2823,98 +2795,41 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 // execute.
 //
 // Plugin satisfies the backend interface.
-func (g *gitBackEnd) Plugin(pluginID, command, commandID, payload string) (string, error) {
+func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v", command)
 	switch command {
-	// Decred plugin
 	case decredplugin.CmdBestBlock:
-		return g.pluginBestBlock()
+		payload, err := g.pluginBestBlock()
+		return decredplugin.CmdBestBlock, payload, err
 	case decredplugin.CmdNewComment:
-		return g.pluginNewComment(payload)
+		payload, err := g.pluginNewComment(payload)
+		return decredplugin.CmdNewComment, payload, err
 	case decredplugin.CmdCensorComment:
-		return g.pluginCensorComment(payload)
+		payload, err := g.pluginCensorComment(payload)
+		return decredplugin.CmdCensorComment, payload, err
 	case decredplugin.CmdGetComments:
-		return g.pluginGetComments(payload)
-
-	// CMS plugin
+		payload, err := g.pluginGetComments(payload)
+		return decredplugin.CmdGetComments, payload, err
 	case cmsplugin.CmdInventory:
-		return g.pluginCMSInventory()
+		payload, err := g.pluginCMSInventory()
+		return cmsplugin.CmdInventory, payload, err
 	case cmsplugin.CmdStartVote:
-		return g.pluginStartDCCVote(payload)
+		payload, err := g.pluginStartDCCVote(payload)
+		return cmsplugin.CmdStartVote, payload, err
 	case cmsplugin.CmdCastVote:
-		return g.pluginCastVote(payload)
+		payload, err := g.pluginCastVote(payload)
+		return cmsplugin.CmdCastVote, payload, err
 	case cmsplugin.CmdDCCVoteResults:
-		return g.pluginDCCVoteResults(payload)
+		payload, err := g.pluginDCCVoteResults(payload)
+		return cmsplugin.CmdDCCVoteResults, payload, err
 	case cmsplugin.CmdVoteDetails:
-		return g.pluginDCCVoteDetails(payload)
+		payload, err := g.pluginDCCVoteDetails(payload)
+		return cmsplugin.CmdVoteDetails, payload, err
 	case cmsplugin.CmdVoteSummary:
-		return g.pluginDCCVoteSummary(payload)
+		payload, err := g.pluginDCCVoteSummary(payload)
+		return cmsplugin.CmdVoteSummary, payload, err
 	}
-
-	return "", fmt.Errorf("invalid payload command")
-}
-
-// InventoryByStatus has not been not implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) InventoryByStatus(state string, s backend.MDStatusT, pageSize, page uint32) (*backend.InventoryByStatus, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// RegisterUnvettedPlugin has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) RegisterUnvettedPlugin(p backend.Plugin) error {
-	return fmt.Errorf("not implemented")
-}
-
-// RegisterVettedPlugin has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) RegisterVettedPlugin(p backend.Plugin) error {
-	return fmt.Errorf("not implemented")
-}
-
-// SetupUnvettedPlugin has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) SetupUnvettedPlugin(pluginID string) error {
-	return fmt.Errorf("not implemented")
-}
-
-// SetupVettedPlugin has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) SetupVettedPlugin(pluginID string) error {
-	return fmt.Errorf("not implemented")
-}
-
-// UnvettedPluginCmd has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) UnvettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-// VettedPluginCmd has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) VettedPluginCmd(action string, token []byte, pluginID, cmd, payload string) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-
-// GetUnvettedPlugins has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) GetUnvettedPlugins() []backend.Plugin {
-	return []backend.Plugin{}
-}
-
-// GetVettedPlugins has not been implemented.
-//
-// This function satisfies the backend.Backend interface.
-func (g *gitBackEnd) GetVettedPlugins() []backend.Plugin {
-	return []backend.Plugin{}
+	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown

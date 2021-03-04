@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 )
 
 var (
@@ -21,9 +22,9 @@ var (
 func TokenIsFullLength(tokenType string, token []byte) bool {
 	switch tokenType {
 	case TokenTypeTstore:
-		return len(token) == pdv1.TokenSizeTstore
+		return len(token) == pdv2.TokenSize
 	case TokenTypeGit:
-		return len(token) == pdv1.TokenSizeGit
+		return len(token) == pdv1.TokenSize
 	default:
 		panic("invalid token type")
 	}

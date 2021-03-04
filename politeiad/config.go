@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	v1 "github.com/decred/dcrtime/api/v1"
-	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -44,12 +44,10 @@ const (
 	backendTstore  = "tstore"
 	defaultBackend = backendTstore
 
-	defaultTrillianHostUnvetted = "localhost:8090"
-	defaultTrillianHostVetted   = "localhost:8094"
-
-	// Database defaults
-	defaultDBType = tstore.DBTypeLevelDB
-	defaultDBHost = "127.0.0.1:3306" // MySQL default host
+	// Tstore default settings
+	defaultTrillianHost = "localhost:8090"
+	defaultDBType       = tstore.DBTypeLevelDB
+	defaultDBHost       = "127.0.0.1:3306" // MySQL default host
 )
 
 var (
@@ -94,10 +92,9 @@ type config struct {
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
 	// TODO validate these config params
-	Backend              string `long:"backend"`
-	TrillianHostUnvetted string `long:"trillianhostunvetted"`
-	TrillianHostVetted   string `long:"trillianhostvetted"`
-	TrillianSigningKey   string `long:"trilliansigningkey"`
+	Backend            string `long:"backend"`
+	TrillianHost       string `long:"trillianhost"`
+	TrillianSigningKey string `long:"trilliansigningkey"`
 
 	DBType          string `long:"dbtype" description:"Database type"`
 	DBHost          string `long:"dbhost" description:"Database ip:port"`
@@ -247,19 +244,18 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:              defaultHomeDir,
-		ConfigFile:           defaultConfigFile,
-		DebugLevel:           defaultLogLevel,
-		DataDir:              defaultDataDir,
-		LogDir:               defaultLogDir,
-		HTTPSKey:             defaultHTTPSKeyFile,
-		HTTPSCert:            defaultHTTPSCertFile,
-		Version:              version.String(),
-		Backend:              defaultBackend,
-		TrillianHostUnvetted: defaultTrillianHostUnvetted,
-		TrillianHostVetted:   defaultTrillianHostVetted,
-		DBType:               defaultDBType,
-		DBHost:               defaultDBHost,
+		HomeDir:      defaultHomeDir,
+		ConfigFile:   defaultConfigFile,
+		DebugLevel:   defaultLogLevel,
+		DataDir:      defaultDataDir,
+		LogDir:       defaultLogDir,
+		HTTPSKey:     defaultHTTPSKeyFile,
+		HTTPSCert:    defaultHTTPSCertFile,
+		Version:      version.String(),
+		Backend:      defaultBackend,
+		TrillianHost: defaultTrillianHost,
+		DBType:       defaultDBType,
+		DBHost:       defaultDBHost,
 	}
 
 	// Service options which are only added on Windows.

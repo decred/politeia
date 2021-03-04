@@ -57,7 +57,7 @@ var (
 	userdbLog   = backendLog.Logger("USER")
 	sessionsLog = backendLog.Logger("SESS")
 	eventsLog   = backendLog.Logger("EVNT")
-	apiLog      = backendLog.Logger("PAPI")
+	apiLog      = backendLog.Logger("APIS")
 
 	// CMS loggers
 	cmsdbLog         = backendLog.Logger("CMDB")
@@ -95,7 +95,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"SESS": sessionsLog,
 	"EVNT": eventsLog,
 	"USER": userdbLog,
-	"PAPI": apiLog,
+	"APIS": apiLog,
 	"CMDB": cmsdbLog,
 	"WSDD": wsdcrdataLog,
 	"GHTR": githubTrackerLog,

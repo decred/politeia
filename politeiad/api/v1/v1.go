@@ -30,26 +30,18 @@ const (
 	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
 	GetUnvettedRoute            = "/v1/getunvetted/"      // Get unvetted record
 	GetVettedRoute              = "/v1/getvetted/"        // Get vetted record
-	GetUnvettedBatchRoute       = "/v1/getunvettedbatch/" // Get unvetted records
-	GetVettedBatchRoute         = "/v1/getvettedbatch/"   // Get vetted records
-	GetUnvettedTimestampsRoute  = "/v1/getunvettedts/"    // Get unvetted timestamps
-	GetVettedTimestampsRoute    = "/v1/getvettedts/"      // Get vetted timestamps
-	InventoryByStatusRoute      = "/v1/inventorybystatus/"
 
 	// Auth required
-	InventoryRoute          = "/v1/inventory/"         // Inventory records
-	SetUnvettedStatusRoute  = "/v1/setunvettedstatus/" // Set unvetted status
-	SetVettedStatusRoute    = "/v1/setvettedstatus/"   // Set vetted status
-	PluginCommandRoute      = "/v1/plugin/"            // Send a command to a plugin
-	PluginCommandBatchRoute = "/v1/plugin/batch"       // Send commands to plugins
-	PluginInventoryRoute    = "/v1/plugin/inventory/"  // Inventory all plugins
+	InventoryRoute         = "/v1/inventory/"         // Inventory records
+	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
+	SetVettedStatusRoute   = "/v1/setvettedstatus/"   // Set vetted status
+	PluginCommandRoute     = "/v1/plugin/"            // Send a command to a plugin
+	PluginInventoryRoute   = "/v1/plugin/inventory/"  // Inventory all plugins
 
 	ChallengeSize = 32 // Size of challenge token in bytes
 
-	// Token sizes. The size of the token depends on the politeiad
-	// backend configuration.
-	TokenSizeTstore = 8
-	TokenSizeGit    = 32
+	// TokenSize is the size of a censorship record token in bytes.
+	TokenSize = 32
 
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
@@ -71,11 +63,8 @@ const (
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 	ErrorStatusRecordFound                   ErrorStatusT = 15
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
-	ErrorStatusRecordNotFound                ErrorStatusT = 17
-	ErrorStatusInvalidToken                  ErrorStatusT = 18
-	ErrorStatusRecordLocked                  ErrorStatusT = 19
-	ErrorStatusInvalidRecordState            ErrorStatusT = 20
-	ErrorStatusInvalidPluginAction           ErrorStatusT = 21
+	ErrorStatusInvalidToken                  ErrorStatusT = 17
+	ErrorStatusRecordNotFound                ErrorStatusT = 18
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -113,12 +102,8 @@ var (
 		ErrorStatusDuplicateFilename:             "duplicate filename",
 		ErrorStatusFileNotFound:                  "file not found",
 		ErrorStatusNoChanges:                     "no changes in record",
-		ErrorStatusRecordFound:                   "record found",
-		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
 		ErrorStatusInvalidToken:                  "invalid token",
-		ErrorStatusRecordLocked:                  "record locked",
-		ErrorStatusInvalidRecordState:            "invalid record state",
-		ErrorStatusInvalidPluginAction:           "invalid plugin action",
+		ErrorStatusRecordNotFound:                "record not found",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
@@ -229,9 +214,8 @@ type File struct {
 
 // MetadataStream identifies a metadata stream by its identity.
 type MetadataStream struct {
-	PluginID string `json:"pluginid,omitempty"` // Plugin identity
-	ID       uint64 `json:"id"`                 // Stream identity
-	Payload  string `json:"payload"`            // String encoded metadata
+	ID      uint64 `json:"id"`      // Stream identity
+	Payload string `json:"payload"` // String encoded metadata
 }
 
 // Record is an entire record and it's content.
@@ -258,8 +242,8 @@ type NewRecord struct {
 // NewRecordReply returns the CensorshipRecord that is associated with a valid
 // record.  A valid record is not always going to be published.
 type NewRecordReply struct {
-	Response         string           `json:"response"`         // Challenge response
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"` // Censorship record
+	Response         string           `json:"response"` // Challenge response
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
 // GetUnvetted requests an unvetted record from the server.
@@ -371,76 +355,6 @@ type UpdateUnvettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
-// Proof contains an inclusion proof for the digest in the merkle root. All
-// digests are hex encoded SHA256 digests.
-//
-// The ExtraData field is used by certain types of proofs to include additional
-// data that is required to validate the proof.
-type Proof struct {
-	Type       string   `json:"type"`
-	Digest     string   `json:"digest"`
-	MerkleRoot string   `json:"merkleroot"`
-	MerklePath []string `json:"merklepath"`
-	ExtraData  string   `json:"extradata"` // JSON encoded
-}
-
-// Timestamp contains all of the data required to verify that a piece of record
-// content was timestamped onto the decred blockchain.
-//
-// All digests are hex encoded SHA256 digests. The merkle root can be found in
-// the OP_RETURN of the specified DCR transaction.
-//
-// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
-// been included in a DCR tx and the tx has 6 confirmations. The Data field
-// will not be populated if the data has been censored.
-type Timestamp struct {
-	Data       string  `json:"data"` // JSON encoded
-	Digest     string  `json:"digest"`
-	TxID       string  `json:"txid"`
-	MerkleRoot string  `json:"merkleroot"`
-	Proofs     []Proof `json:"proofs"`
-}
-
-// RecordTimestamps contains a Timestamp for all record files
-type RecordTimestamps struct {
-	Token          string    `json:"token"`   // Censorship token
-	Version        string    `json:"version"` // Version of files
-	RecordMetadata Timestamp `json:"recordmetadata"`
-
-	// map[pluginID+metadataID]Timestamp
-	Metadata map[string]Timestamp `json:"metadata"`
-
-	// map[filename]Timestamp
-	Files map[string]Timestamp `json:"files"`
-}
-
-// GetUnvettedTimestamps requests the timestamps for an unvetted record.
-type GetUnvettedTimestamps struct {
-	Challenge string `json:"challenge"` // Random challenge
-	Token     string `json:"token"`     // Censorship token
-	Version   string `json:"version"`   // Record version
-}
-
-// GetUnvettedTimestampsReply is the reply to the GetUnvettedTimestamps
-// command.
-type GetUnvettedTimestampsReply struct {
-	Response         string           `json:"response"` // Challenge response
-	RecordTimestamps RecordTimestamps `json:"timestamp"`
-}
-
-// GetVettedTimestamps requests the timestamps for a vetted record.
-type GetVettedTimestamps struct {
-	Challenge string `json:"challenge"` // Random challenge
-	Token     string `json:"token"`     // Censorship token
-	Version   string `json:"version"`   // Record version
-}
-
-// GetVettedTimestampsReply is the reply to the GetVettedTimestamps command.
-type GetVettedTimestampsReply struct {
-	Response         string           `json:"response"` // Challenge response
-	RecordTimestamps RecordTimestamps `json:"timestamp"`
-}
-
 // Inventory sends an (expensive and therefore authenticated) inventory request
 // for vetted records (master branch) and branches (censored, unpublished etc)
 // records.  This is a very expensive call and should be only issued at start
@@ -469,36 +383,6 @@ type InventoryReply struct {
 	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
 }
 
-const (
-	// InventoryPageSize is the maximum number of tokens that will be
-	// returned for any single status in an InventoryReply.
-	InventoryPageSize uint32 = 20
-)
-
-// Inventory requests the tokens of the records in the inventory, categorized
-// by record state and record status. The tokens are ordered by the timestamp
-// of their most recent status change, sorted from newest to oldest.
-//
-// The state, status, and page arguments can be provided to request a specific
-// page of record tokens.
-//
-// If no status is provided then a page of tokens for all statuses will be
-// returned. The page argument will be ignored.
-type InventoryByStatus struct {
-	Challenge string        `json:"challenge"` // Random challenge
-	State     string        `json:"state,omitempty"`
-	Status    RecordStatusT `json:"status,omitempty"`
-	Page      uint32        `json:"page,omitempty"`
-}
-
-// InventoryByStatusReply returns all censorship record tokens categorized by
-// record state and record status.
-type InventoryByStatusReply struct {
-	Response string                     `json:"response"` // Challenge response
-	Unvetted map[RecordStatusT][]string `json:"unvetted"`
-	Vetted   map[RecordStatusT][]string `json:"vetted"`
-}
-
 // UserErrorReply returns details about an error that occurred while trying to
 // execute a command due to bad input from the client.
 type UserErrorReply struct {
@@ -509,19 +393,6 @@ type UserErrorReply struct {
 // Error satisfies the error interface.
 func (e UserErrorReply) Error() string {
 	return fmt.Sprintf("user error code: %v", e.ErrorCode)
-}
-
-// PluginUserErrorReply returns details about a plugin error that occurred
-// while trying to execute a command due to bad input from the client.
-type PluginErrorReply struct {
-	PluginID     string   `json:"pluginid"`
-	ErrorCode    int      `json:"errorcode"`
-	ErrorContext []string `json:"errorcontext,omitempty"`
-}
-
-// Error satisfies the error interface.
-func (e PluginErrorReply) Error() string {
-	return fmt.Sprintf("plugin '%v' error code: %v", e.PluginID, e.ErrorCode)
 }
 
 // ServerErrorReply returns an error code that can be correlated with
@@ -575,111 +446,4 @@ type PluginCommandReply struct {
 	Command   string `json:"command"`   // Command identifier
 	CommandID string `json:"commandid"` // User setable command identifier
 	Payload   string `json:"payload"`   // Actual command reply
-}
-
-const (
-	// PluginActionRead is passed in as the Action of a PluginCommandV2
-	// to indicate that the plugin command is a read only command.
-	PluginActionRead = "read"
-
-	// PluginActionWrite is passed in as the Action of a PluginCommandV2
-	// to indicate that the plugin command requires writing data.
-	PluginActionWrite = "write"
-
-	// RecordStateUnvetted is passed in as the State field of a
-	// PluginCommandV2 to indicate that the plugin command is being
-	// executed on an unvetted record.
-	RecordStateUnvetted = "unvetted"
-
-	// RecordStateVetted is passed in as the State field of a
-	// PluginCommandV2 to indicate that the plugin command is being
-	// executed on an vetted record.
-	RecordStateVetted = "vetted"
-)
-
-// PluginCommandV2 sends a command to a plugin.
-type PluginCommandV2 struct {
-	Action  string `json:"action"`  // Read or write
-	State   string `json:"state"`   // Unvetted or vetted
-	Token   string `json:"token"`   // Censorship token
-	ID      string `json:"id"`      // Plugin identifier
-	Command string `json:"command"` // Plugin command
-	Payload string `json:"payload"` // Command payload
-}
-
-// PluginCommandReplyV2 is the reply to a PluginCommandV2.
-type PluginCommandReplyV2 struct {
-	State   string `json:"state"`   // Unvetted or vetted
-	Token   string `json:"token"`   // Censorship token
-	ID      string `json:"id"`      // Plugin identifier
-	Command string `json:"command"` // Plugin command
-	Payload string `json:"payload"` // Response payload
-
-	// UserError will be populated if a ErrorStatusT is encountered
-	// before the plugin command could be executed.
-	UserError *UserErrorReply `json:"usererror,omitempty"`
-
-	// PluginError will be populated if a plugin error occurred during
-	// plugin command execution. These errors will be specific to the
-	// plugin.
-	PluginError *PluginErrorReply `json:"pluginerror,omitempty"`
-}
-
-// PluginCommandBatch executes a batch of plugin commands.
-type PluginCommandBatch struct {
-	Challenge string            `json:"challenge"` // Random challenge
-	Commands  []PluginCommandV2 `json:"commands"`
-}
-
-// PluginCommandBatchReply is the reply to a PluginCommandBatch.
-type PluginCommandBatchReply struct {
-	Response string                 `json:"response"` // Challenge response
-	Replies  []PluginCommandReplyV2 `json:"replies"`
-}
-
-// RecordRequest is used to requests a record. It gives the client granular
-// control over what is returned. The only required field is the token. All
-// other fields are optional.
-//
-// Version is used to request a specific version of a record. If no version is
-// provided then the most recent version of the record will be returned.
-//
-// Filenames can be used to request specific files. If filenames is not empty
-// then the specified files will be the only files returned.
-//
-// OmitAllFiles can be used to retrieve a record without any of the record
-// files. This supersedes the filenames argument.
-type RecordRequest struct {
-	Token        string   `json:"token"`
-	Version      string   `json:"version,omitempty"`
-	Filenames    []string `json:"filenames,omitempty"`
-	OmitAllFiles bool     `json:"omitallfiles,omitempty"`
-}
-
-// GetUnvettedBatch requests a batch of unvetted records.
-type GetUnvettedBatch struct {
-	Challenge string          `json:"challenge"` // Random challenge
-	Requests  []RecordRequest `json:"requests"`
-}
-
-// GetUnvettedBatchReply is the reply to the GetUnvettedBatch command. If a
-// record was not found or an error occurred while retrieving it the token will
-// not be included in the returned map.
-type GetUnvettedBatchReply struct {
-	Response string            `json:"response"` // Challenge response
-	Records  map[string]Record `json:"record"`
-}
-
-// GetVettedBatch requests a batch of unvetted records.
-type GetVettedBatch struct {
-	Challenge string          `json:"challenge"` // Random challenge
-	Requests  []RecordRequest `json:"requests"`
-}
-
-// GetVettedBatchReply is the reply to the GetVettedBatch command. If a record
-// was not found or an error occurred while retrieving it the token will not be
-// included in the returned map.
-type GetVettedBatchReply struct {
-	Response string            `json:"response"` // Challenge response
-	Records  map[string]Record `json:"record"`
 }

@@ -198,9 +198,6 @@ func convertRecord(r rcv1.Record) (*piv1.Proposal, error) {
 		})
 	}
 
-	// Some fields are intentionally omitted because they are user data
-	// that is not saved to politeiad and needs to be pulled from the
-	// user database.
 	return &piv1.Proposal{
 		Version:   r.Version,
 		Timestamp: r.Timestamp,

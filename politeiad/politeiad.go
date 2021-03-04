@@ -21,14 +21,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/decred/politeia/cmsplugin"
-	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/dcrd/chaincfg/v3"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiad/backend/tstorebe"
-	"github.com/decred/politeia/politeiad/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
@@ -43,10 +42,11 @@ const (
 
 // politeia application context.
 type politeia struct {
-	backend  backend.Backend
-	cfg      *config
-	router   *mux.Router
-	identity *identity.FullIdentity
+	backend   backend.Backend
+	backendv2 backendv2.Backend
+	cfg       *config
+	router    *mux.Router
+	identity  *identity.FullIdentity
 }
 
 func remoteAddr(r *http.Request) string {
@@ -85,51 +85,8 @@ func convertBackendPlugins(bplugins []backend.Plugin) []v1.Plugin {
 // metadata stream.
 func convertBackendMetadataStream(mds backend.MetadataStream) v1.MetadataStream {
 	return v1.MetadataStream{
-		PluginID: mds.PluginID,
-		ID:       mds.ID,
-		Payload:  mds.Payload,
-	}
-}
-
-func convertBackendProof(p backend.Proof) v1.Proof {
-	return v1.Proof{
-		Type:       p.Type,
-		Digest:     p.Digest,
-		MerkleRoot: p.MerkleRoot,
-		MerklePath: p.MerklePath,
-		ExtraData:  p.ExtraData,
-	}
-}
-
-func convertBackendTimestamp(t backend.Timestamp) v1.Timestamp {
-	proofs := make([]v1.Proof, 0, len(t.Proofs))
-	for _, v := range t.Proofs {
-		proofs = append(proofs, convertBackendProof(v))
-	}
-	return v1.Timestamp{
-		Data:       t.Data,
-		Digest:     t.Digest,
-		TxID:       t.TxID,
-		MerkleRoot: t.MerkleRoot,
-		Proofs:     proofs,
-	}
-}
-
-func convertBackendRecordTimestamps(rt backend.RecordTimestamps) v1.RecordTimestamps {
-	md := make(map[string]v1.Timestamp, len(rt.Metadata))
-	for k, v := range rt.Metadata {
-		md[k] = convertBackendTimestamp(v)
-	}
-	files := make(map[string]v1.Timestamp, len(rt.Files))
-	for k, v := range rt.Files {
-		files[k] = convertBackendTimestamp(v)
-	}
-	return v1.RecordTimestamps{
-		Token:          rt.Token,
-		Version:        rt.Version,
-		RecordMetadata: convertBackendTimestamp(rt.RecordMetadata),
-		Metadata:       md,
-		Files:          files,
+		ID:      mds.ID,
+		Payload: mds.Payload,
 	}
 }
 
@@ -188,9 +145,8 @@ func convertFrontendMetadataStream(mds []v1.MetadataStream) []backend.MetadataSt
 	m := make([]backend.MetadataStream, 0, len(mds))
 	for _, v := range mds {
 		m = append(m, backend.MetadataStream{
-			PluginID: v.PluginID,
-			ID:       v.ID,
-			Payload:  v.Payload,
+			ID:      v.ID,
+			Payload: v.Payload,
 		})
 	}
 	return m
@@ -260,14 +216,6 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.Erro
 	})
 }
 
-func (p *politeia) respondWithPluginError(w http.ResponseWriter, pluginID string, errorCode int, errorContext string) {
-	util.RespondWithJSON(w, http.StatusBadRequest, v1.PluginErrorReply{
-		PluginID:     pluginID,
-		ErrorCode:    errorCode,
-		ErrorContext: []string{errorContext},
-	})
-}
-
 func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64) {
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 	util.RespondWithJSON(w, http.StatusInternalServerError, v1.ServerErrorReply{
@@ -324,16 +272,6 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
-			return
-		}
-
-		// Check for plugin error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
 			return
 		}
 
@@ -435,15 +373,6 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 				remoteAddr(r), cmd, contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
-			return
-		}
-		// Check for plugin error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
 			return
 		}
 		// Generic internal error.
@@ -623,226 +552,12 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func convertFrontendRecordRequest(r v1.RecordRequest) backend.RecordRequest {
-	token, _ := util.ConvertStringToken(r.Token)
-	return backend.RecordRequest{
-		Token:        token,
-		Version:      r.Version,
-		Filenames:    r.Filenames,
-		OmitAllFiles: r.OmitAllFiles,
-	}
-}
-
 func (p *politeia) convertBackendRecords(br map[string]backend.Record) map[string]v1.Record {
 	r := make(map[string]v1.Record, len(br))
 	for k, v := range br {
 		r[k] = p.convertBackendRecord(v)
 	}
 	return r
-}
-
-func (p *politeia) getUnvettedBatch(w http.ResponseWriter, r *http.Request) {
-	var gub v1.GetUnvettedBatch
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&gub); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(gub.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	// Setup backend requests
-	reqs := make([]backend.RecordRequest, 0, len(gub.Requests))
-	for _, v := range gub.Requests {
-		// Verify token
-		_, err := util.ConvertStringToken(v.Token)
-		if err != nil {
-			// Not a valid token. Do not include it in the reply.
-			continue
-		}
-		reqs = append(reqs, convertFrontendRecordRequest(v))
-	}
-
-	// Get records batch
-	records, err := p.backend.GetUnvettedBatch(reqs)
-	if err != nil {
-		// Generic internal error
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Get unvetted batch error code %v: %v",
-			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	log.Infof("%v Get unvetted batch %v/%v found",
-		remoteAddr(r), len(records), len(gub.Requests))
-
-	// Prepare reply
-	response := p.identity.SignMessage(challenge)
-	reply := v1.GetUnvettedBatchReply{
-		Response: hex.EncodeToString(response[:]),
-		Records:  p.convertBackendRecords(records),
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) getVettedBatch(w http.ResponseWriter, r *http.Request) {
-	var gvb v1.GetVettedBatch
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&gvb); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(gvb.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	// Setup backend requests
-	reqs := make([]backend.RecordRequest, 0, len(gvb.Requests))
-	for _, v := range gvb.Requests {
-		// Verify token
-		_, err := util.ConvertStringToken(v.Token)
-		if err != nil {
-			// Not a valid token. Do not include it in the reply.
-			continue
-		}
-		reqs = append(reqs, convertFrontendRecordRequest(v))
-	}
-
-	// Get records batch
-	records, err := p.backend.GetVettedBatch(reqs)
-	if err != nil {
-		// Generic internal error
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Get vetted batch error code %v: %v",
-			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	log.Infof("%v Get vetted batch %v/%v found",
-		remoteAddr(r), len(records), len(gvb.Requests))
-
-	// Prepare reply
-	response := p.identity.SignMessage(challenge)
-	reply := v1.GetVettedBatchReply{
-		Response: hex.EncodeToString(response[:]),
-		Records:  p.convertBackendRecords(records),
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) getUnvettedTimestamps(w http.ResponseWriter, r *http.Request) {
-	var t v1.GetUnvettedTimestamps
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
-		return
-	}
-
-	// Get timestamps
-	rt, err := p.backend.GetUnvettedTimestamps(token, t.Version)
-	switch {
-	case errors.Is(err, backend.ErrRecordNotFound):
-		// Record not found
-		log.Infof("Get unvetted timestamps %v: %v not found",
-			remoteAddr(r), t.Token)
-		p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
-		return
-
-	case err != nil:
-		// Generic internal error
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Get unvetted timestamps error code %v: %v",
-			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	log.Infof("Get unvetted timestamps %v: %v", remoteAddr(r), t.Token)
-
-	// Setup reply
-	response := p.identity.SignMessage(challenge)
-	reply := v1.GetUnvettedTimestampsReply{
-		Response:         hex.EncodeToString(response[:]),
-		RecordTimestamps: convertBackendRecordTimestamps(*rt),
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) getVettedTimestamps(w http.ResponseWriter, r *http.Request) {
-	var t v1.GetVettedTimestamps
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidToken, nil)
-		return
-	}
-
-	// Get timestamps
-	rt, err := p.backend.GetVettedTimestamps(token, t.Version)
-	switch {
-	case errors.Is(err, backend.ErrRecordNotFound):
-		// Record not found
-		log.Infof("Get vetted timestamps %v: %v not found",
-			remoteAddr(r), t.Token)
-		p.respondWithUserError(w, v1.ErrorStatusRecordNotFound, nil)
-		return
-
-	case err != nil:
-		// Generic internal error
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Get vetted timestamps error code %v: %v",
-			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	log.Infof("Get vetted timestamps %v: %v", remoteAddr(r), t.Token)
-
-	// Setup reply
-	response := p.identity.SignMessage(challenge)
-	reply := v1.GetVettedTimestampsReply{
-		Response:         hex.EncodeToString(response[:]),
-		RecordTimestamps: convertBackendRecordTimestamps(*rt),
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
@@ -890,54 +605,6 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 		unvetted = append(unvetted, p.convertBackendRecord(v))
 	}
 	reply.Branches = unvetted
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) inventoryByStatus(w http.ResponseWriter, r *http.Request) {
-	var ibs v1.InventoryByStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ibs); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(ibs.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	s := convertFrontendStatus(ibs.Status)
-	inv, err := p.backend.InventoryByStatus(ibs.State, s,
-		v1.InventoryPageSize, ibs.Page)
-	if err != nil {
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v InventoryByStatus error code %v: %v", remoteAddr(r),
-			errorCode, err)
-
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Prepare reply
-	response := p.identity.SignMessage(challenge)
-	var (
-		unvetted = make(map[v1.RecordStatusT][]string)
-		vetted   = make(map[v1.RecordStatusT][]string)
-	)
-	for status, tokens := range inv.Unvetted {
-		unvetted[convertBackendStatus(status)] = tokens
-	}
-	for status, tokens := range inv.Vetted {
-		vetted[convertBackendStatus(status)] = tokens
-	}
-	reply := v1.InventoryByStatusReply{
-		Response: hex.EncodeToString(response[:]),
-		Unvetted: unvetted,
-		Vetted:   vetted,
-	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -1008,15 +675,6 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
-		// Check for plugin error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
-			return
-		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Set status error code %v: %v",
@@ -1078,15 +736,6 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &serr) {
 			log.Infof("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
-			return
-		}
-		// Check for plugin error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
 			return
 		}
 		// Generic internal error.
@@ -1155,15 +804,6 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 				contentErr.ErrorContext)
 			return
 		}
-		// Check for plugin error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
-			return
-		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Update vetted metadata error code %v: %v",
@@ -1225,15 +865,6 @@ func (p *politeia) updateUnvettedMetadata(w http.ResponseWriter, r *http.Request
 				cverr.ErrorContext)
 			return
 		}
-		// Check for plugin error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Debugf("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
-			return
-		}
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v update unvetted metadata error code %v: %v",
@@ -1270,31 +901,15 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 	response := p.identity.SignMessage(challenge)
 
 	// Get plugins
-	unvetted := p.backend.GetUnvettedPlugins()
-	vetted := p.backend.GetVettedPlugins()
-
-	// Aggregate unique plugins
-	pid := make(map[string]struct{}, len(unvetted)+len(vetted))
-	plugins := make([]backend.Plugin, len(unvetted)+len(vetted))
-	for _, v := range unvetted {
-		_, ok := pid[v.ID]
-		if ok {
-			// Already added
-			continue
-		}
-		plugins = append(plugins, v)
-		pid[v.ID] = struct{}{}
-	}
-	for _, v := range vetted {
-		_, ok := pid[v.ID]
-		if ok {
-			// Already added
-			continue
-		}
-		plugins = append(plugins, v)
-		pid[v.ID] = struct{}{}
+	plugins, err := p.backend.GetPlugins()
+	if err != nil {
+		errorCode := time.Now().Unix()
+		log.Errorf("%v get plugins: %v ", remoteAddr(r), err)
+		p.respondWithServerError(w, errorCode)
+		return
 	}
 
+	// Prepare reply
 	reply := v1.PluginInventoryReply{
 		Plugins:  convertBackendPlugins(plugins),
 		Response: hex.EncodeToString(response[:]),
@@ -1318,162 +933,26 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := p.backend.Plugin(pc.ID, pc.Command,
-		pc.CommandID, pc.Payload)
+	cid, payload, err := p.backend.Plugin(pc.Command, pc.Payload)
 	if err != nil {
-		// Check for a user error
-		var e backend.PluginError
-		if errors.As(err, &e) {
-			log.Infof("%v plugin user error: %v %v",
-				remoteAddr(r), e.PluginID, e.ErrorCode)
-			p.respondWithPluginError(w, e.PluginID, e.ErrorCode,
-				e.ErrorContext)
-			return
-		}
-
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v %v: backend plugin failed: pluginID:%v command:%v "+
-			"payload:%v err:%v", remoteAddr(r), errorCode, pc.ID, pc.Command,
-			pc.Payload, err)
+		log.Errorf("%v %v: backend plugin failed with "+
+			"command:%v payload:%v err:%v", remoteAddr(r),
+			errorCode, pc.Command, pc.Payload, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
 
+	// Prepare reply
 	response := p.identity.SignMessage(challenge)
 	reply := v1.PluginCommandReply{
 		Response:  hex.EncodeToString(response[:]),
 		ID:        pc.ID,
-		Command:   pc.Command,
+		Command:   cid,
 		CommandID: pc.CommandID,
 		Payload:   payload,
 	}
-
-	log.Infof("%v Plugin cmd executed: %v %v", remoteAddr(r), pc.ID, pc.Command)
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) pluginCommandBatch(w http.ResponseWriter, r *http.Request) {
-	var pcb v1.PluginCommandBatch
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pcb); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
-			nil)
-		return
-	}
-
-	// Verify challenge
-	challenge, err := hex.DecodeString(pcb.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	// Execute plugin commands
-	replies := make([]v1.PluginCommandReplyV2, len(pcb.Commands))
-	for k, pc := range pcb.Commands {
-		// Verify token
-		token, err := util.ConvertStringToken(pc.Token)
-		if err != nil {
-			replies[k] = v1.PluginCommandReplyV2{
-				UserError: &v1.UserErrorReply{
-					ErrorCode: v1.ErrorStatusInvalidToken,
-				},
-			}
-			continue
-		}
-
-		// Execute plugin command
-		var payload string
-		switch pc.State {
-		case v1.RecordStateUnvetted:
-			payload, err = p.backend.UnvettedPluginCmd(pc.Action, token,
-				pc.ID, pc.Command, pc.Payload)
-		case v1.RecordStateVetted:
-			payload, err = p.backend.VettedPluginCmd(pc.Action, token,
-				pc.ID, pc.Command, pc.Payload)
-		default:
-			replies[k] = v1.PluginCommandReplyV2{
-				UserError: &v1.UserErrorReply{
-					ErrorCode: v1.ErrorStatusInvalidRecordState,
-				},
-			}
-			continue
-		}
-		if err != nil {
-			var e backend.PluginError
-			switch {
-			case errors.As(err, &e):
-				log.Infof("%v batched plugin cmd user error: %v %v",
-					remoteAddr(r), e.PluginID, e.ErrorCode)
-
-				replies[k] = v1.PluginCommandReplyV2{
-					PluginError: &v1.PluginErrorReply{
-						PluginID:     e.PluginID,
-						ErrorCode:    e.ErrorCode,
-						ErrorContext: []string{e.ErrorContext},
-					},
-				}
-			case err == backend.ErrPluginActionInvalid:
-				replies[k] = v1.PluginCommandReplyV2{
-					UserError: &v1.UserErrorReply{
-						ErrorCode: v1.ErrorStatusInvalidPluginAction,
-					},
-				}
-			case err == backend.ErrRecordNotFound:
-				replies[k] = v1.PluginCommandReplyV2{
-					UserError: &v1.UserErrorReply{
-						ErrorCode: v1.ErrorStatusRecordNotFound,
-					},
-				}
-			case err == backend.ErrRecordLocked:
-				replies[k] = v1.PluginCommandReplyV2{
-					UserError: &v1.UserErrorReply{
-						ErrorCode: v1.ErrorStatusRecordLocked,
-					},
-				}
-			default:
-				// Unknown error. Log is as an internal server error and
-				// respond with a server error.
-				t := time.Now().Unix()
-				log.Errorf("%v %v: batched plugin cmd failed: pluginID:%v "+
-					"cmd:%v err:'%v' payload:%v", remoteAddr(r), t, pc.ID,
-					pc.Command, err, pc.Payload)
-
-				p.respondWithServerError(w, t)
-				return
-			}
-
-			continue
-		}
-
-		// Update reply
-		replies[k] = v1.PluginCommandReplyV2{
-			Payload: payload,
-		}
-	}
-
-	// Fill in remaining data for the replies
-	for k, v := range replies {
-		replies[k] = v1.PluginCommandReplyV2{
-			State:       pcb.Commands[k].State,
-			Token:       pcb.Commands[k].Token,
-			ID:          pcb.Commands[k].ID,
-			Command:     pcb.Commands[k].Command,
-			Payload:     v.Payload,
-			UserError:   v.UserError,
-			PluginError: v.PluginError,
-		}
-	}
-
-	response := p.identity.SignMessage(challenge)
-	reply := v1.PluginCommandBatchReply{
-		Response: hex.EncodeToString(response[:]),
-		Replies:  replies,
-	}
-
-	log.Infof("%v Plugin cmd batch executed", remoteAddr(r))
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -1513,6 +992,129 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
+func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
+	b, err := gitbe.New(activeNetParams.Params, p.cfg.DataDir,
+		p.cfg.DcrtimeHost, "", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
+	if err != nil {
+		return fmt.Errorf("new gitbe: %v", err)
+	}
+	p.backend = b
+
+	// Setup mux
+	p.router = mux.NewRouter()
+
+	// Not found
+	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+
+	// Unprivileged routes
+	p.addRoute(http.MethodPost, v1.IdentityRoute, p.getIdentity,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.NewRecordRoute, p.newRecord,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.UpdateUnvettedRoute, p.updateUnvetted,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.UpdateVettedRoute, p.updateVetted,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetUnvettedRoute, p.getUnvetted,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
+		permissionPublic)
+
+	// Routes that require auth
+	p.addRoute(http.MethodPost, v1.InventoryRoute, p.inventory,
+		permissionAuth)
+	p.addRoute(http.MethodPost, v1.SetUnvettedStatusRoute,
+		p.setUnvettedStatus, permissionAuth)
+	p.addRoute(http.MethodPost, v1.SetVettedStatusRoute,
+		p.setVettedStatus, permissionAuth)
+	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
+		p.updateVettedMetadata, permissionAuth)
+	p.addRoute(http.MethodPost, v1.UpdateUnvettedMetadataRoute,
+		p.updateUnvettedMetadata, permissionAuth)
+
+	// Set plugin routes. Requires auth.
+	p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
+		permissionAuth)
+	p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
+		permissionAuth)
+
+	return nil
+}
+
+func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
+	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
+		p.cfg.TrillianHost, p.cfg.TrillianSigningKey,
+		p.cfg.DBType, p.cfg.DBHost, p.cfg.DBPass, p.cfg.DBEncryptionKey,
+		p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
+	if err != nil {
+		return fmt.Errorf("new tstorebe: %v", err)
+	}
+	p.backendv2 = b
+
+	// Setup routes
+
+	// Setup plugins
+	if len(p.cfg.Plugins) > 0 {
+		// Parse plugin settings
+		settings := make(map[string][]backendv2.PluginSetting)
+		for _, v := range p.cfg.PluginSettings {
+			// Plugin setting will be in format: pluginID,key,value
+			s := strings.Split(v, ",")
+			if len(s) != 3 {
+				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
+					"should be 'pluginID,key,value'", s)
+			}
+			var (
+				pluginID = s[0]
+				key      = s[1]
+				value    = s[2]
+			)
+			ps, ok := settings[pluginID]
+			if !ok {
+				ps = make([]backendv2.PluginSetting, 0, 16)
+			}
+			ps = append(ps, backendv2.PluginSetting{
+				Key:   key,
+				Value: value,
+			})
+
+			settings[pluginID] = ps
+		}
+
+		// Register plugins
+		for _, v := range p.cfg.Plugins {
+			// Setup plugin
+			ps, ok := settings[v]
+			if !ok {
+				ps = make([]backendv2.PluginSetting, 0)
+			}
+			plugin := backendv2.Plugin{
+				ID:       v,
+				Settings: ps,
+				Identity: p.identity,
+			}
+
+			// Register plugin
+			log.Infof("Register plugin: %v", v)
+			err = p.backendv2.PluginRegister(plugin)
+			if err != nil {
+				return fmt.Errorf("PluginRegister %v: %v", v, err)
+			}
+		}
+
+		// Setup plugins
+		for _, v := range p.backendv2.PluginInventory() {
+			log.Infof("Setup plugin: %v", v.ID)
+			err = p.backendv2.PluginSetup(v.ID)
+			if err != nil {
+				return fmt.Errorf("plugin setup %v: %v", v.ID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -1527,7 +1129,7 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Build Version: %v", version.BuildMainVersion())
+	log.Infof("Build   : %v", version.BuildMainVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", cfg.HomeDir)
 
@@ -1601,175 +1203,17 @@ func _main() error {
 	log.Infof("Backend: %v", cfg.Backend)
 	switch cfg.Backend {
 	case backendGit:
-		b, err := gitbe.New(activeNetParams.Params, cfg.DataDir, cfg.DcrtimeHost,
-			"", p.identity, cfg.GitTrace, cfg.DcrdataHost)
+		err := p.setupBackendGit(activeNetParams.Params)
 		if err != nil {
-			return fmt.Errorf("new gitbe: %v", err)
+			return err
 		}
-		p.backend = b
 	case backendTstore:
-		b, err := tstorebe.New(activeNetParams.Params, cfg.HomeDir, cfg.DataDir,
-			cfg.TrillianHostUnvetted, cfg.TrillianHostVetted, cfg.TrillianSigningKey,
-			cfg.DBType, cfg.DBHost, cfg.DBPass, cfg.DBEncryptionKey,
-			cfg.DcrtimeHost, cfg.DcrtimeCert)
+		err := p.setupBackendTstore(activeNetParams.Params)
 		if err != nil {
-			return fmt.Errorf("new tstorebe: %v", err)
+			return err
 		}
-		p.backend = b
 	default:
 		return fmt.Errorf("invalid backend selected: %v", cfg.Backend)
-	}
-
-	// Setup mux
-	p.router = mux.NewRouter()
-
-	// Not found
-	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-
-	// Unprivileged routes
-	p.addRoute(http.MethodPost, v1.IdentityRoute, p.getIdentity,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.NewRecordRoute, p.newRecord,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.UpdateUnvettedRoute, p.updateUnvetted,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.UpdateVettedRoute, p.updateVetted,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.GetUnvettedRoute, p.getUnvetted,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.GetUnvettedBatchRoute,
-		p.getUnvettedBatch, permissionPublic)
-	p.addRoute(http.MethodPost, v1.GetVettedBatchRoute,
-		p.getVettedBatch, permissionPublic)
-	p.addRoute(http.MethodPost, v1.GetUnvettedTimestampsRoute,
-		p.getUnvettedTimestamps, permissionPublic)
-	p.addRoute(http.MethodPost, v1.GetVettedTimestampsRoute,
-		p.getVettedTimestamps, permissionPublic)
-	p.addRoute(http.MethodPost, v1.InventoryByStatusRoute,
-		p.inventoryByStatus, permissionPublic)
-
-	// Routes that require auth
-	p.addRoute(http.MethodPost, v1.InventoryRoute, p.inventory,
-		permissionAuth)
-	p.addRoute(http.MethodPost, v1.SetUnvettedStatusRoute,
-		p.setUnvettedStatus, permissionAuth)
-	p.addRoute(http.MethodPost, v1.SetVettedStatusRoute,
-		p.setVettedStatus, permissionAuth)
-	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
-		p.updateVettedMetadata, permissionAuth)
-	p.addRoute(http.MethodPost, v1.UpdateUnvettedMetadataRoute,
-		p.updateUnvettedMetadata, permissionAuth)
-
-	// Setup plugins
-	if len(cfg.Plugins) > 0 {
-		// Set plugin routes. Requires auth.
-		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
-			permissionAuth)
-		p.addRoute(http.MethodPost, v1.PluginCommandBatchRoute,
-			p.pluginCommandBatch, permissionAuth)
-		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
-			permissionAuth)
-
-		// Parse plugin settings
-		// map[pluginID][]backend.PluginSetting
-		settings := make(map[string][]backend.PluginSetting)
-		for _, v := range cfg.PluginSettings {
-			// Plugin setting will be in format: pluginID,key,value
-			s := strings.Split(v, ",")
-			if len(s) != 3 {
-				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
-					"should be 'pluginID,key,value'", s)
-			}
-			var (
-				pluginID = s[0]
-				key      = s[1]
-				value    = s[2]
-			)
-			ps, ok := settings[pluginID]
-			if !ok {
-				ps = make([]backend.PluginSetting, 0, 16)
-			}
-			ps = append(ps, backend.PluginSetting{
-				Key:   key,
-				Value: value,
-			})
-
-			settings[pluginID] = ps
-		}
-
-		// Register plugins
-		for _, v := range cfg.Plugins {
-			// Verify plugin ID format
-			if backend.PluginRE.FindString(v) != v {
-				return fmt.Errorf("invalid plugin id format: %v %v",
-					v, backend.PluginRE.String())
-			}
-
-			// Get plugin settings
-			ps, ok := settings[v]
-			if !ok {
-				ps = make([]backend.PluginSetting, 0)
-			}
-
-			// Prepare plugin
-			var (
-				unvetted = true // Register as unvetted plugin
-				vetted   = true // Register as vetted plugin
-				plugin   = backend.Plugin{
-					ID:       v,
-					Settings: ps,
-					Identity: p.identity,
-				}
-			)
-			switch v {
-			case dcrdata.PluginID:
-				unvetted = false
-			case decredplugin.ID:
-				// decredplugin uses the deprecated plugin methods. This
-				// plugin is also deprecated will eventually be removed.
-				unvetted = false
-				vetted = false
-			case cmsplugin.ID:
-				// cmsplugin uses the deprecated plugin methods. This
-				// plugin is also deprecated will eventually be removed.
-				unvetted = false
-				vetted = false
-			}
-
-			// Register plugin
-			if unvetted {
-				log.Infof("Register unvetted plugin: %v", v)
-				err = p.backend.RegisterUnvettedPlugin(plugin)
-				if err != nil {
-					return fmt.Errorf("register unvetted plugin %v: %v", v, err)
-				}
-			}
-			if vetted {
-				log.Infof("Register vetted plugin: %v", v)
-				err = p.backend.RegisterVettedPlugin(plugin)
-				if err != nil {
-					return fmt.Errorf("register vetted plugin %v: %v", v, err)
-				}
-			}
-		}
-
-		// Setup plugins
-		for _, v := range p.backend.GetUnvettedPlugins() {
-			log.Infof("Setup unvetted plugin: %v", v.ID)
-			err = p.backend.SetupUnvettedPlugin(v.ID)
-			if err != nil {
-				return fmt.Errorf("setup unvetted plugin %v: %v", v, err)
-			}
-		}
-		for _, v := range p.backend.GetVettedPlugins() {
-			log.Infof("Setup vetted plugin: %v", v.ID)
-			err = p.backend.SetupVettedPlugin(v.ID)
-			if err != nil {
-				return fmt.Errorf("setup vetted plugin %v: %v", v.ID, err)
-			}
-		}
 	}
 
 	// Bind to a port and pass our router in

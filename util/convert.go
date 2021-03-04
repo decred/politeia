@@ -10,7 +10,8 @@ import (
 	"fmt"
 
 	dcrtime "github.com/decred/dcrtime/api/v1"
-	pd "github.com/decred/politeia/politeiad/api/v1"
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
@@ -35,11 +36,11 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 // prefixes.
 func ConvertStringToken(token string) ([]byte, error) {
 	switch {
-	case len(token) == pd.TokenSizeTstore*2:
+	case len(token) == pdv2.TokenSize*2:
 		// Tstore backend token; continue
-	case len(token) != pd.TokenSizeGit*2:
+	case len(token) != pdv1.TokenSize*2:
 		// Git backend token; continue
-	case len(token) == pd.TokenPrefixLength:
+	case len(token) == pdv1.TokenPrefixLength:
 		// Token prefix; continue
 	default:
 		return nil, fmt.Errorf("invalid token size")
@@ -99,8 +100,8 @@ func Zero(in []byte) {
 // TokenToPrefix returns a substring a token of length pd.TokenPrefixLength,
 // or the token itself, whichever is shorter.
 func TokenToPrefix(token string) string {
-	if len(token) > pd.TokenPrefixLength {
-		return token[0:pd.TokenPrefixLength]
+	if len(token) > pdv1.TokenPrefixLength {
+		return token[0:pdv1.TokenPrefixLength]
 	} else {
 		return token
 	}

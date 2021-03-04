@@ -1,0 +1,511 @@
+// Copyright (c) 2020-2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package v2
+
+import "fmt"
+
+const (
+	// RoutePrefix is prefixed onto all routes in this package.
+	RoutePrefix = "/v2"
+
+	// Routes
+	RouteRecordNew           = "/recordnew"
+	RouteRecordEdit          = "/recordedit"
+	RouteRecordEditMetadata  = "/recordeditmetadata"
+	RouteRecordSetStatus     = "/recordsetstatus"
+	RouteRecordGet           = "/recordget"
+	RouteRecordGetBatch      = "/recordgetbatch"
+	RouteRecordGetTimestamps = "/recordgettimestamps"
+	RouteInventory           = "/inventory"
+	RoutePluginWrite         = "/pluginwrite"
+	RoutePluginReads         = "/pluginreads"
+	RoutePluginInventory     = "/plugininventory"
+
+	// ChallengeSize is the size of a request challenge token in bytes.
+	ChallengeSize = 32
+)
+
+// ErrorCodeT represents a user error code.
+type ErrorCodeT uint32
+
+const (
+	ErrorCodeInvalid                 ErrorCodeT = 0
+	ErrorCodeRequestPayloadInvalid   ErrorCodeT = 1
+	ErrorCodeChallengeInvalid        ErrorCodeT = 2
+	ErrorCodeMetadataStreamInvalid   ErrorCodeT = 3
+	ErrorCodeMetadataStreamDuplicate ErrorCodeT = 4
+	ErrorCodeFilesEmpty              ErrorCodeT = 5
+	ErrorCodeFileNameInvalid         ErrorCodeT = 6
+	ErrorCodeFileNameDuplicate       ErrorCodeT = 7
+	ErrorCodeFileDigestInvalid       ErrorCodeT = 8
+	ErrorCodeFilePayloadInvalid      ErrorCodeT = 9
+	ErrorCodeFileMIMETypeInvalid     ErrorCodeT = 10
+	ErrorCodeFileMIMETypeUnsupported ErrorCodeT = 11
+	ErrorCodeTokenInvalid            ErrorCodeT = 12
+	ErrorCodeRecordNotFound          ErrorCodeT = 13
+	ErrorCodeRecordLocked            ErrorCodeT = 14
+	ErrorCodeNoRecordChanges         ErrorCodeT = 15
+	ErrorCodeStatusChangeInvalid     ErrorCodeT = 16
+	ErrorCodePluginIDInvalid         ErrorCodeT = 17
+	ErrorCodePluginCmdInvalid        ErrorCodeT = 18
+)
+
+var (
+	// ErrorCodes contains the human readable error codes.
+	ErrorCodes = map[ErrorCodeT]string{
+		ErrorCodeInvalid:                 "invalid error",
+		ErrorCodeMetadataStreamInvalid:   "metadata stream invalid",
+		ErrorCodeMetadataStreamDuplicate: "metadata stream duplicate",
+		ErrorCodeFilesEmpty:              "files are empty",
+		ErrorCodeFileNameInvalid:         "file name invalid",
+		ErrorCodeFileNameDuplicate:       "file name is a duplicate",
+		ErrorCodeFileDigestInvalid:       "file digest invalid",
+		ErrorCodeFilePayloadInvalid:      "file payload invalid",
+		ErrorCodeFileMIMETypeInvalid:     "file mime type invalid",
+		ErrorCodeFileMIMETypeUnsupported: "file mime type not supported",
+		ErrorCodeTokenInvalid:            "token invalid",
+		ErrorCodeRecordNotFound:          "record not found",
+		ErrorCodeRecordLocked:            "record is locked",
+		ErrorCodeNoRecordChanges:         "no record changes",
+		ErrorCodeStatusChangeInvalid:     "status change invalid",
+		ErrorCodePluginIDInvalid:         "pluguin id invalid",
+		ErrorCodePluginCmdInvalid:        "plugin cmd invalid",
+	}
+)
+
+// UserErrorReply is the reply that the server returns when it encounters an
+// error that is caused by something that the user did (malformed input, bad
+// timing, etc). The HTTP status code will be 400.
+type UserErrorReply struct {
+	ErrorCode    ErrorCodeT `json:"errorcode"`
+	ErrorContext string     `json:"errorcontext"`
+}
+
+// Error satisfies the error interface.
+func (e UserErrorReply) Error() string {
+	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+}
+
+// PluginErrorReply is the reply that the server returns when it encounters
+// a plugin error. The error code will be specific to the plugin.
+type PluginErrorReply struct {
+	PluginID     string `json:"pluginid"`
+	ErrorCode    int    `json:"errorcode"`
+	ErrorContext string `json:"errorcontext"`
+}
+
+// Error satisfies the error interface.
+func (e PluginErrorReply) Error() string {
+	return fmt.Sprintf("plugin %v error code: %v", e.PluginID, e.ErrorCode)
+}
+
+// ServerErrorReply is the reply that the server returns when it encounters an
+// unrecoverable error while executing a command. The HTTP status code will be
+// 500 and the ErrorCode field will contain a UNIX timestamp that the user can
+// provide to the server admin to track down the error details in the logs.
+type ServerErrorReply struct {
+	ErrorCode int64 `json:"errorcode"`
+}
+
+// Error satisfies the error interface.
+func (e ServerErrorReply) Error() string {
+	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
+
+// RecordStateT represents the state of a record.
+type RecordStateT uint32
+
+const (
+	// RecordStateInvalid is an invalid record state.
+	RecordStateInvalid RecordStateT = 0
+
+	// RecordStateUnvetted indicates a record has not been made public.
+	RecordStateUnvetted RecordStateT = 1
+
+	// RecordStateVetted indicates a record has been made public.
+	RecordStateVetted RecordStateT = 2
+)
+
+var (
+	// RecordStates contains the human readable record states.
+	RecordStates = map[RecordStateT]string{
+		RecordStateInvalid:  "invalid",
+		RecordStateUnvetted: "unvetted",
+		RecordStateVetted:   "vetted",
+	}
+)
+
+// RecordStatusT represents the status of a record.
+type RecordStatusT uint32
+
+const (
+	// RecordStatusInvalid is an invalid status code.
+	RecordStatusInvalid RecordStatusT = 0
+
+	// RecordStatusUnreviewed indicates a record has not been made
+	// public yet. The state of an unreviewed record will always be
+	// unvetted.
+	RecordStatusUnreviewed RecordStatusT = 1
+
+	// RecordStatusPublic indicates a record has been made public. The
+	// state of a public record will always be vetted.
+	RecordStatusPublic RecordStatusT = 2
+
+	// RecordStatusCensored indicates a record has been censored. A
+	// censored record is locked from any further updates and all
+	// record content is permanently deleted. A censored record can
+	// have a state of either unvetted or vetted.
+	RecordStatusCensored RecordStatusT = 3
+
+	// RecordStatusArchived indicates a record has been archived. An
+	// archived record is locked from any further updates. An archived
+	// record have a state of either unvetted or vetted.
+	RecordStatusArchived RecordStatusT = 4
+)
+
+var (
+	// RecordStatuses contains the human readable record statuses.
+	RecordStatuses = map[RecordStatusT]string{
+		RecordStatusInvalid:    "invalid",
+		RecordStatusUnreviewed: "unreviewed",
+		RecordStatusPublic:     "public",
+		RecordStatusCensored:   "censored",
+		RecordStatusArchived:   "archived",
+	}
+)
+
+// MetadataStream describes a single metada stream.
+type MetadataStream struct {
+	PluginID string `json:"pluginid"` // Plugin identity
+	StreamID uint32 `json:"streamid"` // Stream identity
+	Payload  string `json:"payload"`  // JSON encoded metadata
+}
+
+// File represents a record file.
+type File struct {
+	Name    string `json:"name"`    // Basename of the file
+	MIME    string `json:"mime"`    // MIME type
+	Digest  string `json:"digest"`  // SHA256 of decoded Payload
+	Payload string `json:"payload"` // Base64 encoded file payload
+}
+
+const (
+	// TokenSize is the size of a censorship record token in bytes.
+	TokenSize = 8
+
+	// TokenSizeShort is the size, in characters, of a hex encoded
+	// token that has been shortened to improved UX. Short tokens can
+	// be used to retrieve record data but cannot be used on any routes
+	// that write record data. 7 characters was chosen to match the git
+	// abbreviated commitment hash size.
+	TokenSizeShort = 7
+)
+
+// CensorshipRecord contains cryptographic proof that a record was accepted for
+// review by the server. The proof is verifiable by the client.
+type CensorshipRecord struct {
+	// Token is a random censorship token that is generated by the
+	// server. It serves as a unique identifier for the record.
+	Token string `json:"token"`
+
+	// Merkle is the ordered merkle root of all files in the record.
+	Merkle string `json:"merkle"`
+
+	// Signature is the server signature of the Merkle+Token.
+	Signature string `json:"signature"`
+}
+
+// Record represents a record and all of its contents.
+type Record struct {
+	State     RecordStateT     `json:"state"`     // Record state
+	Status    RecordStatusT    `json:"status"`    // Record status
+	Version   uint32           `json:"version"`   // Version of this record
+	Timestamp int64            `json:"timestamp"` // Last update
+	Metadata  []MetadataStream `json:"metadata"`
+	Files     []File           `json:"files"`
+
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+}
+
+// RecordNew creates a new record. It must include all files that are part of
+// the record and it may contain optional metadata.
+type RecordNew struct {
+	Challenge string           `json:"challenge"` // Random challenge
+	Metadata  []MetadataStream `json:"metadata"`
+	Files     []File           `json:"files"`
+}
+
+// RecordNewReply is the reply to the RecordNew command.
+type RecordNewReply struct {
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
+}
+
+// RecordEdit edits and existing record.
+//
+// MDAppend appends metadata to a metadata stream. MDOverwrite overwrites a
+// metadata stream. If the metadata stream does not exist yet for either of
+// these arguments, a new metadata stream will be created.
+//
+// FilesAdd should include files that are being modified or added. FilesDel
+// is the filenames of existing files that will be deleted. If a filename is
+// provided in FilesDel that does not correspond to an actual record file, it
+// will be ignored.
+type RecordEdit struct {
+	Challenge   string           `json:"challenge"` // Random challenge
+	Token       string           `json:"token"`     // Censorship token
+	MDAppend    []MetadataStream `json:"mdappend"`
+	MDOverwrite []MetadataStream `json:"mdoverwrite"`
+	FilesAdd    []File           `json:"filesadd"`
+	FilesDel    []string         `json:"filesdel"`
+}
+
+// RecordEditReply is the reply to the RecordEdit command.
+type RecordEditReply struct {
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
+}
+
+// RecordEditMetadata edits the metadata of a record.
+//
+// MDAppend appends metadata to a metadata stream. MDOverwrite overwrites a
+// metadata stream. If the metadata stream does not exist yet for either of
+// these arguments, a new metadata stream will be created.
+type RecordEditMetadata struct {
+	Challenge   string           `json:"challenge"` // Random challenge
+	Token       string           `json:"token"`     // Censorship token
+	MDAppend    []MetadataStream `json:"mdappend"`
+	MDOverwrite []MetadataStream `json:"mdoverwrite"`
+}
+
+// RecordEditMetadataReply is the reply to the RecordEditMetadata command.
+type RecordEditMetadataReply struct {
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
+}
+
+// RecordSetStatus sets the status of a record.
+//
+// MDAppend appends metadata to a metadata stream. MDOverwrite overwrites a
+// metadata stream. If the metadata stream does not exist yet for either of
+// these arguments, a new metadata stream will be created.
+type RecordSetStatus struct {
+	Challenge   string           `json:"challenge"` // Random challenge
+	Token       string           `json:"token"`     // Censorship token
+	Status      RecordStatusT    `json:"status"`
+	MDAppend    []MetadataStream `json:"mdappend"`
+	MDOverwrite []MetadataStream `json:"mdoverwrite"`
+}
+
+// RecordSetStatusReply is the reply to the RecordSetStatus command.
+type RecordSetStatusReply struct {
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
+}
+
+// RecordGet retrieves a record. If no version is provided the most recent
+// version will be returned.
+type RecordGet struct {
+	Challenge string `json:"challenge"`         // Random challenge
+	Token     string `json:"token"`             // Censorship token
+	Version   uint32 `json:"version,omitempty"` // Record version
+}
+
+// RecordGetReply is the reply to the RecordGet command.
+type RecordGetReply struct {
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
+}
+
+// RecordRequest is used to request a record. It gives the caller granular
+// control over what is returned. The only required field is the token. All
+// other fields are optional. All record files are returned by default unless
+// one of the file arguments is provided.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files that are returned.
+//
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
+type RecordRequest struct {
+	Token        string   `json:"token"`
+	Version      uint32   `json:"version"`
+	Filenames    []string `json:"filenames"`
+	OmitAllFiles bool     `json:"omitallfiles"`
+}
+
+// RecordGetBatch retrieves a record. If no version is provided the most recent
+// version will be returned.
+type RecordGetBatch struct {
+	Challenge string          `json:"challenge"` // Random challenge
+	Requests  []RecordRequest `json:"requests"`
+}
+
+// RecordGetBatchReply is the reply to the RecordGetBatch command. If a record
+// was not found or an error occurred while retrieving it the token will not be
+// included in the returned map.
+type RecordGetBatchReply struct {
+	Response string            `json:"response"` // Challenge response
+	Records  map[string]Record `json:"records"`
+}
+
+// Proof contains an inclusion proof for the digest in the merkle root. All
+// digests are hex encoded SHA256 digests.
+//
+// The ExtraData field is used by certain types of proofs to include additional
+// data that is required to validate the proof.
+type Proof struct {
+	Type       string   `json:"type"`
+	Digest     string   `json:"digest"`
+	MerkleRoot string   `json:"merkleroot"`
+	MerklePath []string `json:"merklepath"`
+	ExtraData  string   `json:"extradata"` // JSON encoded
+}
+
+// Timestamp contains all of the data required to verify that a piece of record
+// content was timestamped onto the decred blockchain.
+//
+// All digests are hex encoded SHA256 digests. The merkle root can be found in
+// the OP_RETURN of the specified DCR transaction.
+//
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
+// been included in a DCR tx and the tx has 6 confirmations. The Data field
+// will not be populated if the data has been censored.
+type Timestamp struct {
+	Data       string  `json:"data"` // JSON encoded
+	Digest     string  `json:"digest"`
+	TxID       string  `json:"txid"`
+	MerkleRoot string  `json:"merkleroot"`
+	Proofs     []Proof `json:"proofs"`
+}
+
+// RecordTimestamps contains the timestamps for a specific version of a record.
+type RecordTimestamps struct {
+	RecordMetadata Timestamp `json:"recordmetadata"`
+
+	// map[pluginID]map[streamID]Timestamp
+	Metadata map[string]map[uint32]Timestamp `json:"metadata"`
+
+	// map[filename]Timestamp
+	Files map[string]Timestamp `json:"files"`
+}
+
+type RecordGetTimestamps struct {
+	Challenge string `json:"challenge"` // Random challenge
+	Token     string `json:"token"`     // Censorship token
+	Version   uint32 `json:"version"`   // Record version
+}
+
+// RecordTimestampsReply is the reply ot the RecordTimestamps command.
+type RecordTimestampsReply struct {
+	Response   string           `json:"response"` // Challenge response
+	Timestamps RecordTimestamps `json:"timestamps"`
+}
+
+const (
+	// InventoryPageSize is the maximum number of tokens that will be
+	// returned for any single status in an InventoryReply.
+	InventoryPageSize uint32 = 20
+)
+
+// Inventory requests the tokens of the records in the inventory, categorized
+// by record state and record status. The tokens are ordered by the timestamp
+// of their most recent status change, sorted from newest to oldest.
+//
+// The state, status, and page arguments can be provided to request a specific
+// page of record tokens.
+//
+// If no status is provided then a page of tokens for all statuses will be
+// returned. All other arguments will be ignored.
+type Inventory struct {
+	Challenge string        `json:"challenge"` // Random challenge
+	State     RecordStateT  `json:"state,omitempty"`
+	Status    RecordStatusT `json:"status,omitempty"`
+	Page      uint32        `json:"page,omitempty"`
+}
+
+// InventoryReply is the reply to the Inventory command. The map keys are the
+// human readable record statuses defined by the RecordStatuses array.
+type InventoryReply struct {
+	Response string              `json:"response"` // Challenge response
+	Unvetted map[string][]string `json:"unvetted"`
+	Vetted   map[string][]string `json:"vetted"`
+}
+
+// PluginCmd represents plugin command and the command payload. A token is
+// required for all plugin writes, but is optional for reads.
+type PluginCmd struct {
+	Token   string `json:"token,omitempty"` // Censorship token
+	ID      string `json:"id"`              // Plugin identifier
+	Command string `json:"command"`         // Plugin command
+	Payload string `json:"payload"`         // Command payload
+}
+
+// PluginWrite executes a plugin command that writes data.
+type PluginWrite struct {
+	Challenge string    `json:"challenge"` // Random challenge
+	Cmd       PluginCmd `json:"cmd"`
+}
+
+// PluginWriteReply is the reply to the PluginWrite command.
+type PluginWriteReply struct {
+	Response string `json:"response"` // Challenge response
+	Payload  string `json:"payload"`  // Response payload
+}
+
+// PluginReads executes a batch of read only plugin commands.
+type PluginReads struct {
+	Challenge string      `json:"challenge"` // Random challenge
+	Cmds      []PluginCmd `json:"cmds"`
+}
+
+// PluginReadReply is the reply to an individual read only plugin command that
+// is part of a batch of plugin commands.
+type PluginReadReply struct {
+	Token   string `json:"token"`   // Censorship token
+	ID      string `json:"id"`      // Plugin identifier
+	Command string `json:"command"` // Plugin command
+	Payload string `json:"payload"` // Response payload
+
+	// UserError will be populated if a ErrorCodeT is encountered
+	// before the plugin command could be executed.
+	UserError *UserErrorReply `json:"usererror,omitempty"`
+
+	// PluginError will be populated if a plugin error occurred during
+	// plugin command execution.
+	PluginError *PluginErrorReply `json:"pluginerror,omitempty"`
+}
+
+// PluginReadsReply is the reply to the PluginReads command.
+type PluginReadsReply struct {
+	Response string            `json:"response"` // Challenge response
+	Replies  []PluginReadReply `json:"replies"`
+}
+
+// PluginSetting is a structure that holds key/value pairs of a plugin setting.
+type PluginSetting struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// Plugin describes a plugin and its settings.
+type Plugin struct {
+	ID       string          `json:"id"`
+	Settings []PluginSetting `json:"settings"`
+}
+
+// PluginInventory retrieves all active plugins and their settings.
+type PluginInventory struct {
+	Challenge string `json:"challenge"` // Random challenge
+}
+
+// PluginInventoryReply returns all plugins and their settings.
+type PluginInventoryReply struct {
+	Response string   `json:"response"` // Challenge response
+	Plugins  []Plugin `json:"plugins"`
+}

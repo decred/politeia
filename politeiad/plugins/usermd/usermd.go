@@ -14,14 +14,14 @@ const (
 	CmdAuthor      = "author"      // Get record author
 	CmdUserRecords = "userrecords" // Get user submitted records
 
-	// MDStreamIDUserMetadata is the politeiad metadata stream ID for
-	// the UserMetadata structure.
-	MDStreamIDUserMetadata = 1
+	// StreamIDUserMetadata is the politeiad metadata stream ID for the
+	// UserMetadata structure.
+	StreamIDUserMetadata = 1
 
-	// MDStreamIDStatusChanges is the politeiad metadata stream ID for
-	// the status changes metadata. Status changes should be appended
-	// onto this metadata stream.
-	MDStreamIDStatusChanges = 2
+	// StreamIDStatusChanges is the politeiad metadata stream ID for
+	// the status changes metadata. Status changes are appended onto
+	// this metadata stream.
+	StreamIDStatusChanges = 2
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.

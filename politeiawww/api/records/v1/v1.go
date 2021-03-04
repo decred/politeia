@@ -167,9 +167,9 @@ type File struct {
 
 // MetadataStream describes a record metadata stream.
 type MetadataStream struct {
-	PluginID string `json:"pluginid"` // Plugin ID
-	ID       uint64 `json:"id"`       // Metadata stream ID
-	Payload  string `json:"payload"`  // JSON encoded
+	PluginID string `json:"pluginid"`
+	StreamID uint64 `json:"streamid"`
+	Payload  string `json:"payload"` // JSON encoded
 }
 
 // CensorshipRecord contains cryptographic proof that a record was accepted for
@@ -179,8 +179,7 @@ type CensorshipRecord struct {
 	// server. It serves as a unique identifier for the record.
 	Token string `json:"token"`
 
-	// Merkle is the ordered merkle root of all files and metadata in
-	// in the record.
+	// Merkle is the ordered merkle root of all files in the record.
 	Merkle string `json:"merkle"`
 
 	// Signature is the server signature of the Merkle+Token.
@@ -405,7 +404,7 @@ type Timestamps struct {
 type TimestampsReply struct {
 	RecordMetadata Timestamp `json:"recordmetadata"`
 
-	// map[pluginID+metadataID]Timestamp
+	// map[pluginID+streamID]Timestamp
 	Metadata map[string]Timestamp `json:"metadata"`
 
 	// map[filename]Timestamp
