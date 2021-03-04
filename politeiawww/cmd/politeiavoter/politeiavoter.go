@@ -1148,14 +1148,14 @@ func (c *ctx) _vote(token, voteId string) error {
 					vsr.EndHeight, err)
 			}
 			blocksLeft := endHeight - uint64(bestBlock)
-			if blocksLeft < c.cfg.blocksPerDay {
-				return fmt.Errorf("less than a day left to " +
-					"vote, please set --voteduration " +
+			if blocksLeft < c.cfg.blocksPerHour {
+				return fmt.Errorf("less than one hour left to" +
+					" vote, please set --voteduration " +
 					"manually")
 			}
 			c.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
 				(time.Duration(blocksLeft) -
-					time.Duration(c.cfg.blocksPerDay))
+					time.Duration(c.cfg.blocksPerHour))
 		}
 
 		// Generate work
