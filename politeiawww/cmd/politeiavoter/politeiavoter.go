@@ -193,10 +193,8 @@ type ctx struct {
 // timing intervals and vote details. This is a JSON structure for logging
 // purposes.
 type voteInterval struct {
-	Vote  v1.CastVote   `json:"vote"`  // RPC vote
-	Votes int           `json:"votes"` // Always 1 for now
-	Total time.Duration `json:"total"` // Cumulative time
-	At    time.Duration `json:"at"`    // Delay to fire off vote
+	Vote v1.CastVote   `json:"vote"` // RPC vote
+	At   time.Duration `json:"at"`   // Delay to fire off vote
 }
 
 func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
@@ -781,103 +779,6 @@ func (c *ctx) voteIntervalLen() uint64 {
 	return uint64(c.voteIntervalQ.Len())
 }
 
-// calculateTrickle calculates the trickle schedule.
-func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
-	votes := uint64(len(ctres.TicketAddresses))
-	duration := c.cfg.voteDuration
-	maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
-	minAvgInterval := uint64(35)
-	fmt.Printf("Votes       : %v\n", votes)
-	fmt.Printf("Duration    : %v\n", duration)
-	fmt.Printf("Avg Interval: %v\n", time.Duration(maxDelay/2)*time.Second)
-
-	// Ensure that the duration allows for sufficiently randomized delays
-	// in between votes
-	if duration.Seconds() < float64(minAvgInterval)*float64(votes) {
-		return fmt.Errorf("Vote duration must be at least %v",
-			time.Duration(float64(minAvgInterval)*float64(votes))*time.Second)
-	}
-
-	// Create array of work to be done. Vote delays are random durations
-	// between [0, maxDelay] (exclusive) which means that the vote delay
-	// average will converge to slightly less than duration/votes as the
-	// number of votes increases. Vote duration is treated as a hard cap
-	// and can not be exceeded.
-	buckets := make([]*voteInterval, votes)
-	var (
-		done    bool
-		retries int
-	)
-	maxRetries := 100
-	for retries = 0; !done && retries < maxRetries; retries++ {
-		done = true
-		var total time.Duration
-		for i := 0; i < len(buckets); i++ {
-			seconds, err := util.RandomUint64()
-			if err != nil {
-				return err
-			}
-			seconds %= maxDelay
-			if i == 0 {
-				// We always immediately vote the first time
-				// around. This should help catch setup errors.
-				seconds = 0
-			}
-
-			// Assemble missing vote bits
-			h, err := chainhash.NewHash(ctres.TicketAddresses[i].Ticket)
-			if err != nil {
-				return err
-			}
-			signature := hex.EncodeToString(smr.Replies[i].Signature)
-
-			t := time.Duration(seconds) * time.Second
-			total += t
-			buckets[i] = &voteInterval{
-				Vote: v1.CastVote{
-					Token:     token,
-					Ticket:    h.String(),
-					VoteBit:   voteBit,
-					Signature: signature,
-				},
-				Votes: 1,
-				Total: total,
-				At:    t,
-			}
-
-			// Make sure we are not going over our allotted time.
-			if total > duration {
-				done = false
-				break
-			}
-		}
-	}
-	if retries >= maxRetries {
-		// This should not happen
-		return fmt.Errorf("Could not randomize vote delays")
-	}
-
-	// Sanity
-	if len(buckets) != len(ctres.TicketAddresses) {
-		return fmt.Errorf("unexpected time bucket count got "+
-			"%v, wanted %v", len(ctres.TicketAddresses),
-			len(buckets))
-	}
-
-	// Convert buckets to a list
-	for _, v := range buckets {
-		c.voteIntervalPush(v)
-	}
-
-	// Log work
-	err := c.jsonLog(workJournal, token, buckets)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // _voteTrickler trickles votes to the server. The idea here is to not issue
 // large number of votes in one go to the server at the same time giving away
 // which IP address owns what votes.
@@ -1138,14 +1039,14 @@ func (c *ctx) _vote(token, voteId string) error {
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
 			blocksLeft := vs.EndHeight - bestBlock
-			if blocksLeft < c.cfg.blocksPerDay {
-				return fmt.Errorf("less than a day left to " +
-					"vote, please set --voteduration " +
+			if blocksLeft < c.cfg.blocksPerHour {
+				return fmt.Errorf("less than one hour left to" +
+					" vote, please set --voteduration " +
 					"manually")
 			}
 			c.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
 				(time.Duration(blocksLeft) -
-					time.Duration(c.cfg.blocksPerDay))
+					time.Duration(c.cfg.blocksPerHour))
 		}
 
 		// Generate work
