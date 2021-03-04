@@ -1774,7 +1774,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 		// Verify vote params are the same for all submissions
 		switch {
 		case v.Params.Type != ticketvote.VoteTypeRunoff:
-			e := fmt.Sprintf("got %v, want %v",
+			e := fmt.Sprintf("%v got %v, want %v",
 				v.Params.Token, v.Params.Type, ticketvote.VoteTypeRunoff)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,

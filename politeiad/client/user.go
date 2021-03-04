@@ -72,6 +72,7 @@ func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]s
 			Payload: string(b),
 		},
 		{
+			Action:  pdv1.PluginActionRead,
 			State:   pdv1.RecordStateVetted,
 			ID:      usermd.PluginID,
 			Command: usermd.CmdUserRecords,
