@@ -630,7 +630,8 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
               line_items.labor,
               line_items.expenses,
               line_items.contractor_rate AS sub_rate,
-              line_items.sub_user_id as sub_user
+              line_items.sub_user_id AS sub_user,
+			  line_items.approved
             FROM invoices
             LEFT OUTER JOIN invoices b
               ON invoices.token = b.token
@@ -678,6 +679,7 @@ type MatchingLineItems struct {
 	ExchangeRate   uint
 	SubRate        uint
 	SubUser        string
+	Approved       bool
 }
 
 // Close satisfies the database interface.

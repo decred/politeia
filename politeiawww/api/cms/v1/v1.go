@@ -55,6 +55,7 @@ const (
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
 	RouteUserCodeStats          = "/user/codestats"
+	RouteProposalInvoiceApprove = "/proposals/approve"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -469,6 +470,7 @@ type InvoiceRecord struct {
 	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
 	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
 	Total              int64                `json:"total"`                        // Total amount that the invoice is billing
+	ApprovedProposals  []string             `json:"approvedproposals"`            // List of proposals from this invoice that have been approved
 	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 
@@ -511,6 +513,7 @@ type LineItemsInput struct {
 	SubRate       uint          `json:"subrate"`       // The payrate of the subcontractor
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
+	Approved      bool          `json:"approved"`      // Proposal owner approved this line item (if proposal token specified)
 }
 
 // PolicyReply returns the various policy information while in CMS mode.
@@ -1084,4 +1087,18 @@ type CodeStats struct {
 	PRs              []string `json:"prs"`
 	Reviews          []string `json:"reviews"`
 	Commits          []string `json:"commits"`
+}
+
+// ProposalOwnerApprove is used to approve or reject an proposal referenced
+// invoice.
+type ProposalOwnerApprove struct {
+	Token     string           `json:"token"`
+	Status    InvoiceStatusT   `json:"status"`
+	LineItems []LineItemsInput `json:"lineitems"`
+	Signature string           `json:"signature"` // Signature of LineItems Approved
+	PublicKey string           `json:"publickey"` // Public key of admin
+}
+
+// ProposalOwnerApprove used to reply to a ProposalOwnerApprove command.
+type ProposalOwnerApproveReply struct {
 }

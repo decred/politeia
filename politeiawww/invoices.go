@@ -829,10 +829,46 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 	// Check to make sure the user is either an admin or shares the domain
 	// as the invoice creator (which will then be filtered).
 	if !u.Admin && (invoiceUser.Domain != requestingUser.Domain) {
-		err := www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
-		return nil, err
+	}
+
+	// Check to make sure the reqeusting user is either an admin, the
+	// invoice author or the owner of a proposal of line items that are
+	// included.
+	proposalFound := false
+	if !u.Admin && (invRec.Username != u.Username) {
+		// This is a non invoice owner or admin requesting, clean it up for
+		// private information.
+		invRec.Files = nil
+		invRec.Payment = cms.PaymentInformation{}
+		invRec.Input.PaymentAddress = ""
+		invRec.Input.ContractorLocation = ""
+
+		validLineItems := invRec.Input.LineItems[:0]
+
+		for _, lineItem := range invRec.Input.LineItems {
+			// If the proposal token is empty then don't display it for the
+			// non invoice owner or admin.
+			if lineItem.ProposalToken == "" {
+				continue
+			}
+			// Check to see that proposal token matches an owned proposal by
+			// the requesting user, if not don't include the line item in the
+			// list of line items to display.
+			if stringInSlice(requestingUser.ProposalsOwned, lineItem.ProposalToken) {
+				proposalFound = true
+				validLineItems = append(validLineItems, lineItem)
+			}
+		}
+		invRec.Input.LineItems = validLineItems
+		if !proposalFound {
+			err := www.UserError{
+				ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			}
+			return nil, err
+		}
 	}
 
 	// Calculate the payout from the invoice record
@@ -1577,10 +1613,25 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	// Check to make sure the user is either an admin or the
 	// invoice author.
 	if !u.Admin && (ir.Username != u.Username) {
-		err := www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		// If not an admin or invoice owner, check to see if they own a
+		// proposal that is being billed against, they are allowed to view
+		// comment threads (that they have begun).
+		cmsUser, err := p.getCMSUserByID(u.ID.String())
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+
+		proposalFound := false
+		for _, lineItem := range ir.Input.LineItems {
+			if stringInSlice(cmsUser.ProposalsOwned, lineItem.ProposalToken) {
+				proposalFound = true
+			}
+		}
+		if !proposalFound {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			}
+		}
 	}
 
 	// Fetch proposal comments from cache
@@ -1589,6 +1640,35 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 		return nil, err
 	}
 
+	userOwnedComments := make([]www.Comment, 0, 1048)
+	commentsToDisplay := make([]www.Comment, 0, 1048)
+	// Check to see if it's a proposal owner, then show them only threads
+	// they started.  Admins and invoice owners can see everything.
+	if !u.Admin && (ir.Username != u.Username) {
+		for _, comment := range c {
+			// Add any comments that are owned by the requesting
+			// user.
+			if comment.UserID == u.ID.String() {
+				userOwnedComments = append(userOwnedComments, comment)
+			}
+		}
+		// Now go through again and check for any replies to a proposal owner
+		// comment.
+		for _, comment := range c {
+			addToComments := false
+			for _, userComment := range userOwnedComments {
+				if userComment.ParentID == comment.CommentID {
+					addToComments = true
+					break
+				}
+			}
+			if addToComments {
+				commentsToDisplay = append(commentsToDisplay, comment)
+			}
+		}
+		commentsToDisplay = append(commentsToDisplay, userOwnedComments...)
+		c = commentsToDisplay
+	}
 	// Get the last time the user accessed these comments. This is
 	// a public route so a user may not exist.
 	var accessTime int64
@@ -1894,13 +1974,11 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 	if err != nil {
 		return nil, err
 	}
-
 	var tvr www.TokenInventoryReply
 	err = json.Unmarshal(data, &tvr)
 	if err != nil {
 		return nil, err
 	}
-
 	approvedProposals := tvr.Approved
 
 	approvedProposalDetails := make([]www.ProposalRecord, 0, len(approvedProposals))
@@ -2000,7 +2078,6 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 	if err != nil {
 		return nil, err
 	}
-
 	spendingSummary := cms.ProposalSpending{}
 	spendingSummary.Token = pbd.Token
 
@@ -2030,7 +2107,6 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 	if err != nil {
 		return nil, err
 	}
-
 	var pdr www.ProposalDetailsReply
 	err = json.Unmarshal(data, &pdr)
 	if err != nil {
@@ -2043,4 +2119,106 @@ func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 
 	reply.Details = spendingSummary
 	return reply, nil
+}
+
+// processProposalInvoiceApprove appends a proposal owners approval onto the
+// invoice records metadata which will allow admins to determine if an invoice
+// is fully approved.
+func (p *politeiawww) processProposalInvoiceApprove(ctx context.Context, poa cms.ProposalOwnerApprove, u *user.User) (*cms.ProposalOwnerApproveReply, error) {
+	invRec, err := p.getInvoice(poa.Token)
+	if err != nil {
+		return nil, err
+	}
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+	proposalFound := false
+	for i, lineItem := range invRec.Input.LineItems {
+		// If the proposal token is empty then don't display it for the
+		// non invoice owner or admin.
+		if lineItem.ProposalToken == "" {
+			continue
+		}
+		// Check to see that proposal token matches an owned proposal by
+		// the recommending user, if not don't include the line item in the
+		// list of line items to display.
+		if stringInSlice(cmsUser.ProposalsOwned, lineItem.ProposalToken) {
+			proposalFound = true
+			invRec.Input.LineItems[i].Approved = true
+		}
+	}
+	if !proposalFound {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
+	b, err := json.Marshal(poa.LineItems)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate signature
+	msg := fmt.Sprintf("%v", b)
+	err = validateSignature(poa.PublicKey, poa.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the change record.
+	c := mdstream.InvoiceProposalApprove{
+		Version:        mdstream.VersionInvoiceProposalApprove,
+		PublicKey:      u.PublicKey(),
+		Timestamp:      time.Now().Unix(),
+		Signature:      poa.Signature,
+		Token:          poa.Token,
+		LineItems:      b,
+		InvoiceVersion: invRec.Version,
+	}
+	blob, err := mdstream.EncodeInvoiceProposalApprove(c)
+	if err != nil {
+		return nil, err
+	}
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     poa.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdstream.IDInvoiceProposalApprove,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(ctx, http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update Invoice in db so line items are approved
+	err = p.cmsDB.UpdateInvoice(convertInvoiceRecordToDatabaseInvoice(invRec))
+	if err != nil {
+		return nil, err
+	}
+	return &cms.ProposalOwnerApproveReply{}, nil
 }

@@ -871,6 +871,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (cms.I
 			Expenses:      dbLineItem.Expenses,
 			SubRate:       dbLineItem.ContractorRate,
 			SubUserID:     dbLineItem.SubUserID,
+			Approved:      dbLineItem.Approved,
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
@@ -926,6 +927,7 @@ func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdataba
 			Expenses:       lineItem.Expenses,
 			ContractorRate: lineItem.SubRate,
 			SubUserID:      lineItem.SubUserID,
+			Approved:       lineItem.Approved,
 		}
 		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
 	}
@@ -947,6 +949,7 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 			// If subrate is populated, use the existing contractor rate field.
 			ContractorRate: v.SubRate,
 			SubUserID:      v.SubUserID,
+			Approved:       v.Approved,
 		})
 	}
 	return dl
@@ -963,6 +966,7 @@ func convertDatabaseToLineItems(dl []cmsdatabase.LineItem) []cms.LineItemsInput 
 			ProposalToken: v.ProposalURL,
 			Labor:         v.Labor,
 			Expenses:      v.Expenses,
+			Approved:      v.Approved,
 		})
 	}
 	return l
@@ -976,6 +980,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 		Version:         p.Version,
 	}
 
+	var approvedProposals []string
 	// Decode invoice file
 	for _, v := range p.Files {
 		if v.Name == invoiceFile {
@@ -1070,6 +1075,28 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				payment.TimeLastUpdated = s.Timestamp
 				payment.AmountReceived = s.AmountReceived
 			}
+			dbInvoice.Payments = payment
+		case mdstream.IDInvoiceProposalApprove:
+			ipa, err := mdstream.DecodeInvoiceProposalApprove([]byte(m.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					p.CensorshipRecord.Token, err, m)
+				continue
+			}
+			for _, s := range ipa {
+				// Check to see if the approved invoice version doesn't match
+				// current invoice version.  If so, the proposal owner needs to
+				// approve again.
+				if s.InvoiceVersion != p.Version {
+					continue
+				}
+				if approvedProposals == nil {
+					approvedProposals = make([]string, 0, 1048)
+				}
+				approvedProposals = append(approvedProposals, s.Token)
+			}
+
 		default:
 			// Log error but proceed
 			log.Errorf("convertRecordToInvoiceDB: invalid "+
@@ -1078,6 +1105,15 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 		}
 	}
 	dbInvoice.Payments = payment
+
+	// Set all line items to approved based on metadata
+	for _, approvedProposal := range approvedProposals {
+		for i := range dbInvoice.LineItems {
+			if dbInvoice.LineItems[i].ProposalURL == approvedProposal {
+				dbInvoice.LineItems[i].Approved = true
+			}
+		}
+	}
 
 	return &dbInvoice, nil
 }
@@ -1408,6 +1444,7 @@ func convertDatabaseInvoiceToProposalLineItems(inv cmsdatabase.Invoice) cms.Prop
 			Labor:         inv.LineItems[0].Labor,
 			Expenses:      inv.LineItems[0].Expenses,
 			SubRate:       inv.LineItems[0].ContractorRate,
+			Approved:      inv.LineItems[0].Approved,
 		},
 	}
 }

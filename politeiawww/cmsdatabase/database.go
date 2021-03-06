@@ -108,6 +108,7 @@ type Invoice struct {
 	ContractorContact  string
 	ContractorRate     uint
 	PaymentAddress     string
+	ApprovedProposals  []string
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.
 	Changes   []InvoiceChange // All status changes that the invoice has had.
@@ -128,6 +129,7 @@ type LineItem struct {
 	Expenses       uint
 	ContractorRate uint
 	SubUserID      string
+	Approved       bool
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given
