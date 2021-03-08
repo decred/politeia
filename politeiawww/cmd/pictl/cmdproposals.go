@@ -15,11 +15,6 @@ type cmdProposals struct {
 	Args struct {
 		Tokens []string `positional-arg-name:"proposals" required:"true"`
 	} `positional-args:"true"`
-
-	// Unvetted is used to indicate the state of the proposals are
-	// unvetted. If this flag is not used it will be assumed that the
-	// proposals are vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdProposals command.
@@ -39,15 +34,6 @@ func (c *cmdProposals) Execute(args []string) error {
 		return err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = piv1.ProposalStateUnvetted
-	default:
-		state = piv1.ProposalStateVetted
-	}
-
 	// Get records
 	reqs := make([]rcv1.RecordRequest, 0, len(c.Args.Tokens))
 	for _, v := range c.Args.Tokens {
@@ -60,7 +46,6 @@ func (c *cmdProposals) Execute(args []string) error {
 		})
 	}
 	r := rcv1.Records{
-		State:    state,
 		Requests: reqs,
 	}
 	records, err := pc.Records(r)
@@ -92,9 +77,6 @@ is used. This command accepts both the full tokens or the token prefixes.
 
 Arguments:
 1. tokens  ([]string, required)  Proposal tokens.
-
-Flags:
- --unvetted  (bool, optional)  Retrieve unvetted proposals.
 
 Example:
 $ pictl proposals f6458c2d8d9ef41c 9f9af91cf609d839 917c6fde9bcc2118

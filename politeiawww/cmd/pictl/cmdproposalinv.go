@@ -13,16 +13,10 @@ import (
 // the inventory, categorized by status.
 type cmdProposalInv struct {
 	Args struct {
+		State  string `positional-arg-name:"state"`
 		Status string `positional-arg-name:"status"`
 		Page   uint32 `positional-arg-name:"page"`
 	} `positional-args:"true" optional:"true"`
-
-	// Unvetted is used to indicate the state that should be sent in
-	// the inventory request. This flag is only required when
-	// requesting the inventory for a specific status. If a status
-	// argument is provided and this flag is not, it will be assumed
-	// that the state being requested is vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdProposalInv command.
@@ -53,12 +47,14 @@ func proposalInv(c *cmdProposalInv) (*rcv1.InventoryReply, error) {
 	}
 
 	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = rcv1.RecordStateUnvetted
-	default:
-		state = rcv1.RecordStateVetted
+	var state rcv1.RecordStateT
+	if c.Args.State != "" {
+		// Parse state. This can be either the numeric state code or the
+		// human readable equivalent.
+		state, err = parseRecordState(c.Args.State)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Setup status and page number
@@ -114,9 +110,7 @@ Valid statuses:
   abandoned
 
 Arguments:
-1. status (string, optional) Status of tokens being requested.
-2. page   (uint32, optional) Page number.
-
-Flags:
-  --unvetted (bool, optional) Set status of an unvetted record.
+1. state  (string, optional) State of tokens being requested.
+2. status (string, optional) Status of tokens being requested.
+3. page   (uint32, optional) Page number.
 `

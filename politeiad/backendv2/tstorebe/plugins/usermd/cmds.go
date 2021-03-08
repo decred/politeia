@@ -51,10 +51,11 @@ func (p *userPlugin) cmdUserRecords(payload string) (string, error) {
 		return "", err
 	}
 
+	// TODO fix the user records reply
+	_ = uc
+
 	// Prepare reply
-	urr := usermd.UserRecordsReply{
-		Records: uc.Tokens,
-	}
+	urr := usermd.UserRecordsReply{}
 	reply, err := json.Marshal(urr)
 	if err != nil {
 		return "", err

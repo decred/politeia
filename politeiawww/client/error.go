@@ -14,7 +14,6 @@ import (
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
@@ -62,8 +61,6 @@ func apiUserErr(api string, e ErrorReply) string {
 	switch api {
 	case cmv1.APIRoute:
 		errMsg = cmv1.ErrorCodes[cmv1.ErrorCodeT(e.ErrorCode)]
-	case piv1.APIRoute:
-		errMsg = piv1.ErrorCodes[piv1.ErrorCodeT(e.ErrorCode)]
 	case rcv1.APIRoute:
 		errMsg = rcv1.ErrorCodes[rcv1.ErrorCodeT(e.ErrorCode)]
 	case tkv1.APIRoute:

@@ -27,10 +27,6 @@ type cmdProposalEdit struct {
 		Attachments []string `positional-arg-name:"attachmets"`
 	} `positional-args:"true" optional:"true"`
 
-	// Unvetted is used to edit an unvetted proposal. If this flag is
-	// not used the command assumes the proposal is vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
-
 	// UseMD is a flag that is intended to make editing proposal
 	// metadata easier by using exisiting proposal metadata values
 	// instead of having to pass in specific values.
@@ -115,15 +111,6 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		return nil, err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = rcv1.RecordStateUnvetted
-	default:
-		state = rcv1.RecordStateVetted
-	}
-
 	// Setup proposal files
 	indexFileSize := 10000 // In bytes
 	var files []rcv1.File
@@ -153,7 +140,6 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 	var curr *rcv1.Record
 	if c.UseMD {
 		d := rcv1.Details{
-			State: state,
 			Token: token,
 		}
 		curr, err = pc.RecordDetails(d)
@@ -238,7 +224,6 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		return nil, err
 	}
 	e := rcv1.Edit{
-		State:     state,
 		Token:     token,
 		Files:     files,
 		PublicKey: cfg.Identity.Public.String(),
@@ -272,8 +257,7 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 // proposalEditHelpMsg is the printed to stdout by the help command.
 const proposalEditHelpMsg = `editproposal [flags] "token" "indexfile" "attachments" 
 
-Edit a proposal. This command assumes the proposal is a vetted record. If the
-proposal is unvetted, the --unvetted flag must be used.
+Edit an existing proposal.
 
 A proposal can be submitted as an RFP (Request for Proposals) by using either
 the --rfp flag or by manually specifying a link by deadline using the --linkby
@@ -288,8 +272,6 @@ Arguments:
 3. attachments (string, optional) Attachment files.
 
 Flags:
- --unvetted     (bool)   Edit an unvetted record.
-
  --usemd        (bool)   Use the existing proposal metadata.
 
  --name         (string) Name of the proposal.

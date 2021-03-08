@@ -67,18 +67,13 @@ func (c *cmdVoteAuthorize) Execute(args []string) error {
 	version := c.Args.Version
 	if version == 0 {
 		d := rcv1.Details{
-			State: rcv1.RecordStateVetted,
 			Token: c.Args.Token,
 		}
 		r, err := pc.RecordDetails(d)
 		if err != nil {
 			return err
 		}
-		u, err := strconv.ParseUint(r.Version, 10, 64)
-		if err != nil {
-			return err
-		}
-		version = uint32(u)
+		version = r.Version
 	}
 
 	// Setup request

@@ -13,13 +13,8 @@ import (
 type cmdProposalDetails struct {
 	Args struct {
 		Token   string `positional-arg-name:"token"`
-		Version string `postional-arg-name:"version" optional:"true"`
+		Version uint32 `postional-arg-name:"version" optional:"true"`
 	} `positional-args:"true"`
-
-	// Unvetted is used to indicate that the state of the requested
-	// proposal is unvetted. If this flag is not used it will be
-	// assumed that a vetted proposal is being requested.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdProposalDetails command.
@@ -39,18 +34,8 @@ func (c *cmdProposalDetails) Execute(args []string) error {
 		return err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = rcv1.RecordStateUnvetted
-	default:
-		state = rcv1.RecordStateVetted
-	}
-
 	// Get proposal details
 	d := rcv1.Details{
-		State:   state,
 		Token:   c.Args.Token,
 		Version: c.Args.Version,
 	}
@@ -73,13 +58,8 @@ const proposalDetailsHelpMsg = `proposaldetails [flags] "token" "version"
 
 Retrieve a full proposal record.
 
-This command defaults to retrieving vetted proposals unless the --unvetted flag
-is used. This command accepts both the full tokens or the shortened token
-prefixes.
+This command accepts both the full tokens or the shortened token prefixes.
 
 Arguments:
 1. token  (string, required)  Proposal token.
-
-Flags:
- --unvetted  (bool, optional)  Retrieve an unvetted proposal.
 `

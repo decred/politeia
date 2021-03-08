@@ -20,13 +20,8 @@ type cmdProposalSetStatus struct {
 		Token   string `positional-arg-name:"token" required:"true"`
 		Status  string `positional-arg-name:"status" required:"true"`
 		Reason  string `positional-arg-name:"reason"`
-		Version string `positional-arg-name:"version"`
+		Version uint32 `positional-arg-name:"version"`
 	} `positional-args:"true"`
-
-	// Unvetted is used to indicate the state of the proposal is
-	// unvetted. If this flag is not used it will be assumed that
-	// the proposal is vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdProposalSetStatus command.
@@ -63,15 +58,6 @@ func proposalSetStatus(c *cmdProposalSetStatus) (*rcv1.Record, error) {
 		return nil, err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = rcv1.RecordStateUnvetted
-	default:
-		state = rcv1.RecordStateVetted
-	}
-
 	// Parse status. This can be either the numeric status code or the
 	// human readable equivalent.
 	status, err := parseRecordStatus(c.Args.Status)
@@ -80,13 +66,12 @@ func proposalSetStatus(c *cmdProposalSetStatus) (*rcv1.Record, error) {
 	}
 
 	// Setup version
-	var version string
-	if c.Args.Version != "" {
+	var version uint32
+	if c.Args.Version != 0 {
 		version = c.Args.Version
 	} else {
 		// Get the version manually
 		d := rcv1.Details{
-			State: state,
 			Token: c.Args.Token,
 		}
 		r, err := pc.RecordDetails(d)
@@ -97,11 +82,11 @@ func proposalSetStatus(c *cmdProposalSetStatus) (*rcv1.Record, error) {
 	}
 
 	// Setup request
-	msg := c.Args.Token + version + strconv.Itoa(int(status)) + c.Args.Reason
+	msg := c.Args.Token + strconv.FormatUint(uint64(version), 10) +
+		strconv.Itoa(int(status)) + c.Args.Reason
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	ss := rcv1.SetStatus{
 		Token:     c.Args.Token,
-		State:     state,
 		Version:   version,
 		Status:    status,
 		Reason:    c.Args.Reason,
@@ -132,6 +117,33 @@ func proposalSetStatus(c *cmdProposalSetStatus) (*rcv1.Record, error) {
 	}
 
 	return &ssr.Record, nil
+}
+
+func parseRecordState(state string) (rcv1.RecordStateT, error) {
+	// Parse status. This can be either the numeric status code or the
+	// human readable equivalent.
+	var (
+		rc rcv1.RecordStateT
+
+		states = map[string]rcv1.RecordStateT{
+			"unvetted": rcv1.RecordStateUnvetted,
+			"vetted":   rcv1.RecordStateVetted,
+			"1":        rcv1.RecordStateUnvetted,
+			"2":        rcv1.RecordStateVetted,
+		}
+	)
+	u, err := strconv.ParseUint(state, 10, 32)
+	if err == nil {
+		// Numeric state code found
+		rc = rcv1.RecordStateT(u)
+	} else if s, ok := states[state]; ok {
+		// Human readable state code found
+		rc = s
+	} else {
+		return rc, fmt.Errorf("invalid state '%v'", state)
+	}
+
+	return rc, nil
 }
 
 func parseRecordStatus(status string) (rcv1.RecordStatusT, error) {
@@ -189,7 +201,4 @@ Arguments:
 3. message (string, optional)  Status change message
 4. version (string, optional)  Proposal version. This will be retrieved from
                                the backend if one is not provided.
-
-Flags:
-  --unvetted (bool, optional)  Set status of an unvetted record.
 `

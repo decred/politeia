@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -39,14 +38,9 @@ type cmdVoteStart struct {
 func voteStartStandard(token string, duration, quorum, pass uint32, pc *pclient.Client) (*tkv1.StartReply, error) {
 	// Get record version
 	d := rcv1.Details{
-		State: rcv1.RecordStateVetted,
 		Token: token,
 	}
 	r, err := pc.RecordDetails(d)
-	if err != nil {
-		return nil, err
-	}
-	version, err := strconv.ParseUint(r.Version, 10, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +48,7 @@ func voteStartStandard(token string, duration, quorum, pass uint32, pc *pclient.
 	// Setup request
 	vp := tkv1.VoteParams{
 		Token:            token,
-		Version:          uint32(version),
+		Version:          r.Version,
 		Type:             tkv1.VoteTypeStandard,
 		Mask:             0x03,
 		Duration:         duration,
@@ -109,16 +103,11 @@ func voteStartRunoff(parentToken string, duration, quorum, pass uint32, pc *pcli
 	for _, v := range sr.Submissions {
 		// Get record
 		d := rcv1.Details{
-			State: rcv1.RecordStateVetted,
 			Token: v,
 		}
 		r, err := pc.RecordDetails(d)
 		if err != nil {
 			return nil, fmt.Errorf("RecordDetails %v: %v", v, err)
-		}
-		version, err := strconv.ParseUint(r.Version, 10, 64)
-		if err != nil {
-			return nil, err
 		}
 
 		// Don't include the record if it has been abandoned.
@@ -129,7 +118,7 @@ func voteStartRunoff(parentToken string, duration, quorum, pass uint32, pc *pcli
 		// Setup vote params
 		vp := tkv1.VoteParams{
 			Token:            r.CensorshipRecord.Token,
-			Version:          uint32(version),
+			Version:          r.Version,
 			Type:             tkv1.VoteTypeRunoff,
 			Mask:             0x03, // bit 0 no, bit 1 yes
 			Duration:         duration,

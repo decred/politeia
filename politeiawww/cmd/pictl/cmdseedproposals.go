@@ -522,7 +522,6 @@ func proposalUnreviewed(u user, includeImages bool) (*rcv1.Record, error) {
 
 	// Edit the proposal
 	ce := cmdProposalEdit{
-		Unvetted:     true,
 		Random:       true,
 		RandomImages: includeImages,
 	}
@@ -558,9 +557,7 @@ func proposalUnvettedCensored(author, admin user, includeImages bool) (*rcv1.Rec
 	}
 
 	// Censor the proposal
-	cs := cmdProposalSetStatus{
-		Unvetted: true,
-	}
+	cs := cmdProposalSetStatus{}
 	cs.Args.Token = r.CensorshipRecord.Token
 	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusCensored))
 	cs.Args.Reason = "Violates proposal rules."
@@ -596,9 +593,7 @@ func proposalPublic(author, admin user, includeImages bool) (*rcv1.Record, error
 	}
 
 	// Make the proposal public
-	cs := cmdProposalSetStatus{
-		Unvetted: true,
-	}
+	cs := cmdProposalSetStatus{}
 	cs.Args.Token = r.CensorshipRecord.Token
 	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusPublic))
 	cs.Args.Version = r.Version
@@ -621,7 +616,6 @@ func proposalPublic(author, admin user, includeImages bool) (*rcv1.Record, error
 
 	// Edit the proposal
 	ce := cmdProposalEdit{
-		Unvetted:     false,
 		Random:       true,
 		RandomImages: includeImages,
 	}
@@ -658,9 +652,7 @@ func proposalVettedCensored(author, admin user, includeImages bool) (*rcv1.Recor
 	}
 
 	// Censor the proposal
-	cs := cmdProposalSetStatus{
-		Unvetted: false,
-	}
+	cs := cmdProposalSetStatus{}
 	cs.Args.Token = r.CensorshipRecord.Token
 	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusCensored))
 	cs.Args.Reason = "Violates proposal rules."
@@ -697,9 +689,7 @@ func proposalAbandoned(author, admin user, includeImages bool) (*rcv1.Record, er
 	}
 
 	// Abandone the proposal
-	cs := cmdProposalSetStatus{
-		Unvetted: false,
-	}
+	cs := cmdProposalSetStatus{}
 	cs.Args.Token = r.CensorshipRecord.Token
 	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusArchived))
 	cs.Args.Reason = "No activity from author in 3 weeks."
@@ -719,17 +709,10 @@ func proposalAbandoned(author, admin user, includeImages bool) (*rcv1.Record, er
 }
 
 // inv returns a page of tokens for a record status.
-func inv(state string, status rcv1.RecordStatusT, page uint32) ([]string, error) {
+func inv(state rcv1.RecordStateT, status rcv1.RecordStatusT, page uint32) ([]string, error) {
 	// Setup command
 	c := cmdProposalInv{}
-	switch state {
-	case rcv1.RecordStateUnvetted:
-		c.Unvetted = true
-	case rcv1.RecordStateVetted:
-		// Do nothing
-	default:
-		return nil, fmt.Errorf("invalid state")
-	}
+	c.Args.State = strconv.Itoa(int(state))
 	c.Args.Status = strconv.Itoa(int(status))
 	c.Args.Page = page
 

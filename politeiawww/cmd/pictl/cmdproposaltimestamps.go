@@ -7,9 +7,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -18,13 +17,8 @@ import (
 type cmdProposalTimestamps struct {
 	Args struct {
 		Token   string `positional-arg-name:"token" required:"true"`
-		Version string `positional-arg-name:"version" optional:"true"`
+		Version uint32 `positional-arg-name:"version" optional:"true"`
 	} `positional-args:"true"`
-
-	// Unvetted is used to request the timestamps of an unvetted
-	// proposal. If this flag is not used it will be assume that the
-	// proposal is vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdProposalTimestamps command.
@@ -44,18 +38,8 @@ func (c *cmdProposalTimestamps) Execute(args []string) error {
 		return err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = piv1.ProposalStateUnvetted
-	default:
-		state = piv1.ProposalStateVetted
-	}
-
 	// Get timestamps
 	t := rcv1.Timestamps{
-		State:   state,
 		Token:   c.Args.Token,
 		Version: c.Args.Version,
 	}
@@ -69,10 +53,13 @@ func (c *cmdProposalTimestamps) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("verify proposal metadata timestamp: %v", err)
 	}
-	for k, v := range tr.Metadata {
-		err = verifyTimestamp(v)
-		if err != nil {
-			return fmt.Errorf("verify metadata %v timestamp: %v", k, err)
+	for pluginID, v := range tr.Metadata {
+		for streamID, ts := range v {
+			err = verifyTimestamp(ts)
+			if err != nil {
+				return fmt.Errorf("verify metadata %v %v timestamp: %v",
+					pluginID, streamID, err)
+			}
 		}
 	}
 	for k, v := range tr.Files {
@@ -129,8 +116,5 @@ is used.
 
 Arguments:
 1. token    (string, required) Record token
-2. version  (string, optional) Record version
-
-Flags:
- --unvetted (bool, optional)   Request is for unvetted proposals.
+2. version  (uint32, optional) Record version
 `

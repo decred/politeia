@@ -308,8 +308,9 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	}
 
 	// Verify signature
-	s := strconv.FormatUint(uint64(scm.Status), 10)
-	msg := scm.Token + scm.Version + s + scm.Reason
+	status := strconv.FormatUint(uint64(scm.Status), 10)
+	version := strconv.FormatUint(uint64(scm.Version), 10)
+	msg := scm.Token + version + status + scm.Reason
 	err = util.VerifySignature(scm.Signature, scm.PublicKey, msg)
 	if err != nil {
 		return convertSignatureError(err)

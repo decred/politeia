@@ -7,8 +7,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/politeiad/backend/tstorebe/tstore"
+	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
