@@ -314,8 +314,8 @@ func (p *politeia) handleRecordGetBatch(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeia) handleRecordTimestamps(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRecordTimestamps")
+func (p *politeia) handleRecordGetTimestamps(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRecordGetTimestamps")
 
 	// Decode request
 	var rgt v2.RecordGetTimestamps
@@ -354,7 +354,7 @@ func (p *politeia) handleRecordTimestamps(w http.ResponseWriter, r *http.Request
 
 	// Prepare reply
 	response := p.identity.SignMessage(challenge)
-	rtr := v2.RecordTimestampsReply{
+	rtr := v2.RecordGetTimestampsReply{
 		Response:   hex.EncodeToString(response[:]),
 		Timestamps: convertRecordTimestampsToV2(*rt),
 	}
@@ -417,6 +417,21 @@ func (p *politeia) handleInventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, ir)
+}
+
+func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePluginWrite")
+	panic("not implemented")
+}
+
+func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePluginReads")
+	panic("not implemented")
+}
+
+func (p *politeia) handlePluginInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePluginInventory")
+	panic("not implemented")
 }
 
 // decodeToken decodes a v2 token and errors if the token is not the full

@@ -4,15 +4,7 @@
 
 package client
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-)
-
+/*
 // TicketVoteAuthorize sends the ticketvote plugin Authorize command to the
 // politeiad v1 API.
 func (c *Client) TicketVoteAuthorize(ctx context.Context, a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
@@ -425,3 +417,4 @@ func (c *Client) TicketVoteTimestamps(ctx context.Context, t ticketvote.Timestam
 
 	return &sr, nil
 }
+*/

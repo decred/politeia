@@ -4,15 +4,7 @@
 
 package client
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/plugins/usermd"
-)
-
+/*
 // Author sends the user plugin Author command to the politeiad v1 API.
 func (c *Client) Author(ctx context.Context, state, token string) (string, error) {
 	// Setup request
@@ -107,3 +99,4 @@ func (c *Client) UserRecords(ctx context.Context, userID string) (map[string][]s
 
 	return reply, nil
 }
+*/

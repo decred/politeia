@@ -55,7 +55,7 @@ func (e Error) Error() string {
 // serializing the provided object as the request body, and returning a byte
 // slice of the response body. An Error is returned if politeiad responds with
 // anything other than a 200 http status code.
-func (c *Client) makeReq(ctx context.Context, method string, route string, v interface{}) ([]byte, error) {
+func (c *Client) makeReq(ctx context.Context, method, api, route string, v interface{}) ([]byte, error) {
 	// Serialize body
 	var (
 		reqBody []byte
@@ -69,7 +69,7 @@ func (c *Client) makeReq(ctx context.Context, method string, route string, v int
 	}
 
 	// Send request
-	fullRoute := c.rpcHost + route
+	fullRoute := c.rpcHost + api + route
 	req, err := http.NewRequestWithContext(ctx, method,
 		fullRoute, bytes.NewReader(reqBody))
 	if err != nil {

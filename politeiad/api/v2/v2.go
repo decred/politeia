@@ -7,8 +7,8 @@ package v2
 import "fmt"
 
 const (
-	// RoutePrefix is prefixed onto all routes in this package.
-	RoutePrefix = "/v2"
+	// APIRoute is prefixed onto all routes in this package.
+	APIRoute = "/v2"
 
 	// Routes
 	RouteRecordNew           = "/recordnew"
@@ -401,8 +401,8 @@ type RecordGetTimestamps struct {
 	Version   uint32 `json:"version"`   // Record version
 }
 
-// RecordTimestampsReply is the reply ot the RecordTimestamps command.
-type RecordTimestampsReply struct {
+// RecordGetTimestampsReply is the reply ot the RecordTimestamps command.
+type RecordGetTimestampsReply struct {
 	Response   string           `json:"response"` // Challenge response
 	Timestamps RecordTimestamps `json:"timestamps"`
 }

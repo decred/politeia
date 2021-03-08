@@ -4,16 +4,7 @@
 
 package client
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-
-	"github.com/davecgh/go-spew/spew"
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/plugins/comments"
-)
-
+/*
 // CommentNew sends the comments plugin New command to the politeiad v1 API.
 func (c *Client) CommentNew(ctx context.Context, state string, n comments.New) (*comments.NewReply, error) {
 	// Setup request
@@ -21,15 +12,11 @@ func (c *Client) CommentNew(ctx context.Context, state string, n comments.New) (
 	if err != nil {
 		return nil, err
 	}
-	cmds := []pdv1.PluginCommandV2{
-		{
-			Action:  pdv1.PluginActionWrite,
-			State:   state,
-			Token:   n.Token,
-			ID:      comments.PluginID,
-			Command: comments.CmdNew,
-			Payload: string(b),
-		},
+	cmd := pdv2.PluginCmd{
+		Token:   n.Token,
+		ID:      comments.PluginID,
+		Command: comments.CmdNew,
+		Payload: string(b),
 	}
 
 	// Send request
@@ -353,3 +340,4 @@ func (c *Client) CommentTimestamps(ctx context.Context, state, token string, t c
 
 	return &tr, nil
 }
+*/

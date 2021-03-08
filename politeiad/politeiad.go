@@ -24,6 +24,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	v2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiad/backendv2"
@@ -992,6 +993,11 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
+func (p *politeia) addRouteV2(method string, route string, handler http.HandlerFunc, perm permission) {
+	route = v2.APIRoute + route
+	p.addRoute(method, route, handler, perm)
+}
+
 func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 	b, err := gitbe.New(activeNetParams.Params, p.cfg.DataDir,
 		p.cfg.DcrtimeHost, "", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
@@ -1051,7 +1057,33 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 	}
 	p.backendv2 = b
 
-	// Setup routes
+	// Setup v1 routes
+	p.addRoute(http.MethodPost, v1.IdentityRoute,
+		p.getIdentity, permissionPublic)
+
+	// Setup v2 routes
+	p.addRouteV2(http.MethodPost, v2.RouteRecordNew,
+		p.handleRecordNew, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordEdit,
+		p.handleRecordEdit, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordEditMetadata,
+		p.handleRecordEditMetadata, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordSetStatus,
+		p.handleRecordSetStatus, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordGet,
+		p.handleRecordGet, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordGetBatch,
+		p.handleRecordGetBatch, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordGetTimestamps,
+		p.handleRecordGetTimestamps, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteInventory,
+		p.handleInventory, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginWrite,
+		p.handlePluginWrite, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginReads,
+		p.handlePluginReads, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginInventory,
+		p.handlePluginInventory, permissionPublic)
 
 	// Setup plugins
 	if len(p.cfg.Plugins) > 0 {

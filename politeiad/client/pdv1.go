@@ -28,7 +28,8 @@ func (c *Client) NewRecord(ctx context.Context, metadata []pdv1.MetadataStream, 
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost, pdv1.NewRecordRoute, nr)
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
+		pdv1.NewRecordRoute, nr)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func (c *Client) updateRecord(ctx context.Context, route, token string, mdAppend
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost, route, ur)
+	resBody, err := c.makeReq(ctx, http.MethodPost, "", route, ur)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +111,7 @@ func (c *Client) UpdateUnvettedMetadata(ctx context.Context, token string, mdApp
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.UpdateUnvettedMetadataRoute, uum)
 	if err != nil {
 		return nil
@@ -146,7 +147,7 @@ func (c *Client) UpdateVettedMetadata(ctx context.Context, token string, mdAppen
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.UpdateVettedMetadataRoute, uvm)
 	if err != nil {
 		return nil
@@ -183,7 +184,7 @@ func (c *Client) SetUnvettedStatus(ctx context.Context, token string, status pdv
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.SetUnvettedStatusRoute, sus)
 	if err != nil {
 		return nil, err
@@ -219,7 +220,7 @@ func (c *Client) SetVettedStatus(ctx context.Context, token string, status pdv1.
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.SetVettedStatusRoute, svs)
 	if err != nil {
 		return nil, err
@@ -253,7 +254,8 @@ func (c *Client) GetUnvetted(ctx context.Context, token, version string) (*pdv1.
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost, pdv1.GetUnvettedRoute, gu)
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
+		pdv1.GetUnvettedRoute, gu)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +288,7 @@ func (c *Client) GetVetted(ctx context.Context, token, version string) (*pdv1.Re
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.GetVettedRoute, gv)
 	if err != nil {
 		return nil, err
@@ -306,209 +308,6 @@ func (c *Client) GetVetted(ctx context.Context, token, version string) (*pdv1.Re
 	return &gvr.Record, nil
 }
 
-// GetUnvettedBatch sends a GetUnvettedBatch request to the politeiad v1 API.
-func (c *Client) GetUnvettedBatch(ctx context.Context, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	gub := pdv1.GetUnvettedBatch{
-		Challenge: hex.EncodeToString(challenge),
-		Requests:  reqs,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.GetUnvettedBatchRoute, gub)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var r pdv1.GetUnvettedBatchReply
-	err = json.Unmarshal(resBody, &r)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, r.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return r.Records, nil
-}
-
-// GetVettedBatch sends a GetVettedBatch request to the politeiad v1 API.
-func (c *Client) GetVettedBatch(ctx context.Context, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	gvb := pdv1.GetVettedBatch{
-		Challenge: hex.EncodeToString(challenge),
-		Requests:  reqs,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.GetVettedBatchRoute, gvb)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var r pdv1.GetVettedBatchReply
-	err = json.Unmarshal(resBody, &r)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, r.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return r.Records, nil
-}
-
-// GetUnvettedTimestamps sends a GetUnvettedTimestamps request to the politeiad
-// v1 API.
-func (c *Client) GetUnvettedTimestamps(ctx context.Context, token, version string) (*pdv1.RecordTimestamps, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	gut := pdv1.GetUnvettedTimestamps{
-		Challenge: hex.EncodeToString(challenge),
-		Token:     token,
-		Version:   version,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.GetUnvettedTimestampsRoute, gut)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var reply pdv1.GetUnvettedTimestampsReply
-	err = json.Unmarshal(resBody, &reply)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &reply.RecordTimestamps, nil
-}
-
-// GetVettedTimestamps sends a GetVettedTimestamps request to the politeiad
-// v1 API.
-func (c *Client) GetVettedTimestamps(ctx context.Context, token, version string) (*pdv1.RecordTimestamps, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	gvt := pdv1.GetVettedTimestamps{
-		Challenge: hex.EncodeToString(challenge),
-		Token:     token,
-		Version:   version,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.GetVettedTimestampsRoute, gvt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var reply pdv1.GetVettedTimestampsReply
-	err = json.Unmarshal(resBody, &reply)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &reply.RecordTimestamps, nil
-}
-
-// Inventory sends a Inventory request to the politeiad v1 API.
-func (c *Client) Inventory(ctx context.Context) (*pdv1.InventoryReply, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	ibs := pdv1.Inventory{
-		Challenge: hex.EncodeToString(challenge),
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.InventoryRoute, ibs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var ir pdv1.InventoryReply
-	err = json.Unmarshal(resBody, &ir)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, ir.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ir, nil
-}
-
-// InventoryByStatus sends a InventoryByStatus request to the politeiad v1 API.
-func (c *Client) InventoryByStatus(ctx context.Context, state string, status pdv1.RecordStatusT, page uint32) (*pdv1.InventoryByStatusReply, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	ibs := pdv1.InventoryByStatus{
-		Challenge: hex.EncodeToString(challenge),
-		State:     state,
-		Status:    status,
-		Page:      page,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.InventoryByStatusRoute, ibs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var ibsr pdv1.InventoryByStatusReply
-	err = json.Unmarshal(resBody, &ibsr)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, ibsr.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ibsr, nil
-}
-
 // PluginCommand sends a PluginCommand request to the politeiad v1 API.
 func (c *Client) PluginCommand(ctx context.Context, pluginID, cmd, payload string) (string, error) {
 	// Setup request
@@ -520,12 +319,12 @@ func (c *Client) PluginCommand(ctx context.Context, pluginID, cmd, payload strin
 		Challenge: hex.EncodeToString(challenge),
 		ID:        pluginID,
 		Command:   cmd,
-		CommandID: "",
+		CommandID: cmd,
 		Payload:   payload,
 	}
 
 	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.PluginCommandRoute, pc)
 	if err != nil {
 		return "", err
@@ -543,94 +342,4 @@ func (c *Client) PluginCommand(ctx context.Context, pluginID, cmd, payload strin
 	}
 
 	return pcr.Payload, nil
-}
-
-// PluginCommandBatch sends a PluginCommandBatch request to the politeiad v1 API.
-func (c *Client) PluginCommandBatch(ctx context.Context, cmds []pdv1.PluginCommandV2) ([]pdv1.PluginCommandReplyV2, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	pcb := pdv1.PluginCommandBatch{
-		Challenge: hex.EncodeToString(challenge),
-		Commands:  cmds,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.PluginCommandBatchRoute, pcb)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var pcbr pdv1.PluginCommandBatchReply
-	err = json.Unmarshal(resBody, &pcbr)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, pcbr.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return pcbr.Replies, nil
-}
-
-// PluginInventory sends a PluginInventory request to the politeiad v1 API.
-func (c *Client) PluginInventory(ctx context.Context) ([]pdv1.Plugin, error) {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	pi := pdv1.PluginInventory{
-		Challenge: hex.EncodeToString(challenge),
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv1.PluginInventoryRoute, pi)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var pir pdv1.PluginInventoryReply
-	err = json.Unmarshal(resBody, &pir)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, pir.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return pir.Plugins, nil
-}
-
-// extractPluginCommandError extracts the error from a plugin command reply if
-// one exists and converts it to a politeiad client Error.
-func extractPluginCommandError(pcr pdv1.PluginCommandReplyV2) error {
-	switch {
-	case pcr.UserError != nil:
-		return Error{
-			HTTPCode: http.StatusBadRequest,
-			ErrorReply: ErrorReply{
-				ErrorCode:    int(pcr.UserError.ErrorCode),
-				ErrorContext: pcr.UserError.ErrorContext,
-			},
-		}
-	case pcr.PluginError != nil:
-		return Error{
-			HTTPCode: http.StatusBadRequest,
-			ErrorReply: ErrorReply{
-				PluginID:     pcr.PluginError.PluginID,
-				ErrorCode:    pcr.PluginError.ErrorCode,
-				ErrorContext: pcr.PluginError.ErrorContext,
-			},
-		}
-	}
-	return nil
 }
