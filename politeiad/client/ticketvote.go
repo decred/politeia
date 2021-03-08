@@ -6,449 +6,372 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
 // TicketVoteAuthorize sends the ticketvote plugin Authorize command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteAuthorize(ctx context.Context, a ticketvote.Authorize) (*ticketvote.AuthorizeReply, error) {
-	/*
-		// Setup request
-		b, err := json.Marshal(a)
-		if err != nil {
-			return nil, err
-		}
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionWrite,
-				State:   pdv1.RecordStateVetted,
-				Token:   a.Token,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdAuthorize,
-				Payload: string(b),
-			},
-		}
+	// Setup request
+	b, err := json.Marshal(a)
+	if err != nil {
+		return nil, err
+	}
+	cmd := pdv2.PluginCmd{
+		Token:   a.Token,
+		ID:      ticketvote.PluginID,
+		Command: ticketvote.CmdAuthorize,
+		Payload: string(b),
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	reply, err := c.PluginWrite(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var ar ticketvote.AuthorizeReply
-		err = json.Unmarshal([]byte(pcr.Payload), &ar)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var ar ticketvote.AuthorizeReply
+	err = json.Unmarshal([]byte(reply), &ar)
+	if err != nil {
+		return nil, err
+	}
 
-		return &ar, nil
-	*/
-	return nil, nil
+	return &ar, nil
 }
 
 // TicketVoteStart sends the ticketvote plugin Start command to the politeiad
-// v1 API.
+// v2 API.
 func (c *Client) TicketVoteStart(ctx context.Context, token string, s ticketvote.Start) (*ticketvote.StartReply, error) {
-	/*
-		// Setup request
-		b, err := json.Marshal(s)
-		if err != nil {
-			return nil, err
-		}
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionWrite,
-				State:   pdv1.RecordStateVetted,
-				Token:   token,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdStart,
-				Payload: string(b),
-			},
-		}
+	// Setup request
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	cmd := pdv2.PluginCmd{
+		Token:   token,
+		ID:      ticketvote.PluginID,
+		Command: ticketvote.CmdStart,
+		Payload: string(b),
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	reply, err := c.PluginWrite(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var sr ticketvote.StartReply
-		err = json.Unmarshal([]byte(pcr.Payload), &sr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var sr ticketvote.StartReply
+	err = json.Unmarshal([]byte(reply), &sr)
+	if err != nil {
+		return nil, err
+	}
 
-		return &sr, nil
-	*/
-	return nil, nil
+	return &sr, nil
 }
 
 // TicketVoteCastBallot sends the ticketvote plugin CastBallot command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteCastBallot(ctx context.Context, token string, cb ticketvote.CastBallot) (*ticketvote.CastBallotReply, error) {
-	/*
-		// Setup request
-		b, err := json.Marshal(cb)
-		if err != nil {
-			return nil, err
-		}
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionWrite,
-				State:   pdv1.RecordStateVetted,
-				Token:   token,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdCastBallot,
-				Payload: string(b),
-			},
-		}
+	// Setup request
+	b, err := json.Marshal(cb)
+	if err != nil {
+		return nil, err
+	}
+	cmd := pdv2.PluginCmd{
+		Token:   token,
+		ID:      ticketvote.PluginID,
+		Command: ticketvote.CmdCastBallot,
+		Payload: string(b),
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	reply, err := c.PluginWrite(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var cbr ticketvote.CastBallotReply
-		err = json.Unmarshal([]byte(pcr.Payload), &cbr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var cbr ticketvote.CastBallotReply
+	err = json.Unmarshal([]byte(reply), &cbr)
+	if err != nil {
+		return nil, err
+	}
 
-		return &cbr, nil
-	*/
-	return nil, nil
+	return &cbr, nil
 }
 
 // TicketVoteDetails sends the ticketvote plugin Details command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteDetails(ctx context.Context, token string) (*ticketvote.DetailsReply, error) {
-	/*
-		// Setup request
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				Token:   token,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdDetails,
-				Payload: "",
-			},
-		}
+	// Setup request
+	cmds := []pdv2.PluginCmd{
+		{
+			Token:   token,
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdDetails,
+			Payload: "",
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var dr ticketvote.DetailsReply
-		err = json.Unmarshal([]byte(pcr.Payload), &dr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var dr ticketvote.DetailsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &dr)
+	if err != nil {
+		return nil, err
+	}
 
-		return &dr, nil
-	*/
-	return nil, nil
+	return &dr, nil
 }
 
 // TicketVoteResults sends the ticketvote plugin Results command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteResults(ctx context.Context, token string) (*ticketvote.ResultsReply, error) {
-	/*
-		// Setup request
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				Token:   token,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdResults,
-				Payload: "",
-			},
-		}
+	// Setup request
+	cmds := []pdv2.PluginCmd{
+		{
+			Token:   token,
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdResults,
+			Payload: "",
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var rr ticketvote.ResultsReply
-		err = json.Unmarshal([]byte(pcr.Payload), &rr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var rr ticketvote.ResultsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &rr)
+	if err != nil {
+		return nil, err
+	}
 
-		return &rr, nil
-	*/
-	return nil, nil
+	return &rr, nil
 }
 
 // TicketVoteSummary sends the ticketvote plugin Summary command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteSummary(ctx context.Context, token string) (*ticketvote.SummaryReply, error) {
-	/*
-		// Setup request
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdSummary,
-				Token:   token,
-				Payload: "",
-			},
-		}
+	// Setup request
+	cmds := []pdv2.PluginCmd{
+		{
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdSummary,
+			Token:   token,
+			Payload: "",
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var sr ticketvote.SummaryReply
-		err = json.Unmarshal([]byte(pcr.Payload), &sr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var sr ticketvote.SummaryReply
+	err = json.Unmarshal([]byte(pcr.Payload), &sr)
+	if err != nil {
+		return nil, err
+	}
 
-		return &sr, nil
-	*/
-	return nil, nil
+	return &sr, nil
 }
 
 // TicketVoteSummaries sends a batch of ticketvote plugin Summary commands to
-// the politeiad v1 API. Individual summary errors are not returned, the token
+// the politeiad v2 API. Individual summary errors are not returned, the token
 // will simply be left out of the returned map.
 func (c *Client) TicketVoteSummaries(ctx context.Context, tokens []string) (map[string]ticketvote.SummaryReply, error) {
-	/*
-		// Setup request
-		cmds := make([]pdv1.PluginCommandV2, 0, len(tokens))
-		for _, v := range tokens {
-			cmds = append(cmds, pdv1.PluginCommandV2{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				Token:   v,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdSummary,
-				Payload: "",
-			})
-		}
+	// Setup request
+	cmds := make([]pdv2.PluginCmd, 0, len(tokens))
+	for _, v := range tokens {
+		cmds = append(cmds, pdv2.PluginCmd{
+			Token:   v,
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdSummary,
+			Payload: "",
+		})
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare reply
+	summaries := make(map[string]ticketvote.SummaryReply, len(replies))
+	for _, v := range replies {
+		err = extractPluginCmdError(v)
+		if err != nil {
+			// Individual summary errors are ignored. The token will not
+			// be included in the returned summaries map.
+			continue
+		}
+		var sr ticketvote.SummaryReply
+		err = json.Unmarshal([]byte(v.Payload), &sr)
 		if err != nil {
 			return nil, err
 		}
+		summaries[v.Token] = sr
+	}
 
-		// Prepare reply
-		summaries := make(map[string]ticketvote.SummaryReply, len(replies))
-		for _, v := range replies {
-			err = extractPluginCommandError(v)
-			if err != nil {
-				// Individual summary errors are ignored. The token will not
-				// be included in the returned summaries map.
-				continue
-			}
-			var sr ticketvote.SummaryReply
-			err = json.Unmarshal([]byte(v.Payload), &sr)
-			if err != nil {
-				return nil, err
-			}
-			summaries[v.Token] = sr
-		}
-
-		return summaries, nil
-	*/
-	return nil, nil
+	return summaries, nil
 }
 
 // TicketVoteSubmissions sends the ticketvote plugin Submissions command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteSubmissions(ctx context.Context, token string) ([]string, error) {
-	/*
-		// Setup request
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				Token:   token,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdSubmissions,
-				Payload: "",
-			},
-		}
+	// Setup request
+	cmds := []pdv2.PluginCmd{
+		{
+			Token:   token,
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdSubmissions,
+			Payload: "",
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var sr ticketvote.SubmissionsReply
-		err = json.Unmarshal([]byte(pcr.Payload), &sr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var sr ticketvote.SubmissionsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &sr)
+	if err != nil {
+		return nil, err
+	}
 
-		return sr.Submissions, nil
-	*/
-	return nil, nil
+	return sr.Submissions, nil
 }
 
 // TicketVoteInventory sends the ticketvote plugin Inventory command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteInventory(ctx context.Context, i ticketvote.Inventory) (*ticketvote.InventoryReply, error) {
-	/*
-		// Setup request
-		b, err := json.Marshal(i)
-		if err != nil {
-			return nil, err
-		}
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdInventory,
-				Payload: string(b),
-			},
-		}
+	// Setup request
+	b, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+	cmds := []pdv2.PluginCmd{
+		{
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdInventory,
+			Payload: string(b),
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var ir ticketvote.InventoryReply
-		err = json.Unmarshal([]byte(pcr.Payload), &ir)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var ir ticketvote.InventoryReply
+	err = json.Unmarshal([]byte(pcr.Payload), &ir)
+	if err != nil {
+		return nil, err
+	}
 
-		return &ir, nil
-	*/
-	return nil, nil
+	return &ir, nil
 }
 
 // TicketVoteTimestamps sends the ticketvote plugin Timestamps command to the
-// politeiad v1 API.
+// politeiad v2 API.
 func (c *Client) TicketVoteTimestamps(ctx context.Context, t ticketvote.Timestamps) (*ticketvote.TimestampsReply, error) {
-	/*
-		// Setup request
-		b, err := json.Marshal(t)
-		if err != nil {
-			return nil, err
-		}
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				ID:      ticketvote.PluginID,
-				Command: ticketvote.CmdTimestamps,
-				Token:   t.Token,
-				Payload: string(b),
-			},
-		}
+	// Setup request
+	b, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+	cmds := []pdv2.PluginCmd{
+		{
+			ID:      ticketvote.PluginID,
+			Command: ticketvote.CmdTimestamps,
+			Token:   t.Token,
+			Payload: string(b),
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return nil, err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode reply
-		var sr ticketvote.TimestampsReply
-		err = json.Unmarshal([]byte(pcr.Payload), &sr)
-		if err != nil {
-			return nil, err
-		}
+	// Decode reply
+	var sr ticketvote.TimestampsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &sr)
+	if err != nil {
+		return nil, err
+	}
 
-		return &sr, nil
-	*/
-	return nil, nil
+	return &sr, nil
 }

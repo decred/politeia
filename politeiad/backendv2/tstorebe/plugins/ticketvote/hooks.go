@@ -310,22 +310,17 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 	if err != nil {
 		return err
 	}
-	var (
-		oldStatus = srs.Current.RecordMetadata.Status
-		newStatus = srs.RecordMetadata.Status
-	)
 
-	// When a record is moved to vetted the plugin hooks are executed
-	// on both the unvetted and vetted tstore instances. We only need
-	// to update cached data if this is the vetted instance. We can
-	// determine this by checking if the record exists. The unvetted
-	// instance will return false.
-	if newStatus == backend.StatusPublic && !p.tstore.RecordExists(treeID) {
-		// This is the unvetted instance. Nothing to do.
+	// Ticketvote caches only need to be updated for vetted records
+	if srs.RecordMetadata.State == backend.StateUnvetted {
 		return nil
 	}
 
 	// Update the inventory cache
+	var (
+		oldStatus = srs.Current.RecordMetadata.Status
+		newStatus = srs.RecordMetadata.Status
+	)
 	switch newStatus {
 	case backend.StatusPublic:
 		// Add to inventory
@@ -333,11 +328,8 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 			ticketvote.VoteStatusUnauthorized)
 	case backend.StatusCensored, backend.StatusArchived:
 		// These statuses do not allow for a vote. Mark as ineligible.
-		// We only need to do this if the record is vetted.
-		if oldStatus == backend.StatusPublic {
-			p.inventoryUpdate(srs.RecordMetadata.Token,
-				ticketvote.VoteStatusIneligible)
-		}
+		p.inventoryUpdate(srs.RecordMetadata.Token,
+			ticketvote.VoteStatusIneligible)
 	}
 
 	// Update the submissions cache if the linkto has been set.
