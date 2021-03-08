@@ -334,12 +334,12 @@ type Backend interface {
 	// PluginSetup performs any required plugin setup.
 	PluginSetup(pluginID string) error
 
-	// PluginCmdRead executes a read plugin command.
-	PluginCmdRead(token []byte, pluginID, pluginCmd,
+	// PluginRead executes a read-only plugin command.
+	PluginRead(token []byte, pluginID, pluginCmd,
 		payload string) (string, error)
 
-	// PluginCmdWrite executes a write plugin command.
-	PluginCmdWrite(token []byte, pluginID, pluginCmd,
+	// PluginWrite executes a plugin command that writes data.
+	PluginWrite(token []byte, pluginID, pluginCmd,
 		payload string) (string, error)
 
 	// PluginInventory returns all registered plugins.

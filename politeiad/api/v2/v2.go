@@ -464,16 +464,17 @@ type PluginReads struct {
 	Cmds      []PluginCmd `json:"cmds"`
 }
 
-// PluginReadReply is the reply to an individual read only plugin command that
-// is part of a batch of plugin commands.
-type PluginReadReply struct {
+// PluginCmdReply is the reply to an individual plugin command that is part of
+// a batch of plugin commands. The error will be included in the reply if one
+// was encountered.
+type PluginCmdReply struct {
 	Token   string `json:"token"`   // Censorship token
 	ID      string `json:"id"`      // Plugin identifier
 	Command string `json:"command"` // Plugin command
 	Payload string `json:"payload"` // Response payload
 
-	// UserError will be populated if a ErrorCodeT is encountered
-	// before the plugin command could be executed.
+	// UserError will be populated if a user error is encountered prior
+	// to plugin command execution.
 	UserError *UserErrorReply `json:"usererror,omitempty"`
 
 	// PluginError will be populated if a plugin error occurred during
@@ -483,8 +484,8 @@ type PluginReadReply struct {
 
 // PluginReadsReply is the reply to the PluginReads command.
 type PluginReadsReply struct {
-	Response string            `json:"response"` // Challenge response
-	Replies  []PluginReadReply `json:"replies"`
+	Response string           `json:"response"` // Challenge response
+	Replies  []PluginCmdReply `json:"replies"`
 }
 
 // PluginSetting is a structure that holds key/value pairs of a plugin setting.

@@ -421,12 +421,153 @@ func (p *politeia) handleInventory(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePluginWrite")
-	panic("not implemented")
+
+	// Decode request
+	var pw v2.PluginWrite
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pw); err != nil {
+		respondWithErrorV2(w, r, "handlePluginWrite: unmarshal",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeRequestPayloadInvalid,
+			})
+		return
+	}
+	challenge, err := hex.DecodeString(pw.Challenge)
+	if err != nil || len(challenge) != v2.ChallengeSize {
+		respondWithErrorV2(w, r, "handlePluginWrite: decode challenge",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeChallengeInvalid,
+			})
+		return
+	}
+	token, err := decodeToken(pw.Cmd.Token)
+	if err != nil {
+		respondWithErrorV2(w, r, "handlePluginWrite: decode token",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeTokenInvalid,
+			})
+		return
+	}
+
+	// Execute plugin cmd
+	payload, err := p.backendv2.PluginWrite(token, pw.Cmd.ID,
+		pw.Cmd.Command, pw.Cmd.Payload)
+	if err != nil {
+		respondWithErrorV2(w, r,
+			"handlePluginWrite: PluginWrite: %v", err)
+		return
+	}
+
+	// Prepare reply
+	response := p.identity.SignMessage(challenge)
+	pwr := v2.PluginWriteReply{
+		Response: hex.EncodeToString(response[:]),
+		Payload:  payload,
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pwr)
 }
 
 func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePluginReads")
-	panic("not implemented")
+
+	// Decode request
+	var pr v2.PluginReads
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pr); err != nil {
+		respondWithErrorV2(w, r, "handlePluginReads: unmarshal",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeRequestPayloadInvalid,
+			})
+		return
+	}
+	challenge, err := hex.DecodeString(pr.Challenge)
+	if err != nil || len(challenge) != v2.ChallengeSize {
+		respondWithErrorV2(w, r, "handlePluginReads: decode challenge",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeChallengeInvalid,
+			})
+		return
+	}
+
+	replies := make([]v2.PluginCmdReply, len(pr.Cmds))
+	for k, v := range pr.Cmds {
+		// Decode token
+		token, err := decodeToken(v.Token)
+		if err != nil {
+			// Invalid token. Save the reply and continue to next cmd.
+			replies[k] = v2.PluginCmdReply{
+				UserError: &v2.UserErrorReply{
+					ErrorCode: v2.ErrorCodeTokenInvalid,
+				},
+			}
+			continue
+		}
+
+		// Execute plugin cmd
+		replyPayload, err := p.backendv2.PluginRead(token, v.ID,
+			v.Command, v.Payload)
+		if err != nil {
+			var (
+				errCode = convertErrorToV2(err)
+				pe      backendv2.PluginError
+			)
+			switch {
+			case errCode != v2.ErrorCodeInvalid:
+				// User error. Save the reply and continue to next cmd.
+				replies[k] = v2.PluginCmdReply{
+					UserError: &v2.UserErrorReply{
+						ErrorCode: errCode,
+					},
+				}
+				continue
+
+			case errors.As(err, &pe):
+				// Plugin error. Save the reply and continue to next cmd.
+				replies[k] = v2.PluginCmdReply{
+					PluginError: &v2.PluginErrorReply{
+						PluginID:     pe.PluginID,
+						ErrorCode:    pe.ErrorCode,
+						ErrorContext: pe.ErrorContext,
+					},
+				}
+
+			default:
+				// Internal server error. Log it and return a 500.
+				t := time.Now().Unix()
+				e := fmt.Sprintf("PluginRead %v %v %v: %v",
+					v.ID, v.Command, v.Payload, err)
+				log.Errorf("%v %v %v %v Internal error %v: %v",
+					util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
+				log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+
+				util.RespondWithJSON(w, http.StatusInternalServerError,
+					v2.ServerErrorReply{
+						ErrorCode: t,
+					})
+				return
+			}
+
+			// Successful cmd execution. Save the reply and continue to
+			// the next cmd.
+			replies[k] = v2.PluginCmdReply{
+				Token:   v.Token,
+				ID:      v.ID,
+				Command: v.Command,
+				Payload: replyPayload,
+			}
+		}
+	}
+
+	// Prepare reply
+	response := p.identity.SignMessage(challenge)
+	prr := v2.PluginReadsReply{
+		Response: hex.EncodeToString(response[:]),
+		Replies:  replies,
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, prr)
+
 }
 
 func (p *politeia) handlePluginInventory(w http.ResponseWriter, r *http.Request) {

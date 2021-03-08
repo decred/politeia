@@ -374,7 +374,7 @@ func (p *ticketVotePlugin) voteDetails(treeID int64) (*ticketvote.VoteDetails, e
 }
 
 func (p *ticketVotePlugin) voteDetailsByToken(token []byte) (*ticketvote.VoteDetails, error) {
-	reply, err := p.backend.PluginCmdRead(token, ticketvote.PluginID,
+	reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 		ticketvote.CmdDetails, "")
 	if err != nil {
 		return nil, err
@@ -440,7 +440,7 @@ func (p *ticketVotePlugin) voteOptionResults(token []byte, options []ticketvote.
 
 	default:
 		// Votes are not in the cache. Pull them from the backend.
-		reply, err := p.backend.PluginCmdRead(token, ticketvote.PluginID,
+		reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdResults, "")
 		if err != nil {
 			return nil, err
@@ -480,10 +480,10 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.PluginCmdRead(parent, ticketvote.PluginID,
+	reply, err := p.backend.PluginRead(parent, ticketvote.PluginID,
 		cmdRunoffDetails, "")
 	if err != nil {
-		return nil, fmt.Errorf("PluginCmdRead %x %v %v: %v",
+		return nil, fmt.Errorf("PluginRead %x %v %v: %v",
 			parent, ticketvote.PluginID, cmdRunoffDetails, err)
 	}
 	var rdr runoffDetailsReply
@@ -721,10 +721,10 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 }
 
 func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.SummaryReply, error) {
-	reply, err := p.backend.PluginCmdRead(token, ticketvote.PluginID,
+	reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 		ticketvote.CmdSummary, "")
 	if err != nil {
-		return nil, fmt.Errorf("PluginCmdRead %x %v %v: %v",
+		return nil, fmt.Errorf("PluginRead %x %v %v: %v",
 			token, ticketvote.PluginID, ticketvote.CmdSummary, err)
 	}
 	var sr ticketvote.SummaryReply
@@ -791,10 +791,10 @@ func (p *ticketVotePlugin) bestBlock() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	reply, err := p.backend.PluginCmdRead(nil, dcrdata.PluginID,
+	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
-		return 0, fmt.Errorf("PluginCmdRead %v %v: %v",
+		return 0, fmt.Errorf("PluginRead %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdBestBlock, err)
 	}
 
@@ -827,10 +827,10 @@ func (p *ticketVotePlugin) bestBlockUnsafe() (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	reply, err := p.backend.PluginCmdRead(nil, dcrdata.PluginID,
+	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdBestBlock, string(payload))
 	if err != nil {
-		return 0, fmt.Errorf("PluginCmdRead %v %v: %v",
+		return 0, fmt.Errorf("PluginRead %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdBestBlock, err)
 	}
 
@@ -864,10 +864,10 @@ func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.PluginCmdRead(nil, dcrdata.PluginID,
+	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdTxsTrimmed, string(payload))
 	if err != nil {
-		return nil, fmt.Errorf("PluginCmdRead %v %v: %v",
+		return nil, fmt.Errorf("PluginRead %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdTxsTrimmed, err)
 	}
 	var ttr dcrdata.TxsTrimmedReply
@@ -933,10 +933,10 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.PluginCmdRead(nil, dcrdata.PluginID,
+	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdBlockDetails, string(payload))
 	if err != nil {
-		return nil, fmt.Errorf("PluginCmdRead %v %v: %v",
+		return nil, fmt.Errorf("PluginRead %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdBlockDetails, err)
 	}
 	var bdr dcrdata.BlockDetailsReply
@@ -957,10 +957,10 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	if err != nil {
 		return nil, err
 	}
-	reply, err = p.backend.PluginCmdRead(nil, dcrdata.PluginID,
+	reply, err = p.backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdTicketPool, string(payload))
 	if err != nil {
-		return nil, fmt.Errorf("PluginCmdRead %v %v: %v",
+		return nil, fmt.Errorf("PluginRead %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdTicketPool, err)
 	}
 	var tpr dcrdata.TicketPoolReply
@@ -1917,14 +1917,14 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 		if err != nil {
 			return nil, err
 		}
-		_, err = p.backend.PluginCmdWrite(token, ticketvote.PluginID,
+		_, err = p.backend.PluginWrite(token, ticketvote.PluginID,
 			cmdStartRunoffSubmission, string(b))
 		if err != nil {
 			var ue backend.PluginError
 			if errors.As(err, &ue) {
 				return nil, err
 			}
-			return nil, fmt.Errorf("PluginCmdWrite %x %v %v: %v",
+			return nil, fmt.Errorf("PluginWrite %x %v %v: %v",
 				token, ticketvote.PluginID, cmdStartRunoffSubmission, err)
 		}
 	}

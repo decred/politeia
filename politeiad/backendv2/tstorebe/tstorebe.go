@@ -1005,11 +1005,11 @@ func (t *tstoreBackend) PluginSetup(pluginID string) error {
 	return t.tstore.PluginSetup(pluginID)
 }
 
-// PluginCmdRead executes a read plugin command.
+// PluginRead executes a read-only plugin command.
 //
 // This function satisfies the Backend interface.
-func (t *tstoreBackend) PluginCmdRead(token []byte, pluginID, pluginCmd, payload string) (string, error) {
-	log.Tracef("PluginCmdRead: %x %v %v", token, pluginID, pluginCmd)
+func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload string) (string, error) {
+	log.Tracef("PluginRead: %x %v %v", token, pluginID, pluginCmd)
 
 	// The token is optional. If a token is not provided then a tree ID
 	// will not be provided to the plugin.
@@ -1034,11 +1034,11 @@ func (t *tstoreBackend) PluginCmdRead(token []byte, pluginID, pluginCmd, payload
 	return t.tstore.PluginCmd(treeID, token, pluginID, pluginCmd, payload)
 }
 
-// PluginCmdWrite executes a write plugin command.
+// PluginWrite executes a plugin command that writes data.
 //
 // This function satisfies the Backend interface.
-func (t *tstoreBackend) PluginCmdWrite(token []byte, pluginID, pluginCmd, payload string) (string, error) {
-	log.Tracef("PluginCmdWrite: %x %v %v", token, pluginID, pluginCmd)
+func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload string) (string, error) {
+	log.Tracef("PluginWrite: %x %v %v", token, pluginID, pluginCmd)
 
 	// Verify record exists
 	if !t.RecordExists(token) {

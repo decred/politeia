@@ -104,10 +104,10 @@ func (p *ticketVotePlugin) Setup() error {
 			return err
 		}
 
-		reply, err := p.backend.PluginCmdRead(token, ticketvote.PluginID,
+		reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdDetails, "")
 		if err != nil {
-			return fmt.Errorf("PluginCmdRead %x %v %v: %v",
+			return fmt.Errorf("PluginRead %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdDetails, err)
 		}
 		var dr ticketvote.DetailsReply
@@ -125,10 +125,10 @@ func (p *ticketVotePlugin) Setup() error {
 		p.activeVotesAdd(*dr.Vote)
 
 		// Get cast votes
-		reply, err = p.backend.PluginCmdRead(token, ticketvote.PluginID,
+		reply, err = p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdResults, "")
 		if err != nil {
-			return fmt.Errorf("PluginCmdRead %x %v %v: %v",
+			return fmt.Errorf("PluginRead %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdResults, err)
 		}
 		var rr ticketvote.ResultsReply
