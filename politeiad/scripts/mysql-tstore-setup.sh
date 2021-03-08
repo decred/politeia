@@ -31,8 +31,8 @@ politeiad="politeiad"
 trillian="trillian"
 
 # Database names
-testnet_unvetted_kv="testnet3_unvetted_kv"
-testnet_vetted_kv="testnet3_vetted_kv"
+testnet_kv="testnet3_kv"
+mainnet_kv="mainnet_kv"
 
 # Setup database users
 mysql ${flags} -e \
@@ -44,10 +44,10 @@ mysql ${flags} -e \
   IDENTIFIED BY '${MYSQL_TRILLIAN_PASSWORD}'"
 
 # Setup kv databases. The trillian script creates the trillian databases.
-mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${testnet_unvetted_kv};"
-mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${testnet_vetted_kv};"
+mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${testnet_kv};"
+mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${mainnet_kv};"
 
 mysql ${flags} -e \
-  "GRANT ALL ON ${testnet_unvetted_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
+  "GRANT ALL ON ${testnet_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
 mysql ${flags} -e \
-  "GRANT ALL ON ${testnet_vetted_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
+  "GRANT ALL ON ${mainnet_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"

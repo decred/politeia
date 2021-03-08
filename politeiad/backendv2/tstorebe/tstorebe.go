@@ -355,7 +355,7 @@ func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backen
 	return f
 }
 
-func recordMetadataNew(token []byte, files []backend.File, status backend.StatusT, version, iteration uint32) (*backend.RecordMetadata, error) {
+func recordMetadataNew(token []byte, files []backend.File, state backend.StateT, status backend.StatusT, version, iteration uint32) (*backend.RecordMetadata, error) {
 	digests := make([]string, 0, len(files))
 	for _, v := range files {
 		digests = append(digests, v.Digest)
@@ -368,6 +368,7 @@ func recordMetadataNew(token []byte, files []backend.File, status backend.Status
 		Token:     hex.EncodeToString(token),
 		Version:   version,
 		Iteration: iteration,
+		State:     state,
 		Status:    status,
 		Timestamp: time.Now().Unix(),
 		Merkle:    hex.EncodeToString(m[:]),
@@ -432,7 +433,8 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	}
 
 	// Create record metadata
-	rm, err := recordMetadataNew(token, files, backend.StatusPublic, 1, 1)
+	rm, err := recordMetadataNew(token, files, backend.StateUnvetted,
+		backend.StatusUnreviewed, 1, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -515,10 +517,13 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	}
 
 	// Apply changes
-	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
-	files := filesUpdate(r.Files, filesAdd, filesDel)
-	recordMD, err := recordMetadataNew(token, files, r.RecordMetadata.Status,
-		r.RecordMetadata.Version+1, r.RecordMetadata.Iteration+1)
+	var (
+		rm       = r.RecordMetadata
+		metadata = metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+		files    = filesUpdate(r.Files, filesAdd, filesDel)
+	)
+	recordMD, err := recordMetadataNew(token, files, rm.State, rm.Status,
+		rm.Version+1, rm.Iteration+1)
 	if err != nil {
 		return nil, err
 	}
@@ -612,9 +617,12 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 
 	// Apply changes. The version is not incremented for metadata only
 	// updates. The iteration is incremented.
-	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
-	recordMD, err := recordMetadataNew(token, r.Files, r.RecordMetadata.Status,
-		r.RecordMetadata.Version, r.RecordMetadata.Iteration+1)
+	var (
+		rm       = r.RecordMetadata
+		metadata = metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
+	)
+	recordMD, err := recordMetadataNew(token, r.Files, rm.State, rm.Status,
+		rm.Version, rm.Iteration+1)
 	if err != nil {
 		return nil, err
 	}
@@ -782,8 +790,17 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		}
 	}
 
+	// Determine the state. Making a record public will also trigger
+	// a state update to vetted.
+	var state backend.StateT
+	if status == backend.StatusPublic {
+		state = backend.StateVetted
+	} else {
+		state = r.RecordMetadata.State
+	}
+
 	// Apply changes
-	recordMD, err := recordMetadataNew(token, r.Files, status,
+	recordMD, err := recordMetadataNew(token, r.Files, state, status,
 		r.RecordMetadata.Version, r.RecordMetadata.Iteration+1)
 	if err != nil {
 		return nil, err
@@ -840,7 +857,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	switch status {
 	case backend.StatusPublic:
 		// The state is updated to vetted when a record is made public
-		t.inventoryUpdate(backend.StateVetted, token, status)
+		t.inventoryMoveToVetted(token, status)
 	default:
 		t.inventoryUpdate(r.RecordMetadata.State, token, status)
 	}

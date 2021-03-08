@@ -431,7 +431,38 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) handlePluginInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePluginInventory")
-	panic("not implemented")
+
+	// Decode request
+	var pi v2.PluginInventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pi); err != nil {
+		respondWithErrorV2(w, r, "handlePluginInventory: unmarshal",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeRequestPayloadInvalid,
+			})
+		return
+	}
+	challenge, err := hex.DecodeString(pi.Challenge)
+	if err != nil || len(challenge) != v2.ChallengeSize {
+		respondWithErrorV2(w, r, "handlePluginInventory: decode challenge",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeChallengeInvalid,
+			})
+		return
+	}
+
+	// Get plugin inventory
+	plugins := p.backendv2.PluginInventory()
+
+	// Prepare reply
+	response := p.identity.SignMessage(challenge)
+	ir := v2.PluginInventoryReply{
+		Response: hex.EncodeToString(response[:]),
+		Plugins:  convertPluginsToV2(plugins),
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ir)
+
 }
 
 // decodeToken decodes a v2 token and errors if the token is not the full
@@ -470,7 +501,7 @@ func (p *politeia) convertRecordToV2(r backendv2.Record) v2.Record {
 
 func convertMetadataStreamsToBackend(metadata []v2.MetadataStream) []backendv2.MetadataStream {
 	ms := make([]backendv2.MetadataStream, 0, len(metadata))
-	for _, v := range ms {
+	for _, v := range metadata {
 		ms = append(ms, backendv2.MetadataStream{
 			PluginID: v.PluginID,
 			StreamID: v.StreamID,
@@ -482,7 +513,7 @@ func convertMetadataStreamsToBackend(metadata []v2.MetadataStream) []backendv2.M
 
 func convertMetadataStreamsToV2(metadata []backendv2.MetadataStream) []v2.MetadataStream {
 	ms := make([]v2.MetadataStream, 0, len(metadata))
-	for _, v := range ms {
+	for _, v := range metadata {
 		ms = append(ms, v2.MetadataStream{
 			PluginID: v.PluginID,
 			StreamID: v.StreamID,
@@ -582,6 +613,28 @@ func convertRecordTimestampsToV2(r backendv2.RecordTimestamps) v2.RecordTimestam
 		Metadata:       metadata,
 		Files:          files,
 	}
+}
+
+func convertPluginSettingToV2(p backendv2.PluginSetting) v2.PluginSetting {
+	return v2.PluginSetting{
+		Key:   p.Key,
+		Value: p.Value,
+	}
+}
+
+func convertPluginsToV2(bplugins []backendv2.Plugin) []v2.Plugin {
+	plugins := make([]v2.Plugin, 0, len(bplugins))
+	for _, v := range bplugins {
+		settings := make([]v2.PluginSetting, 0, len(v.Settings))
+		for _, v := range v.Settings {
+			settings = append(settings, convertPluginSettingToV2(v))
+		}
+		plugins = append(plugins, v2.Plugin{
+			ID:       v.ID,
+			Settings: settings,
+		})
+	}
+	return plugins
 }
 
 func respondWithErrorV2(w http.ResponseWriter, r *http.Request, format string, err error) {

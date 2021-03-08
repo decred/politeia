@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
@@ -63,7 +62,7 @@ func handlePDError(w http.ResponseWriter, r *http.Request, format string, pde pd
 	var (
 		pluginID   = pde.ErrorReply.PluginID
 		errCode    = pde.ErrorReply.ErrorCode
-		errContext = strings.Join(pde.ErrorReply.ErrorContext, ",")
+		errContext = pde.ErrorReply.ErrorContext
 	)
 	e := convertPDErrorCode(errCode)
 	switch {

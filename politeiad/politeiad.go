@@ -1057,6 +1057,12 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 	}
 	p.backendv2 = b
 
+	// Setup mux
+	p.router = mux.NewRouter()
+
+	// Setup not found handler
+	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+
 	// Setup v1 routes
 	p.addRoute(http.MethodPost, v1.IdentityRoute,
 		p.getIdentity, permissionPublic)
@@ -1277,7 +1283,12 @@ func _main() error {
 		}
 	}
 done:
-	p.backend.Close()
+	switch p.cfg.Backend {
+	case backendGit:
+		p.backend.Close()
+	case backendTstore:
+		p.backendv2.Close()
+	}
 
 	log.Infof("Exiting")
 

@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	backend "github.com/decred/politeia/politeiad/backendv2"
 )
 
 const (
@@ -22,10 +24,12 @@ const (
 
 // userCache contains cached user metadata. The userCache JSON is saved to disk
 // in the user plugin data dir. The user ID is included in the filename.
+//
+// All record tokens are sorted by the timestamp of their most recent status
+// change from newest to oldest.
 type userCache struct {
-	// Tokens contains a list of all record tokens that have been
-	// submitted by this user, ordered newest to oldest.
-	Tokens []string `json:"tokens"`
+	Unvetted []string `json:"unvetted"`
+	Vetted   []string `json:"vetted"`
 }
 
 // userCachePath returns the filepath to the cached userCache struct for the
@@ -47,7 +51,8 @@ func (p *userPlugin) userCacheWithLock(userID string) (*userCache, error) {
 		if errors.As(err, &e) && !os.IsExist(err) {
 			// File does't exist. Return an empty userCache.
 			return &userCache{
-				Tokens: []string{},
+				Unvetted: []string{},
+				Vetted:   []string{},
 			}, nil
 		}
 	}
@@ -87,7 +92,7 @@ func (p *userPlugin) userCacheSaveWithLock(userID string, uc userCache) error {
 // userCacheAddToken adds a token to a user cache.
 //
 // This function must be called WITHOUT the lock held.
-func (p *userPlugin) userCacheAddToken(userID string, token string) error {
+func (p *userPlugin) userCacheAddToken(userID string, state backend.StateT, token string) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -98,7 +103,14 @@ func (p *userPlugin) userCacheAddToken(userID string, token string) error {
 	}
 
 	// Add token
-	uc.Tokens = append(uc.Tokens, token)
+	switch state {
+	case backend.StateUnvetted:
+		uc.Unvetted = append(uc.Unvetted, token)
+	case backend.StateVetted:
+		uc.Vetted = append(uc.Vetted, token)
+	default:
+		return fmt.Errorf("invalid state %v", state)
+	}
 
 	// Save changes
 	err = p.userCacheSaveWithLock(userID, *uc)
@@ -106,7 +118,7 @@ func (p *userPlugin) userCacheAddToken(userID string, token string) error {
 		return err
 	}
 
-	log.Debugf("User cache add %v %v", userID, token)
+	log.Debugf("User cache add %v %v %v", backend.States[state], userID, token)
 
 	return nil
 }
@@ -114,7 +126,7 @@ func (p *userPlugin) userCacheAddToken(userID string, token string) error {
 // userCacheDelToken deletes a token from a user cache.
 //
 // This function must be called WITHOUT the lock held.
-func (p *userPlugin) userCacheDelToken(userID string, token string) error {
+func (p *userPlugin) userCacheDelToken(userID string, state backend.StateT, token string) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -124,25 +136,24 @@ func (p *userPlugin) userCacheDelToken(userID string, token string) error {
 		return err
 	}
 
-	// Find token index
-	var i int
-	var found bool
-	for k, v := range uc.Tokens {
-		if v == token {
-			i = k
-			found = true
-			break
+	switch state {
+	case backend.StateUnvetted:
+		tokens, err := delToken(uc.Vetted, token)
+		if err != nil {
+			return fmt.Errorf("delToken %v %v: %v",
+				userID, state, err)
 		}
+		uc.Unvetted = tokens
+	case backend.StateVetted:
+		tokens, err := delToken(uc.Vetted, token)
+		if err != nil {
+			return fmt.Errorf("delToken %v %v: %v",
+				userID, state, err)
+		}
+		uc.Vetted = tokens
+	default:
+		return fmt.Errorf("invalid state %v", state)
 	}
-	if !found {
-		return fmt.Errorf("user token not found %v %v", userID, token)
-	}
-
-	// Del token (linear time)
-	t := uc.Tokens
-	copy(t[i:], t[i+1:])     // Shift t[i+1:] left one index
-	t[len(t)-1] = ""         // Erase last element
-	uc.Tokens = t[:len(t)-1] // Truncate slice
 
 	// Save changes
 	err = p.userCacheSaveWithLock(userID, *uc)
@@ -150,7 +161,60 @@ func (p *userPlugin) userCacheDelToken(userID string, token string) error {
 		return err
 	}
 
-	log.Debugf("User cache del %v %v", userID, token)
+	log.Debugf("User cache del %v %v %v", backend.States[state], userID, token)
 
 	return nil
+}
+
+func (p *userPlugin) userCacheMoveTokenToVetted(userID string, token string) error {
+	p.Lock()
+	defer p.Unlock()
+
+	// Get current user data
+	uc, err := p.userCacheWithLock(userID)
+	if err != nil {
+		return err
+	}
+
+	// Del token from unvetted
+	uc.Unvetted, err = delToken(uc.Unvetted, token)
+	if err != nil {
+		return fmt.Errorf("delToken %v: %v", userID, err)
+	}
+
+	// Add token to vetted
+	uc.Vetted = append(uc.Vetted, token)
+
+	// Save changes
+	err = p.userCacheSaveWithLock(userID, *uc)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("User cache move to vetted %v %v", userID, token)
+
+	return nil
+}
+
+func delToken(tokens []string, tokenToDel string) ([]string, error) {
+	// Find token index
+	var i int
+	var found bool
+	for k, v := range tokens {
+		if v == tokenToDel {
+			i = k
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("user token not found %v", tokenToDel)
+	}
+
+	// Del token (linear time)
+	copy(tokens[i:], tokens[i+1:])  // Shift t[i+1:] left one index
+	tokens[len(tokens)-1] = ""      // Erase last element
+	tokens = tokens[:len(tokens)-1] // Truncate slice
+
+	return tokens, nil
 }

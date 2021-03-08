@@ -71,6 +71,7 @@ func printProposalFiles(files []rcv1.File) error {
 func printProposal(r rcv1.Record) error {
 	printf("Token    : %v\n", r.CensorshipRecord.Token)
 	printf("Version  : %v\n", r.Version)
+	printf("State    : %v\n", rcv1.RecordStates[r.State])
 	printf("Status   : %v\n", rcv1.RecordStatuses[r.Status])
 	printf("Timestamp: %v\n", timestampFromUnix(r.Timestamp))
 	printf("Username : %v\n", r.Username)

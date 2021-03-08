@@ -121,7 +121,8 @@ func (t *tstoreBackend) invAdd(state backend.StateT, token []byte, s backend.Sta
 		return err
 	}
 
-	log.Debugf("Inv %v add %x %v", state, token, backend.Statuses[s])
+	log.Debugf("Inv add %v %x %v",
+		backend.States[state], token, backend.Statuses[s])
 
 	return nil
 }
@@ -169,7 +170,8 @@ func (t *tstoreBackend) invUpdate(state backend.StateT, token []byte, s backend.
 		return err
 	}
 
-	log.Debugf("Inv %v update %x to %v", state, token, backend.Statuses[s])
+	log.Debugf("Inv update %v %x to %v",
+		backend.States[state], token, backend.Statuses[s])
 
 	return nil
 }
@@ -221,8 +223,7 @@ func (t *tstoreBackend) invMoveToVetted(token []byte, s backend.StatusT) error {
 		return err
 	}
 
-	log.Debugf("Inv move %x from unvetted to vetted status %v",
-		token, backend.Statuses[s])
+	log.Debugf("Inv move to vetted %x %v", token, backend.Statuses[s])
 
 	return nil
 }
@@ -250,7 +251,6 @@ func (t *tstoreBackend) inventoryUpdate(state backend.StateT, token []byte, s ba
 // inventoryMoveToVetted is a wrapper around the invMoveToVetted method that
 // allows us to decide how disk read/write errors should be handled. For now we
 // just panic.
-// TODO inventoryMoveToVetted should be automatic
 func (t *tstoreBackend) inventoryMoveToVetted(token []byte, s backend.StatusT) {
 	err := t.invMoveToVetted(token, s)
 	if err != nil {

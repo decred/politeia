@@ -170,7 +170,8 @@ func (p *userPlugin) hookNewRecordPost(payload string) error {
 	}
 
 	// Add token to the user cache
-	err = p.userCacheAddToken(um.UserID, nr.RecordMetadata.Token)
+	err = p.userCacheAddToken(um.UserID, nr.RecordMetadata.State,
+		nr.RecordMetadata.Token)
 	if err != nil {
 		return err
 	}
@@ -347,35 +348,18 @@ func (p *userPlugin) hookSetRecordStatusPost(treeID int64, payload string) error
 	if err != nil {
 		return err
 	}
+	rm := srs.RecordMetadata
 
-	// When a record is made public it is moved from the unvetted to
-	// the vetted tstore instance. The token must be removed from the
-	// unvetted user cache and added to the vetted user cache.
-	if srs.RecordMetadata.Status == backend.StatusPublic {
-		// Decode user metadata
+	// When a record is made public the token must be moved from the
+	// unvetted to the vetted category in the user cache.
+	if rm.Status == backend.StatusPublic {
 		um, err := userMetadataDecode(srs.Metadata)
 		if err != nil {
 			return err
 		}
-
-		// When a record is moved to vetted the plugin hooks are executed
-		// on both the unvetted and vetted tstore instances. The token
-		// needs to be removed from the unvetted tstore user cache and
-		// added to the vetted tstore user cache. We can determine this
-		// by checking if the record exists. The unvetted instance will
-		// return false.
-		if p.tstore.RecordExists(treeID) {
-			// This is the vetted tstore. Add token to the user cache.
-			err = p.userCacheAddToken(um.UserID, srs.RecordMetadata.Token)
-			if err != nil {
-				return err
-			}
-		} else {
-			// This is the unvetted tstore. Del token from user cache.
-			err = p.userCacheDelToken(um.UserID, srs.RecordMetadata.Token)
-			if err != nil {
-				return err
-			}
+		err = p.userCacheMoveTokenToVetted(um.UserID, rm.Token)
+		if err != nil {
+			return err
 		}
 	}
 

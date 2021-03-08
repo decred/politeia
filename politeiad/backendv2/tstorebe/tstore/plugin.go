@@ -12,6 +12,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
@@ -72,12 +73,10 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		/*
-			client, err = comments.New(t, p.Settings, dataDir, p.Identity)
-			if err != nil {
-				return err
-			}
-		*/
+		client, err = comments.New(t, p.Settings, dataDir, p.Identity)
+		if err != nil {
+			return err
+		}
 	case ddplugin.PluginID:
 		client, err = dcrdata.New(p.Settings, t.activeNetParams)
 		if err != nil {

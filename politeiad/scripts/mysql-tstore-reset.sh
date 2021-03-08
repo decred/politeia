@@ -27,21 +27,16 @@ flags="-u "${MYSQL_ROOT_USER}" -p"${MYSQL_ROOT_PASSWORD}" --verbose \
 politeiad="politeiad"
 
 # Database names
-testnet_unvetted_kv="testnet3_unvetted_kv"
-testnet_vetted_kv="testnet3_vetted_kv"
+testnet_kv="testnet3_kv"
 
 # Delete databases
-mysql ${flags} -e "DROP DATABASE IF EXISTS ${testnet_unvetted_kv};"
-mysql ${flags} -e "DROP DATABASE IF EXISTS ${testnet_vetted_kv};"
+mysql ${flags} -e "DROP DATABASE IF EXISTS ${testnet_kv};"
 
 # Setup kv databases. The trillian script creates the trillian databases.
-mysql ${flags} -e "CREATE DATABASE ${testnet_unvetted_kv};"
-mysql ${flags} -e "CREATE DATABASE ${testnet_vetted_kv};"
+mysql ${flags} -e "CREATE DATABASE ${testnet_kv};"
 
 mysql ${flags} -e \
-  "GRANT ALL ON ${testnet_unvetted_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
-mysql ${flags} -e \
-  "GRANT ALL ON ${testnet_vetted_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
+  "GRANT ALL ON ${testnet_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
 
 # Delete cached politeiad data
 politeiad_data_dir="${POLITEIAD_DIR}/data/testnet3/"

@@ -29,9 +29,9 @@ type Client struct {
 // an error occurs. PluginID will only be populated if the error occurred
 // during execution of a plugin command.
 type ErrorReply struct {
-	PluginID     string   `json:"pluginid"`
-	ErrorCode    int      `json:"errorcode"`
-	ErrorContext []string `json:"errorcontext"`
+	PluginID     string `json:"pluginid"`
+	ErrorCode    int    `json:"errorcode"`
+	ErrorContext string `json:"errorcontext"`
 }
 
 // Error represents a politeiad error. Error is returned anytime the politeiad
