@@ -19,10 +19,6 @@ const (
 	RouteComments   = "/comments"
 	RouteVotes      = "/votes"
 	RouteTimestamps = "/timestamps"
-
-	// Record states
-	RecordStateUnvetted = "unvetted"
-	RecordStateVetted   = "vetted"
 )
 
 // ErrorCodeT represents a user error code.
@@ -152,7 +148,6 @@ type CommentVote struct {
 //
 // Signature is the client signature of Token+ParentID+Comment.
 type New struct {
-	State     string `json:"state"`
 	Token     string `json:"token"`
 	ParentID  uint32 `json:"parentid"`
 	Comment   string `json:"comment"`
@@ -213,7 +208,6 @@ type VoteReply struct {
 //
 // Signature is the client signature of the Token+CommentID+Reason
 type Del struct {
-	State     string `json:"state"`
 	Token     string `json:"token"`
 	CommentID uint32 `json:"commentid"`
 	Reason    string `json:"reason"`
@@ -230,7 +224,6 @@ type DelReply struct {
 // records. If a record is not found for a token then it will not be included
 // in the returned map.
 type Count struct {
-	State  string   `json:"state"`
 	Tokens []string `json:"tokens"`
 }
 
@@ -241,7 +234,6 @@ type CountReply struct {
 
 // Comments requests a record's comments.
 type Comments struct {
-	State string `json:"state"`
 	Token string `json:"token"`
 }
 
@@ -295,7 +287,6 @@ type Timestamp struct {
 // comment IDs are provided then the timestamps for all comments will be
 // returned.
 type Timestamps struct {
-	State      string   `json:"state"`
 	Token      string   `json:"token"`
 	CommentIDs []uint32 `json:"commentids,omitempty"`
 }

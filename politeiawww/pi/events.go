@@ -354,7 +354,7 @@ func (p *Pi) ntfnCommentNewProposalAuthor(c cmv1.Comment, proposalAuthorID, prop
 	return nil
 }
 
-func (p *Pi) ntfnCommentReply(state string, c cmv1.Comment, proposalName string) error {
+func (p *Pi) ntfnCommentReply(c cmv1.Comment, proposalName string) error {
 	// Verify there is work to do. This notification only applies to
 	// reply comments.
 	if c.ParentID == 0 {
@@ -366,7 +366,7 @@ func (p *Pi) ntfnCommentReply(state string, c cmv1.Comment, proposalName string)
 	g := cmplugin.Get{
 		CommentIDs: []uint32{c.ParentID},
 	}
-	cs, err := p.politeiad.CommentsGet(context.Background(), state, c.Token, g)
+	cs, err := p.politeiad.CommentsGet(context.Background(), c.Token, g)
 	if err != nil {
 		return err
 	}
@@ -442,7 +442,7 @@ func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 		}
 
 		// Notify the parent comment author
-		err = p.ntfnCommentReply(e.State, e.Comment, proposalName)
+		err = p.ntfnCommentReply(e.Comment, proposalName)
 		if err != nil {
 			err = fmt.Errorf("ntfnCommentReply: %v", err)
 			goto failed

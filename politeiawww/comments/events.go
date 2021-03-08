@@ -4,7 +4,10 @@
 
 package comments
 
-import v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+import (
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
+	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+)
 
 const (
 	// EventTypeNew is emitted when a new comment is made.
@@ -13,6 +16,6 @@ const (
 
 // EventNew is the event data for the EventTypeNew.
 type EventNew struct {
-	State   string
+	State   pdv2.RecordStateT
 	Comment v1.Comment
 }

@@ -495,7 +495,7 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 		// Decode token. The token is optional on plugin reads.
 		var token []byte
 		if v.Token != "" {
-			token, err = decodeToken(v.Token)
+			token, err = decodeTokenAnyLength(v.Token)
 			if err != nil {
 				// Invalid token. Save the reply and continue to next cmd.
 				replies[k] = v2.PluginCmdReply{

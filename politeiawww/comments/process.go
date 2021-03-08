@@ -6,13 +6,26 @@ package comments
 
 import (
 	"context"
+	"errors"
 
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 )
+
+// NOTE: the comment commands enforce different user permissions depending on
+// the state of the record (ex. only admins and the author are allowed to
+// comment on unvetted records). We currently pull the record without any files
+// in order to determine the record state. This is the quick and dirty way and
+// was implemented like this due to development time constraints. We could
+// eliminate this network request by providing the plugin command with the
+// record assumptions that are being made and allow the plugin to verify these
+// assumptions during its validation and return an error if they do not hold.
+// This would require the politeiawww client provide the record state along
+// with all comment requests.
 
 func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.NewReply, error) {
 	log.Tracef("processNew: %v %v %v", n.Token, u.Username)
@@ -22,22 +35,6 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
 			ErrorContext: "not active identity",
-		}
-	}
-
-	// Only admins and the record author are allowed to comment on
-	// unvetted records.
-	if n.State == v1.RecordStateUnvetted && !u.Admin {
-		// User is not an admin. Get the record author.
-		authorID, err := c.politeiad.Author(ctx, n.Token)
-		if err != nil {
-			return nil, err
-		}
-		if u.ID.String() != authorID {
-			return nil, v1.UserErrorReply{
-				ErrorCode:    v1.ErrorCodeUnauthorized,
-				ErrorContext: "user is not author or admin",
-			}
 		}
 	}
 
@@ -51,6 +48,31 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 		}
 	}
 
+	// Only admins and the record author are allowed to comment on
+	// unvetted records.
+	r, err := c.recordNoFiles(ctx, n.Token)
+	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
+		return nil, err
+	}
+	if r.State == pdv2.RecordStateUnvetted && !u.Admin {
+		// User is not an admin. Check if the user is the author.
+		authorID, err := c.politeiad.Author(ctx, n.Token)
+		if err != nil {
+			return nil, err
+		}
+		if u.ID.String() != authorID {
+			return nil, v1.UserErrorReply{
+				ErrorCode:    v1.ErrorCodeUnauthorized,
+				ErrorContext: "user is not author or admin",
+			}
+		}
+	}
+
 	// Send plugin command
 	cn := comments.New{
 		UserID:    u.ID.String(),
@@ -60,19 +82,19 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 		PublicKey: n.PublicKey,
 		Signature: n.Signature,
 	}
-	cnr, err := c.politeiad.CommentNew(ctx, n.State, cn)
+	pdc, err := c.politeiad.CommentNew(ctx, cn)
 	if err != nil {
 		return nil, err
 	}
 
 	// Prepare reply
-	cm := convertComment(cnr.Comment)
+	cm := convertComment(*pdc)
 	commentPopulateUserData(&cm, u)
 
 	// Emit event
 	c.events.Emit(EventTypeNew,
 		EventNew{
-			State:   n.State,
+			State:   r.State,
 			Comment: cm,
 		})
 
@@ -102,6 +124,23 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 		}
 	}
 
+	// Votes are only allowed on vetted records
+	r, err := c.recordNoFiles(ctx, v.Token)
+	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
+		return nil, err
+	}
+	if r.State != pdv2.RecordStateVetted {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodeRecordStateInvalid,
+			ErrorContext: "comment voting is only allowed on vetted records",
+		}
+	}
+
 	// Send plugin command
 	cv := comments.Vote{
 		UserID:    u.ID.String(),
@@ -111,7 +150,7 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 		PublicKey: v.PublicKey,
 		Signature: v.Signature,
 	}
-	vr, err := c.politeiad.CommentVote(ctx, v1.RecordStateVetted, cv)
+	vr, err := c.politeiad.CommentVote(ctx, cv)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +182,7 @@ func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.D
 		PublicKey: d.PublicKey,
 		Signature: d.Signature,
 	}
-	cdr, err := c.politeiad.CommentDel(ctx, d.State, cd)
+	cdr, err := c.politeiad.CommentDel(ctx, cd)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +205,7 @@ func (c *Comments) processCount(ctx context.Context, ct v1.Count) (*v1.CountRepl
 		}
 	}
 
-	counts, err := c.politeiad.CommentCount(ctx, ct.State, ct.Tokens)
+	counts, err := c.politeiad.CommentCount(ctx, ct.Tokens)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +221,16 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 	// Only admins and the record author are allowed to retrieve
 	// unvetted comments. This is a public route so a user might
 	// not exist.
-	if cs.State == v1.RecordStateUnvetted {
+	r, err := c.recordNoFiles(ctx, cs.Token)
+	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
+		return nil, err
+	}
+	if r.State == pdv2.RecordStateUnvetted {
 		var isAllowed bool
 		switch {
 		case u == nil:
@@ -211,7 +259,7 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 	}
 
 	// Send plugin command
-	pcomments, err := c.politeiad.CommentsGetAll(ctx, cs.State, cs.Token)
+	pcomments, err := c.politeiad.CommentsGetAll(ctx, cs.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -249,8 +297,7 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	cm := comments.Votes{
 		UserID: v.UserID,
 	}
-	votes, err := c.politeiad.CommentVotes(ctx,
-		v1.RecordStateVetted, v.Token, cm)
+	votes, err := c.politeiad.CommentVotes(ctx, v.Token, cm)
 	if err != nil {
 		return nil, err
 	}
@@ -275,11 +322,22 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
 	log.Tracef("processTimestamps: %v %v", t.Token, t.CommentIDs)
 
+	// Get record state
+	r, err := c.recordNoFiles(ctx, t.Token)
+	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
+		return nil, err
+	}
+
 	// Get timestamps
 	ct := comments.Timestamps{
 		CommentIDs: t.CommentIDs,
 	}
-	ctr, err := c.politeiad.CommentTimestamps(ctx, t.State, t.Token, ct)
+	ctr, err := c.politeiad.CommentTimestamps(ctx, t.Token, ct)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +348,7 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 		ts := make([]v1.Timestamp, 0, len(timestamps))
 		for _, v := range timestamps {
 			// Strip unvetted data blobs if the user is not an admin
-			if t.State == v1.RecordStateUnvetted && !isAdmin {
+			if r.State == pdv2.RecordStateUnvetted && !isAdmin {
 				v.Data = ""
 			}
 			ts = append(ts, convertTimestamp(v))
@@ -301,6 +359,32 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 	return &v1.TimestampsReply{
 		Comments: comments,
 	}, nil
+}
+
+var (
+	errRecordNotFound = errors.New("record not found")
+)
+
+// recordNoFiles returns a politeiad record without any of its files. This
+// allows the call to be light weight but still return metadata about the
+// record such as state and status.
+func (c *Comments) recordNoFiles(ctx context.Context, token string) (*pdv2.Record, error) {
+	req := []pdv2.RecordRequest{
+		{
+			Token:        token,
+			OmitAllFiles: true,
+		},
+	}
+	records, err := c.politeiad.RecordGetBatch(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	r, ok := records[token]
+	if !ok {
+		return nil, errRecordNotFound
+	}
+
+	return &r, nil
 }
 
 // commentPopulateUserData populates the comment with user data that is not
