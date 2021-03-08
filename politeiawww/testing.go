@@ -24,7 +24,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/mail"
@@ -56,7 +55,7 @@ func errToStr(e error) string {
 // by default but can be filled in with random rgb colors by setting the
 // addColor parameter to true. The png without color will be ~3kB. The png with
 // color will be ~2MB.
-func newFilePNG(t *testing.T, addColor bool) *piv1.File {
+func newFilePNG(t *testing.T, addColor bool) *www.File {
 	t.Helper()
 
 	b := new(bytes.Buffer)
@@ -87,7 +86,7 @@ func newFilePNG(t *testing.T, addColor bool) *piv1.File {
 		t.Fatalf("%v", err)
 	}
 
-	return &piv1.File{
+	return &www.File{
 		Name:    hex.EncodeToString(r) + ".png",
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),

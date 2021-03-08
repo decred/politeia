@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
@@ -40,41 +40,8 @@ func (p *Pi) HandlePolicy(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, p.policy)
 }
 
-// HandleProposals is the request handler for the pi v1 Proposals route.
-func (p *Pi) HandleProposals(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleProposals")
-
-	var ps v1.Proposals
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ps); err != nil {
-		respondWithError(w, r, "HandleProposals: unmarshal",
-			v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeInputInvalid,
-			})
-		return
-	}
-
-	// Lookup session user. This is a public route so a session may not
-	// exist. Ignore any session not found errors.
-	u, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && err != sessions.ErrSessionNotFound {
-		respondWithError(w, r,
-			"HandleDetails: GetSessionUser: %v", err)
-		return
-	}
-
-	psr, err := p.processProposals(r.Context(), ps, u)
-	if err != nil {
-		respondWithError(w, r,
-			"HandleProposals: processProposals: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, psr)
-}
-
 // New returns a new Pi context.
-func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, m *mail.Client, plugins []pdv1.Plugin) (*Pi, error) {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, m *mail.Client, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
 		textFileSizeMax    uint32

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/util"
@@ -131,14 +131,12 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 func convertPDErrorCode(errCode int) v1.ErrorCodeT {
 	// These are the only politeiad user errors that the comments
 	// API expects to encounter.
-	switch pdv1.ErrorStatusT(errCode) {
-	case pdv1.ErrorStatusInvalidToken:
+	switch pdv2.ErrorCodeT(errCode) {
+	case pdv2.ErrorCodeTokenInvalid:
 		return v1.ErrorCodeTokenInvalid
-	case pdv1.ErrorStatusInvalidRecordState:
-		return v1.ErrorCodeRecordStateInvalid
-	case pdv1.ErrorStatusRecordNotFound:
+	case pdv2.ErrorCodeRecordNotFound:
 		return v1.ErrorCodeRecordNotFound
-	case pdv1.ErrorStatusRecordLocked:
+	case pdv2.ErrorCodeRecordLocked:
 		return v1.ErrorCodeRecordLocked
 	}
 	return v1.ErrorCodeInvalid

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
@@ -248,7 +248,7 @@ func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new Comments context.
-func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, plugins []pdv1.Plugin) (*Comments, error) {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Comments, error) {
 	// Parse plugin settings
 	var (
 		lengthMax      uint32

@@ -16,12 +16,12 @@ const (
 
 	// StreamIDUserMetadata is the politeiad metadata stream ID for the
 	// UserMetadata structure.
-	StreamIDUserMetadata = 1
+	StreamIDUserMetadata uint32 = 1
 
 	// StreamIDStatusChanges is the politeiad metadata stream ID for
 	// the status changes metadata. Status changes are appended onto
 	// this metadata stream.
-	StreamIDStatusChanges = 2
+	StreamIDStatusChanges uint32 = 2
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
@@ -73,7 +73,7 @@ type UserMetadata struct {
 // Signature is the client signature of the Token+Version+Status+Reason.
 type StatusChangeMetadata struct {
 	Token     string `json:"token"`
-	Version   string `json:"version"`
+	Version   uint32 `json:"version"`
 	Status    uint32 `json:"status"`
 	Reason    string `json:"message,omitempty"`
 	PublicKey string `json:"publickey"`
@@ -98,5 +98,6 @@ type UserRecords struct {
 
 // UserRecordsReply is the reply to the UserInv command.
 type UserRecordsReply struct {
-	Records []string `json:"records"`
+	Unvetted []string `json:"unvetted"`
+	Vetted   []string `json:"vetted"`
 }

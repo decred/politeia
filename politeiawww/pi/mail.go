@@ -62,7 +62,7 @@ func (p *Pi) mailNtfnProposalNew(token, name, username string, emails []string) 
 
 type proposalEdit struct {
 	Name     string // Proposal name
-	Version  string // Proposal version
+	Version  uint32 // Proposal version
 	Username string // Author username
 	Link     string // GUI proposal details URL
 }
@@ -77,7 +77,7 @@ A proposal by {{.Username}} has just been edited:
 var proposalEditTmpl = template.Must(
 	template.New("proposalEdit").Parse(proposalEditText))
 
-func (p *Pi) mailNtfnProposalEdit(token, version, name, username string, emails []string) error {
+func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username string, emails []string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {

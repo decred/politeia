@@ -26,7 +26,7 @@ import (
 
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -286,14 +286,14 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 // getPluginInventory returns the politeiad plugin inventory. If a politeiad
 // connection cannot be made, the call will be retried every 5 seconds for up
 // to 1000 tries.
-func (p *politeiawww) getPluginInventory() ([]pdv1.Plugin, error) {
+func (p *politeiawww) getPluginInventory() ([]pdv2.Plugin, error) {
 	// Attempt to fetch the plugin inventory from politeiad until
 	// either it is successful or the maxRetries has been exceeded.
 	var (
 		done          bool
 		maxRetries    = 1000
 		sleepInterval = 5 * time.Second
-		plugins       = make([]pdv1.Plugin, 0, 32)
+		plugins       = make([]pdv2.Plugin, 0, 32)
 		ctx           = context.Background()
 	)
 	for retries := 0; !done; retries++ {
@@ -336,18 +336,6 @@ func (p *politeiawww) setupCMS() error {
 		log.Errorf("wsdcrdata New: %v", err)
 	}
 	p.wsDcrdata = ws
-
-	// Verify politeiad plugins
-	pluginFound := false
-	for _, plugin := range p.plugins {
-		if plugin.ID == "cms" {
-			pluginFound = true
-			break
-		}
-	}
-	if !pluginFound {
-		return fmt.Errorf("politeiad plugin 'cms' not found")
-	}
 
 	// Setup cmsdb
 	net := filepath.Base(p.cfg.DataDir)
@@ -696,7 +684,6 @@ func _main() error {
 	if err != nil {
 		return fmt.Errorf("getPluginInventory: %v", err)
 	}
-	p.plugins = plugins
 
 	// Setup email-userID cache
 	err = p.initUserEmailsCache()

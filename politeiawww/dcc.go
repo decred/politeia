@@ -24,7 +24,6 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	pi "github.com/decred/politeia/politeiawww/api/pi/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
@@ -400,19 +399,6 @@ func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
 		Signature: sv.Signature,
 	}
 
-}
-
-func convertPiFilesFromWWW(files []www.File) []pi.File {
-	f := make([]pi.File, 0, len(files))
-	for _, v := range files {
-		f = append(f, pi.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		})
-	}
-	return f
 }
 
 func (p *politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.User) (*cms.NewDCCReply, error) {

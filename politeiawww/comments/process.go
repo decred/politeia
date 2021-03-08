@@ -29,7 +29,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	// unvetted records.
 	if n.State == v1.RecordStateUnvetted && !u.Admin {
 		// User is not an admin. Get the record author.
-		authorID, err := c.politeiad.Author(ctx, n.State, n.Token)
+		authorID, err := c.politeiad.Author(ctx, n.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +193,7 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 			isAllowed = true
 		default:
 			// User is not an admin. Get the record author.
-			authorID, err := c.politeiad.Author(ctx, cs.State, cs.Token)
+			authorID, err := c.politeiad.Author(ctx, cs.Token)
 			if err != nil {
 				return nil, err
 			}

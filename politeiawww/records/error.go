@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
@@ -135,47 +135,43 @@ func handlePDError(w http.ResponseWriter, r *http.Request, format string, pde pd
 func convertPDErrorCode(errCode int) v1.ErrorCodeT {
 	// Any error statuses that are intentionally omitted means that
 	// politeiawww should 500.
-	switch pdv1.ErrorStatusT(errCode) {
-	case pdv1.ErrorStatusInvalidRequestPayload:
+	switch pdv2.ErrorCodeT(errCode) {
+	case pdv2.ErrorCodeRequestPayloadInvalid:
 		// Intentionally omitted
-	case pdv1.ErrorStatusInvalidChallenge:
+	case pdv2.ErrorCodeChallengeInvalid:
 		// Intentionally omitted
-	case pdv1.ErrorStatusInvalidFilename:
+	case pdv2.ErrorCodeMetadataStreamInvalid:
+		// Intentionally omitted
+	case pdv2.ErrorCodeMetadataStreamDuplicate:
+		// Intentionally omitted
+	case pdv2.ErrorCodeFilesEmpty:
+		return v1.ErrorCodeFilesEmpty
+	case pdv2.ErrorCodeFileNameInvalid:
 		return v1.ErrorCodeFileNameInvalid
-	case pdv1.ErrorStatusInvalidFileDigest:
+	case pdv2.ErrorCodeFileNameDuplicate:
+		return v1.ErrorCodeFileNameDuplicate
+	case pdv2.ErrorCodeFileDigestInvalid:
 		return v1.ErrorCodeFileDigestInvalid
-	case pdv1.ErrorStatusInvalidBase64:
+	case pdv2.ErrorCodeFilePayloadInvalid:
 		return v1.ErrorCodeFilePayloadInvalid
-	case pdv1.ErrorStatusInvalidMIMEType:
-		return v1.ErrorCodeFileMIMEInvalid
-	case pdv1.ErrorStatusUnsupportedMIMEType:
-		return v1.ErrorCodeFileMIMEInvalid
-	case pdv1.ErrorStatusInvalidRecordStatusTransition:
-		return v1.ErrorCodeRecordStatusInvalid
-	case pdv1.ErrorStatusEmpty:
-		return v1.ErrorCodeRecordStatusInvalid
-	case pdv1.ErrorStatusInvalidMDID:
-		return v1.ErrorCodeMetadataStreamIDInvalid
-	case pdv1.ErrorStatusDuplicateMDID:
-		return v1.ErrorCodeMetadataStreamIDInvalid
-	case pdv1.ErrorStatusDuplicateFilename:
-		return v1.ErrorCodeFileNameInvalid
-	case pdv1.ErrorStatusFileNotFound:
-		// Intentionally omitted
-	case pdv1.ErrorStatusNoChanges:
-		return v1.ErrorCodeNoRecordChanges
-	case pdv1.ErrorStatusRecordFound:
-		// Intentionally omitted
-	case pdv1.ErrorStatusInvalidRPCCredentials:
-		// Intentionally omitted
-	case pdv1.ErrorStatusRecordNotFound:
-		return v1.ErrorCodeRecordNotFound
-	case pdv1.ErrorStatusInvalidToken:
+	case pdv2.ErrorCodeFileMIMETypeInvalid:
+		return v1.ErrorCodeFileMIMETypeInvalid
+	case pdv2.ErrorCodeFileMIMETypeUnsupported:
+		return v1.ErrorCodeFileMIMETypeUnsupported
+	case pdv2.ErrorCodeTokenInvalid:
 		return v1.ErrorCodeRecordTokenInvalid
-	case pdv1.ErrorStatusRecordLocked:
+	case pdv2.ErrorCodeRecordNotFound:
+		return v1.ErrorCodeRecordNotFound
+	case pdv2.ErrorCodeRecordLocked:
 		return v1.ErrorCodeRecordLocked
-	case pdv1.ErrorStatusInvalidRecordState:
-		return v1.ErrorCodeRecordStateInvalid
+	case pdv2.ErrorCodeNoRecordChanges:
+		return v1.ErrorCodeNoRecordChanges
+	case pdv2.ErrorCodeStatusChangeInvalid:
+		return v1.ErrorCodeStatusChangeInvalid
+	case pdv2.ErrorCodePluginIDInvalid:
+		// Intentionally omitted
+	case pdv2.ErrorCodePluginCmdInvalid:
+		// Intentionally omitted
 	}
 	return v1.ErrorCodeInvalid
 }

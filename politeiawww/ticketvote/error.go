@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/util"
@@ -119,12 +119,12 @@ func convertPDErrorCode(errCode int) v1.ErrorCodeT {
 	// This list is only populated with politeiad errors that we expect
 	// for the ticketvote plugin commands. Any politeiad errors not
 	// included in this list will cause politeiawww to 500.
-	switch pdv1.ErrorStatusT(errCode) {
-	case pdv1.ErrorStatusRecordNotFound:
+	switch pdv2.ErrorCodeT(errCode) {
+	case pdv2.ErrorCodeRecordNotFound:
 		return v1.ErrorCodeRecordNotFound
-	case pdv1.ErrorStatusInvalidToken:
+	case pdv2.ErrorCodeTokenInvalid:
 		return v1.ErrorCodeTokenInvalid
-	case pdv1.ErrorStatusRecordLocked:
+	case pdv2.ErrorCodeRecordLocked:
 		return v1.ErrorCodeRecordLocked
 	}
 	return v1.ErrorCodeInvalid

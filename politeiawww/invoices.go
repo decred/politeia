@@ -680,7 +680,7 @@ func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, 
 
 	// Handle test case
 	if p.test {
-		tokenBytes, err := util.Random(pd.TokenSizeGit)
+		tokenBytes, err := util.Random(pd.TokenSize)
 		if err != nil {
 			return nil, err
 		}

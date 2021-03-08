@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/config"
@@ -49,23 +49,21 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	if err != nil {
 		return nil, err
 	}
-	metadata := []pdv1.MetadataStream{
+	metadata := []pdv2.MetadataStream{
 		{
 			PluginID: usermd.PluginID,
-			ID:       usermd.MDStreamIDUserMetadata,
+			StreamID: usermd.StreamIDUserMetadata,
 			Payload:  string(b),
 		},
 	}
 
 	// Save record to politeiad
 	f := convertFilesToPD(n.Files)
-	cr, err := r.politeiad.NewRecord(ctx, metadata, f)
+	pdr, err := r.politeiad.RecordNew(ctx, metadata, f)
 	if err != nil {
 		return nil, err
 	}
-
-	// Get full record
-	rc, err := r.record(ctx, v1.RecordStateUnvetted, cr.Token, "")
+	rc, err := r.convertRecordToV1(*pdr)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +98,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 // filesToDel returns the names of the files that are included in the current
 // files but are not included in updated files. These are the files that need
 // to be deleted from a record on update.
-func filesToDel(current []pdv1.File, updated []pdv1.File) []string {
+func filesToDel(current []pdv2.File, updated []pdv2.File) []string {
 	curr := make(map[string]struct{}, len(current)) // [name]struct
 	for _, v := range updated {
 		curr[v.Name] = struct{}{}
@@ -129,25 +127,9 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	}
 
 	// Get current record
-	var (
-		curr *pdv1.Record
-		err  error
-	)
-	switch e.State {
-	case v1.RecordStateUnvetted:
-		curr, err = r.politeiad.GetUnvetted(ctx, e.Token, "")
-		if err != nil {
-			return nil, err
-		}
-	case v1.RecordStateVetted:
-		curr, err = r.politeiad.GetVetted(ctx, e.Token, "")
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStateInvalid,
-		}
+	curr, err := r.politeiad.RecordGet(ctx, e.Token, 0)
+	if err != nil {
+		return nil, err
 	}
 
 	// Setup files
@@ -164,38 +146,25 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	if err != nil {
 		return nil, err
 	}
-	mdOverwrite := []pdv1.MetadataStream{
+	mdOverwrite := []pdv2.MetadataStream{
 		{
 			PluginID: usermd.PluginID,
-			ID:       usermd.MDStreamIDUserMetadata,
+			StreamID: usermd.StreamIDUserMetadata,
 			Payload:  string(b),
 		},
 	}
-	mdAppend := []pdv1.MetadataStream{}
+	mdAppend := []pdv2.MetadataStream{}
 
 	// Save update to politeiad
-	var pdr *pdv1.Record
-	switch e.State {
-	case v1.RecordStateUnvetted:
-		pdr, err = r.politeiad.UpdateUnvetted(ctx, e.Token, mdAppend,
-			mdOverwrite, filesAdd, filesDel)
-		if err != nil {
-			return nil, err
-		}
-	case v1.RecordStateVetted:
-		pdr, err = r.politeiad.UpdateVetted(ctx, e.Token, mdAppend,
-			mdOverwrite, filesAdd, filesDel)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid state %v", e.State)
+	pdr, err := r.politeiad.RecordEdit(ctx, e.Token, mdAppend,
+		mdOverwrite, filesAdd, filesDel)
+	if err != nil {
+		return nil, err
 	}
-
-	rc := convertRecordToV1(*pdr, e.State)
+	rc := convertRecordToV1(*pdr)
 	recordPopulateUserData(&rc, u)
 
-	log.Infof("Record edited: %v %v", e.State, rc.CensorshipRecord.Token)
+	log.Infof("Record edited: %v", rc.CensorshipRecord.Token)
 	for k, f := range rc.Files {
 		log.Debugf("%02v: %v", k, f.Name)
 	}
@@ -204,7 +173,6 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	r.events.Emit(EventTypeEdit,
 		EventEdit{
 			User:   u,
-			State:  e.State,
 			Record: rc,
 		})
 
@@ -238,56 +206,28 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	if err != nil {
 		return nil, err
 	}
-	mdAppend := []pdv1.MetadataStream{
+	mdAppend := []pdv2.MetadataStream{
 		{
 			PluginID: usermd.PluginID,
-			ID:       usermd.MDStreamIDStatusChanges,
+			StreamID: usermd.StreamIDStatusChanges,
 			Payload:  string(b),
 		},
 	}
-	mdOverwrite := []pdv1.MetadataStream{}
+	mdOverwrite := []pdv2.MetadataStream{}
 
 	// Send politeiad request
-	var (
-		s   = convertStatusToPD(ss.Status)
-		pdr *pdv1.Record
-	)
-	switch ss.State {
-	case v1.RecordStateUnvetted:
-		pdr, err = r.politeiad.SetUnvettedStatus(ctx, ss.Token,
-			s, mdAppend, mdOverwrite)
-		if err != nil {
-			return nil, err
-		}
-	case v1.RecordStateVetted:
-		pdr, err = r.politeiad.SetVettedStatus(ctx, ss.Token,
-			s, mdAppend, mdOverwrite)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStateInvalid,
-		}
+	s := convertStatusToPD(ss.Status)
+	pdr, err := r.politeiad.RecordSetStatus(ctx, ss.Token, s,
+		mdAppend, mdOverwrite)
+	if err != nil {
+		return nil, err
 	}
-
-	// Convert the record. The state may need to be updated if the
-	// record was made public.
-	var state string
-	switch ss.Status {
-	case v1.RecordStatusPublic:
-		// Flip state from unvetted to vetted
-		state = pdv1.RecordStateVetted
-	default:
-		state = ss.State
-	}
-	rc := convertRecordToV1(*pdr, state)
+	rc := convertRecordToV1(*pdr)
 	recordPopulateUserData(&rc, u)
 
 	// Emit event
 	r.events.Emit(EventTypeSetStatus,
 		EventSetStatus{
-			State:  state,
 			Record: rc,
 		})
 
@@ -296,29 +236,221 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	}, nil
 }
 
-// record returns a version of a record from politeiad. If version is an empty
-// string then the most recent version will be returned.
-func (r *Records) record(ctx context.Context, state, token, version string) (*v1.Record, error) {
-	var (
-		pdr *pdv1.Record
-		err error
-	)
-	switch state {
-	case v1.RecordStateUnvetted:
-		pdr, err = r.politeiad.GetUnvetted(ctx, token, version)
-		if err != nil {
-			return nil, err
-		}
-	case v1.RecordStateVetted:
-		pdr, err = r.politeiad.GetVetted(ctx, token, version)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid state %v", state)
+func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User) (*v1.DetailsReply, error) {
+	log.Tracef("processDetails: %v %v", d.Token, d.Version)
+
+	// Get record
+	rc, err := r.record(ctx, d.Token, d.Version)
+	if err != nil {
+		return nil, err
 	}
 
-	rc := convertRecordToV1(*pdr, state)
+	// Only admins and the record author are allowed to retrieve
+	// unvetted record files. Remove files if the user is not an admin
+	// or the author. This is a public route so a user may not be
+	// present.
+	if rc.State == v1.RecordStateUnvetted {
+		var (
+			authorID = userIDFromMetadataStreams(rc.Metadata)
+			isAuthor = u != nil && u.ID.String() == authorID
+			isAdmin  = u != nil && u.Admin
+		)
+		if !isAuthor && !isAdmin {
+			rc.Files = []v1.File{}
+		}
+	}
+
+	return &v1.DetailsReply{
+		Record: *rc,
+	}, nil
+}
+
+func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.User) (*v1.RecordsReply, error) {
+	log.Tracef("processRecords: %v reqs", len(rs.Requests))
+
+	// Verify page size
+	if len(rs.Requests) > v1.RecordsPageSize {
+		e := fmt.Sprintf("max page size is %v", v1.RecordsPageSize)
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePageSizeExceeded,
+			ErrorContext: e,
+		}
+	}
+
+	// Get records
+	reqs := convertRequestsToPD(rs.Requests)
+	records, err := r.records(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.RecordsReply{
+		Records: records,
+	}, nil
+}
+
+func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.User) (*v1.InventoryReply, error) {
+	log.Tracef("processInventory: %v %v %v", i.State, i.Status, i.Page)
+
+	// The inventory arguments are optional. If a status is provided
+	// then they all arguments must be provided.
+	var (
+		state  pdv2.RecordStateT
+		status pdv2.RecordStatusT
+	)
+	if i.Status != v1.RecordStatusInvalid {
+		// Verify state
+		state = convertStateToPD(i.State)
+		if state == pdv2.RecordStateInvalid {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordStateInvalid,
+			}
+		}
+
+		// Verify status
+		status = convertStatusToPD(i.Status)
+		if status == pdv2.RecordStatusInvalid {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordStatusInvalid,
+			}
+		}
+	}
+
+	// Get inventory
+	ir, err := r.politeiad.Inventory(ctx, state, status, i.Page)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only admins are allowed to retrieve unvetted tokens. A user may
+	// or may not exist.
+	if u == nil || !u.Admin {
+		ir.Unvetted = map[string][]string{}
+	}
+
+	return &v1.InventoryReply{
+		Unvetted: ir.Unvetted,
+		Vetted:   ir.Vetted,
+	}, nil
+}
+
+func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
+	log.Tracef("processTimestamps: %v %v", t.Token, t.Version)
+
+	// Get record timestamps
+	rt, err := r.politeiad.RecordGetTimestamps(ctx, t.Token, t.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		recordMD = convertTimestampToV1(rt.RecordMetadata)
+		metadata = make(map[string]map[uint32]v1.Timestamp, len(rt.Files))
+		files    = make(map[string]v1.Timestamp, len(rt.Files))
+	)
+	for pluginID, v := range rt.Metadata {
+		streams, ok := metadata[pluginID]
+		if !ok {
+			streams = make(map[uint32]v1.Timestamp, 16)
+		}
+		for streamID, ts := range v {
+			streams[streamID] = convertTimestampToV1(ts)
+		}
+		metadata[pluginID] = streams
+	}
+	for k, v := range rt.Files {
+		files[k] = convertTimestampToV1(v)
+	}
+
+	// Get the record. We need to know the record state.
+	rc, err := r.record(ctx, t.Token, t.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unvetted data blobs are stripped if the user is not an admin.
+	// The rest of the timestamp is still returned.
+	if rc.State == v1.RecordStateUnvetted && !isAdmin {
+		recordMD.Data = ""
+		for k, v := range files {
+			v.Data = ""
+			files[k] = v
+		}
+		for _, streams := range metadata {
+			for streamID, ts := range streams {
+				ts.Data = ""
+				streams[streamID] = ts
+			}
+		}
+	}
+
+	return &v1.TimestampsReply{
+		RecordMetadata: recordMD,
+		Files:          files,
+		Metadata:       metadata,
+	}, nil
+}
+
+func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *user.User) (*v1.UserRecordsReply, error) {
+	log.Tracef("processUserRecords: %v", ur.UserID)
+
+	urr, err := r.politeiad.UserRecords(ctx, ur.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine if unvetted tokens should be returned
+	switch {
+	case u == nil:
+		// No user session. Remove unvetted.
+		urr.Unvetted = []string{}
+	case u.Admin:
+		// User is an admin. Return unvetted.
+	case ur.UserID == u.ID.String():
+		// User is requesting their own records. Return unvetted.
+	default:
+		// Remove unvetted for all other cases
+		urr.Unvetted = []string{}
+	}
+
+	return &v1.UserRecordsReply{
+		Unvetted: urr.Unvetted,
+		Vetted:   urr.Vetted,
+	}, nil
+}
+
+// record returns a version of a record from politeiad. If version is an empty
+// string then the most recent version will be returned.
+func (r *Records) record(ctx context.Context, token string, version uint32) (*v1.Record, error) {
+	pdr, err := r.politeiad.RecordGet(ctx, token, version)
+	if err != nil {
+		return nil, err
+	}
+	return r.convertRecordToV1(*pdr)
+}
+
+func (r *Records) records(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]v1.Record, error) {
+	// Get records
+	pdr, err := r.politeiad.RecordGetBatch(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert records
+	records := make(map[string]v1.Record, len(pdr))
+	for k, v := range pdr {
+		rc, err := r.convertRecordToV1(v)
+		if err != nil {
+			return nil, err
+		}
+		records[k] = *rc
+	}
+
+	return records, nil
+}
+
+func (r *Records) convertRecordToV1(pdr pdv2.Record) (*v1.Record, error) {
+	rc := convertRecordToV1(pdr)
 
 	// Fill in user data
 	userID := userIDFromMetadataStreams(rc.Metadata)
@@ -335,275 +467,6 @@ func (r *Records) record(ctx context.Context, state, token, version string) (*v1
 	return &rc, nil
 }
 
-func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User) (*v1.DetailsReply, error) {
-	log.Tracef("processDetails: %v %v %v", d.State, d.Token, d.Version)
-
-	// Verify state
-	switch d.State {
-	case v1.RecordStateUnvetted, v1.RecordStateVetted:
-		// Allowed; continue
-	default:
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStateInvalid,
-		}
-	}
-
-	// Get record
-	rc, err := r.record(ctx, d.State, d.Token, d.Version)
-	if err != nil {
-		return nil, err
-	}
-
-	// Only admins and the record author are allowed to retrieve
-	// unvetted record files. Remove files if the user is not an admin
-	// or the author. This is a public route so a user may not be
-	// present.
-	if d.State == v1.RecordStateUnvetted {
-		var (
-			authorID = userIDFromMetadataStreams(rc.Metadata)
-			isAuthor = u != nil && u.ID.String() == authorID
-			isAdmin  = u != nil && u.Admin
-		)
-		if !isAuthor && !isAdmin {
-			rc.Files = []v1.File{}
-		}
-	}
-
-	return &v1.DetailsReply{
-		Record: *rc,
-	}, nil
-}
-
-func (r *Records) records(ctx context.Context, state string, reqs []pdv1.RecordRequest) (map[string]v1.Record, error) {
-	var (
-		pdr map[string]pdv1.Record
-		err error
-	)
-	switch state {
-	case v1.RecordStateUnvetted:
-		pdr, err = r.politeiad.GetUnvettedBatch(ctx, reqs)
-		if err != nil {
-			return nil, err
-		}
-	case v1.RecordStateVetted:
-		pdr, err = r.politeiad.GetVettedBatch(ctx, reqs)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid state %v", state)
-	}
-
-	records := make(map[string]v1.Record, len(pdr))
-	for k, v := range pdr {
-		rc := convertRecordToV1(v, state)
-
-		// Fill in user data
-		userID := userIDFromMetadataStreams(rc.Metadata)
-		uid, err := uuid.Parse(userID)
-		if err != nil {
-			return nil, err
-		}
-		u, err := r.userdb.UserGetById(uid)
-		if err != nil {
-			return nil, err
-		}
-		recordPopulateUserData(&rc, *u)
-
-		records[k] = rc
-	}
-
-	return records, nil
-}
-
-func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.User) (*v1.RecordsReply, error) {
-	log.Tracef("processRecords: %v %v", rs.State, len(rs.Requests))
-
-	// Verify state
-	switch rs.State {
-	case v1.RecordStateUnvetted, v1.RecordStateVetted:
-		// Allowed; continue
-	default:
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStateInvalid,
-		}
-	}
-
-	// Verify page size
-	if len(rs.Requests) > v1.RecordsPageSize {
-		e := fmt.Sprintf("max page size is %v", v1.RecordsPageSize)
-		return nil, v1.UserErrorReply{
-			ErrorCode:    v1.ErrorCodePageSizeExceeded,
-			ErrorContext: e,
-		}
-	}
-
-	// Get records
-	reqs := convertRequestsToPD(rs.Requests)
-	records, err := r.records(ctx, rs.State, reqs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.RecordsReply{
-		Records: records,
-	}, nil
-}
-
-func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.User) (*v1.InventoryReply, error) {
-	log.Tracef("processInventory: %v %v %v", i.State, i.Status, i.Page)
-
-	// The inventory arguments are optional. If a status is provided
-	// then they all arguments must be provided.
-	var s pdv1.RecordStatusT
-	if i.Status != v1.RecordStatusInvalid {
-		// Verify state
-		switch i.State {
-		case v1.RecordStateUnvetted, v1.RecordStateVetted:
-			// Allowed; continue
-		default:
-			return nil, v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeRecordStateInvalid,
-			}
-		}
-
-		// Verify status
-		s = convertStatusToPD(i.Status)
-		if s == pdv1.RecordStatusInvalid {
-			return nil, v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeRecordStatusInvalid,
-			}
-		}
-	}
-
-	// Get inventory
-	ir, err := r.politeiad.InventoryByStatus(ctx, i.State, s, i.Page)
-	if err != nil {
-		return nil, err
-	}
-
-	unvetted := make(map[string][]string, len(ir.Unvetted))
-	vetted := make(map[string][]string, len(ir.Vetted))
-	for k, v := range ir.Vetted {
-		ks := v1.RecordStatuses[convertStatusToV1(k)]
-		vetted[ks] = v
-	}
-
-	// Only admins are allowed to retrieve unvetted tokens. A user may
-	// or may not exist.
-	if u != nil && u.Admin {
-		for k, v := range ir.Unvetted {
-			ks := v1.RecordStatuses[convertStatusToV1(k)]
-			unvetted[ks] = v
-		}
-	}
-
-	return &v1.InventoryReply{
-		Unvetted: unvetted,
-		Vetted:   vetted,
-	}, nil
-}
-
-func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
-	log.Tracef("processTimestamps: %v %v %v", t.State, t.Token, t.Version)
-
-	// Get record timestamps
-	var (
-		rt  *pdv1.RecordTimestamps
-		err error
-	)
-	switch t.State {
-	case v1.RecordStateUnvetted:
-		rt, err = r.politeiad.GetUnvettedTimestamps(ctx, t.Token, t.Version)
-		if err != nil {
-			return nil, err
-		}
-	case v1.RecordStateVetted:
-		rt, err = r.politeiad.GetVettedTimestamps(ctx, t.Token, t.Version)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeRecordStateInvalid,
-		}
-	}
-
-	var (
-		recordMD = convertTimestampToV1(rt.RecordMetadata)
-		metadata = make(map[string]v1.Timestamp, len(rt.Files))
-		files    = make(map[string]v1.Timestamp, len(rt.Files))
-	)
-	for k, v := range rt.Metadata {
-		metadata[k] = convertTimestampToV1(v)
-	}
-	for k, v := range rt.Files {
-		files[k] = convertTimestampToV1(v)
-	}
-
-	// Unvetted data blobs are stripped if the user is not an admin.
-	// The rest of the timestamp is still returned.
-	if t.State == v1.RecordStateUnvetted && !isAdmin {
-		recordMD.Data = ""
-		for k, v := range files {
-			v.Data = ""
-			files[k] = v
-		}
-		for k, v := range metadata {
-			v.Data = ""
-			metadata[k] = v
-		}
-	}
-
-	return &v1.TimestampsReply{
-		RecordMetadata: recordMD,
-		Files:          files,
-		Metadata:       metadata,
-	}, nil
-}
-
-func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *user.User) (*v1.UserRecordsReply, error) {
-	log.Tracef("processUserRecords: %v", ur.UserID)
-
-	reply, err := r.politeiad.UserRecords(ctx, ur.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unpack reply
-	var (
-		unvetted = make([]string, 0)
-		vetted   = make([]string, 0)
-	)
-	tokens, ok := reply[v1.RecordStateUnvetted]
-	if ok {
-		unvetted = tokens
-	}
-	tokens, ok = reply[v1.RecordStateVetted]
-	if ok {
-		vetted = tokens
-	}
-
-	// Determine if unvetted tokens should be returned
-	switch {
-	case u == nil:
-		// No user session. Remove unvetted.
-		unvetted = []string{}
-	case u.Admin:
-		// User is an admin. Return unvetted.
-	case ur.UserID == u.ID.String():
-		// User is requesting their own records. Return unvetted.
-	default:
-		// Remove unvetted for all other cases
-		unvetted = []string{}
-	}
-
-	return &v1.UserRecordsReply{
-		Unvetted: unvetted,
-		Vetted:   vetted,
-	}, nil
-}
-
 // recordPopulateUserData populates the record with user data that is not
 // stored in politeiad.
 func recordPopulateUserData(r *v1.Record, u user.User) {
@@ -616,7 +479,7 @@ func userMetadataDecode(ms []v1.MetadataStream) (*usermd.UserMetadata, error) {
 	var userMD *usermd.UserMetadata
 	for _, v := range ms {
 		if v.PluginID != usermd.PluginID ||
-			v.ID != usermd.MDStreamIDUserMetadata {
+			v.StreamID != usermd.StreamIDUserMetadata {
 			// Not the mdstream we're looking for
 			continue
 		}
@@ -644,21 +507,31 @@ func userIDFromMetadataStreams(ms []v1.MetadataStream) string {
 	return um.UserID
 }
 
-func convertStatusToV1(s pdv1.RecordStatusT) v1.RecordStatusT {
+func convertStateToV1(s pdv2.RecordStateT) v1.RecordStateT {
 	switch s {
-	case pdv1.RecordStatusNotReviewed:
+	case pdv2.RecordStateUnvetted:
+		return v1.RecordStateUnvetted
+	case pdv2.RecordStateVetted:
+		return v1.RecordStateVetted
+	}
+	return v1.RecordStateInvalid
+}
+
+func convertStatusToV1(s pdv2.RecordStatusT) v1.RecordStatusT {
+	switch s {
+	case pdv2.RecordStatusUnreviewed:
 		return v1.RecordStatusUnreviewed
-	case pdv1.RecordStatusPublic:
+	case pdv2.RecordStatusPublic:
 		return v1.RecordStatusPublic
-	case pdv1.RecordStatusCensored:
+	case pdv2.RecordStatusCensored:
 		return v1.RecordStatusCensored
-	case pdv1.RecordStatusArchived:
+	case pdv2.RecordStatusArchived:
 		return v1.RecordStatusArchived
 	}
 	return v1.RecordStatusInvalid
 }
 
-func convertFilesToV1(f []pdv1.File) []v1.File {
+func convertFilesToV1(f []pdv2.File) []v1.File {
 	files := make([]v1.File, 0, len(f))
 	for _, v := range f {
 		files = append(files, v1.File{
@@ -671,24 +544,24 @@ func convertFilesToV1(f []pdv1.File) []v1.File {
 	return files
 }
 
-func convertMetadataStreamsToV1(ms []pdv1.MetadataStream) []v1.MetadataStream {
+func convertMetadataStreamsToV1(ms []pdv2.MetadataStream) []v1.MetadataStream {
 	metadata := make([]v1.MetadataStream, 0, len(ms))
 	for _, v := range ms {
 		metadata = append(metadata, v1.MetadataStream{
 			PluginID: v.PluginID,
-			ID:       v.ID,
+			StreamID: v.StreamID,
 			Payload:  v.Payload,
 		})
 	}
 	return metadata
 }
 
-func convertRecordToV1(r pdv1.Record, state string) v1.Record {
+func convertRecordToV1(r pdv2.Record) v1.Record {
 	// User fields that are not part of the politeiad record have
 	// been intentionally left blank. These fields must be pulled
 	// from the user database.
 	return v1.Record{
-		State:     state,
+		State:     convertStateToV1(r.State),
 		Status:    convertStatusToV1(r.Status),
 		Version:   r.Version,
 		Timestamp: r.Timestamp,
@@ -703,7 +576,7 @@ func convertRecordToV1(r pdv1.Record, state string) v1.Record {
 	}
 }
 
-func convertProofToV1(p pdv1.Proof) v1.Proof {
+func convertProofToV1(p pdv2.Proof) v1.Proof {
 	return v1.Proof{
 		Type:       p.Type,
 		Digest:     p.Digest,
@@ -713,7 +586,7 @@ func convertProofToV1(p pdv1.Proof) v1.Proof {
 	}
 }
 
-func convertTimestampToV1(t pdv1.Timestamp) v1.Timestamp {
+func convertTimestampToV1(t pdv2.Timestamp) v1.Timestamp {
 	proofs := make([]v1.Proof, 0, len(t.Proofs))
 	for _, v := range t.Proofs {
 		proofs = append(proofs, convertProofToV1(v))
@@ -727,10 +600,10 @@ func convertTimestampToV1(t pdv1.Timestamp) v1.Timestamp {
 	}
 }
 
-func convertFilesToPD(f []v1.File) []pdv1.File {
-	files := make([]pdv1.File, 0, len(f))
+func convertFilesToPD(f []v1.File) []pdv2.File {
+	files := make([]pdv2.File, 0, len(f))
 	for _, v := range f {
-		files = append(files, pdv1.File{
+		files = append(files, pdv2.File{
 			Name:    v.Name,
 			MIME:    v.MIME,
 			Digest:  v.Digest,
@@ -740,24 +613,34 @@ func convertFilesToPD(f []v1.File) []pdv1.File {
 	return files
 }
 
-func convertStatusToPD(s v1.RecordStatusT) pdv1.RecordStatusT {
+func convertStateToPD(s v1.RecordStateT) pdv2.RecordStateT {
 	switch s {
-	case v1.RecordStatusUnreviewed:
-		return pdv1.RecordStatusNotReviewed
-	case v1.RecordStatusPublic:
-		return pdv1.RecordStatusPublic
-	case v1.RecordStatusCensored:
-		return pdv1.RecordStatusCensored
-	case v1.RecordStatusArchived:
-		return pdv1.RecordStatusArchived
+	case v1.RecordStateUnvetted:
+		return pdv2.RecordStateUnvetted
+	case v1.RecordStateVetted:
+		return pdv2.RecordStateVetted
 	}
-	return pdv1.RecordStatusInvalid
+	return pdv2.RecordStateInvalid
 }
 
-func convertRequestsToPD(reqs []v1.RecordRequest) []pdv1.RecordRequest {
-	r := make([]pdv1.RecordRequest, 0, len(reqs))
+func convertStatusToPD(s v1.RecordStatusT) pdv2.RecordStatusT {
+	switch s {
+	case v1.RecordStatusUnreviewed:
+		return pdv2.RecordStatusUnreviewed
+	case v1.RecordStatusPublic:
+		return pdv2.RecordStatusPublic
+	case v1.RecordStatusCensored:
+		return pdv2.RecordStatusCensored
+	case v1.RecordStatusArchived:
+		return pdv2.RecordStatusArchived
+	}
+	return pdv2.RecordStatusInvalid
+}
+
+func convertRequestsToPD(reqs []v1.RecordRequest) []pdv2.RecordRequest {
+	r := make([]pdv2.RecordRequest, 0, len(reqs))
 	for _, v := range reqs {
-		r = append(r, pdv1.RecordRequest{
+		r = append(r, pdv2.RecordRequest{
 			Token:        v.Token,
 			Version:      v.Version,
 			Filenames:    v.Filenames,

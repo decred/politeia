@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
@@ -273,7 +273,7 @@ func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new TicketVote context.
-func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager, plugins []pdv1.Plugin) (*TicketVote, error) {
+func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*TicketVote, error) {
 	// Parse plugin settings
 	var (
 		linkByPeriodMin int64

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -155,12 +155,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RoutePolicy, pic.HandlePolicy,
 		permissionPublic)
-	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteProposals, pic.HandleProposals,
-		permissionPublic)
 }
 
-func (p *politeiawww) setupPi(plugins []pdv1.Plugin) error {
+func (p *politeiawww) setupPi(plugins []pdv2.Plugin) error {
 	// Verify all required politeiad plugins have been registered
 	required := map[string]bool{
 		piplugin.PluginID: false,

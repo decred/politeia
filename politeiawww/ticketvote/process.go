@@ -7,7 +7,6 @@ package ticketvote
 import (
 	"context"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -25,7 +24,7 @@ func (t *TicketVote) processAuthorize(ctx context.Context, a v1.Authorize, u use
 	}
 
 	// Verify user is the record author
-	authorID, err := t.politeiad.Author(ctx, pdv1.RecordStateVetted, a.Token)
+	authorID, err := t.politeiad.Author(ctx, a.Token)
 	if err != nil {
 		return nil, err
 	}

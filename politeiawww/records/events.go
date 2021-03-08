@@ -29,12 +29,10 @@ type EventNew struct {
 // EventEdit is the event data for the EventTypeEdit.
 type EventEdit struct {
 	User   user.User
-	State  string
 	Record v1.Record
 }
 
 // EventSetStatus is the event data for the EventTypeSetStatus.
 type EventSetStatus struct {
-	State  string
 	Record v1.Record
 }

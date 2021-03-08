@@ -16,7 +16,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/v3"
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -77,7 +76,6 @@ type politeiawww struct {
 	db        user.Database
 	sessions  *sessions.Sessions
 	events    *events.Manager
-	plugins   []pdv1.Plugin
 
 	// Client websocket connections
 	ws    map[string]map[string]*wsContext // [uuid][]*context

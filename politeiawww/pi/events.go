@@ -13,11 +13,12 @@ import (
 	"io"
 	"strings"
 
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
+	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
+	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -123,7 +124,7 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 		}
 
 		// Only send edit notifications for public proposals
-		if e.State == rcv1.RecordStateUnvetted {
+		if e.Record.State == rcv1.RecordStateUnvetted {
 			log.Debugf("Proposal is unvetted no edit ntfn %v",
 				e.Record.CensorshipRecord.Token)
 			continue
@@ -417,17 +418,17 @@ func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 
 		// Get the record author and record name
 		var (
-			pdr              *pdv1.Record
+			pdr              *pdv2.Record
 			r                rcv1.Record
 			proposalAuthorID string
 			proposalName     string
 			err              error
 		)
-		pdr, err = p.recordAbridged(e.State, e.Comment.Token)
+		pdr, err = p.recordAbridged(e.Comment.Token)
 		if err != nil {
 			goto failed
 		}
-		r = convertRecordToV1(*pdr, e.State)
+		r = convertRecordToV1(*pdr)
 		proposalAuthorID = userIDFromMetadata(r.Metadata)
 		proposalName = proposalNameFromRecord(r)
 
@@ -473,7 +474,6 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 
 		// Setup args to prevent goto errors
 		var (
-			state        = rcv1.RecordStateVetted
 			token        = e.Auth.Token
 			proposalName string
 			r            rcv1.Record
@@ -483,11 +483,11 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 		)
 
 		// Get record
-		pdr, err := p.recordAbridged(state, token)
+		pdr, err := p.recordAbridged(token)
 		if err != nil {
 			goto failed
 		}
-		r = convertRecordToV1(*pdr, state)
+		r = convertRecordToV1(*pdr)
 		proposalName = proposalNameFromRecord(r)
 
 		// Compile notification email list
@@ -610,21 +610,20 @@ func (p *Pi) handleEventVoteStarted(ch chan interface{}) {
 		for _, v := range e.Starts {
 			// Setup args to prevent goto errors
 			var (
-				state = rcv1.RecordStateVetted
 				token = v.Params.Token
 
-				pdr *pdv1.Record
+				pdr *pdv2.Record
 				r   rcv1.Record
 				err error
 
 				authorID     string
 				proposalName string
 			)
-			pdr, err = p.recordAbridged(state, token)
+			pdr, err = p.recordAbridged(token)
 			if err != nil {
 				goto failed
 			}
-			r = convertRecordToV1(*pdr, state)
+			r = convertRecordToV1(*pdr)
 			authorID = userIDFromMetadata(r.Metadata)
 			proposalName = proposalNameFromRecord(r)
 
@@ -653,42 +652,19 @@ func (p *Pi) handleEventVoteStarted(ch chan interface{}) {
 	}
 }
 
-func (p *Pi) records(state string, reqs []pdv1.RecordRequest) (map[string]pdv1.Record, error) {
-	var (
-		records map[string]pdv1.Record
-		err     error
-	)
-	switch state {
-	case rcv1.RecordStateUnvetted:
-		records, err = p.politeiad.GetUnvettedBatch(context.Background(), reqs)
-		if err != nil {
-			return nil, err
-		}
-	case rcv1.RecordStateVetted:
-		records, err = p.politeiad.GetVettedBatch(context.Background(), reqs)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid state %v", state)
-	}
-
-	return records, nil
-}
-
 // recordAbridged returns a proposal record without its index file or any
 // attachment files. This allows the request to be light weight.
-func (p *Pi) recordAbridged(state, token string) (*pdv1.Record, error) {
-	reqs := []pdv1.RecordRequest{
+func (p *Pi) recordAbridged(token string) (*pdv2.Record, error) {
+	reqs := []pdv2.RecordRequest{
 		{
 			Token: token,
 			Filenames: []string{
-				piv1.FileNameProposalMetadata,
-				piv1.FileNameVoteMetadata,
+				piplugin.FileNameProposalMetadata,
+				tkplugin.FileNameVoteMetadata,
 			},
 		},
 	}
-	rs, err := p.records(state, reqs)
+	rs, err := p.politeiad.RecordGetBatch(context.Background(), reqs)
 	if err != nil {
 		return nil, fmt.Errorf("politeiad records: %v", err)
 	}
@@ -704,7 +680,7 @@ func (p *Pi) recordAbridged(state, token string) (*pdv1.Record, error) {
 func userMetadataDecode(ms []rcv1.MetadataStream) (*usermd.UserMetadata, error) {
 	var userMD *usermd.UserMetadata
 	for _, v := range ms {
-		if v.ID == usermd.MDStreamIDUserMetadata {
+		if v.StreamID == usermd.StreamIDUserMetadata {
 			var um usermd.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
@@ -736,12 +712,12 @@ func userIDFromMetadata(ms []rcv1.MetadataStream) string {
 func proposalNameFromRecord(r rcv1.Record) string {
 	var name string
 	for _, v := range r.Files {
-		if v.Name == piv1.FileNameProposalMetadata {
+		if v.Name == piplugin.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return ""
 			}
-			var pm piv1.ProposalMetadata
+			var pm piplugin.ProposalMetadata
 			err = json.Unmarshal(b, &pm)
 			if err != nil {
 				return ""
@@ -774,7 +750,7 @@ func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usermd.StatusC
 		err error
 	)
 	for _, v := range metadata {
-		if v.ID == usermd.MDStreamIDStatusChanges {
+		if v.StreamID == usermd.StreamIDStatusChanges {
 			sc, err = statusChangesDecode([]byte(v.Payload))
 			if err != nil {
 				return nil, err
@@ -784,21 +760,31 @@ func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usermd.StatusC
 	return sc, nil
 }
 
-func convertStatusToV1(s pdv1.RecordStatusT) rcv1.RecordStatusT {
+func convertStateToV1(s pdv2.RecordStateT) rcv1.RecordStateT {
 	switch s {
-	case pdv1.RecordStatusNotReviewed:
+	case pdv2.RecordStateUnvetted:
+		return rcv1.RecordStateUnvetted
+	case pdv2.RecordStateVetted:
+		return rcv1.RecordStateVetted
+	}
+	return rcv1.RecordStateInvalid
+}
+
+func convertStatusToV1(s pdv2.RecordStatusT) rcv1.RecordStatusT {
+	switch s {
+	case pdv2.RecordStatusUnreviewed:
 		return rcv1.RecordStatusUnreviewed
-	case pdv1.RecordStatusPublic:
+	case pdv2.RecordStatusPublic:
 		return rcv1.RecordStatusPublic
-	case pdv1.RecordStatusCensored:
+	case pdv2.RecordStatusCensored:
 		return rcv1.RecordStatusCensored
-	case pdv1.RecordStatusArchived:
+	case pdv2.RecordStatusArchived:
 		return rcv1.RecordStatusArchived
 	}
 	return rcv1.RecordStatusInvalid
 }
 
-func convertFilesToV1(f []pdv1.File) []rcv1.File {
+func convertFilesToV1(f []pdv2.File) []rcv1.File {
 	files := make([]rcv1.File, 0, len(f))
 	for _, v := range f {
 		files = append(files, rcv1.File{
@@ -811,24 +797,24 @@ func convertFilesToV1(f []pdv1.File) []rcv1.File {
 	return files
 }
 
-func convertMetadataStreamsToV1(ms []pdv1.MetadataStream) []rcv1.MetadataStream {
+func convertMetadataStreamsToV1(ms []pdv2.MetadataStream) []rcv1.MetadataStream {
 	metadata := make([]rcv1.MetadataStream, 0, len(ms))
 	for _, v := range ms {
 		metadata = append(metadata, rcv1.MetadataStream{
 			PluginID: v.PluginID,
-			ID:       v.ID,
+			StreamID: v.StreamID,
 			Payload:  v.Payload,
 		})
 	}
 	return metadata
 }
 
-func convertRecordToV1(r pdv1.Record, state string) rcv1.Record {
+func convertRecordToV1(r pdv2.Record) rcv1.Record {
 	// User fields that are not part of the politeiad record have
 	// been intentionally left blank. These fields must be pulled
 	// from the user database.
 	return rcv1.Record{
-		State:     state,
+		State:     convertStateToV1(r.State),
 		Status:    convertStatusToV1(r.Status),
 		Version:   r.Version,
 		Timestamp: r.Timestamp,

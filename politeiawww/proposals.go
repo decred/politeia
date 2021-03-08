@@ -17,8 +17,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/decredplugin"
-	pdv1 "github.com/decred/politeia/politeiad/api/v1"
-	v1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -33,11 +32,28 @@ import (
 )
 
 func (p *politeiawww) proposal(ctx context.Context, token, version string) (*www.ProposalRecord, error) {
+	// Parse version
+	v, err := strconv.ParseUint(version, 10, 64)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
 	// Get record
-	r, err := p.politeiad.GetVetted(ctx, token, version)
+	r, err := p.politeiad.RecordGet(ctx, token, uint32(v))
 	if err != nil {
 		return nil, err
 	}
+
+	// Legacy www routes are only for vetted records
+	if r.State == pdv2.RecordStateUnvetted {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Convert to a proposal
 	pr, err := convertRecordToProposal(*r)
 	if err != nil {
 		return nil, err
@@ -67,14 +83,19 @@ func (p *politeiawww) proposal(ctx context.Context, token, version string) (*www
 	return pr, nil
 }
 
-func (p *politeiawww) proposals(ctx context.Context, reqs []pdv1.RecordRequest) (map[string]www.ProposalRecord, error) {
-	records, err := p.politeiad.GetVettedBatch(ctx, reqs)
+func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
+	records, err := p.politeiad.RecordGetBatch(ctx, reqs)
 	if err != nil {
 		return nil, err
 	}
 
 	proposals := make(map[string]www.ProposalRecord, len(records))
 	for k, v := range records {
+		// Legacy www routes are only for vetted records
+		if v.State == pdv2.RecordStateUnvetted {
+			continue
+		}
+
 		// Convert to a proposal
 		pr, err := convertRecordToProposal(v)
 		if err != nil {
@@ -113,8 +134,8 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	log.Tracef("processTokenInventory")
 
 	// Get record inventory
-	ir, err := p.politeiad.InventoryByStatus(ctx, "",
-		pdv1.RecordStatusInvalid, 0)
+	ir, err := p.politeiad.Inventory(ctx, pdv2.RecordStateInvalid,
+		pdv2.RecordStatusInvalid, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -128,10 +149,12 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 
 	var (
 		// Unvetted
-		unvetted        = ir.Unvetted[pdv1.RecordStatusNotReviewed]
-		unvettedChanges = ir.Unvetted[pdv1.RecordStatusUnreviewedChanges]
-		unreviewed      = append(unvetted, unvettedChanges...)
-		censored        = ir.Unvetted[pdv1.RecordStatusCensored]
+		statusUnreviewed = pdv2.RecordStatuses[pdv2.RecordStatusUnreviewed]
+		statusCensored   = pdv2.RecordStatuses[pdv2.RecordStatusCensored]
+		statusArchived   = pdv2.RecordStatuses[pdv2.RecordStatusArchived]
+
+		unreviewed = ir.Unvetted[statusUnreviewed]
+		censored   = ir.Unvetted[statusCensored]
 
 		// Human readable vote statuses
 		statusUnauth   = tkplugin.VoteStatuses[tkplugin.VoteStatusUnauthorized]
@@ -147,7 +170,7 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 		active    = vir.Tokens[statusStarted]
 		approved  = vir.Tokens[statusApproved]
 		rejected  = vir.Tokens[statusRejected]
-		abandoned = ir.Vetted[pdv1.RecordStatusArchived]
+		abandoned = ir.Vetted[statusArchived]
 	)
 
 	// Only return unvetted tokens to admins
@@ -221,9 +244,9 @@ func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchPro
 		}
 	}
 
-	reqs := make([]pdv1.RecordRequest, 0, len(bp.Tokens))
+	reqs := make([]pdv2.RecordRequest, 0, len(bp.Tokens))
 	for _, v := range bp.Tokens {
-		reqs = append(reqs, pdv1.RecordRequest{
+		reqs = append(reqs, pdv2.RecordRequest{
 			Token: v,
 			Filenames: []string{
 				piplugin.FileNameProposalMetadata,
@@ -348,9 +371,9 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 	}
 
 	// Get proposals
-	reqs := make([]pdv1.RecordRequest, 0, len(started))
+	reqs := make([]pdv2.RecordRequest, 0, len(started))
 	for _, v := range started {
-		reqs = append(reqs, pdv1.RecordRequest{
+		reqs = append(reqs, pdv2.RecordRequest{
 			Token: v,
 			Filenames: []string{
 				piplugin.FileNameProposalMetadata,
@@ -681,10 +704,10 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []v1.MetadataStream) (*umplugin.UserMetadata, error) {
+func userMetadataDecode(ms []pdv2.MetadataStream) (*umplugin.UserMetadata, error) {
 	var userMD *umplugin.UserMetadata
 	for _, v := range ms {
-		if v.ID == umplugin.MDStreamIDUserMetadata {
+		if v.StreamID == umplugin.StreamIDUserMetadata {
 			var um umplugin.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &um)
 			if err != nil {
@@ -699,7 +722,7 @@ func userMetadataDecode(ms []v1.MetadataStream) (*umplugin.UserMetadata, error) 
 
 // userIDFromMetadataStreams searches for a UserMetadata and parses the user ID
 // from it if found. An empty string is returned if no UserMetadata is found.
-func userIDFromMetadataStreams(ms []pdv1.MetadataStream) string {
+func userIDFromMetadataStreams(ms []pdv2.MetadataStream) string {
 	um, err := userMetadataDecode(ms)
 	if err != nil {
 		return ""
@@ -710,22 +733,22 @@ func userIDFromMetadataStreams(ms []pdv1.MetadataStream) string {
 	return um.UserID
 }
 
-func convertStatusToWWW(status pdv1.RecordStatusT) www.PropStatusT {
+func convertStatusToWWW(status pdv2.RecordStatusT) www.PropStatusT {
 	switch status {
-	case pdv1.RecordStatusInvalid:
+	case pdv2.RecordStatusInvalid:
 		return www.PropStatusInvalid
-	case pdv1.RecordStatusPublic:
+	case pdv2.RecordStatusPublic:
 		return www.PropStatusPublic
-	case pdv1.RecordStatusCensored:
+	case pdv2.RecordStatusCensored:
 		return www.PropStatusCensored
-	case pdv1.RecordStatusArchived:
+	case pdv2.RecordStatusArchived:
 		return www.PropStatusAbandoned
 	default:
 		return www.PropStatusInvalid
 	}
 }
 
-func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
+func convertRecordToProposal(r pdv2.Record) (*www.ProposalRecord, error) {
 	// Decode metadata
 	var (
 		um       *umplugin.UserMetadata
@@ -737,15 +760,15 @@ func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 		}
 
 		// This is a usermd plugin metadata stream
-		switch v.ID {
-		case umplugin.MDStreamIDUserMetadata:
+		switch v.StreamID {
+		case umplugin.StreamIDUserMetadata:
 			var m umplugin.UserMetadata
 			err := json.Unmarshal([]byte(v.Payload), &m)
 			if err != nil {
 				return nil, err
 			}
 			um = &m
-		case umplugin.MDStreamIDStatusChanges:
+		case umplugin.StreamIDStatusChanges:
 			d := json.NewDecoder(strings.NewReader(v.Payload))
 			for {
 				var sc umplugin.StatusChangeMetadata
@@ -850,7 +873,7 @@ func convertRecordToProposal(r pdv1.Record) (*www.ProposalRecord, error) {
 		Username:            "", // Intentionally omitted
 		PublicKey:           um.PublicKey,
 		Signature:           um.Signature,
-		Version:             r.Version,
+		Version:             strconv.FormatUint(uint64(r.Version), 10),
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,

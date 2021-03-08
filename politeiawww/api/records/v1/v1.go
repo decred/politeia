@@ -21,10 +21,6 @@ const (
 
 	// Metadata routes
 	RouteUserRecords = "/userrecords"
-
-	// Record states
-	RecordStateUnvetted = "unvetted"
-	RecordStateVetted   = "vetted"
 )
 
 // ErrorCodeT represents a user error code.
@@ -34,21 +30,25 @@ const (
 	// Error codes
 	ErrorCodeInvalid                 ErrorCodeT = 0
 	ErrorCodeInputInvalid            ErrorCodeT = 1
-	ErrorCodeFileNameInvalid         ErrorCodeT = 2
-	ErrorCodeFileMIMEInvalid         ErrorCodeT = 3
-	ErrorCodeFileDigestInvalid       ErrorCodeT = 4
-	ErrorCodeFilePayloadInvalid      ErrorCodeT = 5
-	ErrorCodeMetadataStreamIDInvalid ErrorCodeT = 6
-	ErrorCodePublicKeyInvalid        ErrorCodeT = 7
-	ErrorCodeSignatureInvalid        ErrorCodeT = 8
-	ErrorCodeRecordTokenInvalid      ErrorCodeT = 9
-	ErrorCodeRecordStateInvalid      ErrorCodeT = 10
-	ErrorCodeRecordNotFound          ErrorCodeT = 11
-	ErrorCodeRecordLocked            ErrorCodeT = 12
-	ErrorCodeNoRecordChanges         ErrorCodeT = 13
-	ErrorCodeRecordStatusInvalid     ErrorCodeT = 14
-	ErrorCodeStatusReasonNotFound    ErrorCodeT = 15
-	ErrorCodePageSizeExceeded        ErrorCodeT = 16
+	ErrorCodeFilesEmpty              ErrorCodeT = 2
+	ErrorCodeFileNameInvalid         ErrorCodeT = 3
+	ErrorCodeFileNameDuplicate       ErrorCodeT = 4
+	ErrorCodeFileMIMETypeInvalid     ErrorCodeT = 5
+	ErrorCodeFileMIMETypeUnsupported ErrorCodeT = 6
+	ErrorCodeFileDigestInvalid       ErrorCodeT = 7
+	ErrorCodeFilePayloadInvalid      ErrorCodeT = 8
+	ErrorCodeMetadataStreamIDInvalid ErrorCodeT = 9
+	ErrorCodePublicKeyInvalid        ErrorCodeT = 10
+	ErrorCodeSignatureInvalid        ErrorCodeT = 11
+	ErrorCodeRecordTokenInvalid      ErrorCodeT = 12
+	ErrorCodeRecordNotFound          ErrorCodeT = 13
+	ErrorCodeRecordLocked            ErrorCodeT = 14
+	ErrorCodeNoRecordChanges         ErrorCodeT = 15
+	ErrorCodeRecordStateInvalid      ErrorCodeT = 16
+	ErrorCodeRecordStatusInvalid     ErrorCodeT = 17
+	ErrorCodeStatusChangeInvalid     ErrorCodeT = 18
+	ErrorCodeStatusReasonNotFound    ErrorCodeT = 19
+	ErrorCodePageSizeExceeded        ErrorCodeT = 20
 )
 
 var (
@@ -56,19 +56,23 @@ var (
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid:                 "error invalid",
 		ErrorCodeInputInvalid:            "input invalid",
+		ErrorCodeFilesEmpty:              "files are empty",
 		ErrorCodeFileNameInvalid:         "file name invalid",
-		ErrorCodeFileMIMEInvalid:         "file mime invalid",
+		ErrorCodeFileNameDuplicate:       "file name duplicate",
+		ErrorCodeFileMIMETypeInvalid:     "file mime type invalid",
+		ErrorCodeFileMIMETypeUnsupported: "file mime type unsupported",
 		ErrorCodeFileDigestInvalid:       "file digest invalid",
 		ErrorCodeFilePayloadInvalid:      "file payload invalid",
 		ErrorCodeMetadataStreamIDInvalid: "metadata stream id invalid",
 		ErrorCodePublicKeyInvalid:        "public key invalid",
 		ErrorCodeSignatureInvalid:        "signature invalid",
 		ErrorCodeRecordTokenInvalid:      "record token invalid",
-		ErrorCodeRecordStateInvalid:      "record state invalid",
 		ErrorCodeRecordNotFound:          "record not found",
 		ErrorCodeRecordLocked:            "record locked",
 		ErrorCodeNoRecordChanges:         "no record changes",
+		ErrorCodeRecordStateInvalid:      "record state invalid",
 		ErrorCodeRecordStatusInvalid:     "record status invalid",
+		ErrorCodeStatusChangeInvalid:     "status change invalid",
 		ErrorCodeStatusReasonNotFound:    "status reason not found",
 		ErrorCodePageSizeExceeded:        "page size exceeded",
 	}
@@ -113,37 +117,55 @@ func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
-// RecordStatusT represents a record status.
-type RecordStatusT int
+// RecordStateT represents the state of a record.
+type RecordStateT uint32
 
 const (
-	// RecordStatusInvalid is an invalid record status.
+	// RecordStateInvalid is an invalid record state.
+	RecordStateInvalid RecordStateT = 0
+
+	// RecordStateUnvetted indicates a record has not been made public.
+	RecordStateUnvetted RecordStateT = 1
+
+	// RecordStateVetted indicates a record has been made public.
+	RecordStateVetted RecordStateT = 2
+)
+
+var (
+	// RecordStates contains the human readable record states.
+	RecordStates = map[RecordStateT]string{
+		RecordStateInvalid:  "invalid",
+		RecordStateUnvetted: "unvetted",
+		RecordStateVetted:   "vetted",
+	}
+)
+
+// RecordStatusT represents the status of a record.
+type RecordStatusT uint32
+
+const (
+	// RecordStatusInvalid is an invalid status code.
 	RecordStatusInvalid RecordStatusT = 0
 
-	// RecordStatusUnreviewed indicates that a record has been
-	// submitted but has not been made public yet. A record with
-	// this status will have a state of unvetted.
+	// RecordStatusUnreviewed indicates a record has not been made
+	// public yet. The state of an unreviewed record will always be
+	// unvetted.
 	RecordStatusUnreviewed RecordStatusT = 1
 
-	// RecordStatusPublic indicates that a record has been made public.
-	// A record with this status will have a state of vetted.
+	// RecordStatusPublic indicates a record has been made public. The
+	// state of a public record will always be vetted.
 	RecordStatusPublic RecordStatusT = 2
 
-	// RecordStatusCensored indicates that a record has been censored.
-	// The record state can be either unvetted or vetted depending on
-	// whether the record was censored before or after it was made
-	// public. All user submitted content of a censored record will
-	// have been permanently deleted.
+	// RecordStatusCensored indicates a record has been censored. A
+	// censored record is locked from any further updates and all
+	// record content is permanently deleted. A censored record can
+	// have a state of either unvetted or vetted.
 	RecordStatusCensored RecordStatusT = 3
 
-	// RecordStatusUnreviewedChanges has been deprecated.
-	RecordStatusUnreviewedChanges RecordStatusT = 4
-
-	// RecordStatusArchived represents a record that has been archived.
-	// Both unvetted and vetted records can be marked as archived.
-	// Unlike with censored records, the user submitted content of an
-	// archived record is not deleted.
-	RecordStatusArchived RecordStatusT = 5
+	// RecordStatusArchived indicates a record has been archived. An
+	// archived record is locked from any further updates. An archived
+	// record have a state of either unvetted or vetted.
+	RecordStatusArchived RecordStatusT = 4
 )
 
 var (
@@ -168,7 +190,7 @@ type File struct {
 // MetadataStream describes a record metadata stream.
 type MetadataStream struct {
 	PluginID string `json:"pluginid"`
-	StreamID uint64 `json:"streamid"`
+	StreamID uint32 `json:"streamid"`
 	Payload  string `json:"payload"` // JSON encoded
 }
 
@@ -188,9 +210,9 @@ type CensorshipRecord struct {
 
 // Record represents a record and all of its content.
 type Record struct {
-	State     string           `json:"state"`     // Record state
+	State     RecordStateT     `json:"state"`     // Record state
 	Status    RecordStatusT    `json:"status"`    // Record status
-	Version   string           `json:"version"`   // Version of this record
+	Version   uint32           `json:"version"`   // Version of this record
 	Timestamp int64            `json:"timestamp"` // Last update
 	Username  string           `json:"username"`  // Author username
 	Metadata  []MetadataStream `json:"metadata"`  // Metadata streams
@@ -216,7 +238,7 @@ type UserMetadata struct {
 // Signature is the client signature of the Token+Version+Status+Reason.
 type StatusChange struct {
 	Token     string        `json:"token"`
-	Version   string        `json:"version"`
+	Version   uint32        `json:"version"`
 	Status    RecordStatusT `json:"status"`
 	Reason    string        `json:"message,omitempty"`
 	PublicKey string        `json:"publickey"`
@@ -244,7 +266,6 @@ type NewReply struct {
 // Signature is the client signature of the record merkle root. The merkle root
 // is the ordered merkle root of all record Files.
 type Edit struct {
-	State     string `json:"state"`
 	Token     string `json:"token"`
 	Files     []File `json:"files"`
 	PublicKey string `json:"publickey"`
@@ -261,9 +282,8 @@ type EditReply struct {
 //
 // Signature is the client signature of the Token+Version+Status+Reason.
 type SetStatus struct {
-	State     string        `json:"state"`
 	Token     string        `json:"token"`
-	Version   string        `json:"version"`
+	Version   uint32        `json:"version"`
 	Status    RecordStatusT `json:"status"`
 	Reason    string        `json:"reason,omitempty"`
 	PublicKey string        `json:"publickey"`
@@ -279,8 +299,7 @@ type SetStatusReply struct {
 // If no version is specified then the most recent version will be returned.
 type Details struct {
 	Token   string `json:"token"`
-	State   string `json:"state"`
-	Version string `json:"version,omitempty"`
+	Version uint32 `json:"version,omitempty"`
 }
 
 // DetailsReply is the reply to the Details command.
@@ -308,7 +327,7 @@ const (
 // files. This supersedes the filenames argument.
 type RecordRequest struct {
 	Token        string   `json:"token"`
-	Version      string   `json:"version,omitempty"`
+	Version      uint32   `json:"version,omitempty"`
 	Filenames    []string `json:"filenames,omitempty"`
 	OmitAllFiles bool     `json:"omitallfiles,omitempty"`
 }
@@ -320,7 +339,6 @@ type RecordRequest struct {
 // files are not included in the reply, unvetted records are returned to all
 // users.
 type Records struct {
-	State    string          `json:"state"`
 	Requests []RecordRequest `json:"requests"`
 }
 
@@ -348,7 +366,7 @@ const (
 //
 // Unvetted record tokens will only be returned to admins.
 type Inventory struct {
-	State  string        `json:"state,omitempty"`
+	State  RecordStateT  `json:"state,omitempty"`
 	Status RecordStatusT `json:"status,omitempty"`
 	Page   uint32        `json:"page,omitempty"`
 }
@@ -395,17 +413,16 @@ type Timestamp struct {
 // version is omitted, the timestamps for the most recent version will be
 // returned.
 type Timestamps struct {
-	State   string `json:"state"`
 	Token   string `json:"token"`
-	Version string `json:"version,omitempty"`
+	Version uint32 `json:"version,omitempty"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
 	RecordMetadata Timestamp `json:"recordmetadata"`
 
-	// map[pluginID+streamID]Timestamp
-	Metadata map[string]Timestamp `json:"metadata"`
+	// map[pluginID]map[streamID]Timestamp
+	Metadata map[string]map[uint32]Timestamp `json:"metadata"`
 
 	// map[filename]Timestamp
 	Files map[string]Timestamp `json:"files"`
