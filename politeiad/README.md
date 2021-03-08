@@ -40,7 +40,7 @@ politeiad
 
 ## Build from source
 
-1. Install Mariadb or MySQL. Make sure to setup a password for the root user.
+1. Install MariaDB or MySQL. Make sure to setup a password for the root user.
 
 2. Update the MySQL max connections settings.
 
@@ -122,20 +122,20 @@ politeiad
     ```
     $ cd $GOPATH/src/github.com/google/trillian/scripts
 
-    # Unvetted setup
+    # Testnet setup
     $ env \
       MYSQL_USER=trillian \
       MYSQL_PASSWORD=trillianpass \
-      MYSQL_DATABASE=testnet3_unvetted_trillian \
+      MYSQL_DATABASE=testnet3_trillian \
       MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}" \
       MYSQL_ROOT_PASSWORD=rootpass \
       ./resetdb.sh
     
-    # Vetted setup
+    # Mainnet setup
     $ env \
       MYSQL_USER=trillian \
       MYSQL_PASSWORD=trillianpass \
-      MYSQL_DATABASE=testnet3_vetted_trillian \
+      MYSQL_DATABASE=mainnet_trillian \
       MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}" \
       MYSQL_ROOT_PASSWORD=rootpass \
       ./resetdb.sh
@@ -145,18 +145,19 @@ politeiad
 5. Start up the trillian instances.
 
    Running trillian requires running a trillian log server and a trillian log
-   signer.  These are seperate processes. Politeiad runs a trillian instance
-   for unvetted records and a trillian instance for vetted records. You will be
-   starting up 4 seperate processes in this step.
+   signer. These are seperate processes that will be started in this step. 
 
    You will need to replace the `trillianpass` with the trillian user's
-   password that you setup in previous steps.
+   password that you setup in previous steps. The commands below for testnet
+   and mainnet run the trillian instances on the same ports so you can only
+   run one set of commands, testnet or mainnet. Run the testnet commands if
+   you're setting up a development environment.
 
-   Startup unvetted log server
+   Startup testnet log server
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
-      export MYSQL_DATABASE=testnet3_unvetted_trillian && \
+      export MYSQL_DATABASE=testnet3_trillian && \
       export MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}"
 
     $ trillian_log_server \
@@ -167,11 +168,11 @@ politeiad
       --logtostderr ...
     ```
 
-   Startup unvetted log signer
+   Startup testnet log signer
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
-      export MYSQL_DATABASE=testnet3_unvetted_trillian && \
+      export MYSQL_DATABASE=testnet3_trillian && \
       export MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}"
 
     $ trillian_log_signer --logtostderr --force_master \
@@ -183,26 +184,26 @@ politeiad
       --http_endpoint=localhost:8093 
     ```
     
-   Startup vetted log server
+   Startup mainnet log server
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
-      export MYSQL_DATABASE=testnet3_vetted_trillian && \
+      export MYSQL_DATABASE=mainnet_trillian && \
       export MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}"
 
     $ trillian_log_server \
       --mysql_uri=${MYSQL_URI} \
       --mysql_max_conns=2000 \
-      --rpc_endpoint localhost:8094 \
-      --http_endpoint localhost:8095 \
+      --rpc_endpoint localhost:8090 \
+      --http_endpoint localhost:8091 \
       --logtostderr ...
     ```
 
-   Startup vetted log signer
+   Startup mainnet log signer
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
-      export MYSQL_DATABASE=testnet3_vetted_trillian && \
+      export MYSQL_DATABASE=mainnet_trillian && \
       export MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}"
 
     $ trillian_log_signer --logtostderr --force_master \
@@ -210,8 +211,8 @@ politeiad
       --sequencer_guard_window=0 \
       --sequencer_interval=200ms \
       --mysql_uri=${MYSQL_URI} \
-      --rpc_endpoint localhost:8096 \
-      --http_endpoint=localhost:8097
+      --rpc_endpoint localhost:8092 \
+      --http_endpoint=localhost:8093
     ```
 
 
