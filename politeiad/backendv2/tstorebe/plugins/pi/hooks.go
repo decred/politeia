@@ -11,6 +11,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
@@ -196,8 +197,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	}
 
 	// Verify vote status allows proposal edits
-	/* TODO implement hook
-	if er.RecordMetadata.Status == backend.MDStatusVetted {
+	if er.RecordMetadata.State == backend.StateVetted {
 		t, err := tokenDecode(er.RecordMetadata.Token)
 		if err != nil {
 			return err
@@ -216,7 +216,6 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			}
 		}
 	}
-	*/
 
 	return nil
 }
@@ -237,12 +236,7 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 
 // commentWritesVerify verifies that a record's vote status allows writes from
 // the comments plugin.
-func (p *piPlugin) commentWritesVerify(s backend.StateT, token []byte) error {
-	// Verify that the vote status allows comment writes. This only
-	// applies to vetted records.
-	if s == backend.StateUnvetted {
-		return nil
-	}
+func (p *piPlugin) commentWritesVerify(token []byte) error {
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
@@ -261,16 +255,16 @@ func (p *piPlugin) commentWritesVerify(s backend.StateT, token []byte) error {
 	}
 }
 
-func (p *piPlugin) hookCommentNew(s backend.StateT, token []byte) error {
-	return p.commentWritesVerify(s, token)
+func (p *piPlugin) hookCommentNew(token []byte) error {
+	return p.commentWritesVerify(token)
 }
 
-func (p *piPlugin) hookCommentDel(s backend.StateT, token []byte) error {
-	return p.commentWritesVerify(s, token)
+func (p *piPlugin) hookCommentDel(token []byte) error {
+	return p.commentWritesVerify(token)
 }
 
-func (p *piPlugin) hookCommentVote(s backend.StateT, token []byte) error {
-	return p.commentWritesVerify(s, token)
+func (p *piPlugin) hookCommentVote(token []byte) error {
+	return p.commentWritesVerify(token)
 }
 
 func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
@@ -281,20 +275,18 @@ func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) err
 		return err
 	}
 
-	/* TODO
 	// Call plugin hook
 	switch hpp.PluginID {
 	case comments.PluginID:
 		switch hpp.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(hpp.State, token)
+			return p.hookCommentNew(token)
 		case comments.CmdDel:
-			return p.hookCommentDel(hpp.State, token)
+			return p.hookCommentDel(token)
 		case comments.CmdVote:
-			return p.hookCommentVote(hpp.State, token)
+			return p.hookCommentVote(token)
 		}
 	}
-	*/
 
 	return nil
 }
