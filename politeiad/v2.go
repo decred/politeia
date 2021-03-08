@@ -492,16 +492,19 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 
 	replies := make([]v2.PluginCmdReply, len(pr.Cmds))
 	for k, v := range pr.Cmds {
-		// Decode token
-		token, err := decodeToken(v.Token)
-		if err != nil {
-			// Invalid token. Save the reply and continue to next cmd.
-			replies[k] = v2.PluginCmdReply{
-				UserError: &v2.UserErrorReply{
-					ErrorCode: v2.ErrorCodeTokenInvalid,
-				},
+		// Decode token. The token is optional on plugin reads.
+		var token []byte
+		if v.Token != "" {
+			token, err = decodeToken(v.Token)
+			if err != nil {
+				// Invalid token. Save the reply and continue to next cmd.
+				replies[k] = v2.PluginCmdReply{
+					UserError: &v2.UserErrorReply{
+						ErrorCode: v2.ErrorCodeTokenInvalid,
+					},
+				}
+				continue
 			}
-			continue
 		}
 
 		// Execute plugin cmd
@@ -547,15 +550,15 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 					})
 				return
 			}
+		}
 
-			// Successful cmd execution. Save the reply and continue to
-			// the next cmd.
-			replies[k] = v2.PluginCmdReply{
-				Token:   v.Token,
-				ID:      v.ID,
-				Command: v.Command,
-				Payload: replyPayload,
-			}
+		// Successful cmd execution. Save the reply and continue to
+		// the next cmd.
+		replies[k] = v2.PluginCmdReply{
+			Token:   v.Token,
+			ID:      v.ID,
+			Command: v.Command,
+			Payload: replyPayload,
 		}
 	}
 

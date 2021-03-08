@@ -14,7 +14,7 @@ func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
 	log.Tracef("cmdAuthor: %v", treeID)
 
 	// Get user metadata
-	r, err := p.tstore.RecordLatest(treeID)
+	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
 	if err != nil {
 		return "", err
 	}
@@ -51,11 +51,11 @@ func (p *userPlugin) cmdUserRecords(payload string) (string, error) {
 		return "", err
 	}
 
-	// TODO fix the user records reply
-	_ = uc
-
 	// Prepare reply
-	urr := usermd.UserRecordsReply{}
+	urr := usermd.UserRecordsReply{
+		Unvetted: uc.Unvetted,
+		Vetted:   uc.Vetted,
+	}
 	reply, err := json.Marshal(urr)
 	if err != nil {
 		return "", err

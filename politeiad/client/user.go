@@ -6,106 +6,88 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
+	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
-// Author sends the user plugin Author command to the politeiad v1 API.
+// Author sends the user plugin Author command to the politeiad v2 API.
 func (c *Client) Author(ctx context.Context, token string) (string, error) {
-	/*
-		// Setup request
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   state,
-				Token:   token,
-				ID:      usermd.PluginID,
-				Command: usermd.CmdAuthor,
-				Payload: "",
-			},
-		}
+	// Setup request
+	cmds := []pdv2.PluginCmd{
+		{
+			Token:   token,
+			ID:      usermd.PluginID,
+			Command: usermd.CmdAuthor,
+			Payload: "",
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return "", err
-		}
-		if len(replies) == 0 {
-			return "", fmt.Errorf("no replies found")
-		}
-		pcr := replies[0]
-		err = extractPluginCommandError(pcr)
-		if err != nil {
-			return "", err
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return "", err
+	}
+	if len(replies) == 0 {
+		return "", fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return "", err
+	}
 
-		// Decode reply
-		var ar usermd.AuthorReply
-		err = json.Unmarshal([]byte(pcr.Payload), &ar)
-		if err != nil {
-			return "", err
-		}
+	// Decode reply
+	var ar usermd.AuthorReply
+	err = json.Unmarshal([]byte(pcr.Payload), &ar)
+	if err != nil {
+		return "", err
+	}
 
-		return ar.UserID, nil
-	*/
-	return "", nil
+	return ar.UserID, nil
 }
 
-// UserRecords sends the user plugin UserRecords command to the politeiad v1
-// API. A separate command is sent for the unvetted and vetted records.
+// UserRecords sends the user plugin UserRecords command to the politeiad v2
+// API.
 func (c *Client) UserRecords(ctx context.Context, userID string) (*usermd.UserRecordsReply, error) {
-	/*
-		// Setup request
-		ur := usermd.UserRecords{
-			UserID: userID,
-		}
-		b, err := json.Marshal(ur)
-		if err != nil {
-			return nil, err
-		}
-		cmds := []pdv1.PluginCommandV2{
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateUnvetted,
-				ID:      usermd.PluginID,
-				Command: usermd.CmdUserRecords,
-				Payload: string(b),
-			},
-			{
-				Action:  pdv1.PluginActionRead,
-				State:   pdv1.RecordStateVetted,
-				ID:      usermd.PluginID,
-				Command: usermd.CmdUserRecords,
-				Payload: string(b),
-			},
-		}
+	// Setup request
+	ur := usermd.UserRecords{
+		UserID: userID,
+	}
+	b, err := json.Marshal(ur)
+	if err != nil {
+		return nil, err
+	}
+	cmds := []pdv2.PluginCmd{
+		{
+			ID:      usermd.PluginID,
+			Command: usermd.CmdUserRecords,
+			Payload: string(b),
+		},
+	}
 
-		// Send request
-		replies, err := c.PluginCommandBatch(ctx, cmds)
-		if err != nil {
-			return nil, err
-		}
-		if len(replies) == 0 {
-			return nil, fmt.Errorf("no replies found")
-		}
+	// Send request
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
+	if err != nil {
+		return nil, err
+	}
 
-		// Decode replies
-		reply := make(map[string][]string, 2) // [recordState][]token
-		for _, v := range replies {
-			err = extractPluginCommandError(v)
-			if err != nil {
-				// Swallow individual errors
-				continue
-			}
-			var urr usermd.UserRecordsReply
-			err = json.Unmarshal([]byte(v.Payload), &urr)
-			if err != nil {
-				return nil, err
-			}
-			reply[v.State] = urr.Records
-		}
+	// Decode reply
+	var urr usermd.UserRecordsReply
+	err = json.Unmarshal([]byte(pcr.Payload), &urr)
+	if err != nil {
+		return nil, err
+	}
 
-		return reply, nil
-	*/
-	return nil, nil
+	return &urr, nil
 }

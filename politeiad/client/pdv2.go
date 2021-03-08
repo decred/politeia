@@ -328,7 +328,7 @@ func (c *Client) PluginWrite(ctx context.Context, cmd pdv2.PluginCmd) (string, e
 }
 
 // PluginReads sends a PluginReads command to the politeiad v2 API.
-func (c *Client) PluginReads(ctx context.Context, cmds []pdv2.PluginCmd) ([]pdv2.PluginReadReply, error) {
+func (c *Client) PluginReads(ctx context.Context, cmds []pdv2.PluginCmd) ([]pdv2.PluginCmdReply, error) {
 	// Setup request
 	challenge, err := util.Random(pdv2.ChallengeSize)
 	if err != nil {
@@ -390,4 +390,27 @@ func (c *Client) PluginInventory(ctx context.Context) ([]pdv2.Plugin, error) {
 	}
 
 	return pir.Plugins, nil
+}
+
+func extractPluginCmdError(pcr pdv2.PluginCmdReply) error {
+	switch {
+	case pcr.UserError != nil:
+		return Error{
+			HTTPCode: http.StatusBadRequest,
+			ErrorReply: ErrorReply{
+				ErrorCode:    int(pcr.UserError.ErrorCode),
+				ErrorContext: pcr.UserError.ErrorContext,
+			},
+		}
+	case pcr.PluginError != nil:
+		return Error{
+			HTTPCode: http.StatusBadRequest,
+			ErrorReply: ErrorReply{
+				PluginID:     pcr.PluginError.PluginID,
+				ErrorCode:    pcr.PluginError.ErrorCode,
+				ErrorContext: pcr.PluginError.ErrorContext,
+			},
+		}
+	}
+	return nil
 }
