@@ -56,7 +56,7 @@ type Tstore struct {
 	sync.Mutex
 	dataDir         string
 	activeNetParams *chaincfg.Params
-	trillian        trillianClient
+	tlog            tlogClient
 	store           store.BlobKV
 	dcrtime         *dcrtimeClient
 	cron            *cron.Cron
@@ -143,7 +143,7 @@ func (t *Tstore) deblob(b []byte) (*store.BlobEntry, error) {
 func (t *Tstore) TreeNew() (int64, error) {
 	log.Tracef("TreeNew")
 
-	tree, _, err := t.trillian.treeNew()
+	tree, _, err := t.tlog.treeNew()
 	if err != nil {
 		return 0, err
 	}
@@ -178,7 +178,7 @@ func (t *Tstore) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []
 
 // TreesAll returns the IDs of all trees in the tstore instance.
 func (t *Tstore) TreesAll() ([]int64, error) {
-	trees, err := t.trillian.treesAll()
+	trees, err := t.tlog.treesAll()
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (t *Tstore) TreesAll() ([]int64, error) {
 // tree to have been created but experienced an unexpected error prior to the
 // record being saved.
 func (t *Tstore) TreeExists(treeID int64) bool {
-	_, err := t.trillian.tree(treeID)
+	_, err := t.tlog.tree(treeID)
 	return err == nil
 }
 
@@ -477,7 +477,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*r
 	}
 
 	// Append leaves to trillian tree
-	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
+	queued, _, err := t.tlog.leavesAppend(treeID, leaves)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAppend: %v", err)
 	}
@@ -549,7 +549,7 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 	}
 
 	// Get tree leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
@@ -652,7 +652,7 @@ func (t *Tstore) metadataSave(treeID int64, rm backend.RecordMetadata, metadata 
 	}
 
 	// Get tree leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
@@ -734,7 +734,7 @@ func (t *Tstore) RecordDel(treeID int64) error {
 	}
 
 	// Get all tree leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -803,7 +803,7 @@ func (t *Tstore) RecordExists(treeID int64) bool {
 	}
 
 	// Verify record index exists
-	leavesAll, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		err = fmt.Errorf("leavesAll: %v", err)
 		goto printErr
@@ -844,7 +844,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	}
 
 	// Get tree leaves
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
@@ -1096,7 +1096,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 
 	// Get trillian inclusion proof
-	p, err := t.trillian.inclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
+	p, err := t.tlog.inclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
 	if err != nil {
 		return nil, fmt.Errorf("inclusionProof %v %x: %v",
 			treeID, l.MerkleLeafHash, err)
@@ -1179,7 +1179,7 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 	}
 
 	// Get record index
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
@@ -1241,7 +1241,7 @@ func (t *Tstore) Close() {
 
 	// Close connections
 	t.store.Close()
-	t.trillian.close()
+	t.tlog.close()
 
 	// Zero out encryption key. An encryption key is optional.
 	if t.encryptionKey != nil {
@@ -1298,7 +1298,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 	log.Infof("Trillian key: %v", trillianSigningKeyFile)
 	log.Infof("Trillian host: %v", trillianHost)
 
-	trillianClient, err := newTClient(trillianHost, trillianSigningKeyFile)
+	tlogClient, err := newTClient(trillianHost, trillianSigningKeyFile)
 	if err != nil {
 		return nil, err
 	}
@@ -1352,7 +1352,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 	t := Tstore{
 		dataDir:         dataDir,
 		activeNetParams: anp,
-		trillian:        trillianClient,
+		tlog:            tlogClient,
 		store:           kvstore,
 		dcrtime:         dcrtimeClient,
 		cron:            cron.New(),

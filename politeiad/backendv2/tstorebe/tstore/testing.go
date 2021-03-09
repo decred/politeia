@@ -40,7 +40,7 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 
 	return &Tstore{
 		encryptionKey: ek,
-		trillian:      newTestTClient(t),
+		tlog:          newTestTClient(t),
 		store:         store,
 	}
 }

@@ -153,7 +153,7 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 // errAnchorNotFound is returned if no anchor is found for the provided tree.
 func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	// Get tree leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
@@ -242,7 +242,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 	leaves := []*trillian.LogLeaf{
 		newLogLeaf(d, extraData),
 	}
-	queued, _, err := t.trillian.leavesAppend(a.TreeID, leaves)
+	queued, _, err := t.tlog.leavesAppend(a.TreeID, leaves)
 	if err != nil {
 		return fmt.Errorf("leavesAppend: %v", err)
 	}
@@ -455,7 +455,7 @@ func (t *Tstore) anchorTrees() error {
 		return nil
 	}
 
-	trees, err := t.trillian.treesAll()
+	trees, err := t.tlog.treesAll()
 	if err != nil {
 		return fmt.Errorf("treesAll: %v", err)
 	}
@@ -483,7 +483,7 @@ func (t *Tstore) anchorTrees() error {
 		case errors.Is(err, errAnchorNotFound):
 			// Tree has not been anchored yet. Verify that the tree has
 			// leaves. A tree with no leaves does not need to be anchored.
-			leavesAll, err := t.trillian.leavesAll(v.TreeId)
+			leavesAll, err := t.tlog.leavesAll(v.TreeId)
 			if err != nil {
 				return fmt.Errorf("leavesAll: %v", err)
 			}
@@ -499,7 +499,7 @@ func (t *Tstore) anchorTrees() error {
 		default:
 			// Anchor record found. If the anchor height differs from the
 			// current height then the tree needs to be anchored.
-			_, lr, err := t.trillian.signedLogRoot(v)
+			_, lr, err := t.tlog.signedLogRoot(v)
 			if err != nil {
 				return fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
 			}
@@ -514,7 +514,7 @@ func (t *Tstore) anchorTrees() error {
 
 		// Tree has not been anchored at current height. Add it to the
 		// list of anchors.
-		_, lr, err := t.trillian.signedLogRoot(v)
+		_, lr, err := t.tlog.signedLogRoot(v)
 		if err != nil {
 			return fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
 		}

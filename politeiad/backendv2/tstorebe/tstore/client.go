@@ -52,7 +52,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	}
 
 	// Verify tree is not frozen
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return fmt.Errorf("leavesAll: %v", err)
 	}
@@ -80,7 +80,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	}
 
 	// Append log leaf to trillian tree
-	queued, _, err := t.trillian.leavesAppend(treeID, leaves)
+	queued, _, err := t.tlog.leavesAppend(treeID, leaves)
 	if err != nil {
 		return fmt.Errorf("leavesAppend: %v", err)
 	}
@@ -109,7 +109,7 @@ func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
 	}
 
 	// Get all tree leaves
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return fmt.Errorf("leavesAll: %v", err)
 	}
@@ -163,7 +163,7 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 	}
 
 	// Get leaves
-	leavesAll, err := t.trillian.leavesAll(treeID)
+	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
@@ -247,7 +247,7 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEnt
 	}
 
 	// Get leaves
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
@@ -316,7 +316,7 @@ func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, err
 	}
 
 	// Get leaves
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
@@ -345,7 +345,7 @@ func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, err
 	log.Tracef("Timestamp: %v %x", treeID, digest)
 
 	// Get tree leaves
-	leaves, err := t.trillian.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
