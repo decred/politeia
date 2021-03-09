@@ -21,18 +21,18 @@ import (
 //
 // A record is updated in three steps:
 //
-// 1. Record content blobs are saved to the kv store.
+// 1. Record content is saved to the kv store.
 //
-// 2. A trillian leaf is created for each record content blob. The kv store
-//    key for the blob is stuffed into the LogLeaf.ExtraData field. All leaves
-//    are appended onto the trillian tree.
+// 2. A trillian leaf is created for each piece of record content. The kv store
+//    key for each piece of content is stuffed into the LogLeaf.ExtraData
+//    field. The leaves are appended onto the trillian tree.
 //
 // 3. If there are failures in steps 1 or 2 for any of the blobs then the
 //    update will exit without completing. No unwinding is performed. Blobs
 //    will be left in the kv store as orphaned blobs. The trillian tree is
-//    append only so once a leaf is appended, it's there permanently. If steps
-//    1 and 2 are successful then a recordIndex will be created, saved to the
-//    kv store, and appended onto the trillian tree.
+//    append-only so once a leaf is appended, it's there permanently. If steps
+//    1 and 2 are successful then a recordIndex is created, saved to the kv
+//    store, and appended onto the trillian tree.
 //
 // Appending a recordIndex onto the trillian tree is the last operation that
 // occurs during a record update. If a recordIndex exists in the tree then the
@@ -55,8 +55,10 @@ type recordIndex struct {
 	// can be used to lookup the log leaf. The log leaf ExtraData field
 	// contains the key for the record content in the key-value store.
 	RecordMetadata []byte            `json:"recordmetadata"`
-	Metadata       map[string][]byte `json:"metadata"` // [pluginID+ID]merkle
-	Files          map[string][]byte `json:"files"`    // [filename]merkle
+	Files          map[string][]byte `json:"files"` // [filename]merkle
+
+	// [pluginID][streamID]merkle
+	Metadata map[string]map[uint32][]byte `json:"metadata"`
 
 	// Frozen is used to indicate that the tree for this record has
 	// been frozen. This happens as a result of certain record status

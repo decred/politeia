@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -208,9 +207,9 @@ func (t *Tstore) treeIsFrozen(leaves []*trillian.LogLeaf) bool {
 }
 
 type recordHashes struct {
-	recordMetadata string            // Record metadata hash
-	metadata       map[string]string // [hash]metadataID
-	files          map[string]string // [hash]filename
+	recordMetadata string                            // Record metadata hash
+	metadata       map[string]backend.MetadataStream // [hash]MetadataStream
+	files          map[string]backend.File           // [hash]File
 }
 
 type recordBlobsPrepareReply struct {
@@ -286,8 +285,11 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 
 	// Compute record content hashes
 	rhashes := recordHashes{
-		metadata: make(map[string]string, len(metadata)), // [hash]metadataID
-		files:    make(map[string]string, len(files)),    // [hash]filename
+		// [hash]MetadataStream
+		metadata: make(map[string]backend.MetadataStream, len(metadata)),
+
+		// [hash]File
+		files: make(map[string]backend.File, len(files)),
 	}
 	b, err := json.Marshal(recordMD)
 	if err != nil {
@@ -300,8 +302,7 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 			return nil, err
 		}
 		h := hex.EncodeToString(util.Digest(b))
-		streamID := strconv.FormatUint(uint64(v.StreamID), 10)
-		rhashes.metadata[h] = v.PluginID + streamID
+		rhashes.metadata[h] = v
 	}
 	for _, v := range files {
 		b, err := json.Marshal(v)
@@ -309,7 +310,7 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 			return nil, err
 		}
 		h := hex.EncodeToString(util.Digest(b))
-		rhashes.files[h] = v.Name
+		rhashes.files[h] = v
 	}
 
 	// Compare leaf data to record content hashes to find duplicates
@@ -321,7 +322,7 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 		// Any duplicates that are found are added to the record index
 		// since we already have the leaf data for them.
 		index = recordIndex{
-			Metadata: make(map[string][]byte, len(metadata)),
+			Metadata: make(map[string]map[uint32][]byte, len(metadata)),
 			Files:    make(map[string][]byte, len(files)),
 		}
 	)
@@ -336,18 +337,23 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 		}
 
 		// Check metadata streams
-		id, ok := rhashes.metadata[h]
+		ms, ok := rhashes.metadata[h]
 		if ok {
 			dups[h] = struct{}{}
-			index.Metadata[id] = v.MerkleLeafHash
+			streams, ok := index.Metadata[ms.PluginID]
+			if !ok {
+				streams = make(map[uint32][]byte, 64)
+			}
+			streams[ms.StreamID] = v.MerkleLeafHash
+			index.Metadata[ms.PluginID] = streams
 			continue
 		}
 
 		// Check files
-		fn, ok := rhashes.files[h]
+		f, ok := rhashes.files[h]
 		if ok {
 			dups[h] = struct{}{}
-			index.Files[fn] = v.MerkleLeafHash
+			index.Files[f.Name] = v.MerkleLeafHash
 			continue
 		}
 	}
@@ -502,16 +508,21 @@ func (t *Tstore) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*r
 		}
 
 		// Check metadata streams
-		id, ok := rhashes.metadata[h]
+		ms, ok := rhashes.metadata[h]
 		if ok {
-			index.Metadata[id] = v.QueuedLeaf.Leaf.MerkleLeafHash
+			streams, ok := index.Metadata[ms.PluginID]
+			if !ok {
+				streams = make(map[uint32][]byte, 64)
+			}
+			streams[ms.StreamID] = v.QueuedLeaf.Leaf.MerkleLeafHash
+			index.Metadata[ms.PluginID] = streams
 			continue
 		}
 
 		// Check files
-		fn, ok := rhashes.files[h]
+		f, ok := rhashes.files[h]
 		if ok {
-			index.Files[fn] = v.QueuedLeaf.Leaf.MerkleLeafHash
+			index.Files[f.Name] = v.QueuedLeaf.Leaf.MerkleLeafHash
 			continue
 		}
 
@@ -548,7 +559,7 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 	if errors.Is(err, backend.ErrRecordNotFound) {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
-			Metadata: make(map[string][]byte),
+			Metadata: make(map[string]map[uint32][]byte),
 			Files:    make(map[string][]byte),
 		}
 	} else if err != nil {
@@ -889,8 +900,10 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	// Compile merkle root hashes of record content
 	merkles := make(map[string]struct{}, 64)
 	merkles[hex.EncodeToString(idx.RecordMetadata)] = struct{}{}
-	for _, v := range idx.Metadata {
-		merkles[hex.EncodeToString(v)] = struct{}{}
+	for _, streams := range idx.Metadata {
+		for _, v := range streams {
+			merkles[hex.EncodeToString(v)] = struct{}{}
+		}
 	}
 	switch {
 	case omitAllFiles:
@@ -1227,13 +1240,21 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 	}
 
 	// Get metadata timestamps
-	metadata := make(map[string]backend.Timestamp, len(idx.Metadata))
-	for k, v := range idx.Metadata {
-		ts, err := t.timestamp(treeID, v, leaves)
-		if err != nil {
-			return nil, fmt.Errorf("metadata %v timestamp: %v", k, err)
+	metadata := make(map[string]map[uint32]backend.Timestamp, len(idx.Metadata))
+	for pluginID, streams := range idx.Metadata {
+		for streamID, merkle := range streams {
+			ts, err := t.timestamp(treeID, merkle, leaves)
+			if err != nil {
+				return nil, fmt.Errorf("metadata %v %v timestamp: %v",
+					pluginID, streamID, err)
+			}
+			sts, ok := metadata[pluginID]
+			if !ok {
+				sts = make(map[uint32]backend.Timestamp, 64)
+			}
+			sts[streamID] = *ts
+			metadata[pluginID] = sts
 		}
-		metadata[k] = *ts
 	}
 
 	// Get file timestamps
@@ -1246,13 +1267,10 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 		files[k] = *ts
 	}
 
-	// TODO fix metadata timestamps
-	_ = metadata
-
 	return &backend.RecordTimestamps{
 		RecordMetadata: *rm,
-		// Metadata:       metadata,
-		Files: files,
+		Metadata:       metadata,
+		Files:          files,
 	}, nil
 }
 
