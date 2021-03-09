@@ -629,24 +629,6 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 	idx.Version = rm.Version
 	idx.Iteration = rm.Iteration
 
-	// Sanity checks
-	switch {
-	case idx.Version != currIdx.Version+1:
-		return fmt.Errorf("invalid index version: got %v, want %v",
-			idx.Version, currIdx.Version+1)
-	case idx.Iteration != currIdx.Iteration+1:
-		return fmt.Errorf("invalid index iteration: got %v, want %v",
-			idx.Iteration, currIdx.Iteration+1)
-	case idx.RecordMetadata == nil:
-		return fmt.Errorf("invalid index record metadata")
-	case len(idx.Metadata) != len(metadata):
-		return fmt.Errorf("invalid index metadata: got %v, want %v",
-			len(idx.Metadata), len(metadata))
-	case len(idx.Files) != len(files):
-		return fmt.Errorf("invalid index files: got %v, want %v",
-			len(idx.Files), len(files))
-	}
-
 	// Save record index
 	err = t.recordIndexSave(treeID, *idx)
 	if err != nil {
@@ -713,24 +695,6 @@ func (t *Tstore) metadataSave(treeID int64, rm backend.RecordMetadata, metadata 
 	// Update the version and iteration
 	idx.Version = rm.Version
 	idx.Iteration = rm.Iteration
-
-	// Sanity check
-	switch {
-	case idx.Version != oldIdx.Version:
-		return nil, fmt.Errorf("invalid index version: got %v, want %v",
-			idx.Version, oldIdx.Version)
-	case idx.Iteration != oldIdx.Iteration+1:
-		return nil, fmt.Errorf("invalid index iteration: got %v, want %v",
-			idx.Iteration, oldIdx.Iteration+1)
-	case idx.RecordMetadata == nil:
-		return nil, fmt.Errorf("invalid index record metadata")
-	case len(idx.Metadata) != len(metadata):
-		return nil, fmt.Errorf("invalid index metadata: got %v, want %v",
-			len(idx.Metadata), len(metadata))
-	case len(idx.Files) != len(oldIdx.Files):
-		return nil, fmt.Errorf("invalid index files: got %v, want %v",
-			len(idx.Files), len(oldIdx.Files))
-	}
 
 	return idx, nil
 }
@@ -1026,15 +990,6 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 		default:
 			return nil, fmt.Errorf("invalid descriptor %v", dd.Descriptor)
 		}
-	}
-
-	// Sanity checks
-	switch {
-	case recordMD == nil:
-		return nil, fmt.Errorf("record metadata not found")
-	case len(metadata) != len(idx.Metadata):
-		return nil, fmt.Errorf("invalid number of metadata; got %v, want %v",
-			len(metadata), len(idx.Metadata))
 	}
 
 	return &backend.Record{
