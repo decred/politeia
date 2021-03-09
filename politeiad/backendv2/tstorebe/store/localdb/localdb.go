@@ -26,6 +26,24 @@ type localdb struct {
 	db       *leveldb.DB
 }
 
+func (l *localdb) put(blobs map[string][]byte) error {
+	// Setup batch
+	batch := new(leveldb.Batch)
+	for k, v := range blobs {
+		batch.Put([]byte(k), v)
+	}
+
+	// Write batch
+	err := l.db.Write(batch, nil)
+	if err != nil {
+		return fmt.Errorf("write batch: %v", err)
+	}
+
+	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
+	return nil
+}
+
 // Put saves the provided blobs to the store. The keys for the blobs are
 // returned using the same odering that the blobs were provided in. This
 // operation is performed atomically.
@@ -34,26 +52,37 @@ type localdb struct {
 func (l *localdb) Put(blobs [][]byte) ([]string, error) {
 	log.Tracef("Put: %v", len(blobs))
 
-	// Setup batch
+	// Setup the keys. The keys are returned in the same order that
+	// the blobs are in.
 	var (
-		batch = new(leveldb.Batch)
-		keys  = make([]string, 0, len(blobs))
+		keys   = make([]string, 0, len(blobs))
+		blobkv = make(map[string][]byte, len(blobs))
 	)
 	for _, v := range blobs {
-		key := uuid.New().String()
-		batch.Put([]byte(key), v)
-		keys = append(keys, key)
+		k := uuid.New().String()
+		keys = append(keys, k)
+		blobkv[k] = v
 	}
 
-	// Write batch
-	err := l.db.Write(batch, nil)
+	// Save blobs
+	err := l.put(blobkv)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debugf("Saved blobs (%v) to store", len(blobs))
-
+	// Return the keys
 	return keys, nil
+}
+
+// PutKV saves the provided blobs to the store. This method allows the caller
+// to specify the key instead of having the store create one. This operation is
+// performed atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) PutKV(blobs map[string][]byte) error {
+	log.Tracef("PutKV: %v blobs", len(blobs))
+
+	return l.put(blobs)
 }
 
 // Del deletes the provided blobs from the store. This operation is performed

@@ -43,14 +43,7 @@ func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
 
-// Put saves the provided blobs to the store  The keys for the blobs are
-// returned using the same odering that the blobs were provided in. This
-// operation is performed atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (s *mysql) Put(blobs [][]byte) ([]string, error) {
-	log.Tracef("Put: %v blobs", len(blobs))
-
+func (s *mysql) put(blobs map[string][]byte) error {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
@@ -60,13 +53,11 @@ func (s *mysql) Put(blobs [][]byte) ([]string, error) {
 	}
 	tx, err := s.db.BeginTx(ctx, opts)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("begin tx: %v", err)
 	}
 
 	// Save blobs
-	keys := make([]string, 0, len(blobs))
-	for _, v := range blobs {
-		k := uuid.New().String()
+	for k, v := range blobs {
 		_, err = tx.ExecContext(ctx, "INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
 		if err != nil {
 			// Attempt to roll back the transaction
@@ -76,17 +67,58 @@ func (s *mysql) Put(blobs [][]byte) ([]string, error) {
 				panic(e)
 			}
 		}
-
-		keys = append(keys, k)
 	}
 
 	// Commit transaction
 	err = tx.Commit()
 	if err != nil {
-		return nil, fmt.Errorf("commit: %v", err)
+		return fmt.Errorf("commit tx: %v", err)
 	}
 
+	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
+	return nil
+}
+
+// Put saves the provided blobs to the store  The keys for the blobs are
+// returned using the same odering that the blobs were provided in. This
+// operation is performed atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (s *mysql) Put(blobs [][]byte) ([]string, error) {
+	log.Tracef("Put: %v blobs", len(blobs))
+
+	// Setup the keys. The keys are returned in the same order that
+	// the blobs are in.
+	var (
+		keys   = make([]string, 0, len(blobs))
+		blobkv = make(map[string][]byte, len(blobs))
+	)
+	for _, v := range blobs {
+		k := uuid.New().String()
+		keys = append(keys, k)
+		blobkv[k] = v
+	}
+
+	// Save blobs
+	err := s.put(blobkv)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the keys
 	return keys, nil
+}
+
+// PutKV saves the provided blobs to the store. This method allows the caller
+// to specify the key instead of having the store create one. This operation is
+// performed atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (s *mysql) PutKV(blobs map[string][]byte) error {
+	log.Tracef("PutKV: %v blobs", len(blobs))
+
+	return s.put(blobs)
 }
 
 // Del deletes the provided blobs from the store  This operation is performed
@@ -126,6 +158,8 @@ func (s *mysql) Del(keys []string) error {
 	if err != nil {
 		return fmt.Errorf("commit: %v", err)
 	}
+
+	log.Debugf("Deleted blobs (%v) from store", len(keys))
 
 	return nil
 }

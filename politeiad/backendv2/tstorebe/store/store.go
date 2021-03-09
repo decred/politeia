@@ -82,6 +82,11 @@ type BlobKV interface {
 	// provided in. This operation is performed atomically.
 	Put(blobs [][]byte) ([]string, error)
 
+	// PutKV saves the provided blobs to the store. This method allows
+	// the caller to specify the key instead of having the store create
+	// one. This operation is performed atomically.
+	PutKV(blobs map[string][]byte) error
+
 	// Del deletes the provided blobs from the store. This operation
 	// is performed atomically.
 	Del(keys []string) error
