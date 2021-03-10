@@ -77,15 +77,9 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
-	// Put saves the provided blobs to the store. The keys for the
-	// blobs are returned using the same odering that the blobs were
-	// provided in. This operation is performed atomically.
-	Put(blobs [][]byte) ([]string, error)
-
-	// PutKV saves the provided blobs to the store. This method allows
-	// the caller to specify the key instead of having the store create
-	// one. This operation is performed atomically.
-	PutKV(blobs map[string][]byte) error
+	// Put saves the provided key-value pairs to the store. This
+	// operation is performed atomically.
+	Put(blobs map[string][]byte) error
 
 	// Del deletes the provided blobs from the store. This operation
 	// is performed atomically.

@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -26,7 +25,13 @@ type localdb struct {
 	db       *leveldb.DB
 }
 
-func (l *localdb) put(blobs map[string][]byte) error {
+// Put saves the provided key-value pairs to the store. This operation is
+// performed atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Put(blobs map[string][]byte) error {
+	log.Tracef("Put: %v blobs", len(blobs))
+
 	// Setup batch
 	batch := new(leveldb.Batch)
 	for k, v := range blobs {
@@ -42,47 +47,6 @@ func (l *localdb) put(blobs map[string][]byte) error {
 	log.Debugf("Saved blobs (%v) to store", len(blobs))
 
 	return nil
-}
-
-// Put saves the provided blobs to the store. The keys for the blobs are
-// returned using the same odering that the blobs were provided in. This
-// operation is performed atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Put(blobs [][]byte) ([]string, error) {
-	log.Tracef("Put: %v", len(blobs))
-
-	// Setup the keys. The keys are returned in the same order that
-	// the blobs are in.
-	var (
-		keys   = make([]string, 0, len(blobs))
-		blobkv = make(map[string][]byte, len(blobs))
-	)
-	for _, v := range blobs {
-		k := uuid.New().String()
-		keys = append(keys, k)
-		blobkv[k] = v
-	}
-
-	// Save blobs
-	err := l.put(blobkv)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return the keys
-	return keys, nil
-}
-
-// PutKV saves the provided blobs to the store. This method allows the caller
-// to specify the key instead of having the store create one. This operation is
-// performed atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) PutKV(blobs map[string][]byte) error {
-	log.Tracef("PutKV: %v blobs", len(blobs))
-
-	return l.put(blobs)
 }
 
 // Del deletes the provided blobs from the store. This operation is performed

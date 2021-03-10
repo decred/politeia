@@ -5,6 +5,7 @@
 package tstore
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -17,24 +18,13 @@ import (
 )
 
 // BlobSave saves a BlobEntry to the tstore instance. The BlobEntry will be
-// encrypted prior to being written to disk if the tstore instance has an
-// encryption key set. The digest of the data, i.e. BlobEntry.Digest, can be
-// thought of as the blob ID and can be used to get/del the blob from tstore.
+// encrypted prior to being written to disk if the record is unvetted. The
+// digest of the data, i.e. BlobEntry.Digest, can be thought of as the blob ID
+// and can be used to get/del the blob from tstore.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	log.Tracef("BlobSave: %v", treeID)
-
-	// Parse the data descriptor
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return err
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return err
-	}
 
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
@@ -55,33 +45,53 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 		return backend.ErrRecordLocked
 	}
 
+	// Parse the data descriptor
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return err
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return err
+	}
+
+	// Only vetted data should be saved plain text
+	var encrypt bool
+	switch idx.State {
+	case backend.StateUnvetted:
+		encrypt = true
+	case backend.StateVetted:
+		// Save plain text
+		encrypt = false
+	default:
+		// Something is wrong
+		e := fmt.Sprintf("invalid record state %v %v", treeID, idx.State)
+		panic(e)
+	}
+
 	// Prepare blob and digest
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
 	}
-	encrypt := true
-	if idx.State == backend.StateVetted {
-		// Vetted data is not encrypted
-		encrypt = false
-	}
 	blob, err := t.blobify(be, encrypt)
 	if err != nil {
 		return err
 	}
+	key := storeKeyNew(encrypt)
+	kv := map[string][]byte{key: blob}
 
-	// Save blobs to store
-	keys, err := t.store.Put([][]byte{blob})
+	log.Debugf("Saving plugin data blob")
+
+	// Save blob to store
+	err = t.store.Put(kv)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
 	}
-	if len(keys) != 1 {
-		return fmt.Errorf("wrong number of keys: got %v, want 1",
-			len(keys))
-	}
 
 	// Prepare log leaf
-	extraData, err := extraDataEncode(keys[0], dd.Descriptor, encrypt)
+	extraData, err := extraDataEncode(key, dd.Descriptor, idx.State)
 	if err != nil {
 		return err
 	}
@@ -95,8 +105,8 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 		return fmt.Errorf("leavesAppend: %v", err)
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong number of queued leaves: "+
-			"got %v, want 1", len(queued))
+		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
+			len(queued))
 	}
 	c := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
 	if c != codes.OK {
@@ -143,7 +153,7 @@ func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
 			if err != nil {
 				return err
 			}
-			keys = append(keys, ed.Key)
+			keys = append(keys, ed.storeKey())
 		}
 	}
 
@@ -157,7 +167,8 @@ func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
 }
 
 // Blobs returns the blobs that correspond to the provided digests. If a blob
-// does not exist it will not be included in the returned map.
+// does not exist it will not be included in the returned map. If a record
+// is vetted, only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error) {
@@ -173,71 +184,70 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 	}
 
 	// Get leaves
-	leavesAll, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.leavesAll(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
 
-	// Aggregate the leaves that correspond to the provided merkle
-	// hashes.
-	// map[merkleLeafHash]*trillian.LogLeaf
-	leaves := make(map[string]*trillian.LogLeaf, len(digests))
+	// Determine if the record is vetted. If the record is vetted, only
+	// vetted blobs will be returned.
+	isVetted := recordIsVetted(leaves)
+
+	// Put digests into a map
+	ds := make(map[string]struct{}, len(digests))
 	for _, v := range digests {
-		m := hex.EncodeToString(merkleLeafHash(v))
-		leaves[m] = nil
-	}
-	for _, v := range leavesAll {
-		m := hex.EncodeToString(v.MerkleLeafHash)
-		if _, ok := leaves[m]; ok {
-			leaves[m] = v
-		}
+		ds[hex.EncodeToString(v)] = struct{}{}
 	}
 
-	// Ensure a leaf was found for all provided merkle hashes
-	for k, v := range leaves {
-		if v == nil {
-			return nil, fmt.Errorf("leaf not found: %v", k)
-		}
-	}
-
-	// Extract the key-value store keys. These keys MUST be put in the
-	// same order that the digests were provided in.
-	keys := make([]string, 0, len(leaves))
-	for _, v := range digests {
-		m := hex.EncodeToString(merkleLeafHash(v))
-		l, ok := leaves[m]
-		if !ok {
-			return nil, fmt.Errorf("leaf not found: %x", v)
-		}
-		ed, err := extraDataDecode(l.ExtraData)
+	// Find the log leaves for the provided digests. matchedLeaves and
+	// matchedKeys MUST share the same ordering.
+	var (
+		matchedLeaves = make([]*trillian.LogLeaf, 0, len(digests))
+		matchedKeys   = make([]string, 0, len(digests))
+	)
+	for _, v := range leaves {
+		ed, err := extraDataDecode(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
-		keys = append(keys, ed.Key)
+		if isVetted && ed.State == backend.StateUnvetted {
+			// We don't return unvetted blobs if the record is vetted
+			continue
+		}
+
+		// Check if this is one of the target digests
+		if _, ok := ds[hex.EncodeToString(v.LeafValue)]; ok {
+			// Its a match!
+			matchedLeaves = append(matchedLeaves, v)
+			matchedKeys = append(matchedKeys, ed.storeKey())
+		}
+	}
+	if len(matchedKeys) == 0 {
+		return map[string]store.BlobEntry{}, nil
 	}
 
-	// Pull the blobs from the store. It's ok if one or more blobs is
-	// not found. It is the responsibility of the caller to decide how
-	// this should be handled.
-	blobs, err := t.store.Get(keys)
+	// Pull the blobs from the store
+	blobs, err := t.store.Get(matchedKeys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
 
-	// Deblob the blobs and put them in a map so the caller can
-	// determine if any blob entries are missing.
-	entries := make(map[string]store.BlobEntry, len(blobs)) // [digest]BlobEntry
-	for k, v := range keys {
-		// The digests slice and the keys slice share the same order
-		digest := hex.EncodeToString(digests[k])
+	// Prepare reply
+	entries := make(map[string]store.BlobEntry, len(matchedKeys))
+	for i, v := range matchedKeys {
 		b, ok := blobs[v]
 		if !ok {
-			return nil, fmt.Errorf("blob not found: %v", v)
+			// Blob wasn't found in the store. Skip it.
+			continue
 		}
 		be, err := t.deblob(b)
 		if err != nil {
-			return nil, fmt.Errorf("deblob %v: %v", digest, err)
+			return nil, err
 		}
+
+		// Get the corresponding digest
+		l := matchedLeaves[i]
+		digest := hex.EncodeToString(l.LeafValue)
 		entries[digest] = *be
 	}
 
@@ -245,7 +255,8 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 }
 
 // BlobsByDataDesc returns all blobs that match the provided data descriptor.
-// The blobs will be ordered from oldest to newest.
+// The blobs will be ordered from oldest to newest. If a record is vetted then
+// only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEntry, error) {
@@ -262,20 +273,20 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEnt
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
 
-	// Walk leaves and aggregate the key-value store keys for all
-	// leaves with a matching key prefix.
-	keys := make([]string, 0, len(leaves))
-	for _, v := range leaves {
+	// Find all matching leaves
+	matches := leavesForDescriptor(leaves, dataDesc)
+	if len(matches) == 0 {
+		return []store.BlobEntry{}, nil
+	}
+
+	// Aggregate the keys of all the matches
+	keys := make([]string, 0, len(matches))
+	for _, v := range matches {
 		ed, err := extraDataDecode(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
-		if ed.Desc == dataDesc {
-			keys = append(keys, ed.Key)
-		}
-	}
-	if len(keys) == 0 {
-		return []store.BlobEntry{}, nil
+		keys = append(keys, ed.storeKey())
 	}
 
 	// Pull the blobs from the store
@@ -314,7 +325,8 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEnt
 }
 
 // DigestsByDataDesc returns the digests of all blobs that match the provided
-// data descriptor.
+// data descriptor. If a record is vetted then only vetted digests will be
+// returned.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, error) {
@@ -331,24 +343,21 @@ func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, err
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
 
-	// Walk leaves and aggregate the digests, i.e. the leaf value, of
-	// all leaves that match the provided data type.
-	digests := make([][]byte, 0, len(leaves))
-	for _, v := range leaves {
-		ed, err := extraDataDecode(v.ExtraData)
-		if err != nil {
-			return nil, err
-		}
-		if ed.Desc == dataDesc {
-			digests = append(digests, v.LeafValue)
-		}
+	// Find all matching leaves
+	matches := leavesForDescriptor(leaves, dataDesc)
+
+	// Aggregate the digests, i.e. the leaf value, for all the matches
+	digests := make([][]byte, 0, len(matches))
+	for _, v := range matches {
+		digests = append(digests, v.LeafValue)
 	}
 
 	return digests, nil
 }
 
 // Timestamp returns the timestamp for the data blob that corresponds to the
-// provided digest.
+// provided digest. If a record is vetted, only vetted timestamps will be
+// returned.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error) {
@@ -360,9 +369,82 @@ func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, err
 		return nil, fmt.Errorf("leavesAll: %v", err)
 	}
 
+	// Determine if the record is vetted
+	isVetted := recordIsVetted(leaves)
+
+	// If the record is vetted we cannot return an unvetted timestamp.
+	// Find the leaf for the digest and verify that its not unvetted.
+	if isVetted {
+		for _, v := range leaves {
+			if !bytes.Equal(v.LeafValue, digest) {
+				// Not the target leaf
+				continue
+			}
+
+			// This is the target leaf. Verify that its vetted.
+			ed, err := extraDataDecode(v.ExtraData)
+			if err != nil {
+				return nil, err
+			}
+			if ed.State != backend.StateVetted {
+				log.Debugf("Caller is requesting an unvetted timestamp " +
+					"for a vetted record; not allowed")
+				return &backend.Timestamp{
+					Proofs: []backend.Proof{},
+				}, nil
+			}
+		}
+	}
+
 	// Get merkle leaf hash
 	m := merkleLeafHash(digest)
 
 	// Get timestamp
 	return t.timestamp(treeID, m, leaves)
+}
+
+// recordIsVetted returns whether the provided leaves contain any vetted record
+// indexes, which indicates whether the record is vetted.
+func recordIsVetted(leaves []*trillian.LogLeaf) bool {
+	for _, v := range leaves {
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			panic(err)
+		}
+		if ed.Desc == dataDescriptorRecordIndex &&
+			ed.State == backend.StateVetted {
+			// Vetted record index found
+			return true
+		}
+	}
+	return false
+}
+
+func leavesForDescriptor(leaves []*trillian.LogLeaf, desc string) []*trillian.LogLeaf {
+	// Determine if the record is vetted. If the record is vetted then
+	// only vetted leaves will be returned.
+	isVetted := recordIsVetted(leaves)
+
+	// Walk leaves and aggregate all leaves that match the provided
+	// data descriptor.
+	matches := make([]*trillian.LogLeaf, 0, len(leaves))
+	for _, v := range leaves {
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			panic(err)
+		}
+		switch {
+		case ed.Desc != desc:
+			// Not the data descriptor we're looking for
+			continue
+		case isVetted && ed.State != backend.StateVetted:
+			// Unvetted leaf on a vetted record. Don't use it.
+			continue
+		default:
+			// We have a match!
+			matches = append(matches, v)
+		}
+	}
+
+	return matches
 }

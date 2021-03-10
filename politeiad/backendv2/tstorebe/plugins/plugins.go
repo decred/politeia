@@ -153,10 +153,10 @@ type PluginClient interface {
 // backend. Editing plugin data is not allowed.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
-	// will be encrypted prior to being written to disk if the tstore
-	// instance has an encryption key set. The digest of the data,
-	// i.e. BlobEntry.Digest, can be thought of as the blob ID and can
-	// be used to get/del the blob from tstore.
+	// will be encrypted prior to being written to disk if the record
+	// is unvetted. The digest of the data, i.e. BlobEntry.Digest, can
+	// be thought of as the blob ID that can be used to get/del the
+	// blob from tstore.
 	BlobSave(treeID int64, be store.BlobEntry) error
 
 	// BlobsDel deletes the blobs that correspond to the provided
@@ -165,23 +165,23 @@ type TstoreClient interface {
 
 	// Blobs returns the blobs that correspond to the provided digests.
 	// If a blob does not exist it will not be included in the returned
-	// map.
+	// map. If a record is vetted, only vetted blobs will be returned.
 	Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error)
 
 	// BlobsByDataDesc returns all blobs that match the provided data
-	// descriptor. The blobs will be ordered from oldest to newest.
+	// descriptor. The blobs will be ordered from oldest to newest. If
+	// a record is vetted then only vetted blobs will be returned.
 	BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEntry, error)
 
 	// DigestsByDataDesc returns the digests of all blobs that match
-	// the provided data descriptor.
+	// the provided data descriptor. If  a record is vetted, only
+	// vetted blobs will be returned.
 	DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, error)
 
 	// Timestamp returns the timestamp for the blob that correpsonds
-	// to the digest.
+	// to the digest. If a record is vetted, only vetted timestamps
+	// will be returned.
 	Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error)
-
-	// RecordExists returns whether a record exists.
-	RecordExists(treeID int64) bool
 
 	// Record returns a version of a record.
 	Record(treeID int64, version uint32) (*backend.Record, error)

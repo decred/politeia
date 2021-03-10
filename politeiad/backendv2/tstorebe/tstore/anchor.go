@@ -99,7 +99,7 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 			return nil, err
 		}
 		if ed.Desc == dataDescriptorAnchor {
-			keys = append(keys, ed.Key)
+			keys = append(keys, ed.storeKey())
 			if len(keys) == 2 {
 				break
 			}
@@ -166,7 +166,7 @@ func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 			return nil, err
 		}
 		if ed.Desc == dataDescriptorAnchor {
-			key = ed.Key
+			key = ed.storeKey()
 			break
 		}
 	}
@@ -221,13 +221,11 @@ func (t *Tstore) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	keys, err := t.store.Put([][]byte{b})
+	key := storeKeyNew(false)
+	kv := map[string][]byte{key: b}
+	err = t.store.Put(kv)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
-	}
-	if len(keys) != 1 {
-		return fmt.Errorf("wrong number of keys: got %v, want 1",
-			len(keys))
 	}
 
 	// Append anchor leaf to trillian tree
@@ -235,7 +233,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	extraData, err := extraDataEncode(keys[0], dataDescriptorAnchor, false)
+	extraData, err := extraDataEncode(key, dataDescriptorAnchor, 0)
 	if err != nil {
 		return err
 	}

@@ -94,27 +94,46 @@ func blobIsEncrypted(b []byte) bool {
 // saved as a JSON encoded byte slice. The JSON keys have been abbreviated to
 // minimize the size of a trillian log leaf.
 type extraData struct {
-	Key  string `json:"k"` // Key-value store key
-	Desc string `json:"d"` // Blob entry data descriptor
+	// Key contains the key-value store key. If this blob is part of an
+	// unvetted record the key will need to be prefixed with the
+	// keyPrefixEncrypted in order to retrieve the blob from the kv
+	// store. Use the extraData.storeKey() method to retrieve the key.
+	// Do NOT reference this key directly.
+	Key string `json:"k"`
 
-	// Encrypted indicates if the key-value store blob is encrypted.
-	// The key for encrypted blobs must be prefixed.
-	Encrypted bool `json:"e,omitempty"`
+	// Desc contains the blob entry data descriptor.
+	Desc string `json:"d"`
+
+	// State indicates the record state of the blob that this leaf
+	// corresponds to. Unvetted blobs encrypted prior to being saved
+	// to the store. When retrieving unvetted blobs from the kv store
+	// the keyPrefixEncrypted prefix must be added to the Key field.
+	// State will not be populated for anchor records.
+	State backend.StateT `json:"s,omitempty"`
 }
 
+// storeKey returns the kv store key for the blob. If the blob is part of an
+// unvetted record it will be saved as an encrypted blob in the kv store and
+// the key is prefixed with keyPrefixEncrypted.
 func (e *extraData) storeKey() string {
-	if e.Encrypted == true {
+	if e.State == backend.StateUnvetted {
 		return keyPrefixEncrypted + e.Key
 	}
 	return e.Key
 }
 
-func extraDataEncode(key, desc string, encrypted bool) ([]byte, error) {
+// storeKeyNoPrefix returns the kv store key without any encryption prefix,
+// even if the leaf corresponds to a unvetted blob.
+func (e *extraData) storeKeyNoPrefix() string {
+	return e.Key
+}
+
+func extraDataEncode(key, desc string, state backend.StateT) ([]byte, error) {
 	// The encryption prefix is stripped from the key if one exists.
 	ed := extraData{
-		Key:       storeKeyClean(key),
-		Desc:      desc,
-		Encrypted: encrypted,
+		Key:   storeKeyClean(key),
+		Desc:  desc,
+		State: state,
 	}
 	b, err := json.Marshal(ed)
 	if err != nil {
@@ -404,9 +423,21 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		// plain text.
 		dupBlobs = make(map[string]store.BlobEntry, len(digests))
 
-		// Only vetted data should be saved unencrypted
-		encrypt = (recordMD.State != backend.StateVetted)
+		encrypt bool
 	)
+
+	// Only vetted data should be saved plain text
+	switch idx.State {
+	case backend.StateUnvetted:
+		encrypt = true
+	case backend.StateVetted:
+		// Save plain text
+		encrypt = false
+	default:
+		// Something is wrong
+		e := fmt.Sprintf("invalid record state %v %v", treeID, idx.State)
+		panic(e)
+	}
 
 	// Prepare record metadata blobs and leaves
 	_, ok := dups[beRecordMD.Digest]
@@ -421,7 +452,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 
 		// Prepare tlog leaf
 		extraData, err := extraDataEncode(k,
-			dataDescriptorRecordMetadata, encrypt)
+			dataDescriptorRecordMetadata, idx.State)
 		if err != nil {
 			return nil, err
 		}
@@ -451,7 +482,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 
 				// Prepare tlog leaf
 				extraData, err := extraDataEncode(k,
-					dataDescriptorMetadataStream, encrypt)
+					dataDescriptorMetadataStream, idx.State)
 				if err != nil {
 					return nil, err
 				}
@@ -483,7 +514,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 			blobs[k] = b
 
 			// Prepare tlog leaf
-			extraData, err := extraDataEncode(k, dataDescriptorFile, encrypt)
+			extraData, err := extraDataEncode(k, dataDescriptorFile, idx.State)
 			if err != nil {
 				return nil, err
 			}
@@ -506,8 +537,10 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		return nil, backend.ErrNoRecordChanges
 	}
 
+	log.Debugf("Saving %v record content blobs", len(blobs))
+
 	// Save blobs to the kv store
-	err = t.store.PutKV(blobs)
+	err = t.store.Put(blobs)
 	if err != nil {
 		return nil, fmt.Errorf("store PutKV: %v", err)
 	}
@@ -531,7 +564,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 	// Check if any of the duplicates were saved as encrypted but now
 	// need to be resaved as plain text. This happens when a record is
 	// made public and the files need to be saved plain text.
-	if encrypt || len(dups) == 0 {
+	if idx.State == backend.StateUnvetted || len(dups) == 0 {
 		// Nothing that needs to be saved plain text. We're done.
 		log.Tracef("No blobs need to be resaved plain text")
 
@@ -547,14 +580,14 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 			continue
 		}
 
-		// This is a duplicate. If its encrypted it will need to be
+		// This is a duplicate. If its unvetted it will need to be
 		// resaved as plain text.
 		ed, err := extraDataDecode(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
-		if !ed.Encrypted {
-			// Not encrypted
+		if ed.State == backend.StateVetted {
+			// Not unvetted. No need to resave it.
 			continue
 		}
 
@@ -568,7 +601,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		if err != nil {
 			return nil, err
 		}
-		blobs[ed.Key] = b
+		blobs[ed.storeKeyNoPrefix()] = b
 	}
 	if len(blobs) == 0 {
 		// Nothing that needs to be saved plain text. We're done.
@@ -577,12 +610,12 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		return &idx, nil
 	}
 
-	err = t.store.PutKV(blobs)
+	log.Debugf("Resaving %v encrypted blobs as plain text", len(blobs))
+
+	err = t.store.Put(blobs)
 	if err != nil {
 		return nil, fmt.Errorf("store PutKV: %v", err)
 	}
-
-	log.Debugf("Resaved %v encrypted blobs as plain text", len(blobs))
 
 	return &idx, nil
 }
@@ -715,48 +748,6 @@ func (t *Tstore) RecordDel(treeID int64) error {
 	return nil
 }
 
-// RecordExists returns whether a record exists given a trillian tree ID. A
-// record is considered to not exist if any of the following conditions are
-// met:
-//
-// * A tree does not exist for the tree ID.
-//
-// * A tree exists but a record index does not exist. This can happen if a
-//   tree was created but there was an unexpected error prior to the record
-//   index being appended to the tree.
-func (t *Tstore) RecordExists(treeID int64) bool {
-	log.Tracef("RecordExists: %v", treeID)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return false
-	}
-
-	// Verify record index exists
-	leavesAll, err := t.tlog.leavesAll(treeID)
-	if err != nil {
-		err = fmt.Errorf("leavesAll: %v", err)
-		goto printErr
-	}
-	_, err = t.recordIndexLatest(leavesAll)
-	if err != nil {
-		if err == backend.ErrRecordNotFound {
-			// This is an empty tree. This can happen sometimes if a error
-			// occurred during record creation. Return gracefully.
-			return false
-		}
-		err = fmt.Errorf("recordIndexLatest: %v", err)
-		goto printErr
-	}
-
-	// Record exists!
-	return true
-
-printErr:
-	log.Errorf("RecordExists: %v", err)
-	return false
-}
-
 // record returns the specified record.
 //
 // Version is used to request a specific version of a record. If no version is
@@ -782,11 +773,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	// Use the record index to pull the record content from the store.
 	// The keys for the record content first need to be extracted from
 	// their log leaf.
-	indexes, err := t.recordIndexes(leaves)
-	if err != nil {
-		return nil, err
-	}
-	idx, err := parseRecordIndex(indexes, version)
+	idx, err := t.recordIndex(leaves, version)
 	if err != nil {
 		return nil, err
 	}
@@ -841,7 +828,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 			// If the record is vetted the content may exist in the store
 			// as both an encrypted blob and a plain text blob. Always pull
 			// the plaintext blob.
-			key = ed.Key
+			key = ed.storeKeyNoPrefix()
 		default:
 			// Pull the encrypted blob
 			key = ed.storeKey()

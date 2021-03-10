@@ -72,43 +72,26 @@ type recordIndex struct {
 	Frozen bool `json:"frozen,omitempty"`
 }
 
-// parseRecordIndex takes a list of record indexes and returns the most recent
-// iteration of the specified version. A version of 0 indicates that the latest
-// version should be returned. A backend.ErrRecordNotFound is returned if the
-// provided version does not exist.
-func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, error) {
-	// Return the record index for the specified version
-	var ri *recordIndex
-	if version == 0 {
-		// A version of 0 indicates that the most recent version should
-		// be returned.
-		ri = &indexes[len(indexes)-1]
-	} else {
-		// Walk the indexes backwards so the most recent iteration of the
-		// specified version is selected.
-		for i := len(indexes) - 1; i >= 0; i-- {
-			r := indexes[i]
-			if r.Version == version {
-				ri = &r
-				break
-			}
-		}
-	}
-	if ri == nil {
-		// The specified version does not exist
-		return nil, backend.ErrRecordNotFound
-	}
-
-	return ri, nil
-}
-
 // recordIndexSave saves a record index to tstore.
-func (t *Tstore) recordIndexSave(treeID int64, ri recordIndex) error {
-	// Only vetted data should be saved encrypted
-	encrypt := (ri.State != backend.StateVetted)
+func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
+	// Only vetted data should be saved plain text
+	var encrypt bool
+	switch idx.State {
+	case backend.StateUnvetted:
+		encrypt = true
+	case backend.StateVetted:
+		// Save plain text
+		encrypt = false
+	default:
+		// Something is wrong
+		e := fmt.Sprintf("invalid record state %v %v", treeID, idx.State)
+		panic(e)
+	}
+
+	log.Debugf("Saving record index")
 
 	// Save record index to the store
-	be, err := convertBlobEntryFromRecordIndex(ri)
+	be, err := convertBlobEntryFromRecordIndex(idx)
 	if err != nil {
 		return err
 	}
@@ -116,13 +99,11 @@ func (t *Tstore) recordIndexSave(treeID int64, ri recordIndex) error {
 	if err != nil {
 		return err
 	}
-	keys, err := t.store.Put([][]byte{b})
+	key := storeKeyNew(encrypt)
+	kv := map[string][]byte{key: b}
+	err = t.store.Put(kv)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
-	}
-	if len(keys) != 1 {
-		return fmt.Errorf("wrong number of keys: got %v, want 1",
-			len(keys))
 	}
 
 	// Append record index leaf to trillian tree
@@ -130,8 +111,8 @@ func (t *Tstore) recordIndexSave(treeID int64, ri recordIndex) error {
 	if err != nil {
 		return err
 	}
-	extraData, err := extraDataEncode(keys[0],
-		dataDescriptorRecordIndex, encrypt)
+	extraData, err := extraDataEncode(key,
+		dataDescriptorRecordIndex, idx.State)
 	if err != nil {
 		return err
 	}
@@ -163,24 +144,37 @@ func (t *Tstore) recordIndexSave(treeID int64, ri recordIndex) error {
 // recordIndexes returns all record indexes found in the provided trillian
 // leaves.
 func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) {
-	// Walk the leaves and compile the keys for all record indexes. It
-	// is possible for multiple indexes to exist for the same record
-	// version (they will have different iterations due to metadata
-	// only updates) so we have to pull the index blobs from the store
-	// in order to find the most recent iteration for the specified
-	// version.
-	keys := make([]string, 0, 64)
+	// Walk the leaves and compile the keys for all record indexes.
+	// Once a record is made vetted the record history is considered
+	// to restart. If any vetted indexes exist, ignore all unvetted
+	// indexes.
+	var (
+		keysUnvetted = make([]string, 0, 256)
+		keysVetted   = make([]string, 0, 256)
+	)
 	for _, v := range leaves {
 		ed, err := extraDataDecode(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
 		if ed.Desc == dataDescriptorRecordIndex {
-			// This is a record index leaf. Save the kv store key.
-			keys = append(keys, ed.Key)
+			// This is a record index leaf
+			switch ed.State {
+			case backend.StateUnvetted:
+				keysUnvetted = append(keysUnvetted, ed.storeKey())
+			case backend.StateVetted:
+				keysVetted = append(keysVetted, ed.storeKey())
+			default:
+				// Should not happen
+				return nil, fmt.Errorf("invalid extra data state: %v %v",
+					v.LeafIndex, ed.State)
+			}
 		}
 	}
-
+	keys := keysUnvetted
+	if len(keysVetted) > 0 {
+		keys = keysVetted
+	}
 	if len(keys) == 0 {
 		// No records have been added to this tree yet
 		return nil, backend.ErrRecordNotFound
@@ -219,12 +213,12 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 			unvetted = append(unvetted, *ri)
 		case backend.StateVetted:
 			vetted = append(vetted, *ri)
+		default:
+			return nil, fmt.Errorf("invalid record index state: %v",
+				ri.State)
 		}
 	}
 
-	// Once a record is made vetted the record history is considered
-	// to restart. If any vetted indexes exist, ignore all unvetted
-	// indexes.
 	indexes := unvetted
 	if len(vetted) > 0 {
 		indexes = vetted
@@ -274,4 +268,53 @@ func (t *Tstore) recordIndex(leaves []*trillian.LogLeaf, version uint32) (*recor
 // trillian leaves.
 func (t *Tstore) recordIndexLatest(leaves []*trillian.LogLeaf) (*recordIndex, error) {
 	return t.recordIndex(leaves, 0)
+}
+
+// parseRecordIndex takes a list of record indexes and returns the most recent
+// iteration of the specified version. A version of 0 indicates that the latest
+// version should be returned. A backend.ErrRecordNotFound is returned if the
+// provided version does not exist.
+func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, error) {
+	if len(indexes) == 0 {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	// This function should only be used on record indexes that share
+	// the same record state. We would not want to accidentally return
+	// an unvetted index if the record is vetted. It is the
+	// responsibility of the caller to only provide a single state.
+	state := indexes[0].State
+	if state == backend.StateInvalid {
+		return nil, fmt.Errorf("invalid record index state: %v", state)
+	}
+	for _, v := range indexes {
+		if v.State != state {
+			return nil, fmt.Errorf("multiple record index states found: %v %v",
+				v.State, state)
+		}
+	}
+
+	// Return the record index for the specified version
+	var ri *recordIndex
+	if version == 0 {
+		// A version of 0 indicates that the most recent version should
+		// be returned.
+		ri = &indexes[len(indexes)-1]
+	} else {
+		// Walk the indexes backwards so the most recent iteration of the
+		// specified version is selected.
+		for i := len(indexes) - 1; i >= 0; i-- {
+			r := indexes[i]
+			if r.Version == version {
+				ri = &r
+				break
+			}
+		}
+	}
+	if ri == nil {
+		// The specified version does not exist
+		return nil, backend.ErrRecordNotFound
+	}
+
+	return ri, nil
 }
