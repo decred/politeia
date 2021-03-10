@@ -528,6 +528,14 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 		return nil, err
 	}
 
+	// Verify that file changes are being made. The merkle root is the
+	// merkle root of the files. It will be the same if no file changes
+	// are being made.
+	if r.RecordMetadata.Merkle == recordMD.Merkle {
+		// No file changes found
+		return nil, backend.ErrNoRecordChanges
+	}
+
 	// Call pre plugin hooks
 	her := plugins.HookEditRecord{
 		Current:        *r,
@@ -549,7 +557,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	err = t.tstore.RecordSave(treeID, *recordMD, metadata, files)
 	if err != nil {
 		switch err {
-		case backend.ErrRecordLocked, backend.ErrNoRecordChanges:
+		case backend.ErrRecordLocked:
 			return nil, err
 		default:
 			return nil, fmt.Errorf("RecordSave: %v", err)
@@ -643,13 +651,13 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Update metadata
-	err = t.tstore.RecordMetadataSave(treeID, *recordMD, metadata)
+	err = t.tstore.RecordSave(treeID, *recordMD, metadata, r.Files)
 	if err != nil {
 		switch err {
 		case backend.ErrRecordLocked, backend.ErrNoRecordChanges:
 			return nil, err
 		default:
-			return nil, fmt.Errorf("RecordMetadataSave: %v", err)
+			return nil, fmt.Errorf("RecordSave: %v", err)
 		}
 	}
 
@@ -700,19 +708,18 @@ func statusChangeIsAllowed(from, to backend.StatusT) bool {
 // setStatusPublic updates the status of a record to public.
 //
 // This function must be called WITH the record lock held.
-func (t *tstoreBackend) setStatusPublic(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	// TODO tstore needs a publish method
+func (t *tstoreBackend) setStatusPublic(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	treeID := treeIDFromToken(token)
-	return t.tstore.RecordMetadataSave(treeID, rm, metadata)
+	return t.tstore.RecordSave(treeID, rm, metadata, files)
 }
 
 // setStatusArchived updates the status of a record to archived.
 //
 // This function must be called WITH the record lock held.
-func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
-	err := t.tstore.TreeFreeze(treeID, rm, metadata)
+	err := t.tstore.TreeFreeze(treeID, rm, metadata, files)
 	if err != nil {
 		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
@@ -727,10 +734,10 @@ func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadat
 // setStatusCensored updates the status of a record to censored.
 //
 // This function must be called WITH the record lock held.
-func (t *tstoreBackend) setStatusCensored(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+func (t *tstoreBackend) setStatusCensored(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
-	err := t.tstore.TreeFreeze(treeID, rm, metadata)
+	err := t.tstore.TreeFreeze(treeID, rm, metadata, files)
 	if err != nil {
 		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
 	}
@@ -790,18 +797,24 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		}
 	}
 
-	// Determine the state. Making a record public will also trigger
-	// a state update to vetted.
-	var state backend.StateT
+	// If the record is being made public the record state gets updated
+	// to vetted and the version and iteration are reset. Otherwise,
+	// the state and version remain the same while the iteration gets
+	// incremented to reflect the status change.
+	var (
+		state   = r.RecordMetadata.State
+		version = r.RecordMetadata.Version
+		iter    = r.RecordMetadata.Iteration + 1 // Increment for status change
+	)
 	if status == backend.StatusPublic {
 		state = backend.StateVetted
-	} else {
-		state = r.RecordMetadata.State
+		version = 1
+		iter = 1
 	}
 
 	// Apply changes
-	recordMD, err := recordMetadataNew(token, r.Files, state, status,
-		r.RecordMetadata.Version, r.RecordMetadata.Iteration+1)
+	recordMD, err := recordMetadataNew(token, r.Files,
+		state, status, version, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -826,17 +839,17 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	// Update record status
 	switch status {
 	case backend.StatusPublic:
-		err := t.setStatusPublic(token, *recordMD, metadata)
+		err := t.setStatusPublic(token, *recordMD, metadata, r.Files)
 		if err != nil {
 			return nil, err
 		}
 	case backend.StatusArchived:
-		err := t.setStatusArchived(token, *recordMD, metadata)
+		err := t.setStatusArchived(token, *recordMD, metadata, r.Files)
 		if err != nil {
 			return nil, err
 		}
 	case backend.StatusCensored:
-		err := t.setStatusCensored(token, *recordMD, metadata)
+		err := t.setStatusCensored(token, *recordMD, metadata, r.Files)
 		if err != nil {
 			return nil, err
 		}

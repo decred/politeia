@@ -36,16 +36,6 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 		return err
 	}
 
-	// Prepare blob and digest
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return err
-	}
-	blob, err := t.blobify(be)
-	if err != nil {
-		return err
-	}
-
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
 		return backend.ErrRecordNotFound
@@ -56,8 +46,28 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	if err != nil {
 		return fmt.Errorf("leavesAll: %v", err)
 	}
-	if t.treeIsFrozen(leaves) {
+	idx, err := t.recordIndexLatest(leaves)
+	if err != nil {
+		return fmt.Errorf("recordIndexLatest: %v", err)
+	}
+	if idx.Frozen {
+		// The tree is frozen. The record is locked.
 		return backend.ErrRecordLocked
+	}
+
+	// Prepare blob and digest
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return err
+	}
+	encrypt := true
+	if idx.State == backend.StateVetted {
+		// Vetted data is not encrypted
+		encrypt = false
+	}
+	blob, err := t.blobify(be, encrypt)
+	if err != nil {
+		return err
 	}
 
 	// Save blobs to store
@@ -71,7 +81,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	}
 
 	// Prepare log leaf
-	extraData, err := extraDataEncode(keys[0], dd.Descriptor)
+	extraData, err := extraDataEncode(keys[0], dd.Descriptor, encrypt)
 	if err != nil {
 		return err
 	}

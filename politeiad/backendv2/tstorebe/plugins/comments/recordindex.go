@@ -45,6 +45,7 @@ type commentIndex struct {
 
 // recordIndex contains the indexes for all comments made on a record.
 type recordIndex struct {
+	// TODO make unvetted and vetted indexes
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 

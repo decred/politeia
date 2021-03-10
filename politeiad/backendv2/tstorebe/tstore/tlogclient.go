@@ -369,7 +369,7 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		}
 	}
 
-	log.Trace("Queued/Ignored leaves: %v/%v", len(leaves)-n, n)
+	log.Tracef("Queued/Ignored leaves: %v/%v", len(leaves)-n, n)
 	log.Tracef("Waiting for inclusion of queued leaves...")
 
 	var logRoot types.LogRootV1
@@ -432,6 +432,12 @@ func (t *tclient) leavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		}
 
 		proofs = append(proofs, qlp)
+	}
+
+	// Sanity check
+	if len(proofs) != len(leaves) {
+		return nil, nil, fmt.Errorf("got %v queued leaves, want %v",
+			len(proofs), len(leaves))
 	}
 
 	return proofs, lr, nil

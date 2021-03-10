@@ -25,6 +25,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
+	"github.com/google/uuid"
 	"github.com/marcopeereboom/sbox"
 	"github.com/robfig/cron"
 	"google.golang.org/grpc/codes"
@@ -40,11 +41,19 @@ const (
 	defaultStoreDirname               = "store"
 
 	// Blob entry data descriptors
-	dataDescriptorFile           = "pd-file-v1"
 	dataDescriptorRecordMetadata = "pd-recordmd-v1"
 	dataDescriptorMetadataStream = "pd-mdstream-v1"
+	dataDescriptorFile           = "pd-file-v1"
 	dataDescriptorRecordIndex    = "pd-rindex-v1"
 	dataDescriptorAnchor         = "pd-anchor-v1"
+
+	// keyPrefixEncrypted is prefixed onto key-value store keys if the
+	// data is encrypted. We do this so that when a record is made
+	// public we can save the plain text record content blobs using the
+	// same keys, but without the prefix. Using a new key for the plain
+	// text blobs would not work since we cannot append a new leaf onto
+	// the tlog without getting a duplicate leaf error.
+	keyPrefixEncrypted = "e_"
 )
 
 var (
@@ -76,7 +85,9 @@ type Tstore struct {
 // blobIsEncrypted returns whether the provided blob has been prefixed with an
 // sbox header, indicating that it is an encrypted blob.
 func blobIsEncrypted(b []byte) bool {
-	return bytes.HasPrefix(b, []byte("sbox"))
+	isEncrypted := bytes.HasPrefix(b, []byte("sbox"))
+	log.Tracef("Blob is encrypted: %v", isEncrypted)
+	return isEncrypted
 }
 
 // extraData is the data that is stored in the log leaf ExtraData field. It is
@@ -85,12 +96,25 @@ func blobIsEncrypted(b []byte) bool {
 type extraData struct {
 	Key  string `json:"k"` // Key-value store key
 	Desc string `json:"d"` // Blob entry data descriptor
+
+	// Encrypted indicates if the key-value store blob is encrypted.
+	// The key for encrypted blobs must be prefixed.
+	Encrypted bool `json:"e,omitempty"`
 }
 
-func extraDataEncode(key, desc string) ([]byte, error) {
+func (e *extraData) storeKey() string {
+	if e.Encrypted == true {
+		return keyPrefixEncrypted + e.Key
+	}
+	return e.Key
+}
+
+func extraDataEncode(key, desc string, encrypted bool) ([]byte, error) {
+	// The encryption prefix is stripped from the key if one exists.
 	ed := extraData{
-		Key:  key,
-		Desc: desc,
+		Key:       storeKeyClean(key),
+		Desc:      desc,
+		Encrypted: encrypted,
 	}
 	b, err := json.Marshal(ed)
 	if err != nil {
@@ -108,12 +132,38 @@ func extraDataDecode(b []byte) (*extraData, error) {
 	return &ed, nil
 }
 
-func (t *Tstore) blobify(be store.BlobEntry) ([]byte, error) {
+// storeKeyNew returns a new key for the key-value store. If the data is
+// encrypted the key is prefixed.
+func storeKeyNew(encrypt bool) string {
+	k := uuid.New().String()
+	if encrypt {
+		k = keyPrefixEncrypted + k
+	}
+	return k
+}
+
+// storeKeyClean strips the key-value store key of the encryption prefix if
+// one is present.
+func storeKeyClean(key string) string {
+	// A uuid string is 36 bytes. Return the last 36 bytes of the
+	// string. This will strip the prefix if it exists.
+	return key[len(key)-36:]
+}
+
+func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
+	leafValue, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, err
+	}
+	return merkleLeafHash(leafValue), nil
+}
+
+func (t *Tstore) blobify(be store.BlobEntry, encrypt bool) ([]byte, error) {
 	b, err := store.Blobify(be)
 	if err != nil {
 		return nil, err
 	}
-	if t.encryptionKey != nil {
+	if encrypt {
 		b, err = t.encryptionKey.encrypt(0, b)
 		if err != nil {
 			return nil, err
@@ -124,10 +174,7 @@ func (t *Tstore) blobify(be store.BlobEntry) ([]byte, error) {
 
 func (t *Tstore) deblob(b []byte) (*store.BlobEntry, error) {
 	var err error
-	if t.encryptionKey != nil {
-		if !blobIsEncrypted(b) {
-			return nil, fmt.Errorf("attempted to decrypt an unecrypted blob")
-		}
+	if blobIsEncrypted(b) {
 		b, _, err = t.encryptionKey.decrypt(b)
 		if err != nil {
 			return nil, err
@@ -160,16 +207,16 @@ func (t *Tstore) TreeNew() (int64, error) {
 // anchored, the tstore fsck function will update the status of the tree to
 // frozen in trillian, at which point trillian will prevent any changes to the
 // tree.
-func (t *Tstore) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+func (t *Tstore) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("TreeFreeze: %v", treeID)
 
-	// Save metadata
-	idx, err := t.metadataSave(treeID, rm, metadata)
+	// Save updated record
+	idx, err := t.recordSave(treeID, rm, metadata, files)
 	if err != nil {
 		return err
 	}
 
-	// Update the record index
+	// Mark the record as frozen
 	idx.Frozen = true
 
 	// Save the record index
@@ -206,49 +253,18 @@ func (t *Tstore) treeIsFrozen(leaves []*trillian.LogLeaf) bool {
 	return r.Frozen
 }
 
-type recordHashes struct {
-	recordMetadata string                            // Record metadata hash
-	metadata       map[string]backend.MetadataStream // [hash]MetadataStream
-	files          map[string]backend.File           // [hash]File
-}
+// recordBlobsSave saves the provided blobs to the kv store, appends a leaf
+// to the trillian tree for each blob, and returns the record index for the
+// blobs.
+func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
+	log.Tracef("recordBlobsSave: %v", treeID)
 
-type recordBlobsPrepareReply struct {
-	// recordIndex is the index for the record content. It is created
-	// during the blobs prepare step so that it can be populated with
-	// the merkle leaf hashes of duplicate data, i.e. data that remains
-	// unchanged between two versions of a record. It will be fully
-	// populated once the unique blobs haves been saved to the kv store
-	// and appended onto the trillian tree.
-	recordIndex recordIndex
-
-	// recordHashes contains a mapping of the record content hashes to
-	// the record content type. This is used to populate the record
-	// index once the leaves have been appended onto the trillian tree.
-	recordHashes recordHashes
-
-	// blobs contains the blobified record content that needs to be
-	// saved to the kv store.
-	//
-	// Hashes contains the hashes of the record content prior to being
-	// blobified. These hashes are saved to trilian log leaves. The
-	// hashes are SHA256 hashes of the JSON encoded data.
-	//
-	// hints contains the data hints of the blob entries.
-	//
-	// blobs, hashes, and descriptors share the same ordering.
-	blobs  [][]byte
-	hashes [][]byte
-	hints  []string
-}
-
-// recordBlobsPrepare prepares the provided record content to be saved to
-// the blob kv store and appended onto a trillian tree.
-func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordBlobsPrepareReply, error) {
-	// Verify there are no duplicate or empty mdstream IDs
+	// Verify there are no duplicate metadata streams
 	md := make(map[string]map[uint32]struct{}, len(metadata))
 	for _, v := range metadata {
-		if v.StreamID == 0 {
-			return nil, fmt.Errorf("invalid metadata stream ID 0")
+		if v.PluginID == "" || v.StreamID == 0 {
+			return nil, fmt.Errorf("invalid metadata stream: '%v' %v",
+				v.PluginID, v.StreamID)
 		}
 		pmd, ok := md[v.PluginID]
 		if !ok {
@@ -263,227 +279,243 @@ func (t *Tstore) recordBlobsPrepare(leavesAll []*trillian.LogLeaf, recordMD back
 		md[v.PluginID] = pmd
 	}
 
-	// Verify there are no duplicate or empty filenames
-	filenames := make(map[string]struct{}, len(files))
+	// Verify there are no duplicate files
+	fn := make(map[string]struct{}, len(files))
 	for _, v := range files {
 		if v.Name == "" {
 			return nil, fmt.Errorf("empty filename")
 		}
-		_, ok := filenames[v.Name]
+		_, ok := fn[v.Name]
 		if ok {
 			return nil, fmt.Errorf("duplicate filename found: %v", v.Name)
 		}
-		filenames[v.Name] = struct{}{}
+		fn[v.Name] = struct{}{}
+	}
+
+	// Prepare the blob entries. The record index can also be created
+	// during this step.
+	var (
+		// [pluginID][streamID]BlobEntry
+		beMetadata = make(map[string]map[uint32]store.BlobEntry, len(metadata))
+
+		// [filename]BlobEntry
+		beFiles = make(map[string]store.BlobEntry, len(files))
+
+		idx = recordIndex{
+			State:     recordMD.State,
+			Version:   recordMD.Version,
+			Iteration: recordMD.Iteration,
+			Metadata:  make(map[string]map[uint32][]byte, len(metadata)),
+			Files:     make(map[string][]byte, len(files)),
+		}
+
+		// digests is used to aggregate the digests from all record
+		// content. This is used later on to see if any of the content
+		// already exists in the tstore.
+		digests = make(map[string]struct{}, 256)
+	)
+
+	// Setup record metadata
+	beRecordMD, err := convertBlobEntryFromRecordMetadata(recordMD)
+	if err != nil {
+		return nil, err
+	}
+	m, err := merkleLeafHashForBlobEntry(*beRecordMD)
+	if err != nil {
+		return nil, err
+	}
+	idx.RecordMetadata = m
+	digests[beRecordMD.Digest] = struct{}{}
+
+	// Setup metdata streams
+	for _, v := range metadata {
+		// Blob entry
+		be, err := convertBlobEntryFromMetadataStream(v)
+		if err != nil {
+			return nil, err
+		}
+		streams, ok := beMetadata[v.PluginID]
+		if !ok {
+			streams = make(map[uint32]store.BlobEntry, len(metadata))
+		}
+		streams[v.StreamID] = *be
+		beMetadata[v.PluginID] = streams
+
+		// Record index
+		m, err := merkleLeafHashForBlobEntry(*be)
+		if err != nil {
+			return nil, err
+		}
+		streamsIdx, ok := idx.Metadata[v.PluginID]
+		if !ok {
+			streamsIdx = make(map[uint32][]byte, len(metadata))
+		}
+		streamsIdx[v.StreamID] = m
+		idx.Metadata[v.PluginID] = streamsIdx
+
+		// Aggregate digest
+		digests[be.Digest] = struct{}{}
+	}
+
+	// Setup files
+	for _, v := range files {
+		// Blob entry
+		be, err := convertBlobEntryFromFile(v)
+		if err != nil {
+			return nil, err
+		}
+		beFiles[v.Name] = *be
+
+		// Record Index
+		m, err := merkleLeafHashForBlobEntry(*be)
+		if err != nil {
+			return nil, err
+		}
+		idx.Files[v.Name] = m
+
+		// Aggregate digest
+		digests[be.Digest] = struct{}{}
 	}
 
 	// Check if any of the content already exists. Different record
 	// versions that reference the same data is fine, but this data
 	// should not be saved to the store again. We can find duplicates
-	// by walking the trillian tree and comparing the hash of the
-	// provided record content to the log leaf data, which will be the
-	// same for duplicates.
-
-	// Compute record content hashes
-	rhashes := recordHashes{
-		// [hash]MetadataStream
-		metadata: make(map[string]backend.MetadataStream, len(metadata)),
-
-		// [hash]File
-		files: make(map[string]backend.File, len(files)),
-	}
-	b, err := json.Marshal(recordMD)
-	if err != nil {
-		return nil, err
-	}
-	rhashes.recordMetadata = hex.EncodeToString(util.Digest(b))
-	for _, v := range metadata {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		h := hex.EncodeToString(util.Digest(b))
-		rhashes.metadata[h] = v
-	}
-	for _, v := range files {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		h := hex.EncodeToString(util.Digest(b))
-		rhashes.files[h] = v
-	}
-
-	// Compare leaf data to record content hashes to find duplicates
-	var (
-		// Dups tracks duplicates so we know which blobs should be
-		// skipped when blobifying record content.
-		dups = make(map[string]struct{}, 64)
-
-		// Any duplicates that are found are added to the record index
-		// since we already have the leaf data for them.
-		index = recordIndex{
-			Metadata: make(map[string]map[uint32][]byte, len(metadata)),
-			Files:    make(map[string][]byte, len(files)),
-		}
-	)
+	// by comparing the blob entry digest to the log leaf value. They
+	// will be the same if the record content is the same.
+	dups := make(map[string]struct{}, len(digests))
 	for _, v := range leavesAll {
-		h := hex.EncodeToString(v.LeafValue)
-
-		// Check record metadata
-		if h == rhashes.recordMetadata {
-			dups[h] = struct{}{}
-			index.RecordMetadata = v.MerkleLeafHash
-			continue
-		}
-
-		// Check metadata streams
-		ms, ok := rhashes.metadata[h]
+		d := hex.EncodeToString(v.LeafValue)
+		_, ok := digests[d]
 		if ok {
-			dups[h] = struct{}{}
-			streams, ok := index.Metadata[ms.PluginID]
-			if !ok {
-				streams = make(map[uint32][]byte, 64)
-			}
-			streams[ms.StreamID] = v.MerkleLeafHash
-			index.Metadata[ms.PluginID] = streams
-			continue
-		}
-
-		// Check files
-		f, ok := rhashes.files[h]
-		if ok {
-			dups[h] = struct{}{}
-			index.Files[f.Name] = v.MerkleLeafHash
-			continue
+			// A piece of the new record content already exsits in the
+			// tstore. Save the digest as a duplcate.
+			dups[d] = struct{}{}
 		}
 	}
 
-	// Prepare kv store blobs. The hashes of the record content are
-	// also aggregated and will be used to create the log leaves that
-	// are appended to the trillian tree.
-	l := len(metadata) + len(files) + 1
-	hashes := make([][]byte, 0, l)
-	blobs := make([][]byte, 0, l)
-	hints := make([]string, 0, l)
-
-	// Prepare record metadata blob
-	be, err := convertBlobEntryFromRecordMetadata(recordMD)
-	if err != nil {
-		return nil, err
-	}
-	h, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, err
-	}
-	b, err = t.blobify(*be)
-	if err != nil {
-		return nil, err
-	}
-	_, ok := dups[be.Digest]
-	if !ok {
-		// Not a duplicate. Save blob to the store.
-		hashes = append(hashes, h)
-		blobs = append(blobs, b)
-		hints = append(hints, be.DataHint)
-	}
-
-	// Prepare metadata blobs
-	for _, v := range metadata {
-		be, err := convertBlobEntryFromMetadataStream(v)
-		if err != nil {
-			return nil, err
-		}
-		h, err := hex.DecodeString(be.Digest)
-		if err != nil {
-			return nil, err
-		}
-		b, err := t.blobify(*be)
-		if err != nil {
-			return nil, err
-		}
-		_, ok := dups[be.Digest]
-		if !ok {
-			// Not a duplicate. Save blob to the store.
-			hashes = append(hashes, h)
-			blobs = append(blobs, b)
-			hints = append(hints, be.DataHint)
-		}
-	}
-
-	// Prepare file blobs
-	for _, v := range files {
-		be, err := convertBlobEntryFromFile(v)
-		if err != nil {
-			return nil, err
-		}
-		h, err := hex.DecodeString(be.Digest)
-		if err != nil {
-			return nil, err
-		}
-		b, err := t.blobify(*be)
-		if err != nil {
-			return nil, err
-		}
-		_, ok := dups[be.Digest]
-		if !ok {
-			// Not a duplicate. Save blob to the store.
-			hashes = append(hashes, h)
-			blobs = append(blobs, b)
-			hints = append(hints, be.DataHint)
-		}
-	}
-
-	return &recordBlobsPrepareReply{
-		recordIndex:  index,
-		recordHashes: rhashes,
-		blobs:        blobs,
-		hashes:       hashes,
-		hints:        hints,
-	}, nil
-}
-
-// recordBlobsSave saves the provided blobs to the kv store, appends a leaf
-// to the trillian tree for each blob, then updates the record index with the
-// trillian leaf information and returns it.
-func (t *Tstore) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*recordIndex, error) {
-	log.Tracef("recordBlobsSave: %v", treeID)
-
+	// Prepare blobs for the kv store
 	var (
-		index   = rbpr.recordIndex
-		rhashes = rbpr.recordHashes
-		blobs   = rbpr.blobs
-		hashes  = rbpr.hashes
-		hints   = rbpr.hints
+		blobs  = make(map[string][]byte, len(digests))
+		leaves = make([]*trillian.LogLeaf, 0, len(blobs))
+
+		// dupBlobs contains the blob entries for record content that
+		// already exists. We may need these blob entries later on if
+		// the duplicate content is encrypted and it needs to be saved
+		// plain text.
+		dupBlobs = make(map[string]store.BlobEntry, len(digests))
+
+		// Only vetted data should be saved unencrypted
+		encrypt = (recordMD.State != backend.StateVetted)
 	)
 
-	// Save blobs to store
-	keys, err := t.store.Put(blobs)
-	if err != nil {
-		return nil, fmt.Errorf("store Put: %v", err)
-	}
-	if len(keys) != len(blobs) {
-		return nil, fmt.Errorf("wrong number of keys: got %v, want %v",
-			len(keys), len(blobs))
-	}
-
-	// Prepare log leaves. hashes and keys share the same ordering.
-	leaves := make([]*trillian.LogLeaf, 0, len(blobs))
-	for k := range blobs {
-		extraData, err := extraDataEncode(keys[k], hints[k])
+	// Prepare record metadata blobs and leaves
+	_, ok := dups[beRecordMD.Digest]
+	if !ok {
+		// Not a duplicate. Prepare kv store blob.
+		b, err := t.blobify(*beRecordMD, encrypt)
 		if err != nil {
 			return nil, err
 		}
-		leaves = append(leaves, newLogLeaf(hashes[k], extraData))
+		k := storeKeyNew(encrypt)
+		blobs[k] = b
+
+		// Prepare tlog leaf
+		extraData, err := extraDataEncode(k,
+			dataDescriptorRecordMetadata, encrypt)
+		if err != nil {
+			return nil, err
+		}
+		digest, err := hex.DecodeString(beRecordMD.Digest)
+		if err != nil {
+			return nil, err
+		}
+		leaves = append(leaves, newLogLeaf(digest, extraData))
+	} else {
+		// This is a duplicate. Stash is for now. We may need to save
+		// it as plain text later.
+		dupBlobs[beRecordMD.Digest] = *beRecordMD
 	}
 
-	// Append leaves to trillian tree
+	// Prepare metadata stream blobs and leaves
+	for _, v := range beMetadata {
+		for _, be := range v {
+			_, ok := dups[be.Digest]
+			if !ok {
+				// Not a duplicate. Prepare kv store blob.
+				b, err := t.blobify(be, encrypt)
+				if err != nil {
+					return nil, err
+				}
+				k := storeKeyNew(encrypt)
+				blobs[k] = b
+
+				// Prepare tlog leaf
+				extraData, err := extraDataEncode(k,
+					dataDescriptorMetadataStream, encrypt)
+				if err != nil {
+					return nil, err
+				}
+				digest, err := hex.DecodeString(be.Digest)
+				if err != nil {
+					return nil, err
+				}
+				leaves = append(leaves, newLogLeaf(digest, extraData))
+
+				continue
+			}
+
+			// This is a duplicate. Stash is for now. We may need to save
+			// it as plain text later.
+			dupBlobs[be.Digest] = be
+		}
+	}
+
+	// Prepare file blobs and leaves
+	for _, be := range beFiles {
+		_, ok := dups[be.Digest]
+		if !ok {
+			// Not a duplicate. Prepare kv store blob.
+			b, err := t.blobify(be, encrypt)
+			if err != nil {
+				return nil, err
+			}
+			k := storeKeyNew(encrypt)
+			blobs[k] = b
+
+			// Prepare tlog leaf
+			extraData, err := extraDataEncode(k, dataDescriptorFile, encrypt)
+			if err != nil {
+				return nil, err
+			}
+			digest, err := hex.DecodeString(be.Digest)
+			if err != nil {
+				return nil, err
+			}
+			leaves = append(leaves, newLogLeaf(digest, extraData))
+
+			continue
+		}
+
+		// This is a duplicate. Stash is for now. We may need to save
+		// it as plain text later.
+		dupBlobs[be.Digest] = be
+	}
+
+	// Verify at least one new blob is being saved to the kv store
+	if len(blobs) == 0 {
+		return nil, backend.ErrNoRecordChanges
+	}
+
+	// Save blobs to the kv store
+	err = t.store.PutKV(blobs)
+	if err != nil {
+		return nil, fmt.Errorf("store PutKV: %v", err)
+	}
+
+	// Append leaves onto the trillian tree
 	queued, _, err := t.tlog.leavesAppend(treeID, leaves)
 	if err != nil {
 		return nil, fmt.Errorf("leavesAppend: %v", err)
-	}
-	if len(queued) != len(leaves) {
-		return nil, fmt.Errorf("wrong number of queued leaves: got %v, want %v",
-			len(queued), len(leaves))
 	}
 	failed := make([]string, 0, len(queued))
 	for _, v := range queued {
@@ -496,62 +528,75 @@ func (t *Tstore) recordBlobsSave(treeID int64, rbpr recordBlobsPrepareReply) (*r
 		return nil, fmt.Errorf("append leaves failed: %v", failed)
 	}
 
-	// Update the new record index with the log leaves
-	for _, v := range queued {
-		// Figure out what piece of record content this leaf represents
-		h := hex.EncodeToString(v.QueuedLeaf.Leaf.LeafValue)
+	// Check if any of the duplicates were saved as encrypted but now
+	// need to be resaved as plain text. This happens when a record is
+	// made public and the files need to be saved plain text.
+	if encrypt || len(dups) == 0 {
+		// Nothing that needs to be saved plain text. We're done.
+		log.Tracef("No blobs need to be resaved plain text")
 
-		// Check record metadata
-		if h == rhashes.recordMetadata {
-			index.RecordMetadata = v.QueuedLeaf.Leaf.MerkleLeafHash
-			continue
-		}
-
-		// Check metadata streams
-		ms, ok := rhashes.metadata[h]
-		if ok {
-			streams, ok := index.Metadata[ms.PluginID]
-			if !ok {
-				streams = make(map[uint32][]byte, 64)
-			}
-			streams[ms.StreamID] = v.QueuedLeaf.Leaf.MerkleLeafHash
-			index.Metadata[ms.PluginID] = streams
-			continue
-		}
-
-		// Check files
-		f, ok := rhashes.files[h]
-		if ok {
-			index.Files[f.Name] = v.QueuedLeaf.Leaf.MerkleLeafHash
-			continue
-		}
-
-		// Something went wrong. None of the record content matches the
-		// leaf.
-		return nil, fmt.Errorf("record content does not match leaf: %x",
-			v.QueuedLeaf.Leaf.MerkleLeafHash)
+		return &idx, nil
 	}
 
-	return &index, nil
+	blobs = make(map[string][]byte, len(dupBlobs))
+	for _, v := range leavesAll {
+		d := hex.EncodeToString(v.LeafValue)
+		_, ok := dups[d]
+		if !ok {
+			// Not a duplicate
+			continue
+		}
+
+		// This is a duplicate. If its encrypted it will need to be
+		// resaved as plain text.
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if !ed.Encrypted {
+			// Not encrypted
+			continue
+		}
+
+		// Prepare plain text blob
+		be, ok := dupBlobs[d]
+		if !ok {
+			// Should not happen
+			return nil, fmt.Errorf("blob entry not found %v", d)
+		}
+		b, err := t.blobify(be, false)
+		if err != nil {
+			return nil, err
+		}
+		blobs[ed.Key] = b
+	}
+	if len(blobs) == 0 {
+		// Nothing that needs to be saved plain text. We're done.
+		log.Tracef("No duplicates need to be resaved plain text")
+
+		return &idx, nil
+	}
+
+	err = t.store.PutKV(blobs)
+	if err != nil {
+		return nil, fmt.Errorf("store PutKV: %v", err)
+	}
+
+	log.Debugf("Resaved %v encrypted blobs as plain text", len(blobs))
+
+	return &idx, nil
 }
 
-// RecordSave saves the provided record to tstore. Once the record contents
-// have been successfully saved to tstore, a recordIndex is created for this
-// version of the record and saved to tstore as well. This iteration of the
-// record is not considered to be valid until the record index has been
-// successfully saved.
-func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	log.Tracef("RecordSave: %v", treeID)
-
+func (t *Tstore) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
 	// Verify tree exists
 	if !t.TreeExists(treeID) {
-		return backend.ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
 	// Get tree leaves
 	leavesAll, err := t.tlog.leavesAll(treeID)
 	if err != nil {
-		return fmt.Errorf("leavesAll %v: %v", treeID, err)
+		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
 	}
 
 	// Get the existing record index
@@ -563,156 +608,41 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 			Files:    make(map[string][]byte),
 		}
 	} else if err != nil {
-		return fmt.Errorf("recordIndexLatest: %v", err)
+		return nil, fmt.Errorf("recordIndexLatest: %v", err)
 	}
 
-	// Verify tree state
-	if currIdx.Frozen {
-		return backend.ErrRecordLocked
-	}
-
-	// Prepare kv store blobs
-	bpr, err := t.recordBlobsPrepare(leavesAll, rm, metadata, files)
-	if err != nil {
-		return err
-	}
-
-	// Verify file changes are being made.
-	var fileChanges bool
-	for _, v := range files {
-		// Duplicate blobs have already been added to the new record
-		// index by the recordBlobsPrepare function. If a file is in the
-		// new record index it means that the file has existed in one of
-		// the previous versions of the record.
-		newMerkle, ok := bpr.recordIndex.Files[v.Name]
-		if !ok {
-			// File does not exist in the index. It is new.
-			fileChanges = true
-			break
-		}
-
-		// We now know the file has existed in a previous version of the
-		// record, but it may not have be the most recent version. If the
-		// file is not part of the current record index then it means
-		// there are file changes between the current version and new
-		// version.
-		currMerkle, ok := currIdx.Files[v.Name]
-		if !ok {
-			// File is not part of the current version.
-			fileChanges = true
-			break
-		}
-
-		// We now know that the new file has existed in some previous
-		// version of the record and the there is a file in the current
-		// version of the record that has the same filename as the new
-		// file. Check if the merkles match. If the merkles are different
-		// then it means the files are different, they just use the same
-		// filename.
-		if !bytes.Equal(newMerkle, currMerkle) {
-			// Files share the same name but have different content.
-			fileChanges = true
-			break
-		}
-	}
-	if !fileChanges {
-		return backend.ErrNoRecordChanges
-	}
-
-	// Save blobs
-	idx, err := t.recordBlobsSave(treeID, *bpr)
-	if err != nil {
-		return fmt.Errorf("blobsSave: %v", err)
-	}
-
-	// Bump the index version and iteration
-	idx.Version = rm.Version
-	idx.Iteration = rm.Iteration
-
-	// Save record index
-	err = t.recordIndexSave(treeID, *idx)
-	if err != nil {
-		return fmt.Errorf("recordIndexSave: %v", err)
-	}
-
-	return nil
-}
-
-// metadataSave saves the provided metadata to the tstore. The record index
-// for this iteration of the record is returned. This is step one of a two step
-// process. The record update will not be considered successful until the
-// returned record index is also saved to the kv store and trillian tree. This
-// code has been pulled out so that it can be called during normal metadata
-// updates as well as when an update requires the tree to be frozen, such as
-// when a record is censored.
-func (t *Tstore) metadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) (*recordIndex, error) {
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
-
-	// Get tree leaves
-	leavesAll, err := t.tlog.leavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
-	}
-
-	// Verify tree state
-	currIdx, err := t.recordIndexLatest(leavesAll)
-	if err != nil {
-		return nil, err
-	}
+	// Verify tree is not frozen
 	if currIdx.Frozen {
 		return nil, backend.ErrRecordLocked
 	}
 
-	// Prepare kv store blobs
-	bpr, err := t.recordBlobsPrepare(leavesAll, rm, metadata, []backend.File{})
+	// Save the record
+	idx, err := t.recordBlobsSave(treeID, leavesAll, rm, metadata, files)
 	if err != nil {
-		return nil, err
+		if err == backend.ErrNoRecordChanges {
+			return nil, err
+		}
+		return nil, fmt.Errorf("recordBlobsSave: %v", err)
 	}
-
-	// Verify at least one new blob is being saved to the kv store
-	if len(bpr.blobs) == 0 {
-		return nil, backend.ErrNoRecordChanges
-	}
-
-	// Save the blobs
-	idx, err := t.recordBlobsSave(treeID, *bpr)
-	if err != nil {
-		return nil, fmt.Errorf("blobsSave: %v", err)
-	}
-
-	// Get the existing record index and add the unchanged fields to
-	// the new record index.
-	oldIdx, err := t.recordIndexLatest(leavesAll)
-	if err != nil {
-		return nil, fmt.Errorf("recordIndexLatest: %v", err)
-	}
-	idx.Version = rm.Version
-	idx.Files = oldIdx.Files
-
-	// Update the version and iteration
-	idx.Version = rm.Version
-	idx.Iteration = rm.Iteration
 
 	return idx, nil
 }
 
-// RecordMetadataSave saves the provided metadata to tstore, creating a new
-// iteration of the record while keeping the record version the same. Once the
-// metadata has been successfully saved to tstore, a recordIndex is created for
-// this iteration of the record and saved to tstore as well.
-func (t *Tstore) RecordMetadataSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
-	log.Tracef("RecordMetadataSave: %v", treeID)
+// RecordSave saves the provided record to tstore. Once the record contents
+// have been successfully saved to tstore, a recordIndex is created for this
+// version of the record and saved to tstore as well. This iteration of the
+// record is not considered to be valid until the record index has been
+// successfully saved.
+func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+	log.Tracef("RecordSave: %v", treeID)
 
-	// Save metadata
-	idx, err := t.metadataSave(treeID, rm, metadata)
+	// Save the record
+	idx, err := t.recordSave(treeID, rm, metadata, files)
 	if err != nil {
 		return err
 	}
 
-	// Save record index
+	// Save the record index
 	err = t.recordIndexSave(treeID, *idx)
 	if err != nil {
 		return fmt.Errorf("recordIndexSave: %v", err)
@@ -772,7 +702,7 @@ func (t *Tstore) RecordDel(treeID int64) error {
 			if err != nil {
 				return err
 			}
-			keys = append(keys, ed.Key)
+			keys = append(keys, ed.storeKey())
 		}
 	}
 
@@ -904,7 +834,19 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 		if err != nil {
 			return nil, err
 		}
-		keys = append(keys, ed.Key)
+
+		var key string
+		switch idx.State {
+		case backend.StateVetted:
+			// If the record is vetted the content may exist in the store
+			// as both an encrypted blob and a plain text blob. Always pull
+			// the plaintext blob.
+			key = ed.Key
+		default:
+			// Pull the encrypted blob
+			key = ed.storeKey()
+		}
+		keys = append(keys, key)
 	}
 
 	// Get record content from store
@@ -1050,7 +992,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	if err != nil {
 		return nil, err
 	}
-	blobs, err := t.store.Get([]string{ed.Key})
+	blobs, err := t.store.Get([]string{ed.storeKey()})
 	if err != nil {
 		return nil, fmt.Errorf("store get: %v", err)
 	}
@@ -1060,9 +1002,9 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	// the rest of the timestamp.
 	var data []byte
 	if len(blobs) == 1 {
-		b, ok := blobs[ed.Key]
+		b, ok := blobs[ed.storeKey()]
 		if !ok {
-			return nil, fmt.Errorf("blob not found %v", ed.Key)
+			return nil, fmt.Errorf("blob not found %v", ed.storeKey())
 		}
 		be, err := t.deblob(b)
 		if err != nil {

@@ -39,6 +39,8 @@ import (
 // update is considered successful. Any record content leaves that are not part
 // of a recordIndex are considered to be orphaned and can be disregarded.
 type recordIndex struct {
+	State backend.StateT `json:"state"`
+
 	// Version represents the version of the record. The version is
 	// only incremented when the record files are updated. Metadata
 	// only updates do no increment the version.
@@ -102,12 +104,15 @@ func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, erro
 
 // recordIndexSave saves a record index to tstore.
 func (t *Tstore) recordIndexSave(treeID int64, ri recordIndex) error {
+	// Only vetted data should be saved encrypted
+	encrypt := (ri.State != backend.StateVetted)
+
 	// Save record index to the store
 	be, err := convertBlobEntryFromRecordIndex(ri)
 	if err != nil {
 		return err
 	}
-	b, err := t.blobify(*be)
+	b, err := t.blobify(*be, encrypt)
 	if err != nil {
 		return err
 	}
@@ -125,7 +130,8 @@ func (t *Tstore) recordIndexSave(treeID int64, ri recordIndex) error {
 	if err != nil {
 		return err
 	}
-	extraData, err := extraDataEncode(keys[0], dataDescriptorRecordIndex)
+	extraData, err := extraDataEncode(keys[0],
+		dataDescriptorRecordIndex, encrypt)
 	if err != nil {
 		return err
 	}
@@ -195,7 +201,10 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 		return nil, fmt.Errorf("record index not found: %v", missing)
 	}
 
-	indexes := make([]recordIndex, 0, len(blobs))
+	var (
+		unvetted = make([]recordIndex, 0, len(blobs))
+		vetted   = make([]recordIndex, 0, len(blobs))
+	)
 	for _, v := range blobs {
 		be, err := t.deblob(v)
 		if err != nil {
@@ -205,7 +214,20 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 		if err != nil {
 			return nil, err
 		}
-		indexes = append(indexes, *ri)
+		switch ri.State {
+		case backend.StateUnvetted:
+			unvetted = append(unvetted, *ri)
+		case backend.StateVetted:
+			vetted = append(vetted, *ri)
+		}
+	}
+
+	// Once a record is made vetted the record history is considered
+	// to restart. If any vetted indexes exist, ignore all unvetted
+	// indexes.
+	indexes := unvetted
+	if len(vetted) > 0 {
+		indexes = vetted
 	}
 
 	// Sort indexes by iteration, smallest to largets. The leaves

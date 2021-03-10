@@ -217,7 +217,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	b, err := store.Blobify(*be)
+	b, err := t.blobify(*be, false)
 	if err != nil {
 		return err
 	}
@@ -235,7 +235,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	extraData, err := extraDataEncode(keys[0], dataDescriptorAnchor)
+	extraData, err := extraDataEncode(keys[0], dataDescriptorAnchor, false)
 	if err != nil {
 		return err
 	}

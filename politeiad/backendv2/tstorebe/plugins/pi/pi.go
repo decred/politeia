@@ -64,7 +64,7 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("pi Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("pi Hook: %v %x %v", plugins.Hooks[h], token, treeID)
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:

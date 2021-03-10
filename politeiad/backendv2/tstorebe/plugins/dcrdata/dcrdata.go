@@ -608,7 +608,7 @@ func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (st
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *dcrdataPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("dcrdata Hook: %v %x %v", treeID, token, plugins.Hooks[h])
+	log.Tracef("dcrdata Hook: %v %x %v", plugins.Hooks[h], token, treeID)
 
 	return nil
 }

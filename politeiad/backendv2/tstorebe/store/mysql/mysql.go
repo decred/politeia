@@ -26,7 +26,7 @@ const (
 
 // tableKeyValue defines the key-value table. The key is a uuid.
 const tableKeyValue = `
-  k CHAR(36) NOT NULL PRIMARY KEY,
+  k VARCHAR(38) NOT NULL PRIMARY KEY,
   v LONGBLOB NOT NULL
 `
 
