@@ -94,6 +94,18 @@ func (t *tstoreBackend) prefixAdd(fullToken []byte) {
 	log.Debugf("Add token prefix: %v", prefix)
 }
 
+func (t *tstoreBackend) fullLengthToken(token []byte) []byte {
+	t.RLock()
+	defer t.RUnlock()
+
+	fullToken, ok := t.prefixes[util.TokenPrefix(token)]
+	if !ok {
+		return token
+	}
+
+	return fullToken
+}
+
 func tokenFromTreeID(treeID int64) []byte {
 	b := make([]byte, 8)
 	// Converting between int64 and uint64 doesn't change
@@ -908,6 +920,9 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 func (t *tstoreBackend) RecordExists(token []byte) bool {
 	log.Tracef("RecordExists: %x", token)
 
+	// Read methods are allowed to use token prefixes
+	token = t.fullLengthToken(token)
+
 	treeID := treeIDFromToken(token)
 	return t.tstore.TreeExists(treeID)
 }
@@ -918,6 +933,9 @@ func (t *tstoreBackend) RecordExists(token []byte) bool {
 // This function satisfies the Backend interface.
 func (t *tstoreBackend) RecordGet(token []byte, version uint32) (*backend.Record, error) {
 	log.Tracef("RecordGet: %x", token)
+
+	// Read methods are allowed to use token prefixes
+	token = t.fullLengthToken(token)
 
 	treeID := treeIDFromToken(token)
 	return t.tstore.Record(treeID, version)
@@ -933,6 +951,9 @@ func (t *tstoreBackend) RecordGetBatch(reqs []backend.RecordRequest) (map[string
 
 	records := make(map[string]backend.Record, len(reqs))
 	for _, v := range reqs {
+		// Read methods are allowed to use token prefixes
+		v.Token = t.fullLengthToken(v.Token)
+
 		treeID := treeIDFromToken(v.Token)
 		r, err := t.tstore.RecordPartial(treeID, v.Version,
 			v.Filenames, v.OmitAllFiles)
@@ -960,6 +981,9 @@ func (t *tstoreBackend) RecordGetBatch(reqs []backend.RecordRequest) (map[string
 // This function satisfies the Backend interface.
 func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
+
+	// Read methods are allowed to use token prefixes
+	token = t.fullLengthToken(token)
 
 	treeID := treeIDFromToken(token)
 	return t.tstore.RecordTimestamps(treeID, version, token)
@@ -1028,12 +1052,15 @@ func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload st
 	// will not be provided to the plugin.
 	var treeID int64
 	if len(token) > 0 {
-		treeID = treeIDFromToken(token)
+		// Read methods are allowed to use token prefixes
+		token = t.fullLengthToken(token)
 
 		// Verify record exists
 		if !t.RecordExists(token) {
 			return "", backend.ErrRecordNotFound
 		}
+
+		treeID = treeIDFromToken(token)
 	}
 
 	if len(token) > 0 {
