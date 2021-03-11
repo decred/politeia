@@ -850,6 +850,12 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserProposalCredits, p.handleUserProposalCredits,
 		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodPut, www.PoliteiaWWWAPIRoute,

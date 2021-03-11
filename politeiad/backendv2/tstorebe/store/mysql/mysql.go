@@ -30,7 +30,7 @@ const (
 	tableNameNonce    = "nonce"
 )
 
-// tableKeyValue defines the key-value table. The key is a uuid.
+// tableKeyValue defines the key-value table.
 const tableKeyValue = `
   k VARCHAR(38) NOT NULL PRIMARY KEY,
   v LONGBLOB NOT NULL

@@ -111,7 +111,7 @@ politeiad
       ./mysql-tstore-setup.sh
     ```
 
-4. Run the trillian mysql setup scripts.
+6. Run the trillian mysql setup scripts.
 
    These can only be run once the trillian MySQL user has been created in the
    previous step.
@@ -142,7 +142,7 @@ politeiad
 
     ```
 
-5. Start up the trillian instances.
+7. Start up the trillian instances.
 
    Running trillian requires running a trillian log server and a trillian log
    signer. These are seperate processes that will be started in this step. 
@@ -153,7 +153,7 @@ politeiad
    run one set of commands, testnet or mainnet. Run the testnet commands if
    you're setting up a development environment.
 
-   Startup testnet log server
+   Start testnet log server
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
@@ -168,7 +168,7 @@ politeiad
       --logtostderr ...
     ```
 
-   Startup testnet log signer
+   Start testnet log signer
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
@@ -184,7 +184,7 @@ politeiad
       --http_endpoint=localhost:8093 
     ```
     
-   Startup mainnet log server
+   Start mainnet log server
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
@@ -199,7 +199,7 @@ politeiad
       --logtostderr ...
     ```
 
-   Startup mainnet log signer
+   Start mainnet log signer
     ```
     $ export MYSQL_USER=trillian && \
       export MYSQL_PASSWORD=trillianpass && \
@@ -216,7 +216,7 @@ politeiad
     ```
 
 
-5. Setup the politeiad configuration file.
+8. Setup the politeiad configuration file.
 
    [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf)
 
@@ -264,7 +264,7 @@ politeiad
     plugin=usermd
     ```
 
-6. Start up the politeiad instance.
+9. Start up the politeiad instance.
 
     ```
     $ politeiad
