@@ -403,23 +403,6 @@ func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, err
 	return t.timestamp(treeID, m, leaves)
 }
 
-// recordIsVetted returns whether the provided leaves contain any vetted record
-// indexes, which indicates whether the record is vetted.
-func recordIsVetted(leaves []*trillian.LogLeaf) bool {
-	for _, v := range leaves {
-		ed, err := extraDataDecode(v.ExtraData)
-		if err != nil {
-			panic(err)
-		}
-		if ed.Desc == dataDescriptorRecordIndex &&
-			ed.State == backend.StateVetted {
-			// Vetted record index found
-			return true
-		}
-	}
-	return false
-}
-
 func leavesForDescriptor(leaves []*trillian.LogLeaf, desc string) []*trillian.LogLeaf {
 	// Determine if the record is vetted. If the record is vetted then
 	// only vetted leaves will be returned.

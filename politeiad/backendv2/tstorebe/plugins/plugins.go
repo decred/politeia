@@ -206,4 +206,7 @@ type TstoreClient interface {
 	// record files. This supersedes the filenames argument.
 	RecordPartial(treeID int64, version uint32, filenames []string,
 		omitAllFiles bool) (*backend.Record, error)
+
+	// RecordState returns whether the record is unvetted or vetted.
+	RecordState(treeID int64) (backend.StateT, error)
 }

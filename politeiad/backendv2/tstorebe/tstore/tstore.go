@@ -961,6 +961,38 @@ func (t *Tstore) RecordPartial(treeID int64, version uint32, filenames []string,
 	return t.record(treeID, version, filenames, omitAllFiles)
 }
 
+// recordIsVetted returns whether the provided leaves contain any vetted record
+// indexes. The presence of a vetted record index means the record is vetted.
+func recordIsVetted(leaves []*trillian.LogLeaf) bool {
+	for _, v := range leaves {
+		ed, err := extraDataDecode(v.ExtraData)
+		if err != nil {
+			panic(err)
+		}
+		if ed.Desc == dataDescriptorRecordIndex &&
+			ed.State == backend.StateVetted {
+			// Vetted record index found
+			return true
+		}
+	}
+	return false
+}
+
+func (t *Tstore) RecordState(treeID int64) (backend.StateT, error) {
+	log.Tracef("RecordState: %v", treeID)
+
+	leaves, err := t.tlog.leavesAll(treeID)
+	if err != nil {
+		return 0, err
+	}
+
+	if recordIsVetted(leaves) {
+		return backend.StateVetted, nil
+	}
+
+	return backend.StateUnvetted, nil
+}
+
 func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
 	// Find the leaf
 	var l *trillian.LogLeaf
