@@ -620,7 +620,8 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify signature
-	msg := n.Token + strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
+	msg := strconv.FormatUint(uint64(n.State), 10) + n.Token +
+		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
 	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -636,8 +637,22 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 		}
 	}
 
+	// Verify record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+	if uint32(n.State) != uint32(state) {
+		e := fmt.Sprintf("got %v, want %v", n.State, state)
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorContext: e,
+		}
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -656,6 +671,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	receipt := p.identity.SignMessage([]byte(n.Signature))
 	ca := comments.CommentAdd{
 		UserID:        n.UserID,
+		State:         n.State,
 		Token:         n.Token,
 		ParentID:      n.ParentID,
 		Comment:       n.Comment,
@@ -685,7 +701,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Save index
-	err = p.recordIndexSave(token, *ridx)
+	err = p.recordIndexSave(token, state, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -741,7 +757,8 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify signature
-	msg := e.Token + strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
+	msg := strconv.FormatUint(uint64(e.State), 10) + e.Token +
+		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
 	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -757,8 +774,22 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 		}
 	}
 
+	// Verify record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+	if uint32(e.State) != uint32(state) {
+		e := fmt.Sprintf("got %v, want %v", e.State, state)
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorContext: e,
+		}
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -807,6 +838,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	receipt := p.identity.SignMessage([]byte(e.Signature))
 	ca := comments.CommentAdd{
 		UserID:        e.UserID,
+		State:         e.State,
 		Token:         e.Token,
 		ParentID:      e.ParentID,
 		Comment:       e.Comment,
@@ -830,7 +862,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	ridx.Comments[ca.CommentID].Adds[ca.Version] = digest
 
 	// Save index
-	err = p.recordIndexSave(token, *ridx)
+	err = p.recordIndexSave(token, state, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -886,14 +918,29 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify signature
-	msg := d.Token + strconv.FormatUint(uint64(d.CommentID), 10) + d.Reason
+	msg := strconv.FormatUint(uint64(d.State), 10) + d.Token +
+		strconv.FormatUint(uint64(d.CommentID), 10) + d.Reason
 	err = util.VerifySignature(d.Signature, d.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
 	}
 
+	// Verify record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+	if uint32(d.State) != uint32(state) {
+		e := fmt.Sprintf("got %v, want %v", d.State, state)
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorContext: e,
+		}
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -915,6 +962,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	receipt := p.identity.SignMessage([]byte(d.Signature))
 	cd := comments.CommentDel{
 		Token:     d.Token,
+		State:     d.State,
 		CommentID: d.CommentID,
 		Reason:    d.Reason,
 		PublicKey: d.PublicKey,
@@ -942,7 +990,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	ridx.Comments[d.CommentID] = cidx
 
 	// Save index
-	err = p.recordIndexSave(token, *ridx)
+	err = p.recordIndexSave(token, state, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -1016,15 +1064,30 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify signature
-	msg := v.Token + strconv.FormatUint(uint64(v.CommentID), 10) +
+	msg := strconv.FormatUint(uint64(v.State), 10) + v.Token +
+		strconv.FormatUint(uint64(v.CommentID), 10) +
 		strconv.FormatInt(int64(v.Vote), 10)
 	err = util.VerifySignature(v.Signature, v.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
 	}
 
+	// Verify record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+	if uint32(v.State) != uint32(state) {
+		e := fmt.Sprintf("got %v, want %v", v.State, state)
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorContext: e,
+		}
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1071,6 +1134,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	receipt := p.identity.SignMessage([]byte(v.Signature))
 	cv := comments.CommentVote{
 		UserID:    v.UserID,
+		State:     v.State,
 		Token:     v.Token,
 		CommentID: v.CommentID,
 		Vote:      v.Vote,
@@ -1101,7 +1165,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	ridx.Comments[cv.CommentID] = cidx
 
 	// Save index
-	err = p.recordIndexSave(token, *ridx)
+	err = p.recordIndexSave(token, state, *ridx)
 	if err != nil {
 		return "", err
 	}
@@ -1134,8 +1198,14 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 		return "", err
 	}
 
+	// Get record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1161,8 +1231,14 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
 	log.Tracef("cmdGetAll: %v %x", treeID, token)
 
+	// Get record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+
 	// Compile comment IDs
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1210,8 +1286,14 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 		return "", err
 	}
 
+	// Get record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1271,8 +1353,14 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 func (p *commentsPlugin) cmdCount(treeID int64, token []byte) (string, error) {
 	log.Tracef("cmdCount: %v %x", treeID, token)
 
+	// Get record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1299,8 +1387,14 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 		return "", err
 	}
 
+	// Get record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1349,8 +1443,14 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 		return "", err
 	}
 
+	// Get record state
+	state, err := p.tstore.RecordState(treeID)
+	if err != nil {
+		return "", err
+	}
+
 	// Get record index
-	ridx, err := p.recordIndex(token)
+	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
 	}

@@ -7,19 +7,22 @@ package comments
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 )
 
 const (
-	// filenameRecordIndex is the file name of the record index that
-	// is saved to the comments plugin data dir.
-	filenameRecordIndex = "{tokenPrefix}-index.json"
+	// Filenames of the record indexes that are saved to the comments
+	// plugin data dir.
+	fnRecordIndexUnvetted = "{tokenPrefix}-index-unvetted.json"
+	fnRecordIndexVetted   = "{tokenPrefix}-index-vetted.json"
 )
 
 // voteIndex contains the comment vote and the digest of the vote record.
@@ -45,15 +48,25 @@ type commentIndex struct {
 
 // recordIndex contains the indexes for all comments made on a record.
 type recordIndex struct {
-	// TODO make unvetted and vetted indexes
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
 // recordIndexPath accepts full length token or token prefixes, but always uses
 // prefix when generating the comments index path string.
-func (p *commentsPlugin) recordIndexPath(token []byte) string {
+func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) string {
+	var fn string
+	switch s {
+	case backend.StateUnvetted:
+		fn = fnRecordIndexUnvetted
+	case backend.StateVetted:
+		fn = fnRecordIndexVetted
+	default:
+		e := fmt.Sprintf("invalid state %x %v", token, s)
+		panic(e)
+	}
+
 	tp := util.TokenPrefix(token)
-	fn := strings.Replace(filenameRecordIndex, "{tokenPrefix}", tp, 1)
+	fn = strings.Replace(fn, "{tokenPrefix}", tp, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
@@ -61,11 +74,11 @@ func (p *commentsPlugin) recordIndexPath(token []byte) string {
 // cached recordIndex does not exist, a new one will be returned.
 //
 // This function must be called WITHOUT the read lock held.
-func (p *commentsPlugin) recordIndex(token []byte) (*recordIndex, error) {
+func (p *commentsPlugin) recordIndex(token []byte, s backend.StateT) (*recordIndex, error) {
 	p.RLock()
 	defer p.RUnlock()
 
-	fp := p.recordIndexPath(token)
+	fp := p.recordIndexPath(token, s)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -91,7 +104,7 @@ func (p *commentsPlugin) recordIndex(token []byte) (*recordIndex, error) {
 // dir.
 //
 // This function must be called WITHOUT the read/write lock held.
-func (p *commentsPlugin) recordIndexSave(token []byte, ridx recordIndex) error {
+func (p *commentsPlugin) recordIndexSave(token []byte, s backend.StateT, ridx recordIndex) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -99,7 +112,7 @@ func (p *commentsPlugin) recordIndexSave(token []byte, ridx recordIndex) error {
 	if err != nil {
 		return err
 	}
-	fp := p.recordIndexPath(token)
+	fp := p.recordIndexPath(token, s)
 	err = ioutil.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err
