@@ -217,13 +217,13 @@ func (t *Tstore) anchorSave(a anchor) error {
 	if err != nil {
 		return err
 	}
-	b, err := t.blobify(*be, false)
+	b, err := store.Blobify(*be)
 	if err != nil {
 		return err
 	}
 	key := storeKeyNew(false)
 	kv := map[string][]byte{key: b}
-	err = t.store.Put(kv)
+	err = t.store.Put(kv, false)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
 	}

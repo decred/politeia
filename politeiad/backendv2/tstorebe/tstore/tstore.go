@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -26,7 +25,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/uuid"
-	"github.com/marcopeereboom/sbox"
 	"github.com/robfig/cron"
 	"google.golang.org/grpc/codes"
 )
@@ -36,7 +34,6 @@ const (
 	DBTypeMySQL   = "mysql"
 	dbUser        = "politeiad"
 
-	defaultEncryptionKeyFilename      = "tstore-sbox.key"
 	defaultTrillianSigningKeyFilename = "trillian.key"
 	defaultStoreDirname               = "store"
 
@@ -71,23 +68,10 @@ type Tstore struct {
 	cron            *cron.Cron
 	plugins         map[string]plugin // [pluginID]plugin
 
-	// encryptionKey is used to encrypt record blobs before saving them
-	// to the key-value store. This is an optional param. Record blobs
-	// will not be encrypted if this is left as nil.
-	encryptionKey *encryptionKey
-
 	// droppingAnchor indicates whether tstore is in the process of
 	// dropping an anchor, i.e. timestamping unanchored trillian trees
 	// using dcrtime. An anchor is dropped periodically using cron.
 	droppingAnchor bool
-}
-
-// blobIsEncrypted returns whether the provided blob has been prefixed with an
-// sbox header, indicating that it is an encrypted blob.
-func blobIsEncrypted(b []byte) bool {
-	isEncrypted := bytes.HasPrefix(b, []byte("sbox"))
-	log.Tracef("Blob is encrypted: %v", isEncrypted)
-	return isEncrypted
 }
 
 // extraData is the data that is stored in the log leaf ExtraData field. It is
@@ -175,35 +159,6 @@ func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 		return nil, err
 	}
 	return merkleLeafHash(leafValue), nil
-}
-
-func (t *Tstore) blobify(be store.BlobEntry, encrypt bool) ([]byte, error) {
-	b, err := store.Blobify(be)
-	if err != nil {
-		return nil, err
-	}
-	if encrypt {
-		b, err = t.encryptionKey.encrypt(0, b)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return b, nil
-}
-
-func (t *Tstore) deblob(b []byte) (*store.BlobEntry, error) {
-	var err error
-	if blobIsEncrypted(b) {
-		b, _, err = t.encryptionKey.decrypt(b)
-		if err != nil {
-			return nil, err
-		}
-	}
-	be, err := store.Deblob(b)
-	if err != nil {
-		return nil, err
-	}
-	return be, nil
 }
 
 func (t *Tstore) TreeNew() (int64, error) {
@@ -422,11 +377,10 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		// the duplicate content is encrypted and it needs to be saved
 		// plain text.
 		dupBlobs = make(map[string]store.BlobEntry, len(digests))
-
-		encrypt bool
 	)
 
 	// Only vetted data should be saved plain text
+	var encrypt bool
 	switch idx.State {
 	case backend.StateUnvetted:
 		encrypt = true
@@ -443,7 +397,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 	_, ok := dups[beRecordMD.Digest]
 	if !ok {
 		// Not a duplicate. Prepare kv store blob.
-		b, err := t.blobify(*beRecordMD, encrypt)
+		b, err := store.Blobify(*beRecordMD)
 		if err != nil {
 			return nil, err
 		}
@@ -473,7 +427,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 			_, ok := dups[be.Digest]
 			if !ok {
 				// Not a duplicate. Prepare kv store blob.
-				b, err := t.blobify(be, encrypt)
+				b, err := store.Blobify(be)
 				if err != nil {
 					return nil, err
 				}
@@ -506,7 +460,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		_, ok := dups[be.Digest]
 		if !ok {
 			// Not a duplicate. Prepare kv store blob.
-			b, err := t.blobify(be, encrypt)
+			b, err := store.Blobify(be)
 			if err != nil {
 				return nil, err
 			}
@@ -540,9 +494,9 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 	log.Debugf("Saving %v record content blobs", len(blobs))
 
 	// Save blobs to the kv store
-	err = t.store.Put(blobs)
+	err = t.store.Put(blobs, encrypt)
 	if err != nil {
-		return nil, fmt.Errorf("store PutKV: %v", err)
+		return nil, fmt.Errorf("store Put: %v", err)
 	}
 
 	// Append leaves onto the trillian tree
@@ -597,7 +551,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 			// Should not happen
 			return nil, fmt.Errorf("blob entry not found %v", d)
 		}
-		b, err := t.blobify(be, false)
+		b, err := store.Blobify(be)
 		if err != nil {
 			return nil, err
 		}
@@ -612,9 +566,9 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 
 	log.Debugf("Resaving %v encrypted blobs as plain text", len(blobs))
 
-	err = t.store.Put(blobs)
+	err = t.store.Put(blobs, false)
 	if err != nil {
-		return nil, fmt.Errorf("store PutKV: %v", err)
+		return nil, fmt.Errorf("store Put: %v", err)
 	}
 
 	return &idx, nil
@@ -852,7 +806,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	// Decode blobs
 	entries := make([]store.BlobEntry, 0, len(keys))
 	for _, v := range blobs {
-		be, err := t.deblob(v)
+		be, err := store.Deblob(v)
 		if err != nil {
 			return nil, err
 		}
@@ -1025,7 +979,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 		if !ok {
 			return nil, fmt.Errorf("blob not found %v", ed.storeKey())
 		}
-		be, err := t.deblob(b)
+		be, err := store.Deblob(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1203,52 +1157,9 @@ func (t *Tstore) Close() {
 	// Close connections
 	t.store.Close()
 	t.tlog.close()
-
-	// Zero out encryption key. An encryption key is optional.
-	if t.encryptionKey != nil {
-		t.encryptionKey.zero()
-	}
 }
 
 func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dbEncryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
-	// Setup encryption key file
-	if dbEncryptionKeyFile == "" {
-		// No file path was given. Use the default path.
-		dbEncryptionKeyFile = filepath.Join(appDir, defaultEncryptionKeyFilename)
-	}
-	if !util.FileExists(dbEncryptionKeyFile) {
-		// Encryption key file does not exist. Create one.
-		log.Infof("Generating encryption key")
-		key, err := sbox.NewKey()
-		if err != nil {
-			return nil, err
-		}
-		err = ioutil.WriteFile(dbEncryptionKeyFile, key[:], 0400)
-		if err != nil {
-			return nil, err
-		}
-		util.Zero(key[:])
-		log.Infof("Encryption key created: %v", dbEncryptionKeyFile)
-	}
-
-	// Load encryption key
-	f, err := os.Open(dbEncryptionKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	var key [32]byte
-	n, err := f.Read(key[:])
-	if n != len(key) {
-		return nil, fmt.Errorf("invalid encryption key length")
-	}
-	if err != nil {
-		return nil, err
-	}
-	f.Close()
-	ek := newEncryptionKey(&key)
-
-	log.Infof("Encryption key: %v", dbEncryptionKeyFile)
-
 	// Setup trillian client
 	if trillianSigningKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -1281,14 +1192,15 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 		if err != nil {
 			return nil, err
 		}
-		kvstore, err = localdb.New(fp)
+		kvstore, err = localdb.New(appDir, fp, dbEncryptionKeyFile)
 		if err != nil {
 			return nil, err
 		}
 	case DBTypeMySQL:
 		// Example db name: testnet3_unvetted_kv
 		dbName := fmt.Sprintf("%v_kv", anp.Name)
-		kvstore, err = mysql.New(dbHost, dbUser, dbPass, dbName)
+		kvstore, err = mysql.New(appDir, dbHost, dbUser, dbPass,
+			dbName, dbEncryptionKeyFile)
 		if err != nil {
 			return nil, err
 		}
@@ -1318,7 +1230,6 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 		dcrtime:         dcrtimeClient,
 		cron:            cron.New(),
 		plugins:         make(map[string]plugin),
-		encryptionKey:   ek,
 	}
 
 	// Launch cron

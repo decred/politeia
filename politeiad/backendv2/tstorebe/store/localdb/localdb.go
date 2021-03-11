@@ -7,9 +7,11 @@ package localdb
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/util"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -21,16 +23,32 @@ var (
 type localdb struct {
 	sync.Mutex
 	shutdown bool
-	root     string // Location of database
 	db       *leveldb.DB
+
+	// Encryption key and mutex. The key is zero'd out on application
+	// exit so the read lock must be held during concurrent access to
+	// prevent the golang race detector from complaining.
+	key    *[32]byte
+	keyMtx sync.RWMutex
 }
 
 // Put saves the provided key-value pairs to the store. This operation is
 // performed atomically.
 //
 // This function satisfies the store BlobKV interface.
-func (l *localdb) Put(blobs map[string][]byte) error {
+func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Put: %v blobs", len(blobs))
+
+	// Encrypt blobs
+	if encrypt {
+		for k, v := range blobs {
+			e, err := l.encrypt(v)
+			if err != nil {
+				return fmt.Errorf("encrypt: %v", err)
+			}
+			blobs[k] = e
+		}
+	}
 
 	// Setup batch
 	batch := new(leveldb.Batch)
@@ -79,6 +97,7 @@ func (l *localdb) Del(keys []string) error {
 func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	log.Tracef("Get: %v", keys)
 
+	// Lookup blobs
 	blobs := make(map[string][]byte, len(keys))
 	for _, v := range keys {
 		b, err := l.db.Get([]byte(v), nil)
@@ -92,6 +111,20 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 		blobs[v] = b
 	}
 
+	// Decrypt blobs
+	for k, v := range blobs {
+		encrypted := isEncrypted(v)
+		log.Tracef("Blob is encrypted: %v", encrypted)
+		if !encrypted {
+			continue
+		}
+		b, _, err := l.decrypt(v)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt: %v", err)
+		}
+		blobs[k] = b
+	}
+
 	return blobs, nil
 }
 
@@ -102,18 +135,30 @@ func (l *localdb) Close() {
 	l.Lock()
 	defer l.Unlock()
 
+	l.zeroKey()
 	l.db.Close()
 }
 
 // New returns a new localdb.
-func New(root string) (*localdb, error) {
-	db, err := leveldb.OpenFile(root, nil)
+func New(appDir, dataDir, keyFile string) (*localdb, error) {
+	// Load encryption key
+	if keyFile == "" {
+		// No file path was given. Use the default path.
+		keyFile = filepath.Join(appDir, store.DefaultEncryptionKeyFilename)
+	}
+	key, err := util.LoadEncryptionKey(log, keyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Open database
+	db, err := leveldb.OpenFile(dataDir, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &localdb{
-		db:   db,
-		root: root,
+		db:  db,
+		key: key,
 	}, nil
 }

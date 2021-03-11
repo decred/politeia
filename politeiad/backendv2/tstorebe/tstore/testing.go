@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
-	"github.com/marcopeereboom/sbox"
 )
 
 func NewTestTstore(t *testing.T, dataDir string) *Tstore {
@@ -26,21 +25,13 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := localdb.New(fp)
+	store, err := localdb.New(dataDir, fp, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Setup encryptin key if specified
-	key, err := sbox.NewKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ek := newEncryptionKey(key)
 
 	return &Tstore{
-		encryptionKey: ek,
-		tlog:          newTestTClient(t),
-		store:         store,
+		tlog:  newTestTClient(t),
+		store: store,
 	}
 }

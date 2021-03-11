@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
 )
@@ -95,13 +96,13 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 	if err != nil {
 		return err
 	}
-	b, err := t.blobify(*be, encrypt)
+	b, err := store.Blobify(*be)
 	if err != nil {
 		return err
 	}
 	key := storeKeyNew(encrypt)
 	kv := map[string][]byte{key: b}
-	err = t.store.Put(kv)
+	err = t.store.Put(kv, encrypt)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
 	}
@@ -200,7 +201,7 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 		vetted   = make([]recordIndex, 0, len(blobs))
 	)
 	for _, v := range blobs {
-		be, err := t.deblob(v)
+		be, err := store.Deblob(v)
 		if err != nil {
 			return nil, err
 		}

@@ -75,7 +75,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	if err != nil {
 		return err
 	}
-	blob, err := t.blobify(be, encrypt)
+	blob, err := store.Blobify(be)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	log.Debugf("Saving plugin data blob")
 
 	// Save blob to store
-	err = t.store.Put(kv)
+	err = t.store.Put(kv, encrypt)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
 	}
@@ -240,7 +240,7 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 			// Blob wasn't found in the store. Skip it.
 			continue
 		}
-		be, err := t.deblob(b)
+		be, err := store.Deblob(b)
 		if err != nil {
 			return nil, err
 		}
@@ -314,7 +314,7 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEnt
 		if !ok {
 			return nil, fmt.Errorf("blob not found: %v", v)
 		}
-		be, err := t.deblob(b)
+		be, err := store.Deblob(b)
 		if err != nil {
 			return nil, err
 		}

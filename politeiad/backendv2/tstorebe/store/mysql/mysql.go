@@ -8,9 +8,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/util"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -21,12 +24,21 @@ const (
 	connMaxLifetime = 1 * time.Minute
 	maxOpenConns    = 0 // 0 is unlimited
 	maxIdleConns    = 100
+
+	// Database table names
+	tableNameKeyValue = "kv"
+	tableNameNonce    = "nonce"
 )
 
 // tableKeyValue defines the key-value table. The key is a uuid.
 const tableKeyValue = `
   k VARCHAR(38) NOT NULL PRIMARY KEY,
   v LONGBLOB NOT NULL
+`
+
+// tableNonce defines the table used to track the encryption nonce.
+const tableNonce = `
+	n BIGINT PRIMARY KEY AUTO_INCREMENT
 `
 
 var (
@@ -36,17 +48,47 @@ var (
 // mysql implements the store BlobKV interface using a mysql driver.
 type mysql struct {
 	db *sql.DB
+
+	// Encryption key and mutex. The key is zero'd out on application
+	// exit so the read lock must be held during concurrent access to
+	// prevent the golang race detector from complaining.
+	key    *[32]byte
+	keyMtx sync.RWMutex
 }
 
 func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
 
+func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
+	// Encrypt blobs
+	if encrypt {
+		for k, v := range blobs {
+			e, err := s.encrypt(ctx, tx, v)
+			if err != nil {
+				return fmt.Errorf("encrypt: %v", err)
+			}
+			blobs[k] = e
+		}
+	}
+
+	// Save blobs
+	for k, v := range blobs {
+		_, err := tx.ExecContext(ctx,
+			"INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
+		if err != nil {
+			return fmt.Errorf("exec put: %v", err)
+		}
+	}
+
+	return nil
+}
+
 // Put saves the provided key-value pairs to the store. This operation is
 // performed atomically.
 //
 // This function satisfies the store BlobKV interface.
-func (s *mysql) Put(blobs map[string][]byte) error {
+func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Put: %v blobs", len(blobs))
 
 	ctx, cancel := ctxWithTimeout()
@@ -62,15 +104,13 @@ func (s *mysql) Put(blobs map[string][]byte) error {
 	}
 
 	// Save blobs
-	for k, v := range blobs {
-		_, err = tx.ExecContext(ctx, "INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
-		if err != nil {
-			// Attempt to roll back the transaction
-			if err2 := tx.Rollback(); err2 != nil {
-				// We're in trouble!
-				e := fmt.Sprintf("put: %v, unable to rollback: %v", err, err2)
-				panic(e)
-			}
+	err = s.put(blobs, encrypt, ctx, tx)
+	if err != nil {
+		// Attempt to roll back the transaction
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			e := fmt.Sprintf("put: %v, unable to rollback: %v", err, err2)
+			panic(e)
 		}
 	}
 
@@ -185,15 +225,40 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 		return nil, fmt.Errorf("next: %v", err)
 	}
 
+	// Decrypt data blobs
+	for k, v := range reply {
+		encrypted := isEncrypted(v)
+		log.Tracef("Blob is encrypted: %v", encrypted)
+		if !encrypted {
+			continue
+		}
+		b, _, err := s.decrypt(v)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt: %v", err)
+		}
+		reply[k] = b
+	}
+
 	return reply, nil
 }
 
 // Closes closes the blob store connection.
 func (s *mysql) Close() {
+	s.zeroKey()
 	s.db.Close()
 }
 
-func New(host, user, password, dbname string) (*mysql, error) {
+func New(appDir, host, user, password, dbname, keyFile string) (*mysql, error) {
+	// Load encryption key
+	if keyFile == "" {
+		// No file path was given. Use the default path.
+		keyFile = filepath.Join(appDir, store.DefaultEncryptionKeyFilename)
+	}
+	key, err := util.LoadEncryptionKey(log, keyFile)
+	if err != nil {
+		return nil, err
+	}
+
 	// Connect to database
 	log.Infof("Host: %v:[password]@tcp(%v)/%v", user, host, dbname)
 
@@ -215,13 +280,23 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	}
 
 	// Setup key-value table
-	q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS kv (%s)`, tableKeyValue)
+	q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`,
+		tableNameKeyValue, tableKeyValue)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create table: %v", err)
+		return nil, fmt.Errorf("create kv table: %v", err)
+	}
+
+	// Setup nonce table
+	q = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`,
+		tableNameNonce, tableNonce)
+	_, err = db.Exec(q)
+	if err != nil {
+		return nil, fmt.Errorf("create nonce table: %v", err)
 	}
 
 	return &mysql{
-		db: db,
+		db:  db,
+		key: key,
 	}, nil
 }

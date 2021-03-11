@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,13 @@ import (
 )
 
 const (
-	// Data descriptor types
+	// DefaultEncryptionKeyFilename is the filename of the encryption
+	// key that is created in the store data directory if an encryption
+	// key file is not provided on startup.
+	DefaultEncryptionKeyFilename = "sbox.key"
+
+	// DataTypeStructure is used as the data descriptor type when the
+	// blob entry contains a structure.
 	DataTypeStructure = "struct"
 )
 
@@ -79,7 +85,7 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 type BlobKV interface {
 	// Put saves the provided key-value pairs to the store. This
 	// operation is performed atomically.
-	Put(blobs map[string][]byte) error
+	Put(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided blobs from the store. This operation
 	// is performed atomically.
