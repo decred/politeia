@@ -16,11 +16,6 @@ type cmdComments struct {
 	Args struct {
 		Token string `positional-arg-name:"token"` // Censorship token
 	} `positional-args:"true" required:"true"`
-
-	// Unvetted is used to request the comments of an unvetted record.
-	// If this flag is not used the command assumes the record is
-	// vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdComments command.
@@ -40,18 +35,8 @@ func (c *cmdComments) Execute(args []string) error {
 		return err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = cmv1.RecordStateUnvetted
-	default:
-		state = cmv1.RecordStateVetted
-	}
-
 	// Get comments
 	cm := cmv1.Comments{
-		State: state,
 		Token: c.Args.Token,
 	}
 	cr, err := pc.Comments(cm)
@@ -79,6 +64,4 @@ record author.
 
 Arguments:
 1. token  (string, required)  Proposal censorship token
-
-Flags:
-  --unvetted  (bool, optional)  Record is unvetted.`
+`

@@ -59,7 +59,7 @@ func (c *cmdCommentNew) Execute(args []string) error {
 	}
 
 	// Setup state
-	var state string
+	var state cmv1.RecordStateT
 	switch {
 	case c.Unvetted:
 		state = cmv1.RecordStateUnvetted
@@ -68,11 +68,12 @@ func (c *cmdCommentNew) Execute(args []string) error {
 	}
 
 	// Setup request
-	msg := token + strconv.FormatUint(uint64(parentID), 10) + comment
+	msg := strconv.FormatUint(uint64(state), 10) + token +
+		strconv.FormatUint(uint64(parentID), 10) + comment
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	n := cmv1.New{
-		Token:     token,
 		State:     state,
+		Token:     token,
 		ParentID:  parentID,
 		Comment:   comment,
 		Signature: hex.EncodeToString(sig[:]),

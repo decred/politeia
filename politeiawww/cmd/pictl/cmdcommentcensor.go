@@ -46,7 +46,7 @@ func (c *cmdCommentCensor) Execute(args []string) error {
 	}
 
 	// Setup state
-	var state string
+	var state cmv1.RecordStateT
 	switch {
 	case c.Unvetted:
 		state = cmv1.RecordStateUnvetted
@@ -68,7 +68,8 @@ func (c *cmdCommentCensor) Execute(args []string) error {
 	}
 
 	// Setup request
-	msg := token + strconv.FormatUint(uint64(commentID), 10) + reason
+	msg := strconv.FormatUint(uint64(state), 10) + token +
+		strconv.FormatUint(uint64(commentID), 10) + reason
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	d := cmv1.Del{
 		State:     state,

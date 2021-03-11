@@ -114,6 +114,7 @@ var (
 		ErrorCodeParentIDInvalid:        "parent id invalid",
 		ErrorCodeVoteInvalid:            "vote invalid",
 		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
+		ErrorCodeStateInvalid:           "record state invalid",
 	}
 )
 

@@ -62,10 +62,13 @@ func (c *cmdCommentVote) Execute(args []string) error {
 	}
 
 	// Setup request
-	msg := c.Args.Token + strconv.FormatUint(uint64(c.Args.CommentID), 10) +
+	state := cmv1.RecordStateVetted
+	msg := strconv.FormatUint(uint64(state), 10) + c.Args.Token +
+		strconv.FormatUint(uint64(c.Args.CommentID), 10) +
 		strconv.FormatInt(int64(vote), 10)
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	v := cmv1.Vote{
+		State:     state,
 		Token:     c.Args.Token,
 		CommentID: c.Args.CommentID,
 		Vote:      vote,

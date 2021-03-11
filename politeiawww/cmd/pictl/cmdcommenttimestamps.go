@@ -19,11 +19,6 @@ type cmdCommentTimestamps struct {
 		Token      string   `positional-arg-name:"token" required:"true"`
 		CommentIDs []uint32 `positional-arg-name:"commentids" optional:"true"`
 	} `positional-args:"true"`
-
-	// Unvetted is used to request the timestamps of an unvetted
-	// record. If this flag is not used the command assumes the record
-	// is vetted.
-	Unvetted bool `long:"unvetted" optional:"true"`
 }
 
 // Execute executes the cmdCommentTimestamps command.
@@ -43,18 +38,8 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 		return err
 	}
 
-	// Setup state
-	var state string
-	switch {
-	case c.Unvetted:
-		state = cmv1.RecordStateUnvetted
-	default:
-		state = cmv1.RecordStateVetted
-	}
-
 	// Get timestamps
 	t := cmv1.Timestamps{
-		State:      state,
 		Token:      c.Args.Token,
 		CommentIDs: c.Args.CommentIDs,
 	}
@@ -119,9 +104,6 @@ returned. If the record is unvetted, the --unvetted flag must be used.
 Arguments:
 1. token      (string, required)   Proposal token
 2. commentIDs ([]uint32, optional) Proposal version
-
-Flags:
-  --unvetted  (bool, optional)  Record is unvetted.
 
 Example: Fetch all record comment timestamps
 $ pictl commenttimestamps 0a265dd93e9bae6d 

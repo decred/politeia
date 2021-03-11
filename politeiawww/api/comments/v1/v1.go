@@ -101,22 +101,44 @@ type PolicyReply struct {
 	VoteChangesMax uint32 `json:"votechangesmax"`
 }
 
+// RecordStateT represents the state of a record.
+type RecordStateT uint32
+
+const (
+	// RecordStateInvalid is an invalid record state.
+	RecordStateInvalid RecordStateT = 0
+
+	// RecordStateUnvetted indicates a record has not been made public.
+	RecordStateUnvetted RecordStateT = 1
+
+	// RecordStateVetted indicates a record has been made public.
+	RecordStateVetted RecordStateT = 2
+)
+
 // Comment represent a record comment.
 //
-// Signature is the client signature of Token+ParentID+Comment.
+// A parent ID of 0 indicates that the comment is a base level comment and not
+// a reply commment.
+//
+// Comments made on a record when it is unvetted and when it is vetted are
+// treated as two distinct groups of comments. When a record becomes vetted the
+// comment ID starts back at 1.
+//
+// Signature is the client signature of State+Token+ParentID+Comment.
 type Comment struct {
-	UserID    string `json:"userid"`    // Unique user ID
-	Username  string `json:"username"`  // Username
-	Token     string `json:"token"`     // Record token
-	ParentID  uint32 `json:"parentid"`  // Parent comment ID if reply
-	Comment   string `json:"comment"`   // Comment text
-	PublicKey string `json:"publickey"` // Public key used for Signature
-	Signature string `json:"signature"` // Client signature
-	CommentID uint32 `json:"commentid"` // Comment ID
-	Timestamp int64  `json:"timestamp"` // UNIX timestamp of last edit
-	Receipt   string `json:"receipt"`   // Server signature of client signature
-	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
-	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
+	UserID    string       `json:"userid"`    // Unique user ID
+	Username  string       `json:"username"`  // Username
+	State     RecordStateT `json:"state"`     // Record state
+	Token     string       `json:"token"`     // Record token
+	ParentID  uint32       `json:"parentid"`  // Parent comment ID if reply
+	Comment   string       `json:"comment"`   // Comment text
+	PublicKey string       `json:"publickey"` // Public key used for Signature
+	Signature string       `json:"signature"` // Client signature
+	CommentID uint32       `json:"commentid"` // Comment ID
+	Timestamp int64        `json:"timestamp"` // UNIX timestamp of last edit
+	Receipt   string       `json:"receipt"`   // Server sig of client sig
+	Downvotes uint64       `json:"downvotes"` // Tolal downvotes on comment
+	Upvotes   uint64       `json:"upvotes"`   // Total upvotes on comment
 
 	Deleted bool   `json:"deleted,omitempty"` // Comment has been deleted
 	Reason  string `json:"reason,omitempty"`  // Reason for deletion
@@ -128,17 +150,18 @@ type Comment struct {
 
 // CommentVote represents a comment vote (upvote/downvote).
 //
-// Signature is the client signature of the Token+CommentID+Vote.
+// Signature is the client signature of the State+Token+CommentID+Vote.
 type CommentVote struct {
-	UserID    string `json:"userid"`    // Unique user ID
-	Username  string `json:"username"`  // Username
-	Token     string `json:"token"`     // Record token
-	CommentID uint32 `json:"commentid"` // Comment ID
-	Vote      VoteT  `json:"vote"`      // Upvote or downvote
-	PublicKey string `json:"publickey"` // Public key used for signature
-	Signature string `json:"signature"` // Client signature
-	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server signature of client signature
+	UserID    string       `json:"userid"`    // Unique user ID
+	Username  string       `json:"username"`  // Username
+	State     RecordStateT `json:"state"`     // Record state
+	Token     string       `json:"token"`     // Record token
+	CommentID uint32       `json:"commentid"` // Comment ID
+	Vote      VoteT        `json:"vote"`      // Upvote or downvote
+	PublicKey string       `json:"publickey"` // Public key used for signature
+	Signature string       `json:"signature"` // Client signature
+	Timestamp int64        `json:"timestamp"` // Received UNIX timestamp
+	Receipt   string       `json:"receipt"`   // Server sig of client sig
 }
 
 // New creates a new comment.
@@ -146,13 +169,14 @@ type CommentVote struct {
 // The parent ID is used to reply to an existing comment. A parent ID of 0
 // indicates that the comment is a base level comment and not a reply commment.
 //
-// Signature is the client signature of Token+ParentID+Comment.
+// Signature is the client signature of State+Token+ParentID+Comment.
 type New struct {
-	Token     string `json:"token"`
-	ParentID  uint32 `json:"parentid"`
-	Comment   string `json:"comment"`
-	PublicKey string `json:"publickey"`
-	Signature string `json:"signature"`
+	State     RecordStateT `json:"state"`
+	Token     string       `json:"token"`
+	ParentID  uint32       `json:"parentid"`
+	Comment   string       `json:"comment"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
 
 	// Optional fields to be used freely
 	ExtraData     string `json:"extradata,omitempty"`
@@ -186,13 +210,14 @@ const (
 // upvoted, the resulting vote score is 0 due to the second upvote removing the
 // original upvote.
 //
-// Signature is the client signature of the Token+CommentID+Vote.
+// Signature is the client signature of the State+Token+CommentID+Vote.
 type Vote struct {
-	Token     string `json:"token"`
-	CommentID uint32 `json:"commentid"`
-	Vote      VoteT  `json:"vote"`
-	PublicKey string `json:"publickey"`
-	Signature string `json:"signature"`
+	State     RecordStateT `json:"state"`
+	Token     string       `json:"token"`
+	CommentID uint32       `json:"commentid"`
+	Vote      VoteT        `json:"vote"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
 }
 
 // VoteReply is the reply to the Vote command.
@@ -200,19 +225,20 @@ type VoteReply struct {
 	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
 	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	Receipt   string `json:"receipt"`   // Server signature of client signature
+	Receipt   string `json:"receipt"`   // Server sig of client sig
 }
 
 // Del permanently deletes the provided comment. Only admins can delete
 // comments. A reason must be given for the deletion.
 //
-// Signature is the client signature of the Token+CommentID+Reason
+// Signature is the client signature of the State+Token+CommentID+Reason
 type Del struct {
-	Token     string `json:"token"`
-	CommentID uint32 `json:"commentid"`
-	Reason    string `json:"reason"`
-	PublicKey string `json:"publickey"`
-	Signature string `json:"signature"`
+	State     RecordStateT `json:"state"`
+	Token     string       `json:"token"`
+	CommentID uint32       `json:"commentid"`
+	Reason    string       `json:"reason"`
+	PublicKey string       `json:"publickey"`
+	Signature string       `json:"signature"`
 }
 
 // DelReply is the reply to the Del command.

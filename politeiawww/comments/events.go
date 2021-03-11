@@ -5,7 +5,6 @@
 package comments
 
 import (
-	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 )
 
@@ -16,6 +15,6 @@ const (
 
 // EventNew is the event data for the EventTypeNew.
 type EventNew struct {
-	State   pdv2.RecordStateT
+	State   v1.RecordStateT
 	Comment v1.Comment
 }

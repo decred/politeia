@@ -16,19 +16,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// NOTE: the comment commands enforce different user permissions depending on
-// the state of the record (ex. only admins and the author are allowed to
-// comment on unvetted records). We currently pull the record without any files
-// in order to determine the record state. This is the quick and dirty way and
-// was implemented like this due to development time constraints. We could
-// eliminate this network request by providing the plugin command with the
-// record assumptions that are being made and allow the plugin to verify these
-// assumptions during its validation and return an error if they do not hold.
-// This would require the politeiawww client provide the record state along
-// with all comment requests.
-
 func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.NewReply, error) {
 	log.Tracef("processNew: %v %v %v", n.Token, u.Username)
+
+	// Verify state
+	state := convertStateToPlugin(n.State)
+	if state == comments.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
 
 	// Verify user signed using active identity
 	if u.PublicKey() != n.PublicKey {
@@ -50,16 +47,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 
 	// Only admins and the record author are allowed to comment on
 	// unvetted records.
-	r, err := c.recordNoFiles(ctx, n.Token)
-	if err != nil {
-		if err == errRecordNotFound {
-			return nil, v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeRecordNotFound,
-			}
-		}
-		return nil, err
-	}
-	if r.State == pdv2.RecordStateUnvetted && !u.Admin {
+	if n.State == v1.RecordStateUnvetted && !u.Admin {
 		// User is not an admin. Check if the user is the author.
 		authorID, err := c.politeiad.Author(ctx, n.Token)
 		if err != nil {
@@ -76,6 +64,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	// Send plugin command
 	cn := comments.New{
 		UserID:    u.ID.String(),
+		State:     state,
 		Token:     n.Token,
 		ParentID:  n.ParentID,
 		Comment:   n.Comment,
@@ -94,7 +83,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	// Emit event
 	c.events.Emit(EventTypeNew,
 		EventNew{
-			State:   r.State,
+			State:   n.State,
 			Comment: cm,
 		})
 
@@ -105,6 +94,14 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 
 func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1.VoteReply, error) {
 	log.Tracef("processVote: %v %v %v", v.Token, v.CommentID, v.Vote)
+
+	// Verify state
+	state := convertStateToPlugin(v.State)
+	if state == comments.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
 
 	// Verify user signed using active identity
 	if u.PublicKey() != v.PublicKey {
@@ -125,16 +122,7 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 	}
 
 	// Votes are only allowed on vetted records
-	r, err := c.recordNoFiles(ctx, v.Token)
-	if err != nil {
-		if err == errRecordNotFound {
-			return nil, v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeRecordNotFound,
-			}
-		}
-		return nil, err
-	}
-	if r.State != pdv2.RecordStateVetted {
+	if v.State != v1.RecordStateVetted {
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodeRecordStateInvalid,
 			ErrorContext: "comment voting is only allowed on vetted records",
@@ -144,6 +132,7 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 	// Send plugin command
 	cv := comments.Vote{
 		UserID:    u.ID.String(),
+		State:     state,
 		Token:     v.Token,
 		CommentID: v.CommentID,
 		Vote:      comments.VoteT(v.Vote),
@@ -166,6 +155,14 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.DelReply, error) {
 	log.Tracef("processDel: %v %v %v", d.Token, d.CommentID, d.Reason)
 
+	// Verify state
+	state := convertStateToPlugin(d.State)
+	if state == comments.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
 	// Verify user signed with their active identity
 	if u.PublicKey() != d.PublicKey {
 		return nil, v1.UserErrorReply{
@@ -176,6 +173,7 @@ func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.D
 
 	// Send plugin command
 	cd := comments.Del{
+		State:     state,
 		Token:     d.Token,
 		CommentID: d.CommentID,
 		Reason:    d.Reason,
@@ -218,19 +216,21 @@ func (c *Comments) processCount(ctx context.Context, ct v1.Count) (*v1.CountRepl
 func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.User) (*v1.CommentsReply, error) {
 	log.Tracef("processComments: %v", cs.Token)
 
+	// Send plugin command
+	pcomments, err := c.politeiad.CommentsGetAll(ctx, cs.Token)
+	if err != nil {
+		return nil, err
+	}
+	if len(pcomments) == 0 {
+		return &v1.CommentsReply{
+			Comments: []v1.Comment{},
+		}, nil
+	}
+
 	// Only admins and the record author are allowed to retrieve
 	// unvetted comments. This is a public route so a user might
 	// not exist.
-	r, err := c.recordNoFiles(ctx, cs.Token)
-	if err != nil {
-		if err == errRecordNotFound {
-			return nil, v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeRecordNotFound,
-			}
-		}
-		return nil, err
-	}
-	if r.State == pdv2.RecordStateUnvetted {
+	if pcomments[0].State == comments.RecordStateUnvetted {
 		var isAllowed bool
 		switch {
 		case u == nil:
@@ -256,12 +256,6 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 				ErrorContext: "user is not author or admin",
 			}
 		}
-	}
-
-	// Send plugin command
-	pcomments, err := c.politeiad.CommentsGetAll(ctx, cs.Token)
-	if err != nil {
-		return nil, err
 	}
 
 	// Prepare reply. Comment user data must be pulled from the
@@ -293,7 +287,9 @@ func (c *Comments) processComments(ctx context.Context, cs v1.Comments, u *user.
 func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply, error) {
 	log.Tracef("processVotes: %v %v", v.Token, v.UserID)
 
-	// Get comment votes
+	// Get comment votes. Votes are only allowed on vetted comments so
+	// there is no need to check the user permissions since all vetted
+	// comments are public.
 	cm := comments.Votes{
 		UserID: v.UserID,
 	}
@@ -399,6 +395,16 @@ func commentVotePopulateUserData(votes []v1.CommentVote, u user.User) {
 	for k := range votes {
 		votes[k].Username = u.Username
 	}
+}
+
+func convertStateToPlugin(s v1.RecordStateT) comments.RecordStateT {
+	switch s {
+	case v1.RecordStateUnvetted:
+		return comments.RecordStateUnvetted
+	case v1.RecordStateVetted:
+		return comments.RecordStateVetted
+	}
+	return comments.RecordStateInvalid
 }
 
 func convertComment(c comments.Comment) v1.Comment {
