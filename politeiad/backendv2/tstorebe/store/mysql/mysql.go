@@ -38,7 +38,7 @@ const tableKeyValue = `
 
 // tableNonce defines the table used to track the encryption nonce.
 const tableNonce = `
-	n BIGINT PRIMARY KEY AUTO_INCREMENT
+  n BIGINT PRIMARY KEY AUTO_INCREMENT
 `
 
 var (
