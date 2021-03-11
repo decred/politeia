@@ -36,6 +36,5 @@ func (l *localdb) zeroKey() {
 // isEncrypted returns whether the provided blob has been prefixed with an sbox
 // header, indicating that it is an encrypted blob.
 func isEncrypted(b []byte) bool {
-	isEncrypted := bytes.HasPrefix(b, []byte("sbox"))
-	return isEncrypted
+	return bytes.HasPrefix(b, []byte("sbox"))
 }
