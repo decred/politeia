@@ -58,6 +58,9 @@ func (p *politeia) handleRecordNew(w http.ResponseWriter, r *http.Request) {
 		Record:   p.convertRecordToV2(*rc),
 	}
 
+	log.Infof("%v Record created %v",
+		util.RemoteAddr(r), rc.RecordMetadata.Token)
+
 	util.RespondWithJSON(w, http.StatusOK, rnr)
 }
 
@@ -111,6 +114,9 @@ func (p *politeia) handleRecordEdit(w http.ResponseWriter, r *http.Request) {
 		Response: hex.EncodeToString(response[:]),
 		Record:   p.convertRecordToV2(*rc),
 	}
+
+	log.Infof("%v Record edited %v",
+		util.RemoteAddr(r), rc.RecordMetadata.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, rer)
 }
@@ -217,6 +223,9 @@ func (p *politeia) handleRecordSetStatus(w http.ResponseWriter, r *http.Request)
 		Response: hex.EncodeToString(response[:]),
 		Record:   p.convertRecordToV2(*rc),
 	}
+
+	log.Infof("%v Record status set %v %v", util.RemoteAddr(r),
+		rc.RecordMetadata.Token, backendv2.Statuses[rc.RecordMetadata.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, rer)
 }

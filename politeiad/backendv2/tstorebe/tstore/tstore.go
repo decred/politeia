@@ -517,7 +517,14 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 
 	// When a record is made public the record content needs to be
 	// resaved to the key-value store as unencrypted.
-	if recordMD.Status != backend.StatusPublic {
+	var (
+		isPublic = recordMD.Status == backend.StatusPublic
+
+		// Iteration and version are reset back to 1 when a record is
+		// made public.
+		iterIsReset = recordMD.Iteration == 1
+	)
+	if !isPublic || !iterIsReset {
 		// Record is not being made public. Nothing else to do.
 		return &idx, nil
 	}

@@ -91,7 +91,7 @@ func (t *tstoreBackend) prefixAdd(fullToken []byte) {
 	prefix := util.TokenPrefix(fullToken)
 	t.prefixes[prefix] = fullToken
 
-	log.Debugf("Add token prefix: %v", prefix)
+	log.Tracef("Add token prefix: %v", prefix)
 }
 
 func (t *tstoreBackend) fullLengthToken(token []byte) []byte {
