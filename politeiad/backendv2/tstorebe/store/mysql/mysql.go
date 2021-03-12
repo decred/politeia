@@ -112,6 +112,7 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 			e := fmt.Sprintf("put: %v, unable to rollback: %v", err, err2)
 			panic(e)
 		}
+		return err
 	}
 
 	// Commit transaction
@@ -154,6 +155,7 @@ func (s *mysql) Del(keys []string) error {
 				e := fmt.Sprintf("del: %v, unable to rollback: %v", err, err2)
 				panic(e)
 			}
+			return err
 		}
 	}
 

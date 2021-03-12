@@ -31,13 +31,16 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, e
 
 	var i int64
 	for rows.Next() {
+		if i > 0 {
+			// There should only ever be one row returned. Something is
+			// wrong if we've already scanned the nonce and its still
+			// scanning rows.
+			return nil, fmt.Errorf("multiple rows returned for nonce")
+		}
 		err = rows.Scan(&i)
 		if err != nil {
 			return nil, fmt.Errorf("scan: %v", err)
 		}
-
-		// There should only ever be one value to scan
-		break
 	}
 	err = rows.Err()
 	if err != nil {

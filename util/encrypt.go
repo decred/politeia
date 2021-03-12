@@ -53,6 +53,8 @@ func LoadEncryptionKey(log slog.Logger, keyFile string) (*[32]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
 	var key [32]byte
 	n, err := f.Read(key[:])
 	if n != len(key) {
@@ -61,7 +63,6 @@ func LoadEncryptionKey(log slog.Logger, keyFile string) (*[32]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	f.Close()
 
 	log.Infof("Encryption key: %v", keyFile)
 
