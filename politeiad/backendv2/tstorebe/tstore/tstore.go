@@ -515,16 +515,16 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		return nil, fmt.Errorf("append leaves failed: %v", failed)
 	}
 
-	// Check if any of the duplicates were saved as encrypted but now
-	// need to be resaved as plain text. This happens when a record is
-	// made public and the files need to be saved plain text.
-	if idx.State == backend.StateUnvetted || len(dups) == 0 {
-		// Nothing that needs to be saved plain text. We're done.
-		log.Tracef("No blobs need to be resaved plain text")
-
+	// When a record is made public the record content needs to be
+	// resaved to the key-value store as unencrypted.
+	if recordMD.Status != backend.StatusPublic {
+		// Record is not being made public. Nothing else to do.
 		return &idx, nil
 	}
 
+	// Resave all of the duplicate blobs as plain text. A duplicate
+	// blob means the record content existed prior to the status
+	// change.
 	blobs = make(map[string][]byte, len(dupBlobs))
 	for _, v := range leavesAll {
 		d := hex.EncodeToString(v.LeafValue)
@@ -558,10 +558,8 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		blobs[ed.storeKeyNoPrefix()] = b
 	}
 	if len(blobs) == 0 {
-		// Nothing that needs to be saved plain text. We're done.
-		log.Tracef("No duplicates need to be resaved plain text")
-
-		return &idx, nil
+		// This should not happen
+		return nil, fmt.Errorf("no blobs found to resave as plain text")
 	}
 
 	log.Debugf("Resaving %v encrypted blobs as plain text", len(blobs))
