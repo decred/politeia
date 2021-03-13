@@ -119,6 +119,9 @@ politeiad
    The `trillianpass` and `rootpass` will need to be updated to the passwords
    for your trillian and root users.
 
+   If setting up a mainnet instance, change the `MYSQL_DATABASE` env variable
+   to `mainnet_trillian`.
+
     ```
     $ cd $GOPATH/src/github.com/google/trillian/scripts
 
@@ -130,16 +133,6 @@ politeiad
       MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}" \
       MYSQL_ROOT_PASSWORD=rootpass \
       ./resetdb.sh
-    
-    # Mainnet setup
-    $ env \
-      MYSQL_USER=trillian \
-      MYSQL_PASSWORD=trillianpass \
-      MYSQL_DATABASE=mainnet_trillian \
-      MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}" \
-      MYSQL_ROOT_PASSWORD=rootpass \
-      ./resetdb.sh
-
     ```
 
 7. Start up the trillian instances.
@@ -152,6 +145,10 @@ politeiad
    and mainnet run the trillian instances on the same ports so you can only
    run one set of commands, testnet or mainnet. Run the testnet commands if
    you're setting up a development environment.
+
+   If setting up a mainnet instance, change the `MYSQL_DATABASE` env variable
+   to `mainnet_trillian` for both the log server and log signer.
+
 
    Start testnet log server
     ```
@@ -183,38 +180,6 @@ politeiad
       --rpc_endpoint localhost:8092 \
       --http_endpoint=localhost:8093 
     ```
-    
-   Start mainnet log server
-    ```
-    $ export MYSQL_USER=trillian && \
-      export MYSQL_PASSWORD=trillianpass && \
-      export MYSQL_DATABASE=mainnet_trillian && \
-      export MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}"
-
-    $ trillian_log_server \
-      --mysql_uri=${MYSQL_URI} \
-      --mysql_max_conns=2000 \
-      --rpc_endpoint localhost:8090 \
-      --http_endpoint localhost:8091 \
-      --logtostderr ...
-    ```
-
-   Start mainnet log signer
-    ```
-    $ export MYSQL_USER=trillian && \
-      export MYSQL_PASSWORD=trillianpass && \
-      export MYSQL_DATABASE=mainnet_trillian && \
-      export MYSQL_URI="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/${MYSQL_DATABASE}"
-
-    $ trillian_log_signer --logtostderr --force_master \
-      --batch_size=1000 \
-      --sequencer_guard_window=0 \
-      --sequencer_interval=200ms \
-      --mysql_uri=${MYSQL_URI} \
-      --rpc_endpoint localhost:8092 \
-      --http_endpoint=localhost:8093
-    ```
-
 
 8. Setup the politeiad configuration file.
 
@@ -252,9 +217,8 @@ politeiad
     rpcpass=pass
     testnet=true
 
-    ; Tstore database settings
+    ; Tstore settings
     dbtype=mysql
-    dbpass=politeiadpass
 
     ; Pi plugin configuration
     plugin=pi
@@ -264,14 +228,12 @@ politeiad
     plugin=usermd
     ```
 
-9. Start up the politeiad instance.
+9. Start up the politeiad instance. The password for the politeiad user must
+   be provided in the `DBPASS` env variable.
 
     ```
-    $ politeiad
+    $ env DBPASS=politeiadpass politeiad
     ```
-
-   A database encryption key and a trillian signing key will be created on
-   startup and saved to the politeiad app data directory.
 
 # Tools and reference clients
 
