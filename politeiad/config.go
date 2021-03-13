@@ -47,7 +47,7 @@ const (
 	// Tstore default settings
 	defaultTrillianHost = "localhost:8090"
 	defaultDBType       = tstore.DBTypeLevelDB
-	defaultDBHost       = "127.0.0.1:3306" // MySQL default host
+	defaultDBHost       = "localhost:3306" // MySQL default host
 )
 
 var (
@@ -88,22 +88,22 @@ type config struct {
 	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
 	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
+	Backend     string `long:"backend" description:"Backend type"`
+
+	// Git backend options
 	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
-	// TODO validate these config params
-	Backend string `long:"backend"`
-
-	// Tstore backend config
-	TrillianHost       string `long:"trillianhost"`
-	TrillianSigningKey string `long:"trilliansigningkey"`
+	// Tstore backend options
+	TrillianHost       string `long:"trillianhost" description:"Trillian ip:port"`
+	TrillianSigningKey string `long:"trilliansigningkey" description:"Trillian signing key"`
 	DBType             string `long:"dbtype" description:"Database type"`
 	DBHost             string `long:"dbhost" description:"Database ip:port"`
-	DBPass             string `long:"dbpass" description:"Database password"`
+	DBPass             string // Provided in env variable "DBPASS"
 
 	// Plugin settings
-	Plugins        []string `long:"plugin"`
-	PluginSettings []string `long:"pluginsetting"`
+	Plugins        []string `long:"plugin" description:"Plugins"`
+	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -530,6 +530,28 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
+	}
+
+	// Verify backend type
+	switch cfg.Backend {
+	case backendGit, backendTstore:
+		// Allowed; continue
+	default:
+		return nil, nil, fmt.Errorf("invalid backend type '%v'", cfg.Backend)
+	}
+
+	// Verify tstore backend settings
+	switch cfg.DBType {
+	case tstore.DBTypeLevelDB:
+		// Allowed; continue
+	case tstore.DBTypeMySQL:
+		// The database password is provided in the env variable "DBPASS"
+		cfg.DBPass = os.Getenv("DBPASS")
+		if cfg.DBPass == "" {
+			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
+				"the database password for the politeiad user in the env " +
+				"variable DBPASS")
+		}
 	}
 
 	// Warn about missing config file only after all other configuration is
