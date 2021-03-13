@@ -15,21 +15,31 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+const (
+	// encryptionKeyFilename is the filename of the encryption key that
+	// is created in the store data directory.
+	encryptionKeyFilename = "sbox.key"
+)
+
 var (
 	_ store.BlobKV = (*localdb)(nil)
 )
 
 // localdb implements the store BlobKV interface using leveldb.
+//
+// NOTE: this implementation was created for testing. The encryption techniques
+// used may not be suitable for a production environment. A random secretbox
+// encryption key is created on startup and saved to the politeiad application
+// dir. Blobs are encrypted using random 24 byte nonces.
 type localdb struct {
-	sync.Mutex
+	sync.RWMutex
 	shutdown bool
 	db       *leveldb.DB
 
 	// Encryption key and mutex. The key is zero'd out on application
 	// exit so the read lock must be held during concurrent access to
 	// prevent the golang race detector from complaining.
-	key    *[32]byte
-	keyMtx sync.RWMutex
+	key *[32]byte
 }
 
 // Put saves the provided key-value pairs to the store. This operation is
@@ -140,12 +150,9 @@ func (l *localdb) Close() {
 }
 
 // New returns a new localdb.
-func New(appDir, dataDir, keyFile string) (*localdb, error) {
+func New(appDir, dataDir string) (*localdb, error) {
 	// Load encryption key
-	if keyFile == "" {
-		// No file path was given. Use the default path.
-		keyFile = filepath.Join(appDir, store.DefaultEncryptionKeyFilename)
-	}
+	keyFile := filepath.Join(appDir, encryptionKeyFilename)
 	key, err := util.LoadEncryptionKey(log, keyFile)
 	if err != nil {
 		return nil, err

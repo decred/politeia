@@ -8,12 +8,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/util"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -32,7 +30,7 @@ const (
 
 // tableKeyValue defines the key-value table.
 const tableKeyValue = `
-  k VARCHAR(38) NOT NULL PRIMARY KEY,
+  k VARCHAR(255) NOT NULL PRIMARY KEY,
   v LONGBLOB NOT NULL
 `
 
@@ -47,13 +45,13 @@ var (
 
 // mysql implements the store BlobKV interface using a mysql driver.
 type mysql struct {
+	sync.RWMutex
 	db *sql.DB
 
-	// Encryption key and mutex. The key is zero'd out on application
-	// exit so the read lock must be held during concurrent access to
-	// prevent the golang race detector from complaining.
-	key    *[32]byte
-	keyMtx sync.RWMutex
+	// Encryption key. The key is zero'd out on application exit so the
+	// read lock must be held during concurrent access to prevent the
+	// golang race detector from complaining.
+	key *[32]byte
 }
 
 func ctxWithTimeout() (context.Context, func()) {
@@ -250,17 +248,7 @@ func (s *mysql) Close() {
 	s.db.Close()
 }
 
-func New(appDir, host, user, password, dbname, keyFile string) (*mysql, error) {
-	// Load encryption key
-	if keyFile == "" {
-		// No file path was given. Use the default path.
-		keyFile = filepath.Join(appDir, store.DefaultEncryptionKeyFilename)
-	}
-	key, err := util.LoadEncryptionKey(log, keyFile)
-	if err != nil {
-		return nil, err
-	}
-
+func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	// Connect to database
 	log.Infof("Host: %v:[password]@tcp(%v)/%v", user, host, dbname)
 
@@ -298,7 +286,7 @@ func New(appDir, host, user, password, dbname, keyFile string) (*mysql, error) {
 	}
 
 	return &mysql{
-		db:  db,
-		key: key,
+		db: db,
+		// key: key,
 	}, nil
 }

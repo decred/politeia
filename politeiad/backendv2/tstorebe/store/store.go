@@ -15,11 +15,6 @@ import (
 )
 
 const (
-	// DefaultEncryptionKeyFilename is the filename of the encryption
-	// key that is created in the store data directory if an encryption
-	// key file is not provided on startup.
-	DefaultEncryptionKeyFilename = "sbox.key"
-
 	// DataTypeStructure is used as the data descriptor type when the
 	// blob entry contains a structure.
 	DataTypeStructure = "struct"

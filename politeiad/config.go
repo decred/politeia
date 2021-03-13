@@ -92,14 +92,14 @@ type config struct {
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
 	// TODO validate these config params
-	Backend            string `long:"backend"`
+	Backend string `long:"backend"`
+
+	// Tstore backend config
 	TrillianHost       string `long:"trillianhost"`
 	TrillianSigningKey string `long:"trilliansigningkey"`
-
-	DBType          string `long:"dbtype" description:"Database type"`
-	DBHost          string `long:"dbhost" description:"Database ip:port"`
-	DBPass          string `long:"dbpass" description:"Database password"`
-	DBEncryptionKey string `long:"dbencryptionkey" description:"Database encryption key file"`
+	DBType             string `long:"dbtype" description:"Database type"`
+	DBHost             string `long:"dbhost" description:"Database ip:port"`
+	DBPass             string `long:"dbpass" description:"Database password"`
 
 	// Plugin settings
 	Plugins        []string `long:"plugin"`

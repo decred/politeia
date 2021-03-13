@@ -12,22 +12,22 @@ import (
 )
 
 func (l *localdb) encrypt(data []byte) ([]byte, error) {
-	l.keyMtx.RLock()
-	defer l.keyMtx.RUnlock()
+	l.RLock()
+	defer l.RUnlock()
 
 	return sbox.Encrypt(0, l.key, data)
 }
 
 func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
-	l.keyMtx.RLock()
-	defer l.keyMtx.RUnlock()
+	l.RLock()
+	defer l.RUnlock()
 
 	return sbox.Decrypt(l.key, data)
 }
 
 func (l *localdb) zeroKey() {
-	l.keyMtx.Lock()
-	defer l.keyMtx.Unlock()
+	l.Lock()
+	defer l.Unlock()
 
 	util.Zero(l.key[:])
 	l.key = nil

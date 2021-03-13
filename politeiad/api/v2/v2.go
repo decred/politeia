@@ -327,7 +327,7 @@ type RecordGetReply struct {
 // Version is used to request a specific version of a record. If no version is
 // provided then the most recent version of the record will be returned.
 //
-// Filenames can be used to request specific files. If filenames is not W
+// Filenames can be used to request specific files. If filenames is provided
 // then the specified files will be the only files that are returned.
 //
 // OmitAllFiles can be used to retrieve a record without any of the record

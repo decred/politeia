@@ -62,22 +62,22 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, e
 	nonce := n.Current()
 
 	// Encrypt blob
-	s.keyMtx.RLock()
-	defer s.keyMtx.RUnlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return sbox.EncryptN(0, s.key, nonce, data)
 }
 
 func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
-	s.keyMtx.RLock()
-	defer s.keyMtx.RUnlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return sbox.Decrypt(s.key, data)
 }
 
 func (s *mysql) zeroKey() {
-	s.keyMtx.Lock()
-	defer s.keyMtx.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	util.Zero(s.key[:])
 	s.key = nil

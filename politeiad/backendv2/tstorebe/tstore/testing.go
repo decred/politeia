@@ -25,7 +25,7 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := localdb.New(dataDir, fp, "")
+	store, err := localdb.New(dataDir, fp)
 	if err != nil {
 		t.Fatal(err)
 	}

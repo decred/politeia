@@ -1164,7 +1164,7 @@ func (t *Tstore) Close() {
 	t.tlog.close()
 }
 
-func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dbEncryptionKeyFile, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup trillian client
 	if trillianSigningKeyFile == "" {
 		// No file path was given. Use the default path.
@@ -1197,15 +1197,14 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 		if err != nil {
 			return nil, err
 		}
-		kvstore, err = localdb.New(appDir, fp, dbEncryptionKeyFile)
+		kvstore, err = localdb.New(appDir, fp)
 		if err != nil {
 			return nil, err
 		}
 	case DBTypeMySQL:
 		// Example db name: testnet3_unvetted_kv
 		dbName := fmt.Sprintf("%v_kv", anp.Name)
-		kvstore, err = mysql.New(appDir, dbHost, dbUser, dbPass,
-			dbName, dbEncryptionKeyFile)
+		kvstore, err = mysql.New(appDir, dbHost, dbUser, dbPass, dbName)
 		if err != nil {
 			return nil, err
 		}
