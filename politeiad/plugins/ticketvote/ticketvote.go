@@ -173,6 +173,10 @@ const (
 	// ErrorCodeLinkByNotExpired is returned when a runoff vote is
 	// attempted to be started before the link by deadline has expired.
 	ErrorCodeLinkByNotExpired ErrorCodeT = 19
+
+	// ErrorCodeRecordStateInvalid is returned when a ticketvote write
+	// command is executed on a record that is not public.
+	ErrorCodeRecordStatusInvalid ErrorCodeT = 20
 )
 
 var (
@@ -198,6 +202,7 @@ var (
 		ErrorCodeLinkByInvalid:        "linkby invalid",
 		ErrorCodeLinkToInvalid:        "linkto invalid",
 		ErrorCodeLinkByNotExpired:     "linkby not exipred",
+		ErrorCodeRecordStatusInvalid:  "record status invalid",
 	}
 )
 

@@ -1038,10 +1038,17 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		}
 	}
 
-	// Verify record version
+	// Verify record status and version
 	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
 	if err != nil {
 		return "", fmt.Errorf("RecordPartial: %v", err)
+	}
+	if r.RecordMetadata.Status != backend.StatusPublic {
+		return "", backend.PluginError{
+			PluginID:     ticketvote.PluginID,
+			ErrorCode:    int(ticketvote.ErrorCodeRecordStatusInvalid),
+			ErrorContext: "record is not public",
+		}
 	}
 	if a.Version != r.RecordMetadata.Version {
 		e := fmt.Sprintf("version is not latest: got %v, want %v",
@@ -1357,6 +1364,10 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	if err != nil {
 		return nil, fmt.Errorf("RecordPartial: %v", err)
 	}
+	if r.RecordMetadata.State != backend.StateVetted {
+		// This should not be possible
+		return nil, fmt.Errorf("record is unvetted")
+	}
 	if sd.Params.Version != r.RecordMetadata.Version {
 		e := fmt.Sprintf("version is not latest: got %v, want %v",
 			sd.Params.Version, r.RecordMetadata.Version)
@@ -1576,6 +1587,10 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	if err != nil {
 		return fmt.Errorf("RecordPartial: %v", err)
 	}
+	if r.RecordMetadata.State != backend.StateVetted {
+		// This should not be possible
+		return fmt.Errorf("record is unvetted")
+	}
 	if sd.Params.Version != r.RecordMetadata.Version {
 		e := fmt.Sprintf("version is not latest %v: got %v, want %v",
 			sd.Params.Token, sd.Params.Version, r.RecordMetadata.Version)
@@ -1640,9 +1655,10 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 	}
 
 	// Verify parent has a LinkBy and the LinkBy deadline is expired.
-	r, err := p.tstore.RecordPartial(treeID, 0, []string{
+	files := []string{
 		ticketvote.FileNameVoteMetadata,
-	}, false)
+	}
+	r, err := p.tstore.RecordPartial(treeID, 0, files, false)
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			e := fmt.Sprintf("parent record not found %x", token)
@@ -1653,6 +1669,10 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 			}
 		}
 		return nil, fmt.Errorf("RecordPartial: %v", err)
+	}
+	if r.RecordMetadata.State != backend.StateVetted {
+		// This should not be possible
+		return nil, fmt.Errorf("record is unvetted")
 	}
 	vm, err := voteMetadataDecode(r.Files)
 	if err != nil {
