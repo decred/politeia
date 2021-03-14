@@ -18,7 +18,7 @@ import (
 const (
 	// encryptionKeyFilename is the filename of the encryption key that
 	// is created in the store data directory.
-	encryptionKeyFilename = "sbox.key"
+	encryptionKeyFilename = "leveldb-sbox.key"
 )
 
 var (

@@ -13,7 +13,67 @@ import (
 
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
+	"golang.org/x/crypto/argon2"
 )
+
+// salt creates a random salt and saves it to the kv store. Subsequent calls to
+// this function will return the existing salt.
+func (s *mysql) salt(size int) ([]byte, error) {
+	saltKey := "salt"
+
+	// Check if a salt already exists in the database
+	blobs, err := s.Get([]string{saltKey})
+	if err != nil {
+		return nil, fmt.Errorf("get: %v", err)
+	}
+	salt, ok := blobs[saltKey]
+	if ok {
+		// Salt already exists
+		log.Debugf("Salt found in kv store")
+		return salt, nil
+	}
+
+	// Salt doesn't exist yet. Create one and save it.
+	salt, err = util.Random(size)
+	if err != nil {
+		return nil, err
+	}
+	kv := map[string][]byte{
+		saltKey: salt,
+	}
+	err = s.Put(kv, false)
+	if err != nil {
+		return nil, fmt.Errorf("put: %v", err)
+	}
+
+	log.Debugf("Salt created and saved to kv store")
+
+	return salt, nil
+}
+
+// aragon2idKey derives a 32 byte aragon2id key from the provided password.
+// The salt is generated the first time the key is derived and saved to the kv
+// store. Subsequent calls to this fuction will use the existing salt.
+func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
+	var (
+		pass           = []byte(password)
+		saltLen int    = 16 // In bytes
+		time    uint32 = 1
+		memory  uint32 = 64 * 1024 // 64 MB
+		threads uint8  = 4         // Number of available CPUs
+		keyLen  uint32 = 32        // In bytes
+	)
+	salt, err := s.salt(saltLen)
+	if err != nil {
+		return nil, fmt.Errorf("salt: %v", err)
+	}
+	k := argon2.IDKey(pass, salt, time, memory, threads, keyLen)
+	var key [32]byte
+	copy(key[:], k)
+	util.Zero(k)
+
+	return &key, nil
+}
 
 func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
 	// Create a new nonce value

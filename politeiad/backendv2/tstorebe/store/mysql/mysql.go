@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/util"
-	"golang.org/x/crypto/argon2"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -250,40 +248,12 @@ func (s *mysql) Close() {
 	s.db.Close()
 }
 
-func (s *mysql) salt(size int) ([]byte, error) {
-	saltKey := "salt"
-
-	// Check if a salt already exists in the database
-	blobs, err := s.Get([]string{saltKey})
-	if err != nil {
-		return nil, fmt.Errorf("get: %v", err)
-	}
-	salt, ok := blobs[saltKey]
-	if ok {
-		// Salt already exists
-		log.Debugf("Salt found in kv store")
-		return salt, nil
-	}
-
-	// Salt doesn't exist yet. Create one and save it.
-	salt, err = util.Random(size)
-	if err != nil {
-		return nil, err
-	}
-	kv := map[string][]byte{
-		saltKey: salt,
-	}
-	err = s.Put(kv, false)
-	if err != nil {
-		return nil, fmt.Errorf("put: %v", err)
-	}
-
-	log.Debugf("Salt created and saved to kv store")
-
-	return salt, nil
-}
-
 func New(appDir, host, user, password, dbname string) (*mysql, error) {
+	// The password is required to derive the encryption key
+	if password == "" {
+		return nil, fmt.Errorf("password not provided")
+	}
+
 	// Connect to database
 	log.Infof("Host: %v:[password]@tcp(%v)/%v", user, host, dbname)
 
@@ -326,24 +296,10 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	}
 
 	// Derive encryption key from password
-	var (
-		pass           = []byte(password)
-		saltLen int    = 16 // In bytes
-		time    uint32 = 1
-		memory  uint32 = 64 * 1024 // 64 MB
-		threads uint8  = 4         // Number of available CPUs
-		keyLen  uint32 = 32        // In bytes
-	)
-	salt, err := s.salt(saltLen)
+	s.key, err = s.argon2idKey(password)
 	if err != nil {
-		return nil, fmt.Errorf("salt: %v", err)
+		return nil, fmt.Errorf("argon2idKey: %v", err)
 	}
-	k := argon2.IDKey(pass, salt, time, memory, threads, keyLen)
-	var key [32]byte
-	copy(key[:], k)
-	util.Zero(k)
-
-	s.key = &key
 
 	return &s, nil
 }
