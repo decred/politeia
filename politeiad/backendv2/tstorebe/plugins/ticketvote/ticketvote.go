@@ -89,7 +89,7 @@ func (p *ticketVotePlugin) Setup() error {
 	}
 
 	// Build active votes cache
-	log.Infof("Building votes cache")
+	log.Infof("Building active votes cache")
 
 	started := make([]string, 0, len(inv.Entries))
 	for _, v := range inv.Entries {

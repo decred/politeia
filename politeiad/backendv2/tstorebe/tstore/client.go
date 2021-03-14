@@ -82,7 +82,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	key := storeKeyNew(encrypt)
 	kv := map[string][]byte{key: blob}
 
-	log.Debugf("Saving plugin data blob")
+	log.Debugf("Saving plugin data blob %v", dd.Descriptor)
 
 	// Save blob to store
 	err = t.store.Put(kv, encrypt)
@@ -254,12 +254,12 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 	return entries, nil
 }
 
-// BlobsByDataDesc returns all blobs that match the provided data descriptor.
+// BlobsByDataDesc returns all blobs that match the provided data descriptors.
 // The blobs will be ordered from oldest to newest. If a record is vetted then
 // only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEntry, error) {
+func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc []string) ([]store.BlobEntry, error) {
 	log.Tracef("BlobsByDataDesc: %v %v", treeID, dataDesc)
 
 	// Verify tree exists
@@ -329,7 +329,7 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEnt
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, error) {
+func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc []string) ([][]byte, error) {
 	log.Tracef("DigestsByDataDesc: %v %v", treeID, dataDesc)
 
 	// Verify tree exists
@@ -403,7 +403,13 @@ func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, err
 	return t.timestamp(treeID, m, leaves)
 }
 
-func leavesForDescriptor(leaves []*trillian.LogLeaf, desc string) []*trillian.LogLeaf {
+func leavesForDescriptor(leaves []*trillian.LogLeaf, descriptors []string) []*trillian.LogLeaf {
+	// Put descriptors into a map for 0(n) lookups
+	desc := make(map[string]struct{}, len(descriptors))
+	for _, v := range descriptors {
+		desc[v] = struct{}{}
+	}
+
 	// Determine if the record is vetted. If the record is vetted then
 	// only vetted leaves will be returned.
 	isVetted := recordIsVetted(leaves)
@@ -416,17 +422,17 @@ func leavesForDescriptor(leaves []*trillian.LogLeaf, desc string) []*trillian.Lo
 		if err != nil {
 			panic(err)
 		}
-		switch {
-		case ed.Desc != desc:
-			// Not the data descriptor we're looking for
+		if _, ok := desc[ed.Desc]; !ok {
+			// Not one of the data descriptor we're looking for
 			continue
-		case isVetted && ed.State != backend.StateVetted:
+		}
+		if isVetted && ed.State != backend.StateVetted {
 			// Unvetted leaf on a vetted record. Don't use it.
 			continue
-		default:
-			// We have a match!
-			matches = append(matches, v)
 		}
+
+		// We have a match!
+		matches = append(matches, v)
 	}
 
 	return matches

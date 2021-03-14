@@ -171,12 +171,13 @@ type TstoreClient interface {
 	// BlobsByDataDesc returns all blobs that match the provided data
 	// descriptor. The blobs will be ordered from oldest to newest. If
 	// a record is vetted then only vetted blobs will be returned.
-	BlobsByDataDesc(treeID int64, dataDesc string) ([]store.BlobEntry, error)
+	BlobsByDataDesc(treeID int64, dataDesc []string) ([]store.BlobEntry, error)
 
 	// DigestsByDataDesc returns the digests of all blobs that match
-	// the provided data descriptor. If  a record is vetted, only
-	// vetted blobs will be returned.
-	DigestsByDataDesc(treeID int64, dataDesc string) ([][]byte, error)
+	// the provided data descriptor. The digests will be ordered from
+	// oldest to newest. If a record is vetted, only vetted blobs will
+	// be returned.
+	DigestsByDataDesc(treeID int64, dataDesc []string) ([][]byte, error)
 
 	// Timestamp returns the timestamp for the blob that correpsonds
 	// to the digest. If a record is vetted, only vetted timestamps

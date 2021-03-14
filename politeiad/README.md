@@ -90,8 +90,13 @@ politeiad
 5. Run the politeiad mysql setup scripts.
 
    This will create the politeiad and trillian users as well as creating the
-   politeiad databases. Trillian does not support SSL authentication to the
-   MySQL instance. Password authentication must be used.
+   politeiad databases. Password authentication is used for all database
+   connections.
+
+   **The password that you set for the politeiad user will be used to derive an
+   encryption key that is used to encrypt non-public politeiad data. Make sure
+   to setup a strong password when running in production. Once set, the
+   politeiad user password cannot change.**
 
    The setup script assumes MySQL is running on `localhost:3306` and the users
    will be accessing the databse from `localhost`. See the setup script

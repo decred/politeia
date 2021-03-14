@@ -474,6 +474,9 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 		Payload:  payload,
 	}
 
+	log.Infof("%v Plugin '%v' write cmd '%v' executed",
+		util.RemoteAddr(r), pw.Cmd.ID, pw.Cmd.Command)
+
 	util.RespondWithJSON(w, http.StatusOK, pwr)
 }
 
