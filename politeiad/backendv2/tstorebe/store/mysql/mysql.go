@@ -255,7 +255,7 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	}
 
 	// Connect to database
-	log.Infof("Host: %v:[password]@tcp(%v)/%v", user, host, dbname)
+	log.Infof("MySQL: %v:[password]@tcp(%v)/%v", user, host, dbname)
 
 	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
 	db, err := sql.Open("mysql", h)

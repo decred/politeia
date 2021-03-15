@@ -164,7 +164,7 @@ func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 func (t *Tstore) TreeNew() (int64, error) {
 	log.Tracef("TreeNew")
 
-	tree, _, err := t.tlog.treeNew()
+	tree, _, err := t.tlog.TreeNew()
 	if err != nil {
 		return 0, err
 	}
@@ -199,7 +199,7 @@ func (t *Tstore) TreeFreeze(treeID int64, rm backend.RecordMetadata, metadata []
 
 // TreesAll returns the IDs of all trees in the tstore instance.
 func (t *Tstore) TreesAll() ([]int64, error) {
-	trees, err := t.tlog.treesAll()
+	trees, err := t.tlog.TreesAll()
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (t *Tstore) TreesAll() ([]int64, error) {
 // tree to have been created but experienced an unexpected error prior to the
 // record being saved.
 func (t *Tstore) TreeExists(treeID int64) bool {
-	_, err := t.tlog.tree(treeID)
+	_, err := t.tlog.Tree(treeID)
 	return err == nil
 }
 
@@ -500,9 +500,9 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 	}
 
 	// Append leaves onto the trillian tree
-	queued, _, err := t.tlog.leavesAppend(treeID, leaves)
+	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAppend: %v", err)
+		return nil, fmt.Errorf("LeavesAppend: %v", err)
 	}
 	failed := make([]string, 0, len(queued))
 	for _, v := range queued {
@@ -586,9 +586,9 @@ func (t *Tstore) recordSave(treeID int64, rm backend.RecordMetadata, metadata []
 	}
 
 	// Get tree leaves
-	leavesAll, err := t.tlog.leavesAll(treeID)
+	leavesAll, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
+		return nil, fmt.Errorf("LeavesAll %v: %v", treeID, err)
 	}
 
 	// Get the existing record index
@@ -656,7 +656,7 @@ func (t *Tstore) RecordDel(treeID int64) error {
 	}
 
 	// Get all tree leaves
-	leavesAll, err := t.tlog.leavesAll(treeID)
+	leavesAll, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -724,9 +724,9 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	}
 
 	// Get tree leaves
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
+		return nil, fmt.Errorf("LeavesAll %v: %v", treeID, err)
 	}
 
 	// Use the record index to pull the record content from the store.
@@ -940,7 +940,7 @@ func recordIsVetted(leaves []*trillian.LogLeaf) bool {
 func (t *Tstore) RecordState(treeID int64) (backend.StateT, error) {
 	log.Tracef("RecordState: %v", treeID)
 
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
 		return 0, err
 	}
@@ -1016,9 +1016,9 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 
 	// Get trillian inclusion proof
-	p, err := t.tlog.inclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
+	p, err := t.tlog.InclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
 	if err != nil {
-		return nil, fmt.Errorf("inclusionProof %v %x: %v",
+		return nil, fmt.Errorf("InclusionProof %v %x: %v",
 			treeID, l.MerkleLeafHash, err)
 	}
 
@@ -1099,9 +1099,9 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 	}
 
 	// Get record index
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll %v: %v", treeID, err)
+		return nil, fmt.Errorf("LeavesAll %v: %v", treeID, err)
 	}
 	idx, err := t.recordIndex(leaves, version)
 	if err != nil {
@@ -1161,7 +1161,7 @@ func (t *Tstore) Close() {
 
 	// Close connections
 	t.store.Close()
-	t.tlog.close()
+	t.tlog.Close()
 }
 
 func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {

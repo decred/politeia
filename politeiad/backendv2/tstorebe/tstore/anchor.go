@@ -153,9 +153,9 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 // errAnchorNotFound is returned if no anchor is found for the provided tree.
 func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	// Get tree leaves
-	leavesAll, err := t.tlog.leavesAll(treeID)
+	leavesAll, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
+		return nil, fmt.Errorf("LeavesAll: %v", err)
 	}
 
 	// Find the most recent anchor leaf
@@ -240,9 +240,9 @@ func (t *Tstore) anchorSave(a anchor) error {
 	leaves := []*trillian.LogLeaf{
 		newLogLeaf(d, extraData),
 	}
-	queued, _, err := t.tlog.leavesAppend(a.TreeID, leaves)
+	queued, _, err := t.tlog.LeavesAppend(a.TreeID, leaves)
 	if err != nil {
-		return fmt.Errorf("leavesAppend: %v", err)
+		return fmt.Errorf("LeavesAppend: %v", err)
 	}
 	if len(queued) != 1 {
 		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
@@ -453,9 +453,9 @@ func (t *Tstore) anchorTrees() error {
 		return nil
 	}
 
-	trees, err := t.tlog.treesAll()
+	trees, err := t.tlog.TreesAll()
 	if err != nil {
-		return fmt.Errorf("treesAll: %v", err)
+		return fmt.Errorf("TreesAll: %v", err)
 	}
 
 	// digests contains the SHA256 digests of the LogRootV1.RootHash
@@ -481,9 +481,9 @@ func (t *Tstore) anchorTrees() error {
 		case errors.Is(err, errAnchorNotFound):
 			// Tree has not been anchored yet. Verify that the tree has
 			// leaves. A tree with no leaves does not need to be anchored.
-			leavesAll, err := t.tlog.leavesAll(v.TreeId)
+			leavesAll, err := t.tlog.LeavesAll(v.TreeId)
 			if err != nil {
-				return fmt.Errorf("leavesAll: %v", err)
+				return fmt.Errorf("LeavesAll: %v", err)
 			}
 			if len(leavesAll) == 0 {
 				// Tree does not have any leaves. Nothing to do.
@@ -497,9 +497,9 @@ func (t *Tstore) anchorTrees() error {
 		default:
 			// Anchor record found. If the anchor height differs from the
 			// current height then the tree needs to be anchored.
-			_, lr, err := t.tlog.signedLogRoot(v)
+			_, lr, err := t.tlog.SignedLogRoot(v)
 			if err != nil {
-				return fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
+				return fmt.Errorf("SignedLogRoot %v: %v", v.TreeId, err)
 			}
 			// Subtract one from the current height to account for the
 			// anchor leaf.
@@ -512,9 +512,9 @@ func (t *Tstore) anchorTrees() error {
 
 		// Tree has not been anchored at current height. Add it to the
 		// list of anchors.
-		_, lr, err := t.tlog.signedLogRoot(v)
+		_, lr, err := t.tlog.SignedLogRoot(v)
 		if err != nil {
-			return fmt.Errorf("signedLogRoot %v: %v", v.TreeId, err)
+			return fmt.Errorf("SignedLogRoot %v: %v", v.TreeId, err)
 		}
 		anchors = append(anchors, anchor{
 			TreeID:  v.TreeId,

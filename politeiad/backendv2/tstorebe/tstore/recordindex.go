@@ -120,9 +120,9 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 	leaves := []*trillian.LogLeaf{
 		newLogLeaf(d, extraData),
 	}
-	queued, _, err := t.tlog.leavesAppend(treeID, leaves)
+	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
-		return fmt.Errorf("leavesAppend: %v", err)
+		return fmt.Errorf("LeavesAppend: %v", err)
 	}
 	if len(queued) != 1 {
 		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",

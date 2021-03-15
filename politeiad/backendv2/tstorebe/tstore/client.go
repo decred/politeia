@@ -32,9 +32,9 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	}
 
 	// Verify tree is not frozen
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return fmt.Errorf("leavesAll: %v", err)
+		return fmt.Errorf("LeavesAll: %v", err)
 	}
 	idx, err := t.recordIndexLatest(leaves)
 	if err != nil {
@@ -100,9 +100,9 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	}
 
 	// Append log leaf to trillian tree
-	queued, _, err := t.tlog.leavesAppend(treeID, leaves)
+	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
-		return fmt.Errorf("leavesAppend: %v", err)
+		return fmt.Errorf("LeavesAppend: %v", err)
 	}
 	if len(queued) != 1 {
 		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
@@ -129,9 +129,9 @@ func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
 	}
 
 	// Get all tree leaves
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return fmt.Errorf("leavesAll: %v", err)
+		return fmt.Errorf("LeavesAll: %v", err)
 	}
 
 	// Put merkle leaf hashes into a map so that we can tell if a leaf
@@ -184,9 +184,9 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 	}
 
 	// Get leaves
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
+		return nil, fmt.Errorf("LeavesAll: %v", err)
 	}
 
 	// Determine if the record is vetted. If the record is vetted, only
@@ -268,9 +268,9 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc []string) ([]store.BlobE
 	}
 
 	// Get leaves
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
+		return nil, fmt.Errorf("LeavesAll: %v", err)
 	}
 
 	// Find all matching leaves
@@ -338,9 +338,9 @@ func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc []string) ([][]byte, e
 	}
 
 	// Get leaves
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
+		return nil, fmt.Errorf("LeavesAll: %v", err)
 	}
 
 	// Find all matching leaves
@@ -364,9 +364,9 @@ func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, err
 	log.Tracef("Timestamp: %v %x", treeID, digest)
 
 	// Get tree leaves
-	leaves, err := t.tlog.leavesAll(treeID)
+	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("leavesAll: %v", err)
+		return nil, fmt.Errorf("LeavesAll: %v", err)
 	}
 
 	// Determine if the record is vetted
