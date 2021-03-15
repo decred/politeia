@@ -75,12 +75,17 @@ func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
 	return &key, nil
 }
 
-func (s *mysql) insertNonce(ctx context.Context, tx *sql.Tx) error {
+// nonce returns a new nonce value. This function guarantees that the returned
+// nonce will be unique for every invocation.
+//
+// This function must be called using a transaction.
+func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 	_, err := tx.ExecContext(ctx, "INSERT INTO nonce () VALUES ();")
-	return err
-}
+	if err != nil {
+		return 0, fmt.Errorf("insert: %v", err)
+	}
 
-func (s *mysql) queryNonce(ctx context.Context, tx *sql.Tx) (int64, error) {
+	// Get the nonce value that was just created
 	rows, err := tx.QueryContext(ctx, "SELECT LAST_INSERT_ID();")
 	if err != nil {
 		return 0, fmt.Errorf("query: %v", err)
@@ -112,16 +117,10 @@ func (s *mysql) queryNonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 }
 
 func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
-	// Create a new nonce value
-	err := s.insertNonce(ctx, tx)
+	// Get nonce value
+	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
-		return nil, fmt.Errorf("insert nonce: %v", err)
-	}
-
-	// Get the nonce value that was just created
-	nonce, err := s.queryNonce(ctx, tx)
-	if err != nil {
-		return nil, fmt.Errorf("query nonce: %v", err)
+		return nil, err
 	}
 
 	log.Tracef("Encrypting with nonce: %v", nonce)

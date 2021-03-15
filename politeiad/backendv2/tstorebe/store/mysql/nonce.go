@@ -12,23 +12,17 @@ import (
 	"sync"
 )
 
-// testNonce is used to verify that nonce races do not occur. This function
-// is meant to be run against an actual MySQL/MariaDB instance, not as a unit
+// testNonce is used to verify that nonce races do not occur. This function is
+// meant to be run against an actual MySQL/MariaDB instance, not as a unit
 // test.
 func (s *mysql) testNonce(ctx context.Context, tx *sql.Tx) error {
-	// Create a new nonce value
-	err := s.insertNonce(ctx, tx)
+	// Get nonce
+	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
-		return fmt.Errorf("insert nonce: %v", err)
+		return fmt.Errorf("nonce: %v", err)
 	}
 
-	// Get the nonce value that was just created
-	nonce, err := s.queryNonce(ctx, tx)
-	if err != nil {
-		return fmt.Errorf("query nonce: %v", err)
-	}
-
-	// Save a empty blob to the kv store using the nonce as the key.
+	// Save an empty blob to the kv store using the nonce as the key.
 	// If a nonce is reused it will cause an error since the key must
 	// be unique.
 	k := strconv.FormatInt(nonce, 10)
@@ -44,7 +38,7 @@ func (s *mysql) testNonce(ctx context.Context, tx *sql.Tx) error {
 // testNonceIsUnique verifies that nonce races do not occur. This function
 // is meant to be run against an actual MySQL/MariaDB instance, not as a unit
 // test.
-func (s *mysql) testNonceIsUnique() error {
+func (s *mysql) testNonceIsUnique() {
 	log.Infof("Starting nonce concurrency test")
 
 	// Run test
@@ -73,7 +67,7 @@ func (s *mysql) testNonceIsUnique() error {
 				return
 			}
 
-			// Save blobs
+			// Run nonce test
 			err = s.testNonce(ctx, tx)
 			if err != nil {
 				// Attempt to roll back the transaction
@@ -100,7 +94,6 @@ func (s *mysql) testNonceIsUnique() error {
 	// Wait for all tests to complete
 	wg.Wait()
 
-	log.Infof("Nonce concurrency test success!")
+	log.Infof("Nonce concurrency test complete")
 
-	return nil
 }
