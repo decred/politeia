@@ -47,7 +47,7 @@ func convertSignatureError(err error) backend.PluginError {
 	}
 	return backend.PluginError{
 		PluginID:     comments.PluginID,
-		ErrorCode:    int(s),
+		ErrorCode:    uint32(s),
 		ErrorContext: e.ErrorContext,
 	}
 }
@@ -605,7 +605,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	if err != nil {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
 		}
 	}
@@ -614,7 +614,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 			"got %x, want %x", t, token)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -632,7 +632,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 		e := fmt.Sprintf("max length is %v characters", p.commentLengthMax)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeMaxLengthExceeded),
+			ErrorCode:    uint32(comments.ErrorCodeMaxLengthExceeded),
 			ErrorContext: e,
 		}
 	}
@@ -646,7 +646,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 		e := fmt.Sprintf("got %v, want %v", n.State, state)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeStateInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -662,7 +662,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	if n.ParentID > 0 && !commentExists(*ridx, n.ParentID) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeParentIDInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeParentIDInvalid),
 			ErrorContext: "parent ID comment not found",
 		}
 	}
@@ -742,7 +742,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	if err != nil {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
 		}
 	}
@@ -751,7 +751,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 			"got %x, want %x", t, token)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -769,7 +769,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 		e := fmt.Sprintf("max length is %v characters", p.commentLengthMax)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeMaxLengthExceeded),
+			ErrorCode:    uint32(comments.ErrorCodeMaxLengthExceeded),
 			ErrorContext: e,
 		}
 	}
@@ -783,7 +783,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 		e := fmt.Sprintf("got %v, want %v", e.State, state)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeStateInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -803,7 +803,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	if !ok {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeCommentNotFound),
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
 		}
 	}
 
@@ -811,7 +811,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	if e.UserID != existing.UserID {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeUserUnauthorized),
+			ErrorCode: uint32(comments.ErrorCodeUserUnauthorized),
 		}
 	}
 
@@ -821,7 +821,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 			e.ParentID, existing.ParentID)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeParentIDInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeParentIDInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -830,7 +830,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	if e.Comment == existing.Comment {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeNoChanges),
+			ErrorCode: uint32(comments.ErrorCodeNoChanges),
 		}
 	}
 
@@ -903,7 +903,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	if err != nil {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
 		}
 	}
@@ -912,7 +912,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 			"got %x, want %x", t, token)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -934,7 +934,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 		e := fmt.Sprintf("got %v, want %v", d.State, state)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeStateInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -954,7 +954,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	if !ok {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeCommentNotFound),
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
 		}
 	}
 
@@ -1038,7 +1038,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	if err != nil {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: err.Error(),
 		}
 	}
@@ -1047,7 +1047,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 			"got %x, want %x", t, token)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1059,7 +1059,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	default:
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeVoteInvalid),
+			ErrorCode: uint32(comments.ErrorCodeVoteInvalid),
 		}
 	}
 
@@ -1081,7 +1081,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 		e := fmt.Sprintf("got %v, want %v", v.State, state)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeStateInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeStateInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1097,7 +1097,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	if !ok {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeCommentNotFound),
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
 		}
 	}
 
@@ -1109,7 +1109,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	if len(uvotes) > int(p.voteChangesMax) {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeVoteChangesMaxExceeded),
+			ErrorCode: uint32(comments.ErrorCodeVoteChangesMaxExceeded),
 		}
 	}
 
@@ -1125,7 +1125,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	if v.UserID == c.UserID {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeVoteInvalid),
+			ErrorCode:    uint32(comments.ErrorCodeVoteInvalid),
 			ErrorContext: "user cannot vote on their own comment",
 		}
 	}
@@ -1303,13 +1303,13 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	if !ok {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
-			ErrorCode: int(comments.ErrorCodeCommentNotFound),
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
 		}
 	}
 	if cidx.Del != nil {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeCommentNotFound),
+			ErrorCode:    uint32(comments.ErrorCodeCommentNotFound),
 			ErrorContext: "comment has been deleted",
 		}
 	}
@@ -1319,7 +1319,7 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 			gv.CommentID, gv.Version)
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    int(comments.ErrorCodeCommentNotFound),
+			ErrorCode:    uint32(comments.ErrorCodeCommentNotFound),
 			ErrorContext: e,
 		}
 	}

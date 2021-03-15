@@ -33,7 +33,7 @@ func convertSignatureError(err error) backend.PluginError {
 	}
 	return backend.PluginError{
 		PluginID:     usermd.PluginID,
-		ErrorCode:    int(s),
+		ErrorCode:    uint32(s),
 		ErrorContext: e.ErrorContext,
 	}
 }
@@ -70,7 +70,7 @@ func userMetadataVerify(metadata []backend.MetadataStream, files []backend.File)
 	if um == nil {
 		return backend.PluginError{
 			PluginID:  usermd.PluginID,
-			ErrorCode: int(usermd.ErrorCodeUserMetadataNotFound),
+			ErrorCode: uint32(usermd.ErrorCodeUserMetadataNotFound),
 		}
 	}
 
@@ -79,7 +79,7 @@ func userMetadataVerify(metadata []backend.MetadataStream, files []backend.File)
 	if err != nil {
 		return backend.PluginError{
 			PluginID:  usermd.PluginID,
-			ErrorCode: int(usermd.ErrorCodeUserIDInvalid),
+			ErrorCode: uint32(usermd.ErrorCodeUserIDInvalid),
 		}
 	}
 
@@ -120,7 +120,7 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 			u.UserID, c.UserID)
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodeUserIDInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeUserIDInvalid),
 			ErrorContext: e,
 		}
 
@@ -129,7 +129,7 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 			u.PublicKey, c.PublicKey)
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodePublicKeyInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodePublicKeyInvalid),
 			ErrorContext: e,
 		}
 
@@ -138,7 +138,7 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 			u.Signature, c.Signature)
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodeSignatureInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeSignatureInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -206,7 +206,7 @@ func (p *userPlugin) hookEditRecordPre(payload string) error {
 			um.UserID, umCurr.UserID)
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodeUserIDInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeUserIDInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -271,7 +271,7 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	if len(statusChanges) == 0 {
 		return backend.PluginError{
 			PluginID:  usermd.PluginID,
-			ErrorCode: int(usermd.ErrorCodeStatusChangeMetadataNotFound),
+			ErrorCode: uint32(usermd.ErrorCodeStatusChangeMetadataNotFound),
 		}
 	}
 	scm := statusChanges[len(statusChanges)-1]
@@ -282,7 +282,7 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 			"metadata token: got %v, want %v", scm.Token, rm.Token)
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -293,7 +293,7 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 			"record metadata: got %v, want %v", scm.Status, rm.Status)
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodeStatusInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeStatusInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -303,7 +303,7 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	if ok && scm.Reason == "" {
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    int(usermd.ErrorCodeReasonInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeReasonInvalid),
 			ErrorContext: "a reason must be given for this status change",
 		}
 	}

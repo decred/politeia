@@ -25,7 +25,7 @@ const (
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
-type ErrorCodeT int
+type ErrorCodeT uint32
 
 const (
 	// User error codes

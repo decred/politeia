@@ -127,7 +127,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	}
 }
 
-func convertPDErrorCode(errCode int) v1.ErrorCodeT {
+func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 	// These are the only politeiad user errors that the comments
 	// API expects to encounter.
 	switch pdv2.ErrorCodeT(errCode) {

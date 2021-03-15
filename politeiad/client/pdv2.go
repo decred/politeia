@@ -398,7 +398,7 @@ func extractPluginCmdError(pcr pdv2.PluginCmdReply) error {
 		return Error{
 			HTTPCode: http.StatusBadRequest,
 			ErrorReply: ErrorReply{
-				ErrorCode:    int(pcr.UserError.ErrorCode),
+				ErrorCode:    uint32(pcr.UserError.ErrorCode),
 				ErrorContext: pcr.UserError.ErrorContext,
 			},
 		}

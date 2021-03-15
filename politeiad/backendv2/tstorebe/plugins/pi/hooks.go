@@ -86,7 +86,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			if !ok {
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeTextFileNameInvalid),
+					ErrorCode:    uint32(pi.ErrorCodeTextFileNameInvalid),
 					ErrorContext: v.Name,
 				}
 			}
@@ -97,7 +97,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 					v.Name, len(payload), p.textFileSizeMax)
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeTextFileSizeInvalid),
+					ErrorCode:    uint32(pi.ErrorCodeTextFileSizeInvalid),
 					ErrorContext: e,
 				}
 			}
@@ -111,7 +111,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 					v.Name, len(payload), p.imageFileSizeMax)
 				return backend.PluginError{
 					PluginID:     pi.PluginID,
-					ErrorCode:    int(pi.ErrorCodeImageFileSizeInvalid),
+					ErrorCode:    uint32(pi.ErrorCodeImageFileSizeInvalid),
 					ErrorContext: e,
 				}
 			}
@@ -132,7 +132,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if !found {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeTextFileMissing),
+			ErrorCode:    uint32(pi.ErrorCodeTextFileMissing),
 			ErrorContext: pi.FileNameIndexFile,
 		}
 	}
@@ -143,7 +143,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			imagesCount, p.imageFileCountMax)
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeImageFileCountInvalid),
+			ErrorCode:    uint32(pi.ErrorCodeImageFileCountInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -156,7 +156,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if pm == nil {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeTextFileMissing),
+			ErrorCode:    uint32(pi.ErrorCodeTextFileMissing),
 			ErrorContext: pi.FileNameProposalMetadata,
 		}
 	}
@@ -165,7 +165,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if !p.proposalNameIsValid(pm.Name) {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeProposalNameInvalid),
+			ErrorCode:    uint32(pi.ErrorCodeProposalNameInvalid),
 			ErrorContext: p.proposalNameRegexp.String(),
 		}
 	}
@@ -211,7 +211,7 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 				ticketvote.VoteStatuses[s.Status])
 			return backend.PluginError{
 				PluginID:     pi.PluginID,
-				ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
+				ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -249,7 +249,7 @@ func (p *piPlugin) commentWritesVerify(token []byte) error {
 	default:
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    int(pi.ErrorCodeVoteStatusInvalid),
+			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote has ended; proposal is locked",
 		}
 	}

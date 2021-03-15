@@ -114,7 +114,7 @@ func handlePDError(w http.ResponseWriter, r *http.Request, format string, pde pd
 	}
 }
 
-func convertPDErrorCode(errCode int) v1.ErrorCodeT {
+func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 	// This list is only populated with politeiad errors that we expect
 	// for the ticketvote plugin commands. Any politeiad errors not
 	// included in this list will cause politeiawww to 500.

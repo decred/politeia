@@ -73,7 +73,7 @@ func convertSignatureError(err error) backend.PluginError {
 	}
 	return backend.PluginError{
 		PluginID:     ticketvote.PluginID,
-		ErrorCode:    int(s),
+		ErrorCode:    uint32(s),
 		ErrorContext: e.ErrorContext,
 	}
 }
@@ -892,7 +892,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	if err != nil {
 		return "", backend.PluginError{
 			PluginID:  ticketvote.PluginID,
-			ErrorCode: int(ticketvote.ErrorCodeTokenInvalid),
+			ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
 		}
 	}
 	if !bytes.Equal(t, token) {
@@ -900,7 +900,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 			"got %x, want %x", t, token)
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -923,7 +923,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		e := fmt.Sprintf("%v not a valid action", a.Action)
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -936,7 +936,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	if r.RecordMetadata.Status != backend.StatusPublic {
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeRecordStatusInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeRecordStatusInvalid),
 			ErrorContext: "record is not public",
 		}
 	}
@@ -945,7 +945,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 			a.Version, r.RecordMetadata.Version)
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeRecordVersionInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -966,7 +966,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		if a.Action != ticketvote.AuthActionAuthorize {
 			return "", backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
 				ErrorContext: "no prev action; action must be authorize",
 			}
 		}
@@ -975,7 +975,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		// Previous action was a authorize. This action must be revoke.
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: "prev action was authorize",
 		}
 	case prevAction == ticketvote.AuthActionRevoke &&
@@ -983,7 +983,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		// Previous action was a revoke. This action must be authorize.
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeAuthorizationInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
 			ErrorContext: "prev action was revoke",
 		}
 	}
@@ -1066,7 +1066,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 	default:
 		return backend.PluginError{
 			PluginID:  ticketvote.PluginID,
-			ErrorCode: int(ticketvote.ErrorCodeVoteTypeInvalid),
+			ErrorCode: uint32(ticketvote.ErrorCodeVoteTypeInvalid),
 		}
 	}
 
@@ -1077,7 +1077,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.Duration, voteDurationMax)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteDurationInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteDurationInvalid),
 			ErrorContext: e,
 		}
 	case vote.Duration < voteDurationMin:
@@ -1085,7 +1085,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.Duration, voteDurationMin)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteDurationInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteDurationInvalid),
 			ErrorContext: e,
 		}
 	case vote.QuorumPercentage > 100:
@@ -1093,7 +1093,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.QuorumPercentage)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteQuorumInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
 			ErrorContext: e,
 		}
 	case vote.PassPercentage > 100:
@@ -1101,7 +1101,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			vote.PassPercentage)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVotePassRateInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVotePassRateInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1111,7 +1111,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 	if len(vote.Options) == 0 {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteOptionsInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
 			ErrorContext: "no vote options found",
 		}
 	}
@@ -1125,7 +1125,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 				len(vote.Options))
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteOptionsInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1154,7 +1154,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 				strings.Join(missing, ","))
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteOptionsInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1166,7 +1166,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		if err != nil {
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteBitsInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteBitsInvalid),
 				ErrorContext: err.Error(),
 			}
 		}
@@ -1178,7 +1178,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		e := "parent token should not be provided for a standard vote"
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteParentInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
 			ErrorContext: e,
 		}
 	case vote.Type == ticketvote.VoteTypeRunoff:
@@ -1187,7 +1187,7 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			e := fmt.Sprintf("invalid parent %v", vote.Parent)
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteParentInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1202,7 +1202,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	if len(s.Starts) != 1 {
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeStartDetailsInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeStartDetailsInvalid),
 			ErrorContext: "more than one start details found for standard vote",
 		}
 	}
@@ -1213,7 +1213,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	if err != nil {
 		return nil, backend.PluginError{
 			PluginID:  ticketvote.PluginID,
-			ErrorCode: int(ticketvote.ErrorCodeTokenInvalid),
+			ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
 		}
 	}
 	if !bytes.Equal(t, token) {
@@ -1221,7 +1221,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 			"got %x, want %x", t, token)
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1263,7 +1263,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 			sd.Params.Version, r.RecordMetadata.Version)
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeRecordVersionInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1276,7 +1276,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	if len(auths) == 0 {
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteStatusInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "not authorized",
 		}
 	}
@@ -1284,7 +1284,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	if action != ticketvote.AuthActionAuthorize {
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteStatusInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "not authorized",
 		}
 	}
@@ -1298,7 +1298,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 		// Vote has already been started
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteStatusInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote already started",
 		}
 	}
@@ -1487,7 +1487,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 			sd.Params.Token, sd.Params.Version, r.RecordMetadata.Version)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeRecordVersionInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1555,7 +1555,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 			e := fmt.Sprintf("parent record not found %x", token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteParentInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1573,7 +1573,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 		e := fmt.Sprintf("%x is not a runoff vote parent", token)
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteParentInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1585,7 +1585,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 			token, vm.LinkBy)
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkByNotExpired),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkByNotExpired),
 			ErrorContext: e,
 		}
 	case !isExpired:
@@ -1635,7 +1635,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 				v.Params.Token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeStartDetailsInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeStartDetailsInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1652,7 +1652,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 			// This records is missing from the runoff vote
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeStartDetailsMissing),
+				ErrorCode:    uint32(ticketvote.ErrorCodeStartDetailsMissing),
 				ErrorContext: k,
 			}
 		}
@@ -1709,7 +1709,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 				v.Params.Token, v.Params.Type, ticketvote.VoteTypeRunoff)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteTypeInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteTypeInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.Mask != mask:
@@ -1717,7 +1717,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 				v.Params.Token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteBitsInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteBitsInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.Duration != duration:
@@ -1725,7 +1725,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 				v.Params.Token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteDurationInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteDurationInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.QuorumPercentage != quorum:
@@ -1733,7 +1733,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 				v.Params.Token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteQuorumInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.PassPercentage != pass:
@@ -1741,7 +1741,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 				v.Params.Token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVotePassRateInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVotePassRateInvalid),
 				ErrorContext: e,
 			}
 		case v.Params.Parent != parent:
@@ -1749,7 +1749,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 				v.Params.Token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeVoteParentInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1759,7 +1759,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 		if err != nil {
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
 				ErrorContext: v.Params.Token,
 			}
 		}
@@ -1770,7 +1770,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 			e := fmt.Sprintf("parent token %v", v.Params.Parent)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeTokenInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -1800,7 +1800,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 			parent)
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteParentInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -1888,7 +1888,7 @@ func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) 
 	if len(s.Starts) == 0 {
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeStartDetailsMissing),
+			ErrorCode:    uint32(ticketvote.ErrorCodeStartDetailsMissing),
 			ErrorContext: "no start details found",
 		}
 	}
@@ -1910,7 +1910,7 @@ func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) 
 	default:
 		return "", backend.PluginError{
 			PluginID:  ticketvote.PluginID,
-			ErrorCode: int(ticketvote.ErrorCodeVoteTypeInvalid),
+			ErrorCode: uint32(ticketvote.ErrorCodeVoteTypeInvalid),
 		}
 	}
 

@@ -50,7 +50,7 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 			linkBy, min)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkByInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkByInvalid),
 			ErrorContext: e,
 		}
 	case linkBy > max:
@@ -58,7 +58,7 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 			linkBy, max)
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkByInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkByInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -71,7 +71,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	if err != nil {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "invalid hex",
 		}
 	}
@@ -80,7 +80,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 		if err == backend.ErrRecordNotFound {
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 				ErrorContext: "record not found",
 			}
 		}
@@ -92,7 +92,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 			backend.Statuses[backend.StatusPublic])
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: e,
 		}
 	}
@@ -106,7 +106,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	if parentVM == nil || parentVM.LinkBy == 0 {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "record not a runoff vote parent",
 		}
 	}
@@ -115,7 +115,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	if time.Now().Unix() > parentVM.LinkBy {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "parent record linkby deadline has expired",
 		}
 	}
@@ -128,7 +128,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	if vs.Status != ticketvote.VoteStatusApproved {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 			ErrorContext: "parent record vote is not approved",
 		}
 	}
@@ -142,7 +142,7 @@ func (p *ticketVotePlugin) voteMetadataVerify(vm ticketvote.VoteMetadata) error 
 		// Vote metadata is empty
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteMetadataInvalid),
 			ErrorContext: "metadata is empty",
 		}
 
@@ -150,7 +150,7 @@ func (p *ticketVotePlugin) voteMetadataVerify(vm ticketvote.VoteMetadata) error 
 		// LinkBy and LinkTo cannot both be set
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
-			ErrorCode:    int(ticketvote.ErrorCodeVoteMetadataInvalid),
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteMetadataInvalid),
 			ErrorContext: "cannot set both linkby and linkto",
 		}
 
@@ -226,7 +226,7 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 				"got '%v', want '%v'", newLinkTo, oldLinkTo)
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
-				ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+				ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 				ErrorContext: e,
 			}
 		}
@@ -291,7 +291,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPre(payload string) error {
 			if time.Now().Unix() > vmParent.LinkBy {
 				return backend.PluginError{
 					PluginID:     ticketvote.PluginID,
-					ErrorCode:    int(ticketvote.ErrorCodeLinkToInvalid),
+					ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
 					ErrorContext: "parent record linkby has expired",
 				}
 			}

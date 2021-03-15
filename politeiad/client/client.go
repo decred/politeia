@@ -30,7 +30,7 @@ type Client struct {
 // during execution of a plugin command.
 type ErrorReply struct {
 	PluginID     string `json:"pluginid"`
-	ErrorCode    int    `json:"errorcode"`
+	ErrorCode    uint32 `json:"errorcode"`
 	ErrorContext string `json:"errorcontext"`
 }
 

@@ -87,7 +87,7 @@ const (
 )
 
 // ErrorCodeT represents and error that is caused by the user.
-type ErrorCodeT int
+type ErrorCodeT uint32
 
 const (
 	// ErrorCodeInvalid is an invalid error code.
@@ -248,7 +248,7 @@ type AuthDetails struct {
 }
 
 // VoteT represents the different types of ticket votes that are available.
-type VoteT int
+type VoteT uint32
 
 const (
 	// VoteTypeInvalid is an invalid vote type.
@@ -407,7 +407,7 @@ type StartReply struct {
 
 // VoteErrorT represents errors that can occur while attempting to cast ticket
 // votes.
-type VoteErrorT int
+type VoteErrorT uint32
 
 const (
 	// VoteErrorInvalid is an invalid vote error.
@@ -517,7 +517,7 @@ type ResultsReply struct {
 }
 
 // VoteStatusT represents the status of a ticket vote.
-type VoteStatusT int
+type VoteStatusT uint32
 
 const (
 	// VoteStatusInvalid is an invalid vote status.

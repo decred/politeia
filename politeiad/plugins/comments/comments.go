@@ -50,7 +50,7 @@ const (
 )
 
 // ErrorCodeT represents a error that was caused by the user.
-type ErrorCodeT int
+type ErrorCodeT uint32
 
 const (
 	// ErrorCodeInvalid is an invalid error code.
@@ -214,7 +214,7 @@ type CommentDel struct {
 }
 
 // VoteT represents a comment upvote/downvote.
-type VoteT int
+type VoteT int32
 
 const (
 	// VoteInvalid is an invalid comment vote.

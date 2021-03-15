@@ -131,7 +131,7 @@ func handlePDError(w http.ResponseWriter, r *http.Request, format string, pde pd
 	}
 }
 
-func convertPDErrorCode(errCode int) v1.ErrorCodeT {
+func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 	// Any error statuses that are intentionally omitted means that
 	// politeiawww should 500.
 	switch pdv2.ErrorCodeT(errCode) {

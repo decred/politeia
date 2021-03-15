@@ -41,7 +41,7 @@ const (
 // cached results and the connection status to let the caller know that the
 // cached data may be stale. It is the callers responsibility to determine the
 // correct course of action when dcrdata cannot be reached.
-type StatusT int
+type StatusT uint32
 
 const (
 	// StatusInvalid is an invalid connection status.

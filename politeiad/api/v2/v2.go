@@ -80,7 +80,7 @@ var (
 // timing, etc). The HTTP status code will be 400.
 type UserErrorReply struct {
 	ErrorCode    ErrorCodeT `json:"errorcode"`
-	ErrorContext string     `json:"errorcontext"`
+	ErrorContext string     `json:"errorcontext,omitempty"`
 }
 
 // Error satisfies the error interface.
@@ -92,8 +92,8 @@ func (e UserErrorReply) Error() string {
 // a plugin error. The error code will be specific to the plugin.
 type PluginErrorReply struct {
 	PluginID     string `json:"pluginid"`
-	ErrorCode    int    `json:"errorcode"`
-	ErrorContext string `json:"errorcontext"`
+	ErrorCode    uint32 `json:"errorcode"`
+	ErrorContext string `json:"errorcontext,omitempty"`
 }
 
 // Error satisfies the error interface.

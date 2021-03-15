@@ -264,7 +264,7 @@ type Plugin struct {
 // was caused by the user.
 type PluginError struct {
 	PluginID     string
-	ErrorCode    int
+	ErrorCode    uint32
 	ErrorContext string
 }
 

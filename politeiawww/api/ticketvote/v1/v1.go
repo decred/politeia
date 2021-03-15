@@ -23,7 +23,7 @@ const (
 )
 
 // ErrorCodeT represents a user error code.
-type ErrorCodeT int
+type ErrorCodeT uint32
 
 const (
 	// Error codes
@@ -54,7 +54,7 @@ var (
 // timing, etc). The HTTP status code will be 400.
 type UserErrorReply struct {
 	ErrorCode    ErrorCodeT `json:"errorcode"`
-	ErrorContext string     `json:"errorcontext"`
+	ErrorContext string     `json:"errorcontext,omitempty"`
 }
 
 // Error satisfies the error interface.
@@ -66,8 +66,8 @@ func (e UserErrorReply) Error() string {
 // a plugin error.
 type PluginErrorReply struct {
 	PluginID     string `json:"pluginid"`
-	ErrorCode    int    `json:"errorcode"`
-	ErrorContext string `json:"errorcontext"`
+	ErrorCode    uint32 `json:"errorcode"`
+	ErrorContext string `json:"errorcontext,omitempty"`
 }
 
 // Error satisfies the error interface.
@@ -132,7 +132,7 @@ type AuthorizeReply struct {
 }
 
 // VoteT represents a vote type.
-type VoteT int
+type VoteT uint32
 
 const (
 	// VoteTypeInvalid represents and invalid vote type.
@@ -180,7 +180,7 @@ var (
 )
 
 // VoteStatusT represents a vote status.
-type VoteStatusT int
+type VoteStatusT uint32
 
 const (
 	// VoteStatusInvalid represents an invalid vote status.
