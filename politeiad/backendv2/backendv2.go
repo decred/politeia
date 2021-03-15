@@ -295,19 +295,15 @@ type Backend interface {
 	// RecordExists returns whether a record exists.
 	RecordExists(token []byte) bool
 
-	// RecordGet retrieves a record. If no version is provided then the
-	// most recent version will be returned.
-	RecordGet(token []byte, version uint32) (*Record, error)
-
-	// RecordGetBatch retreives a batch of records. If a record is not
-	// found then it is simply not included in the returned map. An
-	// error is not returned.
-	RecordGetBatch(reqs []RecordRequest) (map[string]Record, error)
-
 	// RecordTimestamps returns the timestamps for a record. If no
 	// version is provided then timestamps for the most recent version
 	// will be returned.
 	RecordTimestamps(token []byte, version uint32) (*RecordTimestamps, error)
+
+	// Records retreives a batch of records. If a record is not found
+	// then it is simply not included in the returned map. An error is
+	// not returned.
+	Records(reqs []RecordRequest) (map[string]Record, error)
 
 	// Inventory returns the tokens of records in the inventory
 	// categorized by record state and record status. The tokens are
@@ -318,7 +314,7 @@ type Backend interface {
 	// a specific page of record tokens.
 	//
 	// If no status is provided then the most recent page of tokens for
-	// each statuses will be returned. All other arguments are ignored.
+	// all statuses will be returned. All other arguments are ignored.
 	Inventory(state StateT, status StatusT, pageSize,
 		pageNumber uint32) (*Inventory, error)
 

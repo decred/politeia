@@ -664,7 +664,7 @@ func (p *Pi) recordAbridged(token string) (*pdv2.Record, error) {
 			},
 		},
 	}
-	rs, err := p.politeiad.RecordGetBatch(context.Background(), reqs)
+	rs, err := p.politeiad.Records(context.Background(), reqs)
 	if err != nil {
 		return nil, fmt.Errorf("politeiad records: %v", err)
 	}

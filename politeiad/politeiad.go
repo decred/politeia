@@ -231,12 +231,10 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		p.handleRecordEditMetadata, permissionPublic)
 	p.addRouteV2(http.MethodPost, v2.RouteRecordSetStatus,
 		p.handleRecordSetStatus, permissionPublic)
-	p.addRouteV2(http.MethodPost, v2.RouteRecordGet,
-		p.handleRecordGet, permissionPublic)
-	p.addRouteV2(http.MethodPost, v2.RouteRecordGetBatch,
-		p.handleRecordGetBatch, permissionPublic)
-	p.addRouteV2(http.MethodPost, v2.RouteRecordGetTimestamps,
-		p.handleRecordGetTimestamps, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecords,
+		p.handleRecords, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordTimestamps,
+		p.handleRecordTimestamps, permissionPublic)
 	p.addRouteV2(http.MethodPost, v2.RouteInventory,
 		p.handleInventory, permissionPublic)
 	p.addRouteV2(http.MethodPost, v2.RoutePluginWrite,

@@ -157,14 +157,14 @@ func (c *Client) RecordSetStatus(ctx context.Context, token string, status pdv2.
 	return &reply.Record, nil
 }
 
-// RecordGet sends a RecordGet command to the politeiad v2 API.
-func (c *Client) RecordGet(ctx context.Context, token string, version uint32) (*pdv2.Record, error) {
+// RecordTimestamps sends a RecordTimestamps command to the politeiad v2 API.
+func (c *Client) RecordTimestamps(ctx context.Context, token string, version uint32) (*pdv2.RecordTimestampsReply, error) {
 	// Setup request
 	challenge, err := util.Random(pdv2.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
-	rg := pdv2.RecordGet{
+	rgt := pdv2.RecordTimestamps{
 		Challenge: hex.EncodeToString(challenge),
 		Token:     token,
 		Version:   version,
@@ -172,46 +172,46 @@ func (c *Client) RecordGet(ctx context.Context, token string, version uint32) (*
 
 	// Send request
 	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv2.APIRoute, pdv2.RouteRecordGet, rg)
+		pdv2.APIRoute, pdv2.RouteRecordTimestamps, rgt)
 	if err != nil {
 		return nil, err
 	}
 
 	// Decode reply
-	var rgr pdv2.RecordGetReply
-	err = json.Unmarshal(resBody, &rgr)
+	var reply pdv2.RecordTimestampsReply
+	err = json.Unmarshal(resBody, &reply)
 	if err != nil {
 		return nil, err
 	}
-	err = util.VerifyChallenge(c.pid, challenge, rgr.Response)
+	err = util.VerifyChallenge(c.pid, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}
 
-	return &rgr.Record, nil
+	return &reply, nil
 }
 
-// RecordGetBatch sends a RecordGetBatch command to the politeiad v2 API.
-func (c *Client) RecordGetBatch(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]pdv2.Record, error) {
+// Records sends a Records command to the politeiad v2 API.
+func (c *Client) Records(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]pdv2.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pdv2.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
-	rgb := pdv2.RecordGetBatch{
+	rgb := pdv2.Records{
 		Challenge: hex.EncodeToString(challenge),
 		Requests:  reqs,
 	}
 
 	// Send request
 	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv2.APIRoute, pdv2.RouteRecordGetBatch, rgb)
+		pdv2.APIRoute, pdv2.RouteRecords, rgb)
 	if err != nil {
 		return nil, err
 	}
 
 	// Decode reply
-	var reply pdv2.RecordGetBatchReply
+	var reply pdv2.RecordsReply
 	err = json.Unmarshal(resBody, &reply)
 	if err != nil {
 		return nil, err
@@ -222,41 +222,6 @@ func (c *Client) RecordGetBatch(ctx context.Context, reqs []pdv2.RecordRequest) 
 	}
 
 	return reply.Records, nil
-}
-
-// RecordGetTimestamps sends a RecordGetTimestamps command to the politeiad v2
-// API.
-func (c *Client) RecordGetTimestamps(ctx context.Context, token string, version uint32) (*pdv2.RecordTimestamps, error) {
-	// Setup request
-	challenge, err := util.Random(pdv2.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	rgt := pdv2.RecordGetTimestamps{
-		Challenge: hex.EncodeToString(challenge),
-		Token:     token,
-		Version:   version,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost,
-		pdv2.APIRoute, pdv2.RouteRecordGetTimestamps, rgt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode reply
-	var reply pdv2.RecordGetTimestampsReply
-	err = json.Unmarshal(resBody, &reply)
-	if err != nil {
-		return nil, err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &reply.Timestamps, nil
 }
 
 // Inventory sends a Inventory command to the politeiad v2 API.

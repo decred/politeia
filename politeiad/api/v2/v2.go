@@ -11,17 +11,16 @@ const (
 	APIRoute = "/v2"
 
 	// Routes
-	RouteRecordNew           = "/recordnew"
-	RouteRecordEdit          = "/recordedit"
-	RouteRecordEditMetadata  = "/recordeditmetadata"
-	RouteRecordSetStatus     = "/recordsetstatus"
-	RouteRecordGet           = "/recordget"
-	RouteRecordGetBatch      = "/recordgetbatch"
-	RouteRecordGetTimestamps = "/recordgettimestamps"
-	RouteInventory           = "/inventory"
-	RoutePluginWrite         = "/pluginwrite"
-	RoutePluginReads         = "/pluginreads"
-	RoutePluginInventory     = "/plugininventory"
+	RouteRecordNew          = "/recordnew"
+	RouteRecordEdit         = "/recordedit"
+	RouteRecordEditMetadata = "/recordeditmetadata"
+	RouteRecordSetStatus    = "/recordsetstatus"
+	RouteRecordTimestamps   = "/recordtimestamps"
+	RouteRecords            = "/records"
+	RouteInventory          = "/inventory"
+	RoutePluginWrite        = "/pluginwrite"
+	RoutePluginReads        = "/pluginreads"
+	RoutePluginInventory    = "/plugininventory"
 
 	// ChallengeSize is the size of a request challenge token in bytes.
 	ChallengeSize = 32
@@ -50,6 +49,7 @@ const (
 	ErrorCodeStatusChangeInvalid     ErrorCodeT = 16
 	ErrorCodePluginIDInvalid         ErrorCodeT = 17
 	ErrorCodePluginCmdInvalid        ErrorCodeT = 18
+	ErrorCodePageSizeExceeded        ErrorCodeT = 19
 )
 
 var (
@@ -72,6 +72,7 @@ var (
 		ErrorCodeStatusChangeInvalid:     "status change invalid",
 		ErrorCodePluginIDInvalid:         "pluguin id invalid",
 		ErrorCodePluginCmdInvalid:        "plugin cmd invalid",
+		ErrorCodePageSizeExceeded:        "page size exceeded",
 	}
 )
 
@@ -233,7 +234,7 @@ type Record struct {
 // the record and it may contain optional metadata.
 type RecordNew struct {
 	Challenge string           `json:"challenge"` // Random challenge
-	Metadata  []MetadataStream `json:"metadata"`
+	Metadata  []MetadataStream `json:"metadata,omitempty"`
 	Files     []File           `json:"files"`
 }
 
@@ -256,10 +257,10 @@ type RecordNewReply struct {
 type RecordEdit struct {
 	Challenge   string           `json:"challenge"` // Random challenge
 	Token       string           `json:"token"`     // Censorship token
-	MDAppend    []MetadataStream `json:"mdappend"`
-	MDOverwrite []MetadataStream `json:"mdoverwrite"`
-	FilesAdd    []File           `json:"filesadd"`
-	FilesDel    []string         `json:"filesdel"`
+	MDAppend    []MetadataStream `json:"mdappend,omitempty"`
+	MDOverwrite []MetadataStream `json:"mdoverwrite,omitempty"`
+	FilesAdd    []File           `json:"filesadd,omitempty"`
+	FilesDel    []string         `json:"filesdel,omitempty"`
 }
 
 // RecordEditReply is the reply to the RecordEdit command.
@@ -276,8 +277,8 @@ type RecordEditReply struct {
 type RecordEditMetadata struct {
 	Challenge   string           `json:"challenge"` // Random challenge
 	Token       string           `json:"token"`     // Censorship token
-	MDAppend    []MetadataStream `json:"mdappend"`
-	MDOverwrite []MetadataStream `json:"mdoverwrite"`
+	MDAppend    []MetadataStream `json:"mdappend,omitempty"`
+	MDOverwrite []MetadataStream `json:"mdoverwrite,omitempty"`
 }
 
 // RecordEditMetadataReply is the reply to the RecordEditMetadata command.
@@ -295,63 +296,14 @@ type RecordSetStatus struct {
 	Challenge   string           `json:"challenge"` // Random challenge
 	Token       string           `json:"token"`     // Censorship token
 	Status      RecordStatusT    `json:"status"`
-	MDAppend    []MetadataStream `json:"mdappend"`
-	MDOverwrite []MetadataStream `json:"mdoverwrite"`
+	MDAppend    []MetadataStream `json:"mdappend,omitempty"`
+	MDOverwrite []MetadataStream `json:"mdoverwrite,omitempty"`
 }
 
 // RecordSetStatusReply is the reply to the RecordSetStatus command.
 type RecordSetStatusReply struct {
 	Response string `json:"response"` // Challenge response
 	Record   Record `json:"record"`
-}
-
-// RecordGet retrieves a record. If no version is provided the most recent
-// version will be returned.
-type RecordGet struct {
-	Challenge string `json:"challenge"`         // Random challenge
-	Token     string `json:"token"`             // Censorship token
-	Version   uint32 `json:"version,omitempty"` // Record version
-}
-
-// RecordGetReply is the reply to the RecordGet command.
-type RecordGetReply struct {
-	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`
-}
-
-// RecordRequest is used to request a record. It gives the caller granular
-// control over what is returned. The only required field is the token. All
-// other fields are optional. All record files are returned by default unless
-// one of the file arguments is provided.
-//
-// Version is used to request a specific version of a record. If no version is
-// provided then the most recent version of the record will be returned.
-//
-// Filenames can be used to request specific files. If filenames is provided
-// then the specified files will be the only files that are returned.
-//
-// OmitAllFiles can be used to retrieve a record without any of the record
-// files. This supersedes the filenames argument.
-type RecordRequest struct {
-	Token        string   `json:"token"`
-	Version      uint32   `json:"version"`
-	Filenames    []string `json:"filenames"`
-	OmitAllFiles bool     `json:"omitallfiles"`
-}
-
-// RecordGetBatch retrieves a record. If no version is provided the most recent
-// version will be returned.
-type RecordGetBatch struct {
-	Challenge string          `json:"challenge"` // Random challenge
-	Requests  []RecordRequest `json:"requests"`
-}
-
-// RecordGetBatchReply is the reply to the RecordGetBatch command. If a record
-// was not found or an error occurred while retrieving it the token will not be
-// included in the returned map.
-type RecordGetBatchReply struct {
-	Response string            `json:"response"` // Challenge response
-	Records  map[string]Record `json:"records"`
 }
 
 // Proof contains an inclusion proof for the digest in the merkle root. All
@@ -384,8 +336,17 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
-// RecordTimestamps contains the timestamps for a specific version of a record.
+// RecordTimestamps requests the timestamps for a record. If a version is not
+// included the most recent version will be returned.
 type RecordTimestamps struct {
+	Challenge string `json:"challenge"`         // Random challenge
+	Token     string `json:"token"`             // Censorship token
+	Version   uint32 `json:"version,omitempty"` // Record version
+}
+
+// RecordGetTimestampsReply is the reply ot the RecordTimestamps command.
+type RecordTimestampsReply struct {
+	Response       string    `json:"response"` // Challenge response
 	RecordMetadata Timestamp `json:"recordmetadata"`
 
 	// map[pluginID]map[streamID]Timestamp
@@ -395,16 +356,45 @@ type RecordTimestamps struct {
 	Files map[string]Timestamp `json:"files"`
 }
 
-type RecordGetTimestamps struct {
-	Challenge string `json:"challenge"` // Random challenge
-	Token     string `json:"token"`     // Censorship token
-	Version   uint32 `json:"version"`   // Record version
+const (
+	// RecordsPageSize is the maximum number of records that can be
+	// requested using the Records commands.
+	RecordsPageSize uint32 = 5
+)
+
+// RecordRequest is used to request a record. It gives the caller granular
+// control over what is returned. The only required field is the token. All
+// other fields are optional. All record files are returned by default unless
+// one of the file arguments is provided.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// Filenames can be used to request specific files. If filenames is provided
+// then the specified files will be the only files that are returned.
+//
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
+type RecordRequest struct {
+	Token        string   `json:"token"`
+	Version      uint32   `json:"version,omitempty"`
+	Filenames    []string `json:"filenames,omitempty"`
+	OmitAllFiles bool     `json:"omitallfiles,omitempty"`
 }
 
-// RecordGetTimestampsReply is the reply ot the RecordTimestamps command.
-type RecordGetTimestampsReply struct {
-	Response   string           `json:"response"` // Challenge response
-	Timestamps RecordTimestamps `json:"timestamps"`
+// Records retrieves a record. If no version is provided the most recent
+// version will be returned.
+type Records struct {
+	Challenge string          `json:"challenge"` // Random challenge
+	Requests  []RecordRequest `json:"requests"`
+}
+
+// RecordsReply is the reply to the Records command. If a record was not found
+// or an error occurred while retrieving it the token will not be included in
+// the returned map.
+type RecordsReply struct {
+	Response string            `json:"response"` // Challenge response
+	Records  map[string]Record `json:"records"`  // [token]Record
 }
 
 const (
@@ -440,10 +430,10 @@ type InventoryReply struct {
 // PluginCmd represents plugin command and the command payload. A token is
 // required for all plugin writes, but is optional for reads.
 type PluginCmd struct {
-	Token   string `json:"token,omitempty"` // Censorship token
-	ID      string `json:"id"`              // Plugin identifier
-	Command string `json:"command"`         // Plugin command
-	Payload string `json:"payload"`         // Command payload
+	Token   string `json:"token,omitempty"`   // Censorship token
+	ID      string `json:"id"`                // Plugin identifier
+	Command string `json:"command"`           // Plugin command
+	Payload string `json:"payload,omitempty"` // Command payload
 }
 
 // PluginWrite executes a plugin command that writes data.

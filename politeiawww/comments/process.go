@@ -371,7 +371,7 @@ func (c *Comments) recordNoFiles(ctx context.Context, token string) (*pdv2.Recor
 			OmitAllFiles: true,
 		},
 	}
-	records, err := c.politeiad.RecordGetBatch(ctx, req)
+	records, err := c.politeiad.Records(ctx, req)
 	if err != nil {
 		return nil, err
 	}

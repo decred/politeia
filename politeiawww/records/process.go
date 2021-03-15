@@ -7,6 +7,7 @@ package records
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -98,7 +99,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 // filesToDel returns the names of the files that are included in the current
 // files but are not included in updated files. These are the files that need
 // to be deleted from a record on update.
-func filesToDel(current []pdv2.File, updated []pdv2.File) []string {
+func filesToDel(current []v1.File, updated []v1.File) []string {
 	curr := make(map[string]struct{}, len(current)) // [name]struct
 	for _, v := range updated {
 		curr[v.Name] = struct{}{}
@@ -127,14 +128,19 @@ func (r *Records) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.
 	}
 
 	// Get current record
-	curr, err := r.politeiad.RecordGet(ctx, e.Token, 0)
+	curr, err := r.record(ctx, e.Token, 0)
 	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
 		return nil, err
 	}
 
 	// Setup files
 	filesAdd := convertFilesToPD(e.Files)
-	filesDel := filesToDel(curr.Files, filesAdd)
+	filesDel := filesToDel(curr.Files, e.Files)
 
 	// Setup metadata
 	um := usermd.UserMetadata{
@@ -242,7 +248,11 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 	// Get record
 	rc, err := r.record(ctx, d.Token, d.Version)
 	if err != nil {
-		return nil, err
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
 	}
 
 	// Only admins and the record author are allowed to retrieve
@@ -338,7 +348,7 @@ func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmi
 	log.Tracef("processTimestamps: %v %v", t.Token, t.Version)
 
 	// Get record timestamps
-	rt, err := r.politeiad.RecordGetTimestamps(ctx, t.Token, t.Version)
+	rt, err := r.politeiad.RecordTimestamps(ctx, t.Token, t.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -419,19 +429,9 @@ func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *
 	}, nil
 }
 
-// record returns a version of a record from politeiad. If version is an empty
-// string then the most recent version will be returned.
-func (r *Records) record(ctx context.Context, token string, version uint32) (*v1.Record, error) {
-	pdr, err := r.politeiad.RecordGet(ctx, token, version)
-	if err != nil {
-		return nil, err
-	}
-	return r.convertRecordToV1(*pdr)
-}
-
 func (r *Records) records(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]v1.Record, error) {
 	// Get records
-	pdr, err := r.politeiad.RecordGetBatch(ctx, reqs)
+	pdr, err := r.politeiad.Records(ctx, reqs)
 	if err != nil {
 		return nil, err
 	}
@@ -447,6 +447,30 @@ func (r *Records) records(ctx context.Context, reqs []pdv2.RecordRequest) (map[s
 	}
 
 	return records, nil
+}
+
+var (
+	errRecordNotFound = errors.New("record not found")
+)
+
+// record returns a version of a record from politeiad. If version is an empty
+// string then the most recent version will be returned.
+func (r *Records) record(ctx context.Context, token string, version uint32) (*v1.Record, error) {
+	reqs := []pdv2.RecordRequest{
+		{
+			Token:   token,
+			Version: version,
+		},
+	}
+	rcs, err := r.records(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+	rc, ok := rcs[token]
+	if !ok {
+		return nil, errRecordNotFound
+	}
+	return &rc, nil
 }
 
 func (r *Records) convertRecordToV1(pdr pdv2.Record) (*v1.Record, error) {

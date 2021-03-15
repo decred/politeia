@@ -662,7 +662,7 @@ func (p *ticketVotePlugin) recordAbridged(token []byte) (*backend.Record, error)
 			},
 		},
 	}
-	rs, err := p.backend.RecordGetBatch(reqs)
+	rs, err := p.backend.Records(reqs)
 	if err != nil {
 		return nil, err
 	}

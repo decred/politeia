@@ -158,16 +158,6 @@ const (
 	// requirements but still be rejected if it does not have the most
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
-
-	// VoteOptionIDApprove is the vote option ID that indicates the
-	// record should be approved. Standard votes and runoff vote
-	// submissions are required to use this vote option ID.
-	VoteOptionIDApprove = "yes"
-
-	// VoteOptionIDReject is the vote option ID that indicates the
-	// record should be rejected. Standard votes and runoff vote
-	// submissions are required to use this vote option ID.
-	VoteOptionIDReject = "no"
 )
 
 var (
@@ -177,6 +167,18 @@ var (
 		VoteTypeStandard: "standard",
 		VoteTypeRunoff:   "runoff",
 	}
+)
+
+const (
+	// VoteOptionIDApprove is the vote option ID that indicates the
+	// record should be approved. Standard votes and runoff vote
+	// submissions are required to use this vote option ID.
+	VoteOptionIDApprove = "yes"
+
+	// VoteOptionIDReject is the vote option ID that indicates the
+	// record should be rejected. Standard votes and runoff vote
+	// submissions are required to use this vote option ID.
+	VoteOptionIDReject = "no"
 )
 
 // VoteStatusT represents a vote status.

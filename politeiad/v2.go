@@ -230,62 +230,14 @@ func (p *politeia) handleRecordSetStatus(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, rer)
 }
 
-func (p *politeia) handleRecordGet(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRecordGet")
+func (p *politeia) handleRecords(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRecords")
 
 	// Decode request
-	var rg v2.RecordGet
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&rg); err != nil {
-		respondWithErrorV2(w, r, "handleRecordGet: unmarshal",
-			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeRequestPayloadInvalid,
-			})
-		return
-	}
-	challenge, err := hex.DecodeString(rg.Challenge)
-	if err != nil || len(challenge) != v2.ChallengeSize {
-		respondWithErrorV2(w, r, "handleRecordGet: decode challenge",
-			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeChallengeInvalid,
-			})
-		return
-	}
-	token, err := decodeTokenAnyLength(rg.Token)
-	if err != nil {
-		respondWithErrorV2(w, r, "handleRecordGet: decode token",
-			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeTokenInvalid,
-			})
-		return
-	}
-
-	// Get record
-	rc, err := p.backendv2.RecordGet(token, rg.Version)
-	if err != nil {
-		respondWithErrorV2(w, r,
-			"handleRecordGet: RecordGet: %v", err)
-		return
-	}
-
-	// Prepare reply
-	response := p.identity.SignMessage(challenge)
-	rgr := v2.RecordGetReply{
-		Response: hex.EncodeToString(response[:]),
-		Record:   p.convertRecordToV2(*rc),
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, rgr)
-}
-
-func (p *politeia) handleRecordGetBatch(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRecordGetBatch")
-
-	// Decode request
-	var rgb v2.RecordGetBatch
+	var rgb v2.Records
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rgb); err != nil {
-		respondWithErrorV2(w, r, "handleRecordGetBatch: unmarshal",
+		respondWithErrorV2(w, r, "handleRecords: unmarshal",
 			v2.UserErrorReply{
 				ErrorCode: v2.ErrorCodeRequestPayloadInvalid,
 			})
@@ -293,19 +245,28 @@ func (p *politeia) handleRecordGetBatch(w http.ResponseWriter, r *http.Request) 
 	}
 	challenge, err := hex.DecodeString(rgb.Challenge)
 	if err != nil || len(challenge) != v2.ChallengeSize {
-		respondWithErrorV2(w, r, "handleRecordGetBatch: decode challenge",
+		respondWithErrorV2(w, r, "handleRecords: decode challenge",
 			v2.UserErrorReply{
 				ErrorCode: v2.ErrorCodeChallengeInvalid,
 			})
 		return
 	}
 
+	// Verify page size
+	if len(rgb.Requests) > int(v2.RecordsPageSize) {
+		respondWithErrorV2(w, r, "handleRecords: unmarshal",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodePageSizeExceeded,
+			})
+		return
+	}
+
 	// Get record batch
 	reqs := convertRecordRequestsToBackend(rgb.Requests)
-	brecords, err := p.backendv2.RecordGetBatch(reqs)
+	brecords, err := p.backendv2.Records(reqs)
 	if err != nil {
 		respondWithErrorV2(w, r,
-			"handleRecordGet: RecordGetBatch: %v", err)
+			"handleRecordGet: Records: %v", err)
 		return
 	}
 
@@ -315,7 +276,7 @@ func (p *politeia) handleRecordGetBatch(w http.ResponseWriter, r *http.Request) 
 		records[k] = p.convertRecordToV2(v)
 	}
 	response := p.identity.SignMessage(challenge)
-	reply := v2.RecordGetBatchReply{
+	reply := v2.RecordsReply{
 		Response: hex.EncodeToString(response[:]),
 		Records:  records,
 	}
@@ -323,11 +284,11 @@ func (p *politeia) handleRecordGetBatch(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeia) handleRecordGetTimestamps(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRecordGetTimestamps")
+func (p *politeia) handleRecordTimestamps(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRecordTimestamps")
 
 	// Decode request
-	var rgt v2.RecordGetTimestamps
+	var rgt v2.RecordTimestamps
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rgt); err != nil {
 		respondWithErrorV2(w, r, "handleRecordTimestamps: unmarshal",
@@ -363,9 +324,11 @@ func (p *politeia) handleRecordGetTimestamps(w http.ResponseWriter, r *http.Requ
 
 	// Prepare reply
 	response := p.identity.SignMessage(challenge)
-	rtr := v2.RecordGetTimestampsReply{
-		Response:   hex.EncodeToString(response[:]),
-		Timestamps: convertRecordTimestampsToV2(*rt),
+	rtr := v2.RecordTimestampsReply{
+		Response:       hex.EncodeToString(response[:]),
+		RecordMetadata: convertTimestampToV2(rt.RecordMetadata),
+		Metadata:       convertMetadataTimestampsToV2(rt.Metadata),
+		Files:          convertFileTimestampsToV2(rt.Files),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, rtr)
@@ -748,27 +711,27 @@ func convertTimestampToV2(t backendv2.Timestamp) v2.Timestamp {
 	}
 }
 
-func convertRecordTimestampsToV2(r backendv2.RecordTimestamps) v2.RecordTimestamps {
-	metadata := make(map[string]map[uint32]v2.Timestamp, 16)
-	for pluginID, v := range r.Metadata {
-		timestamps, ok := metadata[pluginID]
+func convertMetadataTimestampsToV2(metadata map[string]map[uint32]backendv2.Timestamp) map[string]map[uint32]v2.Timestamp {
+	md := make(map[string]map[uint32]v2.Timestamp, 16)
+	for pluginID, v := range metadata {
+		timestamps, ok := md[pluginID]
 		if !ok {
 			timestamps = make(map[uint32]v2.Timestamp, 16)
 		}
 		for streamID, ts := range v {
 			timestamps[streamID] = convertTimestampToV2(ts)
 		}
-		metadata[pluginID] = timestamps
+		md[pluginID] = timestamps
 	}
-	files := make(map[string]v2.Timestamp, len(r.Files))
-	for k, v := range r.Files {
-		files[k] = convertTimestampToV2(v)
+	return md
+}
+
+func convertFileTimestampsToV2(files map[string]backendv2.Timestamp) map[string]v2.Timestamp {
+	fs := make(map[string]v2.Timestamp, len(files))
+	for k, v := range files {
+		fs[k] = convertTimestampToV2(v)
 	}
-	return v2.RecordTimestamps{
-		RecordMetadata: convertTimestampToV2(r.RecordMetadata),
-		Metadata:       metadata,
-		Files:          files,
-	}
+	return fs
 }
 
 func convertPluginSettingToV2(p backendv2.PluginSetting) v2.PluginSetting {

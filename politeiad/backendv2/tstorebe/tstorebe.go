@@ -474,9 +474,9 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	t.inventoryAdd(backend.StateUnvetted, token, backend.StatusUnreviewed)
 
 	// Get the full record to return
-	r, err := t.RecordGet(token, 0)
+	r, err := t.tstore.RecordLatest(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("RecordGet %x: %v", token, err)
+		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
 	}
 
 	return r, nil
@@ -927,27 +927,27 @@ func (t *tstoreBackend) RecordExists(token []byte) bool {
 	return t.tstore.TreeExists(treeID)
 }
 
-// RecordGet retrieves a record. If no version is provided then the most recent
-// version will be returned.
+// RecordTimestamps returns the timestamps for a record. If no version is provided
+// then timestamps for the most recent version will be returned.
 //
 // This function satisfies the Backend interface.
-func (t *tstoreBackend) RecordGet(token []byte, version uint32) (*backend.Record, error) {
-	log.Tracef("RecordGet: %x", token)
+func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
+	log.Tracef("RecordTimestamps: %x %v", token, version)
 
 	// Read methods are allowed to use token prefixes
 	token = t.fullLengthToken(token)
 
 	treeID := treeIDFromToken(token)
-	return t.tstore.Record(treeID, version)
+	return t.tstore.RecordTimestamps(treeID, version, token)
 }
 
-// RecordGetBatch retreives a batch of records. Individual record errors are
-// not returned.  If the record was not found then it will not be included in
-// the returned map.
+// Records retreives a batch of records. Individual record errors are not
+// returned. If the record was not found then it will not be included in the
+// returned map.
 //
 // This function satisfies the Backend interface.
-func (t *tstoreBackend) RecordGetBatch(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
-	log.Tracef("RecordGetBatch")
+func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
+	log.Tracef("Records")
 
 	records := make(map[string]backend.Record, len(reqs))
 	for _, v := range reqs {
@@ -975,20 +975,6 @@ func (t *tstoreBackend) RecordGetBatch(reqs []backend.RecordRequest) (map[string
 	return records, nil
 }
 
-// RecordTimestamps returns the timestamps for a record. If no version is provided
-// then timestamps for the most recent version will be returned.
-//
-// This function satisfies the Backend interface.
-func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
-	log.Tracef("RecordTimestamps: %x %v", token, version)
-
-	// Read methods are allowed to use token prefixes
-	token = t.fullLengthToken(token)
-
-	treeID := treeIDFromToken(token)
-	return t.tstore.RecordTimestamps(treeID, version, token)
-}
-
 // Inventory returns the tokens of records in the inventory categorized by
 // record state and record status. The tokens are ordered by the timestamp of
 // their most recent status change, sorted from newest to oldest.
@@ -996,13 +982,12 @@ func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend
 // The state, status, and page arguments can be provided to request a specific
 // page of record tokens.
 //
-// If no status is provided then the most recent page of tokens for each
+// If no status is provided then the most recent page of tokens for all
 // statuses will be returned. All other arguments are ignored.
 //
 // This function satisfies the Backend interface.
 func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, pageSize, pageNumber uint32) (*backend.Inventory, error) {
-	log.Tracef("InventoryByStatus: %v %v %v %v",
-		state, status, pageSize, pageNumber)
+	log.Tracef("Inventory: %v %v %v %v", state, status, pageSize, pageNumber)
 
 	inv, err := t.invByStatus(state, status, pageSize, pageNumber)
 	if err != nil {
@@ -1063,14 +1048,6 @@ func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload st
 		treeID = treeIDFromToken(token)
 	}
 
-	if len(token) > 0 {
-		log.Infof("Plugin '%v' read cmd '%v' on %x",
-			pluginID, pluginCmd, token)
-	} else {
-		log.Infof("Plugin '%v' read cmd '%v'",
-			pluginID, pluginCmd)
-	}
-
 	return t.tstore.PluginCmd(treeID, token, pluginID, pluginCmd, payload)
 }
 
@@ -1085,15 +1062,15 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 		return "", backend.ErrRecordNotFound
 	}
 
+	log.Infof("Plugin '%v' write cmd '%v' on %x",
+		pluginID, pluginCmd, token)
+
 	// Hold the record lock for the remainder of this function. We
 	// do this here in the backend so that the individual plugins
 	// implementations don't need to worry about race conditions.
 	m := t.recordMutex(token)
 	m.Lock()
 	defer m.Unlock()
-
-	log.Infof("Plugin '%v' write cmd '%v' on %x",
-		pluginID, pluginCmd, token)
 
 	// Call pre plugin hooks
 	treeID := treeIDFromToken(token)

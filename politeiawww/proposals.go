@@ -31,60 +31,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func (p *politeiawww) proposal(ctx context.Context, token, version string) (*www.ProposalRecord, error) {
-	// Parse version
-	v, err := strconv.ParseUint(version, 10, 64)
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-
-	// Get record
-	r, err := p.politeiad.RecordGet(ctx, token, uint32(v))
-	if err != nil {
-		return nil, err
-	}
-
-	// Legacy www routes are only for vetted records
-	if r.State == pdv2.RecordStateUnvetted {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-
-	// Convert to a proposal
-	pr, err := convertRecordToProposal(*r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get submissions list if this is an RFP
-	if pr.LinkBy != 0 {
-		subs, err := p.politeiad.TicketVoteSubmissions(ctx, token)
-		if err != nil {
-			return nil, err
-		}
-		pr.LinkedFrom = subs
-	}
-
-	// Fill in user data
-	userID := userIDFromMetadataStreams(r.Metadata)
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, err
-	}
-	u, err := p.db.UserGetById(uid)
-	if err != nil {
-		return nil, err
-	}
-	pr.Username = u.Username
-
-	return pr, nil
-}
-
 func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
-	records, err := p.politeiad.RecordGetBatch(ctx, reqs)
+	records, err := p.politeiad.Records(ctx, reqs)
 	if err != nil {
 		return nil, err
 	}
@@ -222,16 +170,34 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
-	// This route will now only return vetted proposal. This is fine
-	// since API consumers of this legacy route will only need public
-	// proposals.
-	pr, err := p.proposal(ctx, pd.Token, pd.Version)
+	// Parse version
+	v, err := strconv.ParseUint(pd.Version, 10, 64)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Get proposal
+	reqs := []pdv2.RecordRequest{
+		{
+			Token:   pd.Token,
+			Version: uint32(v),
+		},
+	}
+	prs, err := p.proposals(ctx, reqs)
 	if err != nil {
 		return nil, err
 	}
+	pr, ok := prs[pd.Token]
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
 
 	return &www.ProposalDetailsReply{
-		Proposal: *pr,
+		Proposal: pr,
 	}, nil
 }
 
