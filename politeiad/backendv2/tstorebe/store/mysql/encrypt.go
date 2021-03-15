@@ -75,57 +75,71 @@ func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
 	return &key, nil
 }
 
-func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
-	// Create a new nonce value
+func (s *mysql) insertNonce(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, "INSERT INTO nonce () VALUES ();")
-	if err != nil {
-		return nil, err
-	}
+	return err
+}
 
-	// Get the nonce value that was just created
+func (s *mysql) queryNonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 	rows, err := tx.QueryContext(ctx, "SELECT LAST_INSERT_ID();")
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return 0, fmt.Errorf("query: %v", err)
 	}
 	defer rows.Close()
 
-	var i int64
+	var nonce int64
 	for rows.Next() {
-		if i > 0 {
+		if nonce > 0 {
 			// There should only ever be one row returned. Something is
 			// wrong if we've already scanned the nonce and its still
 			// scanning rows.
-			return nil, fmt.Errorf("multiple rows returned for nonce")
+			return 0, fmt.Errorf("multiple rows returned for nonce")
 		}
-		err = rows.Scan(&i)
+		err = rows.Scan(&nonce)
 		if err != nil {
-			return nil, fmt.Errorf("scan: %v", err)
+			return 0, fmt.Errorf("scan: %v", err)
 		}
 	}
 	err = rows.Err()
 	if err != nil {
-		return nil, fmt.Errorf("next: %v", err)
+		return 0, fmt.Errorf("next: %v", err)
 	}
-	if i == 0 {
-		return nil, fmt.Errorf("invalid 0 nonce")
+	if nonce == 0 {
+		return 0, fmt.Errorf("invalid 0 nonce")
 	}
 
-	log.Tracef("Encrypting with nonce: %v", i)
+	return nonce, nil
+}
+
+func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
+	// Create a new nonce value
+	err := s.insertNonce(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("insert nonce: %v", err)
+	}
+
+	// Get the nonce value that was just created
+	nonce, err := s.queryNonce(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("query nonce: %v", err)
+	}
+
+	log.Tracef("Encrypting with nonce: %v", nonce)
 
 	// Prepare nonce
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(i))
+	binary.LittleEndian.PutUint64(b, uint64(nonce))
 	n, err := sbox.NewNonceFromBytes(b)
 	if err != nil {
 		return nil, err
 	}
-	nonce := n.Current()
+	nonceb := n.Current()
 
 	// Encrypt blob
 	s.RLock()
 	defer s.RUnlock()
 
-	return sbox.EncryptN(0, s.key, nonce, data)
+	return sbox.EncryptN(0, s.key, nonceb, data)
 }
 
 func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
