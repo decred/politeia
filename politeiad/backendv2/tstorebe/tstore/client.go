@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
@@ -109,7 +110,12 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 			len(queued))
 	}
 	c := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
-	if c != codes.OK {
+	switch c {
+	case codes.OK:
+		// This is ok; continue
+	case codes.AlreadyExists:
+		return plugins.ErrDuplicateBlob
+	default:
 		return fmt.Errorf("queued leaf error: %v", c)
 	}
 

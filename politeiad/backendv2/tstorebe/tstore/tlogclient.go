@@ -378,8 +378,6 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		}
 	}
 
-	log.Debugf("Appended leaves (%v) to tree %v", len(leaves), treeID)
-
 	// Get the latest signed log root
 	_, lr, err := t.SignedLogRoot(tree)
 	if err != nil {
@@ -388,6 +386,7 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 
 	// Get inclusion proofs
 	proofs := make([]queuedLeafProof, 0, len(qlr.QueuedLeaves))
+	var failed int
 	for _, v := range qlr.QueuedLeaves {
 		qlp := queuedLeafProof{
 			QueuedLeaf: v,
@@ -416,6 +415,9 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 				return nil, nil, fmt.Errorf("InclusionProof %v %x: %v",
 					treeID, v.Leaf.MerkleLeafHash, err)
 			}
+		} else {
+			// Leaf contains an error
+			failed++
 		}
 
 		proofs = append(proofs, qlp)
@@ -426,6 +428,9 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		return nil, nil, fmt.Errorf("got %v queued leaves, want %v",
 			len(proofs), len(leaves))
 	}
+
+	log.Debugf("Appended leaves (%v/%v) to tree %v",
+		len(leaves)-failed, len(leaves), treeID)
 
 	return proofs, lr, nil
 }

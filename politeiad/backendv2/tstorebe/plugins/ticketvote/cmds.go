@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -2039,11 +2040,7 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 			// Decrement wait group counter once vote is cast
 			defer wg.Done()
 
-			// Setup cast vote details. The timestamp is included in a cast
-			// vote so that the vote can be retried if the vote collider
-			// is not saved succesfully. Without the timestamp, attempting
-			// to save the cast vote details multiple times would result in
-			// a duplicate leaf error from tlog.
+			// Setup cast vote details
 			receipt := p.identity.SignMessage([]byte(v.Signature))
 			cv := ticketvote.CastVoteDetails{
 				Token:     v.Token,
@@ -2051,10 +2048,9 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 				VoteBit:   v.VoteBit,
 				Signature: v.Signature,
 				Receipt:   hex.EncodeToString(receipt[:]),
-				Timestamp: time.Now().Unix(),
 			}
 
-			// Declare variables here to prevent goto errors
+			// Declare here to prevent goto errors
 			var (
 				cvr ticketvote.CastVoteReply
 				vc  voteCollider
@@ -2062,7 +2058,12 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 
 			// Save cast vote
 			err := p.castVoteSave(treeID, cv)
-			if err != nil {
+			if err == plugins.ErrDuplicateBlob {
+				// This cast vote has already been saved. Its possible that
+				// a previous attempt to vote with this ticket failed before
+				// the vote collider could be saved. Continue execution so
+				// that we re-attempt to save the vote collider.
+			} else if err != nil {
 				t := time.Now().Unix()
 				log.Errorf("cmdCastBallot: castVoteSave %v: %v", t, err)
 				e := ticketvote.VoteErrorInternalError
@@ -2214,7 +2215,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 			continue
 		}
 
-		// Verify ticket has not already vote
+		// Verify ticket has not already voted
 		if p.activeVotes.VoteIsDuplicate(v.Token, v.Ticket) {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
