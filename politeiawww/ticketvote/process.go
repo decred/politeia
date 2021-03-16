@@ -218,10 +218,9 @@ func (t *TicketVote) processTimestamps(ctx context.Context, ts v1.Timestamps) (*
 
 	// Send plugin command
 	tt := ticketvote.Timestamps{
-		Token:     ts.Token,
 		VotesPage: ts.VotesPage,
 	}
-	tsr, err := t.politeiad.TicketVoteTimestamps(ctx, tt)
+	tsr, err := t.politeiad.TicketVoteTimestamps(ctx, ts.Token, tt)
 	if err != nil {
 		return nil, err
 	}

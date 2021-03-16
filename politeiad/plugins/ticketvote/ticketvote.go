@@ -504,7 +504,7 @@ type Details struct{}
 // DetailsReply is the reply to the Details command.
 type DetailsReply struct {
 	Auths []AuthDetails `json:"auths"`
-	Vote  *VoteDetails  `json:"vote"`
+	Vote  *VoteDetails  `json:"vote,omitempty"`
 }
 
 // Results requests the results of a vote.
@@ -583,16 +583,16 @@ type Summary struct{}
 
 // SummaryReply is the reply to the Summary command.
 type SummaryReply struct {
-	Type             VoteT              `json:"type"`
 	Status           VoteStatusT        `json:"status"`
-	Duration         uint32             `json:"duration"`
-	StartBlockHeight uint32             `json:"startblockheight"`
-	StartBlockHash   string             `json:"startblockhash"`
-	EndBlockHeight   uint32             `json:"endblockheight"`
-	EligibleTickets  uint32             `json:"eligibletickets"`
-	QuorumPercentage uint32             `json:"quorumpercentage"`
-	PassPercentage   uint32             `json:"passpercentage"`
-	Results          []VoteOptionResult `json:"results"`
+	Type             VoteT              `json:"type,omitempty"`
+	Duration         uint32             `json:"duration,omitempty"`
+	StartBlockHeight uint32             `json:"startblockheight,omitempty"`
+	StartBlockHash   string             `json:"startblockhash,omitempty"`
+	EndBlockHeight   uint32             `json:"endblockheight,omitempty"`
+	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`
+	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"`
+	PassPercentage   uint32             `json:"passpercentage,omitempty"`
+	Results          []VoteOptionResult `json:"results,omitempty"`
 
 	// BestBlock is the best block value that was used to prepare this
 	// summary.
@@ -695,13 +695,12 @@ const (
 // details timestamps will be returned. If a votes page number is provided then
 // the specified page of votes will be returned.
 type Timestamps struct {
-	Token     string `json:"token"`
 	VotesPage uint32 `json:"votespage,omitempty"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
-	Auths   []Timestamp `json:"auths,omitempty"`
+	Auths   []Timestamp `json:"auths"`
 	Details *Timestamp  `json:"details,omitempty"`
-	Votes   []Timestamp `json:"votes,omitempty"`
+	Votes   []Timestamp `json:"votes"`
 }

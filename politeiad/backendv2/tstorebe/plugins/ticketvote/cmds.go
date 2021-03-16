@@ -2615,7 +2615,7 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 	}
 
 	var (
-		auths   []ticketvote.Timestamp
+		auths   = make([]ticketvote.Timestamp, 0, 32)
 		details *ticketvote.Timestamp
 
 		pageSize = ticketvote.VoteTimestampsPageSize

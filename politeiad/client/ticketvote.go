@@ -337,7 +337,7 @@ func (c *Client) TicketVoteInventory(ctx context.Context, i ticketvote.Inventory
 
 // TicketVoteTimestamps sends the ticketvote plugin Timestamps command to the
 // politeiad v2 API.
-func (c *Client) TicketVoteTimestamps(ctx context.Context, t ticketvote.Timestamps) (*ticketvote.TimestampsReply, error) {
+func (c *Client) TicketVoteTimestamps(ctx context.Context, token string, t ticketvote.Timestamps) (*ticketvote.TimestampsReply, error) {
 	// Setup request
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -347,7 +347,7 @@ func (c *Client) TicketVoteTimestamps(ctx context.Context, t ticketvote.Timestam
 		{
 			ID:      ticketvote.PluginID,
 			Command: ticketvote.CmdTimestamps,
-			Token:   t.Token,
+			Token:   token,
 			Payload: string(b),
 		},
 	}

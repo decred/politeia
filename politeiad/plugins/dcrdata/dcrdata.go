@@ -85,9 +85,9 @@ type BlockDataBasic struct {
 	Time       int64   `json:"time"` // UNIX timestamp
 	NumTx      uint32  `json:"txlength"`
 	MiningFee  *int64  `json:"fees,omitempty"`
-	TotalSent  *int64  `json:"total_sent,omitempty"`
+	TotalSent  *int64  `json:"totalsent,omitempty"`
 	// TicketPoolInfo may be nil for side chain blocks.
-	PoolInfo *TicketPoolInfo `json:"ticket_pool,omitempty"`
+	PoolInfo *TicketPoolInfo `json:"ticketpool,omitempty"`
 }
 
 // BlockDetails fetched the block details for the provided block height.
@@ -132,7 +132,7 @@ type Vin struct {
 	AmountIn    float64    `json:"amountin"`
 	BlockHeight uint32     `json:"blockheight"`
 	BlockIndex  uint32     `json:"blockindex"`
-	ScriptSig   *ScriptSig `json:"scriptSig"`
+	ScriptSig   *ScriptSig `json:"scriptsig"`
 }
 
 // ScriptPubKey is the script public key data.
@@ -148,7 +148,7 @@ type ScriptPubKey struct {
 // TxInputID specifies a transaction input as hash:vin_index.
 type TxInputID struct {
 	Hash  string `json:"hash"`
-	Index uint32 `json:"vin_index"`
+	Index uint32 `json:"index"`
 }
 
 // Vout defines a transaction output.
@@ -156,7 +156,7 @@ type Vout struct {
 	Value               float64      `json:"value"`
 	N                   uint32       `json:"n"`
 	Version             uint16       `json:"version"`
-	ScriptPubKeyDecoded ScriptPubKey `json:"scriptPubKey"`
+	ScriptPubKeyDecoded ScriptPubKey `json:"scriptpubkeydecoded"`
 	Spend               *TxInputID   `json:"spend,omitempty"`
 }
 
