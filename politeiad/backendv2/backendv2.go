@@ -260,7 +260,7 @@ type Plugin struct {
 	Identity *identity.FullIdentity
 }
 
-// PluginError represents an error that occured during plugin execution that
+// PluginError represents an error that occurred during plugin execution that
 // was caused by the user.
 type PluginError struct {
 	PluginID     string

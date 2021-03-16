@@ -840,7 +840,6 @@ func respondWithErrorV2(w http.ResponseWriter, r *http.Request, format string, e
 		v2.ServerErrorReply{
 			ErrorCode: t,
 		})
-	return
 }
 
 func convertErrorToV2(e error) v2.ErrorCodeT {
