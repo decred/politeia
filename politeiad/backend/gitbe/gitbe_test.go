@@ -153,7 +153,7 @@ func TestAnchorWithCommits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pru, err := g.GetUnvetted(token, "")
+		pru, err := g.GetUnvetted(token)
 		if err != nil {
 			t.Fatalf("%v", err)
 		}

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"regexp"
 
 	"github.com/decred/dcrtime/merkle"
@@ -22,27 +21,24 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute               = "/v1/identity/"         // Retrieve identity
-	NewRecordRoute              = "/v1/newrecord/"        // New record
-	UpdateUnvettedRoute         = "/v1/updateunvetted/"   // Update unvetted record
-	UpdateUnvettedMetadataRoute = "/v1/updateunvettedmd/" // Update unvetted metadata
-	UpdateVettedRoute           = "/v1/updatevetted/"     // Update vetted record
-	UpdateVettedMetadataRoute   = "/v1/updatevettedmd/"   // Update vetted metadata
-	GetUnvettedRoute            = "/v1/getunvetted/"      // Get unvetted record
-	GetVettedRoute              = "/v1/getvetted/"        // Get vetted record
+	IdentityRoute             = "/v1/identity/"       // Retrieve identity
+	NewRecordRoute            = "/v1/newrecord/"      // New record
+	UpdateUnvettedRoute       = "/v1/updateunvetted/" // Update unvetted record
+	UpdateVettedRoute         = "/v1/updatevetted/"   // Update vetted record
+	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
+	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
+	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
 
 	// Auth required
-	InventoryRoute         = "/v1/inventory/"         // Inventory records
-	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
-	SetVettedStatusRoute   = "/v1/setvettedstatus/"   // Set vetted status
-	PluginCommandRoute     = "/v1/plugin/"            // Send a command to a plugin
-	PluginInventoryRoute   = "/v1/plugin/inventory/"  // Inventory all plugins
+	InventoryRoute         = "/v1/inventory/"                  // Inventory records
+	SetUnvettedStatusRoute = "/v1/setunvettedstatus/"          // Set unvetted status
+	SetVettedStatusRoute   = "/v1/setvettedstatus/"            // Set vetted status
+	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
+	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
+	UpdateReadmeRoute      = "/v1/updatereadme/"               // Update README
 
-	ChallengeSize = 32 // Size of challenge token in bytes
-
-	// TokenSize is the size of a censorship record token in bytes.
-	TokenSize = 32
-
+	ChallengeSize      = 32         // Size of challenge token in bytes
+	TokenSize          = 32         // Size of token
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
 	// Error status codes
@@ -63,12 +59,10 @@ const (
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 	ErrorStatusRecordFound                   ErrorStatusT = 15
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
-	ErrorStatusInvalidToken                  ErrorStatusT = 17
-	ErrorStatusRecordNotFound                ErrorStatusT = 18
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
-	RecordStatusNotFound          RecordStatusT = 1 // Record not found (deprecated)
+	RecordStatusNotFound          RecordStatusT = 1 // Record not found
 	RecordStatusNotReviewed       RecordStatusT = 2 // Record has not been reviewed
 	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
@@ -102,8 +96,8 @@ var (
 		ErrorStatusDuplicateFilename:             "duplicate filename",
 		ErrorStatusFileNotFound:                  "file not found",
 		ErrorStatusNoChanges:                     "no changes in record",
-		ErrorStatusInvalidToken:                  "invalid token",
-		ErrorStatusRecordNotFound:                "record not found",
+		ErrorStatusRecordFound:                   "record found",
+		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
@@ -127,7 +121,7 @@ var (
 	ErrCorrupt       = errors.New("signature verification failed")
 
 	// Length of prefix of token used for lookups. The length 7 was selected to
-	// match github's abbreviated hash length. This is a var so that it can be
+	// match github's abbreviated hash length This is a var so that it can be
 	// updated during testing.
 	TokenPrefixLength = 7
 )
@@ -232,7 +226,8 @@ type Record struct {
 }
 
 // NewRecord creates a new record.  It must include all files that are part of
-// the record and it may contain an optional metatda record.
+// the record and it may contain an optional metatda record.  Thet optional
+// metadatarecord must be string encoded.
 type NewRecord struct {
 	Challenge string           `json:"challenge"` // Random challenge
 	Metadata  []MetadataStream `json:"metadata"`  // Metadata streams
@@ -250,7 +245,6 @@ type NewRecordReply struct {
 type GetUnvetted struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Token     string `json:"token"`     // Censorship token
-	Version   string `json:"version"`   // Record version
 }
 
 // GetUnvettedReply returns an unvetted record.  It retrieves the censorship
@@ -285,11 +279,10 @@ type SetUnvettedStatus struct {
 	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
 }
 
-// SetUnvettedStatusReply is a response to a SetUnvettedStatus.  It returns the
+// SetUnvettedStatus is a response to a SetUnvettedStatus.  It returns the
 // potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`   // Record
 }
 
 // SetVettedStatus updates the status of a vetted record. This is used to
@@ -306,11 +299,9 @@ type SetVettedStatus struct {
 // potentially modified record without the Files.
 type SetVettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`   // Record
 }
 
-// UpdateRecord updates a record. This is used for both unvetted and vetted
-// records.
+// UpdateRecord update an unvetted record.
 type UpdateRecord struct {
 	Challenge   string           `json:"challenge"`   // Random challenge
 	Token       string           `json:"token"`       // Censorship token
@@ -324,7 +315,6 @@ type UpdateRecord struct {
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
 	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`   // Record
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for
@@ -342,16 +332,15 @@ type UpdateVettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
-// UpdateUnvettedMetadata update a unvetted metadata.
-type UpdateUnvettedMetadata struct {
-	Challenge   string           `json:"challenge"`   // Random challenge
-	Token       string           `json:"token"`       // Censorship token
-	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
-	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
+// UpdateReadme updated the README.md file in the vetted and unvetted repos.
+type UpdateReadme struct {
+	Challenge string `json:"challenge"` // Random challenge
+	Content   string `json:"content"`   // New content of README.md
 }
 
-// UpdateUnvettedMetadataReply returns a response challenge.
-type UpdateUnvettedMetadataReply struct {
+// UpdateReadmeReply returns a response challenge to an
+// UpdateReadme command.
+type UpdateReadmeReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
@@ -390,20 +379,10 @@ type UserErrorReply struct {
 	ErrorContext []string     `json:"errorcontext,omitempty"` // Additional error information
 }
 
-// Error satisfies the error interface.
-func (e UserErrorReply) Error() string {
-	return fmt.Sprintf("user error code: %v", e.ErrorCode)
-}
-
 // ServerErrorReply returns an error code that can be correlated with
 // server logs.
 type ServerErrorReply struct {
 	ErrorCode int64 `json:"code"` // Server error code
-}
-
-// Error satisfies the error interface.
-func (e ServerErrorReply) Error() string {
-	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
 // PluginSetting is a structure that holds key/value pairs of a plugin setting.

@@ -21,6 +21,7 @@ import (
 
 const (
 	// mdstream IDs
+	IDInvalid              = 0
 	IDRecordStatusChange   = 2
 	IDInvoiceGeneral       = 3
 	IDInvoiceStatusChange  = 4

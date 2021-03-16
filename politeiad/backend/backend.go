@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,7 +10,6 @@ import (
 	"regexp"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
 var (
@@ -35,20 +34,13 @@ var (
 	// expected.
 	ErrChangesRecord = errors.New("changes record")
 
-	// ErrRecordLocked is returned when a record status is one that
-	// does not allow any further changes.
-	ErrRecordLocked = errors.New("record is locked")
+	// ErrRecordArchived is returned when an update was attempted on a
+	// archived record.
+	ErrRecordArchived = errors.New("record is archived")
 
-	// ErrJournalsNotReplayed is returned when the journals have not
-	// been replayed and the subsequent code expect it to be replayed.
+	// ErrJournalsNotReplayed is returned when the journals have not been replayed
+	// and the subsequent code expect it to be replayed
 	ErrJournalsNotReplayed = errors.New("journals have not been replayed")
-
-	// ErrPluginInvalid is emitted when an invalid plugin ID is used.
-	ErrPluginInvalid = errors.New("plugin invalid")
-
-	// ErrPluginCmdInvalid is emitted when an invalid plugin command is
-	// used.
-	ErrPluginCmdInvalid = errors.New("plugin command invalid")
 
 	// Plugin names must be all lowercase letters and have a length of <20
 	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
@@ -61,20 +53,17 @@ type ContentVerificationError struct {
 	ErrorContext []string
 }
 
-// Error satisfies the error interface.
 func (c ContentVerificationError) Error() string {
 	return fmt.Sprintf("%v: %v", v1.ErrorStatus[c.ErrorCode], c.ErrorContext)
 }
 
-// File represents a record file.
 type File struct {
-	Name    string `json:"name"`    // Basename of the file
-	MIME    string `json:"mime"`    // MIME type
-	Digest  string `json:"digest"`  // SHA256 of decoded Payload
-	Payload string `json:"payload"` // base64 encoded file
+	Name    string // Basename of the file
+	MIME    string // MIME type
+	Digest  string // SHA256 of decoded Payload
+	Payload string // base64 encoded file
 }
 
-// MDStatusT represents the status of a backend record.
 type MDStatusT int
 
 const (
@@ -105,7 +94,6 @@ type StateTransitionError struct {
 	To   MDStatusT
 }
 
-// Error satisfies the error interface.
 func (s StateTransitionError) Error() string {
 	return fmt.Sprintf("invalid record status transition %v (%v) -> %v (%v)",
 		s.From, MDStatus[s.From], s.To, MDStatus[s.To])
@@ -114,21 +102,20 @@ func (s StateTransitionError) Error() string {
 // RecordMetadata is the metadata of a record.
 const VersionRecordMD = 1
 
-// RecordMetadata represents metadata that is created by the backend on record
-// submission and updates.
 type RecordMetadata struct {
 	Version   uint64    `json:"version"`   // Version of the scruture
 	Iteration uint64    `json:"iteration"` // Iteration count of record
 	Status    MDStatusT `json:"status"`    // Current status of the record
 	Merkle    string    `json:"merkle"`    // Merkle root of all files in record
 	Timestamp int64     `json:"timestamp"` // Last updated
-	Token     string    `json:"token"`     // Record authentication token, hex encoded
+	Token     string    `json:"token"`     // Record authentication token
 }
 
-// MetadataStream describes a single metada stream.
+// MetadataStream describes a single metada stream.  The ID determines how and
+// where it is stored.
 type MetadataStream struct {
-	ID      uint64 `json:"id"`      // Stream identity
-	Payload string `json:"payload"` // String encoded metadata
+	ID      uint64 // Stream identity
+	Payload string // String encoded metadata
 }
 
 // Record is a permanent Record that includes the submitted files, metadata and
@@ -140,7 +127,7 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
-// PluginSettings are used to specify settings for a plugin at runtime.
+// PluginSettings
 type PluginSetting struct {
 	Key   string // Name of setting
 	Value string // Value of setting
@@ -151,66 +138,62 @@ type Plugin struct {
 	ID       string          // Identifier
 	Version  string          // Version
 	Settings []PluginSetting // Settings
-
-	// Identity contains the full identity that the plugin uses to
-	// create receipts, i.e. signatures of user provided data that
-	// prove the backend received and processed a plugin command.
-	Identity *identity.FullIdentity
 }
 
-// Backend provides an API for creating and editing records. When a record is
-// first submitted it is considered to be an unvetted, i.e. non-public, record.
-// Once the status of the record is updated to a public status, the record is
-// considered to be vetted.
 type Backend interface {
 	// Create new record
 	New([]MetadataStream, []File) (*RecordMetadata, error)
 
-	// Update unvetted record
-	UpdateUnvettedRecord(token []byte, mdAppend, mdOverwrite []MetadataStream,
-		filesAdd []File, filesDel []string) (*Record, error)
+	// Update unvetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
+	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
+		[]string) (*Record, error)
 
-	// Update vetted record
-	UpdateVettedRecord(token []byte, mdAppend, mdOverwrite []MetadataStream,
-		filesAdd []File, filesDel []string) (*Record, error)
+	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
+	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
+		[]string) (*Record, error)
 
-	// Update unvetted metadata
-	UpdateUnvettedMetadata(token []byte, mdAppend,
-		mdOverwrite []MetadataStream) error
+	// Update vetted metadata (token, mdAppend, mdOverwrite)
+	UpdateVettedMetadata([]byte, []MetadataStream,
+		[]MetadataStream) error
 
-	// Update vetted metadata
-	UpdateVettedMetadata(token []byte, mdAppend,
-		mdOverwrite []MetadataStream) error
-
-	// Set unvetted record status
-	SetUnvettedStatus(token []byte, s MDStatusT, mdAppend,
-		mdOverwrite []MetadataStream) (*Record, error)
-
-	// Set vetted record status
-	SetVettedStatus(token []byte, s MDStatusT, mdAppend,
-		mdOverwrite []MetadataStream) (*Record, error)
+	// Update README.md file at the root of git repo
+	UpdateReadme(string) error
 
 	// Check if an unvetted record exists
-	UnvettedExists(token []byte) bool
+	UnvettedExists([]byte) bool
 
 	// Check if a vetted record exists
-	VettedExists(token []byte) bool
+	VettedExists([]byte) bool
+
+	// Get all unvetted record tokens
+	UnvettedTokens() ([][]byte, error)
+
+	// Get all vetted record tokens
+	VettedTokens() ([][]byte, error)
 
 	// Get unvetted record
-	GetUnvetted(token []byte, version string) (*Record, error)
+	GetUnvetted([]byte) (*Record, error)
 
 	// Get vetted record
-	GetVetted(token []byte, version string) (*Record, error)
+	GetVetted([]byte, string) (*Record, error)
 
-	// Inventory retrieves various record records
+	// Set unvetted record status
+	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
+		[]MetadataStream) (*Record, error)
+
+	// Set vetted record status
+	SetVettedStatus([]byte, MDStatusT, []MetadataStream,
+		[]MetadataStream) (*Record, error)
+
+	// Inventory retrieves various record records.
 	Inventory(uint, uint, uint, bool, bool) ([]Record, []Record, error)
-
-	// Plugin pass-through command
-	Plugin(string, string) (string, string, error) // command type, payload, error
 
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)
 
-	// Close performs cleanup of the backend
+	// Plugin pass-through command
+	Plugin(string, string) (string, string, error) // command type, payload, error
+
+	// Close performs cleanup of the backend.
 	Close()
 }

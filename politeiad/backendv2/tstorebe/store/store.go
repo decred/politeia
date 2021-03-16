@@ -28,8 +28,7 @@ type DataDescriptor struct {
 	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used
 }
 
-// BlobEntry is the structure used to store data in the Blob key-value store.
-// All data in the Blob key-value store will be encoded as a BlobEntry.
+// BlobEntry is the structure used to store data in the key-value store.
 type BlobEntry struct {
 	Digest   string `json:"digest"`   // SHA256 digest of data, hex encoded
 	DataHint string `json:"datahint"` // Hint that describes data, base64 encoded

@@ -48,11 +48,11 @@ func (c *Client) NewRecord(ctx context.Context, metadata []pdv1.MetadataStream, 
 	return &nrr.CensorshipRecord, nil
 }
 
-func (c *Client) updateRecord(ctx context.Context, route, token string, mdAppend, mdOverwrite []pdv1.MetadataStream, filesAdd []pdv1.File, filesDel []string) (*pdv1.Record, error) {
+func (c *Client) updateRecord(ctx context.Context, route, token string, mdAppend, mdOverwrite []pdv1.MetadataStream, filesAdd []pdv1.File, filesDel []string) error {
 	// Setup request
 	challenge, err := util.Random(pdv1.ChallengeSize)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	ur := pdv1.UpdateRecord{
 		Token:       token,
@@ -65,70 +65,34 @@ func (c *Client) updateRecord(ctx context.Context, route, token string, mdAppend
 	// Send request
 	resBody, err := c.makeReq(ctx, http.MethodPost, "", route, ur)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Decode reply
 	var urr pdv1.UpdateRecordReply
 	err = json.Unmarshal(resBody, &urr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = util.VerifyChallenge(c.pid, challenge, urr.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &urr.Record, nil
-}
-
-// UpdateUnvetted sends a UpdateRecord request to the unvetted politeiad v1
-// API.
-func (c *Client) UpdateUnvetted(ctx context.Context, token string, mdAppend, mdOverwrite []pdv1.MetadataStream, filesAdd []pdv1.File, filesDel []string) (*pdv1.Record, error) {
-	return c.updateRecord(ctx, pdv1.UpdateUnvettedRoute, token,
-		mdAppend, mdOverwrite, filesAdd, filesDel)
-}
-
-// UpdateVetted sends a UpdateRecord request to the vetted politeiad v1 API.
-func (c *Client) UpdateVetted(ctx context.Context, token string, mdAppend, mdOverwrite []pdv1.MetadataStream, filesAdd []pdv1.File, filesDel []string) (*pdv1.Record, error) {
-	return c.updateRecord(ctx, pdv1.UpdateVettedRoute, token,
-		mdAppend, mdOverwrite, filesAdd, filesDel)
-}
-
-// UpdateUnvettedMetadata sends a UpdateVettedMetadata request to the politeiad
-// v1 API.
-func (c *Client) UpdateUnvettedMetadata(ctx context.Context, token string, mdAppend, mdOverwrite []pdv1.MetadataStream) error {
-	// Setup request
-	challenge, err := util.Random(pdv1.ChallengeSize)
-	if err != nil {
-		return err
-	}
-	uum := pdv1.UpdateUnvettedMetadata{
-		Challenge:   hex.EncodeToString(challenge),
-		Token:       token,
-		MDAppend:    mdAppend,
-		MDOverwrite: mdOverwrite,
-	}
-
-	// Send request
-	resBody, err := c.makeReq(ctx, http.MethodPost, "",
-		pdv1.UpdateUnvettedMetadataRoute, uum)
-	if err != nil {
-		return nil
-	}
-
-	// Decode reply
-	var uumr pdv1.UpdateUnvettedMetadataReply
-	err = json.Unmarshal(resBody, &uumr)
-	if err != nil {
-		return err
-	}
-	err = util.VerifyChallenge(c.pid, challenge, uumr.Response)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// UpdateUnvetted sends a UpdateRecord request to the unvetted politeiad v1
+// API.
+func (c *Client) UpdateUnvetted(ctx context.Context, token string, mdAppend, mdOverwrite []pdv1.MetadataStream, filesAdd []pdv1.File, filesDel []string) error {
+	return c.updateRecord(ctx, pdv1.UpdateUnvettedRoute, token,
+		mdAppend, mdOverwrite, filesAdd, filesDel)
+}
+
+// UpdateVetted sends a UpdateRecord request to the vetted politeiad v1 API.
+func (c *Client) UpdateVetted(ctx context.Context, token string, mdAppend, mdOverwrite []pdv1.MetadataStream, filesAdd []pdv1.File, filesDel []string) error {
+	return c.updateRecord(ctx, pdv1.UpdateVettedRoute, token,
+		mdAppend, mdOverwrite, filesAdd, filesDel)
 }
 
 // UpdateVettedMetadata sends a UpdateVettedMetadata request to the politeiad
@@ -169,11 +133,11 @@ func (c *Client) UpdateVettedMetadata(ctx context.Context, token string, mdAppen
 
 // SetUnvettedStatus sends a SetUnvettedStatus request to the politeiad v1
 // API.
-func (c *Client) SetUnvettedStatus(ctx context.Context, token string, status pdv1.RecordStatusT, mdAppend, mdOverwrite []pdv1.MetadataStream) (*pdv1.Record, error) {
+func (c *Client) SetUnvettedStatus(ctx context.Context, token string, status pdv1.RecordStatusT, mdAppend, mdOverwrite []pdv1.MetadataStream) error {
 	// Setup request
 	challenge, err := util.Random(pdv1.ChallengeSize)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sus := pdv1.SetUnvettedStatus{
 		Challenge:   hex.EncodeToString(challenge),
@@ -187,29 +151,29 @@ func (c *Client) SetUnvettedStatus(ctx context.Context, token string, status pdv
 	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.SetUnvettedStatusRoute, sus)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Decode reply
 	var susr pdv1.SetUnvettedStatusReply
 	err = json.Unmarshal(resBody, &susr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = util.VerifyChallenge(c.pid, challenge, susr.Response)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &susr.Record, nil
+	return nil
 }
 
 // SetVettedStatus sends a SetVettedStatus request to the politeiad v1 API.
-func (c *Client) SetVettedStatus(ctx context.Context, token string, status pdv1.RecordStatusT, mdAppend, mdOverwrite []pdv1.MetadataStream) (*pdv1.Record, error) {
+func (c *Client) SetVettedStatus(ctx context.Context, token string, status pdv1.RecordStatusT, mdAppend, mdOverwrite []pdv1.MetadataStream) error {
 	// Setup request
 	challenge, err := util.Random(pdv1.ChallengeSize)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	svs := pdv1.SetVettedStatus{
 		Challenge:   hex.EncodeToString(challenge),
@@ -223,25 +187,25 @@ func (c *Client) SetVettedStatus(ctx context.Context, token string, status pdv1.
 	resBody, err := c.makeReq(ctx, http.MethodPost, "",
 		pdv1.SetVettedStatusRoute, svs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Decode reply
 	var svsr pdv1.SetVettedStatusReply
 	err = json.Unmarshal(resBody, &svsr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = util.VerifyChallenge(c.pid, challenge, svsr.Response)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &svsr.Record, nil
+	return nil
 }
 
 // GetUnvetted sends a GetUnvetted request to the politeiad v1 API.
-func (c *Client) GetUnvetted(ctx context.Context, token, version string) (*pdv1.Record, error) {
+func (c *Client) GetUnvetted(ctx context.Context, token string) (*pdv1.Record, error) {
 	// Setup request
 	challenge, err := util.Random(pdv1.ChallengeSize)
 	if err != nil {
@@ -250,7 +214,6 @@ func (c *Client) GetUnvetted(ctx context.Context, token, version string) (*pdv1.
 	gu := pdv1.GetUnvetted{
 		Challenge: hex.EncodeToString(challenge),
 		Token:     token,
-		Version:   version,
 	}
 
 	// Send request

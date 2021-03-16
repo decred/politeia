@@ -1791,13 +1791,6 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 		false)
 }
 
-// UpdateUnvettedMetadata is not implemented.
-//
-// This function satisfies the Backend interface.
-func (g *gitBackEnd) UpdateUnvettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
-	return fmt.Errorf("not implemented")
-}
-
 // updateVettedMetadata updates metadata in the unvetted repo and pushes it
 // upstream followed by a rebase.  Record is not updated.
 // This function must be called with the lock held.
@@ -1869,7 +1862,7 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 		return err
 	}
 	if md.Status == backend.MDStatusArchived {
-		return backend.ErrRecordLocked
+		return backend.ErrRecordArchived
 	}
 
 	log.Debugf("updating vetted metadata %x", token)
@@ -2003,7 +1996,7 @@ func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp strin
 			return err
 		}
 		if md.Status == backend.MDStatusArchived {
-			return backend.ErrRecordLocked
+			return backend.ErrRecordArchived
 		}
 	}
 
@@ -2411,11 +2404,8 @@ func (g *gitBackEnd) vettedMetadataStreamExists(token []byte, mdstreamID int) bo
 // unvetted/token directory.
 //
 // GetUnvetted satisfies the backend interface.
-func (g *gitBackEnd) GetUnvetted(token []byte, version string) (*backend.Record, error) {
+func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
 	log.Tracef("GetUnvetted %x", token)
-
-	// The version argument is not used because gitbe does not version
-	// unvetted records.
 
 	return g.getRecordLock(token, "", g.unvetted, true)
 }
@@ -2597,7 +2587,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 		return nil, err
 	}
 	if md.Status == backend.MDStatusArchived {
-		return nil, backend.ErrRecordLocked
+		return nil, backend.ErrRecordArchived
 	}
 
 	// Load record

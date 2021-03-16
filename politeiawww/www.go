@@ -79,8 +79,6 @@ func convertWWWErrorStatusFromPD(e pd.ErrorStatusT) www.ErrorStatusT {
 		return www.ErrorStatusUnsupportedMIMEType
 	case pd.ErrorStatusInvalidRecordStatusTransition:
 		return www.ErrorStatusInvalidPropStatusTransition
-	case pd.ErrorStatusRecordNotFound:
-		return www.ErrorStatusProposalNotFound
 	}
 	return www.ErrorStatusInvalid
 }

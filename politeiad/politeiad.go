@@ -190,8 +190,6 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 		p.setVettedStatus, permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
 		p.updateVettedMetadata, permissionAuth)
-	p.addRoute(http.MethodPost, v1.UpdateUnvettedMetadataRoute,
-		p.updateUnvettedMetadata, permissionAuth)
 
 	// Set plugin routes. Requires auth.
 	p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
