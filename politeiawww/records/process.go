@@ -664,11 +664,18 @@ func convertStatusToPD(s v1.RecordStatusT) pdv2.RecordStatusT {
 func convertRequestsToPD(reqs []v1.RecordRequest) []pdv2.RecordRequest {
 	r := make([]pdv2.RecordRequest, 0, len(reqs))
 	for _, v := range reqs {
+		// The records API returns the record without any files by
+		// default. Files are only returned if the filenames are
+		// provided. This behavior differs from the politeiad API
+		// behavior, which returns all files by default.
+		var omitAllFiles bool
+		if len(v.Filenames) == 0 {
+			omitAllFiles = true
+		}
 		r = append(r, pdv2.RecordRequest{
 			Token:        v.Token,
-			Version:      v.Version,
 			Filenames:    v.Filenames,
-			OmitAllFiles: v.OmitAllFiles,
+			OmitAllFiles: omitAllFiles,
 		})
 	}
 	return r

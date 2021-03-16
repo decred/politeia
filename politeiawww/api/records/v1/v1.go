@@ -313,31 +313,21 @@ const (
 	RecordsPageSize = 5
 )
 
-// RecordRequest is used to requests a record. It gives the client granular
-// control over what is returned. The only required field is the token. All
-// other fields are optional.
+// RecordRequest is used to requests select content from a record. The latest
+// version of the record is returned. By default, all record files will be
+// stripped from the record before being returned.
 //
-// Version is used to request a specific version of a record. If no version is
-// provided then the most recent version of the record will be returned.
-//
-// Filenames can be used to request specific files. If filenames is not empty
-// then the specified files will be the only files returned.
-//
-// OmitAllFiles can be used to retrieve a record without any of the record
-// files. This supersedes the filenames argument.
+// Filenames can be used to request specific files. If filenames is empty than
+// no record files will be returned.
 type RecordRequest struct {
-	Token        string   `json:"token"`
-	Version      uint32   `json:"version,omitempty"`
-	Filenames    []string `json:"filenames,omitempty"`
-	OmitAllFiles bool     `json:"omitallfiles,omitempty"`
+	Token     string   `json:"token"`
+	Filenames []string `json:"filenames,omitempty"`
 }
 
-// Records requests a batch of records.
-//
-// Only the record metadata is returned. The Details command must be used to
-// retrieve the record files or a specific version of the record. Since record
-// files are not included in the reply, unvetted records are returned to all
-// users.
+// Records requests a batch of records. This route should be used when the
+// client only requires select content from the record. The Details command
+// should be used when the full record content is required. Unvetted record
+// files are only returned to admins and the author.
 type Records struct {
 	Requests []RecordRequest `json:"requests"`
 }
