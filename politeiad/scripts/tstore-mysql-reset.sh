@@ -52,7 +52,7 @@ case $answer in
     ;;
 esac
 
-echo "politeiad testnet reset complete!"
+echo "Testnet politeiad reset complete!"
 echo "The trillian logs must be reset using the trillian script. See docs."
 echo "Mainnet politeiad resets must be done manually."
 

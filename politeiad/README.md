@@ -113,7 +113,7 @@ politeiad
       MYSQL_ROOT_PASSWORD=rootpass \
       MYSQL_POLITEIAD_PASSWORD=politeiadpass \
       MYSQL_TRILLIAN_PASSWORD=trillianpass \
-      ./mysql-tstore-setup.sh
+      ./tstore-mysql-setup.sh
     ```
 
 6. Run the trillian mysql setup scripts.
