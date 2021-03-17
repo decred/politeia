@@ -257,9 +257,8 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 
 	// Only admins and the record author are allowed to retrieve
 	// unvetted record files. Remove files if the user is not an admin
-	// or the author. This is a public route so a user may not be
-	// present.
-	if rc.State == v1.RecordStateUnvetted {
+	// or the author. This is a public route so a user may not exist.
+	if rc.State != v1.RecordStateVetted {
 		var (
 			authorID = userIDFromMetadataStreams(rc.Metadata)
 			isAuthor = u != nil && u.ID.String() == authorID
@@ -292,6 +291,23 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 	records, err := r.records(ctx, reqs)
 	if err != nil {
 		return nil, err
+	}
+
+	// Only admins and the record author are allowed to retrieve
+	// unvetted record files. Remove files if the user is not an admin
+	// or the author. This is a public route so a user may not exist.
+	for k, v := range records {
+		if v.State != v1.RecordStateVetted {
+			var (
+				authorID = userIDFromMetadataStreams(v.Metadata)
+				isAuthor = u != nil && u.ID.String() == authorID
+				isAdmin  = u != nil && u.Admin
+			)
+			if !isAuthor && !isAdmin {
+				v.Files = []v1.File{}
+				records[k] = v
+			}
+		}
 	}
 
 	return &v1.RecordsReply{
@@ -380,7 +396,7 @@ func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmi
 
 	// Unvetted data blobs are stripped if the user is not an admin.
 	// The rest of the timestamp is still returned.
-	if rc.State == v1.RecordStateUnvetted && !isAdmin {
+	if rc.State != v1.RecordStateVetted && !isAdmin {
 		recordMD.Data = ""
 		for k, v := range files {
 			v.Data = ""
