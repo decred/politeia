@@ -12,6 +12,47 @@ import (
 	"sync"
 )
 
+// nonce returns a new nonce value. This function guarantees that the returned
+// nonce will be unique for every invocation.
+//
+// This function must be called using a transaction.
+func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
+	// Create and retrieve new nonce value in an atomic database
+	// transaction.
+	_, err := tx.ExecContext(ctx, "INSERT INTO nonce () VALUES ();")
+	if err != nil {
+		return 0, fmt.Errorf("insert: %v", err)
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT LAST_INSERT_ID();")
+	if err != nil {
+		return 0, fmt.Errorf("query: %v", err)
+	}
+	defer rows.Close()
+
+	var nonce int64
+	for rows.Next() {
+		if nonce > 0 {
+			// There should only ever be one row returned. Something is
+			// wrong if we've already scanned the nonce and its still
+			// scanning rows.
+			return 0, fmt.Errorf("multiple rows returned for nonce")
+		}
+		err = rows.Scan(&nonce)
+		if err != nil {
+			return 0, fmt.Errorf("scan: %v", err)
+		}
+	}
+	err = rows.Err()
+	if err != nil {
+		return 0, fmt.Errorf("next: %v", err)
+	}
+	if nonce == 0 {
+		return 0, fmt.Errorf("invalid 0 nonce")
+	}
+
+	return nonce, nil
+}
+
 // testNonce is used to verify that nonce races do not occur. This function is
 // meant to be run against an actual MySQL/MariaDB instance, not as a unit
 // test.

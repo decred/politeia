@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 
 	"github.com/decred/politeia/util"
@@ -16,107 +17,97 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// salt creates a random salt and saves it to the kv store. Subsequent calls to
-// this function will return the existing salt.
-func (s *mysql) salt(size int) ([]byte, error) {
-	saltKey := "salt"
+const (
+	// argon2idKey is the kv store key for the argon2idParams structure
+	// that is saved on initial key derivation.
+	argon2idKey = "argon2id"
+)
 
-	// Check if a salt already exists in the database
-	blobs, err := s.Get([]string{saltKey})
+// argon2idParams is saved to the kv store the first time the key is derived.
+type argon2idParams struct {
+	Time    uint32 `json:"time"`
+	Memory  uint32 `json:"memory"`
+	Threads uint8  `json:"threads"`
+	KeyLen  uint32 `json:"keylen"`
+	Salt    []byte `json:"salt"`
+}
+
+// argon2idKey derives a 32 byte key from the provided password using the
+// Aragon2id key derivation function. A random 16 byte salt is created the
+// first time the key is derived. The salt and the other argon2id params are
+// saved to the kv store. Subsequent calls to this fuction will pull the
+// existing salt and params from the kv store and use them to derive the key.
+func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
+	// Check if a key already exists
+	blobs, err := s.Get([]string{argon2idKey})
 	if err != nil {
 		return nil, fmt.Errorf("get: %v", err)
 	}
-	salt, ok := blobs[saltKey]
+	var salt []byte
+	var wasFound bool
+	b, ok := blobs[argon2idKey]
 	if ok {
-		// Salt already exists
-		log.Debugf("Salt found in kv store")
-		return salt, nil
+		// Key already exists. Use the existing salt.
+		log.Debugf("Existing salt found")
+
+		var ap argon2idParams
+		err = json.Unmarshal(b, &ap)
+		if err != nil {
+			return nil, err
+		}
+
+		salt = ap.Salt
+		wasFound = true
+	} else {
+		// Key does not exist. Create a random 16 byte salt.
+		log.Debugf("Salt not found; creating a new one")
+
+		salt, err = util.Random(16)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Salt doesn't exist yet. Create one and save it.
-	salt, err = util.Random(size)
-	if err != nil {
-		return nil, err
-	}
-	kv := map[string][]byte{
-		saltKey: salt,
-	}
-	err = s.Put(kv, false)
-	if err != nil {
-		return nil, fmt.Errorf("put: %v", err)
-	}
-
-	log.Debugf("Salt created and saved to kv store")
-
-	return salt, nil
-}
-
-// aragon2idKey derives a 32 byte aragon2id key from the provided password.
-// The salt is generated the first time the key is derived and saved to the kv
-// store. Subsequent calls to this fuction will use the existing salt.
-func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
+	// Derive key
 	var (
 		pass           = []byte(password)
-		saltLen int    = 16 // In bytes
 		time    uint32 = 1
 		memory  uint32 = 64 * 1024 // 64 MB
 		threads uint8  = 4         // Number of available CPUs
 		keyLen  uint32 = 32        // In bytes
 	)
-	salt, err := s.salt(saltLen)
-	if err != nil {
-		return nil, fmt.Errorf("salt: %v", err)
-	}
 	k := argon2.IDKey(pass, salt, time, memory, threads, keyLen)
 	var key [32]byte
 	copy(key[:], k)
 	util.Zero(k)
 
+	// Save params to the kv store if this is the first time the key
+	// was derived.
+	if !wasFound {
+		ap := argon2idParams{
+			Time:    time,
+			Memory:  memory,
+			Threads: threads,
+			KeyLen:  keyLen,
+			Salt:    salt,
+		}
+		b, err := json.Marshal(ap)
+		if err != nil {
+			return nil, err
+		}
+		kv := map[string][]byte{
+			argon2idKey: b,
+		}
+		err = s.Put(kv, false)
+		if err != nil {
+			return nil, fmt.Errorf("put: %v", err)
+		}
+	}
+
 	return &key, nil
 }
 
-// nonce returns a new nonce value. This function guarantees that the returned
-// nonce will be unique for every invocation.
-//
-// This function must be called using a transaction.
-func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
-	_, err := tx.ExecContext(ctx, "INSERT INTO nonce () VALUES ();")
-	if err != nil {
-		return 0, fmt.Errorf("insert: %v", err)
-	}
-
-	// Get the nonce value that was just created
-	rows, err := tx.QueryContext(ctx, "SELECT LAST_INSERT_ID();")
-	if err != nil {
-		return 0, fmt.Errorf("query: %v", err)
-	}
-	defer rows.Close()
-
-	var nonce int64
-	for rows.Next() {
-		if nonce > 0 {
-			// There should only ever be one row returned. Something is
-			// wrong if we've already scanned the nonce and its still
-			// scanning rows.
-			return 0, fmt.Errorf("multiple rows returned for nonce")
-		}
-		err = rows.Scan(&nonce)
-		if err != nil {
-			return 0, fmt.Errorf("scan: %v", err)
-		}
-	}
-	err = rows.Err()
-	if err != nil {
-		return 0, fmt.Errorf("next: %v", err)
-	}
-	if nonce == 0 {
-		return 0, fmt.Errorf("invalid 0 nonce")
-	}
-
-	return nonce, nil
-}
-
-func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
+func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, key *[32]byte, data []byte) ([]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
@@ -134,26 +125,23 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, e
 	}
 	nonceb := n.Current()
 
-	// Encrypt blob
+	// The encryption key is zero'd out on application exit so the read
+	// lock must be held during concurrent access to prevent the golang
+	// race detector from complaining.
 	s.RLock()
 	defer s.RUnlock()
 
-	return sbox.EncryptN(0, s.key, nonceb, data)
+	return sbox.EncryptN(0, key, nonceb, data)
 }
 
-func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
+func (s *mysql) decrypt(key *[32]byte, data []byte) ([]byte, uint32, error) {
+	// The encryption key is zero'd out on application exit so the read
+	// lock must be held during concurrent access to prevent the golang
+	// race detector from complaining.
 	s.RLock()
 	defer s.RUnlock()
 
-	return sbox.Decrypt(s.key, data)
-}
-
-func (s *mysql) zeroKey() {
-	s.Lock()
-	defer s.Unlock()
-
-	util.Zero(s.key[:])
-	s.key = nil
+	return sbox.Decrypt(key, data)
 }
 
 // isEncrypted returns whether the provided blob has been prefixed with an sbox

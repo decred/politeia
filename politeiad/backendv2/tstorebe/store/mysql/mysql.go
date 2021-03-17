@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/util"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -58,11 +59,43 @@ func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
 
+func (s *mysql) getKey() (*[32]byte, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	if s.key == nil {
+		return nil, fmt.Errorf("encryption key not found")
+	}
+
+	return s.key, nil
+}
+
+func (s *mysql) setKey(key *[32]byte) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.key = key
+}
+
+func (s *mysql) zeroKey() {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.key != nil {
+		util.Zero(s.key[:])
+		s.key = nil
+	}
+}
+
 func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
 	// Encrypt blobs
 	if encrypt {
+		key, err := s.getKey()
+		if err != nil {
+			return err
+		}
 		for k, v := range blobs {
-			e, err := s.encrypt(ctx, tx, v)
+			e, err := s.encrypt(ctx, tx, key, v)
 			if err != nil {
 				return fmt.Errorf("encrypt: %v", err)
 			}
@@ -232,7 +265,11 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 		if !encrypted {
 			continue
 		}
-		b, _, err := s.decrypt(v)
+		key, err := s.getKey()
+		if err != nil {
+			return nil, err
+		}
+		b, _, err := s.decrypt(key, v)
 		if err != nil {
 			return nil, fmt.Errorf("decrypt: %v", err)
 		}
@@ -255,7 +292,7 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	}
 
 	// Connect to database
-	log.Infof("MySQL: %v:[password]@tcp(%v)/%v", user, host, dbname)
+	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", user, host, dbname)
 
 	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
 	db, err := sql.Open("mysql", h)
@@ -290,16 +327,17 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 		return nil, fmt.Errorf("create nonce table: %v", err)
 	}
 
-	// Setup kv store context
+	// Setup mysql context
 	s := mysql{
 		db: db,
 	}
 
 	// Derive encryption key from password
-	s.key, err = s.argon2idKey(password)
+	key, err := s.argon2idKey(password)
 	if err != nil {
 		return nil, fmt.Errorf("argon2idKey: %v", err)
 	}
+	s.setKey(key)
 
 	return &s, nil
 }
