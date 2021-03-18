@@ -26,6 +26,9 @@ const (
 )
 
 // voteIndex contains the comment vote and the digest of the vote record.
+// Caching the vote allows us to tally the votes for a comment without needing
+// to pull the vote blobs from the backend. The digest allows us to retrieve
+// the vote blob if we need to.
 type voteIndex struct {
 	Vote   comments.VoteT `json:"vote"`
 	Digest []byte         `json:"digest"`
@@ -51,8 +54,9 @@ type recordIndex struct {
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
-// recordIndexPath accepts full length token or token prefixes, but always uses
-// prefix when generating the comments index path string.
+// recordIndexPath returns the file path for a cached record index. It accepts
+// the full length token or the token prefix, but always uses prefix when
+// generating the comments index path string.
 func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) string {
 	var fn string
 	switch s {
@@ -100,22 +104,33 @@ func (p *commentsPlugin) recordIndex(token []byte, s backend.StateT) (*recordInd
 	return &ridx, nil
 }
 
-// recordIndexSave saves the provided recordIndex to the comments plugin data
-// dir.
+// _recordIndexSave saves the provided recordIndex to the comments plugin data dir.
 //
 // This function must be called WITHOUT the read/write lock held.
-func (p *commentsPlugin) recordIndexSave(token []byte, s backend.StateT, ridx recordIndex) error {
-	p.Lock()
-	defer p.Unlock()
-
+func (p *commentsPlugin) _recordIndexSave(token []byte, s backend.StateT, ridx recordIndex) error {
 	b, err := json.Marshal(ridx)
 	if err != nil {
 		return err
 	}
 	fp := p.recordIndexPath(token, s)
+
+	p.Lock()
+	defer p.Unlock()
+
 	err = ioutil.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// recordIndexSave is a wrapper around the _recordIndexSave method that allows
+// us to decide how update errors should be handled. For now, we simply panic.
+// If an error occurs the cache is no longer coherent and the only way to fix
+// it is to rebuild it.
+func (p *commentsPlugin) recordIndexSave(token []byte, s backend.StateT, ridx recordIndex) {
+	err := p._recordIndexSave(token, s, ridx)
+	if err != nil {
+		panic(err)
+	}
 }

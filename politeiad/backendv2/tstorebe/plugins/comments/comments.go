@@ -23,7 +23,7 @@ var (
 
 // commentsPlugin is the tstore backend implementation of the comments plugin.
 //
-// commentsPlugin satisfies the plugins.PluginClient interface.
+// commentsPlugin satisfies the plugins PluginClient interface.
 type commentsPlugin struct {
 	sync.RWMutex
 	tstore plugins.TstoreClient
@@ -45,7 +45,7 @@ type commentsPlugin struct {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Setup() error {
 	log.Tracef("comments Setup")
 
@@ -54,7 +54,7 @@ func (p *commentsPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("comments Cmd: %v %x %v", treeID, token, cmd)
 
@@ -86,7 +86,7 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("comments Hook: %v %x %v", plugins.Hooks[h], token, treeID)
 
@@ -95,18 +95,19 @@ func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, paylo
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("comments Fsck")
 
+	// Verify record index coherency
 	// Verify CommentDel blobs were actually deleted
 
 	return nil
 }
 
-// Settings returns the plugin's settings.
+// Settings returns the plugin settings.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Settings() []backend.PluginSetting {
 	log.Tracef("comments Settings")
 
@@ -154,6 +155,8 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 					v.Key, v.Value, err)
 			}
 			voteChangesMax = uint32(u)
+		default:
+			return nil, fmt.Errorf("invalid comments plugin setting '%v'", v.Key)
 		}
 	}
 

@@ -95,9 +95,9 @@ const (
 	// changes max plugin setting.
 	ErrorCodeVoteChangesMaxExceeded ErrorCodeT = 10
 
-	// ErrorCodeStateInvalid is returned when the provided state does
-	// not match the record state.
-	ErrorCodeStateInvalid ErrorCodeT = 11
+	// ErrorCodeRecordStateInvalid is returned when the provided state
+	// does not match the record state.
+	ErrorCodeRecordStateInvalid ErrorCodeT = 11
 )
 
 var (
@@ -114,7 +114,7 @@ var (
 		ErrorCodeParentIDInvalid:        "parent id invalid",
 		ErrorCodeVoteInvalid:            "vote invalid",
 		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
-		ErrorCodeStateInvalid:           "record state invalid",
+		ErrorCodeRecordStateInvalid:     "record state invalid",
 	}
 )
 
@@ -338,9 +338,10 @@ type VoteReply struct {
 	Receipt   string `json:"receipt"`   // Server signature of client signature
 }
 
-// Get returns the latest version of the comments for the provided comment IDs.
-// An error is not returned if a comment is not found for one or more of the
-// comment IDs. Those entries will simply not be included in the reply.
+// Get retrieves a batch of specified comments. The most recent version of each
+// comment is returned. An error is not returned if a comment is not found for
+// one or more of the comment IDs. Those entries will simply not be included in
+// the reply.
 type Get struct {
 	CommentIDs []uint32 `json:"commentids"`
 }
@@ -353,15 +354,17 @@ type GetReply struct {
 	Comments map[uint32]Comment `json:"comments"` // [commentID]Comment
 }
 
-// GetAll returns the latest version off all comments for a record.
+// GetAll retrieves all comments for a record. The latest version of each
+// comment is returned.
 type GetAll struct{}
 
-// GetAllReply is the reply to the GetAll command.
+// GetAllReply is the reply to the GetAll command. The returned comments array
+// is ordered by comment ID from smallest to largest.
 type GetAllReply struct {
 	Comments []Comment `json:"comments"`
 }
 
-// GetVersion returns a specific version of a comment.
+// GetVersion retrieves the specified version of a comment.
 type GetVersion struct {
 	CommentID uint32 `json:"commentid"`
 	Version   uint32 `json:"version"`
@@ -372,7 +375,8 @@ type GetVersionReply struct {
 	Comment Comment `json:"comment"`
 }
 
-// Count returns the comments count for a record.
+// Count retrieves the comments count for a record. The comments count is the
+// number of comments that have been made on a record.
 type Count struct{}
 
 // CountReply is the reply to the Count command.
@@ -380,7 +384,7 @@ type CountReply struct {
 	Count uint32 `json:"count"`
 }
 
-// Votes returns the comment votes that meet the provided filtering criteria.
+// Votes retrieves the comment votes that meet the provided filtering criteria.
 type Votes struct {
 	UserID string `json:"userid"`
 }
@@ -418,7 +422,7 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
-// Timestamps requests the timestamps for a record's comments. If no comment
+// Timestamps retrieves the timestamps for a record's comments. If no comment
 // IDs are provided then timestamps for all comments made on the record will
 // be returned. If IncludeVotes is set to true then the timestamps for the
 // comment votes will also be returned. If a provided comment ID does not
