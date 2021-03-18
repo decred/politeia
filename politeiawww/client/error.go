@@ -27,16 +27,20 @@ type ErrorReply struct {
 	ErrorContext string
 }
 
-// Error represents a politeiawww response error. An Error is returned anytime
-// the politeiawww response is not a 200.
-type Error struct {
+// RespErr represents a politeiawww response error. An Error is returned
+// anytime the politeiawww response is not a 200.
+//
+// The various politeiawww APIs can have overlapping error codes. The API is
+// included to allow the Error() method to return the correct human readable
+// error message.
+type RespErr struct {
 	HTTPCode   int
 	API        string
 	ErrorReply ErrorReply
 }
 
 // Error satisfies the error interface.
-func (e Error) Error() string {
+func (e RespErr) Error() string {
 	switch e.HTTPCode {
 	case http.StatusInternalServerError:
 		return fmt.Sprintf("500 internal server error: %v",
