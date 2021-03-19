@@ -21,8 +21,8 @@ import (
 const (
 	// Filenames of the record indexes that are saved to the comments
 	// plugin data dir.
-	fnRecordIndexUnvetted = "{tokenPrefix}-index-unvetted.json"
-	fnRecordIndexVetted   = "{tokenPrefix}-index-vetted.json"
+	fnRecordIndexUnvetted = "{shorttoken}-index-unvetted.json"
+	fnRecordIndexVetted   = "{shorttoken}-index-vetted.json"
 )
 
 // voteIndex contains the comment vote and the digest of the vote record.
@@ -55,7 +55,7 @@ type recordIndex struct {
 }
 
 // recordIndexPath returns the file path for a cached record index. It accepts
-// the full length token or the token prefix, but the token prefix is always
+// both the full length token or the short token, but the short token is always
 // used in the file path string.
 func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) (string, error) {
 	var fn string
@@ -68,8 +68,11 @@ func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) (string
 		return "", fmt.Errorf("invalid state")
 	}
 
-	tp := util.TokenPrefix(token)
-	fn = strings.Replace(fn, "{tokenPrefix}", tp, 1)
+	t, err := util.ShortTokenEncode(token)
+	if err != nil {
+		return "", err
+	}
+	fn = strings.Replace(fn, "{shorttoken}", t, 1)
 	return filepath.Join(p.dataDir, fn), nil
 }
 

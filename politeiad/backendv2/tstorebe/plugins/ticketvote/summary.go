@@ -19,19 +19,18 @@ import (
 const (
 	// filenameSummary is the file name of the vote summary for a
 	// record. These summaries are cached in the plugin data dir.
-	filenameSummary = "{tokenprefix}-summary.json"
+	filenameSummary = "{shorttoken}-summary.json"
 )
 
 // summaryCachePath accepts both full tokens and token prefixes, however it
 // always uses the token prefix when generatig the path.
 func (p *ticketVotePlugin) summaryCachePath(token string) (string, error) {
 	// Use token prefix
-	t, err := tokenDecodeAnyLength(token)
+	stoken, err := util.ShortTokenString(token)
 	if err != nil {
 		return "", err
 	}
-	token = util.TokenPrefix(t)
-	fn := strings.Replace(filenameSummary, "{tokenprefix}", token, 1)
+	fn := strings.Replace(filenameSummary, "{shorttoken}", stoken, 1)
 	return filepath.Join(p.dataDir, fn), nil
 }
 

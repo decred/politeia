@@ -30,7 +30,7 @@ func NewTestTstoreBackend(t *testing.T) (*tstoreBackend, func()) {
 		appDir:     appDir,
 		dataDir:    dataDir,
 		tstore:     tstore.NewTestTstore(t, dataDir),
-		prefixes:   make(map[string][]byte),
+		tokens:     make(map[string][]byte),
 		recordMtxs: make(map[string]*sync.Mutex),
 	}
 

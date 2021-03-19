@@ -18,7 +18,7 @@ import (
 const (
 	// fnSubmissions is the filename for the cached submissions data
 	// that is saved to the plugin data dir.
-	fnSubmissions = "{tokenprefix}-submissions.json"
+	fnSubmissions = "{shorttoken}-submissions.json"
 )
 
 // submissions is the the structure that is updated and cached for record A
@@ -34,13 +34,16 @@ type submissions struct {
 }
 
 // submissionsCachePath returns the path to the submissions list for the
-// provided record token. The token prefix is used in the file path so that the
-// submissions list can be retrieved using either the full token or the token
-// prefix.
-func (p *ticketVotePlugin) submissionsCachePath(token []byte) string {
-	t := util.TokenPrefix(token)
-	fn := strings.Replace(fnSubmissions, "{tokenprefix}", t, 1)
-	return filepath.Join(p.dataDir, fn)
+// provided record token. The short token is used in the file path so that the
+// submissions list can be retrieved using either the full token or the short
+// token.
+func (p *ticketVotePlugin) submissionsCachePath(token []byte) (string, error) {
+	t, err := util.ShortTokenEncode(token)
+	if err != nil {
+		return "", err
+	}
+	fn := strings.Replace(fnSubmissions, "{shorttoken}", t, 1)
+	return filepath.Join(p.dataDir, fn), nil
 }
 
 // submissionsCacheWithLock return the submissions list for a record token. If
@@ -49,7 +52,10 @@ func (p *ticketVotePlugin) submissionsCachePath(token []byte) string {
 //
 // This function must be called WITH the lock held.
 func (p *ticketVotePlugin) submissionsCacheWithLock(token []byte) (*submissions, error) {
-	fp := p.submissionsCachePath(token)
+	fp, err := p.submissionsCachePath(token)
+	if err != nil {
+		return nil, err
+	}
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -89,7 +95,10 @@ func (p *ticketVotePlugin) submissionsCacheSaveWithLock(token []byte, s submissi
 	if err != nil {
 		return err
 	}
-	fp := p.submissionsCachePath(token)
+	fp, err := p.submissionsCachePath(token)
+	if err != nil {
+		return err
+	}
 	return ioutil.WriteFile(fp, b, 0664)
 }
 

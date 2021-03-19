@@ -196,12 +196,12 @@ const (
 	// TokenSize is the size of a censorship record token in bytes.
 	TokenSize = 8
 
-	// TokenSizeShort is the size, in characters, of a hex encoded
+	// ShortTokenLength is the length, in characters, of a hex encoded
 	// token that has been shortened to improved UX. Short tokens can
 	// be used to retrieve record data but cannot be used on any routes
 	// that write record data. 7 characters was chosen to match the git
 	// abbreviated commitment hash size.
-	TokenSizeShort = 7
+	ShortTokenLength = 7
 )
 
 // CensorshipRecord contains cryptographic proof that a record was accepted for

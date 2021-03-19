@@ -37,14 +37,14 @@ type tstoreBackend struct {
 	shutdown bool
 	tstore   *tstore.Tstore
 
-	// prefixes contains the prefix to full token mapping for all
-	// records. The prefix is the first n characters of the hex encoded
-	// record token, where n is defined by the token prefix length
-	// politeiad setting. Record lookups by token prefix are allowed.
-	// This cache is used to prevent prefix collisions when creating
-	// new tokens and to facilitate lookups by token prefix. This cache
+	// tokens contains the short token to full token mappings. The
+	// short token is the first n characters of the hex encoded record
+	// token, where n is defined by the short token length politeiad
+	// setting. Record lookups using short tokens are allowed. This
+	// cache is used to prevent collisions when creating new tokens
+	// and to facilitate lookups using only the short token. This cache
 	// is built on startup.
-	prefixes map[string][]byte // [tokenPrefix]token
+	tokens map[string][]byte // [shortToken]fullToken
 
 	// recordMtxs allows the backend to hold a lock on an individual
 	// record so that it can perform multiple read/write operations
@@ -76,34 +76,72 @@ func (t *tstoreBackend) recordMutex(token []byte) *sync.Mutex {
 	return m
 }
 
-func (t *tstoreBackend) prefixExists(fullToken []byte) bool {
+// tokenCollision returns whether the short version of the provided token
+// already exists. This can be used to prevent collisions when creating new
+// tokens.
+func (t *tstoreBackend) tokenCollision(fullToken []byte) bool {
+	shortToken, err := util.ShortTokenEncode(fullToken)
+	if err != nil {
+		return false
+	}
+
 	t.RLock()
 	defer t.RUnlock()
 
-	_, ok := t.prefixes[util.TokenPrefix(fullToken)]
+	_, ok := t.tokens[shortToken]
 	return ok
 }
 
-func (t *tstoreBackend) prefixAdd(fullToken []byte) {
+// tokenAdd adds a entry to the tokens cache.
+func (t *tstoreBackend) tokenAdd(fullToken []byte) error {
+	if !tokenIsFullLength(fullToken) {
+		return fmt.Errorf("token is not full length")
+	}
+
+	shortToken, err := util.ShortTokenEncode(fullToken)
+	if err != nil {
+		return err
+	}
+
 	t.Lock()
-	defer t.Unlock()
+	t.tokens[shortToken] = fullToken
+	t.Unlock()
 
-	prefix := util.TokenPrefix(fullToken)
-	t.prefixes[prefix] = fullToken
+	log.Tracef("Token cache add: %v", shortToken)
 
-	log.Tracef("Add token prefix: %v", prefix)
+	return nil
 }
 
-func (t *tstoreBackend) fullLengthToken(token []byte) []byte {
+// fullLengthToken returns the full length token given the short token. A
+// ErrRecordNotFound error is returned if a record does not exist for the
+// provided token.
+func (t *tstoreBackend) fullLengthToken(token []byte) ([]byte, error) {
+	if tokenIsFullLength(token) {
+		// Token is already full length. Nothing else to do.
+		return token, nil
+	}
+
+	shortToken, err := util.ShortTokenEncode(token)
+	if err != nil {
+		// Token was not large enough to be a short token. This cannot
+		// be used to lookup a record.
+		return nil, backend.ErrRecordNotFound
+	}
+
 	t.RLock()
 	defer t.RUnlock()
 
-	fullToken, ok := t.prefixes[util.TokenPrefix(token)]
+	fullToken, ok := t.tokens[shortToken]
 	if !ok {
-		return token
+		// Short token does not correspond to a record token
+		return nil, backend.ErrRecordNotFound
 	}
 
-	return fullToken
+	return fullToken, nil
+}
+
+func tokenIsFullLength(token []byte) bool {
+	return util.TokenIsFullLength(util.TokenTypeTstore, token)
 }
 
 func tokenFromTreeID(treeID int64) []byte {
@@ -112,10 +150,6 @@ func tokenFromTreeID(treeID int64) []byte {
 	// the sign bit, only the way it's interpreted.
 	binary.LittleEndian.PutUint64(b, uint64(treeID))
 	return b
-}
-
-func tokenIsFullLength(token []byte) bool {
-	return util.TokenIsFullLength(util.TokenTypeTstore, token)
 }
 
 func treeIDFromToken(token []byte) int64 {
@@ -428,20 +462,18 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 		}
 		token = tokenFromTreeID(treeID)
 
-		// Check for token prefix collisions
-		if !t.prefixExists(token) {
-			// Not a collision. Use this token.
-
-			// Update the prefix cache. This must be done even if the
-			// record creation fails since the tree will still exist in
-			// tstore.
-			t.prefixAdd(token)
-
-			break
+		// Check for shortened token collisions
+		if t.tokenCollision(token) {
+			// This is a collision. We cannot use this tree. Try again.
+			log.Infof("Token collision %x, creating new token", token)
+			continue
 		}
 
-		log.Infof("Token prefix collision %v, creating new token",
-			util.TokenPrefix(token))
+		// We've found a valid token. Update the tokens cache. This must
+		// be done even if the record creation fails since the tree will
+		// still exist in tstore.
+		t.tokenAdd(token)
+		break
 	}
 
 	// Create record metadata
@@ -920,8 +952,13 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 func (t *tstoreBackend) RecordExists(token []byte) bool {
 	log.Tracef("RecordExists: %x", token)
 
-	// Read methods are allowed to use token prefixes
-	token = t.fullLengthToken(token)
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return false
+	}
 
 	treeID := treeIDFromToken(token)
 	return t.tstore.TreeExists(treeID)
@@ -934,8 +971,13 @@ func (t *tstoreBackend) RecordExists(token []byte) bool {
 func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
 
-	// Read methods are allowed to use token prefixes
-	token = t.fullLengthToken(token)
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
 
 	treeID := treeIDFromToken(token)
 	return t.tstore.RecordTimestamps(treeID, version, token)
@@ -947,29 +989,39 @@ func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend
 //
 // This function satisfies the Backend interface.
 func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
-	log.Tracef("Records")
+	log.Tracef("Records: %v reqs", len(reqs))
 
-	records := make(map[string]backend.Record, len(reqs))
+	records := make(map[string]backend.Record, len(reqs)) // [token]Record
 	for _, v := range reqs {
-		// Read methods are allowed to use token prefixes
-		v.Token = t.fullLengthToken(v.Token)
+		// Read methods are allowed to use short tokens. Lookup the full
+		// length token.
+		token, err := t.fullLengthToken(v.Token)
+		if err != nil {
+			return nil, err
+		}
 
-		treeID := treeIDFromToken(v.Token)
+		// Lookup the record
+		treeID := treeIDFromToken(token)
 		r, err := t.tstore.RecordPartial(treeID, v.Version,
 			v.Filenames, v.OmitAllFiles)
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
+				log.Debugf("Record not found %x", token)
+
 				// Record doesn't exist. This is ok. It will not be included
 				// in the reply.
 				continue
 			}
 			// An unexpected error occurred. Log it and continue.
-			log.Debug("RecordPartial %v: %v", treeID, err)
+			log.Errorf("RecordPartial %x: %v", token, err)
 			continue
 		}
 
-		// Update reply
-		records[r.RecordMetadata.Token] = *r
+		// Update reply. Use whatever token was provided as the key so
+		// that the client can validate the reply using the same token
+		// that they provided, regardless of whether its a short token
+		// or full length token.
+		records[util.TokenEncode(v.Token)] = *r
 	}
 
 	return records, nil
@@ -1037,8 +1089,13 @@ func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload st
 	// will not be provided to the plugin.
 	var treeID int64
 	if len(token) > 0 {
-		// Read methods are allowed to use token prefixes
-		token = t.fullLengthToken(token)
+		// Read methods are allowed to use short tokens. Lookup the full
+		// length token.
+		var err error
+		token, err = t.fullLengthToken(token)
+		if err != nil {
+			return "", err
+		}
 
 		// Verify record exists
 		if !t.RecordExists(token) {
@@ -1155,8 +1212,7 @@ func (t *tstoreBackend) setup() error {
 	log.Infof("%v records in the backend", len(treeIDs))
 
 	for _, v := range treeIDs {
-		token := tokenFromTreeID(v)
-		t.prefixAdd(token)
+		t.tokenAdd(tokenFromTreeID(v))
 	}
 
 	return nil
@@ -1176,7 +1232,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 		appDir:     appDir,
 		dataDir:    dataDir,
 		tstore:     ts,
-		prefixes:   make(map[string][]byte),
+		tokens:     make(map[string][]byte),
 		recordMtxs: make(map[string]*sync.Mutex),
 	}
 
