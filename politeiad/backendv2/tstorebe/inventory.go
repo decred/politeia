@@ -98,8 +98,7 @@ func (t *tstoreBackend) invAdd(state backend.StateT, token []byte, s backend.Sta
 	case backend.StateVetted:
 		fp = t.invPathVetted()
 	default:
-		e := fmt.Sprintf("unknown state '%v'", state)
-		panic(e)
+		return fmt.Errorf("invalid state %v", state)
 	}
 
 	// Get inventory
@@ -139,8 +138,7 @@ func (t *tstoreBackend) invUpdate(state backend.StateT, token []byte, s backend.
 	case backend.StateVetted:
 		fp = t.invPathVetted()
 	default:
-		e := fmt.Sprintf("unknown state '%v'", state)
-		panic(e)
+		return fmt.Errorf("invalid state %v", state)
 	}
 
 	// Get inventory
@@ -152,9 +150,7 @@ func (t *tstoreBackend) invUpdate(state backend.StateT, token []byte, s backend.
 	// Del entry
 	entries, err := entryDel(inv.Entries, token)
 	if err != nil {
-		// This should not happen. Panic if it does.
-		e := fmt.Sprintf("%v entry del: %v", state, err)
-		panic(e)
+		return fmt.Errorf("%v entry del: %v", state, err)
 	}
 
 	// Prepend new entry to inventory
@@ -186,28 +182,26 @@ func (t *tstoreBackend) invMoveToVetted(token []byte, s backend.StatusT) error {
 	upath := t.invPathUnvetted()
 	u, err := t.invGetLocked(upath)
 	if err != nil {
-		return err
+		return fmt.Errorf("unvetted invGetLocked: %v", err)
 	}
 
 	// Del entry
 	u.Entries, err = entryDel(u.Entries, token)
 	if err != nil {
-		// This should not happen. Panic if it does.
-		e := fmt.Sprintf("unvetted entry del: %v", err)
-		panic(e)
+		return fmt.Errorf("entryDel: %v", err)
 	}
 
 	// Save unvetted inventory
 	err = t.invSaveLocked(upath, *u)
 	if err != nil {
-		return err
+		return fmt.Errorf("unvetted invSaveLocked: %v", err)
 	}
 
 	// Get vetted inventory
 	vpath := t.invPathVetted()
 	v, err := t.invGetLocked(vpath)
 	if err != nil {
-		return err
+		return fmt.Errorf("vetted invGetLocked: %v", err)
 	}
 
 	// Prepend new entry to inventory
@@ -220,7 +214,7 @@ func (t *tstoreBackend) invMoveToVetted(token []byte, s backend.StatusT) error {
 	// Save vetted inventory
 	err = t.invSaveLocked(vpath, *v)
 	if err != nil {
-		return err
+		return fmt.Errorf("vetted invSaveLocked: %v", err)
 	}
 
 	log.Debugf("Inv move to vetted %x %v", token, backend.Statuses[s])
@@ -229,33 +223,34 @@ func (t *tstoreBackend) invMoveToVetted(token []byte, s backend.StatusT) error {
 }
 
 // inventoryAdd is a wrapper around the invAdd method that allows us to decide
-// how disk read/write errors should be handled. For now we just panic.
+// how errors should be handled. For now we just panic. If an error occurs the
+// cache is no longer coherent and the only way to fix it is to rebuild it.
 func (t *tstoreBackend) inventoryAdd(state backend.StateT, token []byte, s backend.StatusT) {
 	err := t.invAdd(state, token, s)
 	if err != nil {
-		e := fmt.Sprintf("invAdd %v %x %v: %v", state, token, s, err)
-		panic(e)
+		panic(fmt.Sprintf("invAdd %v %x %v: %v", state, token, s, err))
 	}
 }
 
 // inventoryUpdate is a wrapper around the invUpdate method that allows us to
 // decide how disk read/write errors should be handled. For now we just panic.
+// If an error occurs the cache is no longer coherent and the only way to fix
+// it is to rebuild it.
 func (t *tstoreBackend) inventoryUpdate(state backend.StateT, token []byte, s backend.StatusT) {
 	err := t.invUpdate(state, token, s)
 	if err != nil {
-		e := fmt.Sprintf("invUpdate %v %x %v: %v", state, token, s, err)
-		panic(e)
+		panic(fmt.Sprintf("invUpdate %v %x %v: %v", state, token, s, err))
 	}
 }
 
 // inventoryMoveToVetted is a wrapper around the invMoveToVetted method that
 // allows us to decide how disk read/write errors should be handled. For now we
-// just panic.
+// just panic. If an error occurs the cache is no longer coherent and the only
+// way to fix it is to rebuild it.
 func (t *tstoreBackend) inventoryMoveToVetted(token []byte, s backend.StatusT) {
 	err := t.invMoveToVetted(token, s)
 	if err != nil {
-		e := fmt.Sprintf("invMoveToVetted %x %v: %v", token, s, err)
-		panic(e)
+		panic(fmt.Sprintf("invMoveToVetted %x %v: %v", token, s, err))
 	}
 }
 
@@ -337,8 +332,7 @@ func (t *tstoreBackend) invByStatus(state backend.StateT, s backend.StatusT, pag
 	case backend.StateVetted:
 		fp = t.invPathVetted()
 	default:
-		e := fmt.Sprintf("unknown state '%v'", state)
-		panic(e)
+		return nil, fmt.Errorf("unknown state '%v'", state)
 	}
 
 	// Get inventory

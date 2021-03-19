@@ -338,9 +338,8 @@ func voteScore(cidx commentIndex) (uint64, uint64) {
 		case 1:
 			upvotes++
 		default:
-			// Something went wrong
-			e := fmt.Errorf("unexpected vote score %v", score)
-			panic(e)
+			// Should not be possible
+			panic(fmt.Errorf("unexpected vote score %v", score))
 		}
 	}
 
@@ -368,12 +367,11 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 		}
 	}
 	if !bytes.Equal(t, token) {
-		e := fmt.Sprintf("comment token does not match route token: "+
-			"got %x, want %x", t, token)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("comment token does not match "+
+				"route token: got %x, want %x", t, token),
 		}
 	}
 
@@ -387,11 +385,11 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 
 	// Verify comment
 	if len(n.Comment) > int(p.commentLengthMax) {
-		e := fmt.Sprintf("max length is %v characters", p.commentLengthMax)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeMaxLengthExceeded),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeMaxLengthExceeded),
+			ErrorContext: fmt.Sprintf("max length is %v characters",
+				p.commentLengthMax),
 		}
 	}
 
@@ -502,12 +500,11 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 		}
 	}
 	if !bytes.Equal(t, token) {
-		e := fmt.Sprintf("comment token does not match route token: "+
-			"got %x, want %x", t, token)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("comment token does not match "+
+				"route token: got %x, want %x", t, token),
 		}
 	}
 
@@ -521,11 +518,11 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 
 	// Verify comment
 	if len(e.Comment) > int(p.commentLengthMax) {
-		e := fmt.Sprintf("max length is %v characters", p.commentLengthMax)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeMaxLengthExceeded),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeMaxLengthExceeded),
+			ErrorContext: fmt.Sprintf("max length is %v characters",
+				p.commentLengthMax),
 		}
 	}
 
@@ -571,12 +568,11 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 
 	// Verify the parent ID
 	if e.ParentID != existing.ParentID {
-		e := fmt.Sprintf("parent id cannot change; got %v, want %v",
-			e.ParentID, existing.ParentID)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeParentIDInvalid),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeParentIDInvalid),
+			ErrorContext: fmt.Sprintf("parent id cannot change; got %v, want %v",
+				e.ParentID, existing.ParentID),
 		}
 	}
 
@@ -660,12 +656,11 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 		}
 	}
 	if !bytes.Equal(t, token) {
-		e := fmt.Sprintf("comment token does not match route token: "+
-			"got %x, want %x", t, token)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("comment token does not match "+
+				"route token: got %x, want %x", t, token),
 		}
 	}
 
@@ -733,9 +728,8 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	// Update the index
 	cidx, ok := ridx.Comments[d.CommentID]
 	if !ok {
-		// This should not be possible
-		e := fmt.Sprintf("comment not found in index: %v", d.CommentID)
-		panic(e)
+		// Should not be possible. The cache is not coherent.
+		panic(fmt.Sprintf("comment not found in index: %v", d.CommentID))
 	}
 	cidx.Del = digest
 	ridx.Comments[d.CommentID] = cidx
@@ -797,12 +791,11 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 		}
 	}
 	if !bytes.Equal(t, token) {
-		e := fmt.Sprintf("comment token does not match route token: "+
-			"got %x, want %x", t, token)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("comment token does not match "+
+				"route token: got %x, want %x", t, token),
 		}
 	}
 
@@ -1064,12 +1057,11 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	}
 	digest, ok := cidx.Adds[gv.Version]
 	if !ok {
-		e := fmt.Sprintf("comment %v does not have version %v",
-			gv.CommentID, gv.Version)
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeCommentNotFound),
-			ErrorContext: e,
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
+			ErrorContext: fmt.Sprintf("comment %v does not have version %v",
+				gv.CommentID, gv.Version),
 		}
 	}
 

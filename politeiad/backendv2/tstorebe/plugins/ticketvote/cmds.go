@@ -61,24 +61,6 @@ func tokenDecodeAnyLength(token string) ([]byte, error) {
 	return util.TokenDecodeAnyLength(util.TokenTypeTstore, token)
 }
 
-func convertSignatureError(err error) backend.PluginError {
-	var e util.SignatureError
-	var s ticketvote.ErrorCodeT
-	if errors.As(err, &e) {
-		switch e.ErrorCode {
-		case util.ErrorStatusPublicKeyInvalid:
-			s = ticketvote.ErrorCodePublicKeyInvalid
-		case util.ErrorStatusSignatureInvalid:
-			s = ticketvote.ErrorCodeSignatureInvalid
-		}
-	}
-	return backend.PluginError{
-		PluginID:     ticketvote.PluginID,
-		ErrorCode:    uint32(s),
-		ErrorContext: e.ErrorContext,
-	}
-}
-
 func (p *ticketVotePlugin) authSave(treeID int64, ad ticketvote.AuthDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromAuthDetails(ad)
@@ -897,12 +879,11 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		}
 	}
 	if !bytes.Equal(t, token) {
-		e := fmt.Sprintf("plugin token does not match route token: "+
-			"got %x, want %x", t, token)
 		return "", backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("plugin token does not match "+
+				"route token: got %x, want %x", t, token),
 		}
 	}
 
@@ -921,11 +902,10 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	case ticketvote.AuthActionRevoke:
 		// This is allowed
 	default:
-		e := fmt.Sprintf("%v not a valid action", a.Action)
 		return "", backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
-			ErrorContext: e,
+			ErrorContext: fmt.Sprintf("%v not a valid action", a.Action),
 		}
 	}
 
@@ -942,12 +922,11 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 		}
 	}
 	if a.Version != r.RecordMetadata.Version {
-		e := fmt.Sprintf("version is not latest: got %v, want %v",
-			a.Version, r.RecordMetadata.Version)
 		return "", backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeRecordVersionInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorContext: fmt.Sprintf("version is not latest: got %v, want %v",
+				a.Version, r.RecordMetadata.Version),
 		}
 	}
 
@@ -1074,36 +1053,32 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 	// Verify vote params
 	switch {
 	case vote.Duration > voteDurationMax:
-		e := fmt.Sprintf("duration %v exceeds max duration %v",
-			vote.Duration, voteDurationMax)
 		return backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeVoteDurationInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeVoteDurationInvalid),
+			ErrorContext: fmt.Sprintf("duration %v exceeds max duration %v",
+				vote.Duration, voteDurationMax),
 		}
 	case vote.Duration < voteDurationMin:
-		e := fmt.Sprintf("duration %v under min duration %v",
-			vote.Duration, voteDurationMin)
 		return backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeVoteDurationInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeVoteDurationInvalid),
+			ErrorContext: fmt.Sprintf("duration %v under min duration %v",
+				vote.Duration, voteDurationMin),
 		}
 	case vote.QuorumPercentage > 100:
-		e := fmt.Sprintf("quorum percent %v exceeds 100 percent",
-			vote.QuorumPercentage)
 		return backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
+			ErrorContext: fmt.Sprintf("quorum percent %v exceeds 100 percent",
+				vote.QuorumPercentage),
 		}
 	case vote.PassPercentage > 100:
-		e := fmt.Sprintf("pass percent %v exceeds 100 percent",
-			vote.PassPercentage)
 		return backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeVotePassRateInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeVotePassRateInvalid),
+			ErrorContext: fmt.Sprintf("pass percent %v exceeds 100 percent",
+				vote.PassPercentage),
 		}
 	}
 
@@ -1122,12 +1097,11 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 		// that the only options present are approve/reject and that they
 		// use the vote option IDs specified by the ticketvote API.
 		if len(vote.Options) != 2 {
-			e := fmt.Sprintf("vote options count got %v, want 2",
-				len(vote.Options))
 			return backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
+				ErrorContext: fmt.Sprintf("vote options count got %v, want 2",
+					len(vote.Options)),
 			}
 		}
 		// map[optionID]found
@@ -1151,12 +1125,11 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 			}
 		}
 		if len(missing) > 0 {
-			e := fmt.Sprintf("vote option IDs not found: %v",
-				strings.Join(missing, ","))
 			return backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteOptionsInvalid),
+				ErrorContext: fmt.Sprintf("vote option IDs not found: %v",
+					strings.Join(missing, ",")),
 			}
 		}
 	}
@@ -1176,20 +1149,18 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 	// Verify parent token
 	switch {
 	case vote.Type == ticketvote.VoteTypeStandard && vote.Parent != "":
-		e := "parent token should not be provided for a standard vote"
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
-			ErrorContext: e,
+			ErrorContext: "parent token should not be provided for a standard vote",
 		}
 	case vote.Type == ticketvote.VoteTypeRunoff:
 		_, err := tokenDecode(vote.Parent)
 		if err != nil {
-			e := fmt.Sprintf("invalid parent %v", vote.Parent)
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,
 				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
-				ErrorContext: e,
+				ErrorContext: fmt.Sprintf("invalid parent %v", vote.Parent),
 			}
 		}
 	}
@@ -1218,12 +1189,11 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 		}
 	}
 	if !bytes.Equal(t, token) {
-		e := fmt.Sprintf("plugin payload token does not match route token: "+
-			"got %x, want %x", t, token)
 		return nil, backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("plugin payload token does not match "+
+				"route token: got %x, want %x", t, token),
 		}
 	}
 
@@ -1260,12 +1230,11 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 		return nil, fmt.Errorf("record is unvetted")
 	}
 	if sd.Params.Version != r.RecordMetadata.Version {
-		e := fmt.Sprintf("version is not latest: got %v, want %v",
-			sd.Params.Version, r.RecordMetadata.Version)
 		return nil, backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeRecordVersionInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorContext: fmt.Sprintf("version is not latest: got %v, want %v",
+				sd.Params.Version, r.RecordMetadata.Version),
 		}
 	}
 
@@ -1484,12 +1453,11 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 		return fmt.Errorf("record is unvetted")
 	}
 	if sd.Params.Version != r.RecordMetadata.Version {
-		e := fmt.Sprintf("version is not latest %v: got %v, want %v",
-			sd.Params.Token, sd.Params.Version, r.RecordMetadata.Version)
 		return backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeRecordVersionInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorContext: fmt.Sprintf("version is not latest %v: got %v, want %v",
+				sd.Params.Token, sd.Params.Version, r.RecordMetadata.Version),
 		}
 	}
 
@@ -1553,11 +1521,10 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 	r, err := p.tstore.RecordPartial(treeID, 0, files, false)
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordNotFound) {
-			e := fmt.Sprintf("parent record not found %x", token)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
 				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
-				ErrorContext: e,
+				ErrorContext: fmt.Sprintf("parent record not found %x", token),
 			}
 		}
 		return nil, fmt.Errorf("RecordPartial: %v", err)
@@ -1571,23 +1538,21 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 		return nil, err
 	}
 	if vm == nil || vm.LinkBy == 0 {
-		e := fmt.Sprintf("%x is not a runoff vote parent", token)
 		return nil, backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
-			ErrorContext: e,
+			ErrorContext: fmt.Sprintf("%x is not a runoff vote parent", token),
 		}
 	}
 	isExpired := vm.LinkBy < time.Now().Unix()
 	isMainNet := p.activeNetParams.Name == chaincfg.MainNetParams().Name
 	switch {
 	case !isExpired && isMainNet:
-		e := fmt.Sprintf("parent record %x linkby deadline not met %v",
-			token, vm.LinkBy)
 		return nil, backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeLinkByNotExpired),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeLinkByNotExpired),
+			ErrorContext: fmt.Sprintf("parent record %x linkby deadline not met %v",
+				token, vm.LinkBy),
 		}
 	case !isExpired:
 		// Allow the vote to be started before the link by deadline
@@ -1632,12 +1597,11 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 		_, ok := expected[v.Params.Token]
 		if !ok {
 			// This submission should not be here
-			e := fmt.Sprintf("record %v should not be included",
-				v.Params.Token)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeStartDetailsInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeStartDetailsInvalid),
+				ErrorContext: fmt.Sprintf("record %v should not be included",
+					v.Params.Token),
 			}
 		}
 	}
@@ -1706,52 +1670,46 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 		// Verify vote params are the same for all submissions
 		switch {
 		case v.Params.Type != ticketvote.VoteTypeRunoff:
-			e := fmt.Sprintf("%v got %v, want %v",
-				v.Params.Token, v.Params.Type, ticketvote.VoteTypeRunoff)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteTypeInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteTypeInvalid),
+				ErrorContext: fmt.Sprintf("%v got %v, want %v",
+					v.Params.Token, v.Params.Type, ticketvote.VoteTypeRunoff),
 			}
 		case v.Params.Mask != mask:
-			e := fmt.Sprintf("%v mask invalid: all must be the same",
-				v.Params.Token)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteBitsInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteBitsInvalid),
+				ErrorContext: fmt.Sprintf("%v mask invalid: all must be the same",
+					v.Params.Token),
 			}
 		case v.Params.Duration != duration:
-			e := fmt.Sprintf("%v duration does not match; all must be the same",
-				v.Params.Token)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteDurationInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteDurationInvalid),
+				ErrorContext: fmt.Sprintf("%v duration does not match; "+
+					"all must be the same", v.Params.Token),
 			}
 		case v.Params.QuorumPercentage != quorum:
-			e := fmt.Sprintf("%v quorum does not match; all must be the same",
-				v.Params.Token)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
+				ErrorContext: fmt.Sprintf("%v quorum does not match; "+
+					"all must be the same", v.Params.Token),
 			}
 		case v.Params.PassPercentage != pass:
-			e := fmt.Sprintf("%v pass rate does not match; all must be the same",
-				v.Params.Token)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVotePassRateInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVotePassRateInvalid),
+				ErrorContext: fmt.Sprintf("%v pass rate does not match; "+
+					"all must be the same", v.Params.Token),
 			}
 		case v.Params.Parent != parent:
-			e := fmt.Sprintf("%v parent does not match; all must be the same",
-				v.Params.Token)
 			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
-				ErrorContext: e,
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
+				ErrorContext: fmt.Sprintf("%v parent does not match; "+
+					"all must be the same", v.Params.Token),
 			}
 		}
 
@@ -1768,11 +1726,10 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 		// Verify parent token
 		_, err = tokenDecode(v.Params.Parent)
 		if err != nil {
-			e := fmt.Sprintf("parent token %v", v.Params.Parent)
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
 				ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
-				ErrorContext: e,
+				ErrorContext: fmt.Sprintf("parent token %v", v.Params.Parent),
 			}
 		}
 
@@ -1797,12 +1754,11 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 
 	// Verify plugin command is being executed on the parent record
 	if hex.EncodeToString(token) != parent {
-		e := fmt.Sprintf("runoff vote must be started on parent record %v",
-			parent)
 		return nil, backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
-			ErrorContext: e,
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
+			ErrorContext: fmt.Sprintf("runoff vote must be started on "+
+				"the parent record %v", parent),
 		}
 	}
 
@@ -2724,6 +2680,24 @@ func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+func convertSignatureError(err error) backend.PluginError {
+	var e util.SignatureError
+	var s ticketvote.ErrorCodeT
+	if errors.As(err, &e) {
+		switch e.ErrorCode {
+		case util.ErrorStatusPublicKeyInvalid:
+			s = ticketvote.ErrorCodePublicKeyInvalid
+		case util.ErrorStatusSignatureInvalid:
+			s = ticketvote.ErrorCodeSignatureInvalid
+		}
+	}
+	return backend.PluginError{
+		PluginID:     ticketvote.PluginID,
+		ErrorCode:    uint32(s),
+		ErrorContext: e.ErrorContext,
+	}
 }
 
 func convertAuthDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.AuthDetails, error) {

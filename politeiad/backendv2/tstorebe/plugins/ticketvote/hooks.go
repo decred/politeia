@@ -20,19 +20,20 @@ import (
 func voteMetadataDecode(files []backend.File) (*ticketvote.VoteMetadata, error) {
 	var voteMD *ticketvote.VoteMetadata
 	for _, v := range files {
-		if v.Name == ticketvote.FileNameVoteMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-			var m ticketvote.VoteMetadata
-			err = json.Unmarshal(b, &m)
-			if err != nil {
-				return nil, err
-			}
-			voteMD = &m
-			break
+		if v.Name != ticketvote.FileNameVoteMetadata {
+			continue
 		}
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return nil, err
+		}
+		var m ticketvote.VoteMetadata
+		err = json.Unmarshal(b, &m)
+		if err != nil {
+			return nil, err
+		}
+		voteMD = &m
+		break
 	}
 	return voteMD, nil
 }

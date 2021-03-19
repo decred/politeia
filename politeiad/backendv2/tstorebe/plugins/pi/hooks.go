@@ -43,6 +43,9 @@ func tokenDecode(token string) ([]byte, error) {
 func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) {
 	var propMD *pi.ProposalMetadata
 	for _, v := range files {
+		if v.Name != pi.FileNameProposalMetadata {
+			continue
+		}
 		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
@@ -66,10 +69,11 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 	return p.proposalNameRegexp.MatchString(name)
 }
 
-// proposalFilesVerify verifies the files adhere to all plugin setting
+// proposalFilesVerify verifies the files adhere to all pi plugin setting
 // requirements. If this hook is being executed then the files have already
-// passed politeia validation so we can assume that the file has a unique name,
-// a valid base64 payload, and that the file digest and MIME type are correct.
+// passed politeiad validation so we can assume that the file has a unique
+// name, a valid base64 payload, and that the file digest and MIME type are
+// correct.
 func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	var imagesCount uint32
 	for _, v := range files {
@@ -93,12 +97,11 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 
 			// Verify text file size
 			if len(payload) > int(p.textFileSizeMax) {
-				e := fmt.Sprintf("file %v size %v exceeds max size %v",
-					v.Name, len(payload), p.textFileSizeMax)
 				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    uint32(pi.ErrorCodeTextFileSizeInvalid),
-					ErrorContext: e,
+					PluginID:  pi.PluginID,
+					ErrorCode: uint32(pi.ErrorCodeTextFileSizeInvalid),
+					ErrorContext: fmt.Sprintf("file %v size %v exceeds max size %v",
+						v.Name, len(payload), p.textFileSizeMax),
 				}
 			}
 
@@ -107,12 +110,11 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 
 			// Verify image file size
 			if len(payload) > int(p.imageFileSizeMax) {
-				e := fmt.Sprintf("image %v size %v exceeds max size %v",
-					v.Name, len(payload), p.imageFileSizeMax)
 				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    uint32(pi.ErrorCodeImageFileSizeInvalid),
-					ErrorContext: e,
+					PluginID:  pi.PluginID,
+					ErrorCode: uint32(pi.ErrorCodeImageFileSizeInvalid),
+					ErrorContext: fmt.Sprintf("image %v size %v exceeds max size %v",
+						v.Name, len(payload), p.imageFileSizeMax),
 				}
 			}
 
@@ -139,12 +141,11 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 
 	// Verify image file count is acceptable
 	if imagesCount > p.imageFileCountMax {
-		e := fmt.Sprintf("got %v image files, max is %v",
-			imagesCount, p.imageFileCountMax)
 		return backend.PluginError{
-			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeImageFileCountInvalid),
-			ErrorContext: e,
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeImageFileCountInvalid),
+			ErrorContext: fmt.Sprintf("got %v image files, max is %v",
+				imagesCount, p.imageFileCountMax),
 		}
 	}
 
@@ -207,12 +208,11 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			return err
 		}
 		if s.Status != ticketvote.VoteStatusUnauthorized {
-			e := fmt.Sprintf("vote status '%v' does not allow for proposal edits",
-				ticketvote.VoteStatuses[s.Status])
 			return backend.PluginError{
-				PluginID:     pi.PluginID,
-				ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
-				ErrorContext: e,
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
+				ErrorContext: fmt.Sprintf("vote status '%v' does not allow "+
+					"for proposal edits", ticketvote.VoteStatuses[s.Status]),
 			}
 		}
 	}

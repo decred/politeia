@@ -55,9 +55,9 @@ type recordIndex struct {
 }
 
 // recordIndexPath returns the file path for a cached record index. It accepts
-// the full length token or the token prefix, but always uses prefix when
-// generating the comments index path string.
-func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) string {
+// the full length token or the token prefix, but the token prefix is always
+// used in the file path string.
+func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) (string, error) {
 	var fn string
 	switch s {
 	case backend.StateUnvetted:
@@ -65,13 +65,12 @@ func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) string 
 	case backend.StateVetted:
 		fn = fnRecordIndexVetted
 	default:
-		e := fmt.Sprintf("invalid state %x %v", token, s)
-		panic(e)
+		return "", fmt.Errorf("invalid state")
 	}
 
 	tp := util.TokenPrefix(token)
 	fn = strings.Replace(fn, "{tokenPrefix}", tp, 1)
-	return filepath.Join(p.dataDir, fn)
+	return filepath.Join(p.dataDir, fn), nil
 }
 
 // recordIndex returns the cached recordIndex for the provided record. If a
@@ -79,10 +78,14 @@ func (p *commentsPlugin) recordIndexPath(token []byte, s backend.StateT) string 
 //
 // This function must be called WITHOUT the read lock held.
 func (p *commentsPlugin) recordIndex(token []byte, s backend.StateT) (*recordIndex, error) {
+	fp, err := p.recordIndexPath(token, s)
+	if err != nil {
+		return nil, err
+	}
+
 	p.RLock()
 	defer p.RUnlock()
 
-	fp := p.recordIndexPath(token, s)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -112,7 +115,10 @@ func (p *commentsPlugin) _recordIndexSave(token []byte, s backend.StateT, ridx r
 	if err != nil {
 		return err
 	}
-	fp := p.recordIndexPath(token, s)
+	fp, err := p.recordIndexPath(token, s)
+	if err != nil {
+		return err
+	}
 
 	p.Lock()
 	defer p.Unlock()
@@ -125,7 +131,7 @@ func (p *commentsPlugin) _recordIndexSave(token []byte, s backend.StateT, ridx r
 }
 
 // recordIndexSave is a wrapper around the _recordIndexSave method that allows
-// us to decide how update errors should be handled. For now, we simply panic.
+// us to decide how update errors should be handled. For now we just panic.
 // If an error occurs the cache is no longer coherent and the only way to fix
 // it is to rebuild it.
 func (p *commentsPlugin) recordIndexSave(token []byte, s backend.StateT, ridx recordIndex) {
