@@ -21,11 +21,11 @@ import (
 )
 
 const (
-	// ProofTypeTrillianRFC6962 indicates a trillian proof that uses
+	// ProofTypeTrillianRFC6962 represents a trillian proof that uses
 	// the trillian hashing strategy HashStrategy_RFC6962_SHA256.
 	ProofTypeTrillianRFC6962 = "trillian-rfc6962"
 
-	// ProofTypeDcrtime indicates a dcrtime proof.
+	// ProofTypeDcrtime represents a dcrtime proof.
 	ProofTypeDcrtime = "dcrtime"
 )
 
@@ -36,13 +36,7 @@ type ExtraDataTrillianRFC6962 struct {
 	TreeSize  int64 `json:"treesize"`
 }
 
-// ExtraDataDcrtime requires the extra data required to verify a dcrtime
-// inclusion proof.
-type ExtraDataDcrtime struct {
-	NumLeaves uint32 // Nuber of leaves
-	Flags     string // Bitmap of merkle tree, base64 encoded
-}
-
+// verifyProofTrillian verifies a proof with the type ProofTypeTrillianRFC6962.
 func verifyProofTrillian(p backend.Proof) error {
 	// Verify type
 	if p.Type != ProofTypeTrillianRFC6962 {
@@ -87,6 +81,14 @@ func verifyProofTrillian(p backend.Proof) error {
 		merklePath, merkleRoot, leafHash)
 }
 
+// ExtraDataDcrtime contains the extra data required to verify a dcrtime
+// inclusion proof.
+type ExtraDataDcrtime struct {
+	NumLeaves uint32 // Nuber of leaves
+	Flags     string // Bitmap of merkle tree, base64 encoded
+}
+
+// verifyProofDcrtime verifies a proof with the type ProofTypeDcrtime.
 func verifyProofDcrtime(p backend.Proof) error {
 	if p.Type != ProofTypeDcrtime {
 		return fmt.Errorf("invalid proof type")
@@ -147,6 +149,7 @@ func verifyProofDcrtime(p backend.Proof) error {
 	return nil
 }
 
+// verifyProof verifies a backend proof.
 func verifyProof(p backend.Proof) error {
 	switch p.Type {
 	case ProofTypeTrillianRFC6962:

@@ -26,8 +26,8 @@ import (
 
 const (
 	// pluginDataDirname is the plugin data directory name. It is
-	// located in the tstore instance data directory and is provided to
-	// the plugins for storing plugin data.
+	// located in the tstore backend data directory and is provided
+	// to the plugins for storing plugin data.
 	pluginDataDirname = "plugins"
 )
 
@@ -37,6 +37,8 @@ type plugin struct {
 	client plugins.PluginClient
 }
 
+// plugin returns the specified plugin. Only plugins that have been registered
+// will be returned.
 func (t *Tstore) plugin(pluginID string) (plugin, bool) {
 	t.Lock()
 	defer t.Unlock()
@@ -45,6 +47,7 @@ func (t *Tstore) plugin(pluginID string) (plugin, bool) {
 	return plugin, ok
 }
 
+// pluginIDs returns the plugin ID of all registered plugins.
 func (t *Tstore) pluginIDs() []string {
 	t.Lock()
 	defer t.Unlock()
@@ -62,6 +65,8 @@ func (t *Tstore) pluginIDs() []string {
 	return ids
 }
 
+// PluginRegister registers a plugin. Plugin commands and hooks can be executed
+// on the plugin once registered.
 func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	log.Tracef("PluginRegister: %v", p.ID)
 
@@ -113,6 +118,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	return nil
 }
 
+// PluginSetup performs any required setup for the specified plugin.
 func (t *Tstore) PluginSetup(pluginID string) error {
 	log.Tracef("PluginSetup: %v", pluginID)
 
@@ -124,6 +130,10 @@ func (t *Tstore) PluginSetup(pluginID string) error {
 	return p.client.Setup()
 }
 
+// PluginHookPre executes a tstore backend pre hook. Pre hooks are hooks that
+// are executed prior to the tstore backend writing data to disk. These hooks
+// give plugins the opportunity to add plugin specific validation to record
+// methods or plugin commands that write data.
 func (t *Tstore) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("PluginHookPre: %v %v", treeID, plugins.Hooks[h])
 
@@ -143,6 +153,9 @@ func (t *Tstore) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payl
 	return nil
 }
 
+// PluginHookPre executes a tstore backend post hook. Post hooks are hooks that
+// are executed after the tstore backend successfully writes data to disk.
+// These hooks give plugins the opportunity to cache data from the write.
 func (t *Tstore) PluginHookPost(treeID int64, token []byte, h plugins.HookT, payload string) {
 	log.Tracef("PluginHookPost: %v %v", treeID, plugins.Hooks[h])
 
@@ -165,6 +178,7 @@ func (t *Tstore) PluginHookPost(treeID int64, token []byte, h plugins.HookT, pay
 	}
 }
 
+// PluginCmd executes a plugin command.
 func (t *Tstore) PluginCmd(treeID int64, token []byte, pluginID, cmd, payload string) (string, error) {
 	log.Tracef("PluginCmd: %v %x %v %v", treeID, token, pluginID, cmd)
 

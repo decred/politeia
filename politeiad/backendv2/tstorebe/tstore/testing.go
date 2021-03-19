@@ -11,6 +11,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 )
 
+// NewTestTstore returns a tstore instance that is setup for testing.
 func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	t.Helper()
 
@@ -21,7 +22,7 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	}
 
 	// Setup key-value store
-	fp, err := ioutil.TempDir(dataDir, defaultStoreDirname)
+	fp, err := ioutil.TempDir(dataDir, storeDirname)
 	if err != nil {
 		t.Fatal(err)
 	}

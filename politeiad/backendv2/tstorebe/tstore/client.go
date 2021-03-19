@@ -409,6 +409,9 @@ func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, err
 	return t.timestamp(treeID, m, leaves)
 }
 
+// leavesForDescriptor returns all leaves that have and extra data descriptor
+// that matches the provided descriptor. If a record is vetted, only vetted
+// leaves will be returned.
 func leavesForDescriptor(leaves []*trillian.LogLeaf, descriptors []string) []*trillian.LogLeaf {
 	// Put descriptors into a map for 0(n) lookups
 	desc := make(map[string]struct{}, len(descriptors))

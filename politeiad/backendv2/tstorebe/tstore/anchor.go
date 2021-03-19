@@ -20,11 +20,6 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// TODO handle reorgs. An anchor record may become invalid in the case of a
-// reorg. We don't create the anchor record until the anchor tx has 6
-// confirmations so the probability of this occurring on mainnet is low, but it
-// still needs to be handled.
-
 const (
 	// anchorSchedule determines how often we anchor records. dcrtime
 	// currently drops an anchor on the hour mark so we submit new
@@ -50,6 +45,8 @@ type anchor struct {
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
 }
 
+// droppingAnchorGet returns the dropping anchor boolean, which is used to
+// prevent reentrant anchor drops.
 func (t *Tstore) droppingAnchorGet() bool {
 	t.Lock()
 	defer t.Unlock()
@@ -57,6 +54,8 @@ func (t *Tstore) droppingAnchorGet() bool {
 	return t.droppingAnchor
 }
 
+// droppingAnchorSet sets the dropping anchor boolean, which is used to prevent
+// reentrant anchor drops.
 func (t *Tstore) droppingAnchorSet(b bool) {
 	t.Lock()
 	defer t.Unlock()
@@ -150,7 +149,7 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 }
 
 // anchorLatest returns the most recent anchor for the provided tree. A
-// errAnchorNotFound is returned if no anchor is found for the provided tree.
+// errAnchorNotFound is returned if no anchor is found.
 func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	// Get tree leaves
 	leavesAll, err := t.tlog.LeavesAll(treeID)
@@ -212,7 +211,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 		return fmt.Errorf("verify digest not found")
 	}
 
-	// Save the anchor record to store
+	// Save anchor record to the kv store
 	be, err := convertBlobEntryFromAnchor(a)
 	if err != nil {
 		return err
@@ -228,7 +227,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 		return fmt.Errorf("store Put: %v", err)
 	}
 
-	// Append anchor leaf to trillian tree
+	// Append anchor leaf to tlog
 	d, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
@@ -259,7 +258,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 		return fmt.Errorf("append leaves failed: %v", failed)
 	}
 
-	log.Debugf("Saved anchor for tree %v at height %v",
+	log.Debugf("Anchor saved for tree %v at height %v",
 		a.TreeID, a.LogRoot.TreeSize)
 
 	return nil
@@ -269,8 +268,8 @@ func (t *Tstore) anchorSave(a anchor) error {
 // dropped until dcrtime returns the ChainTimestamp in the reply. dcrtime does
 // not return the ChainTimestamp until the timestamp transaction has 6
 // confirmations. Once the timestamp has been dropped, the anchor record is
-// saved to the key-value store and the record histories of the corresponding
-// timestamped trees are updated.
+// saved to the tstore, which means that an anchor leaf will be appended onto
+// all trees that were anchored and the anchor records saved to the kv store.
 func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
 	// Verify we are not reentrant
 	if t.droppingAnchorGet() {
@@ -432,9 +431,10 @@ func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
 }
 
 // anchorTrees drops an anchor for any trees that have unanchored leaves at the
-// time of function invocation. A SHA256 digest of the tree's log root at its
-// current height is timestamped onto the decred blockchain using the dcrtime
-// service. The anchor data is saved to the key-value store.
+// time of invocation. A SHA256 digest of the tree's log root at its current
+// height is timestamped onto the decred blockchain using the dcrtime service.
+// The anchor data is saved to the key-value store and the tlog tree is updated
+// with an anchor leaf.
 func (t *Tstore) anchorTrees() error {
 	log.Debugf("Start anchor process")
 

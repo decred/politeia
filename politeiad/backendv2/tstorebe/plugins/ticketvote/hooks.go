@@ -73,7 +73,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
-			ErrorContext: err,
+			ErrorContext: err.Error(),
 		}
 	}
 	r, err := p.recordAbridged(token)

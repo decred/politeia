@@ -30,12 +30,22 @@ import (
 )
 
 const (
+	// DBTypeLevelDB is a config option that sets the backing key-value
+	// store to a leveldb instance.
 	DBTypeLevelDB = "leveldb"
-	DBTypeMySQL   = "mysql"
-	dbUser        = "politeiad"
 
+	// DBTypeLevelDB is a config option that sets the backing key-value
+	// store to a MySQL instance.
+	DBTypeMySQL = "mysql"
+
+	// LevelDB settings
+	storeDirname = "store"
+
+	// MySQL settings
+	dbUser = "politeiad"
+
+	// Config option defaults
 	defaultTrillianSigningKeyFilename = "trillian.key"
-	defaultStoreDirname               = "store"
 
 	// Blob entry data descriptors
 	dataDescriptorRecordMetadata = "pd-recordmd-v1"
@@ -57,7 +67,26 @@ var (
 	_ plugins.TstoreClient = (*Tstore)(nil)
 )
 
-// We do not unwind.
+// Tstore represents a trillian log (tlog) backed by a key-value store. When
+// data is saved to a tstore instance it is first saved to the key-value store
+// then a digest of the data is appended onto the tlog tree. Tlog trees are
+// episodically timestamped onto the decred blockchain. An inlcusion proof,
+// i.e. the cryptographic proof that the data was included in the decred
+// timestamp, can be retrieved for any individual piece of data saved to the
+// tstore instance.
+//
+// Saving only the digest of the data to tlog means that we separate the
+// timestamp from the data itself. This allows us to remove content that is
+// deemed undesirable from the key-value store without impacting the ability
+// to retrieve inclusion proofs for any other pieces of data saved to tstore.
+//
+// The key-value store is write once. Edits to data in the key-value store are
+// not allowed. Deletes, however, are allowed.
+//
+// The tlog tree is append only and is treated as the source of truth. If any
+// blobs make it into the key-value store but do not make it into the tlog tree
+// they are considered to be orphaned and are simply ignored. We do not unwind
+// failed calls.
 type Tstore struct {
 	sync.Mutex
 	dataDir         string
@@ -115,7 +144,7 @@ func (e *extraData) storeKeyNoPrefix() string {
 func extraDataEncode(key, desc string, state backend.StateT) ([]byte, error) {
 	// The encryption prefix is stripped from the key if one exists.
 	ed := extraData{
-		Key:   storeKeyClean(key),
+		Key:   storeKeyCleaned(key),
 		Desc:  desc,
 		State: state,
 	}
@@ -145,14 +174,16 @@ func storeKeyNew(encrypt bool) string {
 	return k
 }
 
-// storeKeyClean strips the key-value store key of the encryption prefix if
+// storeKeyCleaned strips the key-value store key of the encryption prefix if
 // one is present.
-func storeKeyClean(key string) string {
+func storeKeyCleaned(key string) string {
 	// A uuid string is 36 bytes. Return the last 36 bytes of the
 	// string. This will strip the prefix if it exists.
 	return key[len(key)-36:]
 }
 
+// merkleLeafHashForBlobEntry returns the merkle leaf hash for a blob entry.
+// The merkle leaf hash can be used to retrieve a leaf from its tlog tree.
 func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 	leafValue, err := hex.DecodeString(be.Digest)
 	if err != nil {
@@ -161,6 +192,7 @@ func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 	return merkleLeafHash(leafValue), nil
 }
 
+// TreeNew creates a new tlog tree and returns the tree ID.
 func (t *Tstore) TreeNew() (int64, error) {
 	log.Tracef("TreeNew")
 
@@ -217,14 +249,6 @@ func (t *Tstore) TreesAll() ([]int64, error) {
 func (t *Tstore) TreeExists(treeID int64) bool {
 	_, err := t.tlog.Tree(treeID)
 	return err == nil
-}
-
-func (t *Tstore) treeIsFrozen(leaves []*trillian.LogLeaf) bool {
-	r, err := t.recordIndexLatest(leaves)
-	if err != nil {
-		panic(err)
-	}
-	return r.Frozen
 }
 
 // recordBlobsSave saves the provided blobs to the kv store, appends a leaf
@@ -622,9 +646,10 @@ func (t *Tstore) recordSave(treeID int64, rm backend.RecordMetadata, metadata []
 
 // RecordSave saves the provided record to tstore. Once the record contents
 // have been successfully saved to tstore, a recordIndex is created for this
-// version of the record and saved to tstore as well. This iteration of the
-// record is not considered to be valid until the record index has been
-// successfully saved.
+// version of the record and saved to tstore as well. The record update is not
+// considered to be valid until the record index has been successfully saved.
+// If the record content makes it in but the record index does not, the record
+// content blobs are orphaned and ignored.
 func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("RecordSave: %v", treeID)
 
@@ -643,10 +668,9 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 	return nil
 }
 
-// RecordDel walks the provided tree and deletes all file blobs in the store
-// that correspond to record files. This is done for all versions and all
-// iterations of the record. Record metadata and metadata stream blobs are not
-// deleted.
+// RecordDel walks the provided tree and deletes all blobs in the store that
+// correspond to record files. This is done for all versions and all iterations
+// of the record. Record metadata and metadata stream blobs are not deleted.
 func (t *Tstore) RecordDel(treeID int64) error {
 	log.Tracef("RecordDel: %v", treeID)
 
@@ -922,6 +946,8 @@ func (t *Tstore) RecordPartial(treeID int64, version uint32, filenames []string,
 
 // recordIsVetted returns whether the provided leaves contain any vetted record
 // indexes. The presence of a vetted record index means the record is vetted.
+// The state of a record index is saved to the leaf extra data, which is how we
+// determine if a record index is vetted.
 func recordIsVetted(leaves []*trillian.LogLeaf) bool {
 	for _, v := range leaves {
 		ed, err := extraDataDecode(v.ExtraData)
@@ -937,6 +963,9 @@ func recordIsVetted(leaves []*trillian.LogLeaf) bool {
 	return false
 }
 
+// RecordState returns the state of a record. This call does not require
+// retrieving any blobs from the kv store. The record state can be derived from
+// only the tlog leaves.
 func (t *Tstore) RecordState(treeID int64) (backend.StateT, error) {
 	log.Tracef("RecordState: %v", treeID)
 
@@ -952,6 +981,7 @@ func (t *Tstore) RecordState(treeID int64) (backend.StateT, error) {
 	return backend.StateUnvetted, nil
 }
 
+// timestamp returns the timestamp given a tlog merkle leaf hash.
 func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
 	// Find the leaf
 	var l *trillian.LogLeaf
@@ -1090,6 +1120,9 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	return &ts, nil
 }
 
+// RecordTimestamps returns the timestamps for the contents of a record.
+// Timestamps for the record metadata, metadata streams, and files are all
+// returned.
 func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %v %v", treeID, version)
 
@@ -1149,13 +1182,15 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 	}, nil
 }
 
+// Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck() {
 	// Set tree status to frozen for any trees that are frozen and have
 	// been anchored one last time.
-	// Failed censor. Ensure all blobs have been deleted from all
-	// record versions of a censored record.
+
+	// Verify all file blobs have been deleted for censored records.
 }
 
+// Close performs cleanup of the tstore.
 func (t *Tstore) Close() {
 	log.Tracef("Close")
 
@@ -1164,6 +1199,7 @@ func (t *Tstore) Close() {
 	t.store.Close()
 }
 
+// New returns a new tstore instance.
 func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup trillian client
 	if trillianSigningKeyFile == "" {
@@ -1192,7 +1228,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 	var kvstore store.BlobKV
 	switch dbType {
 	case DBTypeLevelDB:
-		fp := filepath.Join(dataDir, defaultStoreDirname)
+		fp := filepath.Join(dataDir, storeDirname)
 		err = os.MkdirAll(fp, 0700)
 		if err != nil {
 			return nil, err
