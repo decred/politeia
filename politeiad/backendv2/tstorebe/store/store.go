@@ -10,8 +10,13 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 
 	"github.com/decred/politeia/util"
+)
+
+var (
+	ErrShutdown = errors.New("store is shutdown")
 )
 
 const (

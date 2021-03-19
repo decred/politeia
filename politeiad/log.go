@@ -54,20 +54,21 @@ var (
 	gitbeLog     = backendLog.Logger("GITB")
 	tstorebeLog  = backendLog.Logger("BACK")
 	tstoreLog    = backendLog.Logger("TSTR")
+	kvstoreLog   = backendLog.Logger("STOR")
 	wsdcrdataLog = backendLog.Logger("WSDD")
 	pluginLog    = backendLog.Logger("PLUG")
 )
 
 // Initialize package-global logger variables.
 func init() {
-	// Backend loggers
+	// Git backend loggers
 	gitbe.UseLogger(gitbeLog)
-	tstorebe.UseLogger(tstorebeLog)
 
-	// Tstore loggers
+	// Tstore backend loggers
+	tstorebe.UseLogger(tstorebeLog)
 	tstore.UseLogger(tstoreLog)
-	localdb.UseLogger(tstoreLog)
-	mysql.UseLogger(tstoreLog)
+	localdb.UseLogger(kvstoreLog)
+	mysql.UseLogger(kvstoreLog)
 
 	// Plugin loggers
 	comments.UseLogger(pluginLog)
@@ -85,6 +86,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"GITB": gitbeLog,
 	"BACK": tstorebeLog,
 	"TSTR": tstoreLog,
+	"STOR": kvstoreLog,
 	"WSDD": wsdcrdataLog,
 	"PLUG": pluginLog,
 }

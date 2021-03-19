@@ -1160,8 +1160,8 @@ func (t *Tstore) Close() {
 	log.Tracef("Close")
 
 	// Close connections
-	t.store.Close()
 	t.tlog.Close()
+	t.store.Close()
 }
 
 func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {

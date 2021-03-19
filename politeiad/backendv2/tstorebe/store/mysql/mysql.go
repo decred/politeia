@@ -47,7 +47,8 @@ var (
 // mysql implements the store BlobKV interface using a mysql driver.
 type mysql struct {
 	sync.RWMutex
-	db *sql.DB
+	db       *sql.DB
+	shutdown bool
 
 	// Encryption key. The key is zero'd out on application exit so the
 	// read lock must be held during concurrent access to prevent the
@@ -57,6 +58,13 @@ type mysql struct {
 
 func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
+}
+
+func (s *mysql) isShutdown() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.shutdown
 }
 
 func (s *mysql) getKey() (*[32]byte, error) {
@@ -75,16 +83,6 @@ func (s *mysql) setKey(key *[32]byte) {
 	defer s.Unlock()
 
 	s.key = key
-}
-
-func (s *mysql) zeroKey() {
-	s.Lock()
-	defer s.Unlock()
-
-	if s.key != nil {
-		util.Zero(s.key[:])
-		s.key = nil
-	}
 }
 
 func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
@@ -121,6 +119,10 @@ func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, 
 // This function satisfies the store BlobKV interface.
 func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Put: %v blobs", len(blobs))
+
+	if s.isShutdown() {
+		return store.ErrShutdown
+	}
 
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
@@ -163,6 +165,10 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 // This function satisfies the store BlobKV interface.
 func (s *mysql) Del(keys []string) error {
 	log.Tracef("Del: %v", keys)
+
+	if s.isShutdown() {
+		return store.ErrShutdown
+	}
 
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
@@ -209,6 +215,10 @@ func (s *mysql) Del(keys []string) error {
 // This function satisfies the store BlobKV interface.
 func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 	log.Tracef("Get: %v", keys)
+
+	if s.isShutdown() {
+		return nil, store.ErrShutdown
+	}
 
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
@@ -281,7 +291,20 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 
 // Closes closes the blob store connection.
 func (s *mysql) Close() {
-	s.zeroKey()
+	log.Tracef("Close")
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.shutdown = true
+
+	// Zero the encryption key
+	if s.key != nil {
+		util.Zero(s.key[:])
+		s.key = nil
+	}
+
+	// Close mysql connection
 	s.db.Close()
 }
 

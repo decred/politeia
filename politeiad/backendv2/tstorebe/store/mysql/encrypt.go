@@ -38,6 +38,8 @@ type argon2idParams struct {
 // saved to the kv store. Subsequent calls to this fuction will pull the
 // existing salt and params from the kv store and use them to derive the key.
 func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
+	log.Infof("Deriving encryption key from password")
+
 	// Check if a key already exists
 	blobs, err := s.Get([]string{argon2idKey})
 	if err != nil {
@@ -48,7 +50,7 @@ func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
 	b, ok := blobs[argon2idKey]
 	if ok {
 		// Key already exists. Use the existing salt.
-		log.Debugf("Existing salt found")
+		log.Infof("Encryption key salt already exists")
 
 		var ap argon2idParams
 		err = json.Unmarshal(b, &ap)
@@ -60,7 +62,7 @@ func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
 		wasFound = true
 	} else {
 		// Key does not exist. Create a random 16 byte salt.
-		log.Debugf("Salt not found; creating a new one")
+		log.Infof("Encryption key salt not found; creating a new one")
 
 		salt, err = util.Random(16)
 		if err != nil {
@@ -102,6 +104,8 @@ func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("put: %v", err)
 		}
+
+		log.Infof("Encryption key derivation params saved to kv store")
 	}
 
 	return &key, nil

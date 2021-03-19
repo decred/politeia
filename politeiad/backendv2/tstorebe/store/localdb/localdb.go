@@ -5,6 +5,7 @@
 package localdb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
+	"github.com/marcopeereboom/sbox"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -42,12 +44,37 @@ type localdb struct {
 	key *[32]byte
 }
 
+func (l *localdb) isShutdown() bool {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.shutdown
+}
+
+func (l *localdb) encrypt(data []byte) ([]byte, error) {
+	l.RLock()
+	defer l.RUnlock()
+
+	return sbox.Encrypt(0, l.key, data)
+}
+
+func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
+	l.RLock()
+	defer l.RUnlock()
+
+	return sbox.Decrypt(l.key, data)
+}
+
 // Put saves the provided key-value pairs to the store. This operation is
 // performed atomically.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Put: %v blobs", len(blobs))
+
+	if l.isShutdown() {
+		return store.ErrShutdown
+	}
 
 	// Encrypt blobs
 	if encrypt {
@@ -84,6 +111,10 @@ func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 func (l *localdb) Del(keys []string) error {
 	log.Tracef("Del: %v", keys)
 
+	if l.isShutdown() {
+		return store.ErrShutdown
+	}
+
 	batch := new(leveldb.Batch)
 	for _, v := range keys {
 		batch.Delete([]byte(v))
@@ -98,6 +129,12 @@ func (l *localdb) Del(keys []string) error {
 	return nil
 }
 
+// isEncrypted returns whether the provided blob has been prefixed with an sbox
+// header, indicating that it is an encrypted blob.
+func isEncrypted(b []byte) bool {
+	return bytes.HasPrefix(b, []byte("sbox"))
+}
+
 // Get returns blobs from the store for the provided keys. An entry will not
 // exist in the returned map if for any blobs that are not found. It is the
 // responsibility of the caller to ensure a blob was returned for all provided
@@ -106,6 +143,10 @@ func (l *localdb) Del(keys []string) error {
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	log.Tracef("Get: %v", keys)
+
+	if l.isShutdown() {
+		return nil, store.ErrShutdown
+	}
 
 	// Lookup blobs
 	blobs := make(map[string][]byte, len(keys))
@@ -142,10 +183,18 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Close() {
+	log.Tracef("Close")
+
 	l.Lock()
 	defer l.Unlock()
 
-	l.zeroKey()
+	l.shutdown = true
+
+	// Zero the encryption key
+	util.Zero(l.key[:])
+	l.key = nil
+
+	// Close database
 	l.db.Close()
 }
 
