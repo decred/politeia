@@ -582,7 +582,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 
 	// Call pre plugin hooks
 	her := plugins.HookEditRecord{
-		Current:        *r,
+		Record:         *r,
 		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 		Files:          files,
@@ -681,7 +681,7 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 
 	// Call pre plugin hooks
 	hem := plugins.HookEditMetadata{
-		Current:  *r,
+		Record:   *r,
 		Metadata: metadata,
 	}
 	b, err := json.Marshal(hem)
@@ -866,7 +866,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 
 	// Call pre plugin hooks
 	hsrs := plugins.HookSetRecordStatus{
-		Current:        *r,
+		Record:         *r,
 		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 	}

@@ -73,7 +73,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeLinkToInvalid),
-			ErrorContext: "invalid hex",
+			ErrorContext: err,
 		}
 	}
 	r, err := p.recordAbridged(token)
@@ -203,12 +203,12 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 	// The LinkTo field is not allowed to change once the record has
 	// become public. If this is a vetted record, verify that any
 	// previously set LinkTo has not changed.
-	if er.Current.RecordMetadata.State == backend.StateVetted {
+	if er.Record.RecordMetadata.State == backend.StateVetted {
 		var (
 			oldLinkTo string
 			newLinkTo string
 		)
-		vm, err := voteMetadataDecode(er.Current.Files)
+		vm, err := voteMetadataDecode(er.Record.Files)
 		if err != nil {
 			return err
 		}
@@ -257,7 +257,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPre(payload string) error {
 	}
 
 	// Check if the LinkTo has been set
-	vm, err := voteMetadataDecode(srs.Current.Files)
+	vm, err := voteMetadataDecode(srs.Record.Files)
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 
 	// Update the inventory cache
 	var (
-		oldStatus = srs.Current.RecordMetadata.Status
+		oldStatus = srs.Record.RecordMetadata.Status
 		newStatus = srs.RecordMetadata.Status
 	)
 	switch newStatus {
@@ -334,7 +334,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 	}
 
 	// Update the submissions cache if the linkto has been set.
-	vm, err := voteMetadataDecode(srs.Current.Files)
+	vm, err := voteMetadataDecode(srs.Record.Files)
 	if err != nil {
 		return err
 	}

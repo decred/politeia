@@ -94,7 +94,7 @@ type HookNewRecordPost struct {
 
 // HookEditRecord is the payload for the pre and post edit record hooks.
 type HookEditRecord struct {
-	Current backend.Record `json:"record"` // Record pre update
+	Record backend.Record `json:"record"` // Record pre update
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -104,7 +104,7 @@ type HookEditRecord struct {
 
 // HookEditMetadata is the payload for the pre and post edit metadata hooks.
 type HookEditMetadata struct {
-	Current backend.Record `json:"record"` // Record pre update
+	Record backend.Record `json:"record"` // Record pre update
 
 	// Updated fields
 	Metadata []backend.MetadataStream `json:"metadata"`
@@ -113,7 +113,7 @@ type HookEditMetadata struct {
 // HookSetRecordStatus is the payload for the pre and post set record status
 // hooks.
 type HookSetRecordStatus struct {
-	Current backend.Record `json:"record"` // Record pre update
+	Record backend.Record `json:"record"` // Record pre update
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`

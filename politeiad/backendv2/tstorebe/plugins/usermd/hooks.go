@@ -197,7 +197,7 @@ func (p *userPlugin) hookEditRecordPre(payload string) error {
 	if err != nil {
 		return err
 	}
-	umCurr, err := userMetadataDecode(er.Current.Metadata)
+	umCurr, err := userMetadataDecode(er.Record.Metadata)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func (p *userPlugin) hookEditMetadataPre(payload string) error {
 	}
 
 	// User metadata should not change on metadata updates
-	return userMetadataPreventUpdates(em.Current.Metadata, em.Metadata)
+	return userMetadataPreventUpdates(em.Record.Metadata, em.Metadata)
 }
 
 func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
@@ -328,7 +328,7 @@ func (p *userPlugin) hookSetRecordStatusPre(payload string) error {
 	}
 
 	// User metadata should not change on status changes
-	err = userMetadataPreventUpdates(srs.Current.Metadata, srs.Metadata)
+	err = userMetadataPreventUpdates(srs.Record.Metadata, srs.Metadata)
 	if err != nil {
 		return err
 	}
