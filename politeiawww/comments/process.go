@@ -7,6 +7,7 @@ package comments
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
@@ -197,12 +198,22 @@ func (c *Comments) processDel(ctx context.Context, d v1.Del, u user.User) (*v1.D
 func (c *Comments) processCount(ctx context.Context, ct v1.Count) (*v1.CountReply, error) {
 	log.Tracef("processCount: %v", ct.Tokens)
 
-	if len(ct.Tokens) == 0 {
+	// Verify size of request
+	switch {
+	case len(ct.Tokens) == 0:
+		// Nothing to do
+		return &v1.CountReply{
+			Counts: map[string]uint32{},
+		}, nil
+
+	case len(ct.Tokens) > int(v1.CountPageSize):
 		return nil, v1.UserErrorReply{
-			ErrorCode: v1.ErrorCodeNoTokensFound,
+			ErrorCode:    v1.ErrorCodePageSizeExceeded,
+			ErrorContext: fmt.Sprintf("max page size is %v", v1.CountPageSize),
 		}
 	}
 
+	// Get comment counts
 	counts, err := c.politeiad.CommentCount(ctx, ct.Tokens)
 	if err != nil {
 		return nil, err
@@ -327,6 +338,22 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 			}
 		}
 		return nil, err
+	}
+
+	// Verify size of request
+	switch {
+	case len(t.CommentIDs) == 0:
+		// Nothing to do
+		return &v1.TimestampsReply{
+			Comments: map[uint32][]v1.Timestamp{},
+		}, nil
+
+	case len(t.CommentIDs) > int(v1.TimestampsPageSize):
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodePageSizeExceeded,
+			ErrorContext: fmt.Sprintf("max page size is %v",
+				v1.TimestampsPageSize),
+		}
 	}
 
 	// Get timestamps

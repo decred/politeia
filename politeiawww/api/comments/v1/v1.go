@@ -34,7 +34,7 @@ const (
 	ErrorCodeTokenInvalid       ErrorCodeT = 6
 	ErrorCodeRecordNotFound     ErrorCodeT = 7
 	ErrorCodeRecordLocked       ErrorCodeT = 8
-	ErrorCodeNoTokensFound      ErrorCodeT = 9
+	ErrorCodePageSizeExceeded   ErrorCodeT = 9
 )
 
 var (
@@ -49,7 +49,7 @@ var (
 		ErrorCodeTokenInvalid:       "token invalid",
 		ErrorCodeRecordNotFound:     "record not found",
 		ErrorCodeRecordLocked:       "record is locked",
-		ErrorCodeNoTokensFound:      "no tokens found",
+		ErrorCodePageSizeExceeded:   "page size exceeded",
 	}
 )
 
@@ -246,6 +246,12 @@ type DelReply struct {
 	Comment Comment `json:"comment"`
 }
 
+const (
+	// CountPageSize is the maximum number of tokens that can be
+	// included in the Count command.
+	CountPageSize uint32 = 10
+)
+
 // Count requests the number of comments on that have been made on the given
 // records. If a record is not found for a token then it will not be included
 // in the returned map.
@@ -308,6 +314,12 @@ type Timestamp struct {
 	MerkleRoot string  `json:"merkleroot"`
 	Proofs     []Proof `json:"proofs"`
 }
+
+const (
+	// TimestampsPageSize is the maximum number of comment timestamps
+	// that can be requests at any one time.
+	TimestampsPageSize uint32 = 100
+)
 
 // Timestamps requests the timestamps for the comments of a record. If no
 // comment IDs are provided then the timestamps for all comments will be
