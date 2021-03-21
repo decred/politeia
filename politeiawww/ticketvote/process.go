@@ -6,6 +6,7 @@ package ticketvote
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
@@ -171,6 +172,16 @@ func (t *TicketVote) processResults(ctx context.Context, r v1.Results) (*v1.Resu
 func (t *TicketVote) processSummaries(ctx context.Context, s v1.Summaries) (*v1.SummariesReply, error) {
 	log.Tracef("processSummaries: %v", s.Tokens)
 
+	// Verify request size
+	if len(s.Tokens) > int(v1.SummariesPageSize) {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodePageSizeExceeded,
+			ErrorContext: fmt.Sprintf("max page size is %v",
+				v1.SummariesPageSize),
+		}
+	}
+
+	// Get vote summaries
 	ts, err := t.politeiad.TicketVoteSummaries(ctx, s.Tokens)
 	if err != nil {
 		return nil, err

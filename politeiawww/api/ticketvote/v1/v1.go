@@ -34,6 +34,7 @@ const (
 	ErrorCodeRecordNotFound   ErrorCodeT = 4
 	ErrorCodeRecordLocked     ErrorCodeT = 5
 	ErrorCodeTokenInvalid     ErrorCodeT = 6
+	ErrorCodePageSizeExceeded ErrorCodeT = 7
 )
 
 var (
@@ -46,6 +47,7 @@ var (
 		ErrorCodeRecordNotFound:   "record not found",
 		ErrorCodeRecordLocked:     "record locked",
 		ErrorCodeTokenInvalid:     "token is invalid",
+		ErrorCodePageSizeExceeded: "page size exceeded",
 	}
 )
 
@@ -493,6 +495,12 @@ type Summary struct {
 	// summary.
 	BestBlock uint32 `json:"bestblock"`
 }
+
+const (
+	// SummariesPageSize is the maximum number of vote summaries that
+	// can be requested at any one time.
+	SummariesPageSize uint32 = 5
+)
 
 // Summaries requests the vote summaries for the provided record tokens.
 type Summaries struct {
