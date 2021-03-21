@@ -18,6 +18,7 @@ const (
 	RouteRecordTimestamps   = "/recordtimestamps"
 	RouteRecords            = "/records"
 	RouteInventory          = "/inventory"
+	RouteInventoryOrdered   = "/inventoryordered"
 	RoutePluginWrite        = "/pluginwrite"
 	RoutePluginReads        = "/pluginreads"
 	RoutePluginInventory    = "/plugininventory"
@@ -50,6 +51,8 @@ const (
 	ErrorCodePluginIDInvalid         ErrorCodeT = 17
 	ErrorCodePluginCmdInvalid        ErrorCodeT = 18
 	ErrorCodePageSizeExceeded        ErrorCodeT = 19
+	ErrorCodeRecordStateInvalid      ErrorCodeT = 20
+	ErrorCodeRecordStatusInvalid     ErrorCodeT = 21
 )
 
 var (
@@ -73,6 +76,8 @@ var (
 		ErrorCodePluginIDInvalid:         "pluguin id invalid",
 		ErrorCodePluginCmdInvalid:        "plugin cmd invalid",
 		ErrorCodePageSizeExceeded:        "page size exceeded",
+		ErrorCodeRecordStateInvalid:      "record state invalid",
+		ErrorCodeRecordStatusInvalid:     "record status invalid",
 	}
 )
 
@@ -162,7 +167,7 @@ const (
 
 	// RecordStatusArchived indicates a record has been archived. An
 	// archived record is locked from any further updates. An archived
-	// record have a state of either unvetted or vetted.
+	// record can have a state of either unvetted or vetted.
 	RecordStatusArchived RecordStatusT = 4
 )
 
@@ -398,8 +403,8 @@ type RecordsReply struct {
 }
 
 const (
-	// InventoryPageSize is the maximum number of tokens that will be
-	// returned for any single status in an InventoryReply.
+	// InventoryPageSize is the number of tokens that will be returned
+	// per page for all inventory commands.
 	InventoryPageSize uint32 = 20
 )
 
@@ -425,6 +430,21 @@ type InventoryReply struct {
 	Response string              `json:"response"` // Challenge response
 	Unvetted map[string][]string `json:"unvetted"`
 	Vetted   map[string][]string `json:"vetted"`
+}
+
+// InventoryOrdered requests a page of record tokens ordered by the timestamp
+// of their most recent status change from newest to oldest. The reply will
+// include tokens for all record statuses.
+type InventoryOrdered struct {
+	Challenge string       `json:"challenge"` // Random challenge
+	State     RecordStateT `json:"state"`
+	Page      uint32       `json:"page"`
+}
+
+// InventoryOrderedReply is the reply to the InventoryOrdered command.
+type InventoryOrderedReply struct {
+	Response string   `json:"response"` // Challenge response
+	Tokens   []string `json:"tokens"`
 }
 
 // PluginCmd represents plugin command and the command payload. A token is

@@ -104,10 +104,14 @@ record tokens.
 If no status is specified then a page of tokens for each status are returned.
 The state and page arguments will be ignored.
 
+Valid states:
+  (1) unvetted
+  (2) vetted
+
 Valid statuses:
-  public
-  censored
-  abandoned
+  (2) public
+  (3) censored
+  (4) abandoned
 
 Arguments:
 1. state  (string, optional) State of tokens being requested.

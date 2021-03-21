@@ -11,13 +11,14 @@ const (
 	APIRoute = "/records/v1"
 
 	// Record routes
-	RouteNew        = "/new"
-	RouteEdit       = "/edit"
-	RouteSetStatus  = "/setstatus"
-	RouteDetails    = "/details"
-	RouteRecords    = "/records"
-	RouteInventory  = "/inventory"
-	RouteTimestamps = "/timestamps"
+	RouteNew              = "/new"
+	RouteEdit             = "/edit"
+	RouteSetStatus        = "/setstatus"
+	RouteDetails          = "/details"
+	RouteTimestamps       = "/timestamps"
+	RouteRecords          = "/records"
+	RouteInventory        = "/inventory"
+	RouteInventoryOrdered = "/inventoryordered"
 
 	// Metadata routes
 	RouteUserRecords = "/userrecords"
@@ -307,68 +308,6 @@ type DetailsReply struct {
 	Record Record `json:"record"`
 }
 
-const (
-	// RecordsPageSize is the maximum number of records that can be
-	// requested in a Records request.
-	RecordsPageSize = 5
-)
-
-// RecordRequest is used to requests select content from a record. The latest
-// version of the record is returned. By default, all record files will be
-// stripped from the record before being returned.
-//
-// Filenames can be used to request specific files. If filenames is empty than
-// no record files will be returned.
-type RecordRequest struct {
-	Token     string   `json:"token"`
-	Filenames []string `json:"filenames,omitempty"`
-}
-
-// Records requests a batch of records. This route should be used when the
-// client only requires select content from the record. The Details command
-// should be used when the full record content is required. Unvetted record
-// files are only returned to admins and the author.
-type Records struct {
-	Requests []RecordRequest `json:"requests"`
-}
-
-// RecordsReply is the reply to the Records command. Any tokens that did not
-// correspond to a record will not be included in the reply.
-type RecordsReply struct {
-	Records map[string]Record `json:"records"` // [token]Record
-}
-
-const (
-	// InventoryPageSize is the maximum number of tokens that will be
-	// returned for any single status in an inventory reply.
-	InventoryPageSize uint32 = 20
-)
-
-// Inventory requests the tokens of the records in the inventory, categorized
-// by record state and record status. The tokens are ordered by the timestamp
-// of their most recent status change, sorted from newest to oldest.
-//
-// The state, status, and page arguments can be provided to request a specific
-// page of record tokens.
-//
-// If no status is provided then a page of tokens for all statuses are
-// returned. The state and page arguments will be ignored.
-//
-// Unvetted record tokens will only be returned to admins.
-type Inventory struct {
-	State  RecordStateT  `json:"state,omitempty"`
-	Status RecordStatusT `json:"status,omitempty"`
-	Page   uint32        `json:"page,omitempty"`
-}
-
-// InventoryReply is the reply to the Inventory command. The returned maps are
-// map[status][]token where the status is the human readable record status
-// defined by the RecordStatuses array in this package.
-type InventoryReply struct {
-	Unvetted map[string][]string `json:"unvetted"`
-	Vetted   map[string][]string `json:"vetted"`
-}
-
 // Proof contains an inclusion proof for the digest in the merkle root. All
 // digests are hex encoded SHA256 digests.
 //
@@ -416,6 +355,82 @@ type TimestampsReply struct {
 
 	// map[filename]Timestamp
 	Files map[string]Timestamp `json:"files"`
+}
+
+const (
+	// RecordsPageSize is the maximum number of records that can be
+	// requested in a Records request.
+	RecordsPageSize = 5
+)
+
+// RecordRequest is used to requests select content from a record. The latest
+// version of the record is returned. By default, all record files will be
+// stripped from the record before being returned.
+//
+// Filenames can be used to request specific files. If filenames is empty than
+// no record files will be returned.
+type RecordRequest struct {
+	Token     string   `json:"token"`
+	Filenames []string `json:"filenames,omitempty"`
+}
+
+// Records requests a batch of records. This route should be used when the
+// client only requires select content from the record. The Details command
+// should be used when the full record content is required. Unvetted record
+// files are only returned to admins and the author.
+type Records struct {
+	Requests []RecordRequest `json:"requests"`
+}
+
+// RecordsReply is the reply to the Records command. Any tokens that did not
+// correspond to a record will not be included in the reply.
+type RecordsReply struct {
+	Records map[string]Record `json:"records"` // [token]Record
+}
+
+const (
+	// InventoryPageSize is the number of tokens that will be returned
+	// per page for all inventory commands.
+	InventoryPageSize uint32 = 20
+)
+
+// Inventory requests the tokens of the records in the inventory, categorized
+// by record state and record status. The tokens are ordered by the timestamp
+// of their most recent status change, sorted from newest to oldest.
+//
+// The state, status, and page arguments can be provided to request a specific
+// page of record tokens.
+//
+// If no status is provided then a page of tokens for all statuses are
+// returned. The state and page arguments will be ignored.
+//
+// Unvetted record tokens will only be returned to admins.
+type Inventory struct {
+	State  RecordStateT  `json:"state,omitempty"`
+	Status RecordStatusT `json:"status,omitempty"`
+	Page   uint32        `json:"page,omitempty"`
+}
+
+// InventoryReply is the reply to the Inventory command. The returned maps are
+// map[status][]token where the status is the human readable record status
+// defined by the RecordStatuses array in this package.
+type InventoryReply struct {
+	Unvetted map[string][]string `json:"unvetted"`
+	Vetted   map[string][]string `json:"vetted"`
+}
+
+// InventoryOrdered requests a page of record tokens ordered by the timestamp
+// of their most recent status change from newest to oldest. The reply will
+// include tokens for all record statuses. Unvetted tokens will only be
+// returned to admins.
+type InventoryOrdered struct {
+	State RecordStateT `json:"state"`
+	Page  uint32       `json:"page"`
+}
+
+// InventoryOrderedReply is the reply to the InventoryOrdered command.
+type InventoryOrderedReply struct {
+	Tokens []string `json:"tokens"`
 }
 
 // UserRecords requests the tokens of all records submitted by a user. Unvetted

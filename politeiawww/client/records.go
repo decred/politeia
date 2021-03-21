@@ -84,6 +84,23 @@ func (c *Client) RecordDetails(d rcv1.Details) (*rcv1.Record, error) {
 	return &dr.Record, nil
 }
 
+// RecordTimestamps sends a records v1 Timestamps request to politeiawww.
+func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RouteTimestamps, t)
+	if err != nil {
+		return nil, err
+	}
+
+	var tr rcv1.TimestampsReply
+	err = json.Unmarshal(resBody, &tr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tr, nil
+}
+
 // Records sends a records v1 Records request to politeiawww.
 func (c *Client) Records(r rcv1.Records) (map[string]rcv1.Record, error) {
 	resBody, err := c.makeReq(http.MethodPost,
@@ -118,21 +135,22 @@ func (c *Client) RecordInventory(i rcv1.Inventory) (*rcv1.InventoryReply, error)
 	return &ir, nil
 }
 
-// RecordTimestamps sends a records v1 Timestamps request to politeiawww.
-func (c *Client) RecordTimestamps(t rcv1.Timestamps) (*rcv1.TimestampsReply, error) {
+// RecordInventoryOrdered sends a records v1 InventoryOrdered request to
+// politeiawww.
+func (c *Client) RecordInventoryOrdered(i rcv1.InventoryOrdered) (*rcv1.InventoryOrderedReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,
-		rcv1.APIRoute, rcv1.RouteTimestamps, t)
+		rcv1.APIRoute, rcv1.RouteInventoryOrdered, i)
 	if err != nil {
 		return nil, err
 	}
 
-	var tr rcv1.TimestampsReply
-	err = json.Unmarshal(resBody, &tr)
+	var ir rcv1.InventoryOrderedReply
+	err = json.Unmarshal(resBody, &ir)
 	if err != nil {
 		return nil, err
 	}
 
-	return &tr, nil
+	return &ir, nil
 }
 
 // UserRecords sends a records v1 UserRecords request to politeiawww.

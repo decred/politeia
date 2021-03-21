@@ -29,7 +29,8 @@ var (
 	_ backend.Backend = (*tstoreBackend)(nil)
 )
 
-// tstoreBackend implements the Backend interface.
+// tstoreBackend implements the Backend interface using a tstore as the
+// data store.
 type tstoreBackend struct {
 	sync.RWMutex
 	appDir   string
@@ -1052,15 +1053,20 @@ func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, 
 	}, nil
 }
 
-// InventoryTimeOrdered returns a page of record tokens sorted by timestamp of
-// their most recent status change. The returned tokens are not sorted by
-// status and will included all statuses.
+// InventoryOrdered returns a page of record tokens ordered by the timestamp of
+// their most recent status change. The returned tokens will include all record
+// statuses.
 //
 // This function satisfies the Backend interface.
-func (t *tstoreBackend) InventoryTimeOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
-	log.Tracef("InventoryTimeOrdered: %v %v %v", state, pageSize, pageNumber)
+func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
+	log.Tracef("InventoryOrdered: %v %v %v", state, pageSize, pageNumber)
 
-	return nil, fmt.Errorf("not implemented")
+	tokens, err := t.invOrdered(state, pageSize, pageNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	return tokens, nil
 }
 
 // PluginRegister registers a plugin.

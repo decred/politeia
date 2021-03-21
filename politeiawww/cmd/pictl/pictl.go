@@ -69,9 +69,10 @@ type pictl struct {
 	ProposalEdit       cmdProposalEdit       `command:"proposaledit"`
 	ProposalSetStatus  cmdProposalSetStatus  `command:"proposalsetstatus"`
 	ProposalDetails    cmdProposalDetails    `command:"proposaldetails"`
+	ProposalTimestamps cmdProposalTimestamps `command:"proposaltimestamps"`
 	Proposals          cmdProposals          `command:"proposals"`
 	ProposalInv        cmdProposalInv        `command:"proposalinv"`
-	ProposalTimestamps cmdProposalTimestamps `command:"proposaltimestamps"`
+	ProposalInvOrdered cmdProposalInvOrdered `command:"proposalinvordered"`
 	UserProposals      cmdUserProposals      `command:"userproposals"`
 
 	// Comments commands
@@ -155,9 +156,10 @@ Proposal commands
   proposaledit            (user)   Edit an existing proposal
   proposalstatusset       (admin)  Set the status of a proposal
   proposaldetails         (public) Get a full proposal record
+  proposaltimestamps      (public) Get timestamps for a proposal
   proposals               (public) Get proposals without their files
   proposalinv             (public) Get inventory by proposal status
-  proposaltimestamps      (public) Get timestamps for a proposal
+  proposalinvordered      (public) Get inventory ordered chronologically
   userproposals           (public) Get proposals submitted by a user
 
 Comment commands

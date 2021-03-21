@@ -22,7 +22,7 @@ type cmdHelp struct {
 // This function satisfies the go-flags Commander interface.
 func (c *cmdHelp) Execute(args []string) error {
 	switch c.Args.Command {
-	// Server commands
+	// Basic commands
 	case "version":
 		fmt.Printf("%s\n", shared.VersionHelpMsg)
 	case "policy":
@@ -34,6 +34,40 @@ func (c *cmdHelp) Execute(args []string) error {
 	case "me":
 		fmt.Printf("%s\n", shared.MeHelpMsg)
 
+	// User commands
+	case "usernew":
+		fmt.Printf("%s\n", userNewHelpMsg)
+	case "useredit":
+		fmt.Printf("%s\n", userEditHelpMsg)
+	case "userdetails":
+		fmt.Printf("%s\n", userDetailsHelpMsg)
+	case "useremailverify":
+		fmt.Printf("%s\n", userEmailVerifyHelpMsg)
+	case "userregistrationpayment":
+		fmt.Printf("%s\n", userRegistrationPaymentHelpMsg)
+	case "userproposalpaywall":
+		fmt.Printf("%s\n", userProposalPaywallHelpMsg)
+	case "userproposalpaywalltx":
+		fmt.Printf("%s\n", userProposalPaywallTxHelpMsg)
+	case "userproposalcredits":
+		fmt.Printf("%s\n", userProposalCreditsHelpMsg)
+	case "userpaymentsrescan":
+		fmt.Printf("%s\n", userPaymentsRescanHelpMsg)
+	case "usermanage":
+		fmt.Printf("%s\n", shared.UserManageHelpMsg)
+	case "userkeyupdate":
+		fmt.Printf("%s\n", shared.UserKeyUpdateHelpMsg)
+	case "userverificationresend":
+		fmt.Printf("%s\n", userVerificationResendHelpMsg)
+	case "userusernamechange":
+		fmt.Printf("%s\n", shared.UserUsernameChangeHelpMsg)
+	case "userpasswordchange":
+		fmt.Printf("%s\n", shared.UserPasswordChangeHelpMsg)
+	case "userpasswordreset":
+		fmt.Printf("%s\n", shared.UserPasswordResetHelpMsg)
+	case "users":
+		fmt.Printf("%s\n", shared.UsersHelpMsg)
+
 		// Proposal commands
 	case "proposalpolicy":
 		fmt.Printf("%s\n", proposalPolicyHelpMsg)
@@ -43,12 +77,16 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", proposalEditHelpMsg)
 	case "proposalsetstatus":
 		fmt.Printf("%s\n", proposalSetStatusHelpMsg)
+	case "proposaldetails":
+		fmt.Printf("%s\n", proposalDetailsHelpMsg)
+	case "proposaltimestamps":
+		fmt.Printf("%s\n", proposalTimestampsHelpMsg)
 	case "proposals":
 		fmt.Printf("%s\n", proposalsHelpMsg)
 	case "proposalinv":
 		fmt.Printf("%s\n", proposalInvHelpMsg)
-	case "proposaltimestamps":
-		fmt.Printf("%s\n", proposalTimestampsHelpMsg)
+	case "proposalinvordered":
+		fmt.Printf("%s\n", proposalInvOrderedHelpMsg)
 
 		// Comment commands
 	case "commentpolicy":
@@ -89,40 +127,6 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", voteInvHelpMsg)
 	case "votetimestamps":
 		fmt.Printf("%s\n", voteTimestampsHelpMsg)
-
-	// User commands
-	case "usernew":
-		fmt.Printf("%s\n", userNewHelpMsg)
-	case "useredit":
-		fmt.Printf("%s\n", userEditHelpMsg)
-	case "userdetails":
-		fmt.Printf("%s\n", userDetailsHelpMsg)
-	case "useremailverify":
-		fmt.Printf("%s\n", userEmailVerifyHelpMsg)
-	case "userregistrationpayment":
-		fmt.Printf("%s\n", userRegistrationPaymentHelpMsg)
-	case "userproposalpaywall":
-		fmt.Printf("%s\n", userProposalPaywallHelpMsg)
-	case "userproposalpaywalltx":
-		fmt.Printf("%s\n", userProposalPaywallTxHelpMsg)
-	case "userproposalcredits":
-		fmt.Printf("%s\n", userProposalCreditsHelpMsg)
-	case "userpaymentsrescan":
-		fmt.Printf("%s\n", userPaymentsRescanHelpMsg)
-	case "usermanage":
-		fmt.Printf("%s\n", shared.UserManageHelpMsg)
-	case "userkeyupdate":
-		fmt.Printf("%s\n", shared.UserKeyUpdateHelpMsg)
-	case "userverificationresend":
-		fmt.Printf("%s\n", userVerificationResendHelpMsg)
-	case "userusernamechange":
-		fmt.Printf("%s\n", shared.UserUsernameChangeHelpMsg)
-	case "userpasswordchange":
-		fmt.Printf("%s\n", shared.UserPasswordChangeHelpMsg)
-	case "userpasswordreset":
-		fmt.Printf("%s\n", shared.UserPasswordResetHelpMsg)
-	case "users":
-		fmt.Printf("%s\n", shared.UsersHelpMsg)
 
 	// Websocket commands
 	case "subscribe":

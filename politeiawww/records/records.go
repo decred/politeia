@@ -152,6 +152,40 @@ func (c *Records) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, dr)
 }
 
+// HandleTimestamps is the request handler for the records v1 Timestamps route.
+func (c *Records) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleTimestamps")
+
+	var t v1.Timestamps
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		respondWithError(w, r, "HandleTimestamps: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	// Lookup session user. This is a public route so a session may not
+	// exist. Ignore any session not found errors.
+	u, err := c.sessions.GetSessionUser(w, r)
+	if err != nil && err != sessions.ErrSessionNotFound {
+		respondWithError(w, r,
+			"HandleTimestamps: getSessionUser: %v", err)
+		return
+	}
+
+	isAdmin := u != nil && u.Admin
+	tr, err := c.processTimestamps(r.Context(), t, isAdmin)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleTimestamps: processTimestamps: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, tr)
+}
+
 // HandleRecords is the request handler for the records v1 Records route.
 func (c *Records) HandleRecords(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleRecords")
@@ -218,14 +252,15 @@ func (c *Records) HandleInventory(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, ir)
 }
 
-// HandleTimestamps is the request handler for the records v1 Timestamps route.
-func (c *Records) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleTimestamps")
+// HandleInventoryOrdered is the request handler for the records v1
+// InventoryOrdered route.
+func (c *Records) HandleInventoryOrdered(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleInventoryOrdered")
 
-	var t v1.Timestamps
+	var i v1.InventoryOrdered
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		respondWithError(w, r, "HandleTimestamps: unmarshal",
+	if err := decoder.Decode(&i); err != nil {
+		respondWithError(w, r, "HandleInventoryOrdered: unmarshal",
 			v1.UserErrorReply{
 				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
@@ -237,19 +272,18 @@ func (c *Records) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	u, err := c.sessions.GetSessionUser(w, r)
 	if err != nil && err != sessions.ErrSessionNotFound {
 		respondWithError(w, r,
-			"HandleTimestamps: getSessionUser: %v", err)
+			"HandleInventoryOrdered: GetSessionUser: %v", err)
 		return
 	}
 
-	isAdmin := u != nil && u.Admin
-	tr, err := c.processTimestamps(r.Context(), t, isAdmin)
+	ir, err := c.processInventoryOrdered(r.Context(), i, u)
 	if err != nil {
 		respondWithError(w, r,
-			"HandleTimestamps: processTimestamps: %v", err)
+			"HandleInventoryOrdered: processInventoryOrdered: %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, tr)
+	util.RespondWithJSON(w, http.StatusOK, ir)
 }
 
 // HandleUserRecords is the request handler for the records v1 UserRecords

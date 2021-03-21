@@ -259,6 +259,40 @@ func (c *Client) Inventory(ctx context.Context, state pdv2.RecordStateT, status 
 	return &ir, nil
 }
 
+// InventoryOrdered sends a InventoryOrdered command to the politeiad v2 API.
+func (c *Client) InventoryOrdered(ctx context.Context, state pdv2.RecordStateT, page uint32) ([]string, error) {
+	// Setup request
+	challenge, err := util.Random(pdv2.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	i := pdv2.InventoryOrdered{
+		Challenge: hex.EncodeToString(challenge),
+		State:     state,
+		Page:      page,
+	}
+
+	// Send request
+	resBody, err := c.makeReq(ctx, http.MethodPost,
+		pdv2.APIRoute, pdv2.RouteInventoryOrdered, i)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var ir pdv2.InventoryOrderedReply
+	err = json.Unmarshal(resBody, &ir)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(c.pid, challenge, ir.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return ir.Tokens, nil
+}
+
 // PluginWrite sends a PluginWrite command to the politeiad v2 API.
 func (c *Client) PluginWrite(ctx context.Context, cmd pdv2.PluginCmd) (string, error) {
 	// Setup request

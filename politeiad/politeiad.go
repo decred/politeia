@@ -235,10 +235,15 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		p.handleRecordTimestamps, permissionPublic)
 	p.addRouteV2(http.MethodPost, v2.RouteInventory,
 		p.handleInventory, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteInventoryOrdered,
+		p.handleInventoryOrdered, permissionPublic)
 	p.addRouteV2(http.MethodPost, v2.RoutePluginWrite,
 		p.handlePluginWrite, permissionPublic)
 	p.addRouteV2(http.MethodPost, v2.RoutePluginReads,
 		p.handlePluginReads, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginInventory,
+		p.handlePluginInventory, permissionPublic)
+
 	p.addRouteV2(http.MethodPost, v2.RoutePluginInventory,
 		p.handlePluginInventory, permissionPublic)
 

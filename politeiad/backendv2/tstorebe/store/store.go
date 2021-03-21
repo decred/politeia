@@ -16,12 +16,14 @@ import (
 )
 
 var (
+	// ErrShutdown is returned when a action is attempted against a
+	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
 )
 
 const (
-	// DataTypeStructure is used as the data descriptor type when the
-	// blob entry contains a structure.
+	// DataTypeStructure describes a blob entry that contains a
+	// structure.
 	DataTypeStructure = "struct"
 )
 

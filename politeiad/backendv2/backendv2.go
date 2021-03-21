@@ -318,11 +318,10 @@ type Backend interface {
 	Inventory(state StateT, status StatusT, pageSize,
 		pageNumber uint32) (*Inventory, error)
 
-	// InventoryTimeOrdered returns a page of record tokens sorted by
-	// timestamp of their most recent status change. The returned
-	// tokens are not sorted by status and will included all statuses.
-	InventoryTimeOrdered(state StateT, pageSize,
-		pageNumber uint32) ([]string, error)
+	// InventoryOrdered returns a page of record tokens ordered by the
+	// timestamp of their most recent status change from newest to
+	// oldest. The returned tokens will include all record statuses.
+	InventoryOrdered(s StateT, pageSize, pageNumber uint32) ([]string, error)
 
 	// PluginRegister registers a plugin.
 	PluginRegister(Plugin) error

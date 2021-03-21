@@ -67,21 +67,20 @@ var (
 	_ plugins.TstoreClient = (*Tstore)(nil)
 )
 
-// Tstore represents a trillian log (tlog) backed by a key-value store. When
-// data is saved to a tstore instance it is first saved to the key-value store
-// then a digest of the data is appended onto the tlog tree. Tlog trees are
-// episodically timestamped onto the decred blockchain. An inlcusion proof,
-// i.e. the cryptographic proof that the data was included in the decred
-// timestamp, can be retrieved for any individual piece of data saved to the
-// tstore instance.
+// Tstore is a data store that automatically timestamps all data saved to it
+// onto the decred blockchain, making it possible to cryptographically prove
+// that a piece of data existed at a specific block height. It combines a
+// trillian log (tlog) and a key-value store. When data is saved to a tstore
+// instance it is first saved to the key-value store then a digest of the data
+// is appended onto the tlog tree. Tlog trees are episodically timestamped onto
+// the decred blockchain. An inlcusion proof, i.e. the cryptographic proof that
+// the data was included in the decred timestamp, can be retrieved for any
+// individual piece of data saved to the tstore.
 //
 // Saving only the digest of the data to tlog means that we separate the
 // timestamp from the data itself. This allows us to remove content that is
-// deemed undesirable from the key-value store without impacting the ability
-// to retrieve inclusion proofs for any other pieces of data saved to tstore.
-//
-// The key-value store is write once. Edits to data in the key-value store are
-// not allowed. Deletes, however, are allowed.
+// deemed undesirable from the key-value store without impacting the ability to
+// retrieve inclusion proofs for any other pieces of data saved to tstore.
 //
 // The tlog tree is append only and is treated as the source of truth. If any
 // blobs make it into the key-value store but do not make it into the tlog tree
@@ -98,7 +97,7 @@ type Tstore struct {
 	plugins         map[string]plugin // [pluginID]plugin
 
 	// droppingAnchor indicates whether tstore is in the process of
-	// dropping an anchor, i.e. timestamping unanchored trillian trees
+	// dropping an anchor, i.e. timestamping unanchored tlog trees
 	// using dcrtime. An anchor is dropped periodically using cron.
 	droppingAnchor bool
 }

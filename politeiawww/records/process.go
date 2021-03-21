@@ -274,6 +274,63 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 	}, nil
 }
 
+func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
+	log.Tracef("processTimestamps: %v %v", t.Token, t.Version)
+
+	// Get record timestamps
+	rt, err := r.politeiad.RecordTimestamps(ctx, t.Token, t.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		recordMD = convertTimestampToV1(rt.RecordMetadata)
+		metadata = make(map[string]map[uint32]v1.Timestamp, len(rt.Files))
+		files    = make(map[string]v1.Timestamp, len(rt.Files))
+	)
+	for pluginID, v := range rt.Metadata {
+		streams, ok := metadata[pluginID]
+		if !ok {
+			streams = make(map[uint32]v1.Timestamp, 16)
+		}
+		for streamID, ts := range v {
+			streams[streamID] = convertTimestampToV1(ts)
+		}
+		metadata[pluginID] = streams
+	}
+	for k, v := range rt.Files {
+		files[k] = convertTimestampToV1(v)
+	}
+
+	// Get the record. We need to know the record state.
+	rc, err := r.record(ctx, t.Token, t.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unvetted data blobs are stripped if the user is not an admin.
+	// The rest of the timestamp is still returned.
+	if rc.State != v1.RecordStateVetted && !isAdmin {
+		recordMD.Data = ""
+		for k, v := range files {
+			v.Data = ""
+			files[k] = v
+		}
+		for _, streams := range metadata {
+			for streamID, ts := range streams {
+				ts.Data = ""
+				streams[streamID] = ts
+			}
+		}
+	}
+
+	return &v1.TimestampsReply{
+		RecordMetadata: recordMD,
+		Files:          files,
+		Metadata:       metadata,
+	}, nil
+}
+
 func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.User) (*v1.RecordsReply, error) {
 	log.Tracef("processRecords: %v reqs", len(rs.Requests))
 
@@ -348,8 +405,8 @@ func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.
 		return nil, err
 	}
 
-	// Only admins are allowed to retrieve unvetted tokens. A user may
-	// or may not exist.
+	// Only admins are allowed to retrieve unvetted tokens. This is a
+	// public route so a user may or may not exist.
 	if u == nil || !u.Admin {
 		ir.Unvetted = map[string][]string{}
 	}
@@ -360,60 +417,34 @@ func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.
 	}, nil
 }
 
-func (r *Records) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
-	log.Tracef("processTimestamps: %v %v", t.Token, t.Version)
+func (r *Records) processInventoryOrdered(ctx context.Context, i v1.InventoryOrdered, u *user.User) (*v1.InventoryOrderedReply, error) {
+	log.Tracef("processInventoryOrdered: %v %v", i.State, i.Page)
 
-	// Get record timestamps
-	rt, err := r.politeiad.RecordTimestamps(ctx, t.Token, t.Version)
+	// Verify state
+	state := convertStateToPD(i.State)
+	if state == pdv2.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Only admins are allowed to retrieve unvetted tokens. This is a
+	// public route so a user may or may not exist.
+	isAdmin := u != nil && u.Admin
+	if state == pdv2.RecordStateUnvetted && !isAdmin {
+		return &v1.InventoryOrderedReply{
+			Tokens: []string{},
+		}, nil
+	}
+
+	// Get inventory
+	tokens, err := r.politeiad.InventoryOrdered(ctx, state, i.Page)
 	if err != nil {
 		return nil, err
 	}
 
-	var (
-		recordMD = convertTimestampToV1(rt.RecordMetadata)
-		metadata = make(map[string]map[uint32]v1.Timestamp, len(rt.Files))
-		files    = make(map[string]v1.Timestamp, len(rt.Files))
-	)
-	for pluginID, v := range rt.Metadata {
-		streams, ok := metadata[pluginID]
-		if !ok {
-			streams = make(map[uint32]v1.Timestamp, 16)
-		}
-		for streamID, ts := range v {
-			streams[streamID] = convertTimestampToV1(ts)
-		}
-		metadata[pluginID] = streams
-	}
-	for k, v := range rt.Files {
-		files[k] = convertTimestampToV1(v)
-	}
-
-	// Get the record. We need to know the record state.
-	rc, err := r.record(ctx, t.Token, t.Version)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unvetted data blobs are stripped if the user is not an admin.
-	// The rest of the timestamp is still returned.
-	if rc.State != v1.RecordStateVetted && !isAdmin {
-		recordMD.Data = ""
-		for k, v := range files {
-			v.Data = ""
-			files[k] = v
-		}
-		for _, streams := range metadata {
-			for streamID, ts := range streams {
-				ts.Data = ""
-				streams[streamID] = ts
-			}
-		}
-	}
-
-	return &v1.TimestampsReply{
-		RecordMetadata: recordMD,
-		Files:          files,
-		Metadata:       metadata,
+	return &v1.InventoryOrderedReply{
+		Tokens: tokens,
 	}, nil
 }
 

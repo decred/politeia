@@ -366,6 +366,45 @@ func (t *tstoreBackend) invByStatus(state backend.StateT, s backend.StatusT, pag
 	return &ibs, nil
 }
 
+// invOrdered returns a page of record tokens ordered by the timestamp of their
+// most recent status change. The returned tokens will include tokens for all
+// record statuses.
+func (t *tstoreBackend) invOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
+	// Get inventory file path
+	var fp string
+	switch state {
+	case backend.StateUnvetted:
+		fp = t.invPathUnvetted()
+	case backend.StateVetted:
+		fp = t.invPathVetted()
+	default:
+		return nil, fmt.Errorf("unknown state '%v'", state)
+	}
+
+	// Get inventory
+	inv, err := t.invGet(fp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return specified page of tokens
+	var (
+		startIdx = int((pageNumber - 1) * pageSize)
+		endIdx   = startIdx + int(pageSize)
+		tokens   = make([]string, 0, pageSize)
+	)
+	for i := startIdx; i < endIdx; i++ {
+		if i >= len(inv.Entries) {
+			// We've reached the end of the inventory. We're done.
+			break
+		}
+
+		tokens = append(tokens, inv.Entries[i].Token)
+	}
+
+	return tokens, nil
+}
+
 // entryDel removes the entry for the token and returns the updated slice.
 func entryDel(entries []entry, token []byte) ([]entry, error) {
 	// Find token in entries
@@ -391,7 +430,8 @@ func entryDel(entries []entry, token []byte) ([]entry, error) {
 	return entries, nil
 }
 
-// tokensParse parses a page of tokens from the provided entries.
+// tokensParse parses a page of tokens from the provided entries that meet the
+// provided criteria.
 func tokensParse(entries []entry, s backend.StatusT, countPerPage, page uint32) []string {
 	tokens := make([]string, 0, countPerPage)
 	if countPerPage == 0 || page == 0 {

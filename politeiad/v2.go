@@ -356,13 +356,36 @@ func (p *politeia) handleInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get inventory
+	// Verify inventory arguments. These arguments are optional. Only
+	// return an error if the arguments have been provided.
 	var (
-		state      = backendv2.StateT(i.State)
-		status     = backendv2.StatusT(i.Status)
+		state      backendv2.StateT
+		status     backendv2.StatusT
 		pageSize   = v2.InventoryPageSize
 		pageNumber = i.Page
 	)
+	if i.State != v2.RecordStateInvalid {
+		state = convertRecordStateToBackend(i.State)
+		if state == backendv2.StateInvalid {
+			respondWithErrorV2(w, r, "",
+				v2.UserErrorReply{
+					ErrorCode: v2.ErrorCodeRecordStateInvalid,
+				})
+			return
+		}
+	}
+	if i.Status != v2.RecordStatusInvalid {
+		status = convertRecordStatusToBackend(i.Status)
+		if status == backendv2.StatusInvalid {
+			respondWithErrorV2(w, r, "",
+				v2.UserErrorReply{
+					ErrorCode: v2.ErrorCodeRecordStatusInvalid,
+				})
+			return
+		}
+	}
+
+	// Get inventory
 	inv, err := p.backendv2.Inventory(state, status, pageSize, pageNumber)
 	if err != nil {
 		respondWithErrorV2(w, r,
@@ -386,6 +409,59 @@ func (p *politeia) handleInventory(w http.ResponseWriter, r *http.Request) {
 		Response: hex.EncodeToString(response[:]),
 		Unvetted: unvetted,
 		Vetted:   vetted,
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ir)
+}
+
+func (p *politeia) handleInventoryOrdered(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInventoryOrdered")
+
+	// Decode request
+	var i v2.InventoryOrdered
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&i); err != nil {
+		respondWithErrorV2(w, r, "handleInventoryOrdered: unmarshal",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeRequestPayloadInvalid,
+			})
+		return
+	}
+	challenge, err := hex.DecodeString(i.Challenge)
+	if err != nil || len(challenge) != v2.ChallengeSize {
+		respondWithErrorV2(w, r, "handleInventoryOrdered: decode challenge",
+			v2.UserErrorReply{
+				ErrorCode: v2.ErrorCodeChallengeInvalid,
+			})
+		return
+	}
+
+	// Verify record state
+	var state backendv2.StateT
+	if i.State != v2.RecordStateInvalid {
+		state = convertRecordStateToBackend(i.State)
+		if state == backendv2.StateInvalid {
+			respondWithErrorV2(w, r, "",
+				v2.UserErrorReply{
+					ErrorCode: v2.ErrorCodeRecordStateInvalid,
+				})
+			return
+		}
+	}
+
+	// Get inventory
+	tokens, err := p.backendv2.InventoryOrdered(state,
+		v2.InventoryPageSize, i.Page)
+	if err != nil {
+		respondWithErrorV2(w, r,
+			"handleInventoryOrdered: InventoryOrdered: %v", err)
+		return
+	}
+
+	response := p.identity.SignMessage(challenge)
+	ir := v2.InventoryOrderedReply{
+		Response: hex.EncodeToString(response[:]),
+		Tokens:   tokens,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, ir)
@@ -732,6 +808,30 @@ func convertFileTimestampsToV2(files map[string]backendv2.Timestamp) map[string]
 		fs[k] = convertTimestampToV2(v)
 	}
 	return fs
+}
+
+func convertRecordStateToBackend(s v2.RecordStateT) backendv2.StateT {
+	switch s {
+	case v2.RecordStateUnvetted:
+		return backendv2.StateUnvetted
+	case v2.RecordStateVetted:
+		return backendv2.StateVetted
+	}
+	return backendv2.StateInvalid
+}
+
+func convertRecordStatusToBackend(s v2.RecordStatusT) backendv2.StatusT {
+	switch s {
+	case v2.RecordStatusUnreviewed:
+		return backendv2.StatusUnreviewed
+	case v2.RecordStatusPublic:
+		return backendv2.StatusPublic
+	case v2.RecordStatusCensored:
+		return backendv2.StatusCensored
+	case v2.RecordStatusArchived:
+		return backendv2.StatusArchived
+	}
+	return backendv2.StatusInvalid
 }
 
 func convertPluginSettingToV2(p backendv2.PluginSetting) v2.PluginSetting {

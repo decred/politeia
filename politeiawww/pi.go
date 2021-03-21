@@ -81,13 +81,16 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		rcv1.RouteDetails, r.HandleDetails,
 		permissionPublic)
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteTimestamps, r.HandleTimestamps,
+		permissionPublic)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteRecords, r.HandleRecords,
 		permissionPublic)
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteInventory, r.HandleInventory,
 		permissionPublic)
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
-		rcv1.RouteTimestamps, r.HandleTimestamps,
+		rcv1.RouteInventoryOrdered, r.HandleInventoryOrdered,
 		permissionPublic)
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteUserRecords, r.HandleUserRecords,
