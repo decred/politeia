@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -164,7 +163,50 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
 	log.Tracef("processAllVetted: %v %v", gav.Before, gav.After)
 
-	return nil, fmt.Errorf("not implemented yet")
+	// NOTE: this route is not scalable and needs to be removed ASAP.
+	// It only needs to be supported to give dcrdata a change to switch
+	// to the records API.
+
+	// The Before and After arguments are NO LONGER SUPPORTED. This
+	// route will only return a single page of vetted tokens. The
+	// records API InventoryOrdered command should be used instead.
+	tokens, err := p.politeiad.InventoryOrdered(ctx, pdv2.RecordStateVetted, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the records without any files
+	reqs := make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
+	proposals := make([]www.ProposalRecord, 0, len(tokens))
+	for _, v := range tokens {
+		reqs = append(reqs, pdv2.RecordRequest{
+			Token:        v,
+			OmitAllFiles: true,
+		})
+
+		// The records request must be broken up because the records
+		// page size is much smaller than the inventory page size.
+		if len(reqs) == int(pdv2.RecordsPageSize) {
+			// Get this batch of proposals
+			props, err := p.proposals(ctx, reqs)
+			if err != nil {
+				return nil, err
+			}
+			for _, v := range reqs {
+				pr, ok := props[v.Token]
+				if !ok {
+					proposals = append(proposals, pr)
+				}
+			}
+
+			// Reset requesets
+			reqs = make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
+		}
+	}
+
+	return &www.GetAllVettedReply{
+		Proposals: proposals,
+	}, nil
 }
 
 func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
@@ -281,6 +323,61 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 	return &www.BatchVoteSummaryReply{
 		Summaries: summaries,
 		BestBlock: uint64(bestBlock),
+	}, nil
+}
+
+func (p *politeiawww) processAllVoteStatus(ctx context.Context, avs www.GetAllVoteStatus) (*www.GetAllVoteStatusReply, error) {
+	log.Tracef("processAllVoteStatus")
+
+	// NOTE: This route is suppose to return the vote status of all
+	// public proposals. This is horrendously unscalable. We are only
+	// supporting this route until dcrdata has a chance to update and
+	// use the ticketvote API. Until then, we only return a single page
+	// of vote statuses.
+
+	// Get a page of vetted records
+	tokens, err := p.politeiad.InventoryOrdered(ctx, pdv2.RecordStateVetted, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get vote summaries
+	vs, err := p.politeiad.TicketVoteSummaries(ctx, tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare reply
+	statuses := make([]www.VoteStatusReply, 0, len(vs))
+	var totalVotes uint64
+	for token, v := range vs {
+		results := make([]www.VoteOptionResult, len(v.Results))
+		for k, r := range v.Results {
+			results[k] = www.VoteOptionResult{
+				VotesReceived: r.Votes,
+				Option: www.VoteOption{
+					Id:          r.ID,
+					Description: r.Description,
+					Bits:        r.VoteBit,
+				},
+			}
+			totalVotes += r.Votes
+		}
+		statuses = append(statuses, www.VoteStatusReply{
+			Token:              token,
+			Status:             convertVoteStatusToWWW(v.Status),
+			TotalVotes:         totalVotes,
+			OptionsResult:      results,
+			EndHeight:          strconv.FormatUint(uint64(v.EndBlockHeight), 10),
+			BestBlock:          strconv.FormatUint(uint64(v.BestBlock), 10),
+			NumOfEligibleVotes: int(v.EligibleTickets),
+			QuorumPercentage:   v.QuorumPercentage,
+			PassPercentage:     v.PassPercentage,
+		})
+	}
+
+	return &www.GetAllVoteStatusReply{
+		VotesStatus: statuses,
 	}, nil
 }
 
@@ -610,6 +707,29 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAllVoteStatus")
+
+	var avs www.GetAllVoteStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&avs); err != nil {
+		RespondWithError(w, r, 0, "handleAllVoteStatus: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processAllVoteStatus(r.Context(), avs)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllVoteStatus: processAllVoteStatus %v", err)
 		return
 	}
 

@@ -61,6 +61,7 @@ const (
 	RouteBatchProposals   = "/proposals/batch"
 	RouteActiveVote       = "/proposals/activevote"
 	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
+	RouteAllVoteStatus    = "/proposals/votestatus"
 	RouteCastVotes        = "/proposals/castvotes"
 	RouteBatchVoteSummary = "/proposals/batchvotesummary"
 
@@ -69,7 +70,6 @@ const (
 	RouteEditProposal      = "/proposals/edit"
 	RouteAuthorizeVote     = "/proposals/authorizevote"
 	RouteStartVote         = "/proposals/startvote"
-	RouteAllVoteStatus     = "/proposals/votestatus"
 	RouteSetProposalStatus = "/proposals/{token:[A-Fa-f0-9]{7,64}}/status"
 	RouteCommentsGet       = "/proposals/{token:[A-Fa-f0-9]{7,64}}/comments"
 	RouteVoteStatus        = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
@@ -955,7 +955,9 @@ type SetProposalStatusReply struct {
 // If Before is specified, the "page" returned starts before the provided
 // proposal censorship token, when sorted in reverse chronological order.
 //
-// This request is DEPRECATED.
+// This request is DEPRECATED. The Before and After arguments are NO LONGER
+// SUPPORTED. This route will only return a single page of vetted tokens. The
+// records API InventoryOrdered command should be used instead.
 type GetAllVetted struct {
 	Before string `schema:"before"`
 	After  string `schema:"after"`
@@ -1293,12 +1295,12 @@ type VoteStatusReply struct {
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type GetAllVoteStatus struct{}
 
 // GetAllVoteStatusReply returns the vote status of all public proposals
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }

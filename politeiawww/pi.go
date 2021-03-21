@@ -55,6 +55,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		www.RouteBatchProposals, p.handleBatchProposals,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVoteStatus, p.handleAllVoteStatus,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteActiveVote, p.handleActiveVote,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
