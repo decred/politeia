@@ -180,8 +180,11 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 	proposals := make([]www.ProposalRecord, 0, len(tokens))
 	for _, v := range tokens {
 		reqs = append(reqs, pdv2.RecordRequest{
-			Token:        v,
-			OmitAllFiles: true,
+			Token: v,
+			Filenames: []string{
+				piplugin.FileNameProposalMetadata,
+				tkplugin.FileNameVoteMetadata,
+			},
 		})
 
 		// The records request must be broken up because the records
@@ -195,8 +198,9 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 			for _, v := range reqs {
 				pr, ok := props[v.Token]
 				if !ok {
-					proposals = append(proposals, pr)
+					continue
 				}
+				proposals = append(proposals, pr)
 			}
 
 			// Reset requesets
@@ -213,10 +217,14 @@ func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.Proposa
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
 	// Parse version
-	v, err := strconv.ParseUint(pd.Version, 10, 64)
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
+	var version uint64
+	var err error
+	if pd.Version != "" {
+		version, err = strconv.ParseUint(pd.Version, 10, 64)
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
 		}
 	}
 
@@ -224,7 +232,7 @@ func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.Proposa
 	reqs := []pdv2.RecordRequest{
 		{
 			Token:   pd.Token,
-			Version: uint32(v),
+			Version: uint32(version),
 		},
 	}
 	prs, err := p.proposals(ctx, reqs)
@@ -326,7 +334,26 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 	}, nil
 }
 
-func (p *politeiawww) processAllVoteStatus(ctx context.Context, avs www.GetAllVoteStatus) (*www.GetAllVoteStatusReply, error) {
+func (p *politeiawww) processVoteStatus(ctx context.Context, token string) (*www.VoteStatusReply, error) {
+	log.Tracef("processVoteStatus")
+
+	// Get vote summaries
+	summaries, err := p.politeiad.TicketVoteSummaries(ctx, []string{token})
+	if err != nil {
+		return nil, err
+	}
+	s, ok := summaries[token]
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	vsr := convertVoteStatusReply(token, s)
+
+	return &vsr, nil
+}
+
+func (p *politeiawww) processAllVoteStatus(ctx context.Context) (*www.GetAllVoteStatusReply, error) {
 	log.Tracef("processAllVoteStatus")
 
 	// NOTE: This route is suppose to return the vote status of all
@@ -349,31 +376,8 @@ func (p *politeiawww) processAllVoteStatus(ctx context.Context, avs www.GetAllVo
 
 	// Prepare reply
 	statuses := make([]www.VoteStatusReply, 0, len(vs))
-	var totalVotes uint64
 	for token, v := range vs {
-		results := make([]www.VoteOptionResult, len(v.Results))
-		for k, r := range v.Results {
-			results[k] = www.VoteOptionResult{
-				VotesReceived: r.Votes,
-				Option: www.VoteOption{
-					Id:          r.ID,
-					Description: r.Description,
-					Bits:        r.VoteBit,
-				},
-			}
-			totalVotes += r.Votes
-		}
-		statuses = append(statuses, www.VoteStatusReply{
-			Token:              token,
-			Status:             convertVoteStatusToWWW(v.Status),
-			TotalVotes:         totalVotes,
-			OptionsResult:      results,
-			EndHeight:          strconv.FormatUint(uint64(v.EndBlockHeight), 10),
-			BestBlock:          strconv.FormatUint(uint64(v.BestBlock), 10),
-			NumOfEligibleVotes: int(v.EligibleTickets),
-			QuorumPercentage:   v.QuorumPercentage,
-			PassPercentage:     v.PassPercentage,
-		})
+		statuses = append(statuses, convertVoteStatusReply(token, v))
 	}
 
 	return &www.GetAllVoteStatusReply{
@@ -713,20 +717,26 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAllVoteStatus")
+func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteStatus")
 
-	var avs www.GetAllVoteStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&avs); err != nil {
-		RespondWithError(w, r, 0, "handleAllVoteStatus: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	reply, err := p.processVoteStatus(r.Context(), token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteStatus: processVoteStatus %v", err)
 		return
 	}
 
-	reply, err := p.processAllVoteStatus(r.Context(), avs)
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAllVoteStatus")
+
+	reply, err := p.processAllVoteStatus(r.Context())
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleAllVoteStatus: processAllVoteStatus %v", err)
@@ -793,15 +803,16 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 func userMetadataDecode(ms []pdv2.MetadataStream) (*umplugin.UserMetadata, error) {
 	var userMD *umplugin.UserMetadata
 	for _, v := range ms {
-		if v.StreamID == umplugin.StreamIDUserMetadata {
-			var um umplugin.UserMetadata
-			err := json.Unmarshal([]byte(v.Payload), &um)
-			if err != nil {
-				return nil, err
-			}
-			userMD = &um
-			break
+		if v.StreamID != umplugin.StreamIDUserMetadata {
+			continue
 		}
+		var um umplugin.UserMetadata
+		err := json.Unmarshal([]byte(v.Payload), &um)
+		if err != nil {
+			return nil, err
+		}
+		userMD = &um
+		break
 	}
 	return userMD, nil
 }
@@ -1034,4 +1045,31 @@ func convertVoteErrorCodeToWWW(e tkplugin.VoteErrorT) decredplugin.ErrorStatusT 
 	default:
 	}
 	return decredplugin.ErrorStatusInternalError
+}
+
+func convertVoteStatusReply(token string, s tkplugin.SummaryReply) www.VoteStatusReply {
+	results := make([]www.VoteOptionResult, 0, len(s.Results))
+	var totalVotes uint64
+	for _, v := range s.Results {
+		totalVotes += v.Votes
+		results = append(results, www.VoteOptionResult{
+			VotesReceived: v.Votes,
+			Option: www.VoteOption{
+				Id:          v.ID,
+				Description: v.Description,
+				Bits:        v.VoteBit,
+			},
+		})
+	}
+	return www.VoteStatusReply{
+		Token:              token,
+		Status:             convertVoteStatusToWWW(s.Status),
+		TotalVotes:         totalVotes,
+		OptionsResult:      results,
+		EndHeight:          strconv.FormatUint(uint64(s.EndBlockHeight), 10),
+		BestBlock:          strconv.FormatUint(uint64(s.BestBlock), 10),
+		NumOfEligibleVotes: int(s.EligibleTickets),
+		QuorumPercentage:   s.QuorumPercentage,
+		PassPercentage:     s.PassPercentage,
+	}
 }

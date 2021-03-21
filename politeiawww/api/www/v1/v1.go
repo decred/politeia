@@ -59,11 +59,12 @@ const (
 	RouteProposalDetails  = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
 	RouteAllVetted        = "/proposals/vetted"
 	RouteBatchProposals   = "/proposals/batch"
-	RouteActiveVote       = "/proposals/activevote"
-	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
+	RouteVoteStatus       = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
 	RouteAllVoteStatus    = "/proposals/votestatus"
-	RouteCastVotes        = "/proposals/castvotes"
 	RouteBatchVoteSummary = "/proposals/batchvotesummary"
+	RouteActiveVote       = "/proposals/activevote"
+	RouteCastVotes        = "/proposals/castvotes"
+	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
 
 	// The following routes are NO LONGER SUPPORTED.
 	RouteNewProposal       = "/proposals/new"
@@ -72,7 +73,6 @@ const (
 	RouteStartVote         = "/proposals/startvote"
 	RouteSetProposalStatus = "/proposals/{token:[A-Fa-f0-9]{7,64}}/status"
 	RouteCommentsGet       = "/proposals/{token:[A-Fa-f0-9]{7,64}}/comments"
-	RouteVoteStatus        = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
 	RouteNewComment        = "/comments/new"
 	RouteLikeComment       = "/comments/like"
 	RouteCensorComment     = "/comments/censor"
@@ -1275,12 +1275,12 @@ type VoteOptionResult struct {
 // VoteStatus is a command to fetch the the current vote status for a single
 // public proposal
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
 //
-// This request is NO LONGER SUPPORTED.
+// This request is DEPRECATED.
 type VoteStatusReply struct {
 	Token              string             `json:"token"`              // Censorship token
 	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)

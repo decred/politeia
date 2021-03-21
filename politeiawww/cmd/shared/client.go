@@ -19,7 +19,6 @@ import (
 	"decred.org/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
@@ -1235,39 +1234,6 @@ func (c *Client) UserRegistrationPayment() (*www.UserRegistrationPaymentReply, e
 	return &urpr, nil
 }
 
-// VoteDetailsV2 returns the proposal vote details for the given token using
-// the www v2 VoteDetails route.
-func (c *Client) VoteDetailsV2(token string) (*www2.VoteDetailsReply, error) {
-	route := "/vote/" + token
-	statusCode, respBody, err := c.makeRequest(http.MethodGet, www2.APIRoute,
-		route, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, wwwError(respBody, statusCode)
-	}
-
-	var vdr www2.VoteDetailsReply
-	err = json.Unmarshal(respBody, &vdr)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.cfg.Verbose {
-		vdr.EligibleTickets = []string{
-			"removed by piwww for readability",
-		}
-		err = prettyPrintJSON(vdr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &vdr, nil
-}
-
 // UserDetails retrieves the user details for the specified user.
 func (c *Client) UserDetails(userID string) (*www.UserDetailsReply, error) {
 	route := "/user/" + userID
@@ -1428,6 +1394,34 @@ func (c *Client) VoteStatus(token string) (*www.VoteStatusReply, error) {
 	err = json.Unmarshal(respBody, &vsr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VoteStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vsr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vsr, nil
+}
+
+// VoteResults retrieves the vote results for a proposal.
+func (c *Client) VoteResults(token string) (*www.VoteResultsReply, error) {
+	route := "/proposals/" + token + "/votes"
+	statusCode, respBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode != http.StatusOK {
+		return nil, wwwError(respBody, statusCode)
+	}
+
+	var vsr www.VoteResultsReply
+	err = json.Unmarshal(respBody, &vsr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteResultsReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
