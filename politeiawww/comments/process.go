@@ -329,17 +329,6 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
 	log.Tracef("processTimestamps: %v %v", t.Token, t.CommentIDs)
 
-	// Get record state
-	r, err := c.recordNoFiles(ctx, t.Token)
-	if err != nil {
-		if err == errRecordNotFound {
-			return nil, v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeRecordNotFound,
-			}
-		}
-		return nil, err
-	}
-
 	// Verify size of request
 	switch {
 	case len(t.CommentIDs) == 0:
@@ -354,6 +343,17 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 			ErrorContext: fmt.Sprintf("max page size is %v",
 				v1.TimestampsPageSize),
 		}
+	}
+
+	// Get record state
+	r, err := c.recordNoFiles(ctx, t.Token)
+	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
+		return nil, err
 	}
 
 	// Get timestamps

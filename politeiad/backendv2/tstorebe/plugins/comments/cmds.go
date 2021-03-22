@@ -348,8 +348,6 @@ func voteScore(cidx commentIndex) (uint64, uint64) {
 
 // cmdNew creates a new comment.
 func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdNew: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var n comments.New
 	err := json.Unmarshal([]byte(payload), &n)
@@ -481,8 +479,6 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 
 // cmdEdit edits an existing comment.
 func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdEdit: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var e comments.Edit
 	err := json.Unmarshal([]byte(payload), &e)
@@ -637,8 +633,6 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 
 // cmdDel deletes a comment.
 func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdDel: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var d comments.Del
 	err := json.Unmarshal([]byte(payload), &d)
@@ -772,8 +766,6 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 
 // cmdVote casts a upvote/downvote for a comment.
 func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdVote: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var v comments.Vote
 	err := json.Unmarshal([]byte(payload), &v)
@@ -928,8 +920,6 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 // cmdGet retrieves a batch of specified comments. The most recent version of
 // each comment is returned.
 func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdGet: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var g comments.Get
 	err := json.Unmarshal([]byte(payload), &g)
@@ -970,8 +960,6 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 // cmdGetAll retrieves all comments for a record. The latest version of each
 // comment is returned.
 func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
-	log.Tracef("cmdGetAll: %v %x", treeID, token)
-
 	// Get record state
 	state, err := p.tstore.RecordState(treeID)
 	if err != nil {
@@ -1019,8 +1007,6 @@ func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
 
 // cmdGetVersion retrieves the specified version of a comment.
 func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdGetVersion: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var gv comments.GetVersion
 	err := json.Unmarshal([]byte(payload), &gv)
@@ -1094,8 +1080,6 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 // cmdCount retrieves the comments count for a record. The comments count is
 // the number of comments that have been made on a record.
 func (p *commentsPlugin) cmdCount(treeID int64, token []byte) (string, error) {
-	log.Tracef("cmdCount: %v %x", treeID, token)
-
 	// Get record state
 	state, err := p.tstore.RecordState(treeID)
 	if err != nil {
@@ -1123,8 +1107,6 @@ func (p *commentsPlugin) cmdCount(treeID int64, token []byte) (string, error) {
 // cmdVotes retrieves the comment votes that meet the provided filtering
 // criteria.
 func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdVotes: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var v comments.Votes
 	err := json.Unmarshal([]byte(payload), &v)
@@ -1180,8 +1162,6 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.
 func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdTimestamps: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var t comments.Timestamps
 	err := json.Unmarshal([]byte(payload), &t)

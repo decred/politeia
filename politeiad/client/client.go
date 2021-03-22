@@ -34,15 +34,15 @@ type ErrorReply struct {
 	ErrorContext string `json:"errorcontext"`
 }
 
-// Error represents a politeiad error. Error is returned anytime the politeiad
-// response is not a 200.
-type Error struct {
+// RespErr represents a politeiad response error. A RespError is returned
+// anytime the politeiad response is not a 200.
+type RespError struct {
 	HTTPCode   int
 	ErrorReply ErrorReply
 }
 
 // Error satisfies the error interface.
-func (e Error) Error() string {
+func (e RespError) Error() string {
 	if e.ErrorReply.PluginID != "" {
 		return fmt.Sprintf("politeiad plugin error: %v %v %v",
 			e.HTTPCode, e.ErrorReply.PluginID, e.ErrorReply.ErrorCode)
@@ -53,8 +53,8 @@ func (e Error) Error() string {
 
 // makeReq makes a politeiad http request to the method and route provided,
 // serializing the provided object as the request body, and returning a byte
-// slice of the response body. An Error is returned if politeiad responds with
-// anything other than a 200 http status code.
+// slice of the response body. A RespError is returned if politeiad responds
+// with anything other than a 200 http status code.
 func (c *Client) makeReq(ctx context.Context, method, api, route string, v interface{}) ([]byte, error) {
 	// Serialize body
 	var (
@@ -89,7 +89,7 @@ func (c *Client) makeReq(ctx context.Context, method, api, route string, v inter
 		if err := decoder.Decode(&e); err != nil {
 			return nil, fmt.Errorf("status code %v: %v", r.StatusCode, err)
 		}
-		return nil, Error{
+		return nil, RespError{
 			HTTPCode:   r.StatusCode,
 			ErrorReply: e,
 		}

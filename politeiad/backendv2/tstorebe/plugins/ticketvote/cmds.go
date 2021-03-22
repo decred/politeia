@@ -861,8 +861,6 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 }
 
 func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdAuthorize: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var a ticketvote.Authorize
 	err := json.Unmarshal([]byte(payload), &a)
@@ -1377,8 +1375,6 @@ type runoffDetailsReply struct {
 }
 
 func (p *ticketVotePlugin) cmdRunoffDetails(treeID int64) (string, error) {
-	log.Tracef("cmdRunoffDetails: %x", treeID)
-
 	// Get start runoff record
 	srs, err := p.startRunoffRecord(treeID)
 	if err != nil {
@@ -1813,8 +1809,6 @@ type startRunoffSubmission struct {
 }
 
 func (p *ticketVotePlugin) cmdStartRunoffSubmission(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdStartRunoffSubmission: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var srs startRunoffSubmission
 	err := json.Unmarshal([]byte(payload), &srs)
@@ -1832,8 +1826,6 @@ func (p *ticketVotePlugin) cmdStartRunoffSubmission(treeID int64, token []byte, 
 }
 
 func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdStart: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var s ticketvote.Start
 	err := json.Unmarshal([]byte(payload), &s)
@@ -2068,8 +2060,6 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 // error if one occurs. It will instead return the ballot reply with the error
 // included in the individual cast vote reply that it applies to.
 func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdCastBallot: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var cb ticketvote.CastBallot
 	err := json.Unmarshal([]byte(payload), &cb)
@@ -2382,8 +2372,6 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 }
 
 func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte) (string, error) {
-	log.Tracef("cmdDetails: %v %x", treeID, token)
-
 	// Get vote authorizations
 	auths, err := p.auths(treeID)
 	if err != nil {
@@ -2410,8 +2398,6 @@ func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte) (string, error
 }
 
 func (p *ticketVotePlugin) cmdResults(treeID int64, token []byte) (string, error) {
-	log.Tracef("cmdResults: %v %x", treeID, token)
-
 	// Get vote results
 	votes, err := p.voteResults(treeID)
 	if err != nil {
@@ -2496,8 +2482,6 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 }
 
 func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error) {
-	log.Tracef("cmdSummaries: %v %x %v", treeID, token)
-
 	// Get best block. This cmd does not write any data so we do not
 	// have to use the safe best block.
 	bb, err := p.bestBlockUnsafe()
@@ -2521,8 +2505,6 @@ func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error
 }
 
 func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
-	log.Tracef("cmdInventory")
-
 	var i ticketvote.Inventory
 	err := json.Unmarshal([]byte(payload), &i)
 	if err != nil {
@@ -2561,8 +2543,6 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 }
 
 func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
-	log.Tracef("cmdTimestamps: %v %x %v", treeID, token, payload)
-
 	// Decode payload
 	var t ticketvote.Timestamps
 	err := json.Unmarshal([]byte(payload), &t)
@@ -2658,8 +2638,6 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 }
 
 func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
-	log.Tracef("cmdSubmissions: %x", token)
-
 	// Get submissions list
 	lf, err := p.submissionsCache(token)
 	if err != nil {

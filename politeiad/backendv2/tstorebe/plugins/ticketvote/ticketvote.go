@@ -149,7 +149,7 @@ func (p *ticketVotePlugin) Setup() error {
 //
 // This function satisfies the plugins.PluginClient interface.
 func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("ticketvote Cmd: %v %x %v", treeID, token, cmd)
+	log.Tracef("ticketvote Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
 	case ticketvote.CmdAuthorize:

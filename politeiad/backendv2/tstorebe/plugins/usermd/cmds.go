@@ -11,8 +11,6 @@ import (
 )
 
 func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
-	log.Tracef("cmdAuthor: %v", treeID)
-
 	// Get user metadata
 	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
 	if err != nil {
@@ -36,8 +34,6 @@ func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
 }
 
 func (p *userPlugin) cmdUserRecords(payload string) (string, error) {
-	log.Tracef("cmdUserRecords: %v", payload)
-
 	// Decode payload
 	var ur usermd.UserRecords
 	err := json.Unmarshal([]byte(payload), &ur)

@@ -27,7 +27,7 @@ type ErrorReply struct {
 	ErrorContext string
 }
 
-// RespErr represents a politeiawww response error. An Error is returned
+// RespErr represents a politeiawww response error. A RespErr is returned
 // anytime the politeiawww response is not a 200.
 //
 // The various politeiawww APIs can have overlapping error codes. The API is

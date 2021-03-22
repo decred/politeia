@@ -21,7 +21,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	var (
 		ue  v1.UserErrorReply
 		pe  v1.PluginErrorReply
-		pde pdclient.Error
+		pde pdclient.RespError
 	)
 	switch {
 	case errors.As(err, &ue):

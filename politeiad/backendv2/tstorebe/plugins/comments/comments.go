@@ -22,6 +22,7 @@ var (
 )
 
 // commentsPlugin is the tstore backend implementation of the comments plugin.
+// It provides an API for adding comment functionality onto a record.
 //
 // commentsPlugin satisfies the plugins PluginClient interface.
 type commentsPlugin struct {
@@ -56,7 +57,7 @@ func (p *commentsPlugin) Setup() error {
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("comments Cmd: %v %x %v", treeID, token, cmd)
+	log.Tracef("comments Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
 	case comments.CmdNew:

@@ -90,7 +90,7 @@ type BlockDataBasic struct {
 	PoolInfo *TicketPoolInfo `json:"ticketpool,omitempty"`
 }
 
-// BlockDetails fetched the block details for the provided block height.
+// BlockDetails retrieves the block details for the provided block height.
 type BlockDetails struct {
 	Height uint32 `json:"height"`
 }
@@ -100,7 +100,7 @@ type BlockDetailsReply struct {
 	Block BlockDataBasic `json:"block"`
 }
 
-// TicketPool requests the lists of tickets in the ticket for at the provided
+// TicketPool requests the lists of tickets in the ticket pool at a specified
 // block hash.
 type TicketPool struct {
 	BlockHash string `json:"blockhash"`
