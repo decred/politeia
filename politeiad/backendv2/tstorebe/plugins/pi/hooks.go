@@ -25,8 +25,8 @@ const (
 )
 
 var (
-	// allowedTextFiles contains the only text files that are allowed
-	// to be submitted as part of a proposal.
+	// allowedTextFiles contains the filenames of the only text files
+	// that are allowed to be submitted as part of a proposal.
 	allowedTextFiles = map[string]struct{}{
 		pi.FileNameIndexFile:            {},
 		pi.FileNameProposalMetadata:     {},
@@ -34,33 +34,101 @@ var (
 	}
 )
 
-func tokenDecode(token string) ([]byte, error) {
-	return util.TokenDecode(util.TokenTypeTstore, token)
+// hookNewRecordPre adds pi specific validation to the RecordNew tstore backend
+// method.
+func (p *piPlugin) hookNewRecordPre(payload string) error {
+	var nr plugins.HookNewRecordPre
+	err := json.Unmarshal([]byte(payload), &nr)
+	if err != nil {
+		return err
+	}
+
+	return p.proposalFilesVerify(nr.Files)
 }
 
-// proposalMetadataDecode decodes and returns the ProposalMetadata from the
-// provided backend files. If a ProposalMetadata is not found, nil is returned.
-func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) {
-	var propMD *pi.ProposalMetadata
-	for _, v := range files {
-		if v.Name != pi.FileNameProposalMetadata {
-			continue
+// hookEditRecordPre adds pi specific validation to the RecordEdit tstore
+// backend method.
+func (p *piPlugin) hookEditRecordPre(payload string) error {
+	var er plugins.HookEditRecord
+	err := json.Unmarshal([]byte(payload), &er)
+	if err != nil {
+		return err
+	}
+
+	// Verify proposal files
+	err = p.proposalFilesVerify(er.Files)
+	if err != nil {
+		return err
+	}
+
+	// Verify vote status. Edits are not allowed to be made once a vote
+	// has been authorized. This only needs to be checked for vetted
+	// records since you cannot authorize or start a ticket vote on an
+	// unvetted record.
+	if er.RecordMetadata.State == backend.StateVetted {
+		t, err := tokenDecode(er.RecordMetadata.Token)
+		if err != nil {
+			return err
 		}
-		if v.Name == pi.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
+		s, err := p.voteSummary(t)
+		if err != nil {
+			return err
+		}
+		if s.Status != ticketvote.VoteStatusUnauthorized {
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
+				ErrorContext: fmt.Sprintf("vote status '%v' does not allow "+
+					"for proposal edits", ticketvote.VoteStatuses[s.Status]),
 			}
-			var m pi.ProposalMetadata
-			err = json.Unmarshal(b, &m)
-			if err != nil {
-				return nil, err
-			}
-			propMD = &m
-			break
 		}
 	}
-	return propMD, nil
+
+	return nil
+}
+
+// hookCommentNew extends the comments plugin New command with pi specific
+// validation.
+func (p *piPlugin) hookCommentNew(token []byte) error {
+	return p.commentWritesAllowed(token)
+}
+
+// hookCommentNew extends the comments plugin Del command with pi specific
+// validation.
+func (p *piPlugin) hookCommentDel(token []byte) error {
+	return p.commentWritesAllowed(token)
+}
+
+// hookCommentNew extends the comments plugin Vote command with pi specific
+// validation.
+func (p *piPlugin) hookCommentVote(token []byte) error {
+	return p.commentWritesAllowed(token)
+}
+
+// hookPluginPre extends write commands from other plugins with pi specific
+// validation.
+func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
+	// Decode payload
+	var hpp plugins.HookPluginPre
+	err := json.Unmarshal([]byte(payload), &hpp)
+	if err != nil {
+		return err
+	}
+
+	// Call plugin hook
+	switch hpp.PluginID {
+	case comments.PluginID:
+		switch hpp.Cmd {
+		case comments.CmdNew:
+			return p.hookCommentNew(token)
+		case comments.CmdDel:
+			return p.hookCommentDel(token)
+		case comments.CmdVote:
+			return p.hookCommentVote(token)
+		}
+	}
+
+	return nil
 }
 
 // proposalNameIsValid returns whether the provided name is a valid proposal
@@ -174,52 +242,8 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	return nil
 }
 
-func (p *piPlugin) hookNewRecordPre(payload string) error {
-	var nr plugins.HookNewRecordPre
-	err := json.Unmarshal([]byte(payload), &nr)
-	if err != nil {
-		return err
-	}
-
-	return p.proposalFilesVerify(nr.Files)
-}
-
-func (p *piPlugin) hookEditRecordPre(payload string) error {
-	var er plugins.HookEditRecord
-	err := json.Unmarshal([]byte(payload), &er)
-	if err != nil {
-		return err
-	}
-
-	// Verify proposal files
-	err = p.proposalFilesVerify(er.Files)
-	if err != nil {
-		return err
-	}
-
-	// Verify vote status allows proposal edits
-	if er.RecordMetadata.State == backend.StateVetted {
-		t, err := tokenDecode(er.RecordMetadata.Token)
-		if err != nil {
-			return err
-		}
-		s, err := p.voteSummary(t)
-		if err != nil {
-			return err
-		}
-		if s.Status != ticketvote.VoteStatusUnauthorized {
-			return backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
-				ErrorContext: fmt.Sprintf("vote status '%v' does not allow "+
-					"for proposal edits", ticketvote.VoteStatuses[s.Status]),
-			}
-		}
-	}
-
-	return nil
-}
-
+// voteSummary requests the vote summary from the ticketvote plugin for a
+// record.
 func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 	reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 		ticketvote.CmdSummary, "")
@@ -234,9 +258,11 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 	return &sr, nil
 }
 
-// commentWritesVerify verifies that a record's vote status allows writes from
-// the comments plugin.
-func (p *piPlugin) commentWritesVerify(token []byte) error {
+// commentWritesAllowed verifies that a proposal has a vote status that allows
+// comment writes to be made to the proposal. This includes both comments and
+// comment votes. Comment writes are allowed up until the proposal has finished
+// voting.
+func (p *piPlugin) commentWritesAllowed(token []byte) error {
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
@@ -244,9 +270,10 @@ func (p *piPlugin) commentWritesVerify(token []byte) error {
 	switch vs.Status {
 	case ticketvote.VoteStatusUnauthorized, ticketvote.VoteStatusAuthorized,
 		ticketvote.VoteStatusStarted:
-		// Writes are allowed on these vote statuses
+		// Comment writes are allowed on these vote statuses
 		return nil
 	default:
+		// Vote status does not allow writes
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
@@ -255,38 +282,33 @@ func (p *piPlugin) commentWritesVerify(token []byte) error {
 	}
 }
 
-func (p *piPlugin) hookCommentNew(token []byte) error {
-	return p.commentWritesVerify(token)
+// tokenDecode returns the decoded censorship token. An error will be returned
+// if the token is not a full length token.
+func tokenDecode(token string) ([]byte, error) {
+	return util.TokenDecode(util.TokenTypeTstore, token)
 }
 
-func (p *piPlugin) hookCommentDel(token []byte) error {
-	return p.commentWritesVerify(token)
-}
-
-func (p *piPlugin) hookCommentVote(token []byte) error {
-	return p.commentWritesVerify(token)
-}
-
-func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
-	// Decode payload
-	var hpp plugins.HookPluginPre
-	err := json.Unmarshal([]byte(payload), &hpp)
-	if err != nil {
-		return err
-	}
-
-	// Call plugin hook
-	switch hpp.PluginID {
-	case comments.PluginID:
-		switch hpp.Cmd {
-		case comments.CmdNew:
-			return p.hookCommentNew(token)
-		case comments.CmdDel:
-			return p.hookCommentDel(token)
-		case comments.CmdVote:
-			return p.hookCommentVote(token)
+// proposalMetadataDecode decodes and returns the ProposalMetadata from the
+// provided backend files. If a ProposalMetadata is not found, nil is returned.
+func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) {
+	var propMD *pi.ProposalMetadata
+	for _, v := range files {
+		if v.Name != pi.FileNameProposalMetadata {
+			continue
+		}
+		if v.Name == pi.FileNameProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+			var m pi.ProposalMetadata
+			err = json.Unmarshal(b, &m)
+			if err != nil {
+				return nil, err
+			}
+			propMD = &m
+			break
 		}
 	}
-
-	return nil
+	return propMD, nil
 }

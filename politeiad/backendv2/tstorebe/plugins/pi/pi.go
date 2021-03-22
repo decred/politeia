@@ -22,7 +22,7 @@ var (
 	_ plugins.PluginClient = (*piPlugin)(nil)
 )
 
-// piPlugin satisfies the plugins.PluginClient interface.
+// piPlugin satisfies the plugins PluginClient interface.
 type piPlugin struct {
 	backend backend.Backend
 
@@ -44,7 +44,7 @@ type piPlugin struct {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Setup() error {
 	log.Tracef("pi Setup")
 
@@ -53,7 +53,7 @@ func (p *piPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
@@ -62,7 +62,7 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("pi Hook: %v %x %v", plugins.Hooks[h], token, treeID)
 
@@ -80,7 +80,7 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("pi Fsck")
 
@@ -89,7 +89,7 @@ func (p *piPlugin) Fsck(treeIDs []int64) error {
 
 // Settings returns the plugin's settings.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Settings() []backend.PluginSetting {
 	log.Tracef("pi Settings")
 
@@ -203,7 +203,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	}
 
 	// Encode the supported chars so that they can be returned as a
-	// string plugin setting.
+	// plugin setting string.
 	b, err := json.Marshal(nameSupportedChars)
 	if err != nil {
 		return nil, err

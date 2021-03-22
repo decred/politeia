@@ -14,6 +14,7 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// newTestPiPlugin returns a piPlugin that has been setup for testing.
 func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 	// Create plugin data directory
 	dataDir, err := ioutil.TempDir("", pi.PluginID)
