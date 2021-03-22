@@ -5,12 +5,16 @@
 package tstore
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
 )
@@ -318,4 +322,59 @@ func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, erro
 	}
 
 	return ri, nil
+}
+
+func convertBlobEntryFromRecordIndex(ri recordIndex) (*store.BlobEntry, error) {
+	data, err := json.Marshal(ri)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorRecordIndex,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
+func convertRecordIndexFromBlobEntry(be store.BlobEntry) (*recordIndex, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, fmt.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorRecordIndex {
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+			dd.Descriptor, dataDescriptorRecordIndex)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, fmt.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			util.Digest(b), digest)
+	}
+	var ri recordIndex
+	err = json.Unmarshal(b, &ri)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal recordIndex: %v", err)
+	}
+
+	return &ri, nil
 }

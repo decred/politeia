@@ -764,9 +764,9 @@ func (t *tstoreBackend) setStatusPublic(token []byte, rm backend.RecordMetadata,
 func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
-	err := t.tstore.TreeFreeze(treeID, rm, metadata, files)
+	err := t.tstore.RecordFreeze(treeID, rm, metadata, files)
 	if err != nil {
-		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
+		return fmt.Errorf("RecordFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Record frozen %x", token)
@@ -782,9 +782,9 @@ func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadat
 func (t *tstoreBackend) setStatusCensored(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Freeze the tree
 	treeID := treeIDFromToken(token)
-	err := t.tstore.TreeFreeze(treeID, rm, metadata, files)
+	err := t.tstore.RecordFreeze(treeID, rm, metadata, files)
 	if err != nil {
-		return fmt.Errorf("TreeFreeze %v: %v", treeID, err)
+		return fmt.Errorf("RecordFreeze %v: %v", treeID, err)
 	}
 
 	log.Debugf("Record frozen %x", token)
@@ -945,9 +945,9 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 //    error.
 //
 // Pulling the leaves from the tree to see if a record has been saved to the
-// tree adds a large amount of overhead to this call that should be very light
-// weight. Its for this reason that we rely on the tree exists call despite the
-// edge case.
+// tree adds a large amount of overhead to this call, which should be a very
+// light weight. Its for this reason that we rely on the tree exists call
+// despite the edge case.
 //
 // This function satisfies the Backend interface.
 func (t *tstoreBackend) RecordExists(token []byte) bool {
