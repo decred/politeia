@@ -29,8 +29,8 @@ var (
 	_ backend.Backend = (*tstoreBackend)(nil)
 )
 
-// tstoreBackend implements the Backend interface using a tstore as the
-// data store.
+// tstoreBackend implements the backendv2 Backend interface using a tstore as
+// the backing data store.
 type tstoreBackend struct {
 	sync.RWMutex
 	appDir   string
@@ -424,7 +424,7 @@ func recordMetadataNew(token []byte, files []backend.File, state backend.StateT,
 
 // RecordNew creates a new record.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []backend.File) (*backend.Record, error) {
 	log.Tracef("RecordNew")
 
@@ -518,7 +518,7 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 // RecordEdit edits an existing record. This creates a new version of the
 // record.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
 	log.Tracef("RecordEdit: %x", token)
 
@@ -626,7 +626,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 // record files. This creates a new iteration of the record, but not a new
 // version of the record.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("RecordEditMetadata: %x", token)
 
@@ -802,7 +802,7 @@ func (t *tstoreBackend) setStatusCensored(token []byte, rm backend.RecordMetadat
 
 // RecordSetStatus sets the status of a record.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("RecordSetStatus: %x %v", token, status)
 
@@ -949,7 +949,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 // light weight. Its for this reason that we rely on the tree exists call
 // despite the edge case.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordExists(token []byte) bool {
 	log.Tracef("RecordExists: %x", token)
 
@@ -968,7 +968,7 @@ func (t *tstoreBackend) RecordExists(token []byte) bool {
 // RecordTimestamps returns the timestamps for a record. If no version is provided
 // then timestamps for the most recent version will be returned.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
 
@@ -988,7 +988,7 @@ func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend
 // returned. If the record was not found then it will not be included in the
 // returned map.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backend.Record, error) {
 	log.Tracef("Records: %v reqs", len(reqs))
 
@@ -1038,7 +1038,7 @@ func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backen
 // If no status is provided then the most recent page of tokens for all
 // statuses will be returned. All other arguments are ignored.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, pageSize, pageNumber uint32) (*backend.Inventory, error) {
 	log.Tracef("Inventory: %v %v %v %v", state, status, pageSize, pageNumber)
 
@@ -1057,7 +1057,7 @@ func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, 
 // their most recent status change. The returned tokens will include all record
 // statuses.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
 	log.Tracef("InventoryOrdered: %v %v %v", state, pageSize, pageNumber)
 
@@ -1071,14 +1071,14 @@ func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNum
 
 // PluginRegister registers a plugin.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginRegister(p backend.Plugin) error {
 	return t.tstore.PluginRegister(t, p)
 }
 
 // PluginSetup performs any required plugin setup.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginSetup(pluginID string) error {
 	log.Tracef("PluginSetup: %v", pluginID)
 
@@ -1087,7 +1087,7 @@ func (t *tstoreBackend) PluginSetup(pluginID string) error {
 
 // PluginRead executes a read-only plugin command.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload string) (string, error) {
 	log.Tracef("PluginRead: %x %v %v", token, pluginID, pluginCmd)
 
@@ -1116,7 +1116,7 @@ func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload st
 
 // PluginWrite executes a plugin command that writes data.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload string) (string, error) {
 	log.Tracef("PluginWrite: %x %v %v", token, pluginID, pluginCmd)
 
@@ -1178,7 +1178,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 
 // PluginInventory returns all registered plugins.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginInventory() []backend.Plugin {
 	log.Tracef("Plugins")
 
@@ -1187,7 +1187,7 @@ func (t *tstoreBackend) PluginInventory() []backend.Plugin {
 
 // Close performs cleanup of the backend.
 //
-// This function satisfies the Backend interface.
+// This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) Close() {
 	log.Tracef("Close")
 
@@ -1201,7 +1201,7 @@ func (t *tstoreBackend) Close() {
 	t.tstore.Close()
 }
 
-// setup builds the tstore backend caches.
+// setup builds the tstore backend memory caches.
 func (t *tstoreBackend) setup() error {
 	log.Tracef("setup")
 

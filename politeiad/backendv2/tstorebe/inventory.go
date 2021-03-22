@@ -17,23 +17,28 @@ import (
 )
 
 const (
+	// Filenames of the inventory caches.
 	filenameInvUnvetted = "inv-unvetted.json"
 	filenameInvVetted   = "inv-vetted.json"
 )
 
+// entry represents a record entry in the inventory.
 type entry struct {
 	Token  string          `json:"token"`
 	Status backend.StatusT `json:"status"`
 }
 
+// inventory represents the record inventory.
 type inventory struct {
 	Entries []entry `json:"entries"`
 }
 
+// invPathUnvetted returns the file path for the unvetted inventory.
 func (t *tstoreBackend) invPathUnvetted() string {
 	return filepath.Join(t.dataDir, filenameInvUnvetted)
 }
 
+// invPathVetted returns the file path for the vetted inventory.
 func (t *tstoreBackend) invPathVetted() string {
 	return filepath.Join(t.dataDir, filenameInvVetted)
 }
@@ -86,10 +91,10 @@ func (t *tstoreBackend) invSaveLocked(filePath string, inv inventory) error {
 	return ioutil.WriteFile(filePath, b, 0664)
 }
 
+// invAdd adds a new record to the inventory.
+//
+// This function must be called WITHOUT the read/write lock held.
 func (t *tstoreBackend) invAdd(state backend.StateT, token []byte, s backend.StatusT) error {
-	t.Lock()
-	defer t.Unlock()
-
 	// Get inventory file path
 	var fp string
 	switch state {
@@ -100,6 +105,9 @@ func (t *tstoreBackend) invAdd(state backend.StateT, token []byte, s backend.Sta
 	default:
 		return fmt.Errorf("invalid state %v", state)
 	}
+
+	t.Lock()
+	defer t.Unlock()
 
 	// Get inventory
 	inv, err := t.invGetLocked(fp)
@@ -126,10 +134,11 @@ func (t *tstoreBackend) invAdd(state backend.StateT, token []byte, s backend.Sta
 	return nil
 }
 
+// invUpdate updates the status of a record in the inventory. The record state
+// must remain the same.
+//
+// This function must be called WITHOUT the read/write lock held.
 func (t *tstoreBackend) invUpdate(state backend.StateT, token []byte, s backend.StatusT) error {
-	t.Lock()
-	defer t.Unlock()
-
 	// Get inventory file path
 	var fp string
 	switch state {
@@ -140,6 +149,9 @@ func (t *tstoreBackend) invUpdate(state backend.StateT, token []byte, s backend.
 	default:
 		return fmt.Errorf("invalid state %v", state)
 	}
+
+	t.Lock()
+	defer t.Unlock()
 
 	// Get inventory
 	inv, err := t.invGetLocked(fp)
@@ -172,14 +184,20 @@ func (t *tstoreBackend) invUpdate(state backend.StateT, token []byte, s backend.
 	return nil
 }
 
-// invMoveToVetted moves a token from the unvetted inventory to the vetted
-// inventory.
+// invMoveToVetted deletes a record from the unvetted inventory then adds it
+// to the vetted inventory.
+//
+// This function must be called WITHOUT the read/write lock held.
 func (t *tstoreBackend) invMoveToVetted(token []byte, s backend.StatusT) error {
+	var (
+		upath = t.invPathUnvetted()
+		vpath = t.invPathVetted()
+	)
+
 	t.Lock()
 	defer t.Unlock()
 
 	// Get unvetted inventory
-	upath := t.invPathUnvetted()
 	u, err := t.invGetLocked(upath)
 	if err != nil {
 		return fmt.Errorf("unvetted invGetLocked: %v", err)
@@ -198,7 +216,6 @@ func (t *tstoreBackend) invMoveToVetted(token []byte, s backend.StatusT) error {
 	}
 
 	// Get vetted inventory
-	vpath := t.invPathVetted()
 	v, err := t.invGetLocked(vpath)
 	if err != nil {
 		return fmt.Errorf("vetted invGetLocked: %v", err)
@@ -262,6 +279,7 @@ type invByStatus struct {
 	Vetted   map[backend.StatusT][]string
 }
 
+// invByStatusAll returns a page of tokens for all record states and statuses.
 func (t *tstoreBackend) invByStatusAll(pageSize uint32) (*invByStatus, error) {
 	// Get unvetted inventory
 	u, err := t.invGet(t.invPathUnvetted())
@@ -317,6 +335,15 @@ func (t *tstoreBackend) invByStatusAll(pageSize uint32) (*invByStatus, error) {
 	}, nil
 }
 
+// invByStatus returns the tokens of records in the inventory categorized by
+// record state and record status. The tokens are ordered by the timestamp of
+// their most recent status change, sorted from newest to oldest.
+//
+// The state, status, and page arguments can be provided to request a specific
+// page of record tokens.
+//
+// If no status is provided then the most recent page of tokens for all
+// statuses will be returned. All other arguments are ignored.
 func (t *tstoreBackend) invByStatus(state backend.StateT, s backend.StatusT, pageSize, page uint32) (*invByStatus, error) {
 	// If no status is provided a page of tokens for each status should
 	// be returned.

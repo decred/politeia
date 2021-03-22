@@ -24,7 +24,11 @@ var (
 	_ plugins.PluginClient = (*ticketVotePlugin)(nil)
 )
 
-// ticketVotePlugin satisfies the plugins.PluginClient interface.
+// ticketVotePlugin is the tstore backend implementation of the ticketvote
+// plugin. The ticketvote plugin extends a record with dcr ticket voting
+// functionality.
+//
+// ticketVotePlugin satisfies the plugins PluginClient interface.
 type ticketVotePlugin struct {
 	backend         backend.Backend
 	tstore          plugins.TstoreClient
@@ -59,7 +63,7 @@ type ticketVotePlugin struct {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("ticketvote Setup")
 
@@ -147,7 +151,7 @@ func (p *ticketVotePlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("ticketvote Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
@@ -183,7 +187,7 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("ticketvote Hook: %v %x %v", plugins.Hooks[h], token, treeID)
 
@@ -203,7 +207,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("ticketvote Fsck")
 
@@ -254,7 +258,7 @@ func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
 
 // Settings returns the plugin's settings.
 //
-// This function satisfies the plugins.PluginClient interface.
+// This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
 	log.Tracef("ticketvote Settings")
 

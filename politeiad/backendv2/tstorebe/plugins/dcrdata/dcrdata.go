@@ -37,8 +37,9 @@ var (
 	_ plugins.PluginClient = (*dcrdataPlugin)(nil)
 )
 
-// dcrdataPlugin is the tstore backend implementation of the dcrdata plugin. It
-// provides and API for interacting with the dcrdata http and websocket APIs.
+// dcrdataPlugin is the tstore backend implementation of the dcrdata plugin.
+// The dcrdata plugin provides and API for interacting with the dcrdata http
+// and websocket APIs.
 //
 // dcrdataPlugin satisfies the plugins PluginClient interface.
 type dcrdataPlugin struct {

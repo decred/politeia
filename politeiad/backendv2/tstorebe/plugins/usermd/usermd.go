@@ -15,10 +15,14 @@ import (
 )
 
 var (
-	_ plugins.PluginClient = (*userPlugin)(nil)
+	_ plugins.PluginClient = (*usermdPlugin)(nil)
 )
 
-type userPlugin struct {
+// usermdPlugin is the tstore backend implementation of the usermd plugin. The
+// usermd plugin extends a record with user metadata.
+//
+// usermdPlugin satisfies the plugins PluginClient interface.
+type usermdPlugin struct {
 	sync.Mutex
 	tstore plugins.TstoreClient
 
@@ -30,8 +34,8 @@ type userPlugin struct {
 
 // Setup performs any plugin setup that is required.
 //
-// This function satisfies the plugins.PluginClient interface.
-func (p *userPlugin) Setup() error {
+// This function satisfies the plugins PluginClient interface.
+func (p *usermdPlugin) Setup() error {
 	log.Tracef("usermd Setup")
 
 	return nil
@@ -39,8 +43,8 @@ func (p *userPlugin) Setup() error {
 
 // Cmd executes a plugin command.
 //
-// This function satisfies the plugins.PluginClient interface.
-func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
+// This function satisfies the plugins PluginClient interface.
+func (p *usermdPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("usermd Cmd: %v %x %v %v", treeID, token, cmd, payload)
 
 	switch cmd {
@@ -55,8 +59,8 @@ func (p *userPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (strin
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the plugins.PluginClient interface.
-func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
+// This function satisfies the plugins PluginClient interface.
+func (p *usermdPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
 	log.Tracef("usermd Hook: %v %x %v", plugins.Hooks[h], token, treeID)
 
 	switch h {
@@ -79,8 +83,8 @@ func (p *userPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload s
 
 // Fsck performs a plugin filesystem check.
 //
-// This function satisfies the plugins.PluginClient interface.
-func (p *userPlugin) Fsck(treeIDs []int64) error {
+// This function satisfies the plugins PluginClient interface.
+func (p *usermdPlugin) Fsck(treeIDs []int64) error {
 	log.Tracef("usermd Fsck")
 
 	return nil
@@ -88,15 +92,15 @@ func (p *userPlugin) Fsck(treeIDs []int64) error {
 
 // Settings returns the plugin's settings.
 //
-// This function satisfies the plugins.PluginClient interface.
-func (p *userPlugin) Settings() []backend.PluginSetting {
+// This function satisfies the plugins PluginClient interface.
+func (p *usermdPlugin) Settings() []backend.PluginSetting {
 	log.Tracef("usermd Settings")
 
 	return nil
 }
 
-// New returns a new userPlugin.
-func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string) (*userPlugin, error) {
+// New returns a new usermdPlugin.
+func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string) (*usermdPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, usermd.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
@@ -104,7 +108,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		return nil, err
 	}
 
-	return &userPlugin{
+	return &usermdPlugin{
 		tstore:  tstore,
 		dataDir: dataDir,
 	}, nil

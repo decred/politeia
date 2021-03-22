@@ -22,6 +22,10 @@ var (
 	_ plugins.PluginClient = (*piPlugin)(nil)
 )
 
+// piPlugin is the tstore backend implementation of the pi plugin. The pi
+// plugin extends a record with functionality specific to the decred proposal
+// system.
+//
 // piPlugin satisfies the plugins PluginClient interface.
 type piPlugin struct {
 	backend backend.Backend

@@ -81,8 +81,7 @@ type StatusChangeMetadata struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-// Author returns the user ID of a record's author. If no UserMetadata is
-// present for the record then an empty string will be returned.
+// Author returns the user ID of a record's author.
 type Author struct{}
 
 // AuthorReply is the reply to the Author command.

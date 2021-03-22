@@ -25,25 +25,24 @@ const (
 // userCache contains cached user metadata. The userCache JSON is saved to disk
 // in the user plugin data dir. The user ID is included in the filename.
 //
-// All record tokens are sorted by the timestamp of their most recent status
-// change from newest to oldest.
+// The Unvetted and Vetted fields contain the records that have been submitted
+// by the user. All record tokens are sorted by the timestamp of their most
+// recent status change from newest to oldest.
 type userCache struct {
 	Unvetted []string `json:"unvetted"`
 	Vetted   []string `json:"vetted"`
 }
 
-// userCachePath returns the filepath to the cached userCache struct for the
-// specified user.
-func (p *userPlugin) userCachePath(userID string) string {
+// userCachePath returns the filepath to the userCache for the specified user.
+func (p *usermdPlugin) userCachePath(userID string) string {
 	fn := strings.Replace(fnUserCache, "{userid}", userID, 1)
 	return filepath.Join(p.dataDir, fn)
 }
 
-// userCacheWithLock returns the cached userCache struct for the specified
-// user.
+// userCacheLocked returns the userCache for the specified user.
 //
 // This function must be called WITH the lock held.
-func (p *userPlugin) userCacheWithLock(userID string) (*userCache, error) {
+func (p *usermdPlugin) userCacheLocked(userID string) (*userCache, error) {
 	fp := p.userCachePath(userID)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
@@ -66,20 +65,20 @@ func (p *userPlugin) userCacheWithLock(userID string) (*userCache, error) {
 	return &uc, nil
 }
 
-// userCache returns the cached userCache struct for the specified user.
+// userCacheLocked returns the userCache for the specified user.
 //
 // This function must be called WITHOUT the lock held.
-func (p *userPlugin) userCache(userID string) (*userCache, error) {
+func (p *usermdPlugin) userCache(userID string) (*userCache, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.userCacheWithLock(userID)
+	return p.userCacheLocked(userID)
 }
 
-// userCacheSaveWithLock saves the provided userCache to the pi plugin data dir.
+// userCacheSaveLocked saves the provided userCache to the plugin data dir.
 //
 // This function must be called WITH the lock held.
-func (p *userPlugin) userCacheSaveWithLock(userID string, uc userCache) error {
+func (p *usermdPlugin) userCacheSaveLocked(userID string, uc userCache) error {
 	b, err := json.Marshal(uc)
 	if err != nil {
 		return err
@@ -92,12 +91,12 @@ func (p *userPlugin) userCacheSaveWithLock(userID string, uc userCache) error {
 // userCacheAddToken adds a token to a user cache.
 //
 // This function must be called WITHOUT the lock held.
-func (p *userPlugin) userCacheAddToken(userID string, state backend.StateT, token string) error {
+func (p *usermdPlugin) userCacheAddToken(userID string, state backend.StateT, token string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get current user data
-	uc, err := p.userCacheWithLock(userID)
+	uc, err := p.userCacheLocked(userID)
 	if err != nil {
 		return err
 	}
@@ -113,7 +112,7 @@ func (p *userPlugin) userCacheAddToken(userID string, state backend.StateT, toke
 	}
 
 	// Save changes
-	err = p.userCacheSaveWithLock(userID, *uc)
+	err = p.userCacheSaveLocked(userID, *uc)
 	if err != nil {
 		return err
 	}
@@ -126,12 +125,12 @@ func (p *userPlugin) userCacheAddToken(userID string, state backend.StateT, toke
 // userCacheDelToken deletes a token from a user cache.
 //
 // This function must be called WITHOUT the lock held.
-func (p *userPlugin) userCacheDelToken(userID string, state backend.StateT, token string) error {
+func (p *usermdPlugin) userCacheDelToken(userID string, state backend.StateT, token string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get current user data
-	uc, err := p.userCacheWithLock(userID)
+	uc, err := p.userCacheLocked(userID)
 	if err != nil {
 		return err
 	}
@@ -156,7 +155,7 @@ func (p *userPlugin) userCacheDelToken(userID string, state backend.StateT, toke
 	}
 
 	// Save changes
-	err = p.userCacheSaveWithLock(userID, *uc)
+	err = p.userCacheSaveLocked(userID, *uc)
 	if err != nil {
 		return err
 	}
@@ -166,12 +165,14 @@ func (p *userPlugin) userCacheDelToken(userID string, state backend.StateT, toke
 	return nil
 }
 
-func (p *userPlugin) userCacheMoveTokenToVetted(userID string, token string) error {
+// userCacheMoveTokenToVetted moves a record token from the unvetted to vetted
+// list in the userCache.
+func (p *usermdPlugin) userCacheMoveTokenToVetted(userID string, token string) error {
 	p.Lock()
 	defer p.Unlock()
 
 	// Get current user data
-	uc, err := p.userCacheWithLock(userID)
+	uc, err := p.userCacheLocked(userID)
 	if err != nil {
 		return err
 	}
@@ -186,7 +187,7 @@ func (p *userPlugin) userCacheMoveTokenToVetted(userID string, token string) err
 	uc.Vetted = append(uc.Vetted, token)
 
 	// Save changes
-	err = p.userCacheSaveWithLock(userID, *uc)
+	err = p.userCacheSaveLocked(userID, *uc)
 	if err != nil {
 		return err
 	}
@@ -196,6 +197,8 @@ func (p *userPlugin) userCacheMoveTokenToVetted(userID string, token string) err
 	return nil
 }
 
+// delToken deletes the tokenToDel from the tokens list. An error is returned
+// if the token is not found.
 func delToken(tokens []string, tokenToDel string) ([]string, error) {
 	// Find token index
 	var i int

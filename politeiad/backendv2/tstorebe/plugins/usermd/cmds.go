@@ -10,7 +10,8 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
-func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
+// cmdAuthor returns the user ID of a record's author.
+func (p *usermdPlugin) cmdAuthor(treeID int64) (string, error) {
 	// Get user metadata
 	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
 	if err != nil {
@@ -33,7 +34,9 @@ func (p *userPlugin) cmdAuthor(treeID int64) (string, error) {
 	return string(reply), nil
 }
 
-func (p *userPlugin) cmdUserRecords(payload string) (string, error) {
+// cmdUserRecords retrieves the tokens of all records that were submitted by
+// the provided user ID. The returned tokens are sorted from newest to oldest.
+func (p *usermdPlugin) cmdUserRecords(payload string) (string, error) {
 	// Decode payload
 	var ur usermd.UserRecords
 	err := json.Unmarshal([]byte(payload), &ur)

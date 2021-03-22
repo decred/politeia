@@ -34,8 +34,8 @@ var (
 	}
 )
 
-// hookNewRecordPre adds pi specific validation to the RecordNew tstore backend
-// method.
+// hookNewRecordPre adds plugin specific validation onto the tstore backend
+// RecordNew method.
 func (p *piPlugin) hookNewRecordPre(payload string) error {
 	var nr plugins.HookNewRecordPre
 	err := json.Unmarshal([]byte(payload), &nr)
@@ -46,8 +46,8 @@ func (p *piPlugin) hookNewRecordPre(payload string) error {
 	return p.proposalFilesVerify(nr.Files)
 }
 
-// hookEditRecordPre adds pi specific validation to the RecordEdit tstore
-// backend method.
+// hookEditRecordPre adds plugin specific validation onto the tstore backend
+// RecordEdit method.
 func (p *piPlugin) hookEditRecordPre(payload string) error {
 	var er plugins.HookEditRecord
 	err := json.Unmarshal([]byte(payload), &er)
@@ -87,26 +87,26 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	return nil
 }
 
-// hookCommentNew extends the comments plugin New command with pi specific
-// validation.
+// hookCommentNew adds pi specific validation onto the comments plugin New
+// command.
 func (p *piPlugin) hookCommentNew(token []byte) error {
 	return p.commentWritesAllowed(token)
 }
 
-// hookCommentNew extends the comments plugin Del command with pi specific
-// validation.
+// hookCommentDel adds pi specific validation onto the comments plugin Del
+// command.
 func (p *piPlugin) hookCommentDel(token []byte) error {
 	return p.commentWritesAllowed(token)
 }
 
-// hookCommentNew extends the comments plugin Vote command with pi specific
-// validation.
+// hookCommentVote adds pi specific validation onto the comments plugin Vote
+// command.
 func (p *piPlugin) hookCommentVote(token []byte) error {
 	return p.commentWritesAllowed(token)
 }
 
-// hookPluginPre extends write commands from other plugins with pi specific
-// validation.
+// hookPluginPre extends plugin write commands from other plugins with pi
+// specific validation.
 func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
 	// Decode payload
 	var hpp plugins.HookPluginPre

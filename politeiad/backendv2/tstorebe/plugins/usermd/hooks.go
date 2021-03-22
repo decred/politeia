@@ -20,22 +20,141 @@ import (
 	"github.com/google/uuid"
 )
 
-func convertSignatureError(err error) backend.PluginError {
-	var e util.SignatureError
-	var s usermd.ErrorCodeT
-	if errors.As(err, &e) {
-		switch e.ErrorCode {
-		case util.ErrorStatusPublicKeyInvalid:
-			s = usermd.ErrorCodePublicKeyInvalid
-		case util.ErrorStatusSignatureInvalid:
-			s = usermd.ErrorCodeSignatureInvalid
+// hookNewRecordPre adds plugin specific validation onto the tstore backend
+// RecordNew method.
+func (p *usermdPlugin) hookNewRecordPre(payload string) error {
+	var nr plugins.HookNewRecordPre
+	err := json.Unmarshal([]byte(payload), &nr)
+	if err != nil {
+		return err
+	}
+
+	return userMetadataVerify(nr.Metadata, nr.Files)
+}
+
+// hookNewRecordPre caches plugin data from the tstore backend RecordNew
+// method.
+func (p *usermdPlugin) hookNewRecordPost(payload string) error {
+	var nr plugins.HookNewRecordPost
+	err := json.Unmarshal([]byte(payload), &nr)
+	if err != nil {
+		return err
+	}
+
+	// Decode user metadata
+	um, err := userMetadataDecode(nr.Metadata)
+	if err != nil {
+		return err
+	}
+
+	// Add token to the user cache
+	err = p.userCacheAddToken(um.UserID, nr.RecordMetadata.State,
+		nr.RecordMetadata.Token)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// hookEditRecordPre adds plugin specific validation onto the tstore backend
+// RecordEdit method.
+func (p *usermdPlugin) hookEditRecordPre(payload string) error {
+	var er plugins.HookEditRecord
+	err := json.Unmarshal([]byte(payload), &er)
+	if err != nil {
+		return err
+	}
+
+	// Verify user metadata
+	err = userMetadataVerify(er.Metadata, er.Files)
+	if err != nil {
+		return err
+	}
+
+	// Verify user ID has not changed
+	um, err := userMetadataDecode(er.Metadata)
+	if err != nil {
+		return err
+	}
+	umCurr, err := userMetadataDecode(er.Record.Metadata)
+	if err != nil {
+		return err
+	}
+	if um.UserID != umCurr.UserID {
+		e := fmt.Sprintf("user id cannot change: got %v, want %v",
+			um.UserID, umCurr.UserID)
+		return backend.PluginError{
+			PluginID:     usermd.PluginID,
+			ErrorCode:    uint32(usermd.ErrorCodeUserIDInvalid),
+			ErrorContext: e,
 		}
 	}
-	return backend.PluginError{
-		PluginID:     usermd.PluginID,
-		ErrorCode:    uint32(s),
-		ErrorContext: e.ErrorContext,
+
+	return nil
+}
+
+// hookEditRecordPre adds plugin specific validation onto the tstore backend
+// RecordEdit method.
+func (p *usermdPlugin) hookEditMetadataPre(payload string) error {
+	var em plugins.HookEditMetadata
+	err := json.Unmarshal([]byte(payload), &em)
+	if err != nil {
+		return err
 	}
+
+	// User metadata should not change on metadata updates
+	return userMetadataPreventUpdates(em.Record.Metadata, em.Metadata)
+}
+
+// hookSetStatusRecordPre adds plugin specific validation onto the tstore
+// backend RecordSetStatus method.
+func (p *usermdPlugin) hookSetRecordStatusPre(payload string) error {
+	var srs plugins.HookSetRecordStatus
+	err := json.Unmarshal([]byte(payload), &srs)
+	if err != nil {
+		return err
+	}
+
+	// User metadata should not change on status changes
+	err = userMetadataPreventUpdates(srs.Record.Metadata, srs.Metadata)
+	if err != nil {
+		return err
+	}
+
+	// Verify status change metadata
+	err = statusChangeMetadataVerify(srs.RecordMetadata, srs.Metadata)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// hookNewRecordPre caches plugin data from the tstore backend RecordSetStatus
+// method.
+func (p *usermdPlugin) hookSetRecordStatusPost(treeID int64, payload string) error {
+	var srs plugins.HookSetRecordStatus
+	err := json.Unmarshal([]byte(payload), &srs)
+	if err != nil {
+		return err
+	}
+	rm := srs.RecordMetadata
+
+	// When a record is made public the token must be moved from the
+	// unvetted list to the vetted list in the user cache.
+	if rm.Status == backend.StatusPublic {
+		um, err := userMetadataDecode(srs.Metadata)
+		if err != nil {
+			return err
+		}
+		err = p.userCacheMoveTokenToVetted(um.UserID, rm.Token)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
@@ -146,85 +265,8 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 	return nil
 }
 
-func (p *userPlugin) hookNewRecordPre(payload string) error {
-	var nr plugins.HookNewRecordPre
-	err := json.Unmarshal([]byte(payload), &nr)
-	if err != nil {
-		return err
-	}
-
-	return userMetadataVerify(nr.Metadata, nr.Files)
-}
-
-func (p *userPlugin) hookNewRecordPost(payload string) error {
-	var nr plugins.HookNewRecordPost
-	err := json.Unmarshal([]byte(payload), &nr)
-	if err != nil {
-		return err
-	}
-
-	// Decode user metadata
-	um, err := userMetadataDecode(nr.Metadata)
-	if err != nil {
-		return err
-	}
-
-	// Add token to the user cache
-	err = p.userCacheAddToken(um.UserID, nr.RecordMetadata.State,
-		nr.RecordMetadata.Token)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *userPlugin) hookEditRecordPre(payload string) error {
-	var er plugins.HookEditRecord
-	err := json.Unmarshal([]byte(payload), &er)
-	if err != nil {
-		return err
-	}
-
-	// Verify user metadata
-	err = userMetadataVerify(er.Metadata, er.Files)
-	if err != nil {
-		return err
-	}
-
-	// Verify user ID has not changed
-	um, err := userMetadataDecode(er.Metadata)
-	if err != nil {
-		return err
-	}
-	umCurr, err := userMetadataDecode(er.Record.Metadata)
-	if err != nil {
-		return err
-	}
-	if um.UserID != umCurr.UserID {
-		e := fmt.Sprintf("user id cannot change: got %v, want %v",
-			um.UserID, umCurr.UserID)
-		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeUserIDInvalid),
-			ErrorContext: e,
-		}
-	}
-
-	return nil
-}
-
-func (p *userPlugin) hookEditMetadataPre(payload string) error {
-	var em plugins.HookEditMetadata
-	err := json.Unmarshal([]byte(payload), &em)
-	if err != nil {
-		return err
-	}
-
-	// User metadata should not change on metadata updates
-	return userMetadataPreventUpdates(em.Record.Metadata, em.Metadata)
-}
-
+// statusChangesDecode decodes and returns the StatusChangeMetadata from the
+// metadata streams if one is present.
 func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
 	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
 	for _, v := range metadata {
@@ -320,48 +362,20 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	return nil
 }
 
-func (p *userPlugin) hookSetRecordStatusPre(payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
-	if err != nil {
-		return err
-	}
-
-	// User metadata should not change on status changes
-	err = userMetadataPreventUpdates(srs.Record.Metadata, srs.Metadata)
-	if err != nil {
-		return err
-	}
-
-	// Verify status change metadata
-	err = statusChangeMetadataVerify(srs.RecordMetadata, srs.Metadata)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *userPlugin) hookSetRecordStatusPost(treeID int64, payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
-	if err != nil {
-		return err
-	}
-	rm := srs.RecordMetadata
-
-	// When a record is made public the token must be moved from the
-	// unvetted to the vetted category in the user cache.
-	if rm.Status == backend.StatusPublic {
-		um, err := userMetadataDecode(srs.Metadata)
-		if err != nil {
-			return err
-		}
-		err = p.userCacheMoveTokenToVetted(um.UserID, rm.Token)
-		if err != nil {
-			return err
+func convertSignatureError(err error) backend.PluginError {
+	var e util.SignatureError
+	var s usermd.ErrorCodeT
+	if errors.As(err, &e) {
+		switch e.ErrorCode {
+		case util.ErrorStatusPublicKeyInvalid:
+			s = usermd.ErrorCodePublicKeyInvalid
+		case util.ErrorStatusSignatureInvalid:
+			s = usermd.ErrorCodeSignatureInvalid
 		}
 	}
-
-	return nil
+	return backend.PluginError{
+		PluginID:     usermd.PluginID,
+		ErrorCode:    uint32(s),
+		ErrorContext: e.ErrorContext,
+	}
 }

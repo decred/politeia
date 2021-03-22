@@ -22,7 +22,7 @@ var (
 )
 
 // commentsPlugin is the tstore backend implementation of the comments plugin.
-// It provides an API for adding comment functionality onto a record.
+// The comments plugin extends a record with comment functionality.
 //
 // commentsPlugin satisfies the plugins PluginClient interface.
 type commentsPlugin struct {
