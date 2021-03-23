@@ -356,21 +356,9 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify token
-	t, err := tokenDecode(n.Token)
+	err = tokenVerify(token, n.Token)
 	if err != nil {
-		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: err.Error(),
-		}
-	}
-	if !bytes.Equal(t, token) {
-		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: fmt.Sprintf("comment token does not match "+
-				"route token: got %x, want %x", t, token),
-		}
+		return "", err
 	}
 
 	// Verify signature
@@ -487,21 +475,9 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify token
-	t, err := tokenDecode(e.Token)
+	err = tokenVerify(token, e.Token)
 	if err != nil {
-		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: err.Error(),
-		}
-	}
-	if !bytes.Equal(t, token) {
-		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: fmt.Sprintf("comment token does not match "+
-				"route token: got %x, want %x", t, token),
-		}
+		return "", err
 	}
 
 	// Verify signature
@@ -641,21 +617,9 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify token
-	t, err := tokenDecode(d.Token)
+	err = tokenVerify(token, d.Token)
 	if err != nil {
-		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: err.Error(),
-		}
-	}
-	if !bytes.Equal(t, token) {
-		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: fmt.Sprintf("comment token does not match "+
-				"route token: got %x, want %x", t, token),
-		}
+		return "", err
 	}
 
 	// Verify signature
@@ -774,21 +738,9 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify token
-	t, err := tokenDecode(v.Token)
+	err = tokenVerify(token, v.Token)
 	if err != nil {
-		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: err.Error(),
-		}
-	}
-	if !bytes.Equal(t, token) {
-		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: fmt.Sprintf("comment token does not match "+
-				"route token: got %x, want %x", t, token),
-		}
+		return "", err
 	}
 
 	// Verify vote
@@ -1260,6 +1212,32 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 // tokenDecode decodes a tstore token. It only accepts full length tokens.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTstore, token)
+}
+
+// tokenVerify verifies that a token that is part of a plugin command payload
+// is valid. This is applicable when a plugin command payload contains a
+// signature that includes the record token. The token included in payload must
+// be a valid, full length record token and it must match the token that was
+// passed into the politeiad API for this plugin command, i.e. the token for
+// the record that this plugin command is being executed on.
+func tokenVerify(cmdToken []byte, payloadToken string) error {
+	pt, err := tokenDecode(payloadToken)
+	if err != nil {
+		return backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
+			ErrorContext: err.Error(),
+		}
+	}
+	if !bytes.Equal(cmdToken, pt) {
+		return backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("payload token does not match "+
+				"command token: got %x, want %x", pt, cmdToken),
+		}
+	}
+	return nil
 }
 
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {

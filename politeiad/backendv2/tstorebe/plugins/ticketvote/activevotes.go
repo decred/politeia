@@ -62,8 +62,7 @@ func (a *activeVotes) VoteDetails(token []byte) *ticketvote.VoteDetails {
 	a.RLock()
 	defer a.RUnlock()
 
-	t := hex.EncodeToString(token)
-	av, ok := a.activeVotes[t]
+	av, ok := a.activeVotes[hex.EncodeToString(token)]
 	if !ok {
 		return nil
 	}
@@ -105,8 +104,7 @@ func (a *activeVotes) EligibleTickets(token []byte) map[string]struct{} {
 	a.RLock()
 	defer a.RUnlock()
 
-	t := hex.EncodeToString(token)
-	av, ok := a.activeVotes[t]
+	av, ok := a.activeVotes[hex.EncodeToString(token)]
 	if !ok {
 		return nil
 	}
@@ -130,8 +128,7 @@ func (a *activeVotes) VoteIsDuplicate(token, ticket string) bool {
 	av, ok := a.activeVotes[token]
 	if !ok {
 		// This should not happen
-		e := fmt.Errorf("active vote not found %v", token)
-		panic(e)
+		panic(fmt.Sprintf("active vote not found %v", token))
 	}
 
 	_, isDup := av.CastVotes[ticket]
@@ -197,8 +194,7 @@ func (a *activeVotes) AddCastVote(token, ticket, votebit string) {
 	av, ok := a.activeVotes[token]
 	if !ok {
 		// This should not happen
-		e := fmt.Sprintf("active vote not found %v", token)
-		panic(e)
+		panic(fmt.Sprintf("active vote not found %v", token))
 	}
 
 	av.CastVotes[ticket] = votebit
@@ -214,8 +210,7 @@ func (a *activeVotes) AddCommitmentAddrs(token string, addrs map[string]commitme
 	av, ok := a.activeVotes[token]
 	if !ok {
 		// This should not happen
-		e := fmt.Sprintf("active vote not found %v", token)
-		panic(e)
+		panic(fmt.Sprintf("active vote not found %v", token))
 	}
 
 	for ticket, v := range addrs {
@@ -231,38 +226,40 @@ func (a *activeVotes) AddCommitmentAddrs(token string, addrs map[string]commitme
 // Del deletes an active vote from the active votes cache.
 func (a *activeVotes) Del(token string) {
 	a.Lock()
-	defer a.Unlock()
-
 	delete(a.activeVotes, token)
+	a.Unlock()
 
 	log.Debugf("Active votes del %v", token)
 }
 
 // Add adds a active vote to the active votes cache.
 //
-// This function should NOT be used directly. The activeVotesAdd function,
-// which also kicks of an async job to fetch the commitment addresses for this
-// active votes entry, should be used instead.
+// This function should NOT be called directly. The ticketvote method
+// activeVotesAdd(), which also kicks of an async job to fetch the commitment
+// addresses for this active votes entry, should be used instead.
 func (a *activeVotes) Add(vd ticketvote.VoteDetails) {
-	a.Lock()
-	defer a.Unlock()
-
 	token := vd.Params.Token
+
+	a.Lock()
 	a.activeVotes[token] = activeVote{
 		Details:   &vd,
 		CastVotes: make(map[string]string, 40960), // Ticket pool size
 		Addrs:     make(map[string]string, 40960), // Ticket pool size
 	}
+	a.Unlock()
 
 	log.Debugf("Active votes add %v", token)
 }
 
+// newActiveVotes returns a new activeVotes.
 func newActiveVotes() *activeVotes {
 	return &activeVotes{
 		activeVotes: make(map[string]activeVote, 256),
 	}
 }
 
+// activeVotePopulateAddrs fetches the largest commitment address for each
+// ticket in a vote from dcrdata and caches the results.
 func (p *ticketVotePlugin) activeVotePopulateAddrs(vd ticketvote.VoteDetails) {
 	// Get largest commitment address for each eligible ticket. A
 	// TrimmedTxs response for 500 tickets is ~1MB. It takes ~1.5
@@ -300,6 +297,9 @@ func (p *ticketVotePlugin) activeVotePopulateAddrs(vd ticketvote.VoteDetails) {
 	}
 }
 
+// activeVotesAdd creates a active votes cache entry for the provided vote
+// details and kicks off an async job that fetches and caches the largest
+// commitment address for each eligible ticket.
 func (p *ticketVotePlugin) activeVotesAdd(vd ticketvote.VoteDetails) {
 	// Add the vote to the active votes cache
 	p.activeVotes.Add(vd)

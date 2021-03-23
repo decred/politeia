@@ -578,7 +578,7 @@ type VoteOptionResult struct {
 	Votes       uint64 `json:"votes"`       // Votes cast for this option
 }
 
-// Summary requests the vote summaries for a record.
+// Summary requests the vote summary for a record.
 type Summary struct{}
 
 // SummaryReply is the reply to the Summary command.
@@ -690,7 +690,7 @@ const (
 	VoteTimestampsPageSize uint32 = 100
 )
 
-// Timestamps requests the timestamps for ticket vote data.
+// Timestamps requests the timestamps for a ticket vote.
 //
 // If no votes page number is provided then the vote authorization and vote
 // details timestamps will be returned. If a votes page number is provided then
