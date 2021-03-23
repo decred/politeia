@@ -19,6 +19,7 @@ import (
 )
 
 var (
+	// HTTP headers
 	headerCSRF = "X-CSRF-Token"
 )
 
@@ -33,7 +34,7 @@ type Client struct {
 
 // makeReq makes a politeiawww http request to the method and route provided,
 // serializing the provided object as the request body, and returning a byte
-// slice of the response body. An Error is returned if politeiawww responds
+// slice of the response body. An ReqError is returned if politeiawww responds
 // with anything other than a 200 http status code.
 func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byte, error) {
 	// Serialize body
@@ -135,9 +136,7 @@ func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byt
 	// Decode response body
 	respBody := util.RespBody(r)
 
-	// Print response body. Pretty printing the response body for the
-	// verbose output must be handled by the calling function once it
-	// has unmarshalled the body.
+	// Print response body
 	if c.verbose || c.rawJSON {
 		fmt.Printf("%s\n", respBody)
 	}
@@ -147,7 +146,7 @@ func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byt
 
 // Opts contains the politeiawww client options. All values are optional.
 //
-// Any provided HTTPSCert will be added to the http client's trust cert pool,
+// Any provided HTTPSCert will be added to the http client's trusted cert pool,
 // allowing you to interact with a politeiawww instance that uses a self signed
 // cert.
 //

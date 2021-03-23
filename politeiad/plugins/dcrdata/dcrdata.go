@@ -2,8 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package dcrdata provides a plugin for retrieving data from the dcrdata block
-// explorer.
+// Package dcrdata provides a plugin for querying the dcrdata block explorer.
 package dcrdata
 
 const (
@@ -15,13 +14,24 @@ const (
 	CmdBlockDetails = "blockdetails" // Get details of a block
 	CmdTicketPool   = "ticketpool"   // Get ticket pool
 	CmdTxsTrimmed   = "txstrimmed"   // Get trimmed transactions
+)
 
-	// Setting keys are the plugin setting keys that can be used to
-	// override a default plugin setting. Defaults will be overridden
-	// if a plugin setting is provided to the plugin on startup.
+// Plugin setting keys can be used to specify custom plugin settings. Default
+// plugin setting values can be overridden by providing a plugin setting key
+// and value to the plugin on startup.
+const (
+	// SettingKeyHostHTTP is the plugin setting key for the plugin
+	// setting SettingHostHTTP.
 	SettingKeyHostHTTP = "hosthttp"
-	SettingKeyHostWS   = "hostws"
 
+	// SettingKeyHostWS is the plugin setting key for the plugin
+	// setting SettingHostWS.
+	SettingKeyHostWS = "hostws"
+)
+
+// Plugin setting default values. These can be overridden by providing a plugin
+// setting key and value to the plugin on startup.
+const (
 	// SettingHostHTTPMainNet is the default dcrdata mainnet http host.
 	SettingHostHTTPMainNet = "https://dcrdata.decred.org"
 

@@ -2,8 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package comments provides a plugin for adding comments and comment votes to
-// records.
+// Package comments provides a plugin for extending a record with comment
+// functionality.
 package comments
 
 const (
@@ -28,11 +28,11 @@ const (
 // and value to the plugin on startup.
 const (
 	// SettingKeyCommentLengthMax is the plugin setting key for the
-	// comment length max plugin setting.
+	// SettingCommentLengthMax plugin setting.
 	SettingKeyCommentLengthMax = "commentlengthmax"
 
-	// SettingKeyVoteChangesMax is the plugin setting key for the vote
-	// changes max plugin setting.
+	// SettingKeyVoteChangesMax is the plugin setting key for the
+	// SettingVoteChangesMax plugin setting.
 	SettingKeyVoteChangesMax = "votechangesmax"
 )
 

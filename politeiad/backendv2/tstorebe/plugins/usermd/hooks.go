@@ -82,12 +82,11 @@ func (p *usermdPlugin) hookEditRecordPre(payload string) error {
 		return err
 	}
 	if um.UserID != umCurr.UserID {
-		e := fmt.Sprintf("user id cannot change: got %v, want %v",
-			um.UserID, umCurr.UserID)
 		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeUserIDInvalid),
-			ErrorContext: e,
+			PluginID:  usermd.PluginID,
+			ErrorCode: uint32(usermd.ErrorCodeUserIDInvalid),
+			ErrorContext: fmt.Sprintf("user id cannot change: got %v, want %v",
+				um.UserID, umCurr.UserID),
 		}
 	}
 
@@ -235,30 +234,27 @@ func userMetadataPreventUpdates(current, update []backend.MetadataStream) error 
 	// Verify user metadata has not changed
 	switch {
 	case u.UserID != c.UserID:
-		e := fmt.Sprintf("user id cannot change: got %v, want %v",
-			u.UserID, c.UserID)
 		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeUserIDInvalid),
-			ErrorContext: e,
+			PluginID:  usermd.PluginID,
+			ErrorCode: uint32(usermd.ErrorCodeUserIDInvalid),
+			ErrorContext: fmt.Sprintf("user id cannot change: got %v, want %v",
+				u.UserID, c.UserID),
 		}
 
 	case u.PublicKey != c.PublicKey:
-		e := fmt.Sprintf("public key cannot change: got %v, want %v",
-			u.PublicKey, c.PublicKey)
 		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodePublicKeyInvalid),
-			ErrorContext: e,
+			PluginID:  usermd.PluginID,
+			ErrorCode: uint32(usermd.ErrorCodePublicKeyInvalid),
+			ErrorContext: fmt.Sprintf("public key cannot change: got %v, want %v",
+				u.PublicKey, c.PublicKey),
 		}
 
 	case c.Signature != c.Signature:
-		e := fmt.Sprintf("signature cannot change: got %v, want %v",
-			u.Signature, c.Signature)
 		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeSignatureInvalid),
-			ErrorContext: e,
+			PluginID:  usermd.PluginID,
+			ErrorCode: uint32(usermd.ErrorCodeSignatureInvalid),
+			ErrorContext: fmt.Sprintf("signature cannot change: got %v, want %v",
+				u.Signature, c.Signature),
 		}
 	}
 
@@ -320,23 +316,22 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 
 	// Verify token matches
 	if scm.Token != rm.Token {
-		e := fmt.Sprintf("status change token does not match record "+
-			"metadata token: got %v, want %v", scm.Token, rm.Token)
 		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeTokenInvalid),
-			ErrorContext: e,
+			PluginID:  usermd.PluginID,
+			ErrorCode: uint32(usermd.ErrorCodeTokenInvalid),
+			ErrorContext: fmt.Sprintf("status change token does not match "+
+				"record metadata token: got %v, want %v", scm.Token, rm.Token),
 		}
 	}
 
 	// Verify status matches
 	if scm.Status != uint32(rm.Status) {
-		e := fmt.Sprintf("status from metadata does not match status from "+
-			"record metadata: got %v, want %v", scm.Status, rm.Status)
 		return backend.PluginError{
-			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeStatusInvalid),
-			ErrorContext: e,
+			PluginID:  usermd.PluginID,
+			ErrorCode: uint32(usermd.ErrorCodeStatusInvalid),
+			ErrorContext: fmt.Sprintf("status from metadata does not "+
+				"match status from record metadata: got %v, want %v",
+				scm.Status, rm.Status),
 		}
 	}
 
@@ -345,7 +340,7 @@ func statusChangeMetadataVerify(rm backend.RecordMetadata, metadata []backend.Me
 	if ok && scm.Reason == "" {
 		return backend.PluginError{
 			PluginID:     usermd.PluginID,
-			ErrorCode:    uint32(usermd.ErrorCodeReasonInvalid),
+			ErrorCode:    uint32(usermd.ErrorCodeReasonMissing),
 			ErrorContext: "a reason must be given for this status change",
 		}
 	}

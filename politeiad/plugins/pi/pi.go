@@ -2,24 +2,47 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Package pi provides a plugin for functionality that is specific to decred's
-// proposal system.
+// Pacakge pi provides a plugin that extends records with functionality for
+// decred's proposal system.
 package pi
 
 const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "pi"
+)
 
-	// Setting keys are the plugin setting keys that can be used to
-	// override a default plugin setting. Defaults will be overridden
-	// if a plugin setting is provided to the plugin on startup.
-	SettingKeyTextFileSizeMax            = "textfilesizemax"
-	SettingKeyImageFileCountMax          = "imagefilecountmax"
-	SettingKeyImageFileSizeMax           = "imagefilesizemax"
-	SettingKeyProposalNameLengthMin      = "proposalnamelengthmin"
-	SettingKeyProposalNameLengthMax      = "proposalnamelengthmax"
+// Plugin setting keys can be used to specify custom plugin settings. Default
+// plugin setting values can be overridden by providing a plugin setting key
+// and value to the plugin on startup.
+const (
+	// SettingKeyTextFileSizeMax is the plugin setting key for the
+	// SettingTextFileSizeMax plugin setting.
+	SettingKeyTextFileSizeMax = "textfilesizemax"
+
+	// SettingKeyImageFileCountMax is the plugin setting key for the
+	// SettingImageFileCountMax plugin setting.
+	SettingKeyImageFileCountMax = "imagefilecountmax"
+
+	// SettingKeyImageFileSizeMax is the plugin setting key for the
+	// SettingImageFileSizeMax plugin setting.
+	SettingKeyImageFileSizeMax = "imagefilesizemax"
+
+	// SettingKeyProposalNameLengthMin is the plugin setting key for
+	// the SettingProposalNameLengthMin plugin setting.
+	SettingKeyProposalNameLengthMin = "proposalnamelengthmin"
+
+	// SettingKeyProposalNameLengthMax is the plugin setting key for
+	// the SettingProposalNameLengthMax plugin setting.
+	SettingKeyProposalNameLengthMax = "proposalnamelengthmax"
+
+	// SettingKeyProposalNameSupportedChars is the plugin setting key
+	// for the SettingProposalNameSupportedChars plugin setting.
 	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
+)
 
+// Plugin setting default values. These can be overridden by providing a plugin
+// setting key and value to the plugin on startup.
+const (
 	// SettingTextFileSizeMax is the default maximum allowed size of a
 	// text file in bytes.
 	SettingTextFileSizeMax uint32 = 512 * 1024

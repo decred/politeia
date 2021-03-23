@@ -19,27 +19,27 @@ const (
 	CmdSummary     = "summary"     // Get vote summary
 	CmdSubmissions = "submissions" // Get runoff vote submissions
 	CmdInventory   = "inventory"   // Get inventory by vote status
-	CmdTimestamps  = "timestamps"  // Get vote data timestamps
+	CmdTimestamps  = "timestamps"  // Get vote timestamps
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default
 // plugin setting values can be overridden by providing a plugin setting key
 // and value to the plugin on startup.
 const (
-	// SettingKeyLinkByPeriodMin is the plugin setting key for the link
-	// by period min plugin setting.
+	// SettingKeyLinkByPeriodMin is the plugin setting key for the
+	// SettingLinkByPeriodMin plugin setting.
 	SettingKeyLinkByPeriodMin = "linkbyperiodmin"
 
-	// SettingKeyLinkByPeriodMax is the plugin setting key for the link
-	// by period max plugin setting.
+	// SettingKeyLinkByPeriodMax is the plugin setting key for the
+	// SettingLinkByPeriodMax plugin setting.
 	SettingKeyLinkByPeriodMax = "linkbyperiodmax"
 
-	// SettingKeyVoteDurationMin is the plugin setting key for the vote
-	// duration min plugin setting.
+	// SettingKeyVoteDurationMin is the plugin setting key for the
+	// SettingVoteDurationMin plugin setting.
 	SettingKeyVoteDurationMin = "votedurationmin"
 
-	// SettingKeyVoteDurationMax is the plugin setting key for the vote
-	// duration max plugin setting.
+	// SettingKeyVoteDurationMax is the plugin setting key for the
+	// SettingVoteDurationMax plugin setting.
 	SettingKeyVoteDurationMax = "votedurationmax"
 )
 
@@ -337,7 +337,7 @@ type VoteDetails struct {
 }
 
 // CastVoteDetails contains the details of a cast vote. A JSON encoded cast
-// vote details is 405 bytes (could vary slightly depending on the votebit).
+// vote details is 405 bytes.
 //
 // Signature is the client signature of the Token+Ticket+VoteBit. The receipt
 // is the server signature of the client signature.
@@ -685,7 +685,8 @@ const (
 	// is ~2000 bytes so a page of 100 votes will only be 0.2MB, but
 	// the bottleneck on this call is performance, not size. Its
 	// expensive to retrieve a large number of inclusion proofs from
-	// trillian. A 100 timestamps will take ~1 second to compile.
+	// trillian. A 100 timestamps request will take ~1 second to
+	// complete.
 	VoteTimestampsPageSize uint32 = 100
 )
 

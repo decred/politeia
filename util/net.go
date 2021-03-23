@@ -30,7 +30,7 @@ func NormalizeAddress(addr, defaultPort string) string {
 	return addr
 }
 
-// NewHTTPClient returns a new http.Client instance
+// NewHTTPClient returns a new http Client.
 func NewHTTPClient(skipVerify bool, certPath string) (*http.Client, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,

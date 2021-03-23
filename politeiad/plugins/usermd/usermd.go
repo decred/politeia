@@ -13,7 +13,10 @@ const (
 	// Plugin commands
 	CmdAuthor      = "author"      // Get record author
 	CmdUserRecords = "userrecords" // Get user submitted records
+)
 
+// Stream IDs are the metadata stream IDs for metadata defined in this package.
+const (
 	// StreamIDUserMetadata is the politeiad metadata stream ID for the
 	// UserMetadata structure.
 	StreamIDUserMetadata uint32 = 1
@@ -28,16 +31,42 @@ const (
 type ErrorCodeT uint32
 
 const (
-	// User error codes
-	ErrorCodeInvalid                      ErrorCodeT = 0
-	ErrorCodeUserMetadataNotFound         ErrorCodeT = 1
-	ErrorCodeUserIDInvalid                ErrorCodeT = 2
-	ErrorCodePublicKeyInvalid             ErrorCodeT = 3
-	ErrorCodeSignatureInvalid             ErrorCodeT = 4
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeuserMetadataNotFound is returned when a record does
+	// not contain a metdata stream for user metadata.
+	ErrorCodeUserMetadataNotFound ErrorCodeT = 1
+
+	// ErrorCodeUserIDInvalid is returned when a user ID is changed
+	// between versions of a record.
+	ErrorCodeUserIDInvalid ErrorCodeT = 2
+
+	// ErrorCodePlublicKeyInvalid is returned when a public key used
+	// in a signature is not valid.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 3
+
+	// ErrorCodeSignatureInvalid is returned when the signature does
+	// not match the expected signature.
+	ErrorCodeSignatureInvalid ErrorCodeT = 4
+
+	// ErrorCodeStatusChangeMetadataNotFound is returned when a record
+	// is having its status updated but is missing the status change
+	// metadata.
 	ErrorCodeStatusChangeMetadataNotFound ErrorCodeT = 5
-	ErrorCodeTokenInvalid                 ErrorCodeT = 6
-	ErrorCodeStatusInvalid                ErrorCodeT = 7
-	ErrorCodeReasonInvalid                ErrorCodeT = 8
+
+	// ErrorCodeTokenInvalid is returned when a token that is included
+	// in the metadata does not match the token of the record that the
+	// command is being executed on.
+	ErrorCodeTokenInvalid ErrorCodeT = 6
+
+	// ErrorCodeStatusInvalid is returned when the status defined in
+	// the status change metadata does not match the record status.
+	ErrorCodeStatusInvalid ErrorCodeT = 7
+
+	// ErrorCodeReasonMissing is returned when the status change reason
+	// is required but is not included.
+	ErrorCodeReasonMissing ErrorCodeT = 8
 )
 
 var (
@@ -51,7 +80,7 @@ var (
 		ErrorCodeStatusChangeMetadataNotFound: "status change metadata not found",
 		ErrorCodeTokenInvalid:                 "token invalid",
 		ErrorCodeStatusInvalid:                "status invalid",
-		ErrorCodeReasonInvalid:                "status reason invalid",
+		ErrorCodeReasonMissing:                "status change reason is missing",
 	}
 )
 
