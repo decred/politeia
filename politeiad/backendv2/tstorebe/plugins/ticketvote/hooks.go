@@ -87,8 +87,8 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 }
 
 // linkByVerify verifies that the provided link by timestamp meets all
-// ticketvote plugin requirements. See the ticketvote VoteMetadata for details
-// on the link by timestamp.
+// ticketvote plugin requirements. See the ticketvote VoteMetadata structure
+// for more details on the link by timestamp.
 func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 	if linkBy == 0 {
 		// LinkBy as not been set
@@ -119,8 +119,8 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 }
 
 // linkToVerify verifies that the provided link to meets all ticketvote plugin
-// requirements. See the ticketvote VoteMetadata for details on the link to
-// field.
+// requirements. See the ticketvote VoteMetadata structure for more details on
+// the link to field.
 func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	// LinkTo must be a public record
 	token, err := tokenDecode(linkTo)
@@ -327,6 +327,8 @@ func (p *ticketVotePlugin) voteMetadataVerify(files []backend.File) error {
 	return nil
 }
 
+// voteMetadataVerifyOnEdits runs vote metadata validation that is specific to
+// record edits.
 func (p *ticketVotePlugin) voteMetadataVerifyOnEdits(r backend.Record, newFiles []backend.File) error {
 	// Verify LinkTo has not changed. This must be run even if a vote
 	// metadata is not present.
