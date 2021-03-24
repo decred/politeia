@@ -59,10 +59,12 @@ type activeVote struct {
 // provided token. If the token does not correspond to an active vote then nil
 // is returned.
 func (a *activeVotes) VoteDetails(token []byte) *ticketvote.VoteDetails {
+	t := hex.EncodeToString(token)
+
 	a.RLock()
 	defer a.RUnlock()
 
-	av, ok := a.activeVotes[hex.EncodeToString(token)]
+	av, ok := a.activeVotes[t]
 	if !ok {
 		return nil
 	}
@@ -101,10 +103,12 @@ func (a *activeVotes) VoteDetails(token []byte) *ticketvote.VoteDetails {
 // the provided token. If the token does not correspond to an active vote then
 // nil is returned.
 func (a *activeVotes) EligibleTickets(token []byte) map[string]struct{} {
+	t := hex.EncodeToString(token)
+
 	a.RLock()
 	defer a.RUnlock()
 
-	av, ok := a.activeVotes[hex.EncodeToString(token)]
+	av, ok := a.activeVotes[t]
 	if !ok {
 		return nil
 	}
@@ -144,16 +148,17 @@ func (a *activeVotes) CommitmentAddrs(token []byte, tickets []string) map[string
 		return map[string]commitmentAddr{}
 	}
 
+	t := hex.EncodeToString(token)
+	ca := make(map[string]commitmentAddr, len(tickets))
+
 	a.RLock()
 	defer a.RUnlock()
 
-	t := hex.EncodeToString(token)
 	av, ok := a.activeVotes[t]
 	if !ok {
 		return nil
 	}
 
-	ca := make(map[string]commitmentAddr, len(tickets))
 	for _, v := range tickets {
 		addr, ok := av.Addrs[v]
 		if ok {
@@ -170,10 +175,11 @@ func (a *activeVotes) CommitmentAddrs(token []byte, tickets []string) map[string
 // vote. The returned map is a map[votebit]tally. An empty map is returned if
 // the requested token is not in the active votes cache.
 func (a *activeVotes) Tally(token string) map[string]uint32 {
+	tally := make(map[string]uint32, 16)
+
 	a.RLock()
 	defer a.RUnlock()
 
-	tally := make(map[string]uint32, 16)
 	av, ok := a.activeVotes[token]
 	if !ok {
 		return tally

@@ -51,29 +51,29 @@ type recordIndex struct {
 	// only updates do no increment the version.
 	Version uint32 `json:"version"`
 
-	// Iteration represents the iteration of the record. The iteration
-	// is incremented anytime any record content changes. This includes
-	// file changes that bump the version, metadata stream only updates
-	// that don't bump the version, and status changes.
+	// Iteration represents the iteration of the record. The iteration is
+	// incremented anytime any record content changes. This includes file
+	// changes that bump the version, metadata stream only updates that
+	// don't bump the version, and status changes.
 	Iteration uint32 `json:"iteration"`
 
-	// The following fields contain the merkle leaf hashes of the
-	// trillian log leaves for the record content. The merkle leaf hash
-	// can be used to lookup the log leaf. The log leaf ExtraData field
-	// contains the key for the record content in the key-value store.
+	// The following fields contain the merkle leaf hashes of the trillian
+	// log leaves for the record content. The merkle leaf hash can be used
+	// to lookup the log leaf. The log leaf ExtraData field contains the
+	// key for the record content in the key-value store.
 	RecordMetadata []byte            `json:"recordmetadata"`
 	Files          map[string][]byte `json:"files"` // [filename]merkle
 
 	// [pluginID][streamID]merkle
 	Metadata map[string]map[uint32][]byte `json:"metadata"`
 
-	// Frozen is used to indicate that the tree for this record has
-	// been frozen. This happens as a result of certain record status
-	// changes. The only thing that can be appended onto a frozen tree
-	// is one additional anchor record. Once a frozen tree has been
-	// anchored, the tstore fsck function will update the status of the
-	// tree to frozen in trillian, at which point trillian will not
-	// allow any additional leaves to be appended onto the tree.
+	// Frozen is used to indicate that the tree for this record has been
+	// frozen. This happens as a result of certain record status changes.
+	// The only thing that can be appended onto a frozen tree is one
+	// additional anchor record. Once a frozen tree has been anchored, the
+	// tstore fsck function will update the status of the tree to frozen in
+	// trillian, at which point trillian will not allow any additional
+	// leaves to be appended onto the tree.
 	Frozen bool `json:"frozen,omitempty"`
 }
 
@@ -89,7 +89,8 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 		encrypt = false
 	default:
 		// Something is wrong
-		e := fmt.Sprintf("invalid record state %v %v", treeID, idx.State)
+		e := fmt.Sprintf("invalid record state %v %v",
+			treeID, idx.State)
 		panic(e)
 	}
 
@@ -129,8 +130,8 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 		return fmt.Errorf("LeavesAppend: %v", err)
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
-			len(queued))
+		return fmt.Errorf("wrong number of queud leaves: got %v, "+
+			"want 1", len(queued))
 	}
 	failed := make([]string, 0, len(queued))
 	for _, v := range queued {
@@ -149,10 +150,9 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 // recordIndexes returns all record indexes found in the provided trillian
 // leaves.
 func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) {
-	// Walk the leaves and compile the keys for all record indexes.
-	// Once a record is made vetted the record history is considered
-	// to restart. If any vetted indexes exist, ignore all unvetted
-	// indexes.
+	// Walk the leaves and compile the keys for all record indexes.  Once a
+	// record is made vetted the record history is considered to restart.
+	// If any vetted indexes exist, ignore all unvetted indexes.
 	var (
 		keysUnvetted = make([]string, 0, 256)
 		keysVetted   = make([]string, 0, 256)
@@ -162,18 +162,19 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 		if err != nil {
 			return nil, err
 		}
-		if ed.Desc == dataDescriptorRecordIndex {
-			// This is a record index leaf
-			switch ed.State {
-			case backend.StateUnvetted:
-				keysUnvetted = append(keysUnvetted, ed.storeKey())
-			case backend.StateVetted:
-				keysVetted = append(keysVetted, ed.storeKey())
-			default:
-				// Should not happen
-				return nil, fmt.Errorf("invalid extra data state: %v %v",
-					v.LeafIndex, ed.State)
-			}
+		if ed.Desc != dataDescriptorRecordIndex {
+			continue
+		}
+		// This is a record index leaf
+		switch ed.State {
+		case backend.StateUnvetted:
+			keysUnvetted = append(keysUnvetted, ed.storeKey())
+		case backend.StateVetted:
+			keysVetted = append(keysVetted, ed.storeKey())
+		default:
+			// Should not happen
+			return nil, fmt.Errorf("invalid extra data state: "+
+				"%v %v", v.LeafIndex, ed.State)
 		}
 	}
 	keys := keysUnvetted
@@ -229,8 +230,8 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 		indexes = vetted
 	}
 
-	// Sort indexes by iteration, smallest to largets. The leaves
-	// ordering was not preserved in the returned blobs map.
+	// Sort indexes by iteration, smallest to largets. The leaves ordering
+	// was not preserved in the returned blobs map.
 	sort.SliceStable(indexes, func(i, j int) bool {
 		return indexes[i].Iteration < indexes[j].Iteration
 	})
@@ -243,13 +244,14 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 	var i uint32 = 1
 	for _, v := range indexes {
 		if v.Iteration != i {
-			return nil, fmt.Errorf("invalid record index iteration: "+
-				"got %v, want %v", v.Iteration, i)
+			return nil, fmt.Errorf("invalid record index "+
+				"iteration: got %v, want %v", v.Iteration, i)
 		}
 		diff := v.Version - versionPrev
 		if diff != 0 && diff != 1 {
 			return nil, fmt.Errorf("invalid record index version: "+
-				"curr version %v, prev version %v", v.Version, versionPrev)
+				"curr version %v, prev version %v",
+				v.Version, versionPrev)
 		}
 
 		i++
@@ -284,18 +286,18 @@ func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, erro
 		return nil, backend.ErrRecordNotFound
 	}
 
-	// This function should only be used on record indexes that share
-	// the same record state. We would not want to accidentally return
-	// an unvetted index if the record is vetted. It is the
-	// responsibility of the caller to only provide a single state.
+	// This function should only be used on record indexes that share the
+	// same record state. We would not want to accidentally return an
+	// unvetted index if the record is vetted. It is the responsibility of
+	// the caller to only provide a single state.
 	state := indexes[0].State
 	if state == backend.StateInvalid {
 		return nil, fmt.Errorf("invalid record index state: %v", state)
 	}
 	for _, v := range indexes {
 		if v.State != state {
-			return nil, fmt.Errorf("multiple record index states found: %v %v",
-				v.State, state)
+			return nil, fmt.Errorf("multiple record index states "+
+				"found: %v %v", v.State, state)
 		}
 	}
 
@@ -306,8 +308,8 @@ func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, erro
 		// be returned.
 		ri = &indexes[len(indexes)-1]
 	} else {
-		// Walk the indexes backwards so the most recent iteration of the
-		// specified version is selected.
+		// Walk the indexes backwards so the most recent iteration of
+		// the specified version is selected.
 		for i := len(indexes) - 1; i >= 0; i-- {
 			r := indexes[i]
 			if r.Version == version {
@@ -353,8 +355,8 @@ func convertRecordIndexFromBlobEntry(be store.BlobEntry) (*recordIndex, error) {
 		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
 	}
 	if dd.Descriptor != dataDescriptorRecordIndex {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorRecordIndex)
+		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
+			"want %v", dd.Descriptor, dataDescriptorRecordIndex)
 	}
 
 	// Decode data

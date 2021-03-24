@@ -78,8 +78,9 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 			return backend.PluginError{
 				PluginID:  pi.PluginID,
 				ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
-				ErrorContext: fmt.Sprintf("vote status '%v' does not allow "+
-					"for proposal edits", ticketvote.VoteStatuses[s.Status]),
+				ErrorContext: fmt.Sprintf("vote status '%v' "+
+					"does not allow for proposal edits",
+					ticketvote.VoteStatuses[s.Status]),
 			}
 		}
 	}
@@ -168,8 +169,10 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 				return backend.PluginError{
 					PluginID:  pi.PluginID,
 					ErrorCode: uint32(pi.ErrorCodeTextFileSizeInvalid),
-					ErrorContext: fmt.Sprintf("file %v size %v exceeds max size %v",
-						v.Name, len(payload), p.textFileSizeMax),
+					ErrorContext: fmt.Sprintf("file %v "+
+						"size %v exceeds max size %v",
+						v.Name, len(payload),
+						p.textFileSizeMax),
 				}
 			}
 
@@ -181,8 +184,10 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 				return backend.PluginError{
 					PluginID:  pi.PluginID,
 					ErrorCode: uint32(pi.ErrorCodeImageFileSizeInvalid),
-					ErrorContext: fmt.Sprintf("image %v size %v exceeds max size %v",
-						v.Name, len(payload), p.imageFileSizeMax),
+					ErrorContext: fmt.Sprintf("image %v "+
+						"size %v exceeds max size %v",
+						v.Name, len(payload),
+						p.imageFileSizeMax),
 				}
 			}
 
@@ -212,8 +217,8 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeImageFileCountInvalid),
-			ErrorContext: fmt.Sprintf("got %v image files, max is %v",
-				imagesCount, p.imageFileCountMax),
+			ErrorContext: fmt.Sprintf("got %v image files, max "+
+				"is %v", imagesCount, p.imageFileCountMax),
 		}
 	}
 
@@ -296,19 +301,17 @@ func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) 
 		if v.Name != pi.FileNameProposalMetadata {
 			continue
 		}
-		if v.Name == pi.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-			var m pi.ProposalMetadata
-			err = json.Unmarshal(b, &m)
-			if err != nil {
-				return nil, err
-			}
-			propMD = &m
-			break
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return nil, err
 		}
+		var m pi.ProposalMetadata
+		err = json.Unmarshal(b, &m)
+		if err != nil {
+			return nil, err
+		}
+		propMD = &m
+		break
 	}
 	return propMD, nil
 }
