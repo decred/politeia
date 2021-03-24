@@ -44,13 +44,14 @@ var (
 //
 // This function must be called WITHOUT the mtxSummary lock held.
 func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.SummaryReply, error) {
-	p.mtxSummary.Lock()
-	defer p.mtxSummary.Unlock()
-
 	fp, err := p.summaryCachePath(token)
 	if err != nil {
 		return nil, err
 	}
+
+	p.mtxSummary.Lock()
+	defer p.mtxSummary.Unlock()
+
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -78,14 +79,14 @@ func (p *ticketVotePlugin) summaryCacheSave(token string, sr ticketvote.SummaryR
 	if err != nil {
 		return err
 	}
-
-	p.mtxSummary.Lock()
-	defer p.mtxSummary.Unlock()
-
 	fp, err := p.summaryCachePath(token)
 	if err != nil {
 		return err
 	}
+
+	p.mtxSummary.Lock()
+	defer p.mtxSummary.Unlock()
+
 	err = ioutil.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err

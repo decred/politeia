@@ -50,6 +50,7 @@ func (p *ticketVotePlugin) hookSetRecordStatusPre(payload string) error {
 		return err
 	}
 
+	// Verify vote metadata
 	return p.voteMetadataVerifyOnStatusChange(srs.RecordMetadata.Status,
 		srs.Record.Files)
 }

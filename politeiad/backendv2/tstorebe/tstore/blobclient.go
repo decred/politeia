@@ -67,8 +67,7 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 		encrypt = false
 	default:
 		// Something is wrong
-		e := fmt.Sprintf("invalid record state %v %v", treeID, idx.State)
-		panic(e)
+		panic(fmt.Sprintf("invalid record state %v %v", treeID, idx.State))
 	}
 
 	// Prepare blob and digest

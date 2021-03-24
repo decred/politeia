@@ -67,6 +67,8 @@ func (t *Tstore) droppingAnchorSet(b bool) {
 }
 
 var (
+	// errAnchorNotFound is returned when a anchor record does not
+	// exist for a leaf yet.
 	errAnchorNotFound = errors.New("anchor not found")
 )
 
