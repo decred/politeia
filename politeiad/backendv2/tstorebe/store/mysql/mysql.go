@@ -63,7 +63,7 @@ func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, 
 	// Encrypt blobs
 	if encrypt {
 		for k, v := range blobs {
-			e, err := s.encrypt(ctx, tx, &s.key, v)
+			e, err := s.encrypt(ctx, tx, v)
 			if err != nil {
 				return fmt.Errorf("encrypt: %v", err)
 			}
@@ -245,7 +245,7 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 		if !encrypted {
 			continue
 		}
-		b, _, err := s.decrypt(&s.key, v)
+		b, _, err := s.decrypt(v)
 		if err != nil {
 			return nil, fmt.Errorf("decrypt: %v", err)
 		}

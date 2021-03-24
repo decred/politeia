@@ -32,6 +32,20 @@ type argon2idParams struct {
 	Salt    []byte `json:"salt"`
 }
 
+func newArgon2Params() argon2idParams {
+	salt, err := util.Random(16)
+	if err != nil {
+		panic(err)
+	}
+	return argon2idParams{
+		Time:    1,
+		Memory:  64 * 1024, // In KiB
+		Threads: 4,
+		KeyLen:  32,
+		Salt:    salt,
+	}
+}
+
 // argon2idKey derives a 32 byte key from the provided password using the
 // Aragon2id key derivation function. A random 16 byte salt is created the
 // first time the key is derived. The salt and the other argon2id params are
@@ -45,53 +59,30 @@ func (s *mysql) argon2idKey(password string) error {
 	if err != nil {
 		return fmt.Errorf("get: %v", err)
 	}
-	var salt []byte
-	var wasFound bool
+	var save bool
+	var ap argon2idParams
 	b, ok := blobs[argon2idKey]
 	if ok {
-		// Key already exists. Use the existing salt.
-		log.Infof("Encryption key salt already exists")
-
-		var ap argon2idParams
+		log.Debugf("Encryption key salt already exists")
 		err = json.Unmarshal(b, &ap)
 		if err != nil {
 			return err
 		}
-
-		salt = ap.Salt
-		wasFound = true
 	} else {
-		// Key does not exist. Create a random 16 byte salt.
-		log.Infof("Encryption key salt not found; creating a new one")
-
-		salt, err = util.Random(16)
-		if err != nil {
-			return err
-		}
+		log.Infof("Encryption key not found; creating a new one")
+		ap = newArgon2Params()
+		save = true
 	}
 
 	// Derive key
-	var (
-		pass           = []byte(password)
-		time    uint32 = 1
-		memory  uint32 = 64 * 1024 // 64 MB
-		threads uint8  = 4         // Number of available CPUs
-		keyLen  uint32 = 32        // In bytes
-	)
-	k := argon2.IDKey(pass, salt, time, memory, threads, keyLen)
+	k := argon2.IDKey([]byte(password), ap.Salt, ap.Time, ap.Memory,
+		ap.Threads, ap.KeyLen)
 	copy(s.key[:], k)
 	util.Zero(k)
 
 	// Save params to the kv store if this is the first time the key
 	// was derived.
-	if !wasFound {
-		ap := argon2idParams{
-			Time:    time,
-			Memory:  memory,
-			Threads: threads,
-			KeyLen:  keyLen,
-			Salt:    salt,
-		}
+	if save {
 		b, err := json.Marshal(ap)
 		if err != nil {
 			return err
@@ -110,7 +101,7 @@ func (s *mysql) argon2idKey(password string) error {
 	return nil
 }
 
-func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, key *[32]byte, data []byte) ([]byte, error) {
+func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
@@ -131,7 +122,7 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, key *[32]byte, data []b
 	return sbox.EncryptN(0, &s.key, nonceb, data)
 }
 
-func (s *mysql) decrypt(key *[32]byte, data []byte) ([]byte, uint32, error) {
+func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
 	return sbox.Decrypt(&s.key, data)
 }
 

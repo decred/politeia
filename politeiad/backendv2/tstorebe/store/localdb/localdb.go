@@ -182,7 +182,7 @@ func (l *localdb) Close() {
 
 // New returns a new localdb.
 func New(appDir, dataDir string) (*localdb, error) {
-	// Load encryption key
+	// Load encryption key.
 	keyFile := filepath.Join(appDir, encryptionKeyFilename)
 	key, err := util.LoadEncryptionKey(log, keyFile)
 	if err != nil {
