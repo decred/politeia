@@ -48,6 +48,7 @@ var (
 type mysql struct {
 	shutdown uint64
 	db       *sql.DB
+	getNonce func(context.Context, *sql.Tx) ([24]byte, error)
 	key      [32]byte
 }
 
@@ -314,6 +315,7 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	s := &mysql{
 		db: db,
 	}
+	s.getNonce = s.getDbNonce
 
 	// Derive encryption key from password. Key is set in argon2idKey
 	err = s.argon2idKey(password)

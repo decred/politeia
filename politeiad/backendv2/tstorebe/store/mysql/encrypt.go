@@ -54,13 +54,26 @@ func newArgon2Params() argon2idParams {
 func (s *mysql) argon2idKey(password string) error {
 	log.Infof("Deriving encryption key from password")
 
-	// Check if a key already exists
-	blobs, err := s.Get([]string{argon2idKey})
-	if err != nil {
-		return fmt.Errorf("get: %v", err)
+	// Check if a key already exists. If db is nil then we are running unit
+	// tests.
+	var (
+		blobs map[string][]byte
+		err   error
+	)
+	if s.db == nil {
+		// Testing mode
+		blobs = make(map[string][]byte)
+	} else {
+		blobs, err = s.Get([]string{argon2idKey})
+		if err != nil {
+			return fmt.Errorf("get: %v", err)
+		}
 	}
-	var save bool
-	var ap argon2idParams
+
+	var (
+		save bool
+		ap   argon2idParams
+	)
 	b, ok := blobs[argon2idKey]
 	if ok {
 		log.Debugf("Encryption key salt already exists")
@@ -82,7 +95,7 @@ func (s *mysql) argon2idKey(password string) error {
 
 	// Save params to the kv store if this is the first time the key
 	// was derived.
-	if save {
+	if save && s.db != nil {
 		b, err := json.Marshal(ap)
 		if err != nil {
 			return err
@@ -101,11 +114,13 @@ func (s *mysql) argon2idKey(password string) error {
 	return nil
 }
 
-func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
+var emptyNonce = [24]byte{}
+
+func (s *mysql) getDbNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
-		return nil, err
+		return emptyNonce, err
 	}
 
 	log.Tracef("Encrypting with nonce: %v", nonce)
@@ -115,11 +130,26 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, e
 	binary.LittleEndian.PutUint64(b, uint64(nonce))
 	n, err := sbox.NewNonceFromBytes(b)
 	if err != nil {
+		return emptyNonce, err
+	}
+	return n.Current(), nil
+}
+
+func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+	nonce, err := util.Random(8)
+	n, err := sbox.NewNonceFromBytes(nonce)
+	if err != nil {
+		return emptyNonce, err
+	}
+	return n.Current(), nil
+}
+
+func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
+	nonce, err := s.getNonce(ctx, tx)
+	if err != nil {
 		return nil, err
 	}
-	nonceb := n.Current()
-
-	return sbox.EncryptN(0, &s.key, nonceb, data)
+	return sbox.EncryptN(0, &s.key, nonce, data)
 }
 
 func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
