@@ -32,90 +32,95 @@ type argon2idParams struct {
 	Salt    []byte `json:"salt"`
 }
 
+func newArgon2Params() argon2idParams {
+	salt, err := util.Random(16)
+	if err != nil {
+		panic(err)
+	}
+	return argon2idParams{
+		Time:    1,
+		Memory:  64 * 1024, // In KiB
+		Threads: 4,
+		KeyLen:  32,
+		Salt:    salt,
+	}
+}
+
 // argon2idKey derives a 32 byte key from the provided password using the
 // Aragon2id key derivation function. A random 16 byte salt is created the
 // first time the key is derived. The salt and the other argon2id params are
 // saved to the kv store. Subsequent calls to this fuction will pull the
 // existing salt and params from the kv store and use them to derive the key.
-func (s *mysql) argon2idKey(password string) (*[32]byte, error) {
+func (s *mysql) argon2idKey(password string) error {
 	log.Infof("Deriving encryption key from password")
 
-	// Check if a key already exists
-	blobs, err := s.Get([]string{argon2idKey})
-	if err != nil {
-		return nil, fmt.Errorf("get: %v", err)
+	// Check if a key already exists. If db is nil then we are running unit
+	// tests.
+	var (
+		blobs map[string][]byte
+		err   error
+	)
+	if s.db == nil {
+		// Testing mode
+		blobs = make(map[string][]byte)
+	} else {
+		blobs, err = s.Get([]string{argon2idKey})
+		if err != nil {
+			return fmt.Errorf("get: %v", err)
+		}
 	}
-	var salt []byte
-	var wasFound bool
+
+	var (
+		save bool
+		ap   argon2idParams
+	)
 	b, ok := blobs[argon2idKey]
 	if ok {
-		// Key already exists. Use the existing salt.
-		log.Infof("Encryption key salt already exists")
-
-		var ap argon2idParams
+		log.Debugf("Encryption key salt already exists")
 		err = json.Unmarshal(b, &ap)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		salt = ap.Salt
-		wasFound = true
 	} else {
-		// Key does not exist. Create a random 16 byte salt.
-		log.Infof("Encryption key salt not found; creating a new one")
-
-		salt, err = util.Random(16)
-		if err != nil {
-			return nil, err
-		}
+		log.Infof("Encryption key not found; creating a new one")
+		ap = newArgon2Params()
+		save = true
 	}
 
 	// Derive key
-	var (
-		pass           = []byte(password)
-		time    uint32 = 1
-		memory  uint32 = 64 * 1024 // 64 MB
-		threads uint8  = 4         // Number of available CPUs
-		keyLen  uint32 = 32        // In bytes
-	)
-	k := argon2.IDKey(pass, salt, time, memory, threads, keyLen)
-	var key [32]byte
-	copy(key[:], k)
+	k := argon2.IDKey([]byte(password), ap.Salt, ap.Time, ap.Memory,
+		ap.Threads, ap.KeyLen)
+	copy(s.key[:], k)
 	util.Zero(k)
 
 	// Save params to the kv store if this is the first time the key
 	// was derived.
-	if !wasFound {
-		ap := argon2idParams{
-			Time:    time,
-			Memory:  memory,
-			Threads: threads,
-			KeyLen:  keyLen,
-			Salt:    salt,
-		}
+	if save && s.db != nil {
 		b, err := json.Marshal(ap)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		kv := map[string][]byte{
 			argon2idKey: b,
 		}
 		err = s.Put(kv, false)
 		if err != nil {
-			return nil, fmt.Errorf("put: %v", err)
+			return fmt.Errorf("put: %v", err)
 		}
 
 		log.Infof("Encryption key derivation params saved to kv store")
 	}
 
-	return &key, nil
+	return nil
 }
 
-func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, key *[32]byte, data []byte) ([]byte, error) {
+var emptyNonce = [24]byte{}
+
+func (s *mysql) getDbNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
-		return nil, err
+		return emptyNonce, err
 	}
 
 	log.Tracef("Encrypting with nonce: %v", nonce)
@@ -125,27 +130,30 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, key *[32]byte, data []b
 	binary.LittleEndian.PutUint64(b, uint64(nonce))
 	n, err := sbox.NewNonceFromBytes(b)
 	if err != nil {
-		return nil, err
+		return emptyNonce, err
 	}
-	nonceb := n.Current()
-
-	// The encryption key is zero'd out on application exit so the read
-	// lock must be held during concurrent access to prevent the golang
-	// race detector from complaining.
-	s.RLock()
-	defer s.RUnlock()
-
-	return sbox.EncryptN(0, key, nonceb, data)
+	return n.Current(), nil
 }
 
-func (s *mysql) decrypt(key *[32]byte, data []byte) ([]byte, uint32, error) {
-	// The encryption key is zero'd out on application exit so the read
-	// lock must be held during concurrent access to prevent the golang
-	// race detector from complaining.
-	s.RLock()
-	defer s.RUnlock()
+func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+	nonce, err := util.Random(8)
+	n, err := sbox.NewNonceFromBytes(nonce)
+	if err != nil {
+		return emptyNonce, err
+	}
+	return n.Current(), nil
+}
 
-	return sbox.Decrypt(key, data)
+func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
+	nonce, err := s.getNonce(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return sbox.EncryptN(0, &s.key, nonce, data)
+}
+
+func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
+	return sbox.Decrypt(&s.key, data)
 }
 
 // isEncrypted returns whether the provided blob has been prefixed with an sbox

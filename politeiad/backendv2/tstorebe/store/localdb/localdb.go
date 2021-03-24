@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync"
+	"sync/atomic"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
@@ -34,35 +34,21 @@ var (
 // encryption key is created on startup and saved to the politeiad application
 // dir. Blobs are encrypted using random 24 byte nonces.
 type localdb struct {
-	sync.RWMutex
-	shutdown bool
+	shutdown uint64
 	db       *leveldb.DB
-
-	// Encryption key and mutex. The key is zero'd out on application
-	// exit so the read lock must be held during concurrent access to
-	// prevent the golang race detector from complaining.
-	key *[32]byte
+	key      [32]byte
 }
 
 func (l *localdb) isShutdown() bool {
-	l.RLock()
-	defer l.RUnlock()
-
-	return l.shutdown
+	return atomic.LoadUint64(&l.shutdown) != 0
 }
 
 func (l *localdb) encrypt(data []byte) ([]byte, error) {
-	l.RLock()
-	defer l.RUnlock()
-
-	return sbox.Encrypt(0, l.key, data)
+	return sbox.Encrypt(0, &l.key, data)
 }
 
 func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
-	l.RLock()
-	defer l.RUnlock()
-
-	return sbox.Decrypt(l.key, data)
+	return sbox.Decrypt(&l.key, data)
 }
 
 // Put saves the provided key-value pairs to the store. This operation is
@@ -185,14 +171,10 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 func (l *localdb) Close() {
 	log.Tracef("Close")
 
-	l.Lock()
-	defer l.Unlock()
-
-	l.shutdown = true
+	atomic.AddUint64(&l.shutdown, 1)
 
 	// Zero the encryption key
 	util.Zero(l.key[:])
-	l.key = nil
 
 	// Close database
 	l.db.Close()
@@ -200,7 +182,7 @@ func (l *localdb) Close() {
 
 // New returns a new localdb.
 func New(appDir, dataDir string) (*localdb, error) {
-	// Load encryption key
+	// Load encryption key.
 	keyFile := filepath.Join(appDir, encryptionKeyFilename)
 	key, err := util.LoadEncryptionKey(log, keyFile)
 	if err != nil {
@@ -213,8 +195,12 @@ func New(appDir, dataDir string) (*localdb, error) {
 		return nil, err
 	}
 
-	return &localdb{
-		db:  db,
-		key: key,
-	}, nil
+	// Create context
+	ldb := localdb{
+		db: db,
+	}
+	copy(ldb.key[:], key[:])
+	util.Zero(key[:])
+
+	return &ldb, nil
 }
