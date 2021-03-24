@@ -47,7 +47,7 @@ func (p *ticketVotePlugin) invPath() string {
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
 // if one does not exist yet.
 //
-// This function must be called WITH the read lock held.
+// This function must be called WITH the mtxInv read lock held.
 func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
 	b, err := ioutil.ReadFile(p.invPath())
 	if err != nil {
@@ -74,7 +74,7 @@ func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
 // if one does not exist yet.
 //
-// This function must be called WITHOUT the read lock held.
+// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invGet() (*inventory, error) {
 	p.mtxInv.RLock()
 	defer p.mtxInv.RUnlock()
@@ -84,7 +84,7 @@ func (p *ticketVotePlugin) invGet() (*inventory, error) {
 
 // invSaveLocked writes the inventory to disk.
 //
-// This function must be called WITH the read/write lock held.
+// This function must be called WITH the mtxInv write lock held.
 func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	b, err := json.Marshal(inv)
 	if err != nil {
@@ -93,6 +93,9 @@ func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	return ioutil.WriteFile(p.invPath(), b, 0664)
 }
 
+// invAdd adds a token to the ticketvote inventory.
+//
+// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
@@ -121,7 +124,19 @@ func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error 
 	return nil
 }
 
-// This function must be called WITH the read/write lock held.
+// inventoryAdd is a wrapper around the invAdd method that allows us to decide
+// how disk read/write errors should be handled. For now we just panic.
+func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
+	err := p.invAdd(token, s)
+	if err != nil {
+		panic(fmt.Sprintf("invAdd %v %v: %v", token, s, err))
+	}
+}
+
+// invUpdateLocked updates a pre existing token in the inventory to a new
+// vote status.
+//
+// This function must be called WITH the mtxInv write lock held.
 func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	// Get inventory
 	inv, err := p.invGetLocked()
@@ -133,8 +148,7 @@ func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatus
 	entries, err := entryDel(inv.Entries, token)
 	if err != nil {
 		// This should not happen. Panic if it does.
-		e := fmt.Sprintf("entry del: %v", err)
-		panic(e)
+		panic(fmt.Sprintf("entry del: %v", err))
 	}
 
 	// Prepend new entry to inventory
@@ -156,6 +170,10 @@ func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatus
 	return nil
 }
 
+// invUpdate updates a pre existing token in the inventory to a new vote
+// status.
+//
+// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
@@ -163,6 +181,20 @@ func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, end
 	return p.invUpdateLocked(token, s, endHeight)
 }
 
+// inventoryUpdate is a wrapper around the invUpdate method that allows us to
+// decide how disk read/write errors should be handled. For now we just panic.
+func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
+	err := p.invUpdate(token, s, 0)
+	if err != nil {
+		panic(fmt.Sprintf("invUpdate %v %v: %v", token, s, err))
+	}
+}
+
+// invUpdateForBlock updates the inventory for a new best block value. This
+// means checking if ongoing ticket votes have finished and updating their
+// status if they have.
+//
+// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, error) {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
@@ -237,34 +269,13 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	return inv, nil
 }
 
-// inventoryAdd is a wrapper around the invAdd method that allows us to decide
-// how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
-	err := p.invAdd(token, s)
-	if err != nil {
-		e := fmt.Sprintf("invAdd %v %v: %v", token, s, err)
-		panic(e)
-	}
-}
-
-// inventoryUpdate is a wrapper around the invUpdate method that allows us to
-// decide how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
-	err := p.invUpdate(token, s, 0)
-	if err != nil {
-		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
-		panic(e)
-	}
-}
-
 // inventoryUpdateToStarted is a wrapper around the invUpdate method that
 // allows us to decide how disk read/write errors should be handled. For now we
 // just panic.
 func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
 	err := p.invUpdate(token, s, endHeight)
 	if err != nil {
-		e := fmt.Sprintf("invUpdate %v %v: %v", token, s, err)
-		panic(e)
+		panic(fmt.Sprintf("invUpdate %v %v: %v", token, s, err))
 	}
 }
 
@@ -293,6 +304,7 @@ type invByStatus struct {
 	BestBlock uint32
 }
 
+// invByStatusAll returns a page of token for all vote statuses.
 func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
 	// Get inventory
 	i, err := p.Inventory(bestBlock)

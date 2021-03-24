@@ -35,9 +35,14 @@ func (p *ticketVotePlugin) summaryCachePath(token string) (string, error) {
 }
 
 var (
+	// errSummaryNotFound is returned when a cached summary is not
+	// found for a record.
 	errSummaryNotFound = errors.New("summary not found")
 )
 
+// summaryCache returns the cached vote summary for a record.
+//
+// This function must be called WITHOUT the mtxSummary lock held.
 func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.SummaryReply, error) {
 	p.mtxSummary.Lock()
 	defer p.mtxSummary.Unlock()
@@ -65,6 +70,9 @@ func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.SummaryReply,
 	return &sr, nil
 }
 
+// summaryCacheSave saves a vote summary to the cache for a record.
+//
+// This function must be called WITHOUT the mtxSummary lock held.
 func (p *ticketVotePlugin) summaryCacheSave(token string, sr ticketvote.SummaryReply) error {
 	b, err := json.Marshal(sr)
 	if err != nil {

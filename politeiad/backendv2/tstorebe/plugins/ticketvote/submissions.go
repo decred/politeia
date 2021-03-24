@@ -50,7 +50,7 @@ func (p *ticketVotePlugin) submissionsCachePath(token []byte) (string, error) {
 // a submissions list does not exist for the token then an empty list will be
 // returned.
 //
-// This function must be called WITH the lock held.
+// This function must be called WITH the mtxSubs lock held.
 func (p *ticketVotePlugin) submissionsCacheWithLock(token []byte) (*submissions, error) {
 	fp, err := p.submissionsCachePath(token)
 	if err != nil {
@@ -79,7 +79,7 @@ func (p *ticketVotePlugin) submissionsCacheWithLock(token []byte) (*submissions,
 // submissionsCache return the submissions list for a record token. If a linked
 // from list does not exist for the token then an empty list will be returned.
 //
-// This function must be called WITHOUT the lock held.
+// This function must be called WITHOUT the mtxSubs lock held.
 func (p *ticketVotePlugin) submissionsCache(token []byte) (*submissions, error) {
 	p.mtxSubs.Lock()
 	defer p.mtxSubs.Unlock()
@@ -89,7 +89,7 @@ func (p *ticketVotePlugin) submissionsCache(token []byte) (*submissions, error) 
 
 // submissionsCacheSaveWithLock saves a submissions to the plugin data dir.
 //
-// This function must be called WITH the lock held.
+// This function must be called WITH the mtxSubs lock held.
 func (p *ticketVotePlugin) submissionsCacheSaveWithLock(token []byte, s submissions) error {
 	b, err := json.Marshal(s)
 	if err != nil {
@@ -105,7 +105,7 @@ func (p *ticketVotePlugin) submissionsCacheSaveWithLock(token []byte, s submissi
 // submissionsCacheAdd updates the cached submissions list for the parentToken,
 // adding the childToken to the list. The full length token MUST be used.
 //
-// This function must be called WITHOUT the lock held.
+// This function must be called WITHOUT the mtxSubs lock held.
 func (p *ticketVotePlugin) submissionsCacheAdd(parentToken, childToken string) error {
 	p.mtxSubs.Lock()
 	defer p.mtxSubs.Unlock()
@@ -144,7 +144,7 @@ func (p *ticketVotePlugin) submissionsCacheAdd(parentToken, childToken string) e
 // submissionsCacheDel updates the cached submissions list for the parentToken,
 // deleting the childToken from the list.
 //
-// This function must be called WITHOUT the lock held.
+// This function must be called WITHOUT the mtxSubs lock held.
 func (p *ticketVotePlugin) submissionsCacheDel(parentToken, childToken string) error {
 	p.mtxSubs.Lock()
 	defer p.mtxSubs.Unlock()
