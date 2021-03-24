@@ -8,7 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
@@ -46,14 +46,9 @@ var (
 
 // mysql implements the store BlobKV interface using a mysql driver.
 type mysql struct {
-	sync.RWMutex
+	shutdown uint64
 	db       *sql.DB
-	shutdown bool
-
-	// Encryption key. The key is zero'd out on application exit so the
-	// read lock must be held during concurrent access to prevent the
-	// golang race detector from complaining.
-	key *[32]byte
+	key      [32]byte
 }
 
 func ctxWithTimeout() (context.Context, func()) {
@@ -61,39 +56,14 @@ func ctxWithTimeout() (context.Context, func()) {
 }
 
 func (s *mysql) isShutdown() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.shutdown
-}
-
-func (s *mysql) getKey() (*[32]byte, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	if s.key == nil {
-		return nil, fmt.Errorf("encryption key not found")
-	}
-
-	return s.key, nil
-}
-
-func (s *mysql) setKey(key *[32]byte) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.key = key
+	return atomic.LoadUint64(&s.shutdown) != 0
 }
 
 func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
 	// Encrypt blobs
 	if encrypt {
-		key, err := s.getKey()
-		if err != nil {
-			return err
-		}
 		for k, v := range blobs {
-			e, err := s.encrypt(ctx, tx, key, v)
+			e, err := s.encrypt(ctx, tx, &s.key, v)
 			if err != nil {
 				return fmt.Errorf("encrypt: %v", err)
 			}
@@ -275,11 +245,7 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 		if !encrypted {
 			continue
 		}
-		key, err := s.getKey()
-		if err != nil {
-			return nil, err
-		}
-		b, _, err := s.decrypt(key, v)
+		b, _, err := s.decrypt(&s.key, v)
 		if err != nil {
 			return nil, fmt.Errorf("decrypt: %v", err)
 		}
@@ -293,16 +259,10 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 func (s *mysql) Close() {
 	log.Tracef("Close")
 
-	s.Lock()
-	defer s.Unlock()
-
-	s.shutdown = true
+	atomic.AddUint64(&s.shutdown, 1)
 
 	// Zero the encryption key
-	if s.key != nil {
-		util.Zero(s.key[:])
-		s.key = nil
-	}
+	util.Zero(s.key[:])
 
 	// Close mysql connection
 	s.db.Close()
@@ -351,16 +311,15 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	}
 
 	// Setup mysql context
-	s := mysql{
+	s := &mysql{
 		db: db,
 	}
 
-	// Derive encryption key from password
-	key, err := s.argon2idKey(password)
+	// Derive encryption key from password. Key is set in argon2idKey
+	err = s.argon2idKey(password)
 	if err != nil {
 		return nil, fmt.Errorf("argon2idKey: %v", err)
 	}
-	s.setKey(key)
 
-	return &s, nil
+	return s, nil
 }
