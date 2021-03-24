@@ -2329,7 +2329,11 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 			}
 
 			// This function doesn't handle the unlikely case that
-			// the runoff vote results in a tie.
+			// the runoff vote results in a tie. If this happens
+			// then we need to have a debate about how this should
+			// be handled before implementing anything. The cached
+			// vote summary would need to be removed and recreated
+			// using whatever methodology is decided upon.
 		}
 	}
 	if winnerToken != "" {

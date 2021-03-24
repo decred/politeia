@@ -87,12 +87,15 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(treeID int64, payload string)
 }
 
 // linkByVerify verifies that the provided link by timestamp meets all
-// ticketvote plugin requirements.
+// ticketvote plugin requirements. See the ticketvote VoteMetadata for details
+// on the link by timestamp.
 func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 	if linkBy == 0 {
 		// LinkBy as not been set
 		return nil
 	}
+
+	// Min and max link by periods are a ticketvote plugin setting
 	min := time.Now().Unix() + p.linkByPeriodMin
 	max := time.Now().Unix() + p.linkByPeriodMax
 	switch {
@@ -111,11 +114,13 @@ func (p *ticketVotePlugin) linkByVerify(linkBy int64) error {
 				linkBy, max),
 		}
 	}
+
 	return nil
 }
 
 // linkToVerify verifies that the provided link to meets all ticketvote plugin
-// requirements.
+// requirements. See the ticketvote VoteMetadata for details on the link to
+// field.
 func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 	// LinkTo must be a public record
 	token, err := tokenDecode(linkTo)
@@ -289,7 +294,7 @@ func (p *ticketVotePlugin) voteMetadataVerify(files []backend.File) error {
 	// Verify vote metadata fields are sane
 	switch {
 	case vm.LinkBy == 0 && vm.LinkTo == "":
-		// Vote metadata is empty
+		// Vote metadata is empty. This is not allowed.
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeVoteMetadataInvalid),
@@ -305,12 +310,14 @@ func (p *ticketVotePlugin) voteMetadataVerify(files []backend.File) error {
 		}
 
 	case vm.LinkBy != 0:
+		// LinkBy has been set. Verify that is meets plugin requirements.
 		err := p.linkByVerify(vm.LinkBy)
 		if err != nil {
 			return err
 		}
 
 	case vm.LinkTo != "":
+		// LinkTo has been set. Verify that is meets plugin requirements.
 		err := p.linkToVerify(vm.LinkTo)
 		if err != nil {
 			return err

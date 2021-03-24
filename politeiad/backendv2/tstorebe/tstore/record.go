@@ -226,40 +226,13 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 	for _, v := range beMetadata {
 		for _, be := range v {
 			_, ok := dups[be.Digest]
-			if !ok {
-				// Not a duplicate. Prepare kv store blob.
-				b, err := store.Blobify(be)
-				if err != nil {
-					return nil, err
-				}
-				k := storeKeyNew(encrypt)
-				blobs[k] = b
-
-				// Prepare tlog leaf
-				extraData, err := extraDataEncode(k,
-					dataDescriptorMetadataStream, idx.State)
-				if err != nil {
-					return nil, err
-				}
-				digest, err := hex.DecodeString(be.Digest)
-				if err != nil {
-					return nil, err
-				}
-				leaves = append(leaves, newLogLeaf(digest, extraData))
-
+			if ok {
+				// This is a duplicate. Stash is for now. We may need to save
+				// it as plain text later.
+				dupBlobs[be.Digest] = be
 				continue
 			}
 
-			// This is a duplicate. Stash is for now. We may need to save
-			// it as plain text later.
-			dupBlobs[be.Digest] = be
-		}
-	}
-
-	// Prepare file blobs and leaves
-	for _, be := range beFiles {
-		_, ok := dups[be.Digest]
-		if !ok {
 			// Not a duplicate. Prepare kv store blob.
 			b, err := store.Blobify(be)
 			if err != nil {
@@ -269,7 +242,8 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 			blobs[k] = b
 
 			// Prepare tlog leaf
-			extraData, err := extraDataEncode(k, dataDescriptorFile, idx.State)
+			extraData, err := extraDataEncode(k,
+				dataDescriptorMetadataStream, idx.State)
 			if err != nil {
 				return nil, err
 			}
@@ -277,14 +251,40 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 			if err != nil {
 				return nil, err
 			}
-			leaves = append(leaves, newLogLeaf(digest, extraData))
 
+			leaves = append(leaves, newLogLeaf(digest, extraData))
+		}
+	}
+
+	// Prepare file blobs and leaves
+	for _, be := range beFiles {
+		_, ok := dups[be.Digest]
+		if ok {
+			// This is a duplicate. Stash is for now. We may need to save
+			// it as plain text later.
+			dupBlobs[be.Digest] = be
 			continue
 		}
 
-		// This is a duplicate. Stash is for now. We may need to save
-		// it as plain text later.
-		dupBlobs[be.Digest] = be
+		// Not a duplicate. Prepare kv store blob.
+		b, err := store.Blobify(be)
+		if err != nil {
+			return nil, err
+		}
+		k := storeKeyNew(encrypt)
+		blobs[k] = b
+
+		// Prepare tlog leaf
+		extraData, err := extraDataEncode(k, dataDescriptorFile, idx.State)
+		if err != nil {
+			return nil, err
+		}
+		digest, err := hex.DecodeString(be.Digest)
+		if err != nil {
+			return nil, err
+		}
+
+		leaves = append(leaves, newLogLeaf(digest, extraData))
 	}
 
 	// Verify at least one new blob is being saved to the kv store
