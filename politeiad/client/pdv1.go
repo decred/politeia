@@ -11,8 +11,46 @@ import (
 	"net/http"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util"
 )
+
+// Identity sends a Identity request to the politeiad v1 API.
+func (c *Client) Identity(ctx context.Context) (*identity.PublicIdentity, error) {
+	// Setup request
+	challenge, err := util.Random(pdv1.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	i := v1.Identity{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Send request
+	resBody, err := c.makeReq(ctx, http.MethodPost, "",
+		pdv1.IdentityRoute, i)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var ir v1.IdentityReply
+	err = json.Unmarshal(resBody, &ir)
+	if err != nil {
+		return nil, err
+	}
+	pid, err := util.IdentityFromString(ir.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(pid, challenge, ir.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return pid, nil
+}
 
 // NewRecord sends a NewRecord request to the politeiad v1 API.
 func (c *Client) NewRecord(ctx context.Context, metadata []pdv1.MetadataStream, files []pdv1.File) (*pdv1.CensorshipRecord, error) {

@@ -5,12 +5,16 @@
 package client
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
+	v2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/util"
 )
 
@@ -389,6 +393,70 @@ func (c *Client) PluginInventory(ctx context.Context) ([]pdv2.Plugin, error) {
 	}
 
 	return pir.Plugins, nil
+}
+
+// RecordVerify verifies the censorship record of a v2 Record.
+func RecordVerify(r pdv2.Record, serverPubKey string) error {
+	// Verify censorship record merkle root
+	if len(r.Files) > 0 {
+		// Verify digests
+		err := digestsVerify(r.Files)
+		if err != nil {
+			return err
+		}
+
+		// Verify merkle root
+		digests := make([]string, 0, len(r.Files))
+		for _, v := range r.Files {
+			digests = append(digests, v.Digest)
+		}
+		mr, err := util.MerkleRoot(digests)
+		if err != nil {
+			return err
+		}
+		if hex.EncodeToString(mr[:]) != r.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
+	}
+
+	// Verify censorship record signature
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(r.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(r.CensorshipRecord.Merkle + r.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("invalid censorship record signature")
+	}
+
+	return nil
+}
+
+// digestsVerify verifies that all file digests match the calculated SHA256
+// digests of the file payloads.
+func digestsVerify(files []v2.File) error {
+	for _, f := range files {
+		b, err := base64.StdEncoding.DecodeString(f.Payload)
+		if err != nil {
+			return fmt.Errorf("file: %v decode payload err %v",
+				f.Name, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(f.Digest)
+		if !ok {
+			return fmt.Errorf("file: %v invalid digest %v",
+				f.Name, f.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			return fmt.Errorf("file: %v digests do not match",
+				f.Name)
+		}
+	}
+	return nil
 }
 
 func extractPluginCmdError(pcr pdv2.PluginCmdReply) error {

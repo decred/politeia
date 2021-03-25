@@ -1,19 +1,24 @@
 # politeia refclient examples
 
-Available commands:  
-`identity`
-`verify`
-`new`
-`updateunvetted`
-`updateunvettedmd`
-`setunvettedstatus`
-`getunvetted`
-`updatevetted`
-`updatevettedmd`
-`getvetted`
-`plugin`
-`plugininventory`
-`inventory`
+```
+Available commands:
+  identity         Get server identity
+  new              Submit new record
+                   Args: [metadata:<id>:metadataJSON]... <filepaths>...
+  verify           Verify record was accepted 
+                   Args: <serverkey> <token> <signature> <filepaths>...
+  edit             Edit record
+                   Args: [actionMetadata:<id>:metadataJSON]... 
+                         <actionfile:filename>... token:<token>
+  editmetadata     Edit record metdata 
+                   Args: [actionMetadata:<id>:metadataJSON]... token:<token>
+  setstatus        Set record status 
+                   Args: <token> <status>
+  record           Get a record 
+                   Args: <token>
+  inventory        Get the record inventory 
+                   Args (optional): <state> <status> <page>
+```
 
 ## Obtain politeiad identity
 
@@ -22,75 +27,78 @@ The retrieved identity is used to verify replies from politeiad.
 ```
 $ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
 
-Key        : 8f627e9da14322626d7e81d789f7fcafd25f62235a95377f39cbc7293c4944ad
-Fingerprint: j2J+naFDImJtfoHXiff8r9JfYiNalTd/OcvHKTxJRK0=
+Key        : e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
+Fingerprint: 6I33mksCaZ5sBRrbrgXyHyovJJQuDyfK3hZVSOw9Y4c=
 
 Save to /home/user/.politeia/identity.json or ctrl-c to abort
 Identity saved to: /home/user/.politeia/identity.json
 ```
 
-## Add a new record
+## Submit a new record
+
+Args: `[metadata:<id>:metadataJSON]... <filepaths>...`
 
 At least one file must be submitted. This example uses an `index.md` file.
 
-Arguments are matched against the regex `^metadata[\d]{1,2}:` to determine if
-the string is record metadata. Arguments that are not classified as metadata
-are assumed to be file paths.
+Metadata is submitted as JSON and must be identified by a `pluginID` string and
+a `streamID` uint32. Metadata is passed in as an argument by prefixing the JSON
+with `metadata:[pluginID][streamID]:`. Below is an example metadata argument
+where the plugin ID is `testid` and the stream ID is `1`.
+`metadata:testid1:{"foo":"bar"}`
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new \
-  'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' index.md
+'metadata:testid1:{"moo":"lala"}' 'metadata:testid12:{"foo":"bar"}' index.md
 
-00: 4bde9f923b61e26147c79500e6d6dfa27291559a74cd878c29a7f96984dd48bb index.md text/plain; charset=utf-8
-Record submitted
-  Censorship record:
-    Merkle   : 4bde9f923b61e26147c79500e6d6dfa27291559a74cd878c29a7f96984dd48bb
-    Token    : 9dfe084fccb7f27c0000
-    Signature: e69a38b6e6c21021db2fe37c6b38886ef987c7347bb881e2358feb766974577a742e535d34cd4d7a140b2555b3771a194fea4be942cbd99247c143d07419bc06
-$
-```
-
-## Verify a record
-
-Verifies the censorship signature of a record to make sure it was received by
-the server. It receives as input the server's public key, the record token, 
-the record merkle root and the signature.
-
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass verify \
-  df0f5cff8d9a3c6d55429c7e9e66b13ec175768b24f20db1b91188f00f7ea4b7 \
-  c800ff5195ddb2360000 \
-  36a2e53b25183dcfd192224fdff1074472ad7fdf5989abf9dfb8e7972caceae1 \
-  f9495f8100fc3d2d2bcd3d57705adc1f859d29f5a0ed1d999593a57de5af8c047615efb65e08e93935d071b94ee3883f15661defbfa83b503e6e84be4c18aa0b
-
-  Record successfully verified
-```
-
-## Get unvetted record
-
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 9dfe084fccb7f27c0000
-
-Unvetted record:
-  Status     : not reviewed
-  Timestamp  : 2020-10-01 14:36:11 +0000 UTC
-  Censorship record:
-    Merkle   : 4bde9f923b61e26147c79500e6d6dfa27291559a74cd878c29a7f96984dd48bb
-    Token    : 9dfe084fccb7f27c0000
-    Signature: e69a38b6e6c21021db2fe37c6b38886ef987c7347bb881e2358feb766974577a742e535d34cd4d7a140b2555b3771a194fea4be942cbd99247c143d07419bc06
-  Metadata   : [{2 {"foo":"bar"}} {12 {"moo":"lala"}}]
+Record submitted:
+  Status     : unreviewed
+  Timestamp  : 2021-03-25 16:36:40 +0000 UTC
   Version    : 1
+  Censorship record:
+    Merkle   : 2d00aaa0768701fd011943fbe8ae92f84ee268ca134d6b14f877c3153072bb3c
+    Token    : 39868e5e91c78255
+    Signature: b2a69823f85b62941d845c439726a2504026a0d29fd50ecabe5648b0128328c2fade0ddb354594d48a209dff24e73795ec9cb175d028155cbfa1901114f4b608
   File (00)  :
     Name     : index.md
     MIME     : text/plain; charset=utf-8
-    Digest   : 4bde9f923b61e26147c79500e6d6dfa27291559a74cd878c29a7f96984dd48bb
+    Digest   : 2d00aaa0768701fd011943fbe8ae92f84ee268ca134d6b14f877c3153072bb3c
+  Metadata stream testid 01:
+    {"moo":"lala"}
+  Metadata stream testid 12:
+    {"foo":"bar"}
+Server public key: e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
 ```
 
-## Update an unvetted record
+## Verify record
+
+Args: `<serverKey> <token> <signature> <filepaths>...`
+
+Verify a record was recieved by the server by verifying the censorship
+record signature.
+
+```
+$ politeia verify \
+e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387 \
+39868e5e91c78255 \
+b2a69823f85b62941d845c439726a2504026a0d29fd50ecabe5648b0128328c2fade0ddb354594d48a209dff24e73795ec9cb175d028155cbfa1901114f4b608 \
+index.md
+
+Server key : e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
+Token      : 39868e5e91c78255
+Merkle root: 2d00aaa0768701fd011943fbe8ae92f84ee268ca134d6b14f877c3153072bb3c
+Signature  : b2a69823f85b62941d845c439726a2504026a0d29fd50ecabe5648b0128328c2fade0ddb354594d48a209dff24e73795ec9cb175d028155cbfa1901114f4b608
+
+Record successfully verified
+```
+
+## Edit record
+
+Args: `[actionMetadata:<id>:metadataJSON]...  <actionfile:filename>...
+token:<token>`
 
 Metadata can be updated using the arguments:  
-`'appendmetadata[ID]:[metadataJSON]'`  
-`'overwritemetadata[ID]:[metadataJSON]'`  
+`'appendmetadata:[pluginID][streamID]:[metadataJSON]'`  
+`'overwritemetadata:[pluginID][streamID]:[metadataJSON]'`  
 
 Files can be updated using the arguments:  
 `add:[filepath]`  
@@ -103,86 +111,41 @@ Metadata provided using the `overwritemetadata` argument does not have to
 already exist.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvetted \
-  'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
-  del:index.md add:updated.md token:9dfe084fccb7f27c0000
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass edit \
+'appendmetadata:testid1:{"foo":"bar"}' \
+'overwritemetadata:testid12:{"12foo":"12bar"}' \
+del:index.md add:updated.md token:39868e5e91c78255
 
-Update record: 9dfe084fccb7f27c0000
-  Files add         : 00: 22036b8b67a7c54f2bae29e1f9a11551cf62a33a038788b8f2e8f8d6e7f60425 updated.md text/plain; charset=utf-8
-  Files delete      : index.md
-  Metadata overwrite: 2
-  Metadata append   : 12
-```
-
-## Update unvetted metadata only
-
-Metadata can be updated using the arguments:  
-`'appendmetadata[ID]:[metadataJSON]'`  
-`'overwritemetadata[ID]:[metadataJSON]'`  
-
-The token is specified using the argument:  
-`token:[token]`
-
-Metadata provided using the `overwritemetadata` argument does not have to
-already exist.
-
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvettedmd \
-  'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
-  token:0e4a82a370228b710000
-
-Update record: 0e4a82a370228b710000
-  Metadata overwrite: 2
-  Metadata append   : 12
-```
-
-## Set unvetted status
-
-You can update the status of an unvetted record using one of the following
-statuses:
-- `censored` - keep the record unvetted and mark as censored.
-- `public`   - make the record a public, vetted record.
-- `archived` - archive the record.
-
-Note `token:` is not prefixed to the token in this command. Status change
-validation is done in the backend.
-
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus public 0e4a82a370228b710000
-
-Set record status:
-  Status   : public
-```
-
-## Get vetted record
-
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 9dfe084fccb7f27c0000
-
-Vetted record:
-  Status     : public
-  Timestamp  : 2020-10-01 14:38:43 +0000 UTC
+Record updated:
+  Status     : unreviewed
+  Timestamp  : 2021-03-25 16:38:59 +0000 UTC
+  Version    : 2
   Censorship record:
-    Merkle   : 22036b8b67a7c54f2bae29e1f9a11551cf62a33a038788b8f2e8f8d6e7f60425
-    Token    : 9dfe084fccb7f27c0000
-    Signature: 531e5103e9f8905d52d7bf3c6fdb40070cca4f88e69f3b6c647baf8bd84148471e378b5c137014a1f3f46a2cb9a40cdc302dea4bf828fb6dd09a858fa2748c0e
-  Metadata   : [{2 {"12foo":"12bar"}} {12 {"moo":"lala"}{"foo":"bar"}}]
-  Version    : 1
+    Merkle   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+    Token    : 39868e5e91c78255
+    Signature: 7f26ab5d5fc4a67cfe6320fa1a1c2cbb5d6dadbfcd74d255d0c048c32e9da413cfb8cdcc9440c53300ce0907c7d274435d4e98c36c189dfcc81dbecc44e79003
   File (00)  :
     Name     : updated.md
     MIME     : text/plain; charset=utf-8
-    Digest   : 22036b8b67a7c54f2bae29e1f9a11551cf62a33a038788b8f2e8f8d6e7f60425
+    Digest   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+  Metadata stream testid 12:
+    {"12foo":"12bar"}
+  Metadata stream testid 01:
+    {"moo":"lala"}{"foo":"bar"}
+Server public key: e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
 ```
 
-## Update a vetted record
+## Edit record metadata
+
+Args: `[actionMetadata:<id>:metadataJSON]... token:<token>`
+
+Metadata can be updated when updating the record files or the client can
+perform a metadata only update using this command. Updating only the metadata
+will not change the censorship record signature.
 
 Metadata can be updated using the arguments:  
-`'appendmetadata[ID]:[metadataJSON]'`  
-`'overwritemetadata[ID]:[metadataJSON]'`  
-
-Files can be updated using the arguments:  
-`add:[filepath]`  
-`del:[filename]`  
+`'appendmetadata:[pluginID][streamID]:[metadataJSON]'`  
+`'overwritemetadata:[pluginID][streamID]:[metadataJSON]'`  
 
 The token is specified using the argument:  
 `token:[token]`
@@ -191,68 +154,136 @@ Metadata provided using the `overwritemetadata` argument does not have to
 already exist.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevetted \
-  'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
-  del:updated add:newfile.md token:9dfe084fccb7f27c0000  
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass editmetadata \
+'appendmetadata:testid1:{"foo":"bar"}' \
+'overwritemetadata:testid12:{"123foo":"123bar"}' \
+token:39868e5e91c78255
 
-Update record: 9dfe084fccb7f27c0000
-  Files add         : 00: 22036b8b67a7c54f2bae29e1f9a11551cf62a33a038788b8f2e8f8d6e7f60425 newfile.md text/plain; charset=utf-8
-  Files delete      : updated
-  Metadata overwrite: 2
-  Metadata append   : 12
+Record metadata updated:
+  Status     : unreviewed
+  Timestamp  : 2021-03-25 16:39:35 +0000 UTC
+  Version    : 2
+  Censorship record:
+    Merkle   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+    Token    : 39868e5e91c78255
+    Signature: 7f26ab5d5fc4a67cfe6320fa1a1c2cbb5d6dadbfcd74d255d0c048c32e9da413cfb8cdcc9440c53300ce0907c7d274435d4e98c36c189dfcc81dbecc44e79003
+  File (00)  :
+    Name     : updated.md
+    MIME     : text/plain; charset=utf-8
+    Digest   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+  Metadata stream testid 12:
+    {"123foo":"123bar"}
+  Metadata stream testid 01:
+    {"moo":"lala"}{"foo":"bar"}{"foo":"bar"}
+Server public key: e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
 ```
 
-## Update vetted metadata only
+## Set record status
 
-Metadata can be updated using the arguments:  
-`'appendmetadata[ID]:[metadataJSON]'`  
-`'overwritemetadata[ID]:[metadataJSON]'`  
+Args: <token> <status>
 
-The token is specified using the argument:  
-`token:[token]`
+You can update the status of a record using one of the following statuses:
+- `public`   - make the record a public
+- `archived` - lock the record from further edits
+- `censored` - lock the record from further edits and delete all files
 
-Metadata provided using the `overwritemetadata` argument does not have to
-already exist.
-
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevettedmd \
-  'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' \
-  token:0e4a82a370228b710000
-
-Update record: 0e4a82a370228b710000
-  Metadata overwrite: 2
-  Metadata append   : 12
-```
-
-## Set vetted status
-
-You can update the status of a vetted record using one of the following
-statuses:
-- `censored` - keep the record unvetted and mark as censored.
-- `archived` - archive the record.
-
-Note `token:` is not prefixed to the token in this command. Status change
-validation is done in the backend.
+Note `token:` is not prefixed to the token in this command.
 
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setvettedstatus censored 0e4a82a370228b710000 'overwritemetadata12:"zap"'
-Set record status:
-  Status: censored
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setstatus 39868e5e91c78255 public
+
+Record status updated:
+  Status     : public
+  Timestamp  : 2021-03-25 16:40:40 +0000 UTC
+  Version    : 1
+  Censorship record:
+    Merkle   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+    Token    : 39868e5e91c78255
+    Signature: 7f26ab5d5fc4a67cfe6320fa1a1c2cbb5d6dadbfcd74d255d0c048c32e9da413cfb8cdcc9440c53300ce0907c7d274435d4e98c36c189dfcc81dbecc44e79003
+  File (00)  :
+    Name     : updated.md
+    MIME     : text/plain; charset=utf-8
+    Digest   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+  Metadata stream testid 01:
+    {"moo":"lala"}{"foo":"bar"}{"foo":"bar"}
+  Metadata stream testid 12:
+    {"123foo":"123bar"}
+Server public key: e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
+```
+
+## Get record
+
+Retrieve a record.
+
+```
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass record 39868e5e91c78255
+
+Record:
+  Status     : public
+  Timestamp  : 2021-03-25 16:40:40 +0000 UTC
+  Version    : 1
+  Censorship record:
+    Merkle   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+    Token    : 39868e5e91c78255
+    Signature: 7f26ab5d5fc4a67cfe6320fa1a1c2cbb5d6dadbfcd74d255d0c048c32e9da413cfb8cdcc9440c53300ce0907c7d274435d4e98c36c189dfcc81dbecc44e79003
+  File (00)  :
+    Name     : updated.md
+    MIME     : text/plain; charset=utf-8
+    Digest   : db09a4371b32086241999b7db196c4bda04bd93194cdb90940a88741d5bbf166
+  Metadata stream testid 12:
+    {"123foo":"123bar"}
+  Metadata stream testid 01:
+    {"moo":"lala"}{"foo":"bar"}{"foo":"bar"}
+Server public key: e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
 ```
 
 ## Inventory
 
-The `inventory` command retrieves the censorship record tokens from all records,
-categorized by their record status.
+Retrieve the censorship record tokens of the records in the inventory,
+categorized by their record state and record status.
+
+The user can request a page of tokens from a specific record state and record
+status by providing the <state> <status> <pageNumber> arguments.
+
+If not arguments are provided then a page of tokens for every state and status
+will be returned.
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory
 
-Inventory:
-  Unvetted
-    not reviewed   : 344044686e9ba76f0000, 43df32e2405065250000
-    censored       : 9f104b878a83242d0000
-  Vetted
-    public         : e2228e7a7e7c80030000, a6c064874351f4120000
-    archived       : 6b099750984e05490000
+Unvetted
+{
+  "censored": [
+    "de127f2cb24c702b",
+  ],
+  "unreviewed": [
+    "d0545038224c5054",
+    "ea260a4ab9170d70"
+  ]
+}
+Vetted
+{
+  "archived": [
+    "77396eccc387b07e"
+  ],
+  "censored": [
+    "0439c5355ef94e36"
+  ],
+  "public": [
+    "39868e5e91c78255",
+    "2f5d6bbb15b63e76",
+    "f1f7337397a79b51"
+  ]
+}
+
+
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory unvetted unreviewed 1 
+
+Unvetted
+{
+  "unreviewed": [
+    "d0545038224c5054",
+    "ea260a4ab9170d70"
+  ]
+}
 ```

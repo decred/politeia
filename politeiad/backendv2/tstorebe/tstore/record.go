@@ -190,8 +190,7 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 		encrypt = false
 	default:
 		// Something is wrong
-		e := fmt.Sprintf("invalid record state %v %v", treeID, idx.State)
-		panic(e)
+		panic(fmt.Sprintf("invalid record state %v %v", treeID, idx.State))
 	}
 
 	// Prepare record metadata blobs and leaves

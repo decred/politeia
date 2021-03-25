@@ -428,8 +428,8 @@ type Inventory struct {
 // human readable record statuses defined by the RecordStatuses array.
 type InventoryReply struct {
 	Response string              `json:"response"` // Challenge response
-	Unvetted map[string][]string `json:"unvetted"`
-	Vetted   map[string][]string `json:"vetted"`
+	Unvetted map[string][]string `json:"unvetted"` // [status][]token
+	Vetted   map[string][]string `json:"vetted"`   // [status][]token
 }
 
 // InventoryOrdered requests a page of record tokens ordered by the timestamp
