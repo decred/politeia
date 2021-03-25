@@ -121,7 +121,7 @@ func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
 }
 
 // TokenEncode returns the hex encoded token. Its possible that padding has
-// been added to the token when it was orginally decode in order to make it
+// been added to the token when it was originally decode in order to make it
 // valid hex. This function checks for padding and removes it before encoding
 // the token.
 func TokenEncode(token []byte) string {

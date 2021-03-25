@@ -137,6 +137,9 @@ func (s *mysql) getDbNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 
 func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	nonce, err := util.Random(8)
+	if err != nil {
+		return emptyNonce, err
+	}
 	n, err := sbox.NewNonceFromBytes(nonce)
 	if err != nil {
 		return emptyNonce, err

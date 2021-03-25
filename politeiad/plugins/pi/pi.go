@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-// Pacakge pi provides a plugin that extends records with functionality for
+// Package pi provides a plugin that extends records with functionality for
 // decred's proposal system.
 package pi
 

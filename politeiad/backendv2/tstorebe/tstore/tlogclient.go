@@ -699,7 +699,6 @@ func (t *testTClient) LeavesAppend(treeID int64, leavesAppend []*trillian.LogLea
 	for _, v := range leavesAppend {
 		// Append to leaves
 		v.MerkleLeafHash = merkleLeafHash(v.LeafValue)
-		v.ExtraData = v.ExtraData
 		v.LeafIndex = index + 1
 		leaves = append(leaves, v)
 		index++

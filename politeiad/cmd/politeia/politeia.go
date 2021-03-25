@@ -760,9 +760,9 @@ func recordInventory() error {
 	// Either the state, status and page number must all be given or
 	// none should be given at all.
 	if len(flags) > 0 && len(flags) != 3 {
-		return fmt.Errorf("invalid number of arguments (%v); you can " +
-			"either provide a state, status, and page number or you can " +
-			"provide no arguments at all")
+		return fmt.Errorf("invalid number of arguments (%v); you can "+
+			"either provide a state, status, and page number or you can "+
+			"provide no arguments at all", len(flags))
 	}
 
 	// Unpack args
