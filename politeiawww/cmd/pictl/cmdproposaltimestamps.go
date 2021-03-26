@@ -5,10 +5,6 @@
 package main
 
 import (
-	"fmt"
-
-	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -49,59 +45,15 @@ func (c *cmdProposalTimestamps) Execute(args []string) error {
 	}
 
 	// Verify timestamps
-	err = verifyTimestamp(tr.RecordMetadata)
+	err = pclient.RecordTimestampsVerify(*tr)
 	if err != nil {
-		return fmt.Errorf("verify proposal metadata timestamp: %v", err)
-	}
-	for pluginID, v := range tr.Metadata {
-		for streamID, ts := range v {
-			err = verifyTimestamp(ts)
-			if err != nil {
-				return fmt.Errorf("verify metadata %v %v timestamp: %v",
-					pluginID, streamID, err)
-			}
-		}
-	}
-	for k, v := range tr.Files {
-		err = verifyTimestamp(v)
-		if err != nil {
-			return fmt.Errorf("verify file %v timestamp: %v", k, err)
-		}
+		return err
 	}
 
 	// Print timestamps
 	printJSON(tr)
 
 	return nil
-}
-
-func verifyTimestamp(t rcv1.Timestamp) error {
-	ts := convertTimestamp(t)
-	return tstore.VerifyTimestamp(ts)
-}
-
-func convertProof(p rcv1.Proof) backend.Proof {
-	return backend.Proof{
-		Type:       p.Type,
-		Digest:     p.Digest,
-		MerkleRoot: p.MerkleRoot,
-		MerklePath: p.MerklePath,
-		ExtraData:  p.ExtraData,
-	}
-}
-
-func convertTimestamp(t rcv1.Timestamp) backend.Timestamp {
-	proofs := make([]backend.Proof, 0, len(t.Proofs))
-	for _, v := range t.Proofs {
-		proofs = append(proofs, convertProof(v))
-	}
-	return backend.Timestamp{
-		Data:       t.Data,
-		Digest:     t.Digest,
-		TxID:       t.TxID,
-		MerkleRoot: t.MerkleRoot,
-		Proofs:     proofs,
-	}
 }
 
 // proposalTimestampsHelpMsg is printed to stdout by the help command.

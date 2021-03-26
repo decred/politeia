@@ -22,7 +22,8 @@ Available commands:
 
 ## Obtain politeiad identity
 
-The retrieved identity is used to verify replies from politeiad. 
+The politeiad identity is the contains the public key that is sued to verify
+replies from politeiad. 
 
 ```
 $ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
@@ -44,6 +45,7 @@ Metadata is submitted as JSON and must be identified by a `pluginID` string and
 a `streamID` uint32. Metadata is passed in as an argument by prefixing the JSON
 with `metadata:[pluginID][streamID]:`. Below is an example metadata argument
 where the plugin ID is `testid` and the stream ID is `1`.
+
 `metadata:testid1:{"foo":"bar"}`
 
 ```
@@ -180,14 +182,14 @@ Server public key: e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6
 
 ## Set record status
 
-Args: <token> <status>
+Args: `<token> <status>`
 
 You can update the status of a record using one of the following statuses:
 - `public`   - make the record a public
 - `archived` - lock the record from further edits
 - `censored` - lock the record from further edits and delete all files
 
-Note `token:` is not prefixed to the token in this command.
+Note, token is not prefixed with `token:` in this command.
 
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setstatus 39868e5e91c78255 public
@@ -245,6 +247,21 @@ categorized by their record state and record status.
 The user can request a page of tokens from a specific record state and record
 status by providing the <state> <status> <pageNumber> arguments.
 
+States: `unvetted`, `vetted`  
+Statuses: `unreviewed`, `public`, `censored`, `abandoned`  
+
+```
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory unvetted unreviewed 1 
+
+Unvetted
+{
+  "unreviewed": [
+    "d0545038224c5054",
+    "ea260a4ab9170d70"
+  ]
+}
+```
+
 If not arguments are provided then a page of tokens for every state and status
 will be returned.
 
@@ -273,17 +290,6 @@ Vetted
     "39868e5e91c78255",
     "2f5d6bbb15b63e76",
     "f1f7337397a79b51"
-  ]
-}
-
-
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory unvetted unreviewed 1 
-
-Unvetted
-{
-  "unreviewed": [
-    "d0545038224c5054",
-    "ea260a4ab9170d70"
   ]
 }
 ```

@@ -1,51 +1,64 @@
-# Politeia Verify
+# politeiaverify
 
-`politeiaverify` is a simple tool that allows anyone to independently verify 
-that Politeia has received your proposal/comment and that it is sound. The 
-input received in this command is the json bundle downloaded from the GUI.
-Files from the gui are downloaded with filename `<token>.json` for proposal
-bundles and `<token>-comments.json` for proposal comments bundle. If no flag
-is passed in, the tool will try to read the filename and call the corresponding
-verify method.
+`politeiaverify` is a tool that allows anyone to independently verify the
+validity of data submitted to Politeia. This includes:
+- Verifying the censorship record of a record submission. A censorship record
+  provides cryptographic proof that a record was received by Politeia.
+- Verifying the receipts for non-record data (ex. comments). The receipts
+  provide cryptographic proof the non-record data was received by Politeia. 
+- Verifying user signatures. Anytime a user submits data to Politeia they must
+  sign the data using a key pair that is specific to the user. The public key
+  and signature is saved along with the data, providing cryptographic proof
+  that the data was submitted by the user.
+- Verifying timestamps. All data submitted to Politeia is timestamped onto
+  the Decred blockchain. A timestamp provides cryptographic proof that data
+  existed at block height x and has not been altered since then.
 
 ## Usage
 
-`politeiaverify [flags] <path to JSON bundle>`
-
-Flags:
-  `-proposal` - verify proposal bundle
-  `-comments` - verify comments bundle
-
-Examples:
-
-To verify a proposal bundle
-
 ```
-politeiaverify -proposal c093b8a808ef68665709995a5a741bd02502b9c6c48a99a4b179fef742ca6b2a.json
+politeiaverify [flags] <filepaths>...`
 
-Proposal signature:
-  Public key: 49912d8dd296ce00a4b6afce4f300481ed5403142740e8b510276dccd1cbaccd
-  Signature : a0c1e9d887bd77ddf3b4fd650082ae8bc0f7c09631de7dce1b3147140d1163347768abbf2cecd0196ad5019c40dd2a9a16db482955f5cc30a1b79771ccffa90b
-Proposal censorship record signature:
-  Merkle root: e905baa3391e446ab89270153f45581640e7cef6e162152fa6e469737699c6bd
-  Public key : a70134196c3cdf3f85f8af6abaa38c15feb7bccf5e6d3db6212358363465e502
-  Signature  : 0bf4c685102db88c06df12f0980f87bda5e285fcc37be4bef118b138bc5dcdfa3dceaa234eaff2e47f5f16224743d9cf7fe31e3244e67e50b1b7685910362e01
-
-Proposal successfully verified
-
+Options:
+ -k       Politiea's public server key
+ -t       Record censorship token
+ -s       Record censorship signature
 ```
 
-To verify a proposal comments bundle
+## Verifying politeiagui bundles
+
+Any of the file bundles that are available for download in politeiagui can
+be passed into `politeiaverify` directly. These files contain all the data
+needed to verify the contents.
 
 ```
-politeiaverify -comments c093b8a808ef68665709995a5a741bd02502b9c6c48a99a4b179fef742ca6b2a-comments.json
+$ politeiaverify 39868e5e91c78255-v2.json
 
-Comment ID: 1
-  Public key: a70134196c3cdf3f85f8af6abaa38c15feb7bccf5e6d3db6212358363465e502
-  Receipt   : fdf466b5511a0ad7304bdb45cb387b7c4ebe720c9d5c3271ec144fee92775de5e6f30482d42375eda99c3b704f37a7f70108d4f201f7c91d6024b9ec5aaa110b
-  Signature : c48d643784b5c3645afce7965e7d7d9b44978c22829da30174c51e22eda2849e87d6cd304f7fc2e5bdc5d17ab4b515bc89605b7a814355a44cdfa86d8dc4030e
+Server key : e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
+Token      : 39868e5e91c78255
+Merkle root: 2d00aaa0768701fd011943fbe8ae92f84ee268ca134d6b14f877c3153072bb3c
+Signature  : b2a69823f85b62941d845c439726a2504026a0d29fd50ecabe5648b0128328c2fade0ddb354594d48a209dff24e73795ec9cb175d028155cbfa1901114f4b608
 
-Comments successfully verified
+Record successfully verified
 ```
 
-If the bundle is in bad format or if it fails to verify, it will return an error.
+## Manual verification
+
+When verifying manually the user must provide the server public key (`-k`),
+the censorship token (`-t`), the censorship record signature (`-s`), and the
+file paths for all files that were part of the record.
+
+```
+$ politeiaverify \
+-k e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387 \
+-t 39868e5e91c78255 \
+-s b2a69823f85b62941d845c439726a2504026a0d29fd50ecabe5648b0128328c2fade0ddb354594d48a209dff24e73795ec9cb175d028155cbfa1901114f4b608 \
+index.md
+
+Server key : e88df79a4b02699e6c051adbae05f21f2a2f24942e0f27cade165548ec3d6387
+Token      : 39868e5e91c78255
+Merkle root: 2d00aaa0768701fd011943fbe8ae92f84ee268ca134d6b14f877c3153072bb3c
+Signature  : b2a69823f85b62941d845c439726a2504026a0d29fd50ecabe5648b0128328c2fade0ddb354594d48a209dff24e73795ec9cb175d028155cbfa1901114f4b608
+
+Record successfully verified
+```

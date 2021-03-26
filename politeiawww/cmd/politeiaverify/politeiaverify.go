@@ -1,141 +1,169 @@
+// Copyright (c) 2020-2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
-	"encoding/json"
+	"encoding/hex"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
-	"strings"
+	"path/filepath"
+	"regexp"
 
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
 )
 
-// record is used to unmarshal the data that is contained in the record JSON
-// bundle downloded from the GUI.
-type record struct {
-	Record          rcv1.Record `json:"record"`
-	ServerPublicKey string      `json:"serverpublickey"`
-}
-
-// comments is used to unmarshal the data that is contained in the comments
-// JSON bundle downloded from the GUI.
-type comments []struct {
-	CommentID       string `json:"commentid"`
-	Receipt         string `json:"receipt"`
-	Signature       string `json:"signature"`
-	ServerPublicKey string `json:"serverpublickey"`
-}
-
 var (
-	flagVerifyRecord   = flag.Bool("record", false, "Verify record bundle")
-	flagVerifyComments = flag.Bool("comments", false, "Verify comments bundle")
+	// CLI flags
+	publicKey = flag.String("k", "", "server public key")
+	token     = flag.String("t", "", "record censorship token")
+	signature = flag.String("s", "", "record censorship signature")
+
+	// Regexp for matching politeiagui bundles
+	expJSONFile         = `.json$`
+	expRecord           = `^[0-9a-f]{16}-v[\d]{1,2}.json$`
+	expRecordTimestamps = `^[0-9a-f]{16}-v[\d]{1,2}-timestamps.json$`
+
+	regexJSONFile         = regexp.MustCompile(expJSONFile)
+	regexRecord           = regexp.MustCompile(expRecord)
+	regexRecordTimestamps = regexp.MustCompile(expRecordTimestamps)
 )
 
-func usage() {
-	fmt.Fprintf(os.Stderr, "usage: politeiaverify [flags] <bundle>\n")
-	fmt.Fprintf(os.Stderr, " flags:\n")
-	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, " <bundle> - Path to the JSON bundle "+
-		"downloaded from the GUI\n")
-	fmt.Fprintf(os.Stderr, "\n")
+// loadFiles loads and returns a politeiawww records v1 File for each provided
+// file path.
+func loadFiles(paths []string) ([]rcv1.File, error) {
+	files := make([]rcv1.File, 0, len(paths))
+	for _, fp := range paths {
+		fp = util.CleanAndExpandPath(fp)
+		mime, digest, payload, err := util.LoadFile(fp)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, rcv1.File{
+			Name:    filepath.Base(fp),
+			MIME:    mime,
+			Digest:  digest,
+			Payload: payload,
+		})
+	}
+	return files, nil
 }
 
-func verifyRecord(payload []byte) error {
-	var r record
-	err := json.Unmarshal(payload, &r)
-	if err != nil {
-		return fmt.Errorf("Record bundle JSON in bad format, make sure to " +
-			"download it from the GUI.")
+// verifyCensorshipRecord verifies a censorship record signature for a politeia
+// record submission. This requires passing in the server public key, the
+// censorship token, the censorship record signature, and the filepaths of all
+// files that are part of the record.
+func verifyCensorshipRecord(serverPubKey, token, signature string, filepaths []string) error {
+	// Verify all args are present
+	switch {
+	case serverPubKey == "":
+		return fmt.Errorf("server public key not provided")
+	case token == "":
+		return fmt.Errorf("censorship token not provided")
+	case signature == "":
+		return fmt.Errorf("censorship record signature not provided")
+	case len(filepaths) == 0:
+		return fmt.Errorf("record files not provided")
 	}
 
-	err = client.RecordVerify(r.Record, r.ServerPublicKey)
+	// Load record files
+	files, err := loadFiles(filepaths)
 	if err != nil {
-		return fmt.Errorf("Failed to verify record: %v", err)
+		return err
 	}
 
-	fmt.Println("Censorship record:")
-	fmt.Printf("  Token      : %s\n", r.Record.CensorshipRecord.Token)
-	fmt.Printf("  Merkle root: %s\n", r.Record.CensorshipRecord.Merkle)
-	fmt.Printf("  Public key : %s\n", r.ServerPublicKey)
-	fmt.Printf("  Signature  : %s\n\n", r.Record.CensorshipRecord.Signature)
+	// Calc merkle root of files
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	mr, err := util.MerkleRoot(digests)
+	if err != nil {
+		return err
+	}
+	merkle := hex.EncodeToString(mr[:])
+
+	// Load identity
+	pid, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+
+	// Verify record
+	r := rcv1.Record{
+		Files: files,
+		CensorshipRecord: rcv1.CensorshipRecord{
+			Token:     token,
+			Merkle:    merkle,
+			Signature: signature,
+		},
+	}
+	err = client.RecordVerify(r, pid.String())
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Server key : %s\n", serverPubKey)
+	fmt.Printf("Token      : %s\n", token)
+	fmt.Printf("Merkle root: %s\n", merkle)
+	fmt.Printf("Signature  : %s\n\n", signature)
 	fmt.Println("Record successfully verified")
 
 	return nil
 }
 
-func verifyComments(payload []byte) error {
-	var comments comments
-	err := json.Unmarshal(payload, &comments)
-	if err != nil {
-		return fmt.Errorf("Comments bundle JSON in bad format, make sure to " +
-			"download it from the GUI.")
+// verifyFile verifies a data file downloaded from politeiagui. This can be
+// one of the data bundles or one of the timestamp files. The file name MUST
+// be the same file name that was downloaded from politeiagui.
+func verifyFile(fp string) error {
+	fp = util.CleanAndExpandPath(fp)
+	filename := filepath.Base(fp)
+
+	// Match file type
+	switch {
+	case regexRecord.FindString(filename) != "":
+		return verifyRecordBundleFile(fp)
+	case regexRecordTimestamps.FindString(filename) != "":
+		return verifyRecordTimestampsFile(fp)
 	}
 
-	for _, c := range comments {
-		// Verify receipt
-		id, err := util.IdentityFromString(c.ServerPublicKey)
-		if err != nil {
-			return err
-		}
-		receipt, err := util.ConvertSignature(c.Receipt)
-		if err != nil {
-			return err
-		}
-		if !id.VerifyMessage([]byte(c.Signature), receipt) {
-			return fmt.Errorf("Could not verify receipt %v of comment id %v",
-				c.Receipt, c.CommentID)
-		}
-		fmt.Printf("Comment ID: %s\n", c.CommentID)
-		fmt.Printf("  Public key: %s\n", c.ServerPublicKey)
-		fmt.Printf("  Receipt   : %s\n", c.Receipt)
-		fmt.Printf("  Signature : %s\n", c.Signature)
-	}
-
-	fmt.Println("\nComments successfully verified")
-
-	return nil
+	return fmt.Errorf("file not recognized")
 }
 
 func _main() error {
+	// Parse CLI arguments
 	flag.Parse()
 	args := flag.Args()
-
-	// Validate flags and arguments
-	switch {
-	case len(args) != 1:
-		usage()
-		return fmt.Errorf("Must provide json bundle path as input")
-	case *flagVerifyRecord && *flagVerifyComments:
-		usage()
-		return fmt.Errorf("Must choose only one verification type")
+	if len(args) == 0 {
+		return fmt.Errorf("no arguments provided")
 	}
 
-	// Read bundle payload
-	file := args[0]
-	var payload []byte
-	payload, err := ioutil.ReadFile(file)
+	// Check if the user is trying to verify a record submission
+	// manually. This requires passing in the server public key, the
+	// censorship token, the censorship record signature, and all of
+	// the record filepaths.
+	manual := (*publicKey != "") || (*token != "") || (*signature != "")
+	if manual {
+		// The user is trying to verify manually
+		return verifyCensorshipRecord(*publicKey, *token, *signature, args)
+	}
+
+	// The user is trying to verify a bundle file that was downloaded
+	// from politeiagui.
+	fp := args[0]
+	if regexJSONFile.FindString(fp) == "" {
+		return fmt.Errorf("'%v' is not a json file", fp)
+	}
+	err := verifyFile(fp)
 	if err != nil {
 		return err
 	}
 
-	// Call verify method
-	switch {
-	case *flagVerifyRecord:
-		return verifyRecord(payload)
-	case *flagVerifyComments:
-		return verifyComments(payload)
-	default:
-		// No flags used, read filename and try to call corresponding
-		// verify method
-		if strings.Contains(path.Base(file), "comments") {
-			return verifyComments(payload)
-		}
-		return verifyRecord(payload)
-	}
+	return nil
 }
 
 func main() {

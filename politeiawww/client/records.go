@@ -9,11 +9,20 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 // RecordNew sends a records v1 New request to politeiawww.
@@ -231,4 +240,171 @@ func RecordVerify(r rcv1.Record, serverPubKey string) error {
 	}
 
 	return nil
+}
+
+// RecordTimestampVerify verifies a records v1 API timestamp. This proves
+// inclusion of the data in the merkle root that was timestamped onto the dcr
+// blockchain.
+func RecordTimestampVerify(t rcv1.Timestamp) error {
+	return tstore.VerifyTimestamp(convertRecordTimestamp(t))
+}
+
+// RecordTimestampsVerify verifies all timestamps in a records v1 API
+// timestamps reply. This proves the inclusion of the data in the merkle root
+// that was timestamped onto the dcr blockchain.
+func RecordTimestampsVerify(tr rcv1.TimestampsReply) error {
+	err := RecordTimestampVerify(tr.RecordMetadata)
+	if err != nil {
+		return fmt.Errorf("could not verify record metadata timestamp: %v", err)
+	}
+	for pluginID, v := range tr.Metadata {
+		for streamID, ts := range v {
+			err = RecordTimestampVerify(ts)
+			if err != nil {
+				return fmt.Errorf("could not verify metadata %v %v timestamp: %v",
+					pluginID, streamID, err)
+			}
+		}
+	}
+	for k, v := range tr.Files {
+		err = RecordTimestampVerify(v)
+		if err != nil {
+			return fmt.Errorf("could not verify file %v timestamp: %v", k, err)
+		}
+	}
+	return nil
+}
+
+// UserMetadataDecode decodes and returns the UserMetadata from the provided
+// metadata streams. An error is returned if a UserMetadata is not found.
+func UserMetadataDecode(ms []v1.MetadataStream) (*usermd.UserMetadata, error) {
+	var ump *usermd.UserMetadata
+	for _, v := range ms {
+		if v.PluginID != usermd.PluginID ||
+			v.StreamID != usermd.StreamIDUserMetadata {
+			// Not user metadata
+			continue
+		}
+		var um usermd.UserMetadata
+		err := json.Unmarshal([]byte(v.Payload), &um)
+		if err != nil {
+			return nil, err
+		}
+		ump = &um
+		break
+	}
+	if ump == nil {
+		return nil, fmt.Errorf("user metadata not found")
+	}
+	return ump, nil
+}
+
+// UserMetadataVerify verifies that the UserMetadata contains a valid user ID,
+// a valid public key, and that this signature is a valid signature of the
+// record merkle root. An error is returned if a UserMetadata is not found.
+func UserMetadataVerify(metadata []v1.MetadataStream, files []v1.File) error {
+	// Decode user metadata
+	um, err := UserMetadataDecode(metadata)
+	if err != nil {
+		return err
+	}
+
+	// Verify user ID
+	_, err = uuid.Parse(um.UserID)
+	if err != nil {
+		return fmt.Errorf("invalid user id: %v", err)
+	}
+
+	// Verify signature
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	m, err := util.MerkleRoot(digests)
+	if err != nil {
+		return err
+	}
+	mr := hex.EncodeToString(m[:])
+	err = util.VerifySignature(um.Signature, um.PublicKey, mr)
+	if err != nil {
+		return fmt.Errorf("invalid user metadata: %v", err)
+	}
+
+	return nil
+}
+
+// StatusChangesDecode decodes and returns the status changes metadata stream
+// from the provided metadata. An error IS NOT returned is status change
+// metadata is not found.
+func StatusChangesDecode(metadata []v1.MetadataStream) ([]v1.StatusChange, error) {
+	statuses := make([]v1.StatusChange, 0, 16)
+	for _, v := range metadata {
+		if v.PluginID != usermd.PluginID ||
+			v.StreamID != usermd.StreamIDStatusChanges {
+			// Not status change metadata
+			continue
+		}
+		d := json.NewDecoder(strings.NewReader(v.Payload))
+		for {
+			var sc v1.StatusChange
+			err := d.Decode(&sc)
+			if errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+			statuses = append(statuses, sc)
+		}
+		break
+	}
+	return statuses, nil
+}
+
+// StatusChanges verifies the signatures on all status change metadata. A
+// record might not have any status changes yet so an error IS NOT returned if
+// status change metadata is not found.
+func StatusChangesVerify(metadata []v1.MetadataStream) error {
+	// Decode status changes
+	sc, err := StatusChangesDecode(metadata)
+	if err != nil {
+		return err
+	}
+
+	// Verify signatures
+	for _, v := range sc {
+		status := strconv.FormatUint(uint64(v.Status), 10)
+		version := strconv.FormatUint(uint64(v.Version), 10)
+		msg := v.Token + version + status + v.Reason
+		err = util.VerifySignature(v.Signature, v.PublicKey, msg)
+		if err != nil {
+			return fmt.Errorf("invalid status change signature %v %v: %v",
+				v.Token, v1.RecordStatuses[v.Status], err)
+		}
+	}
+
+	return nil
+}
+
+func convertRecordProof(p rcv1.Proof) backend.Proof {
+	return backend.Proof{
+		Type:       p.Type,
+		Digest:     p.Digest,
+		MerkleRoot: p.MerkleRoot,
+		MerklePath: p.MerklePath,
+		ExtraData:  p.ExtraData,
+	}
+}
+
+func convertRecordTimestamp(t rcv1.Timestamp) backend.Timestamp {
+	proofs := make([]backend.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, convertRecordProof(v))
+	}
+	return backend.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}
 }

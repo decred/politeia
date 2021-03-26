@@ -6,22 +6,18 @@ package pi
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"strings"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/plugins/usermd"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/ticketvote"
@@ -104,7 +100,7 @@ func (p *Pi) handleEventRecordNew(ch chan interface{}) {
 		// Send notfication email
 		var (
 			token = e.Record.CensorshipRecord.Token
-			name  = proposalNameFromRecord(e.Record)
+			name  = proposalNameFromFiles(e.Record.Files)
 		)
 		err = p.mailNtfnProposalNew(token, name, e.User.Username, emails)
 		if err != nil {
@@ -160,7 +156,7 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 		var (
 			token    = e.Record.CensorshipRecord.Token
 			version  = e.Record.Version
-			name     = proposalNameFromRecord(e.Record)
+			name     = proposalNameFromFiles(e.Record.Files)
 			username = e.User.Username
 		)
 		err = p.mailNtfnProposalEdit(token, version, name, username, emails)
@@ -178,12 +174,12 @@ func (p *Pi) ntfnRecordSetStatusToAuthor(r rcv1.Record) error {
 	var (
 		token    = r.CensorshipRecord.Token
 		status   = r.Status
-		name     = proposalNameFromRecord(r)
+		name     = proposalNameFromFiles(r.Files)
 		authorID = userIDFromMetadata(r.Metadata)
 	)
 
 	// Parse the status change reason
-	sc, err := statusChangesFromMetadata(r.Metadata)
+	sc, err := client.StatusChangesDecode(r.Metadata)
 	if err != nil {
 		return fmt.Errorf("decode status changes: %v", err)
 	}
@@ -227,7 +223,7 @@ func (p *Pi) ntfnRecordSetStatus(r rcv1.Record) error {
 	var (
 		token    = r.CensorshipRecord.Token
 		status   = r.Status
-		name     = proposalNameFromRecord(r)
+		name     = proposalNameFromFiles(r.Files)
 		authorID = userIDFromMetadata(r.Metadata)
 	)
 
@@ -430,7 +426,7 @@ func (p *Pi) handleEventCommentNew(ch chan interface{}) {
 		}
 		r = convertRecordToV1(*pdr)
 		proposalAuthorID = userIDFromMetadata(r.Metadata)
-		proposalName = proposalNameFromRecord(r)
+		proposalName = proposalNameFromFiles(r.Files)
 
 		// Notify the proposal author
 		err = p.ntfnCommentNewProposalAuthor(e.Comment,
@@ -488,7 +484,7 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 			goto failed
 		}
 		r = convertRecordToV1(*pdr)
-		proposalName = proposalNameFromRecord(r)
+		proposalName = proposalNameFromFiles(r.Files)
 
 		// Compile notification email list
 		err = p.userdb.AllUsers(func(u *user.User) {
@@ -625,7 +621,7 @@ func (p *Pi) handleEventVoteStarted(ch chan interface{}) {
 			}
 			r = convertRecordToV1(*pdr)
 			authorID = userIDFromMetadata(r.Metadata)
-			proposalName = proposalNameFromRecord(r)
+			proposalName = proposalNameFromFiles(r.Files)
 
 			// Send notification to record author
 			err = p.ntfnVoteStartedToAuthor(v, authorID, proposalName)
@@ -675,28 +671,20 @@ func (p *Pi) recordAbridged(token string) (*pdv2.Record, error) {
 	return &r, nil
 }
 
-// userMetadataDecode decodes and returns the UserMetadata from the provided
-// metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []rcv1.MetadataStream) (*usermd.UserMetadata, error) {
-	var userMD *usermd.UserMetadata
-	for _, v := range ms {
-		if v.StreamID == usermd.StreamIDUserMetadata {
-			var um usermd.UserMetadata
-			err := json.Unmarshal([]byte(v.Payload), &um)
-			if err != nil {
-				return nil, err
-			}
-			userMD = &um
-			break
-		}
+// proposalNameFromFiles parses the proposal name from the ProposalMetadata file and
+// returns it. An empty string is returned if a proposal name is not found.
+func proposalNameFromFiles(files []rcv1.File) string {
+	pm, err := client.ProposalMetadataDecode(files)
+	if err != nil {
+		return ""
 	}
-	return userMD, nil
+	return pm.Name
 }
 
 // userIDFromMetadata searches for a UserMetadata and parses the user ID from
 // it if found. An empty string is returned if no UserMetadata is found.
-func userIDFromMetadata(ms []rcv1.MetadataStream) string {
-	um, err := userMetadataDecode(ms)
+func userIDFromMetadata(ms []v1.MetadataStream) string {
+	um, err := client.UserMetadataDecode(ms)
 	if err != nil {
 		return ""
 	}
@@ -704,60 +692,6 @@ func userIDFromMetadata(ms []rcv1.MetadataStream) string {
 		return ""
 	}
 	return um.UserID
-}
-
-// proposalNameFromRecord parses the proposal name from the ProposalMetadata
-// file and returns it. An empty string will be returned if any errors occur or
-// if a name is not found.
-func proposalNameFromRecord(r rcv1.Record) string {
-	var name string
-	for _, v := range r.Files {
-		if v.Name == piplugin.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return ""
-			}
-			var pm piplugin.ProposalMetadata
-			err = json.Unmarshal(b, &pm)
-			if err != nil {
-				return ""
-			}
-			name = pm.Name
-		}
-	}
-	return name
-}
-
-func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
-	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var sc usermd.StatusChangeMetadata
-		err := d.Decode(&sc)
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		statuses = append(statuses, sc)
-	}
-	return statuses, nil
-}
-
-func statusChangesFromMetadata(metadata []rcv1.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
-	var (
-		sc  []usermd.StatusChangeMetadata
-		err error
-	)
-	for _, v := range metadata {
-		if v.StreamID == usermd.StreamIDStatusChanges {
-			sc, err = statusChangesDecode([]byte(v.Payload))
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	return sc, nil
 }
 
 func convertStateToV1(s pdv2.RecordStateT) rcv1.RecordStateT {

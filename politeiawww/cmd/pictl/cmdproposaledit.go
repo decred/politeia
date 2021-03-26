@@ -152,7 +152,7 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 	switch {
 	case c.UseMD:
 		// Use the existing proposal name
-		pm, err := proposalMetadataDecode(curr.Files)
+		pm, err := pclient.ProposalMetadataDecode(curr.Files)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 	switch {
 	case c.UseMD:
 		// Use existing vote metadata values
-		vm, err := voteMetadataDecode(curr.Files)
+		vm, err := pclient.VoteMetadataDecode(curr.Files)
 		if err != nil {
 			return nil, err
 		}

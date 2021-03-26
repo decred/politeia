@@ -14,6 +14,7 @@ import (
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -544,31 +545,10 @@ func recordPopulateUserData(r *v1.Record, u user.User) {
 	r.Username = u.Username
 }
 
-// userMetadataDecode decodes and returns the UserMetadata from the provided
-// metadata streams. If a UserMetadata is not found, nil is returned.
-func userMetadataDecode(ms []v1.MetadataStream) (*usermd.UserMetadata, error) {
-	var userMD *usermd.UserMetadata
-	for _, v := range ms {
-		if v.PluginID != usermd.PluginID ||
-			v.StreamID != usermd.StreamIDUserMetadata {
-			// Not the mdstream we're looking for
-			continue
-		}
-		var um usermd.UserMetadata
-		err := json.Unmarshal([]byte(v.Payload), &um)
-		if err != nil {
-			return nil, err
-		}
-		userMD = &um
-		break
-	}
-	return userMD, nil
-}
-
 // userIDFromMetadataStreams searches for a UserMetadata and parses the user ID
 // from it if found. An empty string is returned if no UserMetadata is found.
 func userIDFromMetadataStreams(ms []v1.MetadataStream) string {
-	um, err := userMetadataDecode(ms)
+	um, err := client.UserMetadataDecode(ms)
 	if err != nil {
 		return ""
 	}

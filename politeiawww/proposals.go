@@ -20,6 +20,7 @@ import (
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -803,7 +804,9 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 func userMetadataDecode(ms []pdv2.MetadataStream) (*umplugin.UserMetadata, error) {
 	var userMD *umplugin.UserMetadata
 	for _, v := range ms {
-		if v.StreamID != umplugin.StreamIDUserMetadata {
+		if v.PluginID != usermd.PluginID ||
+			v.StreamID != umplugin.StreamIDUserMetadata {
+			// This is not user metadata
 			continue
 		}
 		var um umplugin.UserMetadata

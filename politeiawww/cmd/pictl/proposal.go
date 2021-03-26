@@ -8,13 +8,10 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"path/filepath"
@@ -23,9 +20,9 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/usermd"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
 )
 
@@ -41,7 +38,7 @@ func printProposalFiles(files []rcv1.File) error {
 
 	// Its possible for a proposal metadata to not exist if the
 	// proposal has been censored.
-	pm, err := proposalMetadataDecode(files)
+	pm, err := pclient.ProposalMetadataDecode(files)
 	if err != nil {
 		return err
 	}
@@ -51,7 +48,7 @@ func printProposalFiles(files []rcv1.File) error {
 	}
 
 	// A vote metadata file is optional
-	vm, err := voteMetadataDecode(files)
+	vm, err := pclient.VoteMetadataDecode(files)
 	if err != nil {
 		return err
 	}
@@ -84,22 +81,6 @@ func printProposal(r rcv1.Record) error {
 	}
 	printf("Files\n")
 	return printProposalFiles(r.Files)
-}
-
-func statusChangesDecode(payload []byte) ([]usermd.StatusChangeMetadata, error) {
-	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var sc usermd.StatusChangeMetadata
-		err := d.Decode(&sc)
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		statuses = append(statuses, sc)
-	}
-	return statuses, nil
 }
 
 // indexFileRandom returns a proposal index file filled with random data.
@@ -239,48 +220,4 @@ func signedMerkleRoot(files []rcv1.File, fid *identity.FullIdentity) (string, er
 	mr := hex.EncodeToString(m[:])
 	sig := fid.SignMessage([]byte(mr))
 	return hex.EncodeToString(sig[:]), nil
-}
-
-// proposalMetadataDecode decodes and returns the ProposalMetadata from the
-// provided record files. nil is returned if a ProposalMetadata is not found.
-func proposalMetadataDecode(files []rcv1.File) (*piv1.ProposalMetadata, error) {
-	var propMD *piv1.ProposalMetadata
-	for _, v := range files {
-		if v.Name == piv1.FileNameProposalMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-			var m piv1.ProposalMetadata
-			err = json.Unmarshal(b, &m)
-			if err != nil {
-				return nil, err
-			}
-			propMD = &m
-			break
-		}
-	}
-	return propMD, nil
-}
-
-// voteMetadataDecode decodes and returns the VoteMetadata from the provided
-// backend files. If a VoteMetadata is not found, nil will be returned.
-func voteMetadataDecode(files []rcv1.File) (*piv1.VoteMetadata, error) {
-	var voteMD *piv1.VoteMetadata
-	for _, v := range files {
-		if v.Name == piv1.FileNameVoteMetadata {
-			b, err := base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return nil, err
-			}
-			var vm piv1.VoteMetadata
-			err = json.Unmarshal(b, &vm)
-			if err != nil {
-				return nil, err
-			}
-			voteMD = &vm
-			break
-		}
-	}
-	return voteMD, nil
 }

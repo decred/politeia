@@ -609,7 +609,7 @@ const (
 //
 // If no votes page number is provided then the vote authorization and vote
 // details timestamps will be returned. If a votes page number is provided then
-// the specified page of votes will be returned.
+// the specified page of cast vote timestamps will be returned.
 type Timestamps struct {
 	Token     string `json:"token"`
 	VotesPage uint32 `json:"votespage,omitempty"`
@@ -617,7 +617,15 @@ type Timestamps struct {
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
-	Auths   []Timestamp `json:"auths,omitempty"`
-	Details *Timestamp  `json:"details,omitempty"`
-	Votes   []Timestamp `json:"votes,omitempty"`
+	// Auths contains the timestamps for vote authorizations. The data
+	// payloads will contain AuthDetails structures.
+	Auths []Timestamp `json:"auths,omitempty"`
+
+	// Details contains the timestamps for the vote details. The data
+	// payload will contain a VoteDetails structure.
+	Details *Timestamp `json:"details,omitempty"`
+
+	// Votes contains the timestamps for the cast votes. The data
+	// payloads will contain CastVoteDetails strucutures.
+	Votes []Timestamp `json:"votes,omitempty"`
 }

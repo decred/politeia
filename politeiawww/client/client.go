@@ -156,7 +156,7 @@ type Opts struct {
 	HTTPSCert  string
 	Cookies    []*http.Cookie
 	HeaderCSRF string
-	Verbose    bool // Pretty print details
+	Verbose    bool // Print verbose output
 	RawJSON    bool // Print raw json
 }
 
