@@ -20,8 +20,9 @@ type recordBundle struct {
 	ServerPublicKey string      `json:"serverpublickey"`
 }
 
-// verifyRecordBundle verifies that the validity of a record bundle. This
-// includes verifying the censorship record and the user metadata signatures.
+// verifyRecordBundle verifies that a record bundle has been accepted by
+// politeia and that all user signatures are correct. A record bundle is the
+// JSON data file that is downloaded from politeiagui for a record.
 func verifyRecordBundle(rb recordBundle) error {
 	// Verify censorship record
 	err := client.RecordVerify(rb.Record, rb.ServerPublicKey)

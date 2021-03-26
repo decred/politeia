@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 
-	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -166,7 +165,13 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		permissionPublic)
 }
 
-func (p *politeiawww) setupPi(plugins []pdv2.Plugin) error {
+func (p *politeiawww) setupPi() error {
+	// Get politeiad plugins
+	plugins, err := p.getPluginInventory()
+	if err != nil {
+		return fmt.Errorf("getPluginInventory: %v", err)
+	}
+
 	// Verify all required politeiad plugins have been registered
 	required := map[string]bool{
 		piplugin.PluginID: false,

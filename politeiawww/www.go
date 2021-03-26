@@ -677,12 +677,6 @@ func _main() error {
 		userEmails: make(map[string]uuid.UUID),
 	}
 
-	// Setup politeiad plugins
-	plugins, err := p.getPluginInventory()
-	if err != nil {
-		return fmt.Errorf("getPluginInventory: %v", err)
-	}
-
 	// Setup email-userID cache
 	err = p.initUserEmailsCache()
 	if err != nil {
@@ -692,7 +686,7 @@ func _main() error {
 	// Perform application specific setup
 	switch p.cfg.Mode {
 	case config.PoliteiaWWWMode:
-		err = p.setupPi(plugins)
+		err = p.setupPi()
 		if err != nil {
 			return fmt.Errorf("setupPi: %v", err)
 		}
