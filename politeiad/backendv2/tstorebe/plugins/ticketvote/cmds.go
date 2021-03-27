@@ -2701,7 +2701,7 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
 			ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
-			ErrorContext: err.Error(),
+			ErrorContext: util.TokenRegexp(),
 		}
 	}
 	if !bytes.Equal(cmdToken, pt) {

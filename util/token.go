@@ -7,14 +7,24 @@ package util
 import (
 	"encoding/hex"
 	"fmt"
+	"regexp"
 
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 )
 
 var (
-	TokenTypeGit    = "git"
+	// TokenTypeGit represents a token from the politeiad git backend.
+	TokenTypeGit = "git"
+
+	// TokenTypeTstore represents a token from the politeiad tstore
+	// backend.
 	TokenTypeTstore = "tstore"
+
+	// tokenRegexp is a regexp that matches short tokens and full
+	// length tokens.
+	tokenRegexp = regexp.MustCompile(fmt.Sprintf("^[0-9a-f]{%v,%v}$",
+		pdv2.ShortTokenLength, pdv2.TokenSize*2))
 )
 
 // ShortTokenSize returns the size, in bytes, of a politeiad short token.
@@ -46,8 +56,8 @@ func ShortToken(token []byte) ([]byte, error) {
 // ShortTokenString takes a hex encoded token and returns the shortened token
 // for it.
 func ShortTokenString(token string) (string, error) {
-	if len(token) < pdv2.ShortTokenLength {
-		return "", fmt.Errorf("token is not large enough")
+	if tokenRegexp.FindString(token) == "" {
+		return "", fmt.Errorf("invalid token")
 	}
 	return token[:pdv2.ShortTokenLength], nil
 }
@@ -77,6 +87,11 @@ func TokenIsFullLength(tokenType string, token []byte) bool {
 // TokenDecode decodes a full length token. An error is returned if the token
 // is not a full length, hex token.
 func TokenDecode(tokenType, token string) ([]byte, error) {
+	// Verify token is valid
+	if tokenRegexp.FindString(token) == "" {
+		return nil, fmt.Errorf("invalid token")
+	}
+
 	// Decode token
 	t, err := hex.DecodeString(token)
 	if err != nil {
@@ -93,6 +108,11 @@ func TokenDecode(tokenType, token string) ([]byte, error) {
 
 // TokenDecodeAnyLength decodes both short tokens and full length tokens.
 func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
+	// Verify token is valid
+	if tokenRegexp.FindString(token) == "" {
+		return nil, fmt.Errorf("invalid token")
+	}
+
 	// Decode token. If provided token has odd length, add padding
 	// to prevent a hex.ErrLength (odd length hex string) error.
 	if len(token)%2 == 1 {
@@ -132,4 +152,9 @@ func TokenEncode(token []byte) string {
 		t = t[:pdv2.ShortTokenLength]
 	}
 	return t
+}
+
+// TokenRegexp returns the string regexp that is used to match tokens.
+func TokenRegexp() string {
+	return tokenRegexp.String()
 }

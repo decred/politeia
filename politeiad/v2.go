@@ -89,7 +89,8 @@ func (p *politeia) handleRecordEdit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithErrorV2(w, r, "handleRecordEdit: decode token",
 			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeTokenInvalid,
+				ErrorCode:    v2.ErrorCodeTokenInvalid,
+				ErrorContext: util.TokenRegexp(),
 			})
 		return
 	}
@@ -146,7 +147,8 @@ func (p *politeia) handleRecordEditMetadata(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		respondWithErrorV2(w, r, "handleRecordEditMetadata: decode token",
 			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeTokenInvalid,
+				ErrorCode:    v2.ErrorCodeTokenInvalid,
+				ErrorContext: util.TokenRegexp(),
 			})
 		return
 	}
@@ -198,7 +200,8 @@ func (p *politeia) handleRecordSetStatus(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		respondWithErrorV2(w, r, "handleRecordSetStatus: decode token",
 			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeTokenInvalid,
+				ErrorCode:    v2.ErrorCodeTokenInvalid,
+				ErrorContext: util.TokenRegexp(),
 			})
 		return
 	}
@@ -309,7 +312,8 @@ func (p *politeia) handleRecordTimestamps(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		respondWithErrorV2(w, r, "handleRecordTimestamps: decode token",
 			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeTokenInvalid,
+				ErrorCode:    v2.ErrorCodeTokenInvalid,
+				ErrorContext: util.TokenRegexp(),
 			})
 		return
 	}
@@ -492,7 +496,8 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondWithErrorV2(w, r, "handlePluginWrite: decode token",
 			v2.UserErrorReply{
-				ErrorCode: v2.ErrorCodeTokenInvalid,
+				ErrorCode:    v2.ErrorCodeTokenInvalid,
+				ErrorContext: util.TokenRegexp(),
 			})
 		return
 	}
@@ -551,7 +556,8 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 				// Invalid token. Save the reply and continue to next cmd.
 				replies[k] = v2.PluginCmdReply{
 					UserError: &v2.UserErrorReply{
-						ErrorCode: v2.ErrorCodeTokenInvalid,
+						ErrorCode:    v2.ErrorCodeTokenInvalid,
+						ErrorContext: util.TokenRegexp(),
 					},
 				}
 				continue

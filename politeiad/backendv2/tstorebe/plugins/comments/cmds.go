@@ -1226,7 +1226,7 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 		return backend.PluginError{
 			PluginID:     comments.PluginID,
 			ErrorCode:    uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: err.Error(),
+			ErrorContext: util.TokenRegexp(),
 		}
 	}
 	if !bytes.Equal(cmdToken, pt) {
