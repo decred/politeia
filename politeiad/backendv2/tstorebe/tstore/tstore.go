@@ -33,9 +33,6 @@ const (
 
 	// MySQL settings
 	dbUser = "politeiad"
-
-	// Config option defaults
-	defaultTrillianSigningKeyFilename = "trillian.key"
 )
 
 var (
@@ -94,25 +91,10 @@ func (t *Tstore) Close() {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSigningKeyFile, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
-	// Setup trillian client
-	if trillianSigningKeyFile == "" {
-		// No file path was given. Use the default path.
-		fn := fmt.Sprintf("%v", defaultTrillianSigningKeyFilename)
-		trillianSigningKeyFile = filepath.Join(appDir, fn)
-	}
-
-	log.Infof("Trillian key: %v", trillianSigningKeyFile)
-	log.Infof("Trillian host: %v", trillianHost)
-
-	tlogClient, err := newTClient(trillianHost, trillianSigningKeyFile)
-	if err != nil {
-		return nil, err
-	}
-
+func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
-	err = os.MkdirAll(dataDir, 0700)
+	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +122,17 @@ func New(appDir, dataDir string, anp *chaincfg.Params, trillianHost, trillianSig
 		}
 	default:
 		return nil, fmt.Errorf("invalid db type: %v", dbType)
+	}
+
+	// Setup trillian client
+	log.Infof("Tlog host: %v", tlogHost)
+	tlogKey, err := deriveTlogKey(kvstore, tlogPass)
+	if err != nil {
+		return nil, err
+	}
+	tlogClient, err := newTClient(tlogHost, tlogKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Verify dcrtime host

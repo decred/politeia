@@ -318,9 +318,9 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	s.getNonce = s.getDbNonce
 
 	// Derive encryption key from password. Key is set in argon2idKey
-	err = s.argon2idKey(password)
+	err = s.deriveEncryptionKey(password)
 	if err != nil {
-		return nil, fmt.Errorf("argon2idKey: %v", err)
+		return nil, fmt.Errorf("deriveEncryptionKey: %v", err)
 	}
 
 	return s, nil

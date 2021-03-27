@@ -136,5 +136,4 @@ func (s *mysql) testNonceIsUnique() {
 	wg.Wait()
 
 	log.Infof("Nonce concurrency test complete")
-
 }

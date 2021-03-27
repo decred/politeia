@@ -3,6 +3,8 @@ package mysql
 import (
 	"bytes"
 	"testing"
+
+	"github.com/decred/politeia/util"
 )
 
 func TestEncryptDecrypt(t *testing.T) {
@@ -12,10 +14,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	// setup fake context
 	s := &mysql{}
 	s.getNonce = s.getTestNonce
-	err := s.argon2idKey(password)
-	if err != nil {
-		t.Fatal(err)
-	}
+	s.argon2idKey(password, util.NewArgon2Params())
 
 	// Encrypt and make sure cleartext isn't the same as the encypted blob.
 	eb, err := s.encrypt(nil, nil, blob)

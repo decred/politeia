@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -45,9 +46,14 @@ const (
 	defaultBackend = backendTstore
 
 	// Tstore default settings
-	defaultTrillianHost = "localhost:8090"
-	defaultDBType       = tstore.DBTypeLevelDB
-	defaultDBHost       = "localhost:3306" // MySQL default host
+	defaultDBType   = tstore.DBTypeLevelDB
+	defaultDBHost   = "localhost:3306" // MySQL default host
+	defaultTlogHost = "localhost:8090"
+
+	// Environment variables
+	envDcrtimeCert = "DCRTIMECERT"
+	envDBPass      = "DBPASS"
+	envTlogPass    = "TLOGPASS"
 )
 
 var (
@@ -86,7 +92,7 @@ type config struct {
 	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
 	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
 	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
+	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
 	Backend     string `long:"backend" description:"Backend type"`
 
@@ -95,13 +101,13 @@ type config struct {
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
 	// Tstore backend options
-	TrillianHost       string `long:"trillianhost" description:"Trillian ip:port"`
-	TrillianSigningKey string `long:"trilliansigningkey" description:"Trillian signing key"`
-	DBType             string `long:"dbtype" description:"Database type"`
-	DBHost             string `long:"dbhost" description:"Database ip:port"`
-	DBPass             string // Provided in env variable "DBPASS"
+	DBType   string `long:"dbtype" description:"Database type"`
+	DBHost   string `long:"dbhost" description:"Database ip:port"`
+	DBPass   string // Provided in env variable "DBPASS"
+	TlogHost string `long:"tloghost" description:"Trillian log ip:port"`
+	TlogPass string // Provided in env variable "TLOGPASS"
 
-	// Plugin settings
+	// Plugin options
 	Plugins        []string `long:"plugin" description:"Plugins"`
 	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
 }
@@ -244,18 +250,18 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:      defaultHomeDir,
-		ConfigFile:   defaultConfigFile,
-		DebugLevel:   defaultLogLevel,
-		DataDir:      defaultDataDir,
-		LogDir:       defaultLogDir,
-		HTTPSKey:     defaultHTTPSKeyFile,
-		HTTPSCert:    defaultHTTPSCertFile,
-		Version:      version.String(),
-		Backend:      defaultBackend,
-		TrillianHost: defaultTrillianHost,
-		DBType:       defaultDBType,
-		DBHost:       defaultDBHost,
+		HomeDir:    defaultHomeDir,
+		ConfigFile: defaultConfigFile,
+		DebugLevel: defaultLogLevel,
+		DataDir:    defaultDataDir,
+		LogDir:     defaultLogDir,
+		HTTPSKey:   defaultHTTPSKeyFile,
+		HTTPSCert:  defaultHTTPSCertFile,
+		Version:    version.String(),
+		Backend:    defaultBackend,
+		DBType:     defaultDBType,
+		DBHost:     defaultDBHost,
+		TlogHost:   defaultTlogHost,
 	}
 
 	// Service options which are only added on Windows.
@@ -540,18 +546,31 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, fmt.Errorf("invalid backend type '%v'", cfg.Backend)
 	}
 
-	// Verify tstore backend settings
+	// Verify tstore backend database choice
 	switch cfg.DBType {
 	case tstore.DBTypeLevelDB:
 		// Allowed; continue
 	case tstore.DBTypeMySQL:
-		// The database password is provided in the env variable "DBPASS"
-		cfg.DBPass = os.Getenv("DBPASS")
+		// The database password is provided in an env variable
+		cfg.DBPass = os.Getenv(envDBPass)
 		if cfg.DBPass == "" {
 			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
 				"the database password for the politeiad user in the env " +
 				"variable DBPASS")
 		}
+	}
+
+	// Verify tlog options
+	_, err = url.Parse(cfg.TlogHost)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid tlog host '%v': %v",
+			cfg.TlogHost, err)
+	}
+	cfg.TlogPass = os.Getenv(envTlogPass)
+	if cfg.TlogPass == "" {
+		return nil, nil, fmt.Errorf("tlogpass not found: a tlog "+
+			"password that will be used to derive the tlog signing key "+
+			"must be provided in the env variable %v", envTlogPass)
 	}
 
 	// Warn about missing config file only after all other configuration is
