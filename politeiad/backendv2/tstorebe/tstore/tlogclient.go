@@ -222,7 +222,7 @@ func (t *tclient) Tree(treeID int64) (*trillian.Tree, error) {
 		TreeId: treeID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("GetTree: %v", err)
+		return nil, err
 	}
 	if tree.TreeId != treeID {
 		// Sanity check
@@ -472,7 +472,7 @@ func (t *tclient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	// Get tree
 	tree, err := t.Tree(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("tree: %v", err)
+		return nil, err
 	}
 
 	// Get signed log root

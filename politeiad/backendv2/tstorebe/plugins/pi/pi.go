@@ -58,8 +58,8 @@ func (p *piPlugin) Setup() error {
 // Cmd executes a plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("pi Cmd: %v %x %v %v", treeID, token, cmd, payload)
+func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("pi Cmd: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
 }
@@ -67,8 +67,8 @@ func (p *piPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string,
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("pi Hook: %v %x %v", plugins.Hooks[h], token, treeID)
+func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
+	log.Tracef("pi Hook: %v", plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -76,7 +76,7 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 	case plugins.HookTypeEditRecordPre:
 		return p.hookEditRecordPre(payload)
 	case plugins.HookTypePluginPre:
-		return p.hookPluginPre(treeID, token, payload)
+		return p.hookPluginPre(payload)
 	}
 
 	return nil
@@ -85,7 +85,7 @@ func (p *piPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload str
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Fsck(treeIDs []int64) error {
+func (p *piPlugin) Fsck() error {
 	log.Tracef("pi Fsck")
 
 	return nil

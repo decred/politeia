@@ -132,7 +132,7 @@ func (p *usermdPlugin) hookSetRecordStatusPre(payload string) error {
 
 // hookNewRecordPre caches plugin data from the tstore backend RecordSetStatus
 // method.
-func (p *usermdPlugin) hookSetRecordStatusPost(treeID int64, payload string) error {
+func (p *usermdPlugin) hookSetRecordStatusPost(payload string) error {
 	var srs plugins.HookSetRecordStatus
 	err := json.Unmarshal([]byte(payload), &srs)
 	if err != nil {

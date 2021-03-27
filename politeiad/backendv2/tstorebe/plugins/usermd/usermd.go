@@ -44,12 +44,12 @@ func (p *usermdPlugin) Setup() error {
 // Cmd executes a plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("usermd Cmd: %v %x %v %v", treeID, token, cmd, payload)
+func (p *usermdPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("usermd Cmd: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case usermd.CmdAuthor:
-		return p.cmdAuthor(treeID)
+		return p.cmdAuthor(token)
 	case usermd.CmdUserRecords:
 		return p.cmdUserRecords(payload)
 	}
@@ -60,8 +60,8 @@ func (p *usermdPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (str
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("usermd Hook: %v %x %v", plugins.Hooks[h], token, treeID)
+func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
+	log.Tracef("usermd Hook: %v", plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -75,7 +75,7 @@ func (p *usermdPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload
 	case plugins.HookTypeSetRecordStatusPre:
 		return p.hookSetRecordStatusPre(payload)
 	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(treeID, payload)
+		return p.hookSetRecordStatusPost(payload)
 	}
 
 	return nil
@@ -84,7 +84,7 @@ func (p *usermdPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Fsck(treeIDs []int64) error {
+func (p *usermdPlugin) Fsck() error {
 	log.Tracef("usermd Fsck")
 
 	return nil

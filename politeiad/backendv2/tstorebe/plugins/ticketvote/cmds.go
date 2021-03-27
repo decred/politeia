@@ -42,7 +42,7 @@ const (
 )
 
 // cmdAuthorize authorizes a ticket vote or revokes a previous authorization.
-func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload string) (string, error) {
+func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, error) {
 	// Decode payload
 	var a ticketvote.Authorize
 	err := json.Unmarshal([]byte(payload), &a)
@@ -80,7 +80,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	}
 
 	// Verify record status and version
-	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
+	r, err := p.tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return "", fmt.Errorf("RecordPartial: %v", err)
 	}
@@ -103,7 +103,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 
 	// Get any previous authorizations to verify that the new action
 	// is allowed based on the previous action.
-	auths, err := p.auths(treeID)
+	auths, err := p.auths(token)
 	if err != nil {
 		return "", err
 	}
@@ -153,7 +153,7 @@ func (p *ticketVotePlugin) cmdAuthorize(treeID int64, token []byte, payload stri
 	}
 
 	// Save authorize vote
-	err = p.authSave(treeID, auth)
+	err = p.authSave(token, auth)
 	if err != nil {
 		return "", err
 	}
@@ -426,7 +426,7 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 }
 
 // startStandard starts a standard vote.
-func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
+func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
 	// Verify there is only one start details
 	if len(s.Starts) != 1 {
 		return nil, backend.PluginError{
@@ -468,7 +468,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Verify record version
-	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
+	r, err := p.tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("RecordPartial: %v", err)
 	}
@@ -487,7 +487,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Verify vote authorization
-	auths, err := p.auths(treeID)
+	auths, err := p.auths(token)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +508,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Verify vote has not already been started
-	svp, err := p.voteDetails(treeID)
+	svp, err := p.voteDetails(token)
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +533,7 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 	}
 
 	// Save vote details
-	err = p.voteDetailsSave(treeID, vd)
+	err = p.voteDetailsSave(token, vd)
 	if err != nil {
 		return nil, fmt.Errorf("voteDetailsSave: %v", err)
 	}
@@ -554,27 +554,25 @@ func (p *ticketVotePlugin) startStandard(treeID int64, token []byte, s ticketvot
 }
 
 // startRunoffRecordSave saves a startRunoffRecord to the backend.
-func (p *ticketVotePlugin) startRunoffRecordSave(treeID int64, srr startRunoffRecord) error {
+func (p *ticketVotePlugin) startRunoffRecordSave(token []byte, srr startRunoffRecord) error {
 	be, err := convertBlobEntryFromStartRunoff(srr)
 	if err != nil {
 		return err
 	}
-	err = p.tstore.BlobSave(treeID, *be)
+	err = p.tstore.BlobSave(token, *be)
 	if err != nil {
-		return fmt.Errorf("BlobSave %v %v: %v",
-			treeID, dataDescriptorStartRunoff, err)
+		return err
 	}
 	return nil
 }
 
 // startRunoffRecord returns the startRunoff record if one exists. Nil is
 // returned if a startRunoff record is not found.
-func (p *ticketVotePlugin) startRunoffRecord(treeID int64) (*startRunoffRecord, error) {
-	blobs, err := p.tstore.BlobsByDataDesc(treeID,
+func (p *ticketVotePlugin) startRunoffRecord(token []byte) (*startRunoffRecord, error) {
+	blobs, err := p.tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorStartRunoff})
 	if err != nil {
-		return nil, fmt.Errorf("BlobsByDataDesc %v %v: %v",
-			treeID, dataDescriptorStartRunoff, err)
+		return nil, err
 	}
 
 	var srr *startRunoffRecord
@@ -598,7 +596,7 @@ func (p *ticketVotePlugin) startRunoffRecord(treeID int64) (*startRunoffRecord, 
 }
 
 // startRunoffForSub starts the voting period for a runoff vote submission.
-func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs startRunoffSubmission) error {
+func (p *ticketVotePlugin) startRunoffForSub(token []byte, srs startRunoffSubmission) error {
 	// Sanity check
 	sd := srs.StartDetails
 	t, err := tokenDecode(sd.Params.Token)
@@ -609,8 +607,8 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 		return fmt.Errorf("invalid token")
 	}
 
-	// Get the start runoff record from the parent tree
-	srr, err := p.startRunoffRecord(srs.ParentTreeID)
+	// Get the start runoff record from the parent record
+	srr, err := p.startRunoffRecord(srs.ParentToken)
 	if err != nil {
 		return err
 	}
@@ -635,7 +633,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	// call were to fail before completing, we can simply call the
 	// command again with the same arguments and it will pick up where
 	// it left off.
-	svp, err := p.voteDetails(treeID)
+	svp, err := p.voteDetails(token)
 	if err != nil {
 		return err
 	}
@@ -645,7 +643,7 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	}
 
 	// Verify record version
-	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
+	r, err := p.tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return fmt.Errorf("RecordPartial: %v", err)
 	}
@@ -675,9 +673,9 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 	}
 
 	// Save vote details
-	err = p.voteDetailsSave(treeID, vd)
+	err = p.voteDetailsSave(token, vd)
 	if err != nil {
-		return fmt.Errorf("voteDetailsSave: %v", err)
+		return fmt.Errorf("voteDetailsSave %x: %v", token, err)
 	}
 
 	// Update inventory
@@ -693,9 +691,9 @@ func (p *ticketVotePlugin) startRunoffForSub(treeID int64, token []byte, srs sta
 // startRunoffForParent saves a startRunoffRecord to the parent record. Once
 // this has been saved the runoff vote is considered to be started and the
 // voting period on individual runoff vote submissions can be started.
-func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ticketvote.Start) (*startRunoffRecord, error) {
+func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startRunoffRecord, error) {
 	// Check if the runoff vote data already exists on the parent tree.
-	srr, err := p.startRunoffRecord(treeID)
+	srr, err := p.startRunoffRecord(token)
 	if err != nil {
 		return nil, err
 	}
@@ -723,7 +721,7 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 	files := []string{
 		ticketvote.FileNameVoteMetadata,
 	}
-	r, err := p.tstore.RecordPartial(treeID, 0, files, false)
+	r, err := p.tstore.RecordPartial(token, 0, files, false)
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			return nil, backend.PluginError{
@@ -848,17 +846,17 @@ func (p *ticketVotePlugin) startRunoffForParent(treeID int64, token []byte, s ti
 	}
 
 	// Save start runoff record
-	err = p.startRunoffRecordSave(treeID, *srr)
+	err = p.startRunoffRecordSave(token, *srr)
 	if err != nil {
-		return nil, fmt.Errorf("startRunoffRecordSave %v: %v",
-			treeID, err)
+		return nil, fmt.Errorf("startRunoffRecordSave %x: %v",
+			token, err)
 	}
 
 	return srr, nil
 }
 
 // startRunoff starts the voting period for all submissions in a runoff vote.
-func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
+func (p *ticketVotePlugin) startRunoff(token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
 	// Sanity check
 	if len(s.Starts) == 0 {
 		return nil, fmt.Errorf("no start details found")
@@ -978,7 +976,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 
 	// This function is being invoked on the runoff vote parent record.
 	// Create and save a start runoff record onto the parent record's tree.
-	srr, err := p.startRunoffForParent(treeID, token, s)
+	srr, err := p.startRunoffForParent(token, s)
 	if err != nil {
 		return nil, err
 	}
@@ -991,7 +989,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 			return nil, err
 		}
 		srs := startRunoffSubmission{
-			ParentTreeID: treeID,
+			ParentToken:  token,
 			StartDetails: v,
 		}
 		b, err := json.Marshal(srs)
@@ -1021,7 +1019,7 @@ func (p *ticketVotePlugin) startRunoff(treeID int64, token []byte, s ticketvote.
 
 // cmdStartRunoffSubmission is an internal plugin command that is used to start
 // the voting period on a runoff vote submission.
-func (p *ticketVotePlugin) cmdStartRunoffSubmission(treeID int64, token []byte, payload string) (string, error) {
+func (p *ticketVotePlugin) cmdStartRunoffSubmission(token []byte, payload string) (string, error) {
 	// Decode payload
 	var srs startRunoffSubmission
 	err := json.Unmarshal([]byte(payload), &srs)
@@ -1030,7 +1028,7 @@ func (p *ticketVotePlugin) cmdStartRunoffSubmission(treeID int64, token []byte, 
 	}
 
 	// Start voting period on runoff vote submission
-	err = p.startRunoffForSub(treeID, token, srs)
+	err = p.startRunoffForSub(token, srs)
 	if err != nil {
 		return "", err
 	}
@@ -1039,7 +1037,7 @@ func (p *ticketVotePlugin) cmdStartRunoffSubmission(treeID int64, token []byte, 
 }
 
 // cmdStart starts a ticket vote.
-func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) (string, error) {
+func (p *ticketVotePlugin) cmdStart(token []byte, payload string) (string, error) {
 	// Decode payload
 	var s ticketvote.Start
 	err := json.Unmarshal([]byte(payload), &s)
@@ -1061,12 +1059,12 @@ func (p *ticketVotePlugin) cmdStart(treeID int64, token []byte, payload string) 
 	var sr *ticketvote.StartReply
 	switch vtype {
 	case ticketvote.VoteTypeStandard:
-		sr, err = p.startStandard(treeID, token, s)
+		sr, err = p.startStandard(token, s)
 		if err != nil {
 			return "", err
 		}
 	case ticketvote.VoteTypeRunoff:
-		sr, err = p.startRunoff(treeID, token, s)
+		sr, err = p.startRunoff(token, s)
 		if err != nil {
 			return "", err
 		}
@@ -1245,7 +1243,7 @@ type voteCollider struct {
 }
 
 // voteColliderSave saves a voteCollider to the backend.
-func (p *ticketVotePlugin) voteColliderSave(treeID int64, vc voteCollider) error {
+func (p *ticketVotePlugin) voteColliderSave(token []byte, vc voteCollider) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromVoteCollider(vc)
 	if err != nil {
@@ -1253,11 +1251,11 @@ func (p *ticketVotePlugin) voteColliderSave(treeID int64, vc voteCollider) error
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(treeID, *be)
+	return p.tstore.BlobSave(token, *be)
 }
 
 // castVoteSave saves a CastVoteDetails to the backend.
-func (p *ticketVotePlugin) castVoteSave(treeID int64, cv ticketvote.CastVoteDetails) error {
+func (p *ticketVotePlugin) castVoteSave(token []byte, cv ticketvote.CastVoteDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromCastVoteDetails(cv)
 	if err != nil {
@@ -1265,13 +1263,13 @@ func (p *ticketVotePlugin) castVoteSave(treeID int64, cv ticketvote.CastVoteDeta
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(treeID, *be)
+	return p.tstore.BlobSave(token, *be)
 }
 
 // ballot casts the provided votes concurrently. The vote results are passed
 // back through the results channel to the calling function. This function
 // waits until all provided votes have been cast before returning.
-func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, results chan ticketvote.CastVoteReply) {
+func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, results chan ticketvote.CastVoteReply) {
 	// Cast the votes concurrently
 	var wg sync.WaitGroup
 	for _, v := range votes {
@@ -1299,7 +1297,7 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 			)
 
 			// Save cast vote
-			err := p.castVoteSave(treeID, cv)
+			err := p.castVoteSave(token, cv)
 			if err == plugins.ErrDuplicateBlob {
 				// This cast vote has already been saved. Its
 				// possible that a previous attempt to vote
@@ -1324,7 +1322,7 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 				Token:  v.Token,
 				Ticket: v.Ticket,
 			}
-			err = p.voteColliderSave(treeID, vc)
+			err = p.voteColliderSave(token, vc)
 			if err != nil {
 				t := time.Now().Unix()
 				log.Errorf("cmdCastBallot: voteColliderSave %v: %v", t, err)
@@ -1356,7 +1354,7 @@ func (p *ticketVotePlugin) ballot(treeID int64, votes []ticketvote.CastVote, res
 // cmdCastBallot casts a ballot of votes. This function will not return a user
 // error if one occurs for an individual vote. It will instead return the
 // ballot reply with the error included in the individual cast vote reply.
-func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload string) (string, error) {
+func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, error) {
 	// Decode payload
 	var cb ticketvote.CastBallot
 	err := json.Unmarshal([]byte(payload), &cb)
@@ -1621,7 +1619,7 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 		log.Debugf("Casting %v votes in batch %v/%v", len(batch), i+1,
 			len(queue))
 
-		p.ballot(treeID, batch, results)
+		p.ballot(token, batch, results)
 	}
 
 	// Empty out the results channel
@@ -1672,15 +1670,15 @@ func (p *ticketVotePlugin) cmdCastBallot(treeID int64, token []byte, payload str
 }
 
 // cmdDetails returns the vote details for a record.
-func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte) (string, error) {
+func (p *ticketVotePlugin) cmdDetails(token []byte) (string, error) {
 	// Get vote authorizations
-	auths, err := p.auths(treeID)
+	auths, err := p.auths(token)
 	if err != nil {
 		return "", fmt.Errorf("auths: %v", err)
 	}
 
 	// Get vote details
-	vd, err := p.voteDetails(treeID)
+	vd, err := p.voteDetails(token)
 	if err != nil {
 		return "", fmt.Errorf("voteDetails: %v", err)
 	}
@@ -1700,9 +1698,9 @@ func (p *ticketVotePlugin) cmdDetails(treeID int64, token []byte) (string, error
 
 // cmdRunoffDetails is an internal plugin command that requests the details of
 // a runoff vote.
-func (p *ticketVotePlugin) cmdRunoffDetails(treeID int64) (string, error) {
+func (p *ticketVotePlugin) cmdRunoffDetails(token []byte) (string, error) {
 	// Get start runoff record
-	srs, err := p.startRunoffRecord(treeID)
+	srs, err := p.startRunoffRecord(token)
 	if err != nil {
 		return "", err
 	}
@@ -1721,9 +1719,9 @@ func (p *ticketVotePlugin) cmdRunoffDetails(treeID int64) (string, error) {
 
 // cmdResults requests the vote objects of all votes that were cast in a ticket
 // vote.
-func (p *ticketVotePlugin) cmdResults(treeID int64, token []byte) (string, error) {
+func (p *ticketVotePlugin) cmdResults(token []byte) (string, error) {
 	// Get vote results
-	votes, err := p.voteResults(treeID)
+	votes, err := p.voteResults(token)
 	if err != nil {
 		return "", err
 	}
@@ -1741,7 +1739,7 @@ func (p *ticketVotePlugin) cmdResults(treeID int64, token []byte) (string, error
 }
 
 // cmdSummary requests the vote summary for a record.
-func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error) {
+func (p *ticketVotePlugin) cmdSummary(token []byte) (string, error) {
 	// Get best block. This cmd does not write any data so we do not
 	// have to use the safe best block.
 	bb, err := p.bestBlockUnsafe()
@@ -1750,7 +1748,7 @@ func (p *ticketVotePlugin) cmdSummary(treeID int64, token []byte) (string, error
 	}
 
 	// Get summary
-	sr, err := p.summary(treeID, token, bb)
+	sr, err := p.summary(token, bb)
 	if err != nil {
 		return "", fmt.Errorf("summary: %v", err)
 	}
@@ -1805,7 +1803,7 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 }
 
 // cmdTimestamps requests the timestamps for a ticket vote.
-func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
+func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, error) {
 	// Decode payload
 	var t ticketvote.Timestamps
 	err := json.Unmarshal([]byte(payload), &t)
@@ -1823,11 +1821,11 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 	switch {
 	case t.VotesPage > 0:
 		// Return a page of vote timestamps
-		digests, err := p.tstore.DigestsByDataDesc(treeID,
+		digests, err := p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorCastVoteDetails})
 		if err != nil {
-			return "", fmt.Errorf("digestsByKeyPrefix %v %v: %v",
-				treeID, dataDescriptorVoteDetails, err)
+			return "", fmt.Errorf("digestsByKeyPrefix %x %v: %v",
+				token, dataDescriptorVoteDetails, err)
 		}
 
 		startAt := (t.VotesPage - 1) * pageSize
@@ -1835,7 +1833,7 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 			if i < int(startAt) {
 				continue
 			}
-			ts, err := p.timestamp(treeID, v)
+			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return "", fmt.Errorf("timestamp %x %x: %v",
 					token, v, err)
@@ -1852,15 +1850,15 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 		// timestamp.
 
 		// Auth timestamps
-		digests, err := p.tstore.DigestsByDataDesc(treeID,
+		digests, err := p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorAuthDetails})
 		if err != nil {
-			return "", fmt.Errorf("DigestByDataDesc %v %v: %v",
-				treeID, dataDescriptorAuthDetails, err)
+			return "", fmt.Errorf("DigestByDataDesc %x %v: %v",
+				token, dataDescriptorAuthDetails, err)
 		}
 		auths = make([]ticketvote.Timestamp, 0, len(digests))
 		for _, v := range digests {
-			ts, err := p.timestamp(treeID, v)
+			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return "", fmt.Errorf("timestamp %x %x: %v",
 					token, v, err)
@@ -1869,11 +1867,11 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 		}
 
 		// Vote details timestamp
-		digests, err = p.tstore.DigestsByDataDesc(treeID,
+		digests, err = p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorVoteDetails})
 		if err != nil {
-			return "", fmt.Errorf("DigestsByDataDesc %v %v: %v",
-				treeID, dataDescriptorVoteDetails, err)
+			return "", fmt.Errorf("DigestsByDataDesc %x %v: %v",
+				token, dataDescriptorVoteDetails, err)
 		}
 		// There should never be more than a one vote details
 		if len(digests) > 1 {
@@ -1881,7 +1879,7 @@ func (p *ticketVotePlugin) cmdTimestamps(treeID int64, token []byte, payload str
 				"got %v, want 1", len(digests))
 		}
 		for _, v := range digests {
-			ts, err := p.timestamp(treeID, v)
+			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return "", fmt.Errorf("timestamp %x %x: %v",
 					token, v, err)
@@ -1932,7 +1930,7 @@ func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
 }
 
 // authSave saves a AuthDetails to the backend.
-func (p *ticketVotePlugin) authSave(treeID int64, ad ticketvote.AuthDetails) error {
+func (p *ticketVotePlugin) authSave(token []byte, ad ticketvote.AuthDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromAuthDetails(ad)
 	if err != nil {
@@ -1940,13 +1938,13 @@ func (p *ticketVotePlugin) authSave(treeID int64, ad ticketvote.AuthDetails) err
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(treeID, *be)
+	return p.tstore.BlobSave(token, *be)
 }
 
 // auths returns all AuthDetails for a record.
-func (p *ticketVotePlugin) auths(treeID int64) ([]ticketvote.AuthDetails, error) {
+func (p *ticketVotePlugin) auths(token []byte) ([]ticketvote.AuthDetails, error) {
 	// Retrieve blobs
-	blobs, err := p.tstore.BlobsByDataDesc(treeID,
+	blobs, err := p.tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorAuthDetails})
 	if err != nil {
 		return nil, err
@@ -1972,7 +1970,7 @@ func (p *ticketVotePlugin) auths(treeID int64) ([]ticketvote.AuthDetails, error)
 }
 
 // voteDetailsSave saves a VoteDetails to the backend.
-func (p *ticketVotePlugin) voteDetailsSave(treeID int64, vd ticketvote.VoteDetails) error {
+func (p *ticketVotePlugin) voteDetailsSave(token []byte, vd ticketvote.VoteDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromVoteDetails(vd)
 	if err != nil {
@@ -1980,14 +1978,14 @@ func (p *ticketVotePlugin) voteDetailsSave(treeID int64, vd ticketvote.VoteDetai
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(treeID, *be)
+	return p.tstore.BlobSave(token, *be)
 }
 
 // voteDetails returns the VoteDetails for a record. Nil is returned if a vote
 // details is not found.
-func (p *ticketVotePlugin) voteDetails(treeID int64) (*ticketvote.VoteDetails, error) {
+func (p *ticketVotePlugin) voteDetails(token []byte) (*ticketvote.VoteDetails, error) {
 	// Retrieve blobs
-	blobs, err := p.tstore.BlobsByDataDesc(treeID,
+	blobs, err := p.tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorVoteDetails})
 	if err != nil {
 		return nil, err
@@ -2002,7 +2000,7 @@ func (p *ticketVotePlugin) voteDetails(treeID int64) (*ticketvote.VoteDetails, e
 		// This should not happen. There should only ever be a max of
 		// one vote details.
 		return nil, fmt.Errorf("multiple vote details found (%v) on %x",
-			len(blobs), treeID)
+			len(blobs), token)
 	}
 
 	// Decode blob
@@ -2031,13 +2029,13 @@ func (p *ticketVotePlugin) voteDetailsByToken(token []byte) (*ticketvote.VoteDet
 }
 
 // voteResults returns all votes that were cast in a ticket vote.
-func (p *ticketVotePlugin) voteResults(treeID int64) ([]ticketvote.CastVoteDetails, error) {
+func (p *ticketVotePlugin) voteResults(token []byte) ([]ticketvote.CastVoteDetails, error) {
 	// Retrieve blobs
 	desc := []string{
 		dataDescriptorCastVoteDetails,
 		dataDescriptorVoteCollider,
 	}
-	blobs, err := p.tstore.BlobsByDataDesc(treeID, desc)
+	blobs, err := p.tstore.BlobsByDataDesc(token, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -2347,7 +2345,7 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 }
 
 // summary returns the vote summary for a record.
-func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
+func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
 	// Check if the summary has been cached
 	s, err := p.summaryCache(hex.EncodeToString(token))
 	switch {
@@ -2369,7 +2367,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 
 	// Check if the vote has been authorized. Not all vote types
 	// require an authorization.
-	auths, err := p.auths(treeID)
+	auths, err := p.auths(token)
 	if err != nil {
 		return nil, fmt.Errorf("auths: %v", err)
 	}
@@ -2392,7 +2390,7 @@ func (p *ticketVotePlugin) summary(treeID int64, token []byte, bestBlock uint32)
 	}
 
 	// Check if the vote has been started
-	vd, err := p.voteDetails(treeID)
+	vd, err := p.voteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("startDetails: %v", err)
 	}
@@ -2499,11 +2497,11 @@ func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.SummaryRepl
 }
 
 // timestamp returns the timestamp for a specific piece of data.
-func (p *ticketVotePlugin) timestamp(treeID int64, digest []byte) (*ticketvote.Timestamp, error) {
-	t, err := p.tstore.Timestamp(treeID, digest)
+func (p *ticketVotePlugin) timestamp(token []byte, digest []byte) (*ticketvote.Timestamp, error) {
+	t, err := p.tstore.Timestamp(token, digest)
 	if err != nil {
-		return nil, fmt.Errorf("timestamp %v %x: %v",
-			treeID, digest, err)
+		return nil, fmt.Errorf("timestamp %x %x: %v",
+			token, digest, err)
 	}
 
 	// Convert response

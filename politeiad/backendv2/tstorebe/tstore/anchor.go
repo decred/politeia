@@ -159,7 +159,7 @@ func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	// Get tree leaves
 	leavesAll, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll: %v", err)
+		return nil, err
 	}
 
 	// Find the most recent anchor leaf

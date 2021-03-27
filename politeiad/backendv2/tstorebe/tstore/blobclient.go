@@ -24,22 +24,18 @@ import (
 // and can be used to get/del the blob from tstore.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
-	log.Tracef("BlobSave: %v", treeID)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return backend.ErrRecordNotFound
-	}
+func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
+	log.Tracef("BlobSave: %x", token)
 
 	// Verify tree is not frozen
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return fmt.Errorf("LeavesAll: %v", err)
+		return err
 	}
 	idx, err := t.recordIndexLatest(leaves)
 	if err != nil {
-		return fmt.Errorf("recordIndexLatest: %v", err)
+		return err
 	}
 	if idx.Frozen {
 		// The tree is frozen. The record is locked.
@@ -121,22 +117,18 @@ func (t *Tstore) BlobSave(treeID int64, be store.BlobEntry) error {
 	return nil
 }
 
-// BlobsDel deletes the blobs that correspond to the provided digests.
+// BlobsDel deletes the blobs that correspond to the provided digests. Blobs
+// can be deleted from both frozen and non-frozen records.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
-	log.Tracef("BlobsDel: %v %x", treeID, digests)
-
-	// Verify tree exists. We allow blobs to be deleted from both
-	// frozen and non frozen trees.
-	if !t.TreeExists(treeID) {
-		return backend.ErrRecordNotFound
-	}
+func (t *Tstore) BlobsDel(token []byte, digests [][]byte) error {
+	log.Tracef("BlobsDel: %x %x", token, digests)
 
 	// Get all tree leaves
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return fmt.Errorf("LeavesAll: %v", err)
+		return err
 	}
 
 	// Put merkle leaf hashes into a map so that we can tell if a leaf
@@ -176,22 +168,18 @@ func (t *Tstore) BlobsDel(treeID int64, digests [][]byte) error {
 // is vetted, only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error) {
-	log.Tracef("Blobs: %v %x", treeID, digests)
+func (t *Tstore) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEntry, error) {
+	log.Tracef("Blobs: %x %x", token, digests)
 
 	if len(digests) == 0 {
 		return map[string]store.BlobEntry{}, nil
 	}
 
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
-
 	// Get leaves
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll: %v", err)
+		return nil, err
 	}
 
 	// Determine if the record is vetted. If the record is vetted, only
@@ -264,18 +252,14 @@ func (t *Tstore) Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEnt
 // only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc []string) ([]store.BlobEntry, error) {
-	log.Tracef("BlobsByDataDesc: %v %v", treeID, dataDesc)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
+func (t *Tstore) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobEntry, error) {
+	log.Tracef("BlobsByDataDesc: %x %v", token, dataDesc)
 
 	// Get leaves
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll: %v", err)
+		return nil, err
 	}
 
 	// Find all matching leaves
@@ -334,18 +318,14 @@ func (t *Tstore) BlobsByDataDesc(treeID int64, dataDesc []string) ([]store.BlobE
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc []string) ([][]byte, error) {
-	log.Tracef("DigestsByDataDesc: %v %v", treeID, dataDesc)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
+func (t *Tstore) DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error) {
+	log.Tracef("DigestsByDataDesc: %x %v", token, dataDesc)
 
 	// Get leaves
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll: %v", err)
+		return nil, err
 	}
 
 	// Find all matching leaves
@@ -365,13 +345,14 @@ func (t *Tstore) DigestsByDataDesc(treeID int64, dataDesc []string) ([][]byte, e
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error) {
-	log.Tracef("Timestamp: %v %x", treeID, digest)
+func (t *Tstore) Timestamp(token []byte, digest []byte) (*backend.Timestamp, error) {
+	log.Tracef("Timestamp: %x %x", token, digest)
 
 	// Get tree leaves
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll: %v", err)
+		return nil, err
 	}
 
 	// Determine if the record is vetted

@@ -122,7 +122,7 @@ type HookSetRecordStatus struct {
 
 // HookPluginPre is the payload for the pre plugin hook.
 type HookPluginPre struct {
-	Token    string `json:"token"`
+	Token    []byte `json:"token"`
 	PluginID string `json:"pluginid"`
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"`
@@ -144,13 +144,13 @@ type PluginClient interface {
 	Setup() error
 
 	// Cmd executes a plugin command.
-	Cmd(treeID int64, token []byte, cmd, payload string) (string, error)
+	Cmd(token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook.
-	Hook(treeID int64, token []byte, h HookT, payload string) error
+	Hook(h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
-	Fsck(treeIDs []int64) error
+	Fsck() error
 
 	// Settings returns the plugin settings.
 	Settings() []backend.PluginSetting
@@ -165,38 +165,38 @@ type TstoreClient interface {
 	// is unvetted. The digest of the data, i.e. BlobEntry.Digest, can
 	// be thought of as the blob ID that can be used to get/del the
 	// blob from tstore.
-	BlobSave(treeID int64, be store.BlobEntry) error
+	BlobSave(token []byte, be store.BlobEntry) error
 
 	// BlobsDel deletes the blobs that correspond to the provided
 	// digests.
-	BlobsDel(treeID int64, digests [][]byte) error
+	BlobsDel(token []byte, digests [][]byte) error
 
 	// Blobs returns the blobs that correspond to the provided digests.
 	// If a blob does not exist it will not be included in the returned
 	// map. If a record is vetted, only vetted blobs will be returned.
-	Blobs(treeID int64, digests [][]byte) (map[string]store.BlobEntry, error)
+	Blobs(token []byte, digests [][]byte) (map[string]store.BlobEntry, error)
 
 	// BlobsByDataDesc returns all blobs that match the provided data
 	// descriptor. The blobs will be ordered from oldest to newest. If
 	// a record is vetted then only vetted blobs will be returned.
-	BlobsByDataDesc(treeID int64, dataDesc []string) ([]store.BlobEntry, error)
+	BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobEntry, error)
 
 	// DigestsByDataDesc returns the digests of all blobs that match
 	// the provided data descriptor. The digests will be ordered from
 	// oldest to newest. If a record is vetted, only vetted blobs will
 	// be returned.
-	DigestsByDataDesc(treeID int64, dataDesc []string) ([][]byte, error)
+	DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error)
 
 	// Timestamp returns the timestamp for the blob that correpsonds
 	// to the digest. If a record is vetted, only vetted timestamps
 	// will be returned.
-	Timestamp(treeID int64, digest []byte) (*backend.Timestamp, error)
+	Timestamp(token []byte, digest []byte) (*backend.Timestamp, error)
 
 	// Record returns a version of a record.
-	Record(treeID int64, version uint32) (*backend.Record, error)
+	Record(token []byte, version uint32) (*backend.Record, error)
 
 	// RecordLatest returns the most recent version of a record.
-	RecordLatest(treeID int64) (*backend.Record, error)
+	RecordLatest(token []byte) (*backend.Record, error)
 
 	// RecordPartial returns a partial record. This method gives the
 	// caller fine grained control over what version and what files are
@@ -213,9 +213,9 @@ type TstoreClient interface {
 	//
 	// OmitAllFiles can be used to retrieve a record without any of the
 	// record files. This supersedes the filenames argument.
-	RecordPartial(treeID int64, version uint32, filenames []string,
+	RecordPartial(token []byte, version uint32, filenames []string,
 		omitAllFiles bool) (*backend.Record, error)
 
 	// RecordState returns whether the record is unvetted or vetted.
-	RecordState(treeID int64) (backend.StateT, error)
+	RecordState(token []byte) (backend.StateT, error)
 }

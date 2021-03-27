@@ -152,34 +152,34 @@ func (p *ticketVotePlugin) Setup() error {
 // Cmd executes a plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("ticketvote Cmd: %v %x %v %v", treeID, token, cmd, payload)
+func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("ticketvote Cmd: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case ticketvote.CmdAuthorize:
-		return p.cmdAuthorize(treeID, token, payload)
+		return p.cmdAuthorize(token, payload)
 	case ticketvote.CmdStart:
-		return p.cmdStart(treeID, token, payload)
+		return p.cmdStart(token, payload)
 	case ticketvote.CmdCastBallot:
-		return p.cmdCastBallot(treeID, token, payload)
+		return p.cmdCastBallot(token, payload)
 	case ticketvote.CmdDetails:
-		return p.cmdDetails(treeID, token)
+		return p.cmdDetails(token)
 	case ticketvote.CmdResults:
-		return p.cmdResults(treeID, token)
+		return p.cmdResults(token)
 	case ticketvote.CmdSummary:
-		return p.cmdSummary(treeID, token)
+		return p.cmdSummary(token)
 	case ticketvote.CmdSubmissions:
 		return p.cmdSubmissions(token)
 	case ticketvote.CmdInventory:
 		return p.cmdInventory(payload)
 	case ticketvote.CmdTimestamps:
-		return p.cmdTimestamps(treeID, token, payload)
+		return p.cmdTimestamps(token, payload)
 
 		// Internal plugin commands
 	case cmdStartRunoffSubmission:
-		return p.cmdStartRunoffSubmission(treeID, token, payload)
+		return p.cmdStartRunoffSubmission(token, payload)
 	case cmdRunoffDetails:
-		return p.cmdRunoffDetails(treeID)
+		return p.cmdRunoffDetails(token)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -188,8 +188,8 @@ func (p *ticketVotePlugin) Cmd(treeID int64, token []byte, cmd, payload string) 
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("ticketvote Hook: %v %x %v", plugins.Hooks[h], token, treeID)
+func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
+	log.Tracef("ticketvote Hook: %v", plugins.Hooks[h])
 
 	switch h {
 	case plugins.HookTypeNewRecordPre:
@@ -199,7 +199,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 	case plugins.HookTypeSetRecordStatusPre:
 		return p.hookSetRecordStatusPre(payload)
 	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(treeID, payload)
+		return p.hookSetRecordStatusPost(payload)
 	}
 
 	return nil
@@ -208,7 +208,7 @@ func (p *ticketVotePlugin) Hook(treeID int64, token []byte, h plugins.HookT, pay
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Fsck(treeIDs []int64) error {
+func (p *ticketVotePlugin) Fsck() error {
 	log.Tracef("ticketvote Fsck")
 
 	// Verify all caches

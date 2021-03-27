@@ -194,8 +194,8 @@ func (p *dcrdataPlugin) Setup() error {
 // Cmd executes a plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("dcrdata Cmd: %v %x %v %v", treeID, token, cmd, payload)
+func (p *dcrdataPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("dcrdata Cmd: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case dcrdata.CmdBestBlock:
@@ -214,8 +214,8 @@ func (p *dcrdataPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (st
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("dcrdata Hook: %v %x %v", plugins.Hooks[h], token, treeID)
+func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
+	log.Tracef("dcrdata Hook: %v", plugins.Hooks[h])
 
 	return nil
 }
@@ -223,7 +223,7 @@ func (p *dcrdataPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payloa
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Fsck(treeIDs []int64) error {
+func (p *dcrdataPlugin) Fsck() error {
 	log.Tracef("dcrdata Fsck")
 
 	return nil

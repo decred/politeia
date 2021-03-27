@@ -56,30 +56,30 @@ func (p *commentsPlugin) Setup() error {
 // Cmd executes a plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (string, error) {
-	log.Tracef("comments Cmd: %v %x %v %v", treeID, token, cmd, payload)
+func (p *commentsPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("comments Cmd: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case comments.CmdNew:
-		return p.cmdNew(treeID, token, payload)
+		return p.cmdNew(token, payload)
 	case comments.CmdEdit:
-		return p.cmdEdit(treeID, token, payload)
+		return p.cmdEdit(token, payload)
 	case comments.CmdDel:
-		return p.cmdDel(treeID, token, payload)
+		return p.cmdDel(token, payload)
 	case comments.CmdVote:
-		return p.cmdVote(treeID, token, payload)
+		return p.cmdVote(token, payload)
 	case comments.CmdGet:
-		return p.cmdGet(treeID, token, payload)
+		return p.cmdGet(token, payload)
 	case comments.CmdGetAll:
-		return p.cmdGetAll(treeID, token)
+		return p.cmdGetAll(token)
 	case comments.CmdGetVersion:
-		return p.cmdGetVersion(treeID, token, payload)
+		return p.cmdGetVersion(token, payload)
 	case comments.CmdCount:
-		return p.cmdCount(treeID, token)
+		return p.cmdCount(token)
 	case comments.CmdVotes:
-		return p.cmdVotes(treeID, token, payload)
+		return p.cmdVotes(token, payload)
 	case comments.CmdTimestamps:
-		return p.cmdTimestamps(treeID, token, payload)
+		return p.cmdTimestamps(token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -88,8 +88,8 @@ func (p *commentsPlugin) Cmd(treeID int64, token []byte, cmd, payload string) (s
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("comments Hook: %v %x %v", plugins.Hooks[h], token, treeID)
+func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
+	log.Tracef("comments Hook: %x %v", plugins.Hooks[h])
 
 	return nil
 }
@@ -97,7 +97,7 @@ func (p *commentsPlugin) Hook(treeID int64, token []byte, h plugins.HookT, paylo
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Fsck(treeIDs []int64) error {
+func (p *commentsPlugin) Fsck() error {
 	log.Tracef("comments Fsck")
 
 	// Verify record index coherency

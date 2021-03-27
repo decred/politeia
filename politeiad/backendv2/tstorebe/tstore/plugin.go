@@ -134,13 +134,13 @@ func (t *Tstore) PluginSetup(pluginID string) error {
 // are executed prior to the tstore backend writing data to disk. These hooks
 // give plugins the opportunity to add plugin specific validation to record
 // methods or plugin commands that write data.
-func (t *Tstore) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payload string) error {
-	log.Tracef("PluginHookPre: %v %v", treeID, plugins.Hooks[h])
+func (t *Tstore) PluginHookPre(h plugins.HookT, payload string) error {
+	log.Tracef("PluginHookPre: %v", plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
 		p, _ := t.plugin(v)
-		err := p.client.Hook(treeID, token, h, payload)
+		err := p.client.Hook(h, payload)
 		if err != nil {
 			var e backend.PluginError
 			if errors.As(err, &e) {
@@ -156,8 +156,8 @@ func (t *Tstore) PluginHookPre(treeID int64, token []byte, h plugins.HookT, payl
 // PluginHookPre executes a tstore backend post hook. Post hooks are hooks that
 // are executed after the tstore backend successfully writes data to disk.
 // These hooks give plugins the opportunity to cache data from the write.
-func (t *Tstore) PluginHookPost(treeID int64, token []byte, h plugins.HookT, payload string) {
-	log.Tracef("PluginHookPost: %v %v", treeID, plugins.Hooks[h])
+func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {
+	log.Tracef("PluginHookPost: %v", plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
@@ -166,21 +166,21 @@ func (t *Tstore) PluginHookPost(treeID int64, token []byte, h plugins.HookT, pay
 			log.Errorf("%v PluginHookPost: plugin not found %v", v)
 			continue
 		}
-		err := p.client.Hook(treeID, token, h, payload)
+		err := p.client.Hook(h, payload)
 		if err != nil {
 			// This is the post plugin hook so the data has already been
 			// saved to tstore. We do not have the ability to unwind. Log
 			// the error and continue.
-			log.Criticalf("%v PluginHookPost %v %v %v %x %v: %v",
-				v, treeID, token, h, err, payload)
+			log.Criticalf("%v PluginHookPost %v %v: %v: %v",
+				v, h, err, payload)
 			continue
 		}
 	}
 }
 
 // PluginCmd executes a plugin command.
-func (t *Tstore) PluginCmd(treeID int64, token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("PluginCmd: %v %x %v %v", treeID, token, pluginID, cmd)
+func (t *Tstore) PluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("PluginCmd: %x %v %v", token, pluginID, cmd)
 
 	// Get plugin
 	p, ok := t.plugin(pluginID)
@@ -189,7 +189,7 @@ func (t *Tstore) PluginCmd(treeID int64, token []byte, pluginID, cmd, payload st
 	}
 
 	// Execute plugin command
-	return p.client.Cmd(treeID, token, cmd, payload)
+	return p.client.Cmd(token, cmd, payload)
 }
 
 // Plugins returns all registered plugins for the tstore instance.

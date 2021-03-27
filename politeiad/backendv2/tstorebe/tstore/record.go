@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -28,11 +27,49 @@ const (
 	dataDescriptorAnchor         = "pd-anchor-v1"
 )
 
-// recordBlobsSave saves the provided blobs to the kv store, appends a leaf
-// to the trillian tree for each blob, and returns the record index for the
-// blobs.
-func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
-	log.Tracef("recordBlobsSave: %v", treeID)
+// RecordNew creates a new record in the tstore and returns the record token
+// that serves as the unique identifier for the record. Creating a new record
+// means creating a tlog tree for the record. Nothing is saved to the tree yet.
+func (t *Tstore) RecordNew() ([]byte, error) {
+	tree, _, err := t.tlog.TreeNew()
+	if err != nil {
+		return nil, err
+	}
+	return tokenFromTreeID(tree.TreeId), nil
+}
+
+// recordSave saves the provided record content to the kv store, appends a leaf
+// to the trillian tree for each piece of content, then returns a record
+// index for the newly saved record. If the record state is unvetted the record
+// content will be saved to the key-value store encrypted.
+//
+// If the record is being made public the record version and iteration are both
+// reset back to 1. This function detects when a record is being made public
+// and re-saves any encrypted content that is part of the public record as
+// clear text in the key-value store.
+func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
+	// Get tree leaves
+	leavesAll, err := t.leavesAll(treeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the existing record index
+	currIdx, err := t.recordIndexLatest(leavesAll)
+	if err == backend.ErrRecordNotFound {
+		// No record versions exist yet. This is ok.
+		currIdx = &recordIndex{
+			Metadata: make(map[string]map[uint32][]byte),
+			Files:    make(map[string][]byte),
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("recordIndexLatest: %v", err)
+	}
+
+	// Verify tree is not frozen
+	if currIdx.Frozen {
+		return nil, backend.ErrRecordLocked
+	}
 
 	// Verify there are no duplicate metadata streams
 	md := make(map[string]map[uint32]struct{}, len(metadata))
@@ -379,57 +416,17 @@ func (t *Tstore) recordBlobsSave(treeID int64, leavesAll []*trillian.LogLeaf, re
 	return &idx, nil
 }
 
-func (t *Tstore) recordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
-
-	// Get tree leaves
-	leavesAll, err := t.tlog.LeavesAll(treeID)
-	if err != nil {
-		return nil, fmt.Errorf("LeavesAll %v: %v", treeID, err)
-	}
-
-	// Get the existing record index
-	currIdx, err := t.recordIndexLatest(leavesAll)
-	if errors.Is(err, backend.ErrRecordNotFound) {
-		// No record versions exist yet. This is ok.
-		currIdx = &recordIndex{
-			Metadata: make(map[string]map[uint32][]byte),
-			Files:    make(map[string][]byte),
-		}
-	} else if err != nil {
-		return nil, fmt.Errorf("recordIndexLatest: %v", err)
-	}
-
-	// Verify tree is not frozen
-	if currIdx.Frozen {
-		return nil, backend.ErrRecordLocked
-	}
-
-	// Save the record
-	idx, err := t.recordBlobsSave(treeID, leavesAll, rm, metadata, files)
-	if err != nil {
-		if err == backend.ErrNoRecordChanges {
-			return nil, err
-		}
-		return nil, fmt.Errorf("recordBlobsSave: %v", err)
-	}
-
-	return idx, nil
-}
-
 // RecordSave saves the provided record to tstore. Once the record contents
 // have been successfully saved to tstore, a recordIndex is created for this
 // version of the record and saved to tstore as well. The record update is not
 // considered to be valid until the record index has been successfully saved.
 // If the record content makes it in but the record index does not, the record
 // content blobs are orphaned and ignored.
-func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	log.Tracef("RecordSave: %v", treeID)
+func (t *Tstore) RecordSave(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+	log.Tracef("RecordSave: %x", token)
 
 	// Save the record
+	treeID := treeIDFromToken(token)
 	idx, err := t.recordSave(treeID, rm, metadata, files)
 	if err != nil {
 		return err
@@ -447,16 +444,12 @@ func (t *Tstore) RecordSave(treeID int64, rm backend.RecordMetadata, metadata []
 // RecordDel walks the provided tree and deletes all blobs in the store that
 // correspond to record files. This is done for all versions and all iterations
 // of the record. Record metadata and metadata stream blobs are not deleted.
-func (t *Tstore) RecordDel(treeID int64) error {
-	log.Tracef("RecordDel: %v", treeID)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return backend.ErrRecordNotFound
-	}
+func (t *Tstore) RecordDel(token []byte) error {
+	log.Tracef("RecordDel: %x", token)
 
 	// Get all tree leaves
-	leavesAll, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leavesAll, err := t.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -516,10 +509,11 @@ func (t *Tstore) RecordDel(treeID int64) error {
 // anchored, the tstore fsck function will update the status of the tree to
 // frozen in trillian, at which point trillian will prevent any changes to the
 // tree.
-func (t *Tstore) RecordFreeze(treeID int64, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	log.Tracef("RecordFreeze: %v", treeID)
+func (t *Tstore) RecordFreeze(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+	log.Tracef("RecordFreeze: %x", token)
 
 	// Save updated record
+	treeID := treeIDFromToken(token)
 	idx, err := t.recordSave(treeID, rm, metadata, files)
 	if err != nil {
 		return err
@@ -530,6 +524,30 @@ func (t *Tstore) RecordFreeze(treeID int64, rm backend.RecordMetadata, metadata 
 
 	// Save the record index
 	return t.recordIndexSave(treeID, *idx)
+}
+
+// RecordExists returns whether a record exists.
+//
+// This method only returns whether a tree exists for the provided token. It's
+// possible for a tree to exist that does not correspond to a record in the
+// rare case that a tree was created but an unexpected error, such as a network
+// error, was encoutered prior to the record being saved to the tree. We ignore
+// this edge case because:
+//
+// 1. A user has no way to obtain this token unless the trillian instance has
+//    been opened to the public.
+//
+// 2. Even if they have the token they cannot do anything with it. Any attempt
+//  	to read from the tree or write to the tree will return a RecordNotFound
+//    error.
+//
+// Pulling the leaves from the tree to see if a record has been saved to the
+// tree adds a large amount of overhead to this call, which should be a very
+// light weight. Its for this reason that we rely on the tree exists call
+// despite the edge case.
+func (t *Tstore) RecordExists(token []byte) bool {
+	_, err := t.tlog.Tree(treeIDFromToken(token))
+	return err == nil
 }
 
 // record returns the specified record.
@@ -543,15 +561,10 @@ func (t *Tstore) RecordFreeze(treeID int64, rm backend.RecordMetadata, metadata 
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
 func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
-
 	// Get tree leaves
-	leaves, err := t.tlog.LeavesAll(treeID)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll %v: %v", treeID, err)
+		return nil, err
 	}
 
 	// Use the record index to pull the record content from the store.
@@ -713,16 +726,18 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 }
 
 // Record returns the specified version of the record.
-func (t *Tstore) Record(treeID int64, version uint32) (*backend.Record, error) {
-	log.Tracef("Record: %v %v", treeID, version)
+func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
+	log.Tracef("Record: %x %v", token, version)
 
+	treeID := treeIDFromToken(token)
 	return t.record(treeID, version, []string{}, false)
 }
 
 // RecordLatest returns the latest version of a record.
-func (t *Tstore) RecordLatest(treeID int64) (*backend.Record, error) {
-	log.Tracef("RecordLatest: %v", treeID)
+func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
+	log.Tracef("RecordLatest: %x", token)
 
+	treeID := treeIDFromToken(token)
 	return t.record(treeID, 0, []string{}, false)
 }
 
@@ -738,24 +753,25 @@ func (t *Tstore) RecordLatest(treeID int64) (*backend.Record, error) {
 //
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
-func (t *Tstore) RecordPartial(treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
-	log.Tracef("RecordPartial: %v %v %v %v",
-		treeID, version, omitAllFiles, filenames)
+func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+	log.Tracef("RecordPartial: %x %v %v %v",
+		token, version, omitAllFiles, filenames)
 
+	treeID := treeIDFromToken(token)
 	return t.record(treeID, version, filenames, omitAllFiles)
 }
 
 // RecordState returns the state of a record. This call does not require
 // retrieving any blobs from the kv store. The record state can be derived from
 // only the tlog leaves.
-func (t *Tstore) RecordState(treeID int64) (backend.StateT, error) {
-	log.Tracef("RecordState: %v", treeID)
+func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
+	log.Tracef("RecordState: %x", token)
 
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return 0, err
+		return backend.StateInvalid, err
 	}
-
 	if recordIsVetted(leaves) {
 		return backend.StateVetted, nil
 	}
@@ -763,21 +779,156 @@ func (t *Tstore) RecordState(treeID int64) (backend.StateT, error) {
 	return backend.StateUnvetted, nil
 }
 
+// timestamp returns the timestamp given a tlog tree merkle leaf hash.
+func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*backend.Timestamp, error) {
+	// Find the leaf
+	var l *trillian.LogLeaf
+	for _, v := range leaves {
+		if bytes.Equal(merkleLeafHash, v.MerkleLeafHash) {
+			l = v
+			break
+		}
+	}
+	if l == nil {
+		return nil, fmt.Errorf("leaf not found")
+	}
+
+	// Get blob entry from the kv store
+	ed, err := extraDataDecode(l.ExtraData)
+	if err != nil {
+		return nil, err
+	}
+	blobs, err := t.store.Get([]string{ed.storeKey()})
+	if err != nil {
+		return nil, fmt.Errorf("store get: %v", err)
+	}
+
+	// Extract the data blob. Its possible for the data blob to not
+	// exist if it has been censored. This is ok. We'll still return
+	// the rest of the timestamp.
+	var data []byte
+	if len(blobs) == 1 {
+		b, ok := blobs[ed.storeKey()]
+		if !ok {
+			return nil, fmt.Errorf("blob not found %v", ed.storeKey())
+		}
+		be, err := store.Deblob(b)
+		if err != nil {
+			return nil, err
+		}
+		data, err = base64.StdEncoding.DecodeString(be.Data)
+		if err != nil {
+			return nil, err
+		}
+		// Sanity check
+		if !bytes.Equal(l.LeafValue, util.Digest(data)) {
+			return nil, fmt.Errorf("data digest does not match leaf value")
+		}
+	}
+
+	// Setup timestamp
+	ts := backend.Timestamp{
+		Data:   string(data),
+		Digest: hex.EncodeToString(l.LeafValue),
+		Proofs: []backend.Proof{},
+	}
+
+	// Get the anchor record for this leaf
+	a, err := t.anchorForLeaf(treeID, merkleLeafHash, leaves)
+	if err != nil {
+		if err == errAnchorNotFound {
+			// This data has not been anchored yet
+			return &ts, nil
+		}
+		return nil, fmt.Errorf("anchor: %v", err)
+	}
+
+	// Get trillian inclusion proof
+	p, err := t.tlog.InclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
+	if err != nil {
+		return nil, fmt.Errorf("InclusionProof %v %x: %v",
+			treeID, l.MerkleLeafHash, err)
+	}
+
+	// Setup proof for data digest inclusion in the log merkle root
+	edt := ExtraDataTrillianRFC6962{
+		LeafIndex: p.LeafIndex,
+		TreeSize:  int64(a.LogRoot.TreeSize),
+	}
+	extraData, err := json.Marshal(edt)
+	if err != nil {
+		return nil, err
+	}
+	merklePath := make([]string, 0, len(p.Hashes))
+	for _, v := range p.Hashes {
+		merklePath = append(merklePath, hex.EncodeToString(v))
+	}
+	trillianProof := backend.Proof{
+		Type:       ProofTypeTrillianRFC6962,
+		Digest:     ts.Digest,
+		MerkleRoot: hex.EncodeToString(a.LogRoot.RootHash),
+		MerklePath: merklePath,
+		ExtraData:  string(extraData),
+	}
+
+	// Setup proof for log merkle root inclusion in the dcrtime merkle
+	// root
+	if a.VerifyDigest.Digest != trillianProof.MerkleRoot {
+		return nil, fmt.Errorf("trillian merkle root not anchored")
+	}
+	var (
+		numLeaves = a.VerifyDigest.ChainInformation.MerklePath.NumLeaves
+		hashes    = a.VerifyDigest.ChainInformation.MerklePath.Hashes
+		flags     = a.VerifyDigest.ChainInformation.MerklePath.Flags
+	)
+	edd := ExtraDataDcrtime{
+		NumLeaves: numLeaves,
+		Flags:     base64.StdEncoding.EncodeToString(flags),
+	}
+	extraData, err = json.Marshal(edd)
+	if err != nil {
+		return nil, err
+	}
+	merklePath = make([]string, 0, len(hashes))
+	for _, v := range hashes {
+		merklePath = append(merklePath, hex.EncodeToString(v[:]))
+	}
+	dcrtimeProof := backend.Proof{
+		Type:       ProofTypeDcrtime,
+		Digest:     a.VerifyDigest.Digest,
+		MerkleRoot: a.VerifyDigest.ChainInformation.MerkleRoot,
+		MerklePath: merklePath,
+		ExtraData:  string(extraData),
+	}
+
+	// Update timestamp
+	ts.TxID = a.VerifyDigest.ChainInformation.Transaction
+	ts.MerkleRoot = a.VerifyDigest.ChainInformation.MerkleRoot
+	ts.Proofs = []backend.Proof{
+		trillianProof,
+		dcrtimeProof,
+	}
+
+	// Verify timestamp
+	err = VerifyTimestamp(ts)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyTimestamp: %v", err)
+	}
+
+	return &ts, nil
+}
+
 // RecordTimestamps returns the timestamps for the contents of a record.
 // Timestamps for the record metadata, metadata streams, and files are all
 // returned.
-func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*backend.RecordTimestamps, error) {
-	log.Tracef("RecordTimestamps: %v %v", treeID, version)
-
-	// Verify tree exists
-	if !t.TreeExists(treeID) {
-		return nil, backend.ErrRecordNotFound
-	}
+func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
+	log.Tracef("RecordTimestamps: %x %v", token, version)
 
 	// Get record index
-	leaves, err := t.tlog.LeavesAll(treeID)
+	treeID := treeIDFromToken(token)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAll %v: %v", treeID, err)
+		return nil, err
 	}
 	idx, err := t.recordIndex(leaves, version)
 	if err != nil {
@@ -823,6 +974,23 @@ func (t *Tstore) RecordTimestamps(treeID int64, version uint32, token []byte) (*
 		Metadata:       metadata,
 		Files:          files,
 	}, nil
+}
+
+// Inventory returns all record tokens that are in the tstore. Its possible for
+// a token to be returned that does not correspond to an actual record. For
+// example, if the tlog tree was created but saving the record to the tree
+// failed due to an unexpected error then a empty tree with exist. This
+// function does not filter those tokens out.
+func (t *Tstore) Inventory() ([][]byte, error) {
+	trees, err := t.tlog.TreesAll()
+	if err != nil {
+		return nil, err
+	}
+	tokens := make([][]byte, 0, len(trees))
+	for _, v := range trees {
+		tokens = append(tokens, tokenFromTreeID(v.TreeId))
+	}
+	return tokens, nil
 }
 
 // recordIsVetted returns whether the provided leaves contain any vetted record

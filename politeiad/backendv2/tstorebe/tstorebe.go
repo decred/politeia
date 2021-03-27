@@ -7,7 +7,6 @@ package tstorebe
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -143,21 +142,6 @@ func (t *tstoreBackend) fullLengthToken(token []byte) ([]byte, error) {
 
 func tokenIsFullLength(token []byte) bool {
 	return util.TokenIsFullLength(util.TokenTypeTstore, token)
-}
-
-func tokenFromTreeID(treeID int64) []byte {
-	b := make([]byte, 8)
-	// Converting between int64 and uint64 doesn't change
-	// the sign bit, only the way it's interpreted.
-	binary.LittleEndian.PutUint64(b, uint64(treeID))
-	return b
-}
-
-func treeIDFromToken(token []byte) int64 {
-	if !tokenIsFullLength(token) {
-		return 0
-	}
-	return int64(binary.LittleEndian.Uint64(token))
 }
 
 // metadataStreamsVerify verifies that all provided metadata streams are sane.
@@ -447,21 +431,18 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(0, []byte{},
-		plugins.HookTypeNewRecordPre, string(b))
+	err = t.tstore.PluginHookPre(plugins.HookTypeNewRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new token
 	var token []byte
-	var treeID int64
 	for retries := 0; retries < 10; retries++ {
-		treeID, err = t.tstore.TreeNew()
+		token, err = t.tstore.RecordNew()
 		if err != nil {
 			return nil, err
 		}
-		token = tokenFromTreeID(treeID)
 
 		// Check for shortened token collisions
 		if t.tokenCollision(token) {
@@ -485,7 +466,7 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	}
 
 	// Save the record
-	err = t.tstore.RecordSave(treeID, *rm, metadata, files)
+	err = t.tstore.RecordSave(token, *rm, metadata, files)
 	if err != nil {
 		return nil, fmt.Errorf("RecordSave: %v", err)
 	}
@@ -500,16 +481,15 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		return nil, err
 	}
-	t.tstore.PluginHookPost(treeID, token,
-		plugins.HookTypeNewRecordPost, string(b))
+	t.tstore.PluginHookPost(plugins.HookTypeNewRecordPost, string(b))
 
 	// Update the inventory cache
 	t.inventoryAdd(backend.StateUnvetted, token, backend.StatusUnreviewed)
 
 	// Get the full record to return
-	r, err := t.tstore.RecordLatest(treeID)
+	r, err := t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
+		return nil, fmt.Errorf("RecordLatest %x: %v", token, err)
 	}
 
 	return r, nil
@@ -555,10 +535,9 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	defer m.Unlock()
 
 	// Get existing record
-	treeID := treeIDFromToken(token)
-	r, err := t.tstore.RecordLatest(treeID)
+	r, err := t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	// Apply changes
@@ -592,14 +571,13 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(treeID, token,
-		plugins.HookTypeEditRecordPre, string(b))
+	err = t.tstore.PluginHookPre(plugins.HookTypeEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
 
 	// Save record
-	err = t.tstore.RecordSave(treeID, *recordMD, metadata, files)
+	err = t.tstore.RecordSave(token, *recordMD, metadata, files)
 	if err != nil {
 		switch err {
 		case backend.ErrRecordLocked:
@@ -610,13 +588,12 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	}
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(treeID, token,
-		plugins.HookTypeEditRecordPost, string(b))
+	t.tstore.PluginHookPost(plugins.HookTypeEditRecordPost, string(b))
 
 	// Return updated record
-	r, err = t.tstore.RecordLatest(treeID)
+	r, err = t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
@@ -662,10 +639,9 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	defer m.Unlock()
 
 	// Get existing record
-	treeID := treeIDFromToken(token)
-	r, err := t.tstore.RecordLatest(treeID)
+	r, err := t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	// Apply changes. The version is not incremented for metadata only
@@ -689,14 +665,13 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(treeID, token,
-		plugins.HookTypeEditMetadataPre, string(b))
+	err = t.tstore.PluginHookPre(plugins.HookTypeEditMetadataPre, string(b))
 	if err != nil {
 		return nil, err
 	}
 
 	// Update metadata
-	err = t.tstore.RecordSave(treeID, *recordMD, metadata, r.Files)
+	err = t.tstore.RecordSave(token, *recordMD, metadata, r.Files)
 	if err != nil {
 		switch err {
 		case backend.ErrRecordLocked, backend.ErrNoRecordChanges:
@@ -707,13 +682,12 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(treeID, token,
-		plugins.HookTypeEditMetadataPost, string(b))
+	t.tstore.PluginHookPost(plugins.HookTypeEditMetadataPost, string(b))
 
 	// Return updated record
-	r, err = t.tstore.RecordLatest(treeID)
+	r, err = t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
@@ -754,19 +728,17 @@ func statusChangeIsAllowed(from, to backend.StatusT) bool {
 //
 // This function must be called WITH the record lock held.
 func (t *tstoreBackend) setStatusPublic(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	treeID := treeIDFromToken(token)
-	return t.tstore.RecordSave(treeID, rm, metadata, files)
+	return t.tstore.RecordSave(token, rm, metadata, files)
 }
 
 // setStatusArchived updates the status of a record to archived.
 //
 // This function must be called WITH the record lock held.
 func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	// Freeze the tree
-	treeID := treeIDFromToken(token)
-	err := t.tstore.RecordFreeze(treeID, rm, metadata, files)
+	// Freeze record
+	err := t.tstore.RecordFreeze(token, rm, metadata, files)
 	if err != nil {
-		return fmt.Errorf("RecordFreeze %v: %v", treeID, err)
+		return fmt.Errorf("RecordFreeze: %v", err)
 	}
 
 	log.Debugf("Record frozen %x", token)
@@ -781,18 +753,17 @@ func (t *tstoreBackend) setStatusArchived(token []byte, rm backend.RecordMetadat
 // This function must be called WITH the record lock held.
 func (t *tstoreBackend) setStatusCensored(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	// Freeze the tree
-	treeID := treeIDFromToken(token)
-	err := t.tstore.RecordFreeze(treeID, rm, metadata, files)
+	err := t.tstore.RecordFreeze(token, rm, metadata, files)
 	if err != nil {
-		return fmt.Errorf("RecordFreeze %v: %v", treeID, err)
+		return fmt.Errorf("RecordFreeze: %v", err)
 	}
 
 	log.Debugf("Record frozen %x", token)
 
 	// Delete all record files
-	err = t.tstore.RecordDel(treeID)
+	err = t.tstore.RecordDel(token)
 	if err != nil {
-		return fmt.Errorf("RecordDel %v: %v", treeID, err)
+		return fmt.Errorf("RecordDel: %v", err)
 	}
 
 	log.Debugf("Record contents deleted %x", token)
@@ -827,8 +798,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	defer m.Unlock()
 
 	// Get existing record
-	treeID := treeIDFromToken(token)
-	r, err := t.tstore.RecordLatest(treeID)
+	r, err := t.tstore.RecordLatest(token)
 	if err != nil {
 		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
@@ -875,8 +845,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(treeID, token,
-		plugins.HookTypeSetRecordStatusPre, string(b))
+	err = t.tstore.PluginHookPre(plugins.HookTypeSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -908,8 +877,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		backend.Statuses[status], status)
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(treeID, token,
-		plugins.HookTypeSetRecordStatusPost, string(b))
+	t.tstore.PluginHookPost(plugins.HookTypeSetRecordStatusPost, string(b))
 
 	// Update inventory cache
 	switch status {
@@ -921,9 +889,9 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	}
 
 	// Return updated record
-	r, err = t.tstore.RecordLatest(treeID)
+	r, err = t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %v: %v", treeID, err)
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
@@ -931,11 +899,11 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 
 // RecordExists returns whether a record exists.
 //
-// This method relies on the the tstore tree exists call. It's possible for a
-// tree to exist that does not correspond to a record in the rare case that a
-// tree was created but an unexpected error, such as a network error, was
-// encoutered prior to the record being saved to the tree. We ignore this edge
-// case because:
+// This method only returns whether a tree exists for the provided token. It's
+// possible for a tree to exist that does not correspond to a record in the
+// rare case that a tree was created but an unexpected error, such as a network
+// error, was encoutered prior to the record being saved to the tree. We ignore
+// this edge case because:
 //
 // 1. A user has no way to obtain this token unless the trillian instance has
 //    been opened to the public.
@@ -961,12 +929,11 @@ func (t *tstoreBackend) RecordExists(token []byte) bool {
 		return false
 	}
 
-	treeID := treeIDFromToken(token)
-	return t.tstore.TreeExists(treeID)
+	return t.tstore.RecordExists(token)
 }
 
-// RecordTimestamps returns the timestamps for a record. If no version is provided
-// then timestamps for the most recent version will be returned.
+// RecordTimestamps returns the timestamps for a record. If no version is
+// provided then timestamps for the most recent version will be returned.
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
@@ -980,8 +947,7 @@ func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend
 		return nil, err
 	}
 
-	treeID := treeIDFromToken(token)
-	return t.tstore.RecordTimestamps(treeID, version, token)
+	return t.tstore.RecordTimestamps(token, version)
 }
 
 // Records retreives a batch of records. Individual record errors are not
@@ -1002,8 +968,7 @@ func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backen
 		}
 
 		// Lookup the record
-		treeID := treeIDFromToken(token)
-		r, err := t.tstore.RecordPartial(treeID, v.Version,
+		r, err := t.tstore.RecordPartial(token, v.Version,
 			v.Filenames, v.OmitAllFiles)
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
@@ -1093,7 +1058,6 @@ func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload st
 
 	// The token is optional. If a token is not provided then a tree ID
 	// will not be provided to the plugin.
-	var treeID int64
 	if len(token) > 0 {
 		// Read methods are allowed to use short tokens. Lookup the full
 		// length token.
@@ -1107,11 +1071,9 @@ func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload st
 		if !t.RecordExists(token) {
 			return "", backend.ErrRecordNotFound
 		}
-
-		treeID = treeIDFromToken(token)
 	}
 
-	return t.tstore.PluginCmd(treeID, token, pluginID, pluginCmd, payload)
+	return t.tstore.PluginCmd(token, pluginID, pluginCmd, payload)
 }
 
 // PluginWrite executes a plugin command that writes data.
@@ -1136,8 +1098,8 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	defer m.Unlock()
 
 	// Call pre plugin hooks
-	treeID := treeIDFromToken(token)
 	hp := plugins.HookPluginPre{
+		Token:    token,
 		PluginID: pluginID,
 		Cmd:      pluginCmd,
 		Payload:  payload,
@@ -1146,15 +1108,13 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	if err != nil {
 		return "", err
 	}
-	err = t.tstore.PluginHookPre(treeID, token,
-		plugins.HookTypePluginPre, string(b))
+	err = t.tstore.PluginHookPre(plugins.HookTypePluginPre, string(b))
 	if err != nil {
 		return "", err
 	}
 
 	// Execute plugin command
-	reply, err := t.tstore.PluginCmd(treeID, token,
-		pluginID, pluginCmd, payload)
+	reply, err := t.tstore.PluginCmd(token, pluginID, pluginCmd, payload)
 	if err != nil {
 		return "", err
 	}
@@ -1170,8 +1130,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	if err != nil {
 		return "", err
 	}
-	t.tstore.PluginHookPost(treeID, token,
-		plugins.HookTypePluginPost, string(b))
+	t.tstore.PluginHookPost(plugins.HookTypePluginPost, string(b))
 
 	return reply, nil
 }
@@ -1207,18 +1166,15 @@ func (t *tstoreBackend) setup() error {
 
 	log.Infof("Building backend token prefix cache")
 
-	// A record token is created using the unvetted tree ID so we
-	// only need to retrieve the unvetted trees in order to build the
-	// token prefix cache.
-	treeIDs, err := t.tstore.TreesAll()
+	tokens, err := t.tstore.Inventory()
 	if err != nil {
-		return fmt.Errorf("TreesAll: %v", err)
+		return fmt.Errorf("tstore Inventory: %v", err)
 	}
 
-	log.Infof("%v records in the backend", len(treeIDs))
+	log.Infof("%v records in the backend", len(tokens))
 
-	for _, v := range treeIDs {
-		t.tokenAdd(tokenFromTreeID(v))
+	for _, v := range tokens {
+		t.tokenAdd(v)
 	}
 
 	return nil

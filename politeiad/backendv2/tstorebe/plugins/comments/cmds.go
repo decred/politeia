@@ -31,7 +31,7 @@ const (
 )
 
 // commentAddSave saves a CommentAdd to the backend.
-func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([]byte, error) {
+func (p *commentsPlugin) commentAddSave(token []byte, ca comments.CommentAdd) ([]byte, error) {
 	be, err := convertBlobEntryFromCommentAdd(ca)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([
 	if err != nil {
 		return nil, err
 	}
-	err = p.tstore.BlobSave(treeID, *be)
+	err = p.tstore.BlobSave(token, *be)
 	if err != nil {
 		return nil, err
 	}
@@ -50,9 +50,9 @@ func (p *commentsPlugin) commentAddSave(treeID int64, ca comments.CommentAdd) ([
 // commentAdds returns a commentAdd for each of the provided digests. A digest
 // refers to the blob entry digest, which can be used to retrieve the blob
 // entry from the backend.
-func (p *commentsPlugin) commentAdds(treeID int64, digests [][]byte) ([]comments.CommentAdd, error) {
+func (p *commentsPlugin) commentAdds(token []byte, digests [][]byte) ([]comments.CommentAdd, error) {
 	// Retrieve blobs
-	blobs, err := p.tstore.Blobs(treeID, digests)
+	blobs, err := p.tstore.Blobs(token, digests)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (p *commentsPlugin) commentAdds(treeID int64, digests [][]byte) ([]comments
 }
 
 // commentDelSave saves a CommentDel to the backend.
-func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([]byte, error) {
+func (p *commentsPlugin) commentDelSave(token []byte, cd comments.CommentDel) ([]byte, error) {
 	be, err := convertBlobEntryFromCommentDel(cd)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([
 	if err != nil {
 		return nil, err
 	}
-	err = p.tstore.BlobSave(treeID, *be)
+	err = p.tstore.BlobSave(token, *be)
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +101,9 @@ func (p *commentsPlugin) commentDelSave(treeID int64, cd comments.CommentDel) ([
 // commentDels returns a commentDel for each of the provided digests. A digest
 // refers to the blob entry digest, which can be used to retrieve the blob
 // entry from the backend.
-func (p *commentsPlugin) commentDels(treeID int64, digests [][]byte) ([]comments.CommentDel, error) {
+func (p *commentsPlugin) commentDels(token []byte, digests [][]byte) ([]comments.CommentDel, error) {
 	// Retrieve blobs
-	blobs, err := p.tstore.Blobs(treeID, digests)
+	blobs, err := p.tstore.Blobs(token, digests)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (p *commentsPlugin) commentDels(treeID int64, digests [][]byte) ([]comments
 }
 
 // commentVoteSave saves a CommentVote to the backend.
-func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) ([]byte, error) {
+func (p *commentsPlugin) commentVoteSave(token []byte, cv comments.CommentVote) ([]byte, error) {
 	be, err := convertBlobEntryFromCommentVote(cv)
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) 
 	if err != nil {
 		return nil, err
 	}
-	err = p.tstore.BlobSave(treeID, *be)
+	err = p.tstore.BlobSave(token, *be)
 	if err != nil {
 		return nil, err
 	}
@@ -152,9 +152,9 @@ func (p *commentsPlugin) commentVoteSave(treeID int64, cv comments.CommentVote) 
 // commentVotes returns a CommentVote for each of the provided digests. A
 // digest refers to the blob entry digest, which can be used to retrieve the
 // blob entry from the backend.
-func (p *commentsPlugin) commentVotes(treeID int64, digests [][]byte) ([]comments.CommentVote, error) {
+func (p *commentsPlugin) commentVotes(token []byte, digests [][]byte) ([]comments.CommentVote, error) {
 	// Retrieve blobs
-	blobs, err := p.tstore.Blobs(treeID, digests)
+	blobs, err := p.tstore.Blobs(token, digests)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (p *commentsPlugin) commentVotes(treeID int64, digests [][]byte) ([]comment
 // provided comment IDs, the comment ID is excluded from the returned map. An
 // error will not be returned. It is the responsibility of the caller to ensure
 // a comment is returned for each of the provided comment IDs.
-func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []uint32) (map[uint32]comments.Comment, error) {
+func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []uint32) (map[uint32]comments.Comment, error) {
 	// Aggregate the digests for all records that need to be looked up.
 	// If a comment has been deleted then the only record that will
 	// still exist is the comment del record. If the comment has not
@@ -217,7 +217,7 @@ func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []u
 	}
 
 	// Get comment add records
-	adds, err := p.commentAdds(treeID, digestAdds)
+	adds, err := p.commentAdds(token, digestAdds)
 	if err != nil {
 		return nil, fmt.Errorf("commentAdds: %v", err)
 	}
@@ -227,7 +227,7 @@ func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []u
 	}
 
 	// Get comment del records
-	dels, err := p.commentDels(treeID, digestDels)
+	dels, err := p.commentDels(token, digestDels)
 	if err != nil {
 		return nil, fmt.Errorf("commentDels: %v", err)
 	}
@@ -256,8 +256,8 @@ func (p *commentsPlugin) comments(treeID int64, ridx recordIndex, commentIDs []u
 }
 
 // comment returns the latest version of a comment.
-func (p *commentsPlugin) comment(treeID int64, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
-	cs, err := p.comments(treeID, ridx, []uint32{commentID})
+func (p *commentsPlugin) comment(token []byte, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
+	cs, err := p.comments(token, ridx, []uint32{commentID})
 	if err != nil {
 		return nil, fmt.Errorf("comments: %v", err)
 	}
@@ -269,9 +269,9 @@ func (p *commentsPlugin) comment(treeID int64, ridx recordIndex, commentID uint3
 }
 
 // timestamp returns the timestamp for a blob entry digest.
-func (p *commentsPlugin) timestamp(treeID int64, digest []byte) (*comments.Timestamp, error) {
+func (p *commentsPlugin) timestamp(token []byte, digest []byte) (*comments.Timestamp, error) {
 	// Get timestamp
-	t, err := p.tstore.Timestamp(treeID, digest)
+	t, err := p.tstore.Timestamp(token, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +347,7 @@ func voteScore(cidx commentIndex) (uint64, uint64) {
 }
 
 // cmdNew creates a new comment.
-func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	// Decode payload
 	var n comments.New
 	err := json.Unmarshal([]byte(payload), &n)
@@ -380,7 +380,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -427,7 +427,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 	}
 
 	// Save comment
-	digest, err := p.commentAddSave(treeID, ca)
+	digest, err := p.commentAddSave(token, ca)
 	if err != nil {
 		return "", fmt.Errorf("commentAddSave: %v", err)
 	}
@@ -448,7 +448,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 		ca.Token, ca.CommentID)
 
 	// Return new comment
-	c, err := p.comment(treeID, *ridx, ca.CommentID)
+	c, err := p.comment(token, *ridx, ca.CommentID)
 	if err != nil {
 		return "", fmt.Errorf("comment %x %v: %v", token, ca.CommentID, err)
 	}
@@ -466,7 +466,7 @@ func (p *commentsPlugin) cmdNew(treeID int64, token []byte, payload string) (str
 }
 
 // cmdEdit edits an existing comment.
-func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	// Decode payload
 	var e comments.Edit
 	err := json.Unmarshal([]byte(payload), &e)
@@ -499,7 +499,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -518,7 +518,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Get the existing comment
-	cs, err := p.comments(treeID, *ridx, []uint32{e.CommentID})
+	cs, err := p.comments(token, *ridx, []uint32{e.CommentID})
 	if err != nil {
 		return "", fmt.Errorf("comments %v: %v", e.CommentID, err)
 	}
@@ -575,7 +575,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 	}
 
 	// Save comment
-	digest, err := p.commentAddSave(treeID, ca)
+	digest, err := p.commentAddSave(token, ca)
 	if err != nil {
 		return "", fmt.Errorf("commentAddSave: %v", err)
 	}
@@ -590,7 +590,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 		ca.Token, ca.CommentID)
 
 	// Return updated comment
-	c, err := p.comment(treeID, *ridx, e.CommentID)
+	c, err := p.comment(token, *ridx, e.CommentID)
 	if err != nil {
 		return "", fmt.Errorf("comment %x %v: %v", token, e.CommentID, err)
 	}
@@ -608,7 +608,7 @@ func (p *commentsPlugin) cmdEdit(treeID int64, token []byte, payload string) (st
 }
 
 // cmdDel deletes a comment.
-func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	// Decode payload
 	var d comments.Del
 	err := json.Unmarshal([]byte(payload), &d)
@@ -631,7 +631,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -650,7 +650,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Get the existing comment
-	cs, err := p.comments(treeID, *ridx, []uint32{d.CommentID})
+	cs, err := p.comments(token, *ridx, []uint32{d.CommentID})
 	if err != nil {
 		return "", fmt.Errorf("comments %v: %v", d.CommentID, err)
 	}
@@ -678,7 +678,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	}
 
 	// Save comment del
-	digest, err := p.commentDelSave(treeID, cd)
+	digest, err := p.commentDelSave(token, cd)
 	if err != nil {
 		return "", fmt.Errorf("commentDelSave: %v", err)
 	}
@@ -704,14 +704,14 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 	for _, v := range cidx.Adds {
 		digests = append(digests, v)
 	}
-	err = p.tstore.BlobsDel(treeID, digests)
+	err = p.tstore.BlobsDel(token, digests)
 	if err != nil {
 		log.Errorf("comments cmdDel %x: BlobsDel %x: %v ",
 			token, digests, err)
 	}
 
 	// Return updated comment
-	c, err := p.comment(treeID, *ridx, d.CommentID)
+	c, err := p.comment(token, *ridx, d.CommentID)
 	if err != nil {
 		return "", fmt.Errorf("comment %v: %v", d.CommentID, err)
 	}
@@ -729,7 +729,7 @@ func (p *commentsPlugin) cmdDel(treeID int64, token []byte, payload string) (str
 }
 
 // cmdVote casts a upvote/downvote for a comment.
-func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	// Decode payload
 	var v comments.Vote
 	err := json.Unmarshal([]byte(payload), &v)
@@ -764,7 +764,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -800,7 +800,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 
 	// Verify user is not voting on their own comment
-	cs, err := p.comments(treeID, *ridx, []uint32{v.CommentID})
+	cs, err := p.comments(token, *ridx, []uint32{v.CommentID})
 	if err != nil {
 		return "", fmt.Errorf("comments %v: %v", v.CommentID, err)
 	}
@@ -831,7 +831,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 	}
 
 	// Save comment vote
-	digest, err := p.commentVoteSave(treeID, cv)
+	digest, err := p.commentVoteSave(token, cv)
 	if err != nil {
 		return "", fmt.Errorf("commentVoteSave: %v", err)
 	}
@@ -871,7 +871,7 @@ func (p *commentsPlugin) cmdVote(treeID int64, token []byte, payload string) (st
 
 // cmdGet retrieves a batch of specified comments. The most recent version of
 // each comment is returned.
-func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdGet(token []byte, payload string) (string, error) {
 	// Decode payload
 	var g comments.Get
 	err := json.Unmarshal([]byte(payload), &g)
@@ -880,7 +880,7 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -892,7 +892,7 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 	}
 
 	// Get comments
-	cs, err := p.comments(treeID, *ridx, g.CommentIDs)
+	cs, err := p.comments(token, *ridx, g.CommentIDs)
 	if err != nil {
 		return "", fmt.Errorf("comments: %v", err)
 	}
@@ -911,9 +911,9 @@ func (p *commentsPlugin) cmdGet(treeID int64, token []byte, payload string) (str
 
 // cmdGetAll retrieves all comments for a record. The latest version of each
 // comment is returned.
-func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
+func (p *commentsPlugin) cmdGetAll(token []byte) (string, error) {
 	// Get record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -929,7 +929,7 @@ func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
 	}
 
 	// Get comments
-	c, err := p.comments(treeID, *ridx, commentIDs)
+	c, err := p.comments(token, *ridx, commentIDs)
 	if err != nil {
 		return "", fmt.Errorf("comments: %v", err)
 	}
@@ -958,7 +958,7 @@ func (p *commentsPlugin) cmdGetAll(treeID int64, token []byte) (string, error) {
 }
 
 // cmdGetVersion retrieves the specified version of a comment.
-func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdGetVersion(token []byte, payload string) (string, error) {
 	// Decode payload
 	var gv comments.GetVersion
 	err := json.Unmarshal([]byte(payload), &gv)
@@ -967,7 +967,7 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -1004,7 +1004,7 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 	}
 
 	// Get comment add record
-	adds, err := p.commentAdds(treeID, [][]byte{digest})
+	adds, err := p.commentAdds(token, [][]byte{digest})
 	if err != nil {
 		return "", fmt.Errorf("commentAdds: %v", err)
 	}
@@ -1031,9 +1031,9 @@ func (p *commentsPlugin) cmdGetVersion(treeID int64, token []byte, payload strin
 
 // cmdCount retrieves the comments count for a record. The comments count is
 // the number of comments that have been made on a record.
-func (p *commentsPlugin) cmdCount(treeID int64, token []byte) (string, error) {
+func (p *commentsPlugin) cmdCount(token []byte) (string, error) {
 	// Get record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -1058,7 +1058,7 @@ func (p *commentsPlugin) cmdCount(treeID int64, token []byte) (string, error) {
 
 // cmdVotes retrieves the comment votes that meet the provided filtering
 // criteria.
-func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) {
 	// Decode payload
 	var v comments.Votes
 	err := json.Unmarshal([]byte(payload), &v)
@@ -1067,7 +1067,7 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -1095,7 +1095,7 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 	}
 
 	// Lookup votes
-	votes, err := p.commentVotes(treeID, digests)
+	votes, err := p.commentVotes(token, digests)
 	if err != nil {
 		return "", fmt.Errorf("commentVotes: %v", err)
 	}
@@ -1113,7 +1113,7 @@ func (p *commentsPlugin) cmdVotes(treeID int64, token []byte, payload string) (s
 }
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.
-func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdTimestamps(token []byte, payload string) (string, error) {
 	// Decode payload
 	var t comments.Timestamps
 	err := json.Unmarshal([]byte(payload), &t)
@@ -1122,7 +1122,7 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(treeID)
+	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -1156,7 +1156,7 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 		// Get timestamps for adds
 		ts := make([]comments.Timestamp, 0, len(cidx.Adds)+1)
 		for _, v := range cidx.Adds {
-			t, err := p.timestamp(treeID, v)
+			t, err := p.timestamp(token, v)
 			if err != nil {
 				return "", err
 			}
@@ -1165,7 +1165,7 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 
 		// Get timestamp for del
 		if cidx.Del != nil {
-			t, err := p.timestamp(treeID, cidx.Del)
+			t, err := p.timestamp(token, cidx.Del)
 			if err != nil {
 				return "", err
 			}
@@ -1184,7 +1184,7 @@ func (p *commentsPlugin) cmdTimestamps(treeID int64, token []byte, payload strin
 		ts = make([]comments.Timestamp, 0, len(cidx.Votes))
 		for _, votes := range cidx.Votes {
 			for _, v := range votes {
-				t, err := p.timestamp(treeID, v.Digest)
+				t, err := p.timestamp(token, v.Digest)
 				if err != nil {
 					return "", err
 				}

@@ -11,9 +11,9 @@ import (
 )
 
 // cmdAuthor returns the user ID of a record's author.
-func (p *usermdPlugin) cmdAuthor(treeID int64) (string, error) {
+func (p *usermdPlugin) cmdAuthor(token []byte) (string, error) {
 	// Get user metadata
-	r, err := p.tstore.RecordPartial(treeID, 0, nil, true)
+	r, err := p.tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return "", err
 	}

@@ -41,7 +41,7 @@ type startRunoffRecord struct {
 // startRunoffSubmission is an internal plugin command that is used to start
 // the voting period on a runoff vote submission.
 type startRunoffSubmission struct {
-	ParentTreeID int64                   `json:"parenttreeid"`
+	ParentToken  []byte                  `json:"parenttoken"`
 	StartDetails ticketvote.StartDetails `json:"startdetails"`
 }
 

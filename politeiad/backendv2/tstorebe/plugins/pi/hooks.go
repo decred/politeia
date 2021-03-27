@@ -108,7 +108,7 @@ func (p *piPlugin) hookCommentVote(token []byte) error {
 
 // hookPluginPre extends plugin write commands from other plugins with pi
 // specific validation.
-func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) error {
+func (p *piPlugin) hookPluginPre(payload string) error {
 	// Decode payload
 	var hpp plugins.HookPluginPre
 	err := json.Unmarshal([]byte(payload), &hpp)
@@ -121,11 +121,11 @@ func (p *piPlugin) hookPluginPre(treeID int64, token []byte, payload string) err
 	case comments.PluginID:
 		switch hpp.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(token)
+			return p.hookCommentNew(hpp.Token)
 		case comments.CmdDel:
-			return p.hookCommentDel(token)
+			return p.hookCommentDel(hpp.Token)
 		case comments.CmdVote:
-			return p.hookCommentVote(token)
+			return p.hookCommentVote(hpp.Token)
 		}
 	}
 

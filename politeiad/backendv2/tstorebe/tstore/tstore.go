@@ -5,6 +5,7 @@
 package tstore
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net/url"
 	"os"
@@ -72,6 +73,16 @@ type Tstore struct {
 	// dropping an anchor, i.e. timestamping unanchored tlog trees
 	// using dcrtime. An anchor is dropped periodically using cron.
 	droppingAnchor bool
+}
+
+func tokenFromTreeID(treeID int64) []byte {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(treeID))
+	return b
+}
+
+func treeIDFromToken(token []byte) int64 {
+	return int64(binary.LittleEndian.Uint64(token))
 }
 
 // Fsck performs a filesystem check on the tstore.
