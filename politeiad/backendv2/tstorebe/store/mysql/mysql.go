@@ -60,16 +60,25 @@ func (s *mysql) isShutdown() bool {
 	return atomic.LoadUint64(&s.shutdown) != 0
 }
 
+// put saves the provided blobs to the kv store using the provided transaction.
 func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
 	// Encrypt blobs
 	if encrypt {
+		encrypted := make(map[string][]byte, len(blobs))
 		for k, v := range blobs {
 			e, err := s.encrypt(ctx, tx, v)
 			if err != nil {
 				return fmt.Errorf("encrypt: %v", err)
 			}
-			blobs[k] = e
+			encrypted[k] = e
 		}
+
+		// Sanity check
+		if len(encrypted) != len(blobs) {
+			return fmt.Errorf("unexpected number of encrypted blobs")
+		}
+
+		blobs = encrypted
 	}
 
 	// Save blobs
