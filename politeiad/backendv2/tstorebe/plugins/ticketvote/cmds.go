@@ -611,7 +611,11 @@ func (p *ticketVotePlugin) startRunoffForSub(token []byte, srs startRunoffSubmis
 	}
 
 	// Get the start runoff record from the parent record
-	srr, err := p.startRunoffRecord(srs.ParentToken)
+	parent, err := tokenDecode(srs.ParentToken)
+	if err != nil {
+		return err
+	}
+	srr, err := p.startRunoffRecord(parent)
 	if err != nil {
 		return err
 	}
@@ -997,7 +1001,7 @@ func (p *ticketVotePlugin) startRunoff(token []byte, s ticketvote.Start) (*ticke
 			return nil, err
 		}
 		srs := startRunoffSubmission{
-			ParentToken:  token,
+			ParentToken:  v.Params.Parent,
 			StartDetails: v,
 		}
 		b, err := json.Marshal(srs)

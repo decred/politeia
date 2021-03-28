@@ -57,7 +57,7 @@ func ShortToken(token []byte) ([]byte, error) {
 // for it.
 func ShortTokenString(token string) (string, error) {
 	if tokenRegexp.FindString(token) == "" {
-		return "", fmt.Errorf("invalid token")
+		return "", fmt.Errorf("invalid token %v", tokenRegexp.String())
 	}
 	return token[:pdv2.ShortTokenLength], nil
 }
@@ -89,7 +89,7 @@ func TokenIsFullLength(tokenType string, token []byte) bool {
 func TokenDecode(tokenType, token string) ([]byte, error) {
 	// Verify token is valid
 	if tokenRegexp.FindString(token) == "" {
-		return nil, fmt.Errorf("invalid token")
+		return nil, fmt.Errorf("invalid token %v", tokenRegexp.String())
 	}
 
 	// Decode token
@@ -110,7 +110,7 @@ func TokenDecode(tokenType, token string) ([]byte, error) {
 func TokenDecodeAnyLength(tokenType, token string) ([]byte, error) {
 	// Verify token is valid
 	if tokenRegexp.FindString(token) == "" {
-		return nil, fmt.Errorf("invalid token")
+		return nil, fmt.Errorf("invalid token %v", tokenRegexp.String())
 	}
 
 	// Decode token. If provided token has odd length, add padding

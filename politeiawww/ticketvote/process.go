@@ -65,6 +65,14 @@ func (t *TicketVote) processAuthorize(ctx context.Context, a v1.Authorize, u use
 func (t *TicketVote) processStart(ctx context.Context, s v1.Start, u user.User) (*v1.StartReply, error) {
 	log.Tracef("processStart: %v", len(s.Starts))
 
+	// Verify there is work to be done
+	if len(s.Starts) == 0 {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodeInputInvalid,
+			ErrorContext: "no start details found",
+		}
+	}
+
 	// Verify user signed with their active identity
 	for _, v := range s.Starts {
 		if u.PublicKey() != v.PublicKey {
