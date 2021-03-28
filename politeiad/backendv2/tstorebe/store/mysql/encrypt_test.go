@@ -12,8 +12,9 @@ func TestEncryptDecrypt(t *testing.T) {
 	blob := []byte("encryptmeyo")
 
 	// setup fake context
-	s := &mysql{}
-	s.getNonce = s.getTestNonce
+	s := &mysql{
+		testing: true,
+	}
 	s.argon2idKey(password, util.NewArgon2Params())
 
 	// Encrypt and make sure cleartext isn't the same as the encypted blob.

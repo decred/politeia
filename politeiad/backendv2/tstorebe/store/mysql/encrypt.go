@@ -115,7 +115,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 
 var emptyNonce = [24]byte{}
 
-func (s *mysql) getDbNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+func (s *mysql) getDBNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
@@ -144,6 +144,13 @@ func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) 
 		return emptyNonce, err
 	}
 	return n.Current(), nil
+}
+
+func (s *mysql) getNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+	if s.testing {
+		return s.getTestNonce(ctx, tx)
+	}
+	return s.getDBNonce(ctx, tx)
 }
 
 func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
