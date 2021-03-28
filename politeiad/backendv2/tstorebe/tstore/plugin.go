@@ -178,9 +178,34 @@ func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {
 	}
 }
 
-// PluginCmd executes a plugin command.
-func (t *Tstore) PluginCmd(token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("PluginCmd: %x %v %v", token, pluginID, cmd)
+// PluginRead executes a read-only plugin command.
+func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("PluginRead: %x %v %v", token, pluginID, cmd)
+
+	// The token is optional
+	if len(token) > 0 {
+		// Read methods are allowed to use short tokens. Lookup the full
+		// length token.
+		var err error
+		token, err = t.fullLengthToken(token)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Get plugin
+	p, ok := t.plugin(pluginID)
+	if !ok {
+		return "", backend.ErrPluginIDInvalid
+	}
+
+	// Execute plugin command
+	return p.client.Cmd(token, cmd, payload)
+}
+
+// PluginWrite executes a plugin command that writes data.
+func (t *Tstore) PluginWrite(token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("PluginWrite: %x %v %v", token, pluginID, cmd)
 
 	// Get plugin
 	p, ok := t.plugin(pluginID)

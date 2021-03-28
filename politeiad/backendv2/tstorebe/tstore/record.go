@@ -31,11 +31,29 @@ const (
 // that serves as the unique identifier for the record. Creating a new record
 // means creating a tlog tree for the record. Nothing is saved to the tree yet.
 func (t *Tstore) RecordNew() ([]byte, error) {
-	tree, _, err := t.tlog.TreeNew()
-	if err != nil {
-		return nil, err
+	var token []byte
+	for retries := 0; retries < 10; retries++ {
+		tree, _, err := t.tlog.TreeNew()
+		if err != nil {
+			return nil, err
+		}
+		token = tokenFromTreeID(tree.TreeId)
+
+		// Check for shortened token collisions
+		if t.tokenCollision(token) {
+			// This is a collision. We cannot use this tree. Try again.
+			log.Infof("Token collision %x, creating new token", token)
+			continue
+		}
+
+		// We've found a valid token. Update the tokens cache. This must
+		// be done even if the record creation fails since the tree will
+		// still exist.
+		t.tokenAdd(token)
+		break
 	}
-	return tokenFromTreeID(tree.TreeId), nil
+
+	return token, nil
 }
 
 // recordSave saves the provided record content to the kv store, appends a leaf
@@ -425,6 +443,12 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 func (t *Tstore) RecordSave(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("RecordSave: %x", token)
 
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ErrTokenInvalid
+	}
+
 	// Save the record
 	treeID := treeIDFromToken(token)
 	idx, err := t.recordSave(treeID, rm, metadata, files)
@@ -446,6 +470,12 @@ func (t *Tstore) RecordSave(token []byte, rm backend.RecordMetadata, metadata []
 // of the record. Record metadata and metadata stream blobs are not deleted.
 func (t *Tstore) RecordDel(token []byte) error {
 	log.Tracef("RecordDel: %x", token)
+
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ErrTokenInvalid
+	}
 
 	// Get all tree leaves
 	treeID := treeIDFromToken(token)
@@ -512,6 +542,12 @@ func (t *Tstore) RecordDel(token []byte) error {
 func (t *Tstore) RecordFreeze(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("RecordFreeze: %x", token)
 
+	// Verify token is valid. The full length token must be used when
+	// writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ErrTokenInvalid
+	}
+
 	// Save updated record
 	treeID := treeIDFromToken(token)
 	idx, err := t.recordSave(treeID, rm, metadata, files)
@@ -546,7 +582,15 @@ func (t *Tstore) RecordFreeze(token []byte, rm backend.RecordMetadata, metadata 
 // light weight. Its for this reason that we rely on the tree exists call
 // despite the edge case.
 func (t *Tstore) RecordExists(token []byte) bool {
-	_, err := t.tlog.Tree(treeIDFromToken(token))
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return false
+	}
+
+	_, err = t.tlog.Tree(treeIDFromToken(token))
 	return err == nil
 }
 
@@ -729,6 +773,14 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 	log.Tracef("Record: %x %v", token, version)
 
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
 	treeID := treeIDFromToken(token)
 	return t.record(treeID, version, []string{}, false)
 }
@@ -736,6 +788,14 @@ func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 // RecordLatest returns the latest version of a record.
 func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
 	log.Tracef("RecordLatest: %x", token)
+
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
 
 	treeID := treeIDFromToken(token)
 	return t.record(treeID, 0, []string{}, false)
@@ -757,6 +817,14 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 	log.Tracef("RecordPartial: %x %v %v %v",
 		token, version, omitAllFiles, filenames)
 
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
 	treeID := treeIDFromToken(token)
 	return t.record(treeID, version, filenames, omitAllFiles)
 }
@@ -766,6 +834,14 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 // only the tlog leaves.
 func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 	log.Tracef("RecordState: %x", token)
+
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return backend.StateInvalid, err
+	}
 
 	treeID := treeIDFromToken(token)
 	leaves, err := t.leavesAll(treeID)
@@ -923,6 +999,14 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 // returned.
 func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
+
+	// Read methods are allowed to use short tokens. Lookup the full
+	// length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
 
 	// Get record index
 	treeID := treeIDFromToken(token)

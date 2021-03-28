@@ -37,15 +37,6 @@ type tstoreBackend struct {
 	shutdown bool
 	tstore   *tstore.Tstore
 
-	// tokens contains the short token to full token mappings. The
-	// short token is the first n characters of the hex encoded record
-	// token, where n is defined by the short token length politeiad
-	// setting. Record lookups using short tokens are allowed. This
-	// cache is used to prevent collisions when creating new tokens
-	// and to facilitate lookups using only the short token. This cache
-	// is built on startup.
-	tokens map[string][]byte // [shortToken]fullToken
-
 	// recordMtxs allows the backend to hold a lock on an individual
 	// record so that it can perform multiple read/write operations
 	// in a concurrent safe manner. These mutexes are lazy loaded.
@@ -74,74 +65,6 @@ func (t *tstoreBackend) recordMutex(token []byte) *sync.Mutex {
 	}
 
 	return m
-}
-
-// tokenCollision returns whether the short version of the provided token
-// already exists. This can be used to prevent collisions when creating new
-// tokens.
-func (t *tstoreBackend) tokenCollision(fullToken []byte) bool {
-	shortToken, err := util.ShortTokenEncode(fullToken)
-	if err != nil {
-		return false
-	}
-
-	t.RLock()
-	defer t.RUnlock()
-
-	_, ok := t.tokens[shortToken]
-	return ok
-}
-
-// tokenAdd adds a entry to the tokens cache.
-func (t *tstoreBackend) tokenAdd(fullToken []byte) error {
-	if !tokenIsFullLength(fullToken) {
-		return fmt.Errorf("token is not full length")
-	}
-
-	shortToken, err := util.ShortTokenEncode(fullToken)
-	if err != nil {
-		return err
-	}
-
-	t.Lock()
-	t.tokens[shortToken] = fullToken
-	t.Unlock()
-
-	log.Tracef("Token cache add: %v", shortToken)
-
-	return nil
-}
-
-// fullLengthToken returns the full length token given the short token. A
-// ErrRecordNotFound error is returned if a record does not exist for the
-// provided token.
-func (t *tstoreBackend) fullLengthToken(token []byte) ([]byte, error) {
-	if tokenIsFullLength(token) {
-		// Token is already full length. Nothing else to do.
-		return token, nil
-	}
-
-	shortToken, err := util.ShortTokenEncode(token)
-	if err != nil {
-		// Token was not large enough to be a short token. This cannot
-		// be used to lookup a record.
-		return nil, backend.ErrRecordNotFound
-	}
-
-	t.RLock()
-	defer t.RUnlock()
-
-	fullToken, ok := t.tokens[shortToken]
-	if !ok {
-		// Short token does not correspond to a record token
-		return nil, backend.ErrRecordNotFound
-	}
-
-	return fullToken, nil
-}
-
-func tokenIsFullLength(token []byte) bool {
-	return util.TokenIsFullLength(util.TokenTypeTstore, token)
 }
 
 // metadataStreamsVerify verifies that all provided metadata streams are sane.
@@ -357,6 +280,7 @@ func filesVerify(files []backend.File, filesDel []string) error {
 	return nil
 }
 
+// filesUpdate updates the current files with new file adds and deletes.
 func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backend.File {
 	// Put current files into a map
 	curr := make(map[string]backend.File, len(filesCurr)) // [filename]File
@@ -386,6 +310,7 @@ func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backen
 	return f
 }
 
+// recordMetadataNew returns a new record metadata.
 func recordMetadataNew(token []byte, files []backend.File, state backend.StateT, status backend.StatusT, version, iteration uint32) (*backend.RecordMetadata, error) {
 	digests := make([]string, 0, len(files))
 	for _, v := range files {
@@ -410,7 +335,7 @@ func recordMetadataNew(token []byte, files []backend.File, state backend.StateT,
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []backend.File) (*backend.Record, error) {
-	log.Tracef("RecordNew")
+	log.Tracef("RecordNew: %v metadata, %v files", len(metadata), len(files))
 
 	// Verify record content
 	err := metadataStreamsVerify(metadata)
@@ -437,25 +362,9 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	}
 
 	// Create a new token
-	var token []byte
-	for retries := 0; retries < 10; retries++ {
-		token, err = t.tstore.RecordNew()
-		if err != nil {
-			return nil, err
-		}
-
-		// Check for shortened token collisions
-		if t.tokenCollision(token) {
-			// This is a collision. We cannot use this tree. Try again.
-			log.Infof("Token collision %x, creating new token", token)
-			continue
-		}
-
-		// We've found a valid token. Update the tokens cache. This must
-		// be done even if the record creation fails since the tree will
-		// still exist in tstore.
-		t.tokenAdd(token)
-		break
+	token, err := t.tstore.RecordNew()
+	if err != nil {
+		return nil, err
 	}
 
 	// Create record metadata
@@ -512,12 +421,6 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	err = filesVerify(filesAdd, filesDel)
 	if err != nil {
 		return nil, err
-	}
-
-	// Verify token is valid. The full length token must be used when
-	// writing data.
-	if !tokenIsFullLength(token) {
-		return nil, backend.ErrTokenInvalid
 	}
 
 	// Verify record exists
@@ -616,12 +519,6 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 	if len(mdAppend) == 0 && len(mdOverwrite) == 0 {
 		return nil, backend.ErrNoRecordChanges
-	}
-
-	// Verify token is valid. The full length token must be used when
-	// writing data.
-	if !tokenIsFullLength(token) {
-		return nil, backend.ErrTokenInvalid
 	}
 
 	// Verify record exists
@@ -777,12 +674,6 @@ func (t *tstoreBackend) setStatusCensored(token []byte, rm backend.RecordMetadat
 func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	log.Tracef("RecordSetStatus: %x %v", token, status)
 
-	// Verify token is valid. The full length token must be used when
-	// writing data.
-	if !tokenIsFullLength(token) {
-		return nil, backend.ErrTokenInvalid
-	}
-
 	// Verify record exists
 	if !t.RecordExists(token) {
 		return nil, backend.ErrRecordNotFound
@@ -921,14 +812,6 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 func (t *tstoreBackend) RecordExists(token []byte) bool {
 	log.Tracef("RecordExists: %x", token)
 
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
-	var err error
-	token, err = t.fullLengthToken(token)
-	if err != nil {
-		return false
-	}
-
 	return t.tstore.RecordExists(token)
 }
 
@@ -938,14 +821,6 @@ func (t *tstoreBackend) RecordExists(token []byte) bool {
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
-
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
-	var err error
-	token, err = t.fullLengthToken(token)
-	if err != nil {
-		return nil, err
-	}
 
 	return t.tstore.RecordTimestamps(token, version)
 }
@@ -960,26 +835,18 @@ func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backen
 
 	records := make(map[string]backend.Record, len(reqs)) // [token]Record
 	for _, v := range reqs {
-		// Read methods are allowed to use short tokens. Lookup the full
-		// length token.
-		token, err := t.fullLengthToken(v.Token)
-		if err != nil {
-			return nil, err
-		}
-
 		// Lookup the record
-		r, err := t.tstore.RecordPartial(token, v.Version,
+		r, err := t.tstore.RecordPartial(v.Token, v.Version,
 			v.Filenames, v.OmitAllFiles)
 		if err != nil {
 			if err == backend.ErrRecordNotFound {
-				log.Debugf("Record not found %x", token)
-
 				// Record doesn't exist. This is ok. It will not be included
 				// in the reply.
+				log.Debugf("Record not found %x", v.Token)
 				continue
 			}
 			// An unexpected error occurred. Log it and continue.
-			log.Errorf("RecordPartial %x: %v", token, err)
+			log.Errorf("RecordPartial %x: %v", v.Token, err)
 			continue
 		}
 
@@ -1056,24 +923,14 @@ func (t *tstoreBackend) PluginSetup(pluginID string) error {
 func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload string) (string, error) {
 	log.Tracef("PluginRead: %x %v %v", token, pluginID, pluginCmd)
 
-	// The token is optional. If a token is not provided then a tree ID
-	// will not be provided to the plugin.
-	if len(token) > 0 {
-		// Read methods are allowed to use short tokens. Lookup the full
-		// length token.
-		var err error
-		token, err = t.fullLengthToken(token)
-		if err != nil {
-			return "", err
-		}
-
-		// Verify record exists
-		if !t.RecordExists(token) {
-			return "", backend.ErrRecordNotFound
-		}
+	// Verify record exists if a token was provided. The token is
+	// optional on read commands so one may not exist.
+	if len(token) > 0 && !t.RecordExists(token) {
+		return "", backend.ErrRecordNotFound
 	}
 
-	return t.tstore.PluginCmd(token, pluginID, pluginCmd, payload)
+	// Execute plugin command
+	return t.tstore.PluginRead(token, pluginID, pluginCmd, payload)
 }
 
 // PluginWrite executes a plugin command that writes data.
@@ -1093,6 +950,9 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	// Hold the record lock for the remainder of this function. We
 	// do this here in the backend so that the individual plugins
 	// implementations don't need to worry about race conditions.
+	if t.isShutdown() {
+		return "", backend.ErrShutdown
+	}
 	m := t.recordMutex(token)
 	m.Lock()
 	defer m.Unlock()
@@ -1114,7 +974,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	}
 
 	// Execute plugin command
-	reply, err := t.tstore.PluginCmd(token, pluginID, pluginCmd, payload)
+	reply, err := t.tstore.PluginWrite(token, pluginID, pluginCmd, payload)
 	if err != nil {
 		return "", err
 	}
@@ -1160,24 +1020,9 @@ func (t *tstoreBackend) Close() {
 	t.tstore.Close()
 }
 
-// setup builds the tstore backend memory caches.
+// setup performs any required work to setup the tstore instance.
 func (t *tstoreBackend) setup() error {
-	log.Tracef("setup")
-
-	log.Infof("Building backend token prefix cache")
-
-	tokens, err := t.tstore.Inventory()
-	if err != nil {
-		return fmt.Errorf("tstore Inventory: %v", err)
-	}
-
-	log.Infof("%v records in the backend", len(tokens))
-
-	for _, v := range tokens {
-		t.tokenAdd(v)
-	}
-
-	return nil
+	return t.tstore.Setup()
 }
 
 // New returns a new tstoreBackend.
@@ -1194,10 +1039,10 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 		appDir:     appDir,
 		dataDir:    dataDir,
 		tstore:     ts,
-		tokens:     make(map[string][]byte),
 		recordMtxs: make(map[string]*sync.Mutex),
 	}
 
+	// Perform any required setup
 	err = t.setup()
 	if err != nil {
 		return nil, fmt.Errorf("setup: %v", err)
