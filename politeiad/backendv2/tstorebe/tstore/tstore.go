@@ -84,7 +84,6 @@ type Tstore struct {
 	// and to facilitate lookups using only the short token. This cache
 	// is built on startup.
 	tokens map[string][]byte // [shortToken]fullToken
-
 }
 
 // tokenFromTreeID returns the record token for a tlog tree.

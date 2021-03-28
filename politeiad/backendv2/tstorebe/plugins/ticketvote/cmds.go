@@ -461,20 +461,17 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 		return nil, err
 	}
 
-	// Get vote blockchain data
-	sr, err := p.startReply(sd.Params.Duration)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify record version
+	// Verify record status and version
 	r, err := p.tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("RecordPartial: %v", err)
 	}
-	if r.RecordMetadata.State != backend.StateVetted {
-		// This should not be possible
-		return nil, fmt.Errorf("record is unvetted")
+	if r.RecordMetadata.Status != backend.StatusPublic {
+		return nil, backend.PluginError{
+			PluginID:     ticketvote.PluginID,
+			ErrorCode:    uint32(ticketvote.ErrorCodeRecordStatusInvalid),
+			ErrorContext: "record is not public",
+		}
 	}
 	if sd.Params.Version != r.RecordMetadata.Version {
 		return nil, backend.PluginError{
@@ -484,6 +481,12 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 				"got %v, want %v", sd.Params.Version,
 				r.RecordMetadata.Version),
 		}
+	}
+
+	// Get vote blockchain data
+	sr, err := p.startReply(sd.Params.Duration)
+	if err != nil {
+		return nil, err
 	}
 
 	// Verify vote authorization
@@ -856,6 +859,11 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 }
 
 // startRunoff starts the voting period for all submissions in a runoff vote.
+// It does this by first adding a startRunoffRecord to the runoff vote parent
+// record. Once this has been successfully added the runoff vote is considered
+// to have started. The voting period must now be started on all of the runoff
+// vote submissions individually. If any of these calls fail, they can be
+// retried.  This function will pick up where it left off.
 func (p *ticketVotePlugin) startRunoff(token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
 	// Sanity check
 	if len(s.Starts) == 0 {
