@@ -1,7 +1,9 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// Package wsdcrdata provides a client for managing dcrdata websocket
+// subscriptions.
 package wsdcrdata
 
 import (
@@ -23,10 +25,6 @@ const (
 	StatusOpen         StatusT = 1 // Websocket is open
 	StatusReconnecting StatusT = 2 // Websocket is attempting to reconnect
 	StatusShutdown     StatusT = 3 // Websocket client has been shutdown
-
-	// Pending event actions
-	actionSubscribe   = "subscribe"
-	actionUnsubscribe = "unsubscribe"
 
 	// eventAddress is used to subscribe to events for a specific dcr
 	// address. The dcr address must be appended onto the eventAddress
@@ -56,6 +54,12 @@ var (
 	// ErrShutdown is emitted when attempting to use the Client after
 	// it has already been shut down.
 	ErrShutdown = errors.New("client is shutdown")
+)
+
+const (
+	// Pending event actions
+	actionSubscribe   = "subscribe"
+	actionUnsubscribe = "unsubscribe"
 )
 
 // pendingEvent represents an event action (subscribe/unsubscribe) that is
@@ -473,6 +477,8 @@ func psclientNew(url string) (*psclient.Client, error) {
 
 // New returns a new Client.
 func New(dcrdataURL string) (*Client, error) {
+	log.Tracef("New: %v", dcrdataURL)
+
 	// Setup dcrdata connection. If there is an error when connecting
 	// to dcrdata, return both the error and the Client so that the
 	// caller can decide if reconnection attempts should be made.

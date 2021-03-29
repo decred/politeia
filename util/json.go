@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,10 +6,9 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/gorilla/schema"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, message string) {
@@ -54,14 +53,11 @@ func GetErrorFromJSON(r io.Reader) (interface{}, error) {
 	return e, nil
 }
 
-// ParseGetParams parses the query params from the GET request into
-// a struct. This method requires the struct type to be defined
-// with `schema` tags.
-func ParseGetParams(r *http.Request, dst interface{}) error {
-	err := r.ParseForm()
+// FormatJSON returns a pretty printed JSON string for the provided structure.
+func FormatJSON(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Sprintf("MarshalIndent: %v", err)
 	}
-
-	return schema.NewDecoder().Decode(dst, r.Form)
+	return string(b)
 }

@@ -219,7 +219,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 	files = append(files, f)
 
 	// Compute merkle root and sign it
-	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
+	sig, err := signedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}

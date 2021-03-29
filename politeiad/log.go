@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/decred/politeia/politeiad/backend/gitbe"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
 )
@@ -40,16 +50,45 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log            = backendLog.Logger("POLI")
-	gitbeLog       = backendLog.Logger("GITB")
-	cockroachdbLog = backendLog.Logger("CODB")
+	log          = backendLog.Logger("POLI")
+	gitbeLog     = backendLog.Logger("GITB")
+	tstorebeLog  = backendLog.Logger("BACK")
+	tstoreLog    = backendLog.Logger("TSTR")
+	kvstoreLog   = backendLog.Logger("STOR")
+	wsdcrdataLog = backendLog.Logger("WSDD")
+	pluginLog    = backendLog.Logger("PLUG")
 )
+
+// Initialize package-global logger variables.
+func init() {
+	// Git backend loggers
+	gitbe.UseLogger(gitbeLog)
+
+	// Tstore backend loggers
+	tstorebe.UseLogger(tstorebeLog)
+	tstore.UseLogger(tstoreLog)
+	localdb.UseLogger(kvstoreLog)
+	mysql.UseLogger(kvstoreLog)
+
+	// Plugin loggers
+	comments.UseLogger(pluginLog)
+	dcrdata.UseLogger(pluginLog)
+	ticketvote.UseLogger(pluginLog)
+	usermd.UseLogger(pluginLog)
+
+	// Other loggers
+	wsdcrdata.UseLogger(wsdcrdataLog)
+}
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"POLI": log,
 	"GITB": gitbeLog,
-	"CODB": cockroachdbLog,
+	"BACK": tstorebeLog,
+	"TSTR": tstoreLog,
+	"STOR": kvstoreLog,
+	"WSDD": wsdcrdataLog,
+	"PLUG": pluginLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

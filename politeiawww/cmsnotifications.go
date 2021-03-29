@@ -68,7 +68,7 @@ func (p *politeiawww) checkInvoiceNotifications() {
 			log.Tracef("Checked user: %v sending email? %v", user.Username,
 				!invoiceFound)
 			if !invoiceFound {
-				err = p.emailInvoiceNotifications(user.Email, user.Username)
+				err = p.emailInvoiceNotSent(user.Email, user.Username)
 				if err != nil {
 					log.Errorf("Error sending email: %v %v", err, user.Email)
 				}

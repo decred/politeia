@@ -1,6 +1,0 @@
-RPCHOST="127.0.0.1"
-RPCUSER="user"
-RPCPASS="pass"
-EFLAGS="-v -testnet"
-USERFLAGS="${EFLAGS} -rpchost ${RPCHOST}"
-ADMINFLAGS="${EFLAGS} -rpchost ${RPCHOST} -rpcuser ${RPCUSER} -rpcpass ${RPCPASS}"

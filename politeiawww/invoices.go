@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -20,14 +21,16 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -81,6 +84,336 @@ var (
 	validLocation     = regexp.MustCompile(createLocationRegex())
 	validContact      = regexp.MustCompile(createContactRegex())
 )
+
+func convertPDFileFromWWW(f www.File) pd.File {
+	return pd.File{
+		Name:    f.Name,
+		MIME:    f.MIME,
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}
+}
+
+func convertPDFilesFromWWW(f []www.File) []pd.File {
+	files := make([]pd.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, convertPDFileFromWWW(v))
+	}
+	return files
+}
+
+func convertPDCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
+	return pd.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertWWWFileFromPD(f pd.File) www.File {
+	return www.File{
+		Name:    f.Name,
+		MIME:    f.MIME,
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}
+}
+
+func convertWWWFilesFromPD(f []pd.File) []www.File {
+	files := make([]www.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, convertWWWFileFromPD(v))
+	}
+	return files
+}
+
+func convertWWWCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
+	return www.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {
+	return decredplugin.NewComment{
+		Token:     nc.Token,
+		ParentID:  nc.ParentID,
+		Comment:   nc.Comment,
+		Signature: nc.Signature,
+		PublicKey: nc.PublicKey,
+	}
+}
+
+func convertCommentFromDecred(c decredplugin.Comment) www.Comment {
+	// Upvotes, Downvotes, UserID, and Username are filled in as zero
+	// values since a decred plugin comment does not contain this data.
+	return www.Comment{
+		Token:       c.Token,
+		ParentID:    c.ParentID,
+		Comment:     c.Comment,
+		Signature:   c.Signature,
+		PublicKey:   c.PublicKey,
+		CommentID:   c.CommentID,
+		Receipt:     c.Receipt,
+		Timestamp:   c.Timestamp,
+		ResultVotes: 0,
+		Upvotes:     0,
+		Downvotes:   0,
+		UserID:      "",
+		Username:    "",
+		Censored:    c.Censored,
+	}
+}
+
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (cms.InvoiceRecord, error) {
+	invRec := cms.InvoiceRecord{}
+	invRec.Status = dbInvoice.Status
+	invRec.Timestamp = dbInvoice.Timestamp
+	invRec.UserID = dbInvoice.UserID
+	invRec.Username = dbInvoice.Username
+	invRec.PublicKey = dbInvoice.PublicKey
+	invRec.Version = dbInvoice.Version
+	invRec.Signature = dbInvoice.UserSignature
+	invRec.CensorshipRecord = www.CensorshipRecord{
+		Token: dbInvoice.Token,
+	}
+	invInput := cms.InvoiceInput{
+		ContractorContact:  dbInvoice.ContractorContact,
+		ContractorRate:     dbInvoice.ContractorRate,
+		ContractorName:     dbInvoice.ContractorName,
+		ContractorLocation: dbInvoice.ContractorLocation,
+		PaymentAddress:     dbInvoice.PaymentAddress,
+		Month:              dbInvoice.Month,
+		Year:               dbInvoice.Year,
+		ExchangeRate:       dbInvoice.ExchangeRate,
+	}
+	invInputLineItems := make([]cms.LineItemsInput, 0, len(dbInvoice.LineItems))
+	for _, dbLineItem := range dbInvoice.LineItems {
+		lineItem := cms.LineItemsInput{
+			Type:          dbLineItem.Type,
+			Domain:        dbLineItem.Domain,
+			Subdomain:     dbLineItem.Subdomain,
+			Description:   dbLineItem.Description,
+			ProposalToken: dbLineItem.ProposalURL,
+			Labor:         dbLineItem.Labor,
+			Expenses:      dbLineItem.Expenses,
+			SubRate:       dbLineItem.ContractorRate,
+			SubUserID:     dbLineItem.SubUserID,
+		}
+		invInputLineItems = append(invInputLineItems, lineItem)
+	}
+
+	payout, err := calculatePayout(dbInvoice)
+	if err != nil {
+		return invRec, err
+	}
+	invRec.Total = int64(payout.Total)
+
+	invInput.LineItems = invInputLineItems
+	invRec.Input = invInput
+	invRec.Input.LineItems = invInputLineItems
+	txIDs := strings.Split(dbInvoice.Payments.TxIDs, ",")
+	payment := cms.PaymentInformation{
+		Token:           dbInvoice.Payments.InvoiceToken,
+		Address:         dbInvoice.Payments.Address,
+		TxIDs:           txIDs,
+		AmountReceived:  dcrutil.Amount(dbInvoice.Payments.AmountReceived),
+		TimeLastUpdated: dbInvoice.Payments.TimeLastUpdated,
+	}
+	invRec.Payment = payment
+	return invRec, nil
+}
+
+func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdatabase.Invoice {
+	dbInvoice := &cmsdatabase.Invoice{}
+	dbInvoice.Status = invRec.Status
+	dbInvoice.Timestamp = invRec.Timestamp
+	dbInvoice.UserID = invRec.UserID
+	dbInvoice.PublicKey = invRec.PublicKey
+	dbInvoice.Version = invRec.Version
+	dbInvoice.ContractorContact = invRec.Input.ContractorContact
+	dbInvoice.ContractorRate = invRec.Input.ContractorRate
+	dbInvoice.ContractorName = invRec.Input.ContractorName
+	dbInvoice.ContractorLocation = invRec.Input.ContractorLocation
+	dbInvoice.PaymentAddress = invRec.Input.PaymentAddress
+	dbInvoice.Month = invRec.Input.Month
+	dbInvoice.Year = invRec.Input.Year
+	dbInvoice.ExchangeRate = invRec.Input.ExchangeRate
+	dbInvoice.Token = invRec.CensorshipRecord.Token
+	dbInvoice.ServerSignature = invRec.Signature
+
+	dbInvoice.LineItems = make([]cmsdatabase.LineItem, 0, len(invRec.Input.LineItems))
+	for _, lineItem := range invRec.Input.LineItems {
+		dbLineItem := cmsdatabase.LineItem{
+			Type:           lineItem.Type,
+			Domain:         lineItem.Domain,
+			Subdomain:      lineItem.Subdomain,
+			Description:    lineItem.Description,
+			ProposalURL:    lineItem.ProposalToken,
+			Labor:          lineItem.Labor,
+			Expenses:       lineItem.Expenses,
+			ContractorRate: lineItem.SubRate,
+			SubUserID:      lineItem.SubUserID,
+		}
+		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
+	}
+	return dbInvoice
+}
+
+func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatabase.LineItem {
+	dl := make([]cmsdatabase.LineItem, 0, len(l))
+	for _, v := range l {
+		dl = append(dl, cmsdatabase.LineItem{
+			InvoiceToken: token,
+			Type:         v.Type,
+			Domain:       v.Domain,
+			Subdomain:    v.Subdomain,
+			Description:  v.Description,
+			ProposalURL:  v.ProposalToken,
+			Labor:        v.Labor,
+			Expenses:     v.Expenses,
+			// If subrate is populated, use the existing contractor rate field.
+			ContractorRate: v.SubRate,
+			SubUserID:      v.SubUserID,
+		})
+	}
+	return dl
+}
+
+func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
+	dbInvoice := cmsdatabase.Invoice{
+		Files:           convertWWWFilesFromPD(p.Files),
+		Token:           p.CensorshipRecord.Token,
+		ServerSignature: p.CensorshipRecord.Signature,
+		Version:         p.Version,
+	}
+
+	// Decode invoice file
+	for _, v := range p.Files {
+		if v.Name == invoiceFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			var ii cms.InvoiceInput
+			err = json.Unmarshal(b, &ii)
+			if err != nil {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusInvalidInput,
+				}
+			}
+
+			dbInvoice.Month = ii.Month
+			dbInvoice.Year = ii.Year
+			dbInvoice.ExchangeRate = ii.ExchangeRate
+			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
+				ii.LineItems)
+			dbInvoice.ContractorContact = ii.ContractorContact
+			dbInvoice.ContractorLocation = ii.ContractorLocation
+			dbInvoice.ContractorRate = ii.ContractorRate
+			dbInvoice.ContractorName = ii.ContractorName
+			dbInvoice.PaymentAddress = ii.PaymentAddress
+		}
+	}
+	payout, err := calculatePayout(dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	payment := cmsdatabase.Payments{
+		InvoiceToken: dbInvoice.Token,
+		Address:      dbInvoice.PaymentAddress,
+		AmountNeeded: int64(payout.DCRTotal),
+	}
+	for _, m := range p.Metadata {
+		switch m.ID {
+		case mdstream.IDRecordStatusChange:
+			// Ignore initial stream change since it's just the automatic change from
+			// unvetted to vetted
+			continue
+		case mdstream.IDInvoiceGeneral:
+			var mdGeneral mdstream.InvoiceGeneral
+			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					p.Metadata, p.CensorshipRecord.Token, err)
+			}
+
+			dbInvoice.Timestamp = mdGeneral.Timestamp
+			dbInvoice.PublicKey = mdGeneral.PublicKey
+			dbInvoice.UserSignature = mdGeneral.Signature
+		case mdstream.IDInvoiceStatusChange:
+			sc, err := mdstream.DecodeInvoiceStatusChange([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			invChanges := make([]cmsdatabase.InvoiceChange, 0, len(sc))
+			for _, s := range sc {
+				invChange := cmsdatabase.InvoiceChange{
+					AdminPublicKey: s.AdminPublicKey,
+					NewStatus:      s.NewStatus,
+					Reason:         s.Reason,
+					Timestamp:      s.Timestamp,
+				}
+				invChanges = append(invChanges, invChange)
+				// Capture information about payments
+				dbInvoice.Status = s.NewStatus
+				if s.NewStatus == cms.InvoiceStatusApproved {
+					payment.Status = cms.PaymentStatusWatching
+					payment.TimeStarted = s.Timestamp
+				} else if s.NewStatus == cms.InvoiceStatusPaid {
+					payment.Status = cms.PaymentStatusPaid
+				}
+			}
+
+		case mdstream.IDInvoicePayment:
+			ip, err := mdstream.DecodeInvoicePayment([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the payments.
+			// Just the most recent one.
+			for _, s := range ip {
+				payment.TxIDs = s.TxIDs
+				payment.TimeLastUpdated = s.Timestamp
+				payment.AmountReceived = s.AmountReceived
+			}
+		default:
+			// Log error but proceed
+			log.Errorf("initializeInventory: invalid "+
+				"metadata stream ID %v token %v",
+				m.ID, p.CensorshipRecord.Token)
+		}
+	}
+	dbInvoice.Payments = payment
+
+	return &dbInvoice, nil
+}
+
+func convertDatabaseInvoiceToProposalLineItems(inv cmsdatabase.Invoice) cms.ProposalLineItems {
+	return cms.ProposalLineItems{
+		Month:          int(inv.Month),
+		Year:           int(inv.Year),
+		UserID:         inv.UserID,
+		Username:       inv.Username,
+		ContractorRate: inv.ContractorRate,
+		LineItem: cms.LineItemsInput{
+			Type:          inv.LineItems[0].Type,
+			Domain:        inv.LineItems[0].Domain,
+			Subdomain:     inv.LineItems[0].Subdomain,
+			Description:   inv.LineItems[0].Description,
+			ProposalToken: inv.LineItems[0].ProposalURL,
+			Labor:         inv.LineItems[0].Labor,
+			Expenses:      inv.LineItems[0].Expenses,
+			SubRate:       inv.LineItems[0].ContractorRate,
+		},
+	}
+}
 
 // formatInvoiceField normalizes an invoice field without leading and
 // trailing spaces.
@@ -342,7 +675,7 @@ func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, 
 				Payload: string(scb),
 			},
 		},
-		Files: convertPropFilesFromWWW(ni.Files),
+		Files: convertPDFilesFromWWW(ni.Files),
 	}
 
 	// Handle test case
@@ -359,7 +692,7 @@ func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, 
 		}
 
 		return &cms.NewInvoiceReply{
-			CensorshipRecord: convertPropCensorFromPD(testReply.CensorshipRecord),
+			CensorshipRecord: convertWWWCensorFromPD(testReply.CensorshipRecord),
 		}, nil
 	}
 
@@ -459,11 +792,29 @@ func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, 
 	if err != nil {
 		return nil, err
 	}
-	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
+	cr := convertWWWCensorFromPD(pdReply.CensorshipRecord)
 
 	return &cms.NewInvoiceReply{
 		CensorshipRecord: cr,
 	}, nil
+}
+
+func merkleRoot(files []www.File) (string, error) {
+	// Calculate file digests
+	digests := make([]*[sha256.Size]byte, 0, len(files))
+	for _, f := range files {
+		b, err := base64.StdEncoding.DecodeString(f.Payload)
+		if err != nil {
+			return "", err
+		}
+		digest := util.Digest(b)
+		var hf [sha256.Size]byte
+		copy(hf[:], digest)
+		digests = append(digests, &hf)
+	}
+
+	// Return merkle root
+	return hex.EncodeToString(merkle.Root(digests)[:]), nil
 }
 
 func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error {
@@ -786,7 +1137,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	// Note that we need validate the string representation of the merkle
-	mr, err := wwwutil.MerkleRoot(ni.Files, nil)
+	mr, err := merkleRoot(ni.Files)
 	if err != nil {
 		return err
 	}
@@ -797,6 +1148,23 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	return nil
+}
+
+func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
+	inv.Files = nil
+	inv.Input.ContractorContact = ""
+	inv.Input.ContractorLocation = ""
+	inv.Input.ContractorName = ""
+	inv.Input.ContractorRate = 0
+
+	for i, li := range inv.Input.LineItems {
+		li.Expenses = 0
+		li.SubRate = 0
+		inv.Input.LineItems[i] = li
+	}
+	inv.Payment = cms.PaymentInformation{}
+	inv.Total = 0
+	return *inv
 }
 
 // processInvoiceDetails fetches a specific proposal version from the invoice
@@ -985,10 +1353,12 @@ func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetIn
 		if c.NewStatus == cms.InvoiceStatusApproved {
 			p.addWatchAddress(dbInvoice.PaymentAddress)
 		}
-		p.fireEvent(EventTypeInvoiceStatusUpdate,
-			EventDataInvoiceStatusUpdate{
-				Token: sis.Token,
-				User:  invoiceUser,
+
+		// Emit event notification for invoice status update
+		p.events.Emit(eventInvoiceStatusUpdate,
+			dataInvoiceStatusUpdate{
+				token: dbInvoice.Token,
+				email: invoiceUser.Email,
 			})
 	}
 
@@ -1170,7 +1540,7 @@ func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice
 		Token:       ei.Token,
 		Challenge:   hex.EncodeToString(challenge),
 		MDOverwrite: mds,
-		FilesAdd:    convertPropFilesFromWWW(ei.Files),
+		FilesAdd:    convertPDFilesFromWWW(ei.Files),
 		FilesDel:    delFiles,
 	}
 
@@ -1245,9 +1615,9 @@ func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice
 	}
 
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
-		Files:            convertPropFilesFromWWW(ei.Files),
+		Files:            convertPDFilesFromWWW(ei.Files),
 		Metadata:         mds,
-		CensorshipRecord: convertInvoiceCensorFromWWW(invRec.CensorshipRecord),
+		CensorshipRecord: convertPDCensorFromWWW(invRec.CensorshipRecord),
 		// Increment the version
 		Version: strconv.Itoa(version + 1),
 	})
@@ -1558,10 +1928,136 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 	return &reply, nil
 }
 
+// processNewCommentInvoice sends a new comment decred plugin command to politeaid
+// then fetches the new comment from the cache and returns it.
+func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
+
+	ir, err := p.getInvoice(nc.Token)
+	if err != nil {
+		if errors.Is(err, cmsdatabase.ErrInvoiceNotFound) {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	// Check to make sure the user is either an admin or the
+	// author of the invoice.
+	if !u.Admin && (ir.Username != u.Username) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	// Ensure the public key is the user's active key
+	if nc.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := nc.Token + nc.ParentID + nc.Comment
+	err = validateSignature(nc.PublicKey, nc.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate comment
+	err = validateNewComment(nc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to make sure that invoice isn't already approved or paid.
+	if ir.Status == cms.InvoiceStatusApproved || ir.Status == cms.InvoiceStatusPaid {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusWrongInvoiceStatus,
+		}
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	dnc := convertNewCommentToDecredPlugin(nc)
+	payload, err := decredplugin.EncodeNewComment(dnc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdNewComment,
+		CommandID: decredplugin.CmdNewComment,
+		Payload:   string(payload),
+	}
+
+	// Send polieiad request
+	responseBody, err := p.makeRequest(ctx, http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	// Get comment
+	comments, err := p.getInvoiceComments(ctx, nc.Token)
+	if err != nil {
+		return nil, fmt.Errorf("getComment: %v", err)
+	}
+	var c www.Comment
+	for _, v := range comments {
+		if v.CommentID == ncr.CommentID {
+			c = v
+			break
+		}
+	}
+
+	if u.Admin {
+		invoiceUser, err := p.db.UserGetByUsername(ir.Username)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user by username %v %v",
+				ir.Username, err)
+		}
+		// Emit event notification for a invoice comment
+		p.events.Emit(eventInvoiceComment,
+			dataInvoiceComment{
+				token: nc.Token,
+				email: invoiceUser.Email,
+			})
+	}
+	return &www.NewCommentReply{
+		Comment: c,
+	}, nil
+}
+
 // processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *politeiawww) processInvoiceComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("ProcessCommentGet: %v", token)
 
 	ir, err := p.getInvoice(token)
@@ -1584,7 +2080,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	}
 
 	// Fetch proposal comments from cache
-	c, err := p.getInvoiceComments(token)
+	c, err := p.getInvoiceComments(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -1610,10 +2106,10 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	}, nil
 }
 
-func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
+func (p *politeiawww) getInvoiceComments(ctx context.Context, token string) ([]www.Comment, error) {
 	log.Tracef("getInvoiceComments: %v", token)
 
-	dc, err := p.decredGetComments(token)
+	dc, err := p.decredGetComments(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComments: %v", err)
 	}

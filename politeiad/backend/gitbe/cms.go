@@ -47,17 +47,6 @@ func encodeCastDCCVoteJournal(cvj CastDCCVoteJournal) ([]byte, error) {
 	return b, nil
 }
 
-func decodeCastDCCVoteJournal(payload []byte) (*CastDCCVoteJournal, error) {
-	var cvj CastDCCVoteJournal
-
-	err := json.Unmarshal(payload, &cvj)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cvj, nil
-}
-
 var (
 	cmsPluginSettings map[string]string             // [key]setting
 	cmsPluginHooks    map[string]func(string) error // [key]func(token) error
@@ -494,6 +483,14 @@ func (g *gitBackEnd) validateCMSVoteBit(token, bit string) error {
 	}
 
 	return _validateCMSVoteBit(options, mask, b)
+}
+
+type invalidVoteBitError struct {
+	err error
+}
+
+func (i invalidVoteBitError) Error() string {
+	return i.err.Error()
 }
 
 // _validateVoteBit iterates over all vote bits and ensure the sent in vote bit

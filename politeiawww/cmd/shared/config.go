@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,19 +12,20 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
 
 const (
-	defaultHost              = "https://proposals.decred.org/api"
+	defaultHost              = "https://127.0.0.1:4443"
 	defaultFaucetHost        = "https://faucet.decred.org/requestfaucet"
 	defaultWalletHost        = "127.0.0.1"
 	defaultWalletTestnetPort = "19111"
@@ -38,19 +39,24 @@ const (
 )
 
 var (
+	defaultHTTPSCert      = config.DefaultHTTPSCertFile
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
 
-// Config represents the piwww configuration settings.
+// Config represents the CLI configuration settings.
 type Config struct {
 	HomeDir     string `long:"appdata" description:"Path to application home directory"`
 	Host        string `long:"host" description:"politeiawww host"`
+	HTTPSCert   string `long:"httpscert" description:"politeiawww https cert"`
 	RawJSON     bool   `short:"j" long:"json" description:"Print raw JSON output"`
 	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
 	SkipVerify  bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name"`
 	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
 	Silent      bool   `long:"silent" description:"Suppress all output"`
+
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 
 	DataDir    string // Application data dir
 	Version    string // CLI version
@@ -58,9 +64,6 @@ type Config struct {
 	WalletCert string // Wallet GRPC certificate
 	FaucetHost string // Testnet faucet host
 	CSRF       string // CSRF header token
-
-	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
-	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 
 	Identity *identity.FullIdentity // User identity
 	Cookies  []*http.Cookie         // User cookies
@@ -75,7 +78,7 @@ type Config struct {
 // 	3) Load configuration file overwriting defaults with any specified options
 // 	4) Parse CLI options and overwrite/add any specified options
 //
-// The above results in politeiawwwcli functioning properly without any config
+// The above results in the cli functioning properly without any config
 // settings while still allowing the user to override settings with config
 // files and command line options. Command line options always take precedence.
 func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
@@ -84,6 +87,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		HomeDir:    homeDir,
 		DataDir:    filepath.Join(homeDir, dataDirname),
 		Host:       defaultHost,
+		HTTPSCert:  defaultHTTPSCert,
 		WalletHost: defaultWalletHost + ":" + defaultWalletTestnetPort,
 		WalletCert: defaultWalletCertFile,
 		FaucetHost: defaultFaucetHost,
@@ -113,10 +117,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 
 	// Update the application home directory if specified
 	if cfg.HomeDir != homeDir {
-		homeDir, err := filepath.Abs(cleanAndExpandPath(cfg.HomeDir))
-		if err != nil {
-			return nil, fmt.Errorf("cleaning path: %v", err)
-		}
+		homeDir := util.CleanAndExpandPath(cfg.HomeDir)
 		cfg.HomeDir = homeDir
 		cfg.DataDir = filepath.Join(cfg.HomeDir, dataDirname)
 	}
@@ -129,7 +130,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) {
-			fmt.Printf("Warning: no config file found at %v\n", cfgFile)
+			// No config file found. Do nothing.
 		} else {
 			return nil, fmt.Errorf("parsing config file: %v", err)
 		}
@@ -188,6 +189,8 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	cfg.Identity = id
 
 	// Set path for the client key/cert depending on if they are set in options
+	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
+	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
 	if cfg.ClientCert == "" {
 		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
 	}
@@ -199,8 +202,8 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 }
 
 // hostFilePath returns the host specific file path for the passed in file.
-// This means that the hostname is prepended to the filename.  politeiawwwcli
-// data is segmented by host so that we can interact with multiple hosts
+// This means that the hostname is prepended to the filename. cli data is
+// segmented by host so that we can interact with multiple hosts
 // simultaneously.
 func (cfg *Config) hostFilePath(filename string) (string, error) {
 	u, err := url.Parse(cfg.Host)
@@ -386,28 +389,6 @@ func (cfg *Config) SaveLoggedInUsername(username string) error {
 	cfg.Identity = id
 
 	return nil
-}
-
-// cleanAndExpandPath expands environment variables and leading ~ in the passed
-// path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Expand initial ~ to OS specific home directory
-	if strings.HasPrefix(path, "~") {
-		var homeDir string
-		usr, err := user.Current()
-		if err == nil {
-			homeDir = usr.HomeDir
-		} else {
-			// Fallback to CWD
-			homeDir = "."
-		}
-
-		path = strings.Replace(path, "~", homeDir, 1)
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
-	// but the variables can still be expanded via POSIX-style $VARIABLE.
-	return filepath.Clean(os.ExpandEnv(path))
 }
 
 // filesExists reports whether the named file or directory exists.

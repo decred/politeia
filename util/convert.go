@@ -9,8 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/dcrtime/api/v1"
-	pd "github.com/decred/politeia/politeiad/api/v1"
+	dcrtime "github.com/decred/dcrtime/api/v1"
+	pdv1 "github.com/decred/politeia/politeiad/api/v1"
+	pdv2 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
@@ -31,10 +32,24 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 }
 
 // ConvertStringToken verifies and converts a string token to a proper sized
-// []byte.
+// byte slice. This function accepts both the full length token and token
+// prefixes.
 func ConvertStringToken(token string) ([]byte, error) {
-	if len(token) != pd.TokenSize*2 {
-		return nil, fmt.Errorf("invalid censorship token size")
+	switch {
+	case len(token) == pdv2.TokenSize*2:
+		// Tstore backend token; continue
+	case len(token) != pdv1.TokenSize*2:
+		// Git backend token; continue
+	case len(token) == pdv1.TokenPrefixLength:
+		// Token prefix; continue
+	default:
+		return nil, fmt.Errorf("invalid token size")
+	}
+	// If the token length is an odd number of characters, append a
+	// 0 digit as padding to prevent a hex.ErrLenth (odd length hex
+	// string) error when decoding.
+	if len(token)%2 == 1 {
+		token = token + "0"
 	}
 	blob, err := hex.DecodeString(token)
 	if err != nil {
@@ -52,7 +67,7 @@ func Digest(b []byte) []byte {
 
 // IsDigest determines if a string is a valid SHA256 digest.
 func IsDigest(digest string) bool {
-	return v1.RegexpSHA256.MatchString(digest)
+	return dcrtime.RegexpSHA256.MatchString(digest)
 }
 
 // ConvertDigest converts a string into a digest.
@@ -71,22 +86,11 @@ func ConvertDigest(d string) ([sha256.Size]byte, bool) {
 	return digest, true
 }
 
-// Zero out a byte slice.
-func Zero(in []byte) {
-	if in == nil {
-		return
-	}
-	inlen := len(in)
-	for i := 0; i < inlen; i++ {
-		in[i] ^= in[i]
-	}
-}
-
 // TokenToPrefix returns a substring a token of length pd.TokenPrefixLength,
 // or the token itself, whichever is shorter.
 func TokenToPrefix(token string) string {
-	if len(token) > pd.TokenPrefixLength {
-		return token[0:pd.TokenPrefixLength]
+	if len(token) > pdv1.TokenPrefixLength {
+		return token[0:pdv1.TokenPrefixLength]
 	} else {
 		return token
 	}

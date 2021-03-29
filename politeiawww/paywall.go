@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -30,7 +29,7 @@ type paywallPoolMember struct {
 const (
 	// paywallExpiryDuration is the amount of time the server will watch a paywall address
 	// for transactions. It gets reset when the user logs in or makes a call to
-	// RouteVerifyUserPayment.
+	// RouteUserRegistrationPayment.
 	paywallExpiryDuration = time.Hour * 24
 
 	// paywallCheckGap is the amount of time the server sleeps after polling for
@@ -133,7 +132,8 @@ func (p *politeiawww) checkForProposalPayments(ctx context.Context, pool map[uui
 	return true, userIDsToRemove
 }
 
-func (p *politeiawww) checkForPayments(ctx context.Context) {
+func (p *politeiawww) checkForPayments() {
+	ctx := context.Background()
 	for {
 		// Removing pool members from the pool while in the middle of
 		// polling can cause a race to occur in checkForProposalPayments.
@@ -264,44 +264,4 @@ func (p *politeiawww) verifyProposalPayment(ctx context.Context, u *user.User) (
 	}
 
 	return nil, nil
-}
-
-// ProposalCreditsBalance returns the number of proposal credits that the user
-// has available to spend.
-func ProposalCreditBalance(u *user.User) uint64 {
-	return uint64(len(u.UnspentProposalCredits))
-}
-
-// UserHasProposalCredits checks to see if the user has any unspent proposal
-// credits.
-func (p *politeiawww) UserHasProposalCredits(u *user.User) bool {
-	// Return true when running unit tests or if paywall is disabled
-	if !p.paywallIsEnabled() {
-		return true
-	}
-	return ProposalCreditBalance(u) > 0
-}
-
-// SpendProposalCredit updates an unspent proposal credit with the passed in
-// censorship token, moves the credit into the user's spent proposal credits
-// list, and then updates the user database.
-func (p *politeiawww) SpendProposalCredit(u *user.User, token string) error {
-	// Skip when running unit tests or if paywall is disabled.
-	if !p.paywallIsEnabled() {
-		return nil
-	}
-
-	if ProposalCreditBalance(u) == 0 {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusNoProposalCredits,
-		}
-	}
-
-	creditToSpend := u.UnspentProposalCredits[0]
-	creditToSpend.CensorshipToken = token
-	u.SpentProposalCredits = append(u.SpentProposalCredits, creditToSpend)
-	u.UnspentProposalCredits = u.UnspentProposalCredits[1:]
-
-	err := p.db.UserUpdate(*u)
-	return err
 }

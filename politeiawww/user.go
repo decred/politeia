@@ -116,7 +116,7 @@ func convertWWWUserFromDatabaseUser(user *user.User) www.User {
 		Deactivated:                     user.Deactivated,
 		Locked:                          userIsLocked(user.FailedLoginAttempts),
 		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
-		ProposalCredits:                 ProposalCreditBalance(user),
+		ProposalCredits:                 uint64(len(user.UnspentProposalCredits)),
 		EmailNotifications:              user.EmailNotifications,
 	}
 }
@@ -460,7 +460,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		// Email the verification token before updating the
 		// database. If the email fails, the database won't
 		// be updated.
-		err = p.emailNewUserVerificationLink(u.Email,
+		err = p.emailUserEmailVerify(u.Email,
 			hex.EncodeToString(tokenb), u.Username)
 		if err != nil {
 			log.Errorf("processNewUser: mail verification "+
@@ -480,7 +480,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 		// Send reply. Only return the verification token in
 		// the reply if the mail server has been disabled.
 		var t string
-		if p.smtp.disabled {
+		if !p.mail.IsEnabled() {
 			t = hex.EncodeToString(u.NewUserVerificationToken)
 		}
 		return &www.NewUserReply{
@@ -553,7 +553,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 	// then the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailNewUserVerificationLink(newUser.Email,
+	err = p.emailUserEmailVerify(newUser.Email,
 		hex.EncodeToString(tokenb), newUser.Username)
 	if err != nil {
 		log.Errorf("processNewUser: mail verification token "+
@@ -589,7 +589,7 @@ func (p *politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) 
 	// Only return the verification token in the reply
 	// if the mail server has been disabled.
 	var t string
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		t = hex.EncodeToString(u.NewUserVerificationToken)
 	}
 	return &www.NewUserReply{
@@ -635,88 +635,12 @@ func (p *politeiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.E
 	return &www.EditUserReply{}, nil
 }
 
-// processUserCommentsLikes returns all of the user's comment likes for the
-// passed in proposal.
-func (p *politeiawww) processUserCommentsLikes(user *user.User, token string) (*www.UserCommentsLikesReply, error) {
-	log.Tracef("processUserCommentsLikes: %v %v", user.ID, token)
-
-	// Make sure token is valid and not a prefix
-	if !isTokenValid(token) {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-			ErrorContext: []string{token},
-		}
+// userHasPaid returns whether the user has paid the user registration paywall.
+func (p *politeiawww) userHasPaid(u user.User) bool {
+	if !p.paywallIsEnabled() {
+		return true
 	}
-
-	// Fetch all like comments for the proposal
-	dlc, err := p.decredPropCommentLikes(token)
-	if err != nil {
-		return nil, fmt.Errorf("decredPropLikeComments: %v", err)
-	}
-
-	// Sanity check. Like comments should already be sorted in
-	// chronological order.
-	sort.SliceStable(dlc, func(i, j int) bool {
-		return dlc[i].Timestamp < dlc[j].Timestamp
-	})
-
-	// Find all the like comments that are from the user
-	lc := make([]www.LikeComment, 0, len(dlc))
-	for _, v := range dlc {
-		u, err := p.db.UserGetByPubKey(v.PublicKey)
-		if err != nil {
-			log.Errorf("getUserCommentLikes: UserGetByPubKey: "+
-				"token:%v commentID:%v pubKey:%v err:%v", v.Token,
-				v.CommentID, v.PublicKey, err)
-			continue
-		}
-		if user.ID.String() == u.ID.String() {
-			lc = append(lc, convertLikeCommentFromDecred(v))
-		}
-	}
-
-	// Compute the resulting like comment action for each comment.
-	// The resulting action depends on the order of the like
-	// comment actions.
-	//
-	// Example: when a user upvotes a comment twice, the second
-	// upvote cancels out the first upvote and the resulting
-	// comment score is 0.
-	//
-	// Example: when a user upvotes a comment and then downvotes
-	// the same comment, the downvote takes precedent and the
-	// resulting comment score is -1.
-	actions := make(map[string]string) // [commentID]action
-	for _, v := range lc {
-		prevAction := actions[v.CommentID]
-		switch {
-		case v.Action == prevAction:
-			// New action is the same as the previous action so
-			// we undo the previous action.
-			actions[v.CommentID] = ""
-		case v.Action != prevAction:
-			// New action is different than the previous action
-			// so the new action takes precedent.
-			actions[v.CommentID] = v.Action
-		}
-	}
-
-	cl := make([]www.CommentLike, 0, len(lc))
-	for k, v := range actions {
-		// Skip actions that have been taken away
-		if v == "" {
-			continue
-		}
-		cl = append(cl, www.CommentLike{
-			Token:     token,
-			CommentID: k,
-			Action:    v,
-		})
-	}
-
-	return &www.UserCommentsLikesReply{
-		CommentsLikes: cl,
-	}, nil
+	return u.NewUserPaywallTx != ""
 }
 
 // createLoginReply creates a login reply.
@@ -728,11 +652,11 @@ func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.
 		Username:        u.Username,
 		PublicKey:       u.PublicKey(),
 		PaywallTxID:     u.NewUserPaywallTx,
-		ProposalCredits: ProposalCreditBalance(u),
+		ProposalCredits: uint64(len(u.UnspentProposalCredits)),
 		LastLoginTime:   lastLoginTime,
 	}
 
-	if !p.HasUserPaid(u) {
+	if !p.userHasPaid(*u) {
 		err := p.GenerateNewUserPaywall(u)
 		if err != nil {
 			return nil, err
@@ -923,7 +847,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	// the user won't be updated.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailNewUserVerificationLink(u.Email,
+	err = p.emailUserEmailVerify(u.Email,
 		hex.EncodeToString(token), u.Username)
 	if err != nil {
 		log.Errorf("processResendVerification: email verification "+
@@ -938,7 +862,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	}
 
 	// Only set the token if email verification is disabled.
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		rvr.VerificationToken = hex.EncodeToString(token)
 	}
 	return &rvr, nil
@@ -1002,8 +926,7 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 	//
 	// This is conditional on the email server being setup.
 	token := hex.EncodeToString(tokenb)
-	err = p.emailUpdateUserKeyVerificationLink(usr.Email, uuk.PublicKey,
-		token)
+	err = p.emailUserKeyUpdate(usr.Username, usr.Email, uuk.PublicKey, token)
 	if err != nil {
 		return nil, err
 	}
@@ -1016,7 +939,7 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 
 	// Only set the token if email verification is disabled.
 	var t string
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		t = token
 	}
 	return &www.UpdateUserKeyReply{
@@ -1146,7 +1069,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			// send them an email informing them their account is
 			// now locked.
 			if userIsLocked(u.FailedLoginAttempts) {
-				err := p.emailUserLocked(u.Email)
+				err := p.emailUserAccountLocked(u.Username, u.Email)
 				if err != nil {
 					return loginResult{
 						reply: nil,
@@ -1281,9 +1204,9 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 		// login attempts, send the user an email to notify them
 		// that their account is locked.
 		if userIsLocked(u.FailedLoginAttempts) {
-			err := p.emailUserLocked(u.Email)
+			err := p.emailUserAccountLocked(u.Email)
 			if err != nil {
-				log.Errorf("processLogin: emailUserLocked '%v': %v",
+				log.Errorf("processLogin: emailUserAccountLocked '%v': %v",
 					u.Email, err)
 			}
 		}
@@ -1419,7 +1342,7 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 		return nil, err
 	}
 
-	err = p.emailUserPasswordChanged(email)
+	err = p.emailUserPasswordChanged(u.Username, email)
 	if err != nil {
 		return nil, err
 	}
@@ -1471,7 +1394,7 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 
 	// Try to email the verification link first. If it fails, the
 	// user record won't be updated in the database.
-	err = p.emailResetPasswordVerificationLink(rp.Email, rp.Username,
+	err = p.emailUserPasswordReset(rp.Email, rp.Username,
 		hex.EncodeToString(tokenb))
 	if err != nil {
 		return resetPasswordResult{
@@ -1492,7 +1415,7 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 	// Only include the verification token in the reply if the
 	// email server has been disabled.
 	var reply www.ResetPasswordReply
-	if p.smtp.disabled {
+	if !p.mail.IsEnabled() {
 		reply.VerificationToken = hex.EncodeToString(tokenb)
 	}
 
@@ -1603,65 +1526,14 @@ func (p *politeiawww) processVerifyResetPassword(vrp www.VerifyResetPassword) (*
 	return &www.VerifyResetPasswordReply{}, nil
 }
 
-// processUserProposalCredits returns a list of the user's unspent proposal
-// credits and a list of the user's spent proposal credits.
-func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
-	// Convert from database proposal credits to www proposal credits.
-	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
-	for i, credit := range u.UnspentProposalCredits {
-		upc[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+func convertProposalCreditFromUserDB(credit user.ProposalCredit) www.ProposalCredit {
+	return www.ProposalCredit{
+		PaywallID:     credit.PaywallID,
+		Price:         credit.Price,
+		DatePurchased: credit.DatePurchased,
+		TxID:          credit.TxID,
 	}
-	spc := make([]www.ProposalCredit, len(u.SpentProposalCredits))
-	for i, credit := range u.SpentProposalCredits {
-		spc[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
-	}
-
-	return &www.UserProposalCreditsReply{
-		UnspentCredits: upc,
-		SpentCredits:   spc,
-	}, nil
 }
-
-// processUserProposals returns a page of proposals for the given user.
-func (p *politeiawww) processUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
-	// Verify user exists
-	_, err := p.userByIDStr(up.UserId)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get a page of user proposals
-	props, ps, err := p.getUserProps(proposalsFilter{
-		After:  up.After,
-		Before: up.Before,
-		UserID: up.UserId,
-		StateMap: map[www.PropStateT]bool{
-			www.PropStateUnvetted: isCurrentUser || isAdminUser,
-			www.PropStateVetted:   true,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the number of proposals the user has submitted. This
-	// number will be different depending on who is requesting it.
-	// Non-public proposals are included in the calculation when
-	// an admin or the author is requesting the data.
-	numProposals := ps.Public + ps.Abandoned
-	if isCurrentUser || isAdminUser {
-		numProposals += ps.NotReviewed + ps.UnreviewedChanges + ps.Censored
-	}
-
-	return &www.UserProposalsReply{
-		Proposals:      props,
-		NumOfProposals: numProposals,
-	}, nil
-}
-
-//
-// admin user code follows
-//
 
 // _logAdminAction logs a string to the admin log file.
 //
@@ -1762,14 +1634,6 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 	err = p.db.UserUpdate(*user)
 	if err != nil {
 		return nil, err
-	}
-
-	if !p.test {
-		p.fireEvent(EventTypeUserManage, EventDataUserManage{
-			AdminUser:  adminUser,
-			User:       user,
-			ManageUser: mu,
-		})
 	}
 
 	return &www.ManageUserReply{}, nil
@@ -1904,6 +1768,136 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 		TotalUsers:   totalUsers,
 		TotalMatches: totalMatches,
 		Users:        matchedUsers,
+	}, nil
+}
+
+// processUserRegistrationPayment verifies that the provided transaction
+// meets the minimum requirements to mark the user as paid, and then does
+// that in the user database.
+func (p *politeiawww) processUserRegistrationPayment(ctx context.Context, u *user.User) (*www.UserRegistrationPaymentReply, error) {
+	var reply www.UserRegistrationPaymentReply
+	if p.userHasPaid(*u) {
+		reply.HasPaid = true
+		return &reply, nil
+	}
+
+	if paywallHasExpired(u.NewUserPaywallPollExpiry) {
+		err := p.GenerateNewUserPaywall(u)
+		if err != nil {
+			return nil, err
+		}
+		reply.PaywallAddress = u.NewUserPaywallAddress
+		reply.PaywallAmount = u.NewUserPaywallAmount
+		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
+		return &reply, nil
+	}
+
+	tx, _, err := util.FetchTxWithBlockExplorers(ctx, p.params,
+		u.NewUserPaywallAddress, u.NewUserPaywallAmount,
+		u.NewUserPaywallTxNotBefore, p.cfg.MinConfirmationsRequired,
+		p.dcrdataHostHTTP())
+	if err != nil {
+		return nil, err
+	}
+
+	if tx != "" {
+		reply.HasPaid = true
+
+		err = p.updateUserAsPaid(u, tx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// TODO: Add the user to the in-memory pool.
+	}
+
+	return &reply, nil
+}
+
+// processUserProposalPaywall returns a proposal paywall that enables the
+// the user to purchase proposal credits. The user can only have one paywall
+// active at a time.  If no paywall currently exists, a new one is created and
+// the user is added to the paywall pool.
+func (p *politeiawww) processUserProposalPaywall(u *user.User) (*www.UserProposalPaywallReply, error) {
+	log.Tracef("processUserProposalPaywall")
+
+	// Ensure paywall is enabled
+	if !p.paywallIsEnabled() {
+		return &www.UserProposalPaywallReply{}, nil
+	}
+
+	// Proposal paywalls cannot be generated until the user has paid their
+	// user registration fee.
+	if !p.userHasPaid(*u) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
+
+	var pp *user.ProposalPaywall
+	if p.userHasValidProposalPaywall(u) {
+		// Don't create a new paywall if a valid one already exists.
+		pp = p.mostRecentProposalPaywall(u)
+	} else {
+		// Create a new paywall.
+		var err error
+		pp, err = p.generateProposalPaywall(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &www.UserProposalPaywallReply{
+		CreditPrice:        pp.CreditPrice,
+		PaywallAddress:     pp.Address,
+		PaywallTxNotBefore: pp.TxNotBefore,
+	}, nil
+}
+
+// processUserProposalPaywallTx checks if the user has a pending paywall
+// payment and returns the payment details if one is found.
+func (p *politeiawww) processUserProposalPaywallTx(u *user.User) (*www.UserProposalPaywallTxReply, error) {
+	log.Tracef("processUserProposalPaywallTx")
+
+	var (
+		txID          string
+		txAmount      uint64
+		confirmations uint64
+	)
+
+	p.RLock()
+	defer p.RUnlock()
+
+	poolMember, ok := p.userPaywallPool[u.ID]
+	if ok {
+		txID = poolMember.txID
+		txAmount = poolMember.txAmount
+		confirmations = poolMember.txConfirmations
+	}
+
+	return &www.UserProposalPaywallTxReply{
+		TxID:          txID,
+		TxAmount:      txAmount,
+		Confirmations: confirmations,
+	}, nil
+}
+
+// processUserProposalCredits returns a list of the user's unspent proposal
+// credits and a list of the user's spent proposal credits.
+func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
+	// Convert from database proposal credits to www proposal credits.
+	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
+	for i, credit := range u.UnspentProposalCredits {
+		upc[i] = convertProposalCreditFromUserDB(credit)
+	}
+	spc := make([]www.ProposalCredit, len(u.SpentProposalCredits))
+	for i, credit := range u.SpentProposalCredits {
+		spc[i] = convertProposalCreditFromUserDB(credit)
+	}
+
+	return &www.UserProposalCreditsReply{
+		UnspentCredits: upc,
+		SpentCredits:   spc,
 	}, nil
 }
 
@@ -2042,54 +2036,12 @@ func (p *politeiawww) processUserPaymentsRescan(ctx context.Context, upr www.Use
 	// Convert database credits to www credits
 	newCreditsWWW := make([]www.ProposalCredit, len(newCredits))
 	for i, credit := range newCredits {
-		newCreditsWWW[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+		newCreditsWWW[i] = convertProposalCreditFromUserDB(credit)
 	}
 
 	return &www.UserPaymentsRescanReply{
 		NewCredits: newCreditsWWW,
 	}, nil
-}
-
-// processVerifyUserPayment verifies that the provided transaction
-// meets the minimum requirements to mark the user as paid, and then does
-// that in the user database.
-func (p *politeiawww) processVerifyUserPayment(ctx context.Context, u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
-	var reply www.VerifyUserPaymentReply
-	if p.HasUserPaid(u) {
-		reply.HasPaid = true
-		return &reply, nil
-	}
-
-	if paywallHasExpired(u.NewUserPaywallPollExpiry) {
-		err := p.GenerateNewUserPaywall(u)
-		if err != nil {
-			return nil, err
-		}
-		reply.PaywallAddress = u.NewUserPaywallAddress
-		reply.PaywallAmount = u.NewUserPaywallAmount
-		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
-		return &reply, nil
-	}
-
-	tx, _, err := util.FetchTxWithBlockExplorers(ctx, p.params, u.NewUserPaywallAddress,
-		u.NewUserPaywallAmount, u.NewUserPaywallTxNotBefore,
-		p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
-	if err != nil {
-		return nil, err
-	}
-
-	if tx != "" {
-		reply.HasPaid = true
-
-		err = p.updateUserAsPaid(u, tx)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// TODO: Add the user to the in-memory pool.
-	}
-
-	return &reply, nil
 }
 
 // removeUsersFromPool removes the provided user IDs from the the poll pool.
@@ -2159,7 +2111,7 @@ func (p *politeiawww) addUsersToPaywallPool() error {
 		}
 
 		// User paywalls
-		if p.HasUserPaid(u) {
+		if p.userHasPaid(*u) {
 			return
 		}
 		if u.NewUserVerificationToken != nil {
@@ -2240,9 +2192,9 @@ func (p *politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UU
 		log.Tracef("Checking the user paywall address for user %v...",
 			u.Email)
 
-		if p.HasUserPaid(u) {
+		if p.userHasPaid(*u) {
 			// The user could have been marked as paid by
-			// RouteVerifyUserPayment, so just remove him from the
+			// RouteUserRegistrationPayment, so just remove him from the
 			// in-memory pool.
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user already paid")
@@ -2325,18 +2277,8 @@ func (p *politeiawww) GenerateNewUserPaywall(u *user.User) error {
 	return nil
 }
 
-// HasUserPaid checks that a user has paid the paywall
-func (p *politeiawww) HasUserPaid(u *user.User) bool {
-	// Return true if paywall is disabled
-	if !p.paywallIsEnabled() {
-		return true
-	}
-
-	return u.NewUserPaywallTx != ""
-}
-
 // initPaywallCheck is intended to be called
-func (p *politeiawww) initPaywallChecker(ctx context.Context) error {
+func (p *politeiawww) initPaywallChecker() error {
 	if p.cfg.PaywallAmount == 0 {
 		// Paywall not configured.
 		return nil
@@ -2348,7 +2290,7 @@ func (p *politeiawww) initPaywallChecker(ctx context.Context) error {
 	}
 
 	// Start the thread that checks for payments.
-	go p.checkForPayments(ctx)
+	go p.checkForPayments()
 	return nil
 }
 

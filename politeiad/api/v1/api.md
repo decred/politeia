@@ -20,7 +20,6 @@ censorship mechanism.
 - [`Update vetted record`](#update-vetted-record)
 - [`Update vetted metadata`](#update-vetted-metadata)
 - [`Inventory`](#inventory)
-- [`Update readme`](#update-readme)
 
 **Error status codes**
 
@@ -702,47 +701,6 @@ Reply:
   "response":"ee90b6bc26a899916d80dacef0bef1ba8238b94d9a00edbc04c69372c21faa96abbe3f6f91ece0879ca4616e713951380cdb7762e23c477708f4aba35c366b0c",
 }
 ```
-
-### `Update Readme`
-
-Update the README.md file located in both the unvetted and vetted repositories.
-
-This command requires administrator privileges.
-
-**Route**: `POST /v1/updatereadme`
-
-**Params**:
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| challenge | string | 32 byte hex encoded array. | Yes |
-| content | string | String containing desired contents of readme file. | Yes |
-
-**Results**:
-
-| | Type | Description |
-|-|-|-|
-| response | string | hex encoded signature of challenge byte array. |
-
-**Example**
-
-Request:
-
-```json
-{
-  "challenge":"3d41f60ffd17176e7b456e67a2fb712d3223a719edb45db11c87b124b9d9afc1",
-  "content":"### `Updated readme page` \n content content content \n"
-}
-```
-
-Reply:
-
-```json
-{
-    "response":"3652492f3966ac616fe2e3bafddab3e58cf76dc94c7e19fcbc6f0495edcfbc6955f22fbb49cb4cf73cca355097da1c4255a9c4a61ccbfdcd02bf9f7fff78050e"
-}
-```
-
 
 ### `Inventory`
 

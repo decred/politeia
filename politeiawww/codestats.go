@@ -6,10 +6,12 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -347,4 +349,171 @@ func (p *politeiawww) startCodeStatsCron() {
 	if err != nil {
 		log.Errorf("Error running codestats cron: %v", err)
 	}
+}
+
+func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStats {
+	cmsCodeStats := make([]cms.CodeStats, 0, len(userCodeStats))
+	for _, codeStat := range userCodeStats {
+		prs := make([]string, 0, len(codeStat.PRs))
+		reviews := make([]string, 0, len(codeStat.Reviews))
+		commits := make([]string, 0, len(codeStat.Commits))
+		for _, pr := range codeStat.PRs {
+			if pr == "" {
+				continue
+			}
+			prs = append(prs, pr)
+		}
+		for _, review := range codeStat.Reviews {
+			if review == "" {
+				continue
+			}
+			reviews = append(reviews, review)
+		}
+		for _, commit := range codeStat.Commits {
+			if commit == "" {
+				continue
+			}
+			commits = append(commits, commit)
+		}
+		cmsCodeStat := cms.CodeStats{
+			Month:            codeStat.Month,
+			Year:             codeStat.Year,
+			Repository:       codeStat.Repository,
+			PRs:              prs,
+			Reviews:          reviews,
+			Commits:          commits,
+			MergedAdditions:  codeStat.MergedAdditions,
+			MergedDeletions:  codeStat.MergedDeletions,
+			UpdatedAdditions: codeStat.UpdatedAdditions,
+			UpdatedDeletions: codeStat.UpdatedDeletions,
+			ReviewAdditions:  codeStat.ReviewAdditions,
+			ReviewDeletions:  codeStat.ReviewDeletions,
+			CommitAdditions:  codeStat.CommitAdditions,
+			CommitDeletions:  codeStat.CommitDeletions,
+		}
+		cmsCodeStats = append(cmsCodeStats, cmsCodeStat)
+	}
+	return cmsCodeStats
+}
+
+func convertCodeTrackerToUserCodeStats(githubName string, year, month int, userInfo *codetracker.UserInformationResult) []user.CodeStats {
+	mergedPRs := userInfo.MergedPRs
+	updatedPRs := userInfo.UpdatedPRs
+	commits := userInfo.Commits
+	reviews := userInfo.Reviews
+	repoStats := make([]user.CodeStats, 0, 1048) // PNOOMA
+	for _, pr := range mergedPRs {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == pr.Repository {
+				repoFound = true
+				repoStat.PRs = append(repoStat.PRs, pr.URL)
+				repoStat.MergedAdditions += pr.Additions
+				repoStat.MergedDeletions += pr.Deletions
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, pr.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
+			repoStat := user.CodeStats{
+				ID:              id,
+				GitHubName:      githubName,
+				Month:           month,
+				Year:            year,
+				PRs:             []string{pr.URL},
+				Repository:      pr.Repository,
+				MergedAdditions: pr.Additions,
+				MergedDeletions: pr.Deletions,
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
+	for _, pr := range updatedPRs {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == pr.Repository {
+				repoFound = true
+				repoStat.PRs = append(repoStat.PRs, pr.URL)
+				repoStat.UpdatedAdditions += pr.Additions
+				repoStat.UpdatedDeletions += pr.Deletions
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, pr.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
+			repoStat := user.CodeStats{
+				ID:               id,
+				GitHubName:       githubName,
+				Month:            month,
+				Year:             year,
+				PRs:              []string{pr.URL},
+				Repository:       pr.Repository,
+				UpdatedAdditions: pr.Additions,
+				UpdatedDeletions: pr.Deletions,
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
+	for _, review := range reviews {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == review.Repository {
+				repoFound = true
+				repoStat.ReviewAdditions += int64(review.Additions)
+				repoStat.ReviewDeletions += int64(review.Deletions)
+				repoStat.Reviews = append(repoStat.Reviews, review.URL)
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, review.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
+			repoStat := user.CodeStats{
+				ID:              id,
+				GitHubName:      githubName,
+				Month:           month,
+				Year:            year,
+				Repository:      review.Repository,
+				ReviewAdditions: int64(review.Additions),
+				ReviewDeletions: int64(review.Deletions),
+				Reviews:         []string{review.URL},
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
+
+	for _, commit := range commits {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == commit.Repository {
+				repoFound = true
+				repoStat.CommitAdditions += int64(commit.Additions)
+				repoStat.CommitDeletions += int64(commit.Deletions)
+				repoStat.Commits = append(repoStat.Commits, commit.URL)
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			id := fmt.Sprintf("%v-%v-%v-%v", githubName, commit.Repository,
+				strconv.Itoa(year), strconv.Itoa(month))
+			repoStat := user.CodeStats{
+				ID:              id,
+				GitHubName:      githubName,
+				Month:           month,
+				Year:            year,
+				Repository:      commit.Repository,
+				CommitAdditions: int64(commit.Additions),
+				CommitDeletions: int64(commit.Deletions),
+				Commits:         []string{commit.URL},
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
+	return repoStats
 }

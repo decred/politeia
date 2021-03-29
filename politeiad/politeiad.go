@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,30 +7,24 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/x509"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime/debug"
-	"strconv"
+	"strings"
 	"syscall"
-	"time"
 
-	"github.com/decred/politeia/cmsplugin"
-	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/dcrd/chaincfg/v3"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	v2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiad/cache"
-	"github.com/decred/politeia/politeiad/cache/cachestub"
-	"github.com/decred/politeia/politeiad/cache/cockroachdb"
+	"github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
@@ -45,12 +39,11 @@ const (
 
 // politeia application context.
 type politeia struct {
-	backend  backend.Backend
-	cache    cache.Cache
-	cfg      *config
-	router   *mux.Router
-	identity *identity.FullIdentity
-	plugins  map[string]v1.Plugin
+	backend   backend.Backend
+	backendv2 backendv2.Backend
+	cfg       *config
+	router    *mux.Router
+	identity  *identity.FullIdentity
 }
 
 func remoteAddr(r *http.Request) string {
@@ -62,210 +55,26 @@ func remoteAddr(r *http.Request) string {
 	return via
 }
 
-func convertBackendPluginSetting(bpi backend.PluginSetting) v1.PluginSetting {
-	return v1.PluginSetting{
-		Key:   bpi.Key,
-		Value: bpi.Value,
-	}
+// handleNotFound is a generic handler for an invalid route.
+func (p *politeia) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
+		r.Proto)
+
+	// Trace incoming request
+	log.Tracef("%v", newLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("logging: "+
+				"DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
+
+	util.RespondWithJSON(w, http.StatusNotFound, v1.ServerErrorReply{})
 }
 
-func convertBackendPlugin(bpi backend.Plugin) v1.Plugin {
-	p := v1.Plugin{
-		ID: bpi.ID,
-	}
-	for _, v := range bpi.Settings {
-		p.Settings = append(p.Settings, convertBackendPluginSetting(v))
-	}
-
-	return p
-}
-
-// convertBackendMetadataStream converts a backend metadata stream to an API
-// metadata stream.
-func convertBackendMetadataStream(mds backend.MetadataStream) v1.MetadataStream {
-	return v1.MetadataStream{
-		ID:      mds.ID,
-		Payload: mds.Payload,
-	}
-}
-
-// convertBackendStatus converts a backend MDStatus to an API status.
-func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
-	s := v1.RecordStatusInvalid
-	switch status {
-	case backend.MDStatusInvalid:
-		s = v1.RecordStatusInvalid
-	case backend.MDStatusUnvetted:
-		s = v1.RecordStatusNotReviewed
-	case backend.MDStatusVetted:
-		s = v1.RecordStatusPublic
-	case backend.MDStatusCensored:
-		s = v1.RecordStatusCensored
-	case backend.MDStatusIterationUnvetted:
-		s = v1.RecordStatusUnreviewedChanges
-	case backend.MDStatusArchived:
-		s = v1.RecordStatusArchived
-	}
-	return s
-}
-
-// convertFrontendStatus convert an API status to a backend MDStatus.
-func convertFrontendStatus(status v1.RecordStatusT) backend.MDStatusT {
-	s := backend.MDStatusInvalid
-	switch status {
-	case v1.RecordStatusInvalid:
-		s = backend.MDStatusInvalid
-	case v1.RecordStatusNotReviewed:
-		s = backend.MDStatusUnvetted
-	case v1.RecordStatusPublic:
-		s = backend.MDStatusVetted
-	case v1.RecordStatusCensored:
-		s = backend.MDStatusCensored
-	case v1.RecordStatusArchived:
-		s = backend.MDStatusArchived
-	}
-	return s
-}
-
-func convertFrontendFiles(f []v1.File) []backend.File {
-	files := make([]backend.File, 0, len(f))
-	for _, v := range f {
-		files = append(files, backend.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		})
-	}
-	return files
-}
-
-func convertFrontendMetadataStream(mds []v1.MetadataStream) []backend.MetadataStream {
-	m := make([]backend.MetadataStream, 0, len(mds))
-	for _, v := range mds {
-		m = append(m, backend.MetadataStream{
-			ID:      v.ID,
-			Payload: v.Payload,
-		})
-	}
-	return m
-}
-
-func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
-	rm := br.RecordMetadata
-
-	// Calculate signature
-	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
-
-	// Convert MetadataStream
-	md := make([]v1.MetadataStream, 0, len(br.Metadata))
-	for k := range br.Metadata {
-		md = append(md, convertBackendMetadataStream(br.Metadata[k]))
-	}
-
-	// Convert record
-	pr := v1.Record{
-		Status:    convertBackendStatus(rm.Status),
-		Timestamp: rm.Timestamp,
-		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    rm.Merkle,
-			Token:     rm.Token,
-			Signature: hex.EncodeToString(signature[:]),
-		},
-		Version:  br.Version,
-		Metadata: md,
-	}
-	pr.Files = make([]v1.File, 0, len(br.Files))
-	for _, v := range br.Files {
-		pr.Files = append(pr.Files,
-			v1.File{
-				Name:    v.Name,
-				MIME:    v.MIME,
-				Digest:  v.Digest,
-				Payload: v.Payload,
-			})
-	}
-
-	return pr
-}
-
-func convertBackendStatusToCache(status backend.MDStatusT) cache.RecordStatusT {
-	s := cache.RecordStatusInvalid
-	switch status {
-	case backend.MDStatusInvalid:
-		s = cache.RecordStatusInvalid
-	case backend.MDStatusUnvetted:
-		s = cache.RecordStatusNotReviewed
-	case backend.MDStatusVetted:
-		s = cache.RecordStatusPublic
-	case backend.MDStatusCensored:
-		s = cache.RecordStatusCensored
-	case backend.MDStatusIterationUnvetted:
-		s = cache.RecordStatusUnreviewedChanges
-	case backend.MDStatusArchived:
-		s = cache.RecordStatusArchived
-	}
-	return s
-}
-
-func convertBackendPluginToCache(p backend.Plugin) cache.Plugin {
-	settings := make([]cache.PluginSetting, 0, len(p.Settings))
-	for _, s := range p.Settings {
-		settings = append(settings, cache.PluginSetting{
-			Key:   s.Key,
-			Value: s.Value,
-		})
-	}
-	return cache.Plugin{
-		ID:       p.ID,
-		Version:  p.Version,
-		Settings: settings,
-	}
-}
-
-func convertMDStreamsToCache(ms []backend.MetadataStream) []cache.MetadataStream {
-	m := make([]cache.MetadataStream, 0, len(ms))
-	for _, v := range ms {
-		m = append(m, cache.MetadataStream{
-			ID:      v.ID,
-			Payload: v.Payload,
-		})
-	}
-	return m
-}
-
-func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
-	msg := []byte(r.RecordMetadata.Merkle + r.RecordMetadata.Token)
-	signature := p.identity.SignMessage(msg)
-	cr := cache.CensorshipRecord{
-		Token:     r.RecordMetadata.Token,
-		Merkle:    r.RecordMetadata.Merkle,
-		Signature: hex.EncodeToString(signature[:]),
-	}
-
-	files := make([]cache.File, 0, len(r.Files))
-	for _, f := range r.Files {
-		files = append(files,
-			cache.File{
-				Name:    f.Name,
-				MIME:    f.MIME,
-				Digest:  f.Digest,
-				Payload: f.Payload,
-			})
-	}
-
-	return cache.Record{
-		Version:          r.Version,
-		Status:           convertBackendStatusToCache(r.RecordMetadata.Status),
-		Timestamp:        r.RecordMetadata.Timestamp,
-		CensorshipRecord: cr,
-		Metadata:         convertMDStreamsToCache(r.Metadata),
-		Files:            files,
-	}
-}
-
-func (p *politeia) respondWithUserError(w http.ResponseWriter,
-	errorCode v1.ErrorStatusT, errorContext []string) {
+func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.ErrorStatusT, errorContext []string) {
 	util.RespondWithJSON(w, http.StatusBadRequest, v1.UserErrorReply{
 		ErrorCode:    errorCode,
 		ErrorContext: errorContext,
@@ -279,430 +88,6 @@ func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64
 	})
 }
 
-func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
-	var t v1.Identity
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	reply := v1.IdentityReply{
-		PublicKey: hex.EncodeToString(p.identity.Public.Key[:]),
-		Response:  hex.EncodeToString(response[:]),
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
-	var t v1.NewRecord
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v newRecord: invalid challenge", remoteAddr(r))
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	log.Infof("New record submitted %v", remoteAddr(r))
-
-	md := convertFrontendMetadataStream(t.Metadata)
-	files := convertFrontendFiles(t.Files)
-	rm, err := p.backend.New(md, files)
-	if err != nil {
-		// Check for content error.
-		var contentErr backend.ContentVerificationError
-		if errors.As(err, &contentErr) {
-			log.Errorf("%v New record content error: %v",
-				remoteAddr(r), contentErr)
-			p.respondWithUserError(w, contentErr.ErrorCode,
-				contentErr.ErrorContext)
-			return
-		}
-
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
-			errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Update cache.
-	record := p.convertBackendRecordToCache(backend.Record{
-		RecordMetadata: *rm,
-		Version:        "1",
-		Metadata:       md,
-		Files:          files,
-	})
-	err = p.cache.NewRecord(record)
-	if err != nil {
-		log.Criticalf("Cache new record failed %v: %v",
-			record.CensorshipRecord.Token, err)
-	}
-
-	// Prepare reply.
-	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
-
-	response := p.identity.SignMessage(challenge)
-	reply := v1.NewRecordReply{
-		Response: hex.EncodeToString(response[:]),
-		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    rm.Merkle,
-			Token:     rm.Token,
-			Signature: hex.EncodeToString(signature[:]),
-		},
-	}
-
-	log.Infof("New record accepted %v: token %v", remoteAddr(r),
-		reply.CensorshipRecord.Token)
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted bool) {
-	cmd := "unvetted"
-	if vetted {
-		cmd = "vetted"
-	}
-
-	var t v1.UpdateRecord
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
-			nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v update %v record: invalid challenge",
-			remoteAddr(r), cmd)
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
-			nil)
-		return
-	}
-
-	log.Infof("Update %v record submitted %v: %x", cmd, remoteAddr(r),
-		token)
-
-	var record *backend.Record
-	if vetted {
-		record, err = p.backend.UpdateVettedRecord(token,
-			convertFrontendMetadataStream(t.MDAppend),
-			convertFrontendMetadataStream(t.MDOverwrite),
-			convertFrontendFiles(t.FilesAdd), t.FilesDel)
-	} else {
-		record, err = p.backend.UpdateUnvettedRecord(token,
-			convertFrontendMetadataStream(t.MDAppend),
-			convertFrontendMetadataStream(t.MDOverwrite),
-			convertFrontendFiles(t.FilesAdd), t.FilesDel)
-	}
-	if err != nil {
-		if errors.Is(err, backend.ErrRecordFound) {
-			log.Errorf("%v update %v record found: %x",
-				remoteAddr(r), cmd, token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
-			return
-		}
-		if errors.Is(err, backend.ErrRecordNotFound) {
-			log.Errorf("%v update %v record not found: %x",
-				remoteAddr(r), cmd, token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
-			return
-		}
-		if errors.Is(err, backend.ErrNoChanges) {
-			log.Errorf("%v update %v record no changes: %x",
-				remoteAddr(r), cmd, token)
-			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
-			return
-		}
-		// Check for content error.
-		var contentErr backend.ContentVerificationError
-		if errors.As(err, &contentErr) {
-			log.Errorf("%v update %v record content error: %v",
-				remoteAddr(r), cmd, contentErr)
-			p.respondWithUserError(w, contentErr.ErrorCode,
-				contentErr.ErrorContext)
-			return
-		}
-
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Update %v record error code %v: %v",
-			remoteAddr(r), cmd, errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Update cache.
-	cr := p.convertBackendRecordToCache(*record)
-	if vetted {
-		// Create a new cache entry for new versions.
-		err := p.cache.NewRecord(cr)
-		if err != nil {
-			log.Criticalf("Cache update vetted failed %v: %v",
-				cr.CensorshipRecord.Token, err)
-		}
-	} else {
-		// Update existing cache entry for new iterations that are not
-		// new versions.
-		err = p.cache.UpdateRecord(cr)
-		if err != nil {
-			log.Criticalf("Cache update unvetted failed %v: %v",
-				cr.CensorshipRecord.Token, err)
-		}
-	}
-
-	// Prepare reply.
-	response := p.identity.SignMessage(challenge)
-	reply := v1.UpdateRecordReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
-		record.RecordMetadata.Token)
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
-	p.updateRecord(w, r, false)
-}
-
-func (p *politeia) updateVetted(w http.ResponseWriter, r *http.Request) {
-	p.updateRecord(w, r, true)
-}
-
-func (p *politeia) updateReadme(w http.ResponseWriter, r *http.Request) {
-	var t v1.UpdateReadme
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	response := p.identity.SignMessage(challenge)
-
-	reply := v1.UpdateReadmeReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	err = p.backend.UpdateReadme(t.Content)
-	if err != nil {
-		errorCode := time.Now().Unix()
-		log.Errorf("Error updating readme: %v", err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
-	var t v1.GetUnvetted
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	reply := v1.GetUnvettedReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	// Ask backend about the censorship token.
-	bpr, err := p.backend.GetUnvetted(token)
-	if errors.Is(err, backend.ErrRecordNotFound) {
-		reply.Record.Status = v1.RecordStatusNotFound
-		log.Errorf("Get unvetted record %v: token %v not found",
-			remoteAddr(r), t.Token)
-	} else if err != nil {
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Get unvetted record error code %v: %v",
-			remoteAddr(r), errorCode, err)
-
-		p.respondWithServerError(w, errorCode)
-		return
-	} else {
-		reply.Record = p.convertBackendRecord(*bpr)
-
-		// Double check record bits before sending them off
-		err := v1.Verify(p.identity.Public,
-			reply.Record.CensorshipRecord, reply.Record.Files)
-		if err != nil {
-			// Generic internal error.
-			errorCode := time.Now().Unix()
-			log.Errorf("%v Get unvetted record CORRUPTION "+
-				"error code %v: %v", remoteAddr(r), errorCode,
-				err)
-
-			p.respondWithServerError(w, errorCode)
-			return
-		}
-
-		log.Infof("Get unvetted record %v: token %v", remoteAddr(r),
-			t.Token)
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
-	var t v1.GetVetted
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	reply := v1.GetVettedReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	// Ask backend about the censorship token.
-	bpr, err := p.backend.GetVetted(token, t.Version)
-	if errors.Is(err, backend.ErrRecordNotFound) {
-		reply.Record.Status = v1.RecordStatusNotFound
-		log.Errorf("Get vetted record %v: token %v not found",
-			remoteAddr(r), t.Token)
-	} else if err != nil {
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Get vetted record error code %v: %v",
-			remoteAddr(r), errorCode, err)
-
-		p.respondWithServerError(w, errorCode)
-		return
-	} else {
-		reply.Record = p.convertBackendRecord(*bpr)
-
-		// Double check record bits before sending them off
-		err := v1.Verify(p.identity.Public,
-			reply.Record.CensorshipRecord, reply.Record.Files)
-		if err != nil {
-			// Generic internal error.
-			errorCode := time.Now().Unix()
-			log.Errorf("%v Get vetted record CORRUPTION "+
-				"error code %v: %v", remoteAddr(r), errorCode,
-				err)
-
-			p.respondWithServerError(w, errorCode)
-			return
-		}
-		log.Infof("Get vetted record %v: token %v", remoteAddr(r),
-			t.Token)
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
-	var i v1.Inventory
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&i); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(i.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	reply := v1.InventoryReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	// Ask backend for inventory
-	prs, brs, err := p.backend.Inventory(i.VettedCount, i.VettedStart, i.BranchesCount,
-		i.IncludeFiles, i.AllVersions)
-	if err != nil {
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Inventory error code %v: %v", remoteAddr(r),
-			errorCode, err)
-
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Convert backend records
-	vetted := make([]v1.Record, 0, len(prs))
-	for _, v := range prs {
-		vetted = append(vetted, p.convertBackendRecord(v))
-	}
-	reply.Vetted = vetted
-
-	// Convert branches
-	unvetted := make([]v1.Record, 0, len(brs))
-	for _, v := range brs {
-		unvetted = append(unvetted, p.convertBackendRecord(v))
-	}
-	reply.Branches = unvetted
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 func (p *politeia) check(user, pass string) bool {
 	if user != p.cfg.RPCUser || pass != p.cfg.RPCPass {
 		return false
@@ -714,7 +99,7 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
 		if !ok || !p.check(user, pass) {
-			log.Errorf("%v Unauthorized access for: %v",
+			log.Infof("%v Unauthorized access for: %v",
 				remoteAddr(r), user)
 			w.Header().Set("WWW-Authenticate",
 				`Basic realm="Politeiad"`)
@@ -726,309 +111,6 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 			remoteAddr(r), user)
 		fn(w, r)
 	}
-}
-
-func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
-	var t v1.SetVettedStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	// Ask backend to update  status
-	record, err := p.backend.SetVettedStatus(token,
-		convertFrontendStatus(t.Status),
-		convertFrontendMetadataStream(t.MDAppend),
-		convertFrontendMetadataStream(t.MDOverwrite))
-	if err != nil {
-		// Check for specific errors
-		if errors.Is(err, backend.ErrRecordNotFound) {
-			log.Errorf("%v updateStatus record not "+
-				"found: %x", remoteAddr(r), token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
-			return
-		}
-		var serr backend.StateTransitionError
-		if errors.As(err, &serr) {
-			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
-			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
-			return
-		}
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Set status error code %v: %v",
-			remoteAddr(r), errorCode, err)
-
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Update cache.
-	cr := p.convertBackendRecordToCache(*record)
-	err = p.cache.UpdateRecordStatus(cr.CensorshipRecord.Token,
-		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
-	if err != nil {
-		log.Criticalf("Cache set vetted status failed %v: %v",
-			cr.CensorshipRecord.Token, err)
-	}
-
-	// Prepare reply.
-	reply := v1.SetVettedStatusReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	s := convertBackendStatus(record.RecordMetadata.Status)
-	log.Infof("Set vetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[s])
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
-	var t v1.SetUnvettedStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	// Ask backend to update unvetted status
-	record, err := p.backend.SetUnvettedStatus(token,
-		convertFrontendStatus(t.Status),
-		convertFrontendMetadataStream(t.MDAppend),
-		convertFrontendMetadataStream(t.MDOverwrite))
-	if err != nil {
-		// Check for specific errors
-		if errors.Is(err, backend.ErrRecordNotFound) {
-			log.Errorf("%v updateUnvettedStatus record not "+
-				"found: %x", remoteAddr(r), token)
-			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
-				nil)
-			return
-		}
-		var serr backend.StateTransitionError
-		if errors.As(err, &serr) {
-			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
-			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
-			return
-		}
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Set unvetted status error code %v: %v",
-			remoteAddr(r), errorCode, err)
-
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Update cache.
-	cr := p.convertBackendRecordToCache(*record)
-	err = p.cache.UpdateRecordStatus(cr.CensorshipRecord.Token,
-		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
-	if err != nil {
-		log.Criticalf("Cache set unvetted status failed %v: %v",
-			cr.CensorshipRecord.Token, err)
-	}
-
-	// Prepare reply.
-	reply := v1.SetUnvettedStatusReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	s := convertBackendStatus(record.RecordMetadata.Status)
-	log.Infof("Set unvetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[s])
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) cacheUpdateVettedMetadata(token []byte) error {
-	r, err := p.backend.GetVetted(token, "")
-	if err != nil {
-		return fmt.Errorf("get vetted: %v", err)
-	}
-
-	m := convertMDStreamsToCache(r.Metadata)
-	t := hex.EncodeToString(token)
-	return p.cache.UpdateRecordMetadata(t, m)
-}
-
-func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) {
-	var t v1.UpdateVettedMetadata
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&t); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(t.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	// Validate token
-	token, err := util.ConvertStringToken(t.Token)
-	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
-		return
-	}
-
-	log.Infof("Update vetted metadata submitted %v: %x", remoteAddr(r),
-		token)
-
-	err = p.backend.UpdateVettedMetadata(token,
-		convertFrontendMetadataStream(t.MDAppend),
-		convertFrontendMetadataStream(t.MDOverwrite))
-	if err != nil {
-		if errors.Is(err, backend.ErrNoChanges) {
-			log.Errorf("%v update vetted metadata no changes: %x",
-				remoteAddr(r), token)
-			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
-			return
-		}
-		// Check for content error.
-		var contentErr backend.ContentVerificationError
-		if errors.As(err, &contentErr) {
-			log.Errorf("%v update vetted metadata content error: %v",
-				remoteAddr(r), contentErr)
-			p.respondWithUserError(w, contentErr.ErrorCode,
-				contentErr.ErrorContext)
-			return
-		}
-
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v Update vetted metadata error code %v: %v",
-			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Update the cache
-	err = p.cacheUpdateVettedMetadata(token)
-	if err != nil {
-		log.Criticalf("Cache updated vetted metadata failed %x: %v",
-			token, err)
-	}
-
-	// Reply
-	reply := v1.UpdateVettedMetadataReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	log.Infof("Update vetted metadata %v: token %x", remoteAddr(r), token)
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
-	var pi v1.PluginInventory
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pi); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
-			nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(pi.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-	response := p.identity.SignMessage(challenge)
-
-	reply := v1.PluginInventoryReply{
-		Response: hex.EncodeToString(response[:]),
-	}
-
-	for _, v := range p.plugins {
-		reply.Plugins = append(reply.Plugins, v)
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
-	var pc v1.PluginCommand
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pc); err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
-			nil)
-		return
-	}
-
-	challenge, err := hex.DecodeString(pc.Challenge)
-	if err != nil || len(challenge) != v1.ChallengeSize {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
-		return
-	}
-
-	cid, payload, err := p.backend.Plugin(pc.Command, pc.Payload)
-	if err != nil {
-		// Generic internal error.
-		errorCode := time.Now().Unix()
-		log.Errorf("%v %v: backend plugin failed with "+
-			"command:%v payload:%v err:%v", remoteAddr(r),
-			errorCode, pc.Command, pc.Payload, err)
-		p.respondWithServerError(w, errorCode)
-		return
-	}
-
-	// Send plugin command to cache
-	_, err = p.cache.PluginExec(cache.PluginCommand{
-		ID:             pc.ID,
-		Command:        pc.Command,
-		CommandPayload: pc.Payload,
-		ReplyPayload:   payload,
-	})
-	if err != nil {
-		log.Criticalf("Cache plugin exec failed: command:%v "+
-			"commandPayload:%v replyPayload:%v error:%v",
-			pc.Command, pc.Payload, payload, err)
-	}
-
-	response := p.identity.SignMessage(challenge)
-	reply := v1.PluginCommandReply{
-		Response:  hex.EncodeToString(response[:]),
-		ID:        pc.ID,
-		Command:   cid,
-		CommandID: pc.CommandID,
-		Payload:   payload,
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 func logging(f http.HandlerFunc) http.HandlerFunc {
@@ -1066,336 +148,24 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
-func (p *politeia) buildCacheDecredPlugin(tokens [][]byte) error {
-	log.Infof("Building %v plugin cache", decredplugin.ID)
-
-	// Reset the existing plugin tables
-	err := p.cache.PluginBuild(decredplugin.ID, "")
-	if err != nil {
-		return fmt.Errorf("PluginBuild: %v", err)
-	}
-
-	// Build the plugin cache for each record
-	for i, token := range tokens {
-		log.Infof("Building %v plugin cache for %x (%v/%v)",
-			decredplugin.ID, token, i+1, len(tokens))
-
-		// Get plugin data from the backend for this record
-		ri := decredplugin.Inventory{
-			Tokens: []string{hex.EncodeToString(token)},
-		}
-		b, err := decredplugin.EncodeInventory(ri)
-		if err != nil {
-			return err
-		}
-		_, reply, err := p.backend.Plugin(decredplugin.CmdInventory, string(b))
-		if err != nil {
-			return fmt.Errorf("backend decred plugin inventory %x: %v", token, err)
-		}
-		ir, err := decredplugin.DecodeInventoryReply([]byte(reply))
-		if err != nil {
-			return err
-		}
-
-		// Build the plugin cache for this record
-
-		// Build comments
-		log.Debugf("Building comments cache (%v comments)", len(ir.Comments))
-		for _, v := range ir.Comments {
-			// Setup payloads
-			nc := decredplugin.NewComment{
-				Token:     v.Token,
-				ParentID:  v.ParentID,
-				Comment:   v.Comment,
-				Signature: v.Signature,
-				PublicKey: v.PublicKey,
-			}
-			ncr := decredplugin.NewCommentReply{
-				CommentID: v.CommentID,
-				Receipt:   v.Receipt,
-				Timestamp: v.Timestamp,
-			}
-			cmdPayload, err := decredplugin.EncodeNewComment(nc)
-			if err != nil {
-				return err
-			}
-			replyPayload, err := decredplugin.EncodeNewCommentReply(ncr)
-			if err != nil {
-				return err
-			}
-
-			// Send plugin command
-			_, err = p.cache.PluginExec(cache.PluginCommand{
-				ID:             decredplugin.ID,
-				Command:        decredplugin.CmdNewComment,
-				CommandPayload: string(cmdPayload),
-				ReplyPayload:   string(replyPayload),
-			})
-			if err != nil {
-				return fmt.Errorf("PluginExec %v %x %v: %v",
-					decredplugin.CmdNewComment, token, ncr.CommentID, err)
-			}
-		}
-
-		// Build comment likes
-		log.Debugf("Building comment likes cache (%v likes)",
-			len(ir.LikeComments))
-		for _, v := range ir.LikeComments {
-			// Setup payloads
-			cmdPayload, err := decredplugin.EncodeLikeComment(v)
-			if err != nil {
-				return err
-			}
-
-			// Send plugin command
-			_, err = p.cache.PluginExec(cache.PluginCommand{
-				ID:             decredplugin.ID,
-				Command:        decredplugin.CmdLikeComment,
-				CommandPayload: string(cmdPayload),
-			})
-			if err != nil {
-				return fmt.Errorf("PluginExec %v %x %v: %v",
-					decredplugin.CmdLikeComment, token, v.CommentID, err)
-			}
-		}
-
-		// Build vote authorizations
-		log.Debugf("Building authorize vote cache")
-		for k, v := range ir.AuthorizeVotes {
-			// Setup payloads
-			cmdPayload, err := decredplugin.EncodeAuthorizeVote(v)
-			if err != nil {
-				return err
-			}
-			avr := ir.AuthorizeVoteReplies[k]
-			replyPayload, err := decredplugin.EncodeAuthorizeVoteReply(avr)
-			if err != nil {
-				return err
-			}
-
-			// Send plugin command
-			_, err = p.cache.PluginExec(cache.PluginCommand{
-				ID:             decredplugin.ID,
-				Command:        decredplugin.CmdAuthorizeVote,
-				CommandPayload: string(cmdPayload),
-				ReplyPayload:   string(replyPayload),
-			})
-			if err != nil {
-				return fmt.Errorf("PluginExec %v %x: %v",
-					decredplugin.CmdAuthorizeVote, token, err)
-			}
-		}
-
-		// Build start votes
-		log.Debugf("Building start vote cache")
-		for _, v := range ir.StartVoteTuples {
-			// Setup payloads. The start vote payload comes in the tuple
-			// already encoded due to the start vote versioning.
-			replyPayload, err := decredplugin.EncodeStartVoteReply(v.StartVoteReply)
-			if err != nil {
-				return err
-			}
-
-			// Send plugin command
-			_, err = p.cache.PluginExec(cache.PluginCommand{
-				ID:             decredplugin.ID,
-				Command:        decredplugin.CmdStartVote,
-				CommandPayload: v.StartVote.Payload,
-				ReplyPayload:   string(replyPayload),
-			})
-			if err != nil {
-				return fmt.Errorf("PluginExec %v %x: %v",
-					decredplugin.CmdStartVote, token, err)
-			}
-		}
-
-		// Build cast votes
-		log.Debugf("Building cast votes cache (%v votes)", len(ir.CastVotes))
-		if len(ir.CastVotes) != 0 {
-			// Setup payloads
-			bl := decredplugin.Ballot{
-				Votes: ir.CastVotes,
-			}
-			cmdPayload, err := decredplugin.EncodeBallot(bl)
-			if err != nil {
-				return err
-			}
-			receipts := make([]decredplugin.CastVoteReply, 0, len(ir.CastVotes))
-			for _, v := range ir.CastVotes {
-				receipts = append(receipts, decredplugin.CastVoteReply{
-					ClientSignature: v.Signature,
-				})
-			}
-			br := decredplugin.BallotReply{
-				Receipts: receipts,
-			}
-			replyPayload, err := decredplugin.EncodeBallotReply(br)
-			if err != nil {
-				return err
-			}
-
-			// Send plugin command
-			_, err = p.cache.PluginExec(cache.PluginCommand{
-				ID:             decredplugin.ID,
-				Command:        decredplugin.CmdBallot,
-				CommandPayload: string(cmdPayload),
-				ReplyPayload:   string(replyPayload),
-			})
-			if err != nil {
-				return fmt.Errorf("PluginExec %v %x: %v",
-					decredplugin.CmdBallot, token, err)
-			}
-		}
-	}
-
-	return nil
+func (p *politeia) addRouteV2(method string, route string, handler http.HandlerFunc, perm permission) {
+	route = v2.APIRoute + route
+	p.addRoute(method, route, handler, perm)
 }
 
-func (p *politeia) buildCacheCMSPlugin() error {
-	// Fetch plugin inventory
-	_, payload, err := p.backend.Plugin(cmsplugin.CmdInventory, "")
+func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
+	b, err := gitbe.New(activeNetParams.Params, p.cfg.DataDir,
+		p.cfg.DcrtimeHost, "", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
 	if err != nil {
-		return fmt.Errorf("cms plugin inventory: %v", err)
-	}
-
-	// Build plugin cache
-	err = p.cache.PluginBuild(cmsplugin.ID, payload)
-	if err != nil {
-		return fmt.Errorf("cache PluginBuild %v: %v",
-			cmsplugin.ID, err)
-	}
-
-	return nil
-}
-
-func _main() error {
-	// Load configuration and parse command line.  This function also
-	// initializes logging and configures it accordingly.
-	loadedCfg, _, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("Could not load configuration file: %v", err)
-	}
-	defer func() {
-		if logRotator != nil {
-			logRotator.Close()
-		}
-	}()
-
-	log.Infof("Version : %v", version.String())
-	log.Infof("Build Version: %v", version.BuildMainVersion())
-	log.Infof("Network : %v", activeNetParams.Params.Name)
-	log.Infof("Home dir: %v", loadedCfg.HomeDir)
-
-	// Issue a warning if pi was builded locally and does not
-	// have the main module info available.
-	if version.BuildMainVersion() == "(devel)" {
-		log.Warnf("Warning: no build information available")
-	}
-
-	// Create the data directory in case it does not exist.
-	err = os.MkdirAll(loadedCfg.DataDir, 0700)
-	if err != nil {
-		return err
-	}
-
-	// Generate the TLS cert and key file if both don't already
-	// exist.
-	if !util.FileExists(loadedCfg.HTTPSKey) &&
-		!util.FileExists(loadedCfg.HTTPSCert) {
-		log.Infof("Generating HTTPS keypair...")
-
-		err := util.GenCertPair(elliptic.P521(), "politeiad",
-			loadedCfg.HTTPSCert, loadedCfg.HTTPSKey)
-		if err != nil {
-			return fmt.Errorf("unable to create https keypair: %v",
-				err)
-		}
-
-		log.Infof("HTTPS keypair created...")
-	}
-
-	// Generate ed25519 identity to save messages, tokens etc.
-	if !util.FileExists(loadedCfg.Identity) {
-		log.Infof("Generating signing identity...")
-		id, err := identity.New()
-		if err != nil {
-			return err
-		}
-		err = id.Save(loadedCfg.Identity)
-		if err != nil {
-			return err
-		}
-		log.Infof("Signing identity created...")
-	}
-
-	// Setup application context.
-	p := &politeia{
-		cfg:     loadedCfg,
-		plugins: make(map[string]v1.Plugin),
-		cache:   cachestub.New(),
-	}
-
-	// Load identity.
-	p.identity, err = identity.LoadFullIdentity(loadedCfg.Identity)
-	if err != nil {
-		return err
-	}
-	log.Infof("Public key: %x", p.identity.Public.Key)
-
-	// Load certs, if there.  If they aren't there assume OS is used to
-	// resolve cert validity.
-	if len(loadedCfg.DcrtimeCert) != 0 {
-		var certPool *x509.CertPool
-		if !util.FileExists(loadedCfg.DcrtimeCert) {
-			return fmt.Errorf("unable to find dcrtime cert %v",
-				loadedCfg.DcrtimeCert)
-		}
-		dcrtimeCert, err := ioutil.ReadFile(loadedCfg.DcrtimeCert)
-		if err != nil {
-			return fmt.Errorf("unable to read dcrtime cert %v: %v",
-				loadedCfg.DcrtimeCert, err)
-		}
-		certPool = x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(dcrtimeCert) {
-			return fmt.Errorf("unable to load cert")
-		}
-	}
-	// Setup backend.
-	gitbe.UseLogger(gitbeLog)
-	b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
-		loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
-		loadedCfg.DcrdataHost, loadedCfg.Mode)
-	if err != nil {
-		return err
+		return fmt.Errorf("new gitbe: %v", err)
 	}
 	p.backend = b
 
-	// Setup cache
-	if p.cfg.EnableCache {
-		// Create a new cache context
-		cockroachdb.UseLogger(cockroachdbLog)
-		net := filepath.Base(p.cfg.DataDir)
-		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
-			net, p.cfg.CacheRootCert, p.cfg.CacheCert, p.cfg.CacheKey)
-		if errors.Is(err, cache.ErrNoVersionRecord) || errors.Is(err, cache.ErrWrongVersion) {
-			// The cache version record was either not found or
-			// is the wrong version which means that the cache
-			// needs to be built/rebuilt.
-			p.cfg.BuildCache = true
-		} else if err != nil {
-			return fmt.Errorf("cockroachdb new: %v", err)
-		}
-		p.cache = db
-
-		// Setup the cache tables
-		err = p.cache.Setup()
-		if err != nil {
-			return fmt.Errorf("cache setup: %v", err)
-		}
-	}
-
 	// Setup mux
 	p.router = mux.NewRouter()
+
+	// Not found
+	p.router.NotFoundHandler = closeBody(p.handleNotFound)
 
 	// Unprivileged routes
 	p.addRoute(http.MethodPost, v1.IdentityRoute, p.getIdentity,
@@ -1420,168 +190,234 @@ func _main() error {
 		p.setVettedStatus, permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
 		p.updateVettedMetadata, permissionAuth)
-	p.addRoute(http.MethodPost, v1.UpdateReadmeRoute,
-		p.updateReadme, permissionAuth)
+
+	// Set plugin routes. Requires auth.
+	p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
+		permissionAuth)
+	p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
+		permissionAuth)
+
+	return nil
+}
+
+func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
+	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
+		p.cfg.TlogHost, p.cfg.TlogPass, p.cfg.DBType, p.cfg.DBHost,
+		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
+	if err != nil {
+		return fmt.Errorf("new tstorebe: %v", err)
+	}
+	p.backendv2 = b
+
+	// Setup mux
+	p.router = mux.NewRouter()
+
+	// Setup not found handler
+	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+
+	// Setup v1 routes
+	p.addRoute(http.MethodPost, v1.IdentityRoute,
+		p.getIdentity, permissionPublic)
+
+	// Setup v2 routes
+	p.addRouteV2(http.MethodPost, v2.RouteRecordNew,
+		p.handleRecordNew, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordEdit,
+		p.handleRecordEdit, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordEditMetadata,
+		p.handleRecordEditMetadata, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordSetStatus,
+		p.handleRecordSetStatus, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecords,
+		p.handleRecords, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteRecordTimestamps,
+		p.handleRecordTimestamps, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteInventory,
+		p.handleInventory, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RouteInventoryOrdered,
+		p.handleInventoryOrdered, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginWrite,
+		p.handlePluginWrite, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginReads,
+		p.handlePluginReads, permissionPublic)
+	p.addRouteV2(http.MethodPost, v2.RoutePluginInventory,
+		p.handlePluginInventory, permissionPublic)
+
+	p.addRouteV2(http.MethodPost, v2.RoutePluginInventory,
+		p.handlePluginInventory, permissionPublic)
 
 	// Setup plugins
-	plugins, err := p.backend.GetPlugins()
+	if len(p.cfg.Plugins) > 0 {
+		// Parse plugin settings
+		settings := make(map[string][]backendv2.PluginSetting)
+		for _, v := range p.cfg.PluginSettings {
+			// Plugin setting will be in format: pluginID,key,value
+			s := strings.Split(v, ",")
+			if len(s) != 3 {
+				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
+					"should be 'pluginID,key,value'", s)
+			}
+			var (
+				pluginID = s[0]
+				key      = s[1]
+				value    = s[2]
+			)
+			ps, ok := settings[pluginID]
+			if !ok {
+				ps = make([]backendv2.PluginSetting, 0, 16)
+			}
+			ps = append(ps, backendv2.PluginSetting{
+				Key:   key,
+				Value: value,
+			})
+
+			settings[pluginID] = ps
+		}
+
+		// Register plugins
+		for _, v := range p.cfg.Plugins {
+			// Setup plugin
+			ps, ok := settings[v]
+			if !ok {
+				ps = make([]backendv2.PluginSetting, 0)
+			}
+			plugin := backendv2.Plugin{
+				ID:       v,
+				Settings: ps,
+				Identity: p.identity,
+			}
+
+			// Register plugin
+			log.Infof("Register plugin: %v", v)
+			err = p.backendv2.PluginRegister(plugin)
+			if err != nil {
+				return fmt.Errorf("PluginRegister %v: %v", v, err)
+			}
+		}
+
+		// Setup plugins
+		for _, v := range p.backendv2.PluginInventory() {
+			log.Infof("Setup plugin: %v", v.ID)
+			err = p.backendv2.PluginSetup(v.ID)
+			if err != nil {
+				return fmt.Errorf("plugin setup %v: %v", v.ID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func _main() error {
+	// Load configuration and parse command line.  This function also
+	// initializes logging and configures it accordingly.
+	cfg, _, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("Could not load configuration file: %v", err)
+	}
+	defer func() {
+		if logRotator != nil {
+			logRotator.Close()
+		}
+	}()
+
+	log.Infof("Version : %v", version.String())
+	log.Infof("Build   : %v", version.BuildMainVersion())
+	log.Infof("Network : %v", activeNetParams.Params.Name)
+	log.Infof("Home dir: %v", cfg.HomeDir)
+
+	// Create the data directory in case it does not exist.
+	err = os.MkdirAll(cfg.DataDir, 0700)
 	if err != nil {
 		return err
 	}
-	if len(plugins) > 0 {
-		// Set plugin routes. Requires auth.
-		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
-			permissionAuth)
-		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
-			permissionAuth)
 
-		for _, v := range plugins {
-			// make sure we only have lowercase names
-			if backend.PluginRE.FindString(v.ID) != v.ID {
-				return fmt.Errorf("invalid plugin id: %v", v.ID)
-			}
-			if _, found := p.plugins[v.ID]; found {
-				return fmt.Errorf("duplicate plugin: %v", v.ID)
-			}
-			p.plugins[v.ID] = convertBackendPlugin(v)
+	// Generate the TLS cert and key file if both don't already
+	// exist.
+	if !util.FileExists(cfg.HTTPSKey) &&
+		!util.FileExists(cfg.HTTPSCert) {
+		log.Infof("Generating HTTPS keypair...")
 
-			// Register plugin with the cache
-			cp := convertBackendPluginToCache(v)
-			err := p.cache.RegisterPlugin(cp)
-			if errors.Is(err, cache.ErrNoVersionRecord) || errors.Is(err, cache.ErrWrongVersion) {
-				// The cache plugin version record was either not found
-				// or it is the wrong version which means that the cache
-				// needs to be built/rebuilt.
-				p.cfg.BuildCache = true
-			} else if err != nil {
-				return fmt.Errorf("cache register plugin '%v': %v",
-					cp.ID, err)
-			}
+		err := util.GenCertPair(elliptic.P521(), "politeiad",
+			cfg.HTTPSCert, cfg.HTTPSKey)
+		if err != nil {
+			return fmt.Errorf("unable to create https keypair: %v",
+				err)
+		}
 
-			// Setup the cache plugin tables
-			err = p.cache.PluginSetup(cp.ID)
-			if err != nil {
-				return fmt.Errorf("cache plugin setup '%v': %v",
-					cp.ID, err)
-			}
+		log.Infof("HTTPS keypair created...")
+	}
 
-			log.Infof("Registered plugin: %v", v.ID)
+	// Generate ed25519 identity to save messages, tokens etc.
+	if !util.FileExists(cfg.Identity) {
+		log.Infof("Generating signing identity...")
+		id, err := identity.New()
+		if err != nil {
+			return err
+		}
+		err = id.Save(cfg.Identity)
+		if err != nil {
+			return err
+		}
+		log.Infof("Signing identity created...")
+	}
+
+	// Setup application context.
+	p := &politeia{
+		cfg: cfg,
+	}
+
+	// Load identity.
+	p.identity, err = identity.LoadFullIdentity(cfg.Identity)
+	if err != nil {
+		return err
+	}
+	log.Infof("Public key: %x", p.identity.Public.Key)
+
+	// Load certs, if there.  If they aren't there assume OS is used to
+	// resolve cert validity.
+	if len(cfg.DcrtimeCert) != 0 {
+		var certPool *x509.CertPool
+		if !util.FileExists(cfg.DcrtimeCert) {
+			return fmt.Errorf("unable to find dcrtime cert %v",
+				cfg.DcrtimeCert)
+		}
+		dcrtimeCert, err := ioutil.ReadFile(cfg.DcrtimeCert)
+		if err != nil {
+			return fmt.Errorf("unable to read dcrtime cert %v: %v",
+				cfg.DcrtimeCert, err)
+		}
+		certPool = x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(dcrtimeCert) {
+			return fmt.Errorf("unable to load cert")
 		}
 	}
 
-	// Build the cache
-	if p.cfg.BuildCache {
-		// Reset cache tables
-		err = p.cache.Build([]cache.Record{})
+	// Setup backend
+	log.Infof("Backend: %v", cfg.Backend)
+	switch cfg.Backend {
+	case backendGit:
+		err := p.setupBackendGit(activeNetParams.Params)
 		if err != nil {
-			return fmt.Errorf("cache Build: %v", err)
+			return err
 		}
-
-		// Build unvetted records cache
-		log.Infof("Building unvettted records cache")
-		unvetted, err := p.backend.UnvettedTokens()
+	case backendTstore:
+		err := p.setupBackendTstore(activeNetParams.Params)
 		if err != nil {
-			return fmt.Errorf("backend UnvettedTokens: %v", err)
+			return err
 		}
-		for _, token := range unvetted {
-			r, err := p.backend.GetUnvetted(token)
-			if err != nil {
-				return fmt.Errorf("backend GetUnvetted %x: %v", token, err)
-			}
-			cr := p.convertBackendRecordToCache(*r)
-			err = p.cache.NewRecord(cr)
-			if err != nil {
-				return fmt.Errorf("cache NewRecord %x: %v", token, err)
-			}
-
-			log.Debugf("Added unvetted record %x", token)
-		}
-
-		// Build vetted records cache
-		log.Debugf("Building vetted records cache")
-		vetted, err := p.backend.VettedTokens()
-		if err != nil {
-			return fmt.Errorf("backend VettedTokens: %v", err)
-		}
-		for _, token := range vetted {
-			// Add the most recent version
-			r, err := p.backend.GetVetted(token, "")
-			if err != nil {
-				return fmt.Errorf("backend GetVetted %x: %v", token, err)
-			}
-			cr := p.convertBackendRecordToCache(*r)
-			err = p.cache.NewRecord(cr)
-			if err != nil {
-				return fmt.Errorf("cache NewRecord %x: %v", token, err)
-			}
-
-			log.Debugf("Added vetted record %x version %v", token, r.Version)
-
-			// Add all previous versions
-			version, err := strconv.ParseUint(r.Version, 10, 64)
-			if err != nil {
-				return err
-			}
-			version--
-			for version > 0 {
-				v := strconv.FormatUint(version, 10)
-				r, err := p.backend.GetVetted(token, v)
-				if err != nil {
-					return fmt.Errorf("backend GetVetted %x %v: %v",
-						token, v, err)
-				}
-				cr := p.convertBackendRecordToCache(*r)
-				err = p.cache.NewRecord(cr)
-				if err != nil {
-					return fmt.Errorf("cache NewRecord %x %v: %v",
-						token, v, err)
-				}
-
-				log.Debugf("Added vetted record %x version %v", token, version)
-				version--
-			}
-		}
-
-		// Build the cache for plugins
-		for _, plugin := range p.plugins {
-			var enableCache bool
-			for _, s := range plugin.Settings {
-				if s.Key == "enablecache" {
-					enableCache = true
-				}
-			}
-			if !enableCache {
-				continue
-			}
-
-			switch plugin.ID {
-			case decredplugin.ID:
-				// Decred plugin features are only available on vetted
-				// proposals.
-				err := p.buildCacheDecredPlugin(vetted)
-				if err != nil {
-					return fmt.Errorf("buildCacheDecredPlugin: %v", err)
-				}
-			case cmsplugin.ID:
-				err := p.buildCacheCMSPlugin()
-				if err != nil {
-					return fmt.Errorf("buildCacheCMSPlugin: %v", err)
-				}
-			default:
-				return fmt.Errorf("cache enabled for invalid plugin '%v'", plugin.ID)
-			}
-		}
+	default:
+		return fmt.Errorf("invalid backend selected: %v", cfg.Backend)
 	}
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
-	for _, listener := range loadedCfg.Listeners {
+	for _, listener := range cfg.Listeners {
 		listen := listener
 		go func() {
 			log.Infof("Listen: %v", listen)
 			listenC <- http.ListenAndServeTLS(listen,
-				loadedCfg.HTTPSCert, loadedCfg.HTTPSKey,
-				p.router)
+				cfg.HTTPSCert, cfg.HTTPSKey, p.router)
 		}()
 	}
 
@@ -1603,8 +439,12 @@ func _main() error {
 		}
 	}
 done:
-	p.cache.Close()
-	p.backend.Close()
+	switch p.cfg.Backend {
+	case backendGit:
+		p.backend.Close()
+	case backendTstore:
+		p.backendv2.Close()
+	}
 
 	log.Infof("Exiting")
 

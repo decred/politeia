@@ -32,15 +32,15 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "logout":
 		fmt.Printf("%s\n", shared.LogoutHelpMsg)
 	case "changepassword":
-		fmt.Printf("%s\n", shared.ChangePasswordHelpMsg)
+		fmt.Printf("%s\n", shared.UserPasswordChangeHelpMsg)
 	case "changeusername":
-		fmt.Printf("%s\n", shared.ChangeUsernameHelpMsg)
+		fmt.Printf("%s\n", shared.UserUsernameChangeHelpMsg)
 	case "newcomment":
-		fmt.Printf("%s\n", shared.NewCommentHelpMsg)
+		fmt.Printf("%s\n", newCommentHelpMsg)
 	case "censorcomment":
-		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
+		fmt.Printf("%s\n", censorCommentHelpMsg)
 	case "manageuser":
-		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
+		fmt.Printf("%s\n", shared.UserManageHelpMsg)
 	case "cmsmanageuser":
 		fmt.Printf("%s\n", cmsManageUserHelpMsg)
 	case "version":
@@ -48,9 +48,9 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "me":
 		fmt.Printf("%s\n", shared.MeHelpMsg)
 	case "resetpassword":
-		fmt.Printf("%s\n", shared.ResetPasswordHelpMsg)
+		fmt.Printf("%s\n", shared.UserPasswordResetHelpMsg)
 	case "updateuserkey":
-		fmt.Printf("%s\n", shared.UpdateUserKeyHelpMsg)
+		fmt.Printf("%s\n", shared.UserKeyUpdateHelpMsg)
 	case "users":
 		fmt.Printf("%s\n", shared.UsersHelpMsg)
 	case "userdetails":
@@ -77,6 +77,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", dccCommentsHelpMsg)
 	case "newdcccomment":
 		fmt.Printf("%s\n", newDCCCommentHelpMsg)
+	case "batchproposals":
+		fmt.Printf("%s\n", batchProposalsHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use 'cmswww -h' " +

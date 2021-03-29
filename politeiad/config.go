@@ -6,16 +6,12 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -23,6 +19,7 @@ import (
 	"strings"
 
 	v1 "github.com/decred/dcrtime/api/v1"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -43,11 +40,20 @@ const (
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
 
-	// Currently available modes to run politeia, by default piwww, is used.
-	politeiaWWWMode = "piwww"
-	cmsWWWMode      = "cmswww"
+	// Backend options
+	backendGit     = "git"
+	backendTstore  = "tstore"
+	defaultBackend = backendTstore
 
-	defaultWWWMode = politeiaWWWMode
+	// Tstore default settings
+	defaultDBType   = tstore.DBTypeLevelDB
+	defaultDBHost   = "localhost:3306" // MySQL default host
+	defaultTlogHost = "localhost:8090"
+
+	// Environment variables
+	envDcrtimeCert = "DCRTIMECERT"
+	envDBPass      = "DBPASS"
+	envTlogPass    = "TLOGPASS"
 )
 
 var (
@@ -68,95 +74,48 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir       string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion   bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile    string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir       string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir        string   `long:"logdir" description:"Directory to log output."`
-	TestNet       bool     `long:"testnet" description:"Use the test network"`
-	SimNet        bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile       string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile    string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile    string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel    string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners     []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version       string
-	HTTPSCert     string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey      string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser       string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass       string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost   string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert   string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
-	EnableCache   bool   `long:"enablecache" description:"Enable the external cache"`
-	CacheHost     string `long:"cachehost" description:"Cache ip:port"`
-	CacheRootCert string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
-	CacheCert     string `long:"cachecert" description:"File containing the politeiad client certificate for the cache"`
-	CacheKey      string `long:"cachekey" description:"File containing the politeiad client certificate key for the cache"`
-	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
-	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
-	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
-	DcrdataHost   string `long:"dcrdatahost" description:"Dcrdata ip:port"`
-	Mode          string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	HomeDir     string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile  string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir     string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir      string   `long:"logdir" description:"Directory to log output."`
+	TestNet     bool     `long:"testnet" description:"Use the test network"`
+	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version     string
+	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
+	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
+	Backend     string `long:"backend" description:"Backend type"`
+
+	// Git backend options
+	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+
+	// Tstore backend options
+	DBType   string `long:"dbtype" description:"Database type"`
+	DBHost   string `long:"dbhost" description:"Database ip:port"`
+	DBPass   string // Provided in env variable "DBPASS"
+	TlogHost string `long:"tloghost" description:"Trillian log ip:port"`
+	TlogPass string // Provided in env variable "TLOGPASS"
+
+	// Plugin options
+	Plugins        []string `long:"plugin" description:"Plugins"`
+	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
 // on Windows.
 type serviceOptions struct {
 	ServiceCommand string `short:"s" long:"service" description:"Service command {install, remove, start, stop}"`
-}
-
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Nothing to do when no path is given.
-	if path == "" {
-		return path
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows cmd.exe-style
-	// %VARIABLE%, but the variables can still be expanded via POSIX-style
-	// $VARIABLE.
-	path = os.ExpandEnv(path)
-
-	if !strings.HasPrefix(path, "~") {
-		return filepath.Clean(path)
-	}
-
-	// Expand initial ~ to the current user's home directory, or ~otheruser
-	// to otheruser's home directory.  On Windows, both forward and backward
-	// slashes can be used.
-	path = path[1:]
-
-	var pathSeparators string
-	if runtime.GOOS == "windows" {
-		pathSeparators = string(os.PathSeparator) + "/"
-	} else {
-		pathSeparators = string(os.PathSeparator)
-	}
-
-	userName := ""
-	if i := strings.IndexAny(path, pathSeparators); i != -1 {
-		userName = path[:i]
-		path = path[i:]
-	}
-
-	homeDir := ""
-	var u *user.User
-	var err error
-	if userName == "" {
-		u, err = user.Current()
-	} else {
-		u, err = user.Lookup(userName)
-	}
-	if err == nil {
-		homeDir = u.HomeDir
-	}
-	// Fallback to CWD if user lookup fails or user has no home directory.
-	if homeDir == "" {
-		homeDir = "."
-	}
-
-	return filepath.Join(homeDir, path)
 }
 
 // validLogLevel returns whether or not logLevel is a valid debug log level.
@@ -299,7 +258,10 @@ func loadConfig() (*config, []string, error) {
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
 		Version:    version.String(),
-		Mode:       defaultWWWMode,
+		Backend:    defaultBackend,
+		DBType:     defaultDBType,
+		DBHost:     defaultDBHost,
+		TlogHost:   defaultTlogHost,
 	}
 
 	// Service options which are only added on Windows.
@@ -455,70 +417,21 @@ func loadConfig() (*config, []string, error) {
 	// All data is specific to a network, so namespacing the data directory
 	// means each individual piece of serialized data does not have to
 	// worry about changing names per network and such.
-	cfg.DataDir = cleanAndExpandPath(cfg.DataDir)
+	cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
 	cfg.DataDir = filepath.Join(cfg.DataDir, netName(activeNetParams))
 
 	// Append the network type to the log directory so it is "namespaced"
 	// per network in the same fashion as the data directory.
-	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
+	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
 
-	cfg.HTTPSKey = cleanAndExpandPath(cfg.HTTPSKey)
-	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
+	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
+	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
 		fmt.Println("Supported subsystems", supportedSubsystems())
 		os.Exit(0)
-	}
-
-	// Validate cache options.
-	if cfg.EnableCache {
-		switch {
-		case cfg.CacheHost == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cachehost param")
-		case cfg.CacheRootCert == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cacherootcert param")
-		case cfg.CacheCert == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cachecert param")
-		case cfg.CacheKey == "":
-			return nil, nil, fmt.Errorf("the enablecache param can " +
-				"not be used without the cachekey param")
-		}
-
-		cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
-		cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
-		cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
-
-		// Validate cache root cert.
-		b, err := ioutil.ReadFile(cfg.CacheRootCert)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
-		}
-		block, _ := pem.Decode(b)
-		if block == nil {
-			return nil, nil, fmt.Errorf("%s is not a valid certificate",
-				cfg.CacheRootCert)
-		}
-		_, err = x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
-		}
-
-		// Validate cache key pair.
-		_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load key pair cachecert "+
-				"and cachekey: %v", err)
-		}
-	}
-
-	if cfg.BuildCache && !cfg.EnableCache {
-		return nil, nil, fmt.Errorf("the buildcache param can " +
-			"not be used without the enablecache param")
 	}
 
 	// Initialize log rotation.  After log rotation has been initialized,
@@ -589,7 +502,7 @@ func loadConfig() (*config, []string, error) {
 	cfg.DcrtimeHost = "https://" + cfg.DcrtimeHost
 
 	if len(cfg.DcrtimeCert) != 0 && !util.FileExists(cfg.DcrtimeCert) {
-		cfg.DcrtimeCert = cleanAndExpandPath(cfg.DcrtimeCert)
+		cfg.DcrtimeCert = util.CleanAndExpandPath(cfg.DcrtimeCert)
 		path := filepath.Join(cfg.HomeDir, cfg.DcrtimeCert)
 		if !util.FileExists(path) {
 			str := "%s: dcrtimecert " + cfg.DcrtimeCert + " and " +
@@ -605,7 +518,7 @@ func loadConfig() (*config, []string, error) {
 	if cfg.Identity == "" {
 		cfg.Identity = defaultIdentityFile
 	}
-	cfg.Identity = cleanAndExpandPath(cfg.Identity)
+	cfg.Identity = util.CleanAndExpandPath(cfg.Identity)
 
 	// Set random username and password when not specified
 	if cfg.RPCUser == "" {
@@ -625,14 +538,39 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("RPC password not set, using random value")
 	}
 
-	// Verify mode
-	switch cfg.Mode {
-	case cmsWWWMode:
-	case politeiaWWWMode:
+	// Verify backend type
+	switch cfg.Backend {
+	case backendGit, backendTstore:
+		// Allowed; continue
 	default:
-		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
-		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("invalid backend type '%v'", cfg.Backend)
+	}
+
+	// Verify tstore backend database choice
+	switch cfg.DBType {
+	case tstore.DBTypeLevelDB:
+		// Allowed; continue
+	case tstore.DBTypeMySQL:
+		// The database password is provided in an env variable
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
+				"the database password for the politeiad user in the env " +
+				"variable DBPASS")
+		}
+	}
+
+	// Verify tlog options
+	_, err = url.Parse(cfg.TlogHost)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid tlog host '%v': %v",
+			cfg.TlogHost, err)
+	}
+	cfg.TlogPass = os.Getenv(envTlogPass)
+	if cfg.TlogPass == "" {
+		return nil, nil, fmt.Errorf("tlogpass not found: a tlog "+
+			"password that will be used to derive the tlog signing key "+
+			"must be provided in the env variable %v", envTlogPass)
 	}
 
 	// Warn about missing config file only after all other configuration is

@@ -1,241 +1,127 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
-type invoiceNotificationEmailData struct {
-	Username string
-	Month    string
-	Year     int
+import "text/template"
+
+// User email verify - Send verification link to new user
+type userEmailVerify struct {
+	Username string // User username
+	Link     string // Verification link
 }
 
-type newUserEmailTemplateData struct {
-	Username string
-	Link     string
-	Email    string
-}
-
-type newInviteUserEmailTemplateData struct {
-	Email string
-	Link  string
-}
-
-type approveDCCUserEmailTemplateData struct {
-	Email string
-	Link  string
-}
-
-type updateUserKeyEmailTemplateData struct {
-	Link      string
-	PublicKey string
-	Email     string
-}
-
-type resetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
-}
-
-type userLockedResetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
-}
-
-type userPasswordChangedTemplateData struct {
-	Email string
-}
-
-type newProposalSubmittedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
-	Email    string
-}
-
-type proposalEditedTemplateData struct {
-	Link     string
-	Name     string
-	Version  string
-	Username string
-}
-
-type proposalVoteStartedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
-}
-
-type proposalStatusChangeTemplateData struct {
-	Link               string
-	Name               string
-	Username           string
-	StatusChangeReason string
-}
-
-type proposalVoteAuthorizedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
-	Email    string
-}
-
-type commentReplyOnProposalTemplateData struct {
-	Commenter    string
-	ProposalName string
-	CommentLink  string
-}
-
-type commentReplyOnCommentTemplateData struct {
-	Commenter    string
-	ProposalName string
-	CommentLink  string
-}
-
-type newInvoiceCommentTemplateData struct {
-}
-
-type newInvoiceStatusUpdateTemplate struct {
-	Token string
-}
-
-type newDCCSubmittedTemplateData struct {
-	Link string
-}
-
-type newDCCSupportOpposeTemplateData struct {
-	Link string
-}
-
-const templateNewUserEmailRaw = `
+const userEmailVerifyText = `
 Thanks for joining Politeia, {{.Username}}!
 
-Click the link below to verify your email and complete your registration:
+Click the link below to verify your email and complete your registration.
 
 {{.Link}}
 
-You are receiving this email because {{.Email}} was used to register for Politeia.
-If you did not perform this action, please ignore this email.
+You are receiving this notification because this email address was used to
+register a Politeia account.  If you did not perform this action, please ignore
+this email.
 `
 
-const templateResetPasswordEmailRaw = `
-Click the link below to continue resetting your password:
+var userEmailVerifyTmpl = template.Must(
+	template.New("userEmailVerify").Parse(userEmailVerifyText))
 
-{{.Link}}
+// User key update - Send key verification link to user
+type userKeyUpdate struct {
+	PublicKey string // User new public key
+	Username  string
+	Link      string // Verify key link
+}
 
-You are receiving this email because a password reset was initiated for {{.Email}}
-on Politeia. If you did not perform this action, it is possible that your account has been
-compromised. Please contact Politeia administrators through Matrix on the
-#politeia:decred.org channel.
-`
-
-const templateUserPasswordChangedRaw = `
-You are receiving this email to notify you that your password has changed for 
-{{.Email}} on Politeia. If you did not perform this action, it is possible that 
-your account has been compromised. Please contact Politeia administrators 
-through Matrix on the #politeia:decred.org channel for further instructions.
-`
-
-const templateUpdateUserKeyEmailRaw = `
+const userKeyUpdateText = `
 Click the link below to verify your new identity:
 
 {{.Link}}
 
-You are receiving this email because a new identity (public key: {{.PublicKey}})
-was generated for {{.Email}} on Politeia. If you did not perform this action,
-please contact Politeia administrators.
+You are receiving this notification because a new identity was generated for
+{{.Username}} on Politeia with the following public key. 
+
+Public key: {{.PublicKey}} 
+
+If you did not perform this action, please contact a Politeia administrators in
+the Politeia channel on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
-const templateUserLockedResetPasswordRaw = `
-Your account was locked due to too many login attempts. You need to reset your
-password in order to unlock your account:
+var userKeyUpdateTmpl = template.Must(
+	template.New("userKeyUpdate").Parse(userKeyUpdateText))
+
+// User password reset - Send password reset link to user
+type userPasswordReset struct {
+	Link string // Password reset link
+}
+
+const userPasswordResetText = `
+Click the link below to continue resetting your password:
 
 {{.Link}}
 
-You are receiving this email because someone made too many login attempts for
-{{.Email}} on Politeia. If that was not you, please notify Politeia administrators.
+A password reset was initiated for this Politeia account.  If you did not
+perform this action, it's possible that your account has been compromised.
+Please contact a Politeia administrator in the Politeia channel on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
-const templateNewProposalSubmittedRaw = `
-A new proposal has been submitted on Politeia by {{.Username}} ({{.Email}}):
+var userPasswordResetTmpl = template.Must(
+	template.New("userPasswordReset").Parse(userPasswordResetText))
 
-{{.Name}}
+// User account locked - Send reset password link to user
+type userAccountLocked struct {
+	Link     string // Reset password link
+	Username string
+}
+
+const userAccountLockedText = `
+The Politeia account for {{.Username}} was locked due to too many login
+attempts. You need to reset your password in order to unlock your account:
+
 {{.Link}}
+
+If these login attempts were not made by you, please notify a Politeia
+administrators in the Politeia channel on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
-const templateProposalVettedRaw = `
-A new proposal has just been approved on Politeia, authored by {{.Username}}:
+var userAccountLockedTmpl = template.Must(
+	template.New("userAccountLocked").Parse(userAccountLockedText))
 
-{{.Name}}
-{{.Link}}
+// User password changed - Send to user
+type userPasswordChanged struct {
+	Username string
+}
+
+const userPasswordChangedText = `
+The password has been changed for your Politeia account with the username
+{{.Username}}. 
+
+If you did not perform this action, it's possible that your account has been
+compromised.  Please contact a Politeia administrator in the Politeia channel
+on Matrix.
+
+https://chat.decred.org/#/room/#politeia:decred.org
 `
 
-const templateProposalEditedRaw = `
-A proposal by {{.Username}} has just been edited:
+var userPasswordChangedTmpl = template.Must(
+	template.New("userPasswordChanged").Parse(userPasswordChangedText))
 
-{{.Name}} (Version: {{.Version}})
-{{.Link}}
-`
+// CMS events
 
-const templateProposalVoteStartedRaw = `
-Voting has started for the following proposal on Politeia, authored by {{.Username}}:
+// User CMS invite - Send to user being invited
+type userCMSInvite struct {
+	Email string // User email
+	Link  string // Registration link
+}
 
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalVoteAuthorizedRaw = `
-Voting has been authorized for the following proposal on Politeia by {{.Username}} ({{.Email}}):
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalVettedForAuthorRaw = `
-Your proposal has just been approved on Politeia!
-
-You will need to authorize a proposal vote before an administrator will be
-allowed to start the voting period on your proposal.  You can authorize a
-proposal vote by opening the proposal page and clicking on the "Authorize
-Voting to Start" button.
-
-You must authorize a proposal vote within 14 days.  If you fail to do so, your
-proposal will be considered abandoned.
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateProposalCensoredForAuthorRaw = `
-Your proposal on Politeia has been censored:
-
-{{.Name}}
-{{.Link}}
-Reason: {{.StatusChangeReason}}
-`
-
-const templateProposalVoteStartedForAuthorRaw = `
-Voting has just started for your proposal on Politeia!
-
-{{.Name}}
-{{.Link}}
-`
-
-const templateCommentReplyOnProposalRaw = `
-{{.Commenter}} has commented on your proposal!
-
-Proposal: {{.ProposalName}}
-Comment: {{.CommentLink}}
-`
-
-const templateCommentReplyOnCommentRaw = `
-{{.Commenter}} has replied to your comment!
-
-Proposal: {{.ProposalName}}
-Comment: {{.CommentLink}}
-`
-
-const templateInviteNewUserEmailRaw = `
+const userCMSInviteText = `
 You are invited to join Decred as a contractor! To complete your registration, you will need to use the following link and register on the CMS site:
 
 {{.Link}}
@@ -244,7 +130,15 @@ You are receiving this email because {{.Email}} was used to be invited to Decred
 If you do not recognize this, please ignore this email.
 `
 
-const templateApproveDCCUserEmailRaw = `
+var userCMSInviteTmpl = template.Must(
+	template.New("userCMSInvite").Parse(userCMSInviteText))
+
+// User DCC approved - Send to approved user
+type userDCCApproved struct {
+	Email string // User email
+}
+
+const userDCCApprovedText = `
 Congratulations! Your Decred Contractor Clearance Proposal has been approved! 
 
 You are now a fully registered contractor and may now submit invoices.  You should also be receiving an invitation to the contractors room on matrix.  
@@ -254,29 +148,15 @@ You are receiving this email because {{.Email}} was used to be invited to Decred
 If you do not recognize this, please ignore this email.
 `
 
-const templateInvoiceNotificationRaw = `
-{{.Username}},
+var userDCCApprovedTmpl = template.Must(
+	template.New("userDCCApproved").Parse(userDCCApprovedText))
 
-You have not yet submitted an invoice for {{.Month}} {{.Year}}.  Please do so as soon as possible, so your invoice may be reviewed and paid out in a timely manner.
+// DCC submitted - Send to admins
+type dccSubmitted struct {
+	Link string // DCC gui link
+}
 
-Regards,
-Contractor Management System
-`
-
-const templateNewInvoiceCommentRaw = `
-An administrator has submitted a new comment to your invoice, please login to cms.decred.org to view the message.
-`
-
-const templateNewInvoiceStatusUpdateRaw = `
-An invoice's status has been updated, please login to cms.decred.org to review the changes.
-
-Updated Invoice Token: {{.Token}}
-
-Regards,
-Contractor Management System
-`
-
-const templateNewDCCSubmittedRaw = `
+const dccSubmittedText = `
 A new DCC has been submitted.
 
 {{.Link}}
@@ -285,7 +165,15 @@ Regards,
 Contractor Management System
 `
 
-const templateNewDCCSupportOpposeRaw = `
+var dccSubmittedTmpl = template.Must(
+	template.New("dccSubmitted").Parse(dccSubmittedText))
+
+// DCC support/oppose - Send to admins
+type dccSupportOppose struct {
+	Link string // DCC gui link
+}
+
+const dccSupportOpposeText = `
 A DCC has received new support or opposition.
 
 {{.Link}}
@@ -293,3 +181,50 @@ A DCC has received new support or opposition.
 Regards,
 Contractor Management System
 `
+
+var dccSupportOpposeTmpl = template.Must(
+	template.New("dccSupportOppose").Parse(dccSupportOpposeText))
+
+// Invoice status update - Send to invoice owner
+type invoiceStatusUpdate struct {
+	Token string // Invoice token
+}
+
+const invoiceStatusUpdateText = `
+An invoice's status has been updated, please login to cms.decred.org to review the changes.
+
+Updated Invoice Token: {{.Token}}
+
+Regards,
+Contractor Management System
+`
+
+var invoiceStatusUpdateTmpl = template.Must(
+	template.New("invoiceStatusUpdate").Parse(invoiceStatusUpdateText))
+
+// Invoice not sent - Send to users that did not send monthly invoice yet
+type invoiceNotSent struct {
+	Username string // User username
+	Month    string // Current month
+	Year     int    // Current year
+}
+
+const invoiceNotSentText = `
+{{.Username}},
+
+You have not yet submitted an invoice for {{.Month}} {{.Year}}.  Please do so as soon as possible, so your invoice may be reviewed and paid out in a timely manner.
+
+Regards,
+Contractor Management System
+`
+
+var invoiceNotSentTmpl = template.Must(
+	template.New("invoiceNotSent").Parse(invoiceNotSentText))
+
+// Invoice new comment - Send to invoice owner
+const invoiceNewCommentText = `
+An administrator has submitted a new comment to your invoice, please login to cms.decred.org to view the message.
+`
+
+var invoiceNewCommentTmpl = template.Must(
+	template.New("invoiceNewComment").Parse(invoiceNewCommentText))

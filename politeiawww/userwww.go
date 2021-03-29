@@ -9,35 +9,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"text/template"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
-var (
-	templateNewUserEmail = template.Must(
-		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
-	templateResetPasswordEmail = template.Must(
-		template.New("reset_password_email_template").Parse(templateResetPasswordEmailRaw))
-	templateUpdateUserKeyEmail = template.Must(
-		template.New("update_user_key_email_template").Parse(templateUpdateUserKeyEmailRaw))
-	templateUserLockedResetPassword = template.Must(
-		template.New("user_locked_reset_password").Parse(templateUserLockedResetPasswordRaw))
-	templateUserPasswordChanged = template.Must(
-		template.New("user_changed_password").Parse(templateUserPasswordChangedRaw))
-	templateInviteNewUserEmail = template.Must(
-		template.New("invite_new_user_email_template").Parse(templateInviteNewUserEmailRaw))
-	templateApproveDCCUserEmail = template.Must(
-		template.New("invite_approved_dcc_user").Parse(templateApproveDCCUserEmailRaw))
-)
-
-// handleNewUser handles the incoming new user command. It verifies that the new user
-// doesn't already exist, and then creates a new user in the db and generates a random
-// code used for verification. The code is intended to be sent to the specified email.
+// handleNewUser handles the incoming new user command. It verifies that the
+// new user doesn't already exist, and then creates a new user in the db and
+// generates a random code used for verification. The code is intended to be
+// sent to the specified email.
 func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
@@ -61,9 +45,10 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleVerifyNewUser handles the incoming new user verify command. It verifies
-// that the user with the provided email has a verification token that matches
-// the provided token and that the verification token has not yet expired.
+// handleVerifyNewUser handles the incoming new user verify command. It
+// verifies that the user with the provided email has a verification token that
+// matches the provided token and that the verification token has not yet
+// expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyNewUser")
 
@@ -153,7 +138,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Initialize a session for the logged in user
-	err = p.initSession(w, r, reply.UserID)
+	err = p.sessions.NewSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogin: initSession: %v", err)
@@ -161,7 +146,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set session max age
-	reply.SessionMaxAge = sessionMaxAge
+	reply.SessionMaxAge = sessions.SessionMaxAge
 
 	// Reply with the user information.
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -171,7 +156,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
-	_, err := p.getSessionUser(w, r)
+	_, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleLogout: getSessionUser", www.UserError{
 			ErrorCode: www.ErrorStatusNotLoggedIn,
@@ -179,7 +164,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = p.removeSession(w, r)
+	err = p.sessions.DelSession(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogout: removeSession %v", err)
@@ -275,8 +260,8 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && !errors.Is(err, errSessionNotFound) {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleUserDetails: getSessionUser %v", err)
 		return
@@ -308,7 +293,7 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleMe")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleMe: getSessionUser %v", err)
@@ -323,7 +308,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set session max age
-	reply.SessionMaxAge = sessionMaxAge
+	reply.SessionMaxAge = sessions.SessionMaxAge
 
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
@@ -344,7 +329,7 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUpdateUserKey: getSessionUser %v", err)
@@ -378,7 +363,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyUpdateUserKey: getSessionUser %v", err)
@@ -410,7 +395,7 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangeUsername: getSessionUser %v", err)
@@ -443,13 +428,13 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	session, err := p.getSession(r)
+	session, err := p.sessions.GetSession(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: getSession %v", err)
 		return
 	}
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: getSessionUser %v", err)
@@ -476,41 +461,6 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleVerifyUserPayment checks whether the provided transaction
-// is on the blockchain and meets the requirements to consider the user
-// registration fee as paid.
-func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVerifyUserPayment")
-
-	// Get the verify user payment tx command.
-	var vupt www.VerifyUserPayment
-	err := util.ParseGetParams(r, &vupt)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVerifyUserPayment: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyUserPayment: getSessionUser %v", err)
-		return
-	}
-
-	vuptr, err := p.processVerifyUserPayment(r.Context(), user, vupt)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyUserPayment: processVerifyUserPayment %v",
-			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vuptr)
-}
-
 // handleEditUser handles editing a user's preferences.
 func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
@@ -525,7 +475,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminUser, err := p.getSessionUser(w, r)
+	adminUser, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleEditUser: getSessionUser %v",
 			err)
@@ -557,8 +507,8 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && !errors.Is(err, errSessionNotFound) {
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
 		RespondWithError(w, r, 0,
 			"handleUsers: getSessionUser %v", err)
 		return
@@ -600,6 +550,128 @@ func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, cur)
 }
 
+// handleManageUser handles editing a user's details.
+func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleManageUser")
+
+	var mu www.ManageUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&mu); err != nil {
+		RespondWithError(w, r, 0, "handleManageUser: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	adminUser, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleManageUser: getSessionUser %v",
+			err)
+		return
+	}
+
+	mur, err := p.processManageUser(&mu, adminUser)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleManageUser: processManageUser %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, mur)
+}
+
+// handleUserRegistrationPayment checks whether the provided transaction
+// is on the blockchain and meets the requirements to consider the user
+// registration fee as paid.
+func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserRegistrationPayment")
+
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserRegistrationPayment: getSessionUser %v", err)
+		return
+	}
+
+	vuptr, err := p.processUserRegistrationPayment(r.Context(), user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserRegistrationPayment: processUserRegistrationPayment %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vuptr)
+}
+
+// handleUserProposalPaywall returns paywall details that allows the user to
+// purchase proposal credits.
+func (p *politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalPaywall")
+
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywall: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUserProposalPaywall(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywall: processUserProposalPaywall  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUserProposalPaywallTx returns the payment details for a pending
+// proposal paywall payment.
+func (p *politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalPaywallTx")
+
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywallTx: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUserProposalPaywallTx(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPaywallTx: "+
+				"processUserProposalPaywallTx %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUserProposalCredits returns the spent and unspent proposal credits for
+// the logged in user.
+func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalCredits")
+
+	user, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalCredits: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := processUserProposalCredits(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalCredits: processUserProposalCredits  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
 func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
@@ -620,83 +692,6 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 		RespondWithError(w, r, 0,
 			"handleUserPaymentsRescan: processUserPaymentsRescan:  %v",
 			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleManageUser handles editing a user's details.
-func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleManageUser")
-
-	var mu www.ManageUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&mu); err != nil {
-		RespondWithError(w, r, 0, "handleManageUser: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	adminUser, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleManageUser: getSessionUser %v",
-			err)
-		return
-	}
-
-	mur, err := p.processManageUser(&mu, adminUser)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleManageUser: processManageUser %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, mur)
-}
-
-// handleUserCommentsLikes returns the user votes on comments of a given proposal.
-func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserCommentsLikes")
-
-	pathParams := mux.Vars(r)
-	token := pathParams["token"]
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserCommentsLikes: getSessionUser %v", err)
-		return
-	}
-
-	uclr, err := p.processUserCommentsLikes(user, token)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserCommentsLikes: processUserCommentsLikes %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, uclr)
-}
-
-// handleUserProposalCredits returns the spent and unspent proposal credits for
-// the logged in user.
-func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserProposalCredits")
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserProposalCredits: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := processUserProposalCredits(user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserProposalCredits: processUserProposalCredits  %v", err)
 		return
 	}
 
@@ -726,6 +721,68 @@ func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request)
 
 	// Reply with the verification token.
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleSetTOTP handles the setting of TOTP Key
+func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetTOTP")
+
+	var st www.SetTOTP
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&st); err != nil {
+		RespondWithError(w, r, 0, "handleSetTOTP: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetTOTP: getSessionUser %v", err)
+		return
+	}
+
+	str, err := p.processSetTOTP(st, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetTOTP: processSetTOTP %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, str)
+}
+
+// handleVerifyTOTP handles the request to verify a set TOTP Key.
+func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVerifyTOTP")
+
+	var vt www.VerifyTOTP
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vt); err != nil {
+		RespondWithError(w, r, 0, "handleVerifyTOTP: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyTOTP: getSessionUser %v", err)
+		return
+	}
+
+	vtr, err := p.processVerifyTOTP(vt, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyTOTP: processVerifyTOTP %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vtr)
 }
 
 // setUserWWWRoutes setsup the user routes.
@@ -778,17 +835,26 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteChangePassword, p.handleChangePassword,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyUserPayment, p.handleVerifyUserPayment,
-		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteEditUser, p.handleEditUser,
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserCommentsLikes, p.handleUserCommentsLikes,
-		permissionLogin) // XXX comments need to become a setting
+		www.RouteUserRegistrationPayment, p.handleUserRegistrationPayment,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalPaywall, p.handleUserProposalPaywall,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalPaywallTx, p.handleUserProposalPaywallTx,
+		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUserProposalCredits, p.handleUserProposalCredits,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
 		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
@@ -849,6 +915,12 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteCMSUsers, p.handleCMSUsers,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
 		permissionLogin)
 
 	// Routes that require being logged in as an admin user.

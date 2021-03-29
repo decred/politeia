@@ -27,9 +27,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -50,14 +49,13 @@ const (
 	proposalMDFilename      = "00.metadata.txt"
 
 	// Journal actions
-	journalActionAdd     = "add"     // Add entry
-	journalActionDel     = "del"     // Delete entry
-	journalActionAddLike = "addlike" // Add comment like
+	journalActionAdd = "add" // Add entry
+	journalActionDel = "del" // Delete entry
 )
 
 var (
-	defaultHomeDir       = sharedconfig.DefaultHomeDir
-	defaultDataDir       = sharedconfig.DefaultDataDir
+	defaultHomeDir       = config.DefaultHomeDir
+	defaultDataDir       = config.DefaultDataDir
 	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
 
 	// Database options
@@ -331,14 +329,6 @@ func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
 			}
 			pubkeys[cc.PublicKey] = struct{}{}
 
-		case journalActionAddLike:
-			var lc decredplugin.LikeComment
-			err = d.Decode(&lc)
-			if err != nil {
-				return fmt.Errorf("journal addlike: %v", err)
-			}
-			pubkeys[lc.PublicKey] = struct{}{}
-
 		default:
 			return fmt.Errorf("invalid action: %v",
 				action.Action)
@@ -381,18 +371,6 @@ func cmdStubUsers() error {
 				if err != nil {
 					return err
 				}
-			case proposalMDFilename:
-				b, err := ioutil.ReadFile(path)
-				if err != nil {
-					return err
-				}
-
-				var md mdstream.ProposalGeneralV2
-				err = json.Unmarshal(b, &md)
-				if err != nil {
-					return fmt.Errorf("proposal md: %v", err)
-				}
-				pubkeys[md.PublicKey] = struct{}{}
 			}
 
 			return nil

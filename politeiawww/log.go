@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,10 +9,16 @@ import (
 	"os"
 	"path/filepath"
 
-	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/codetracker/github"
 	ghdb "github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
+	"github.com/decred/politeia/politeiawww/comments"
+	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/mail"
+	"github.com/decred/politeia/politeiawww/pi"
+	"github.com/decred/politeia/politeiawww/records"
+	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/wsdcrdata"
@@ -47,9 +53,14 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log              = backendLog.Logger("PWWW")
-	localdbLog       = backendLog.Logger("LODB")
-	cockroachdbLog   = backendLog.Logger("CODB")
+	log         = backendLog.Logger("PWWW")
+	userdbLog   = backendLog.Logger("USER")
+	sessionsLog = backendLog.Logger("SESS")
+	eventsLog   = backendLog.Logger("EVNT")
+	apiLog      = backendLog.Logger("APIS")
+
+	// CMS loggers
+	cmsdbLog         = backendLog.Logger("CMDB")
 	wsdcrdataLog     = backendLog.Logger("WSDD")
 	githubTrackerLog = backendLog.Logger("GHTR")
 	githubdbLog      = backendLog.Logger("GHDB")
@@ -57,10 +68,22 @@ var (
 
 // Initialize package-global logger variables.
 func init() {
-	localdb.UseLogger(localdbLog)
-	cockroachdb.UseLogger(cockroachdbLog)
-	cachedb.UseLogger(cockroachdbLog)
-	cmsdb.UseLogger(cockroachdbLog)
+	mail.UseLogger(log)
+	sessions.UseLogger(sessionsLog)
+	events.UseLogger(eventsLog)
+
+	// UserDB loggers
+	localdb.UseLogger(userdbLog)
+	cockroachdb.UseLogger(userdbLog)
+
+	// API loggers
+	records.UseLogger(apiLog)
+	comments.UseLogger(apiLog)
+	ticketvote.UseLogger(apiLog)
+	pi.UseLogger(apiLog)
+
+	// CMS loggers
+	cmsdb.UseLogger(cmsdbLog)
 	wsdcrdata.UseLogger(wsdcrdataLog)
 	github.UseLogger(githubTrackerLog)
 	ghdb.UseLogger(githubdbLog)
@@ -69,8 +92,11 @@ func init() {
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"PWWW": log,
-	"LODB": localdbLog,
-	"CODB": cockroachdbLog,
+	"SESS": sessionsLog,
+	"EVNT": eventsLog,
+	"USER": userdbLog,
+	"APIS": apiLog,
+	"CMDB": cmsdbLog,
 	"WSDD": wsdcrdataLog,
 	"GHTR": githubTrackerLog,
 	"GHDB": githubdbLog,

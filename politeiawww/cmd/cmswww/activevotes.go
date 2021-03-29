@@ -80,7 +80,7 @@ Result:
       "startblockhash":      (string)  Hash of first block of vote interval
       "endheight":           (string)  Block height at end of vote
       "eligibletickets": [
-        "removed by politeiawwwcli for readability"
+        "removed by cmswww for readability"
       ]
     }
   ]

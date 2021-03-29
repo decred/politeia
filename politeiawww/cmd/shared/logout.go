@@ -31,7 +31,4 @@ const LogoutHelpMsg = `logout
 Logout as a user or admin.
 
 Arguments:
-None
-
-Result:
-{}`
+None`

@@ -18,7 +18,6 @@ import (
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -121,7 +120,9 @@ func (p *politeiawww) monitorCMSAddressWatcher(ctx context.Context) {
 	}
 }
 
-func (p *politeiawww) setupCMSAddressWatcher(ctx context.Context) {
+func (p *politeiawww) setupCMSAddressWatcher() {
+	ctx := context.Background()
+
 	// Ensure connection is open. If connection is closed, establish a
 	// new connection before continuing.
 	if p.wsDcrdata.Status() != wsdcrdata.StatusOpen {
@@ -404,7 +405,7 @@ func (p *politeiawww) updateInvoicePayment(ctx context.Context, payment *databas
 func (p *politeiawww) invoiceStatusPaid(ctx context.Context, token, key string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByKey(key)
 	if err != nil {
-		if errors.Is(err, cache.ErrRecordNotFound) {
+		if errors.Is(err, database.ErrInvoiceNotFound) {
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}

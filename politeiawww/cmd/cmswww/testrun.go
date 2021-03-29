@@ -312,7 +312,7 @@ func invoiceNew(u user, contractorRate uint, labor float64) (*www.CensorshipReco
 			Payload: base64.StdEncoding.EncodeToString(b),
 		},
 	}
-	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
+	sig, err := signedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +445,7 @@ func dccNew(sponsor user, nomineeID string, dcct cms.DCCTypeT, dt cms.DomainType
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}
 	files := []www.File{f}
-	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
+	sig, err := signedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return nil, err
 	}

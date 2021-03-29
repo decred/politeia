@@ -88,9 +88,6 @@ const (
 	// where an anchor confirmation has been committed.  This value is
 	// parsed and therefore must be a const.
 	markerAnchorConfirmation = "Anchor confirmation"
-
-	piMode  = "piwww"
-	cmsMode = "cmswww"
 )
 
 var (
@@ -261,6 +258,7 @@ func extendSHA1FromString(s string) (string, error) {
 	return hex.EncodeToString(d), nil
 }
 
+// TODO this should use the backend.VerifyContent
 // verifyContent verifies that all provided backend.MetadataStream and
 // backend.File are sane and returns a cooked array of the files.
 func verifyContent(metadata []backend.MetadataStream, files []backend.File, filesDel []string) ([]file, error) {
@@ -684,7 +682,7 @@ func (g *gitBackEnd) anchor(digests []*[sha256.Size]byte) error {
 		return nil
 	}
 
-	return util.Timestamp("politeia", g.dcrtimeHost, digests)
+	return timestamp("politeia", g.dcrtimeHost, digests)
 }
 
 // appendAuditTrail adds a record to the audit trail.
@@ -1065,7 +1063,7 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 		})
 	} else {
 		// Call dcrtime
-		vr, err = util.Verify("politeia", g.dcrtimeHost,
+		vr, err = verifyTimestamp("politeia", g.dcrtimeHost,
 			[]string{digest})
 		if err != nil {
 			return nil, err
@@ -1558,17 +1556,6 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 	_, err = createMD(g.unvetted, id, ns, brm.Iteration+1, hashes)
 	if err != nil {
 		return err
-	}
-
-	// Check for authorizevote metadata and delete it if found
-	avFilename := fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
-		defaultMDFilenameSuffix)
-	_, err = os.Stat(pijoin(joinLatest(g.unvetted, id), avFilename))
-	if err == nil {
-		err = g.gitRm(g.unvetted, pijoin(id, version, avFilename), true)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Call plugin hooks
@@ -2293,7 +2280,7 @@ func (g *gitBackEnd) fsck(path string) error {
 	for d := range gitDigests {
 		digests = append(digests, d)
 	}
-	vr, err := util.Verify("politeia", g.dcrtimeHost, digests)
+	vr, err := verifyTimestamp("politeia", g.dcrtimeHost, digests)
 	if err != nil {
 		return err
 	}
@@ -2419,6 +2406,7 @@ func (g *gitBackEnd) vettedMetadataStreamExists(token []byte, mdstreamID int) bo
 // GetUnvetted satisfies the backend interface.
 func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
 	log.Tracef("GetUnvetted %x", token)
+
 	return g.getRecordLock(token, "", g.unvetted, true)
 }
 
@@ -2800,45 +2788,18 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v", command)
 	switch command {
-	case decredplugin.CmdAuthorizeVote:
-		payload, err := g.pluginAuthorizeVote(payload)
-		return decredplugin.CmdAuthorizeVote, payload, err
-	case decredplugin.CmdStartVote:
-		payload, err := g.pluginStartVote(payload)
-		return decredplugin.CmdStartVote, payload, err
-	case decredplugin.CmdStartVoteRunoff:
-		payload, err := g.pluginStartVoteRunoff(payload)
-		return decredplugin.CmdStartVote, payload, err
-	case decredplugin.CmdBallot:
-		payload, err := g.pluginBallot(payload)
-		return decredplugin.CmdBallot, payload, err
-	case decredplugin.CmdProposalVotes:
-		payload, err := g.pluginProposalVotes(payload)
-		return decredplugin.CmdProposalVotes, payload, err
 	case decredplugin.CmdBestBlock:
 		payload, err := g.pluginBestBlock()
 		return decredplugin.CmdBestBlock, payload, err
 	case decredplugin.CmdNewComment:
 		payload, err := g.pluginNewComment(payload)
 		return decredplugin.CmdNewComment, payload, err
-	case decredplugin.CmdLikeComment:
-		payload, err := g.pluginLikeComment(payload)
-		return decredplugin.CmdLikeComment, payload, err
 	case decredplugin.CmdCensorComment:
 		payload, err := g.pluginCensorComment(payload)
 		return decredplugin.CmdCensorComment, payload, err
 	case decredplugin.CmdGetComments:
 		payload, err := g.pluginGetComments(payload)
 		return decredplugin.CmdGetComments, payload, err
-	case decredplugin.CmdProposalCommentsLikes:
-		payload, err := g.pluginGetProposalCommentsLikes(payload)
-		return decredplugin.CmdProposalCommentsLikes, payload, err
-	case decredplugin.CmdInventory:
-		payload, err := g.pluginInventory(payload)
-		return decredplugin.CmdInventory, payload, err
-	case decredplugin.CmdLoadVoteResults:
-		payload, err := g.pluginLoadVoteResults()
-		return decredplugin.CmdLoadVoteResults, payload, err
 	case cmsplugin.CmdInventory:
 		payload, err := g.pluginCMSInventory()
 		return cmsplugin.CmdInventory, payload, err
@@ -3004,7 +2965,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string, mode string) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string) (*gitBackEnd, error) {
 
 	// Default to system git
 	if gitPath == "" {
@@ -3033,31 +2994,15 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
-	switch mode {
-	case piMode:
-		// Setup decred plugin settings
-		var voteDurationMin, voteDurationMax string
-		switch anp.Name {
-		case chaincfg.MainNetParams().Name:
-			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
-			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
-		case chaincfg.TestNet3Params().Name:
-			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
-			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
-		default:
-			return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
-		}
-		setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
-		setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
-	case cmsMode:
-		g.plugins = []backend.Plugin{getDecredPlugin(dcrdataHost),
-			getCMSPlugin(anp.Name != "mainnet")}
-
-		setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
-		setCMSPluginSetting(cmsPluginJournals, g.journals)
-	default:
-		return nil, fmt.Errorf("invalid mode")
+	// Register all plugins
+	g.plugins = []backend.Plugin{
+		getDecredPlugin(dcrdataHost),
+		getCMSPlugin(anp.Name != chaincfg.MainNetParams().Name),
 	}
+
+	// Setup cms plugin
+	setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
+	setCMSPluginSetting(cmsPluginJournals, g.journals)
 
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 	setDecredPluginSetting(decredPluginJournals, g.journals)
@@ -3079,12 +3024,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
-	if mode == cmsMode {
-		// this function must be called after g.journal is created
-		err = g.initCMSPluginJournals()
-		if err != nil {
-			return nil, err
-		}
+	// this function must be called after g.journal is created
+	err = g.initCMSPluginJournals()
+	if err != nil {
+		return nil, err
 	}
 
 	err = g.newLocked()
@@ -3103,10 +3046,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	err = g.cron.AddFunc(anchorSchedule, func() {
 		// Flush journals
 		g.decredPluginJournalFlusher()
-
-		if mode == cmsMode {
-			g.cmsPluginJournalFlusher()
-		}
+		g.cmsPluginJournalFlusher()
 
 		// Anchor commit
 		g.anchorAllReposCronJob()

@@ -1,3 +1,0 @@
-This is an example bug report.
-
-macOS High Sierra allows root logins without a password.

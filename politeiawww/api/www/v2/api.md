@@ -14,6 +14,8 @@ using a JSON REST API.
 
 ### `Start vote`
 
+THIS ROUTE HAS BEEN DEPRECATED.  The pi/v1 routes should be used instead.
+
 Start the voting period on the given proposal.
 
 Signature is a signature of the hex encoded SHA256 digest of the JSON encoded
@@ -116,6 +118,9 @@ Note: eligibletickets is abbreviated for readability.
 
 
 ### `Start vote runoff`
+
+THIS ROUTE HAS BEEN DEPRECATED.  The pi/v1 routes should be used instead.
+
 Start the runoff voting process on all public, non-abandoned RFP submissions
 for the provided RFP token.
 
@@ -296,6 +301,8 @@ Reply:
 Note: eligibletickets is abbreviated for readability.
 
 ### `Vote details`
+
+THIS ROUTE HAS BEEN DEPRECATED.  The pi/v1 routes should be used instead.
 
 Vote details returns all of the relevant proposal vote information for the
 given proposal token.  This includes all of the vote parameters and voting

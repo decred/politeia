@@ -12,7 +12,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
@@ -39,7 +39,7 @@ func RemoteIdentity(skipTLSVerify bool, host, cert string) (*identity.PublicIden
 		return nil, err
 	}
 
-	c, err := NewClient(skipTLSVerify, cert)
+	c, err := NewHTTPClient(skipTLSVerify, cert)
 	if err != nil {
 		return nil, err
 	}

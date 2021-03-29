@@ -27,7 +27,6 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
-	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -79,6 +78,327 @@ func createSponsorStatementRegex() string {
 	buf.WriteString("]*$")
 
 	return buf.String()
+}
+
+func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
+	dbDCC := cmsdatabase.DCC{
+		Files:           convertWWWFilesFromPD(p.Files),
+		Token:           p.CensorshipRecord.Token,
+		ServerSignature: p.CensorshipRecord.Signature,
+	}
+
+	// Decode invoice file
+	for _, v := range p.Files {
+		if v.Name == dccFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			var dcc cms.DCCInput
+			err = json.Unmarshal(b, &dcc)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode DCC input data: token '%v': %v",
+					p.CensorshipRecord.Token, err)
+			}
+			dbDCC.Type = dcc.Type
+			dbDCC.NomineeUserID = dcc.NomineeUserID
+			dbDCC.SponsorStatement = dcc.SponsorStatement
+			dbDCC.Domain = dcc.Domain
+			dbDCC.ContractorType = dcc.ContractorType
+		}
+	}
+
+	for _, m := range p.Metadata {
+		switch m.ID {
+		case mdstream.IDRecordStatusChange:
+			// Ignore initial stream change since it's just the automatic change from
+			// unvetted to vetted
+			continue
+		case mdstream.IDDCCGeneral:
+			var mdGeneral mdstream.DCCGeneral
+			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					p.Metadata, p.CensorshipRecord.Token, err)
+			}
+
+			dbDCC.TimeSubmitted = mdGeneral.Timestamp
+			dbDCC.PublicKey = mdGeneral.PublicKey
+			dbDCC.UserSignature = mdGeneral.Signature
+
+		case mdstream.IDDCCStatusChange:
+			sc, err := mdstream.DecodeDCCStatusChange([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range sc {
+				dbDCC.Status = s.NewStatus
+				dbDCC.StatusChangeReason = s.Reason
+				switch s.NewStatus {
+				case cms.DCCStatusActive:
+					dbDCC.TimeSubmitted = s.Timestamp
+				case cms.DCCStatusApproved, cms.DCCStatusRejected:
+					dbDCC.TimeReviewed = s.Timestamp
+				}
+			}
+		case mdstream.IDDCCSupportOpposition:
+			// Support and Opposition
+			so, err := mdstream.DecodeDCCSupportOpposition([]byte(m.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromRecord: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					p.CensorshipRecord.Token, err, m)
+				continue
+			}
+			supportPubkeys := make([]string, 0, len(so))
+			opposePubkeys := make([]string, 0, len(so))
+			// Tabulate all support and opposition
+			for _, s := range so {
+				if s.Vote == supportString {
+					supportPubkeys = append(supportPubkeys, s.PublicKey)
+				} else if s.Vote == opposeString {
+					opposePubkeys = append(opposePubkeys, s.PublicKey)
+				}
+			}
+			supports := ""
+			for i, support := range supportPubkeys {
+				if i == 0 {
+					supports += support
+				} else {
+					supports += "," + support
+				}
+			}
+			dbDCC.SupportUserIDs = supports
+			opposes := ""
+			for i, oppose := range opposePubkeys {
+				if i == 0 {
+					opposes += oppose
+				} else {
+					opposes += "," + oppose
+				}
+			}
+			dbDCC.OppositionUserIDs = opposes
+		case cmsplugin.MDStreamVoteBits:
+		case cmsplugin.MDStreamVoteSnapshot:
+			// Voting information available but not currently used in the database
+		default:
+			// Log error but proceed
+			log.Errorf("convertRecordToDCC: invalid "+
+				"metadata stream ID %v token %v",
+				m.ID, p.CensorshipRecord.Token)
+		}
+	}
+
+	return &dbDCC, nil
+}
+
+func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
+	dccRecord := cms.DCCRecord{}
+
+	dccRecord.DCC.Type = dbDCC.Type
+	dccRecord.DCC.NomineeUserID = dbDCC.NomineeUserID
+	dccRecord.DCC.SponsorStatement = dbDCC.SponsorStatement
+	dccRecord.DCC.Domain = dbDCC.Domain
+	dccRecord.DCC.ContractorType = dbDCC.ContractorType
+	dccRecord.Status = dbDCC.Status
+	dccRecord.StatusChangeReason = dbDCC.StatusChangeReason
+	dccRecord.TimeSubmitted = dbDCC.TimeSubmitted
+	dccRecord.TimeReviewed = dbDCC.TimeReviewed
+	dccRecord.CensorshipRecord = www.CensorshipRecord{
+		Token: dbDCC.Token,
+	}
+	dccRecord.PublicKey = dbDCC.PublicKey
+	dccRecord.Signature = dbDCC.ServerSignature
+	dccRecord.SponsorUserID = dbDCC.SponsorUserID
+	supportUserIDs := strings.Split(dbDCC.SupportUserIDs, ",")
+	cleanedSupport := make([]string, 0, len(supportUserIDs))
+	for _, support := range supportUserIDs {
+		cleanedSupport = append(cleanedSupport, strings.TrimSpace(support))
+	}
+	dccRecord.SupportUserIDs = cleanedSupport
+	oppositionUserIDs := strings.Split(dbDCC.OppositionUserIDs, ",")
+	cleanedOpposed := make([]string, 0, len(oppositionUserIDs))
+	for _, oppose := range oppositionUserIDs {
+		cleanedOpposed = append(cleanedOpposed, strings.TrimSpace(oppose))
+	}
+	dccRecord.OppositionUserIDs = cleanedOpposed
+
+	return dccRecord
+}
+
+func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
+	dbDCC := cmsdatabase.DCC{}
+
+	dbDCC.Type = dccRecord.DCC.Type
+	dbDCC.NomineeUserID = dccRecord.DCC.NomineeUserID
+	dbDCC.SponsorStatement = dccRecord.DCC.SponsorStatement
+	dbDCC.Domain = dccRecord.DCC.Domain
+	dbDCC.ContractorType = dccRecord.DCC.ContractorType
+	dbDCC.Status = dccRecord.Status
+	dbDCC.StatusChangeReason = dccRecord.StatusChangeReason
+	dbDCC.TimeSubmitted = dccRecord.TimeSubmitted
+	dbDCC.TimeReviewed = dccRecord.TimeReviewed
+	dbDCC.Token = dccRecord.CensorshipRecord.Token
+	dbDCC.PublicKey = dccRecord.PublicKey
+	dbDCC.ServerSignature = dccRecord.Signature
+	dbDCC.SponsorUserID = dccRecord.SponsorUserID
+	dbDCC.Token = dccRecord.CensorshipRecord.Token
+
+	supportUserIDs := ""
+	for i, s := range dccRecord.SupportUserIDs {
+		if i == 0 {
+			supportUserIDs += s
+		} else {
+			supportUserIDs += "," + s
+		}
+	}
+	dbDCC.SupportUserIDs = supportUserIDs
+
+	oppositionUserIDs := ""
+	for i, s := range dccRecord.OppositionUserIDs {
+		if i == 0 {
+			oppositionUserIDs += s
+		} else {
+			oppositionUserIDs += "," + s
+		}
+	}
+	dbDCC.OppositionUserIDs = oppositionUserIDs
+
+	return dbDCC
+}
+
+func convertCastVoteFromCMS(b cms.CastVote) cmsplugin.CastVote {
+	return cmsplugin.CastVote{
+		VoteBit:   b.VoteBit,
+		Token:     b.Token,
+		UserID:    b.UserID,
+		Signature: b.Signature,
+	}
+}
+
+func convertCastVoteReplyToCMS(cv *cmsplugin.CastVoteReply) *cms.CastVoteReply {
+	return &cms.CastVoteReply{
+		ClientSignature: cv.ClientSignature,
+		Signature:       cv.Signature,
+		Error:           cv.Error,
+		ErrorStatus:     cv.ErrorStatus,
+	}
+}
+
+func convertUserWeightToCMS(uw []cmsplugin.UserWeight) []cms.DCCWeight {
+	dccWeight := make([]cms.DCCWeight, 0, len(uw))
+	for _, w := range uw {
+		dccWeight = append(dccWeight, cms.DCCWeight{
+			UserID: w.UserID,
+			Weight: w.Weight,
+		})
+	}
+	return dccWeight
+}
+
+func convertVoteOptionResultsToCMS(vr []cmsplugin.VoteOptionResult) []cms.VoteOptionResult {
+	votes := make([]cms.VoteOptionResult, 0, len(vr))
+	for _, w := range vr {
+		votes = append(votes, cms.VoteOptionResult{
+			Option: cms.VoteOption{
+				Id:          w.ID,
+				Description: w.Description,
+				Bits:        w.Bits,
+			},
+			VotesReceived: w.Votes,
+		})
+	}
+	return votes
+}
+func convertCMSStartVoteToCMSVoteDetailsReply(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply) (*cms.VoteDetailsReply, error) {
+	voteb, err := cmsplugin.EncodeVote(sv.Vote)
+	if err != nil {
+		return nil, err
+	}
+	userWeights := make([]string, 0, len(sv.UserWeights))
+	for _, weights := range sv.UserWeights {
+		userWeight := weights.UserID + "-" + strconv.Itoa(int(weights.Weight))
+		userWeights = append(userWeights, userWeight)
+	}
+	return &cms.VoteDetailsReply{
+		Version:          uint32(sv.Version),
+		Vote:             string(voteb),
+		PublicKey:        sv.PublicKey,
+		Signature:        sv.Signature,
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndHeight,
+		UserWeights:      userWeights,
+	}, nil
+}
+
+func convertCMSStartVoteToCMS(sv cmsplugin.StartVote) cms.StartVote {
+	vote := cms.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cms.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cms.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cms.StartVote{
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+}
+
+func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) cms.StartVoteReply {
+	return cms.StartVoteReply{
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndHeight,
+	}
+}
+
+func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
+	vote := cmsplugin.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cmsplugin.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cmsplugin.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cmsplugin.StartVote{
+		Token:     sv.Vote.Token,
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+
 }
 
 func (p *politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.User) (*cms.NewDCCReply, error) {
@@ -144,7 +464,7 @@ func (p *politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.
 				Payload: string(scb),
 			},
 		},
-		Files: convertPropFilesFromWWW(files),
+		Files: convertPDFilesFromWWW(files),
 	}
 
 	// Send the newrecord politeiad request
@@ -241,13 +561,13 @@ func (p *politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.
 		return nil, err
 	}
 
-	// Fire new event notification upon new DCC being submitted.
-	p.fireEvent(EventTypeDCCNew,
-		EventDataDCCNew{
-			Token: pdReply.CensorshipRecord.Token,
+	// Emit event notification for new DCC being submitted
+	p.events.Emit(eventDCCNew,
+		dataDCCNew{
+			token: pdReply.CensorshipRecord.Token,
 		})
 
-	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
+	cr := convertWWWCensorFromPD(pdReply.CensorshipRecord)
 
 	reply.CensorshipRecord = cr
 	return reply, nil
@@ -368,7 +688,7 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	}
 
 	// Note that we need validate the string representation of the merkle
-	mr, err := wwwutil.MerkleRoot([]www.File{nd.File}, nil)
+	mr, err := merkleRoot([]www.File{nd.File})
 	if err != nil {
 		return err
 	}
@@ -499,8 +819,8 @@ func (p *politeiawww) processDCCDetails(ctx context.Context, gd cms.DCCDetails) 
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	voteResults := convertVoteOptionResultsToCMS(vsr.Results)
@@ -578,9 +898,10 @@ func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.Suppor
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
+			return nil, err
 		}
-		return nil, err
 	}
+
 	// Check to make sure the user has not SupportOpposeed or Opposed this DCC yet
 	if stringInSlice(dcc.SupportUserIDs, u.ID.String()) ||
 		stringInSlice(dcc.OppositionUserIDs, u.ID.String()) {
@@ -678,10 +999,10 @@ func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.Suppor
 		return nil, err
 	}
 
-	// Fire new event notification upon new DCC being supported or opposed.
-	p.fireEvent(EventTypeDCCSupportOppose,
-		EventDataDCCSupportOppose{
-			Token: sd.Token,
+	// Emit event notification for a DCC being supported/opposed
+	p.events.Emit(eventDCCSupportOppose,
+		dataDCCSupportOppose{
+			token: sd.Token,
 		})
 
 	return &cms.SupportOpposeDCCReply{}, nil
@@ -697,13 +1018,30 @@ func stringInSlice(arr []string, str string) bool {
 	return false
 }
 
+func validateNewComment(c www.NewComment) error {
+	// Validate token
+	_, err := util.ConvertStringToken(c.Token)
+	if err != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+		}
+	}
+	// Validate max length
+	if len(c.Comment) > www.PolicyMaxCommentLength {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusCommentLengthExceededPolicy,
+		}
+	}
+	return nil
+}
+
 // processNewCommentDCC sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
 func (p *politeiawww) processNewCommentDCC(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewCommentDCC: %v %v", nc.Token, u.ID)
 
 	// Validate comment
-	err := validateComment(nc)
+	err := validateNewComment(nc)
 	if err != nil {
 		return nil, err
 	}
@@ -740,8 +1078,8 @@ func (p *politeiawww) processNewCommentDCC(ctx context.Context, nc www.NewCommen
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	// Check to make sure that dcc isn't already approved.
@@ -797,25 +1135,32 @@ func (p *politeiawww) processNewCommentDCC(ctx context.Context, nc www.NewCommen
 		return nil, err
 	}
 
-	// Get comment from cache
-	c, err := p.getComment(nc.Token, ncr.CommentID)
+	// Get comment
+	comments, err := p.getDCCComments(ctx, nc.Token)
 	if err != nil {
-		return nil, fmt.Errorf("getComment: %v", err)
+		return nil, fmt.Errorf("getComments: %v", err)
+	}
+	var c www.Comment
+	for _, v := range comments {
+		if v.CommentID == ncr.CommentID {
+			c = v
+			break
+		}
 	}
 
 	return &www.NewCommentReply{
-		Comment: *c,
+		Comment: c,
 	}, nil
 }
 
 // processDCCComments returns all comments for a given dcc. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) processDCCComments(token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *politeiawww) processDCCComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("processDCCComment: %v", token)
 
 	// Fetch dcc comments from cache
-	c, err := p.getDCCComments(token)
+	c, err := p.getDCCComments(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -841,10 +1186,10 @@ func (p *politeiawww) processDCCComments(token string, u *user.User) (*www.GetCo
 	}, nil
 }
 
-func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
+func (p *politeiawww) getDCCComments(ctx context.Context, token string) ([]www.Comment, error) {
 	log.Tracef("getDCCComments: %v", token)
 
-	dc, err := p.decredGetComments(token)
+	dc, err := p.decredGetComments(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComments: %v", err)
 	}
@@ -891,8 +1236,8 @@ func (p *politeiawww) processSetDCCStatus(ctx context.Context, sds cms.SetDCCSta
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	err = validateDCCStatusTransition(dcc.Status, sds.Status, sds.Reason)
@@ -908,7 +1253,7 @@ func (p *politeiawww) processSetDCCStatus(ctx context.Context, sds cms.SetDCCSta
 
 	// Only allow voting on All Vote DCC proposals
 	// Get vote summary to check vote status
-	bb, err := p.getBestBlock(ctx)
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1070,13 +1415,13 @@ func (p *politeiawww) processCastVoteDCC(ctx context.Context, cv cms.CastVote, u
 	// Only allow voting on All Vote DCC proposals
 	// Get vote summary to check vote status
 
-	bb, err := p.getBestBlock(ctx)
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check to make sure that the Vote hasn't ended yet.
-	if uint64(vdr.StartVoteReply.EndHeight) < bb {
+	if vdr.StartVoteReply.EndHeight < bb {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusDCCVoteEnded,
 		}
@@ -1138,8 +1483,8 @@ func (p *politeiawww) processVoteDetailsDCC(ctx context.Context, token string) (
 			err = www.UserError{
 				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
+			return nil, err
 		}
-		return nil, err
 	}
 	if dvdr.StartVoteReply.StartBlockHash == "" {
 		return nil, www.UserError{
@@ -1283,7 +1628,7 @@ func (p *politeiawww) processActiveVoteDCC(ctx context.Context) (*cms.ActiveVote
 	}
 	vetted := pdReply.Vetted
 
-	bb, err := p.getBestBlock(ctx)
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1299,7 +1644,7 @@ func (p *politeiawww) processActiveVoteDCC(ctx context.Context) (*cms.ActiveVote
 						"%v %v", r.CensorshipRecord.Token, err)
 					continue
 				}
-				if uint64(vs.EndHeight) > bb {
+				if vs.EndHeight > bb {
 					active = append(active, r.CensorshipRecord.Token)
 				}
 			}
@@ -1485,8 +1830,8 @@ func (p *politeiawww) processStartVoteDCC(ctx context.Context, sv cms.StartVote,
 			err = www.UserError{
 				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
+			return nil, err
 		}
-		return nil, err
 	}
 	if pr.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
@@ -1504,7 +1849,7 @@ func (p *politeiawww) processStartVoteDCC(ctx context.Context, sv cms.StartVote,
 	// Only allow voting on All Vote DCC proposals
 	// Get vote summary to check vote status
 
-	bb, err := p.getBestBlock(ctx)
+	bb, err := p.decredBestBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1596,12 +1941,12 @@ func validateVoteBitDCC(vote cms.Vote, bit uint64) error {
 	return fmt.Errorf("bit not found 0x%x", bit)
 }
 
-func dccVoteStatusFromVoteSummary(r cmsplugin.VoteSummaryReply, bestBlock uint64) cms.DCCVoteStatusT {
+func dccVoteStatusFromVoteSummary(r cmsplugin.VoteSummaryReply, bestBlock uint32) cms.DCCVoteStatusT {
 	switch {
 	case r.EndHeight == 0:
 		return cms.DCCVoteStatusNotStarted
 	default:
-		if bestBlock < uint64(r.EndHeight) {
+		if bestBlock < r.EndHeight {
 			return cms.DCCVoteStatusStarted
 		}
 

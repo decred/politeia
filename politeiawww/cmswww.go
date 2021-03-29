@@ -9,26 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"text/template"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-)
-
-var (
-	templateInvoiceNotification = template.Must(
-		template.New("invoice_notification").Parse(templateInvoiceNotificationRaw))
-	templateNewInvoiceComment = template.Must(
-		template.New("invoice_comment").Parse(templateNewInvoiceCommentRaw))
-	templateNewInvoiceStatusUpdate = template.Must(
-		template.New("invoice_status_update").Parse(templateNewInvoiceStatusUpdateRaw))
-	templateNewDCCSubmitted = template.Must(
-		template.New("dcc_new").Parse(templateNewDCCSubmittedRaw))
-	templateNewDCCSupportOppose = template.Must(
-		template.New("dcc_support_oppose").Parse(templateNewDCCSupportOpposeRaw))
 )
 
 // handleInviteNewUser handles the invitation of a new contractor by an
@@ -70,7 +57,7 @@ func (p *politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewInvoice: getSessionUser %v", err)
@@ -109,9 +96,9 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
-		if !errors.Is(err, errSessionNotFound) {
+		if !errors.Is(err, sessions.ErrSessionNotFound) {
 			RespondWithError(w, r, 0,
 				"handleInvoiceDetails: getSessionUser %v", err)
 			return
@@ -133,7 +120,7 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserInvoices")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserInvoices: getSessionUser %v", err)
@@ -198,7 +185,7 @@ func (p *politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetInvoiceStatus: getSessionUser %v", err)
@@ -229,7 +216,7 @@ func (p *politeiawww) handleInvoices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleInvoices: getSessionUser %v", err)
@@ -261,7 +248,7 @@ func (p *politeiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditInvoice: getSessionUser %v", err)
@@ -296,7 +283,7 @@ func (p *politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleGeneratePayouts: getSessionUser %v", err)
@@ -327,7 +314,7 @@ func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewCommentInvoice: getSessionUser %v", err)
@@ -351,15 +338,15 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
-		if !errors.Is(err, errSessionNotFound) {
+		if !errors.Is(err, sessions.ErrSessionNotFound) {
 			RespondWithError(w, r, 0,
 				"handleInvoiceComments: getSessionUser %v", err)
 			return
 		}
 	}
-	gcr, err := p.processInvoiceComments(token, user)
+	gcr, err := p.processInvoiceComments(r.Context(), token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleInvoiceComments: processInvoiceComments %v", err)
@@ -429,7 +416,7 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePayInvoices")
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handlePayInvoices: getSessionUser %v", err)
@@ -461,7 +448,7 @@ func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditCMSUser: getSessionUser %v", err)
@@ -519,7 +506,7 @@ func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCMSUserDetails: getSessionUser %v", err)
@@ -576,7 +563,7 @@ func (p *politeiawww) handleNewDCC(w http.ResponseWriter, r *http.Request) {
 			})
 		return
 	}
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewDCC: getSessionUser %v", err)
@@ -632,7 +619,7 @@ func (p *politeiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request) {
 			})
 		return
 	}
-	_, err := p.getSessionUser(w, r)
+	_, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleGetDCCs: getSessionUser %v", err)
@@ -661,7 +648,7 @@ func (p *politeiawww) handleSupportOpposeDCC(w http.ResponseWriter, r *http.Requ
 			})
 		return
 	}
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSupportOpposeDCC: getSessionUser %v", err)
@@ -692,7 +679,7 @@ func (p *politeiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewCommentDCC: getSessionUser %v", err)
@@ -716,15 +703,15 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
-		if !errors.Is(err, errSessionNotFound) {
+		if !errors.Is(err, sessions.ErrSessionNotFound) {
 			RespondWithError(w, r, 0,
 				"handleDCCComments: getSessionUser %v", err)
 			return
 		}
 	}
-	gcr, err := p.processDCCComments(token, user)
+	gcr, err := p.processDCCComments(r.Context(), token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleDCCComments: processDCCComments %v", err)
@@ -745,7 +732,7 @@ func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request)
 			})
 		return
 	}
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetDCCStatus: getSessionUser %v", err)
@@ -765,7 +752,7 @@ func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserSubContractors")
 
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserSubContractors: getSessionUser %v", err)
@@ -817,7 +804,7 @@ func (p *politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalBilling: getSessionUser %v", err)
@@ -846,7 +833,7 @@ func (p *politeiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCastVoteDCC: getSessionUser %v", err)
@@ -912,7 +899,7 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 			})
 		return
 	}
-	user, err := p.getSessionUser(w, r)
+	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVoteDCC: getSessionUser %v", err)
@@ -1034,7 +1021,7 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 		}
 	}
 
-	client, err := util.NewClient(false, "")
+	client, err := util.NewHTTPClient(false, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1081,7 +1068,7 @@ func (p *politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	u, err := p.getSessionUser(w, r)
+	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserCodeStats: getSessionUser %v", err)
@@ -1203,9 +1190,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteInviteNewUser, p.handleInviteNewUser,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteCensorComment, p.handleCensorComment,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,

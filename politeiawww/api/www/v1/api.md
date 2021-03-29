@@ -1,11 +1,11 @@
 # politeiawww API Specification
 
-# v1
-
 This document describes the REST API provided by a `politeiawww` server.  The
 `politeiawww` server is the web server backend and it interacts with a JSON
 REST API.  This document also describes websockets for server side
 notifications.  It does not render HTML.
+
+# v1
 
 **Methods**
 
@@ -19,6 +19,7 @@ notifications.  It does not render HTML.
 - [`Logout`](#logout)
 - [`User details`](#user-details)
 - [`Edit user`](#edit-user)
+- [`Manage user`](#manage-user)
 - [`Users`](#users)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
@@ -26,30 +27,17 @@ notifications.  It does not render HTML.
 - [`Change password`](#change-password)
 - [`Reset password`](#reset-password)
 - [`User proposal credits`](#user-proposal-credits)
-- [`User comments votes`](#user-comments-votes)
-
-**Proposal Routes**
-- [`Vetted`](#vetted)
-- [`User proposals`](#user-proposals)
 - [`Proposal paywall details`](#proposal-paywall-details)
 - [`Verify user payment`](#verify-user-payment)
-- [`New proposal`](#new-proposal)
-- [`Edit Proposal`](#edit-proposal)
+- [`Rescan user payments`](#rescan-user-payments)
+
+**Proposal Routes**
+- [`Token inventory`](#token-inventory)
 - [`Proposal details`](#proposal-details)
 - [`Batch proposals`](#batch-proposals)
-- [`Batch vote summary`](#batch-vote-summary)
-- [`Set proposal status`](#set-proposal-status)
-- [`Authorize vote`](#authorize-vote)
-- [`Active votes`](#active-votes)
-- [`Cast votes`](#cast-votes)
-- [`Proposal vote status`](#proposal-vote-status)
-- [`Proposals vote status`](#proposals-vote-status)
 - [`Vote results`](#vote-results)
-- [`Token inventory`](#token-inventory)
-- [`New comment`](#new-comment)
-- [`Get comments`](#get-comments)
-- [`Like comment`](#like-comment)
-- [`Censor comment`](#censor-comment)
+- [`Cast votes`](#cast-votes)
+- [`Batch vote summary`](#batch-vote-summary)
 
 
 **Error status codes**
@@ -546,7 +534,7 @@ Reply:
 
 Checks that a user has paid his user registration fee.
 
-**Route:** `GET /v1/user/verifypayment`
+**Route:** `GET /v1/user/payments/registration`
 
 **Params:** none
 
@@ -568,7 +556,7 @@ error codes:
 Request:
 
 ```
-/v1/user/verifypayment
+/v1/user/payments/registration
 ```
 
 Reply:
@@ -579,6 +567,58 @@ Reply:
   "paywalladdress":"",
   "paywallamount":"",
   "paywalltxnotbefore":""
+}
+```
+
+### `Rescan user payments`
+
+Rescan payments made by the user.
+
+**Route:** `GET /v1/user/payments/rescan`
+
+**Params:**
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| userid | string | The unique id of the user. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| newcredits | []ProposalCredits | Contains information about the user's
+proposal credits payments` |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```
+/v1/user/payments/rescan
+```
+Request:
+
+```json
+{
+  "userid": "1"
+}
+```
+
+Reply:
+
+```json
+{
+  "newcredits": [
+    {
+      "paywallid": 1,
+      "price": 10000000,
+      "datepurchased": 1528821554,
+      "txid": "ff0207a03b761cb409c7677c5b5521562302653d2236c92d016dd47e0ae37bf7",
+    },
+  ]
 }
 ```
 
@@ -692,8 +732,41 @@ For a unlogged or normal user requesting data.
   }
 }
 ```
-
 ### `Edit user`
+
+Edits a user's details. This call requires login privileges.
+
+**Route:** `POST /v1/user/edit`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| emailnotifications | uint64 | The unique id of the user. | Yes |
+
+**Results:** none
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```json
+{
+  "emailnotifications": 2,
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Manage user`
 
 Edits a user's details. This call requires admin privileges.
 
@@ -1039,7 +1112,7 @@ politeiawww polls the paywall address until the paywall is either paid or it
 expires. A proposal paywall cannot be generated until the user has paid their
 user registration fee.
 
-**Route:** `GET /v1/proposals/paywall`
+**Route:** `GET /v1/user/payments/paywall`
 
 **Params:** none
 
@@ -1072,10 +1145,54 @@ Reply:
 }
 ```
 
+### `Proposal paywall tx details`
+Retrieve paywall details that can be used to purchase proposal credits.
+Proposal paywalls are only valid for one tx.  The user can purchase as many
+proposal credits as they would like with that one tx. Proposal paywalls expire
+after a set duration.  To verify that a payment has been made,
+politeiawww polls the paywall address until the paywall is either paid or it
+expires. A proposal paywall cannot be generated until the user has paid their
+user registration fee.
+
+**Route:** `GET /v1/user/payments/paywalltx`
+
+**Params:**
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| userid | string | The unique id of the user. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| txid | string | Transaction id. |
+| txamount | uint64 | Transaction amount in atoms. |
+| confirmations | uint64 | Confirmations the transaction had on the network |
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "1"
+}
+```
+
+Reply:
+
+```json
+{
+  "txid": "ff0207a03b761cb409c7677c5b5521562302653d2236c92d016dd47e0ae37bf7",
+  "txamount": 10000000,
+  "confirmations": 2
+}
+```
+
 ### `User proposal credits`
 Request a list of the user's unspent and spent proposal credits.
 
-**Route:** `GET /v1/user/proposals/credits`
+**Route:** `GET /v1/user/payments/credits`
 
 **Params:** none
 
@@ -1110,262 +1227,6 @@ Reply:
     "datepurchased": 1532437363,
     "txid": "1b6df077a0a745314dab58887c56c4261270bb7a809692fad8157a99a0c46477"
   }]
-}
-```
-
-### `New proposal`
-
-Submit a new proposal to the politeiawww server.
-
-The Metadata field is required to include a [`Metadata`](#metadata) object that
-contains an encoded [`ProposalMetadata`](#proposal-metadata).
-
-**Route:** `POST /v1/proposals/new`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-----------|------|-------------|----------|
-| files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
-| metadata | array of [`Metadata`](#metadata) | User specified proposal metadata.  |
-| signature | string | Signature of the string representation of the Merkle root of the file payloads and the metadata payloads. Note that the merkle digests are calculated on the decoded payload.. | Yes |
-| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
-
-**Results:**
-
-| Parameter | Type | Description |
-|-|-|-|
-| censorshiprecord | [CensorshipRecord](#censorship-record) | A censorship record that provides the submitter with a method to extract the proposal and prove that he/she submitted it. |
-
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-- [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
-- [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
-- [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
-- [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
-- [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
-- [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
-- [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
-- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
-- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
-
-**Example**
-
-Request:
-
-```json
-{
-  "name": "test",
-  "files": [{
-      "name":"index.md",
-      "mime": "text/plain; charset=utf-8",
-      "digest": "",
-      "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
-    }
-  ]
-}
-```
-
-Reply:
-
-```json
-{
-  "censorshiprecord": {
-    "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
-    "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-    "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
-  }
-}
-```
-
-### `Edit proposal`
-
-Edit an existent proposal into the politeiawww server.
-
-The Metadata field is required to include a [`Metadata`](#metadata) object that
-contains an encoded [`ProposalMetadata`](#proposal-metadata).
-
-Note that updating public proposals will generate a new record version. While
-updating an unvetted record will change the record but it will not generate
-a new version.
-
-The example shown below is for a public proposal where the proposal version is
-increased by one after the update.
-
-**Route:** `POST /v1/proposals/edit`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-----------|------|-------------|----------|
-| files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
-| metadata | array of [`Metadata`](#metadata) | User specified proposal metadata.  |
-| signature | string | Signature of the string representation of the Merkle root of the file payloads and the metadata payloads. Note that the merkle digests are calculated on the decoded payload.. | Yes |
-| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| proposal | [`Proposal`](#proposal) | The updated proposal. |
-
-**Example:**
-
-Request:
-
-```json
-{
-   "files":[
-      {
-         "name":"index.md",
-         "mime":"text/plain; charset=utf-8",
-         "payload":"RWRpdGVkIHByb3Bvc2FsCmVkaXRlZCBkZXNjcmlwdGlvbg==",
-         "digest":"a3c46ac82db1c9e5d780d9ddd046d73a0fdfcb1a2c55ab730f71a4213725e605"
-      }
-   ],
-   "publickey":"1bc17b4aaa7d08030d0cb984d3b67ce7b681508b46ce307b22dfd630141788a0",
-   "signature":"e8159f104bb4caa9a7952868ead44af8f1015cac72abd81b1fc83a434e26e0ce75c6a3a8a5c8d8f68405e82eea35c60e2d46fb0ff652eaf53690d57a7d4c8000",
-   "token":"6ef01f0ffae69fd267f98756231b8349a14f254c28d2312239cb80579e850337"
-}
-```
-
-Reply:
-
-```json
-{
-   "proposal":{
-      "name":"Edited proposal",
-      "status":4,
-      "timestamp":1535468714,
-      "publishedat": 1508296860900,
-      "censoredat": 0,
-      "abandonedat": 0,
-      "userid":"",
-      "username":"",
-      "publickey":"1bc17b4aaa7d08030d0cb984d3b67ce7b681508b46ce307b22dfd630141788a0",
-      "signature":"e8159f104bb4caa9a7952868ead44af8f1015cac72abd81b1fc83a434e26e0ce75c6a3a8a5c8d8f68405e82eea35c60e2d46fb0ff652eaf53690d57a7d4c8000",
-      "files":[
-         {
-            "name":"index.md",
-            "mime":"text/plain; charset=utf-8",
-            "digest":"a3c46ac82db1c9e5d780d9ddd046d73a0fdfcb1a2c55ab730f71a4213725e605",
-            "payload":"RWRpdGVkIHByb3Bvc2FsCmVkaXRlZCBkZXNjcmlwdGlvbg=="
-         }
-      ],
-      "numcomments":0,
-      "version":"2",
-      "censorshiprecord":{
-         "token":"6ef01f0ffae69fd267f98756231b8349a14f254c28d2312239cb80579e850337",
-         "merkle":"a3c46ac82db1c9e5d780d9ddd046d73a0fdfcb1a2c55ab730f71a4213725e605",
-         "signature":"aead575825a8cf3195079e263fe8eeb342f0fe51757e79de7bb8e733c672c0762cd3a0eb58de5057813028244910324d71ffd96d4a809a4c4634883b62a08007"
-      }
-   }
-}
-```
-
-### `Vetted`
-
-Retrieve a page of vetted proposals; the number of proposals returned in the
-page is limited by the `ProposalListPageSize` property, which is provided via
-[`Policy`](#policy).
-
-**Route:** `GET /v1/proposals/vetted`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `after` is set. | |
-| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `before` is set. | |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| proposals | Array of [`Proposal`](#proposal)s | An Array of vetted proposals. |
-
-**Example**
-
-Request:
-
-The request params should be provided within the URL:
-
-```
-/v1/proposals/vetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
-```
-
-Reply:
-
-```json
-{
-  "proposals": [{
-    "name": "My Proposal",
-    "status": 4,
-    "timestamp": 1508296860781,
-    "publishedat": 1508296860900,
-    "censoredat": 0,
-    "abandonedat": 0,
-    "censorshiprecord": {
-      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
-      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
-    }
-  }]
-}
-```
-
-### `User proposals`
-
-Retrieve a page and the total amount of proposals submitted by the given user; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
-
-**Route:** `GET /v1/user/proposals`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| userid | String | The user id |
-| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided. This parameter should not be specified if `after` is set. | |
-| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided. This parameter should not be specified if `before` is set. | |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| proposals | array of [`Proposal`](#proposal)s | One page of user submitted proposals. |
-| numOfProposals | int | Total number of proposals submitted by the user. If an admin is sending the request or a user is requesting their own proposals then this value includes unvetted, censored, and public proposals. Otherwise, this value only includes public proposals. |
-
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
-
-**Example**
-
-Request:
-
-The request params should be provided within the URL:
-
-```
-/v1/user/proposals?userid=15&after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
-```
-
-Reply:
-
-```json
-{
-  "proposals": [{
-    "name": "My Proposal",
-    "status": 2,
-    "timestamp": 1508296860781,
-    "censorshiprecord": {
-      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
-      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
-    }
-  }],
-  "numofproposals": 1
 }
 ```
 
@@ -1449,92 +1310,11 @@ Reply:
 }
 ```
 
-### `Set proposal status`
-
-Update the [status](#proposal-status-codes) of a proposal.  This call requires
-admin privileges.
-
-Unvetted proposals can have their status updated to:
-`PropStatusPublic`
-`PropStatusCensored`
-
-Vetted proposals can have their status updated to:
-`PropStatusAbandoned`
-
-A status change message detailing the reason for the status change is required
-for the following statuses:
-`PropStatusCensored`
-`PropStatusAbandoned`
-
-**Route:** `POST /v1/proposals/{token}/status`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
-| proposalstatus | [`proposal status`](#proposal-status-codes) | New proposal status.| Yes |
-| statuschangemessage | string |  Reason for status change. | No |
-| signature | string | Signature of (token + proposalstatus + statuschangemessage). | Yes |
-| publickey | string | Public key that corresponds to the signature. | Yes |
-
-**Results:**
-
-| Parameter | Type | Description |
-|-|-|-|
-| proposal | [`Proposal`](#proposal) | An entire proposal and it's contents. |
-
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-- [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
-- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
-- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
-- [`ErrorStatusReviewerAdminEqualsAuthor`](#ErrorStatusReviewerAdminEqualsAuthor)
-- [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
-
-**Example**
-
-Request:
-
-```json
-{
-  "proposalstatus": 3,
-  "publickey": "f5519b6fdee08be45d47d5dd794e81303688a8798012d8983ba3f15af70a747c",
-  "signature": "041a12e5df95ec132be27f0c716fd8f7fc23889d05f66a26ef64326bd5d4e8c2bfed660235856da219237d185fb38c6be99125d834c57030428c6b96a2576900",
-  "token": "6161819a5df120162ed7b7fa5a95021f9d489a9eaf8b1bb23447fb8a5abc643b"
-}
-```
-
-Reply:
-
-```json
-{
-	"proposal": {
-		"name": "My Proposal",
-		"state": "2",
-		"status": 4,
-		"timestamp": 1539212044,
-		"userid": "",
-		"username": "",
-		"publickey": "57cf10a15828c633dc0af423669e7bbad2d30a062e4eb1e9c78919f77ebd1022",
-		"signature": "553beffb3fece5bdd540e0b83e977e4f68c1ac31e6f2e0a85c3c9aef9e65e3efe3d778edc504a9e88c101f68ad25e677dc3574c67a6e8d0ba711de4b91bec40d",
-		"files": [],
-		"numcomments": 0,
-		"version": "1",
-		"censorshiprecord": {
-			"token": "fc320c72bb55b6233a8df388109bf494081f007395489a7cdc945e05d656a467",
-			"merkle": "ffc1e4b6a1b0b1e8eb99d476aed7ace9ed6475b3bbab9470d01028c24ae51992",
-			"signature": "4f409cfb706683e529281033945808cab286917f452ec1594d6f98b8fe2e11206e2b964ac9622c05e8465923f98dd4ee553b3eb08d54f0a3c7ef92f80db16d0a"
-		}
-	}
-}
-```
-
 ### `Proposal details`
 
 Retrieve proposal and its details. This request can be made with the full
-censorship token or its 7 character prefix.
+censorship token or its 7 character prefix. This route will return only
+vetted proposals.
 
 **Routes:** `GET /v1/proposals/{token}`
 
@@ -1594,7 +1374,7 @@ Reply:
 Retrieve the proposal details for a list of proposals.  This route wil not
 return the proposal files.  The number of proposals that may be requested is
 limited by the `ProposalListPageSize` property, which is provided via
-[`Policy`](#policy).
+[`Policy`](#policy).  This route will return only vetted proposals.
 
 **Routes:** `POST /v1/proposals/batch`
 
@@ -1785,439 +1565,6 @@ Reply:
 }
 ```
 
-### `New comment`
-
-Submit comment on given proposal.  ParentID value "0" means "comment on
-proposal"; if the value is not empty it means "reply to comment".
-
-**Route:** `POST /v1/comments/new`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-| - | - | - | - |
-| token | string | Censorship token | Yes |
-| parentid | string | Parent comment identifier | Yes |
-| comment | string | Comment | Yes |
-| signature | string | Signature of Token, ParentID and Comment | Yes |
-| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
-
-**Results:**
-
-| | Type | Description |
-| - | - | - |
-| token | string | Censorship token |
-| parentid | string | Parent comment identifier |
-| comment | string | Comment text |
-| signature | string | Signature of Token, ParentID and Comment |
-| publickey | string | Public key from the client side, sent to politeiawww for verification |
-| commentid | string | Unique comment identifier |
-| receipt | string | Server signature of the client Signature |
-| timestamp | int64 | UNIX time when comment was accepted |
-| resultvotes | int64 | Vote score |
-| upvotes | uint64 | Pro votes |
-| downvotes | uint64 | Contra votes |
-| censored | bool | Has the comment been censored |
-| userid | string | Unique user identifier |
-| username | string | Unique username |
-
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-
-- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
-- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
-- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
-- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
-- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
-- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
-- [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
-
-**Example**
-
-Request:
-
-```json
-{
-  "token":"abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-  "parentid":"0",
-  "comment":"I dont like this prop",
-  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
-}
-```
-
-Reply:
-
-```json
-{
-  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-  "parentid": "0",
-  "comment": "I dont like this prop",
-  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
-  "commentid": "4",
-  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
-  "timestamp": 1527277504,
-  "resultvotes": 0,
-  "censored": false,
-  "userid": "124",
-  "username": "john",
-}
-```
-
-### `Get comments`
-
-Retrieve all comments for given proposal.  Note that the comments are not
-sorted.
-
-**Route:** `GET /v1/proposals/{token}/comments`
-
-**Params:**
-
-**Results:**
-
-| | Type | Description |
-| - | - | - |
-| Comments | Comment | Unsorted array of all comments |
-| AccessTime | int64 | UNIX timestamp of last access time. Omitted if no session cookie is present. |
-
-**Comment:**
-
-| | Type | Description |
-| - | - | - |
-| userid | string | Unique user identifier |
-| username | string | Unique username |
-| timestamp | int64 | UNIX time when comment was accepted |
-| commentid | string | Unique comment identifier |
-| parentid | string | Parent comment identifier |
-| token | string | Censorship token |
-| comment | string | Comment text |
-| publickey | string | Public key from the client side, sent to politeiawww for verification |
-| signature | string | Signature of Token, ParentID and Comment |
-| receipt | string | Server signature of the client Signature |
-| totalvotes | uint64 | Total number of up/down votes |
-| resultvotes | int64 | Vote score |
-| upvotes | uint64 | Pro votes |
-| downvotes | uint64 | Contra votes |
-
-**Example**
-
-Request:
-
-The request params should be provided within the URL:
-
-```
-/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde/comments
-```
-
-Reply:
-
-```json
-{
-  "comments": [{
-    "comment": "I dont like this prop",
-    "commentid": "4",
-    "parentid": "0",
-    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
-    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
-    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-    "timestamp": 1527277504,
-    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-    "userid": "124",
-    "username": "john",
-    "totalvotes": 4,
-    "resultvotes": 2,
-    "upvotes": 3,
-    "downvotes": 1
-  },{
-    "comment":"you are right!",
-    "commentid": "4",
-    "parentid": "0",
-    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
-    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
-    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-    "timestamp": 1527277504,
-    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-    "userid": "124",
-    "username": "john",
-    "totalvotes": 4,
-    "resultvotes": 2,
-    "upvotes": 3,
-    "downvotes": 1
-  },{
-    "comment":"you are crazy!",
-    "commentid": "4",
-    "parentid": "0",
-    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
-    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
-    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-    "timestamp": 1527277504,
-    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-    "userid": "124",
-    "username": "john",
-    "totalvotes": 4,
-    "resultvotes": 2,
-    "upvotes": 3,
-    "downvotes": 1
-  }],
-  "accesstime": 1543539276
-}
-```
-
-### `Like comment`
-
-Allows a user to up or down vote a comment.  Censored comments cannot be voted
-on.
-
-**Route:** `POST v1/comments/like`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| token | string | Censorship token | yes |
-| commentid | string | Unique comment identifier | yes |
-| action | string | Up or downvote (1, -1) | yes |
-| signature | string | Signature of Token, CommentId and Action | yes |
-| publickey | string | Public key used for Signature |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| total | uint64 | Total number of up and down votes |
-| resultvotes | int64 | Vote score |
-| upvotes | uint64 | Pro votes |
-| downvotes | uint64 | Contra votes |
-| receipt | string | Server signature of client signature |
-| error | Error if something went wront during liking a comment
-**Example:**
-
-Request:
-
-```json
-{
-  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-  "commentid": "4",
-  "action": "1",
-  "signature": "af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
-}
-```
-
-Reply:
-
-```json
-{
-  "total": 4,
-  "result": 2,
-  "upvotes": 3,
-  "downvotes": 1,
-  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a"
-}
-```
-
-### `Censor comment`
-
-Allows a admin to censor a proposal comment.
-
-**Route:** `POST v1/comments/censor`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| token | string | Censorship token | yes |
-| commentid | string | Unique comment identifier | yes |
-| reason | string | Reason for censoring the comment | yes |
-| signature | string | Signature of Token, CommentId and Reason | yes |
-| publickey | string | Public key used for Signature | yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| receipt | string | Server signature of client signature |
-
-On failure the call shall return `403 Forbidden` and one of the following
-error codes:
-- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
-- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
-- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
-- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
-- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
-- [`ErrorStatusCommentNotFound`](#ErrorStatusCommentNotFound)
-- [`ErrorStatusCommentIsCensored`](#ErrorStatusCommentIsCensored)
-- [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
-
-**Example:**
-
-Request:
-
-```json
-{
-  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
-  "commentid": "4",
-  "reason": "comment was an advertisement",
-  "signature": "af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
-}
-```
-
-Reply:
-
-```json
-{
-  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a"
-}
-```
-
-### `Authorize vote`
-
-Authorize a proposal vote.  The proposal author must send an authorize vote
-request to indicate that the proposal is in its final state and is ready to be
-voted on before an admin can start the voting period for the proposal.  The
-author can also revoke a previously sent vote authorization.
-
-**Route:** `POST /v1/proposals/authorizevote`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| action | string | The action to be executed (authorize or revoke) | Yes |
-| token | string | Proposal censorship token | Yes |
-| signature | string | Signature of the token + proposal version | Yes |
-| publickey | string | Public key used to sign the vote | Yes |
-
-**Results (StartVoteReply):**
-
-| | Type | Description |
-| - | - | - |
-| action | string | The action that was executed. | Yes |
-| receipt | string | Politeiad signature of the client signature |
-
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
-- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
-- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
-- [`ErrorStatusInvalidAuthVoteAction`](#ErrorStatusInvalidAuthVoteAction)
-- [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
-- [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
-- [`ErrorStatusUserNotAuthor`](#ErrorStatusUserNotAuthor)
-
-**Example**
-
-Request:
-
-``` json
-{
-  "action": "authorize",
-  "token": "657db73bca8afae3b99dd6ab1ac8564f71c7fb55713526e663afc3e9eff89233",
-  "signature": "aba600243e9e59927d3270742de25aae002c6c4952ddaf39702c328d855e9895ed9d9f8ee6154511b81c4272c2329e1e0bb2d79fe08626150a11bc78a4eefe00",
-  "publickey": "c2c2ea7f24733983bf8037c189f32b5da49e6396b7d21cb69efe09d290b3cb6d"
-}
-```
-
-Reply:
-
-```json
-{
-  "action": "authorize",
-  "receipt": "2d7846cb3c8383b5db360ef6d1476341f07ab4d4819cdeac0601cfa5b8bca0ecf370402ba65ace249813caad50e7b0b6e92757a2bff94c385f71808bc5574203"
-}
-```
-
-### `Active votes`
-
-Retrieve all active votes
-
-Note that the webserver does not interpret the plugin structures. These are
-forwarded as-is to the politeia daemon.
-
-**Route:** `POST /v1/proposals/activevote`
-
-**Params:**
-
-**Results:**
-
-| | Type | Description |
-| - | - | - |
-| votes | array of ProposalVoteTuple | All current active votes |
-
-**ProposalVoteTuple:**
-
-| | Type | Description |
-| - | - | - |
-| proposal | ProposalRecord | Proposal record |
-| startvote | Vote | Vote bits, mask etc |
-| starvotereply | StartVoteReply | Vote details (eligible tickets, start block etc |
-
-**Example**
-
-Request:
-
-``` json
-{}
-```
-
-Reply:
-
-```json
-{
-  "votes": [{
-    "proposal": {
-      "name":"This is a description",
-      "status":4,
-      "timestamp":1523902523,
-      "userid":"",
-      "publickey":"d64d80c36441255e41fc1e7b6cd30259ff9a2b1276c32c7de1b7a832dff7f2c6",
-      "signature":"3554f74c112c5da49c6ee1787770c21fe1ae16f7f1205f105e6df1b5bdeaa2439fff6c477445e248e21bcf081c31bbaa96bfe03acace1629494e795e5d296e04",
-      "files":[],
-      "numcomments":0,
-      "censorshiprecord": {
-        "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
-        "merkle":"0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-        "signature":"97b1bf0d63d7689a2c6e66e32358d48e98d84e5389f455cc135b3401277d3a37518827da0f2bc892b535937421418e7e8ba6a4f940dfcf19a219867fa8c3e005"
-      }
-    }
-  }],
-  "vote": {
-    "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
-    "mask":3,
-    "duration":2016,
-    "Options": [{
-      "id":"no",
-      "description":"Don't approve proposal",
-      "bits":1
-    },{
-      "id":"yes",
-      "description":"Approve proposal",
-      "bits":2
-    }]
-  },
-  "votedetails": {
-    "startblockheight":"282893",
-    "startblockhash":"000000000227ff9b6bf3af53accb81e4fd1690ae44d521a665cb988bcd02ad94",
-    "endheight":"284909",
-    "eligibletickets": [
-      "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
-      "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
-      "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
-      "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
-    ]
-  }
-}
-```
-
-Note: eligibletickets is abbreviated for readability.
-
-
 ### `Cast votes`
 
 This is a batched call that casts multiple votes to multiple proposals.
@@ -2366,171 +1713,6 @@ Reply:
       "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
     ]
   }
-}
-```
-
-### `Proposal vote status`
-
-**This route deprecated by [`Batch Vote Status`](#batch-vote-status).**
-
-Returns the vote status for a single public proposal.
-
-**Route:** `GET /V1/proposals/{token}/votestatus`
-
-**Params:** none
-
-**Result:**
-
-| | Type | Description |
-|-|-|-|
-| token | string  | Censorship token |
-| status | int | Status identifier |
-| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
-| totalvotes | int | Proposal's total number of votes |
-| bestblock | string | The current chain height |
-| endheight | string | The chain height in which the vote will end |
-| numofeligiblevotes | int | Total number of eligible votes |
-| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
-| passpercentage | uint32 | Percent of total votes required to pass |
-
-**VoteOptionResult:**
-
-| | Type | Description |
-|-|-|-|
-| option | VoteOption  | Option description |
-| votesreceived | uint64 | Number of votes received |
-
-
-**Proposal vote status map:**
-
-| status | value |
-|-|-|
-| Vote status invalid | 0 |
-| Vote status not started | 1 |
-| Vote status started | 2 |
-| Vote status finished | 3 |
-| Vote status doesn't exist | 4 |
-
-**Example:**
-
-Request:
-
-`GET /V1/proposals/b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9/votestatus`
-
-Reply:
-
-```json
-{
-  "token":"b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9",
-  "status":0,
-  "totalvotes":0,
-  "optionsresult":[
-    {
-        "option":{
-          "id":"no",
-          "description":"Don't approve proposal",
-          "bits":1
-        },
-        "votesreceived":0
-    },
-    {
-        "option":{
-          "id":"yes",
-          "description":"Approve proposal",
-          "bits":2
-        },
-        "votesreceived":0
-    }
-  ],
-  "bestblock": "45391",
-  "endheight": "45567",
-  "numofeligiblevotes": 2000,
-  "quorumpercentage": 20,
-  "passpercentage": 60
-}
-```
-
-### `Proposals vote status`
-
-**This route deprecated by [`Batch Vote Status`](#batch-vote-status).**
-
-Returns the vote status of all public proposals.
-
-**Route:** `GET /V1/proposals/votestatus`
-
-**Params:** none
-
-**Result:**
-
-| | Type | Description |
-|-|-|-|
-| votesstatus | array of VoteStatusReply  | Vote status of each public proposal |
-
-**VoteStatusReply:**
-
-| | Type | Description |
-|-|-|-|
-| token | string  | Censorship token |
-| status | int | Status identifier |
-| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
-| totalvotes | int | Proposal's total number of votes |
-| endheight | string | The chain height in which the vote will end |
-| bestblock | string | The current chain height |
-| numofeligiblevotes | int | Total number of eligible votes |
-| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
-| passpercentage | uint32 | Percent of total votes required to pass |
-
-**Example:**
-
-Request:
-
-`GET /V1/proposals/votestatus`
-
-Reply:
-
-```json
-{
-   "votesstatus":[
-      {
-         "token":"427af6d79f495e8dad2fb0a2a47594daa505b9fbfbd084f13678fa91882aef9f",
-         "status":2,
-         "optionsresult":[
-            {
-               "option":{
-                  "id":"no",
-                  "description":"Don't approve proposal",
-                  "bits":1
-               },
-               "votesreceived":0
-            },
-            {
-               "option":{
-                  "id":"yes",
-                  "description":"Approve proposal",
-                  "bits":2
-               },
-               "votesreceived":0
-            }
-         ],
-         "totalvotes":0,
-         "bestblock": "45392",
-         "endheight": "45567",
-         "numofeligiblevotes": 2000,
-         "quorumpercentage": 20,
-         "passpercentage": 60
-      },
-      {
-         "token":"b6d058cd1eed03d7fc9400f55384a8da33edb73743b7501d354392a6f9885078",
-         "status":1,
-         "optionsresult":null,
-         "totalvotes":0,
-         "bestblock": "45392",
-         "endheight": "",
-         "numofeligiblevotes": 0,
-         "quorumpercentage": 0,
-         "passpercentage": 0
-      }
-   ]
 }
 ```
 
@@ -3076,4 +2258,3 @@ list being overwritten and thus an empty `rpcs` cancels all subscriptions.
 {
   "timestamp": 1547653596
 }
-```

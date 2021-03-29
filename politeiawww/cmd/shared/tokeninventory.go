@@ -4,7 +4,7 @@
 
 package shared
 
-// TokenInventory retrieves the censorship record tokens of all proposals in
+// TokenInventoryCmd retrieves the censorship record tokens of all proposals in
 // the inventory.
 type TokenInventoryCmd struct{}
 

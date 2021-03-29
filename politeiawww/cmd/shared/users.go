@@ -4,9 +4,7 @@
 
 package shared
 
-import (
-	"github.com/decred/politeia/politeiawww/api/www/v1"
-)
+import v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 
 // UsersCmd retreives a list of users that have been filtered using the
 // specified filtering params.
@@ -50,31 +48,4 @@ Flags:
 
 Example (Admin):
 users --email=user@example.com --username=user --pubkey=0b2283a91f6bf95f2c121
-14c7c1259c1396756bea4f64be43fe0f73b383bdf92
-
-Result (Admin):
-{
-  "totalusers":    (uint64)  Total number of all users in the database
-  "totalmatches":  (uint64)  Total number of users that match the filters
-  "users": [
-    {
-      "id":        (string)  User id
-      "email":     (string)  User email address
-      "username":  (string)  Username
-    }
-  ]
-}
-
-Example (non Admin):
---pubkey=0b2283a91f6bf95f2c12114c7c1259c1396756bea4f64be43fe0f73b383bdf92
-
-Result (Non admin):
-{
-  "users": [
-    {
-      "id": 		(string)  User id
-      "username": 	(string)  Username
-    }
-  ]
-}
-`
+14c7c1259c1396756bea4f64be43fe0f73b383bdf92`

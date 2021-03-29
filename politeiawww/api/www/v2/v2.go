@@ -14,6 +14,7 @@ type VoteT int
 const (
 	APIVersion = 2
 
+	// All routes in the package are NO LONGER SUPPORTED.
 	RouteStartVote       = "/vote/start"
 	RouteStartVoteRunoff = "/vote/startrunoff"
 	RouteVoteDetails     = "/vote/{token:[A-z0-9]{64}}"
@@ -95,6 +96,8 @@ type Vote struct {
 // * Signature has been updated to be a signature of the Vote hash. It was
 //   previously a signature of just the proposal token.
 // * Vote has been updated. See the Vote comment for more details.
+//
+// This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type StartVote struct {
 	Vote      Vote   `json:"vote"`
 	PublicKey string `json:"publickey"` // Key used for signature
@@ -107,6 +110,8 @@ type StartVote struct {
 // * StartBlockHeight was changed from a string to a uint32.
 // * EndBlockHeight was changed from a string to a uint32. It was also renamed
 //   from EndHeight to EndBlockHeight to be consistent with StartBlockHeight.
+//
+// This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type StartVoteReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height of vote start
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash of vote start
@@ -128,6 +133,8 @@ type StartVoteReply struct {
 // submission deadline has expired. Once the LinkBy deadline has expired, the
 // runoff vote can be started at any point by an admin. It is not required that
 // RFP submission authors authorize the start of the vote.
+//
+// This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type StartVoteRunoff struct {
 	Token          string          `json:"token"`
 	AuthorizeVotes []AuthorizeVote `json:"authorizevotes"`
@@ -136,6 +143,8 @@ type StartVoteRunoff struct {
 
 // The StartVoteRunoffReply is the reply to the StartVoteRunoff command. The
 // returned vote info will be the same for all RFP submissions.
+//
+// This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type StartVoteRunoffReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height of vote start
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash of vote start
@@ -144,6 +153,8 @@ type StartVoteRunoffReply struct {
 }
 
 // VoteDetails returns the votes details for the specified proposal.
+//
+// This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type VoteDetails struct {
 	Token string `json:"token"` // Proposal token
 }
@@ -158,6 +169,8 @@ type VoteDetails struct {
 // Vote contains a JSON encoded Vote and needs to be decoded according to the
 // Version. See the Vote comment for details on the differences between the
 // Vote versions.
+//
+// This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type VoteDetailsReply struct {
 	Version          uint32   `json:"version"`          // StartVote version
 	Vote             string   `json:"vote"`             // JSON encoded Vote struct

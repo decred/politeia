@@ -10,6 +10,7 @@ import (
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -59,7 +60,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 	}
 
 	issuer := defaultPoliteiaIssuer
-	if p.cfg.Mode == cmsWWWMode {
+	if p.cfg.Mode == config.CMSWWWMode {
 		issuer = defaultCMSIssuer
 	}
 	opts := p.totpGenerateOpts(issuer, u.Username)

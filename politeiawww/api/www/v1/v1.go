@@ -31,49 +31,53 @@ const (
 	RouteLogin                    = "/login"
 	RouteLogout                   = "/logout"
 	RouteUserMe                   = "/user/me"
-	RouteUserDetails              = "/user/{userid:[0-9a-zA-Z-]{36}}"
 	RouteNewUser                  = "/user/new"
 	RouteResendVerification       = "/user/new/resend"
 	RouteVerifyNewUser            = "/user/verify"
+	RouteEditUser                 = "/user/edit"
 	RouteUpdateUserKey            = "/user/key"
 	RouteVerifyUpdateUserKey      = "/user/key/verify"
 	RouteChangeUsername           = "/user/username/change"
 	RouteChangePassword           = "/user/password/change"
 	RouteResetPassword            = "/user/password/reset"
 	RouteVerifyResetPassword      = "/user/password/reset/verify"
-	RouteUserProposals            = "/user/proposals"
-	RouteUserProposalCredits      = "/user/proposals/credits"
-	RouteUserCommentsLikes        = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
-	RouteVerifyUserPayment        = "/user/verifypayment"
+	RouteUserRegistrationPayment  = "/user/payments/registration"
+	RouteUserProposalPaywall      = "/user/payments/paywall"
+	RouteUserProposalPaywallTx    = "/user/payments/paywalltx"
+	RouteUserProposalCredits      = "/user/payments/credits"
 	RouteUserPaymentsRescan       = "/user/payments/rescan"
 	RouteManageUser               = "/user/manage"
-	RouteEditUser                 = "/user/edit"
 	RouteSetTOTP                  = "/user/totp"
 	RouteVerifyTOTP               = "/user/verifytotp"
+	RouteUserDetails              = "/user/{userid:[0-9a-zA-Z-]{36}}"
 	RouteUsers                    = "/users"
-	RouteTokenInventory           = "/proposals/tokeninventory"
-	RouteBatchProposals           = "/proposals/batch"
-	RouteBatchVoteSummary         = "/proposals/batchvotesummary"
-	RouteAllVetted                = "/proposals/vetted"
-	RouteNewProposal              = "/proposals/new"
-	RouteEditProposal             = "/proposals/edit"
-	RouteAuthorizeVote            = "/proposals/authorizevote"
-	RouteStartVote                = "/proposals/startvote"
-	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
-	RouteCastVotes                = "/proposals/castvotes"
-	RouteAllVoteStatus            = "/proposals/votestatus"
-	RouteProposalPaywallDetails   = "/proposals/paywall"
-	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
-	RouteProposalDetails          = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
-	RouteSetProposalStatus        = "/proposals/{token:[A-Fa-f0-9]{7,64}}/status"
-	RouteCommentsGet              = "/proposals/{token:[A-Fa-f0-9]{7,64}}/comments"
-	RouteVoteResults              = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
-	RouteVoteStatus               = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
-	RouteNewComment               = "/comments/new"
-	RouteLikeComment              = "/comments/like"
-	RouteCensorComment            = "/comments/censor"
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
+
+	// The following routes have been DEPRECATED.
+	RouteTokenInventory   = "/proposals/tokeninventory"
+	RouteProposalDetails  = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
+	RouteAllVetted        = "/proposals/vetted"
+	RouteBatchProposals   = "/proposals/batch"
+	RouteVoteStatus       = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
+	RouteAllVoteStatus    = "/proposals/votestatus"
+	RouteBatchVoteSummary = "/proposals/batchvotesummary"
+	RouteActiveVote       = "/proposals/activevote"
+	RouteCastVotes        = "/proposals/castvotes"
+	RouteVoteResults      = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
+
+	// The following routes are NO LONGER SUPPORTED.
+	RouteNewProposal       = "/proposals/new"
+	RouteEditProposal      = "/proposals/edit"
+	RouteAuthorizeVote     = "/proposals/authorizevote"
+	RouteStartVote         = "/proposals/startvote"
+	RouteSetProposalStatus = "/proposals/{token:[A-Fa-f0-9]{7,64}}/status"
+	RouteCommentsGet       = "/proposals/{token:[A-Fa-f0-9]{7,64}}/comments"
+	RouteNewComment        = "/comments/new"
+	RouteLikeComment       = "/comments/like"
+	RouteCensorComment     = "/comments/censor"
+	RouteUserCommentsLikes = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
+	RouteUserProposals     = "/user/proposals"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -552,32 +556,18 @@ func (e UserError) Error() string {
 	return fmt.Sprintf("user error code: %v", e.ErrorCode)
 }
 
-// PDError is emitted when an HTTP error response is returned from Politeiad
-// for a request. It contains the HTTP status code and the JSON response body.
-type PDError struct {
-	HTTPCode   int
-	ErrorReply PDErrorReply
-}
-
-// Error satisfies the error interface.
-func (e PDError) Error() string {
-	return fmt.Sprintf("error from politeiad: %v %v", e.HTTPCode,
-		e.ErrorReply.ErrorCode)
-}
-
-// PDErrorReply is an error reply returned from Politeiad whenever an
-// error occurs.
-type PDErrorReply struct {
-	ErrorCode    int
-	ErrorContext []string
-}
-
-// ErrorReply are replies that the server returns a when it encounters an
-// unrecoverable problem while executing a command.  The HTTP Error Code
-// shall be 500 if it's an internal server error or 4xx if it's a user error.
+// ErrorReply are replies that the server returns when it encounters an
+// unrecoverable problem while executing a command. The HTTP status code will
+// be 500 and the ErrorCode field will contain a UNIX timestamp that the user
+// can provide to the server admin to track down the error details in the logs.
 type ErrorReply struct {
 	ErrorCode    int64    `json:"errorcode,omitempty"`
 	ErrorContext []string `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e ErrorReply) Error() string {
+	return fmt.Sprintf("server error: %v", e.ErrorCode)
 }
 
 // Version command is used to determine the lowest API version that this
@@ -705,39 +695,14 @@ type VerifyResetPassword struct {
 // command.
 type VerifyResetPasswordReply struct{}
 
-// UserProposalCredits is used to request a list of all the user's unspent
-// proposal credits and a list of all of the user's spent proposal credits.
-// A spent credit means that the credit was used to submit a proposal.  Spent
-// credits have a proposal censorship token associated with them to signify
-// that they have been spent.
-type UserProposalCredits struct{}
-
-// UserProposalCredits is used to reply to the UserProposalCredits command.
-type UserProposalCreditsReply struct {
-	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals (credit price in atoms)
-	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals (credit price in atoms)
-}
-
-// UserPaymentsRescan allows an admin to rescan a user's paywall address to
-// check for any payments that may have been missed by paywall polling. Any
-// proposal credits that are created as a result of the rescan are returned in
-// the UserPaymentsRescanReply. This call isn't RESTful, but a PUT request is
-// used since it's idempotent.
-type UserPaymentsRescan struct {
-	UserID string `json:"userid"` // ID of user to rescan
-}
-
-// UserPaymentsRescanReply is used to reply to the UserPaymentsRescan command.
-type UserPaymentsRescanReply struct {
-	NewCredits []ProposalCredit `json:"newcredits"` // Credits that were created by the rescan
-}
-
 // UserProposals is used to request a list of proposals that the
 // user has submitted. This command optionally takes either a Before
 // or After parameter, which specify a proposal's censorship token.
 // If After is specified, the "page" returned starts after the proposal
 // whose censorship token is provided. If Before is specified, the "page"
 // returned starts before the proposal whose censorship token is provided.
+//
+// This request is NO LONGER SUPPORTED.
 type UserProposals struct {
 	UserId string `schema:"userid"`
 	Before string `schema:"before"`
@@ -747,22 +712,11 @@ type UserProposals struct {
 // UserProposalsReply replies to the UserProposals command with
 // a list of proposals that the user has submitted and the total
 // amount of proposals
+//
+// This request is NO LONGER SUPPORTED.
 type UserProposalsReply struct {
 	Proposals      []ProposalRecord `json:"proposals"`      // user proposals
 	NumOfProposals int              `json:"numofproposals"` // number of proposals submitted by the user
-}
-
-// VerifyUserPayment is used to request the server to check for the
-// provided transaction on the Decred blockchain and verify that it
-// satisfies the requirements for a user to pay his registration fee.
-type VerifyUserPayment struct {
-}
-
-type VerifyUserPaymentReply struct {
-	HasPaid            bool   `json:"haspaid"`
-	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
-	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
-	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
 // Users is used to request a list of users given a filter.
@@ -823,28 +777,72 @@ type LogoutReply struct{}
 // for this endpoint.
 type Me struct{}
 
-// ProposalPaywallDetails is used to request proposal paywall details from the
-// server that the user needs in order to purchase paywall credits.
-type ProposalPaywallDetails struct{}
+// UserRegistrationPayment is used to request the server to check for the
+// provided transaction on the Decred blockchain and verify that it
+// satisfies the requirements for a user to pay his registration fee.
+type UserRegistrationPayment struct{}
 
-// ProposalPaywallDetailsReply is used to reply to the ProposalPaywallDetails
+// UserRegistrationPaymentReply is used to reply to the UserRegistrationPayment
 // command.
-type ProposalPaywallDetailsReply struct {
+type UserRegistrationPaymentReply struct {
+	HasPaid            bool   `json:"haspaid"`
+	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
+	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
+	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+}
+
+// UserProposalPaywall is used to request proposal paywall details from the
+// server that the user needs in order to purchase paywall credits.
+type UserProposalPaywall struct{}
+
+// UserProposalPaywallReply is used to reply to the UserProposalPaywall
+// command.
+type UserProposalPaywallReply struct {
 	CreditPrice        uint64 `json:"creditprice"`        // Cost per proposal credit in atoms
 	PaywallAddress     string `json:"paywalladdress"`     // Proposal paywall address
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
-// ProposalPaywallPayment is used to request payment details for a pending
+// UserProposalPaywallTx is used to request payment details for a pending
 // proposal paywall payment.
-type ProposalPaywallPayment struct{}
+type UserProposalPaywallTx struct{}
 
-// ProposalPaywallPaymentReply is used to reply to the ProposalPaywallPayment
+// UserProposalPaywallTxReply is used to reply to the ProposalPaywallPayment
 // command.
-type ProposalPaywallPaymentReply struct {
+type UserProposalPaywallTxReply struct {
 	TxID          string `json:"txid"`          // Transaction ID
 	TxAmount      uint64 `json:"amount"`        // Transaction amount in atoms
 	Confirmations uint64 `json:"confirmations"` // Number of block confirmations
+}
+
+// UserProposalCredits is used to request a list of all the user's unspent
+// proposal credits and a list of all of the user's spent proposal credits.
+// A spent credit means that the credit was used to submit a proposal.  Spent
+// credits have a proposal censorship token associated with them to signify
+// that they have been spent.
+type UserProposalCredits struct{}
+
+// UserProposalCreditsReply is used to reply to the UserProposalCredits command.
+// It contains unspent credits that the user purchased but did not yet use, and
+// the credits the user already spent to submit proposals.
+type UserProposalCreditsReply struct {
+	UnspentCredits []ProposalCredit `json:"unspentcredits"`
+	SpentCredits   []ProposalCredit `json:"spentcredits"`
+}
+
+// UserPaymentsRescan allows an admin to rescan a user's paywall address to
+// check for any payments that may have been missed by paywall polling. Any
+// proposal credits that are created as a result of the rescan are returned in
+// the UserPaymentsRescanReply. This call isn't RESTful, but a PUT request is
+// used since it's idempotent.
+type UserPaymentsRescan struct {
+	UserID string `json:"userid"` // ID of user to rescan
+}
+
+// UserPaymentsRescanReply is used to reply to the UserPaymentsRescan command.
+// Returns the credits that were created by the rescan.
+type UserPaymentsRescanReply struct {
+	NewCredits []ProposalCredit `json:"newcredits"`
 }
 
 // NewProposal attempts to submit a new proposal.
@@ -855,6 +853,8 @@ type ProposalPaywallPaymentReply struct {
 // Signature is the signature of the proposal merkle root. The merkle root
 // contains the ordered files and metadata digests. The file digests are first
 // in the ordering.
+//
+// This request is NO LONGER SUPPORTED.
 type NewProposal struct {
 	Files     []File     `json:"files"`     // Proposal files
 	Metadata  []Metadata `json:"metadata"`  // User specified metadata
@@ -863,42 +863,57 @@ type NewProposal struct {
 }
 
 // NewProposalReply is used to reply to the NewProposal command
+//
+// This request is NO LONGER SUPPORTED.
 type NewProposalReply struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
 // ProposalsDetails is used to retrieve a proposal by it's token
 // and by the proposal version (optional). If the version isn't specified
-// the latest proposal version will be returned by default.
+// the latest proposal version will be returned by default. Returns only
+// vetted proposals.
+//
+// This request has been DEPRECATED.
 type ProposalsDetails struct {
 	Token   string `json:"token"`             // Censorship token
 	Version string `json:"version,omitempty"` // Proposal version
 }
 
 // ProposalDetailsReply is used to reply to a proposal details command.
+//
+// This request has been DEPRECATED.
 type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
 // BatchProposals is used to request the proposal details for each of the
 // provided censorship tokens. The returned proposals do not include the
-// proposal files.
+// proposal files. Returns only vetted proposals.
+//
+// This request has been DEPRECATED.
 type BatchProposals struct {
 	Tokens []string `json:"tokens"` // Censorship tokens
 }
 
 // BatchProposalsReply is used to reply to a BatchProposals command.
+//
+// This request has been DEPRECATED.
 type BatchProposalsReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // BatchVoteSummary is used to request the VoteSummary for the each of the
 // provided censorship tokens.
+//
+// This request has been DEPRECATED.
 type BatchVoteSummary struct {
 	Tokens []string `json:"tokens"` // Censorship tokens
 }
 
 // BatchVoteSummaryReply is used to reply to a BatchVoteSummary command.
+//
+// This request has been DEPRECATED.
 type BatchVoteSummaryReply struct {
 	BestBlock uint64                 `json:"bestblock"` // Current block height
 	Summaries map[string]VoteSummary `json:"summaries"` // [token]VoteSummary
@@ -908,6 +923,8 @@ type BatchVoteSummaryReply struct {
 // have the ability to change a proposal's status. Some status changes, such
 // as censoring a proposal, require the StatusChangeMessage to be populated
 // with the reason for the status change.
+//
+// This request is NO LONGER SUPPORTED.
 type SetProposalStatus struct {
 	Token               string      `json:"token"`                         // Proposal token
 	ProposalStatus      PropStatusT `json:"proposalstatus"`                // New status
@@ -917,6 +934,8 @@ type SetProposalStatus struct {
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
+//
+// This request is NO LONGER SUPPORTED.
 type SetProposalStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
@@ -935,12 +954,18 @@ type SetProposalStatusReply struct {
 //
 // If Before is specified, the "page" returned starts before the provided
 // proposal censorship token, when sorted in reverse chronological order.
+//
+// This request is DEPRECATED. The Before and After arguments are NO LONGER
+// SUPPORTED. This route will only return a single page of vetted tokens. The
+// records API InventoryOrdered command should be used instead.
 type GetAllVetted struct {
 	Before string `schema:"before"`
 	After  string `schema:"after"`
 }
 
 // GetAllVettedReply is used to reply with a list of vetted proposals.
+//
+// This request is DEPRECATED.
 type GetAllVettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
@@ -996,6 +1021,8 @@ type Vote struct {
 }
 
 // ActiveVote obtains all proposals that have active votes.
+//
+// This request is NO LONGER SUPPORTED.
 type ActiveVote struct{}
 
 // ProposalVoteTuple is the proposal, vote and vote details.
@@ -1006,6 +1033,8 @@ type ProposalVoteTuple struct {
 }
 
 // ActiveVoteReply returns all proposals that have active votes.
+//
+// This request is DEPRECATED.
 type ActiveVoteReply struct {
 	Votes []ProposalVoteTuple `json:"votes"` // Active votes
 }
@@ -1016,6 +1045,8 @@ type ActiveVoteReply struct {
 // is ready to be voted on.  The signature and public key are from the
 // proposal author.  The author can revoke a previously sent vote authorization
 // by setting the Action field to revoke.
+//
+// This request is NO LONGER SUPPORTED.
 type AuthorizeVote struct {
 	Action    string `json:"action"`    // Authorize or revoke
 	Token     string `json:"token"`     // Proposal token
@@ -1025,6 +1056,8 @@ type AuthorizeVote struct {
 
 // AuthorizeVoteReply returns a receipt if the action was successfully
 // executed.
+//
+// This request is NO LONGER SUPPORTED.
 type AuthorizeVoteReply struct {
 	Action  string `json:"action"`  // Authorize or revoke
 	Receipt string `json:"receipt"` // Server signature of client signature
@@ -1032,8 +1065,7 @@ type AuthorizeVoteReply struct {
 
 // StartVote starts the voting process for a proposal.
 //
-// THIS ROUTE HAS BEEN DEPRECATED
-// A proposal vote must be initiated using the v2 StartVote route.
+// This request is NO LONGER SUPPORTED.
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote
@@ -1041,6 +1073,8 @@ type StartVote struct {
 }
 
 // StartVoteReply returns the eligible ticket pool.
+//
+// This request is NO LONGER SUPPORTED.
 type StartVoteReply struct {
 	StartBlockHeight string   `json:"startblockheight"` // Block height
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
@@ -1056,11 +1090,6 @@ type CastVote struct {
 	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
 }
 
-// Ballot is a batch of votes that are sent to the server.
-type Ballot struct {
-	Votes []CastVote `json:"votes"`
-}
-
 // CastVoteReply is the answer to the CastVote command. The Error and
 // ErrorStatus fields will only be populated if something went wrong while
 // attempting to cast the vote.
@@ -1071,7 +1100,16 @@ type CastVoteReply struct {
 	ErrorStatus     decredplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
 }
 
-// CastVotesReply is a reply to a batched list of votes.
+// Ballot is a batch of votes that are sent to the server.
+//
+// This request has been DEPRECATED.
+type Ballot struct {
+	Votes []CastVote `json:"votes"`
+}
+
+// BallotReply is a reply to a batched list of votes.
+//
+// This request has been DEPRECATED.
 type BallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
@@ -1079,10 +1117,14 @@ type BallotReply struct {
 // VoteResults retrieves a single proposal vote results from the server. If the
 // voting period has not yet started for the given proposal a reply is returned
 // with all fields set to their zero value.
+//
+// This request has been DEPRECATED.
 type VoteResults struct{}
 
 // VoteResultsReply returns the original proposal vote and the associated cast
 // votes.
+//
+// This request has been DEPRECATED.
 type VoteResultsReply struct {
 	StartVote      StartVote      `json:"startvote"`      // Original vote
 	CastVotes      []CastVote     `json:"castvotes"`      // Vote results
@@ -1117,6 +1159,8 @@ type Comment struct {
 // the user is implied by the session.  A parent ID of 0 indicates that the
 // comment does not have a parent.  A non-zero parent ID indicates that the
 // comment is a reply to an existing comment.
+//
+// This request is NO LONGER SUPPORTED.
 type NewComment struct {
 	Token     string `json:"token"`     // Censorship token
 	ParentID  string `json:"parentid"`  // Parent comment ID
@@ -1127,27 +1171,37 @@ type NewComment struct {
 
 // NewCommentReply returns the site generated Comment ID or an error if
 // something went wrong.
+//
+// This request is NO LONGER SUPPORTED.
 type NewCommentReply struct {
 	Comment Comment `json:"comment"` // Comment + receipt
 }
 
 // GetComments retrieve all comments for a given proposal.
+//
+// This request is NO LONGER SUPPORTED.
 type GetComments struct {
 	Token string `json:"token"` // Censorship token
 }
 
 // GetCommentsReply returns the provided number of comments.
+//
+// This request is NO LONGER SUPPORTED.
 type GetCommentsReply struct {
 	Comments   []Comment `json:"comments"`             // Comments
 	AccessTime int64     `json:"accesstime,omitempty"` // User Access Time
 }
 
 const (
-	VoteActionDown = "-1" // User votes down a comment
-	VoteActionUp   = "1"  // User votes up a comment
+	// VoteActionDown used when user votes down a comment
+	VoteActionDown = "-1"
+	// VoteActionUp used when user votes up a comment
+	VoteActionUp = "1"
 )
 
 // LikeComment allows a user to up or down vote a comment.
+//
+// This request is NO LONGER SUPPORTED.
 type LikeComment struct {
 	Token     string `json:"token"`     // Censorship token
 	CommentID string `json:"commentid"` // Comment ID
@@ -1157,6 +1211,8 @@ type LikeComment struct {
 }
 
 // LikeCommentReply returns the current up/down vote result.
+//
+// This request is NO LONGER SUPPORTED.
 type LikeCommentReply struct {
 	// XXX we probably need a sequence numkber or something here and some sort of rate limit
 	Total     uint64 `json:"total"`               // Total number of up and down votes
@@ -1169,6 +1225,8 @@ type LikeCommentReply struct {
 
 // CensorComment allows an admin to censor a comment. The signature and
 // public key are from the admin that censored this comment.
+//
+// This request is NO LONGER SUPPORTED.
 type CensorComment struct {
 	Token     string `json:"token"`     // Proposal censorship token
 	CommentID string `json:"commentid"` // Comment ID
@@ -1179,6 +1237,8 @@ type CensorComment struct {
 
 // CensorCommentReply returns a receipt if the comment was successfully
 // censored.
+//
+// This request is NO LONGER SUPPORTED.
 type CensorCommentReply struct {
 	Receipt string `json:"receipt"` // Server signature of client signature
 }
@@ -1193,10 +1253,14 @@ type CommentLike struct {
 
 // UserCommentsLikes is a command to fetch all user vote actions
 // on the comments of a given proposal
+//
+// This request is NO LONGER SUPPORTED.
 type UserCommentsLikes struct{}
 
 // UserCommentsLikesReply is a reply with all user vote actions
 // for the comments of a given proposal
+//
+// This request is NO LONGER SUPPORTED.
 type UserCommentsLikesReply struct {
 	CommentsLikes []CommentLike `json:"commentslikes"`
 }
@@ -1210,11 +1274,13 @@ type VoteOptionResult struct {
 
 // VoteStatus is a command to fetch the the current vote status for a single
 // public proposal
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is DEPRECATED.
 type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is DEPRECATED.
 type VoteStatusReply struct {
 	Token              string             `json:"token"`              // Censorship token
 	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
@@ -1228,11 +1294,13 @@ type VoteStatusReply struct {
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is DEPRECATED.
 type GetAllVoteStatus struct{}
 
 // GetAllVoteStatusReply returns the vote status of all public proposals
-// *** This is deprecated by the BatchVoteSummary request. ***
+//
+// This request is DEPRECATED.
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }
@@ -1305,6 +1373,8 @@ type UserIdentity struct {
 // Signature is the signature of the proposal merkle root. The merkle root
 // contains the ordered files and metadata digests. The file digests are first
 // in the ordering.
+//
+// This request is NO LONGER SUPPORTED.
 type EditProposal struct {
 	Token     string     `json:"token"`
 	Files     []File     `json:"files"`
@@ -1314,12 +1384,16 @@ type EditProposal struct {
 }
 
 // EditProposalReply is used to reply to the EditProposal command
+//
+// This request is NO LONGER SUPPORTED.
 type EditProposalReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
 // TokenInventory retrieves the censorship record tokens of all proposals in
 // the inventory, categorized by stage of the voting process.
+//
+// This request has been DEPRECATED.
 type TokenInventory struct{}
 
 // TokenInventoryReply is used to reply to the TokenInventory command and
@@ -1332,6 +1406,8 @@ type TokenInventory struct{}
 //
 // Sorted by voting period end block height in descending order:
 // Active, Approved, Rejected
+//
+// This request has been DEPRECATED.
 type TokenInventoryReply struct {
 	// Vetted
 	Pre       []string `json:"pre"`       // Tokens of all props that are pre-vote
