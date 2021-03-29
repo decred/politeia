@@ -3,7 +3,7 @@ politeiad
 
 # Installing and running
 
-## Install Dependencies
+## Install dependencies
 
 <details><summary><b>Go 1.14 or 1.15</b></summary>
 
@@ -38,11 +38,19 @@ politeiad
   ```
 </details>
 
+<details><summary><b>MySQL/MariaDB</b></summary>
+
+  Installation instructions can be found at the links below.
+  MySQL: https://www.mysql.com
+  MariaDB: https://mariadb.com
+
+</details>
+
+
 ## Build from source
 
-1. Install MariaDB or MySQL. Make sure to setup a password for the root user.
-
-2. Update the MySQL max connections settings.
+1. Set the password for the MySQL root user and update the MySQL max
+   connections settings.
 
    Max connections defaults to 151 which is not enough for trillian. You will
    be prompted for the MySQL root user's password when running these commands.
@@ -66,7 +74,7 @@ politeiad
     max_connections = 2000
     ```
 
-3. Install trillian v1.3.13.
+2. Install trillian v1.3.13.
 
     ```
     $ mkdir -p $GOPATH/src/github.com/google/
@@ -77,7 +85,7 @@ politeiad
     $ go install -v ./...
     ```
 
-4. Install politeia.
+3. Install politeia.
 
     ```
     $ mkdir -p $GOPATH/src/github.com/decred
@@ -87,16 +95,16 @@ politeiad
     $ go install -v ./...
     ```
 
-5. Run the politeiad mysql setup scripts.
+4. Run the politeiad mysql setup scripts.
 
    This will create the politeiad and trillian users as well as creating the
    politeiad databases. Password authentication is used for all database
    connections.
 
-   **The password that you set for the politeiad user will be used to derive an
-   encryption key that is used to encrypt non-public politeiad data. Make sure
-   to setup a strong password when running in production. Once set, the
-   politeiad user password cannot change.**
+   **The password that you set for the politeiad MySQL user will be used to
+   derive an encryption key that is used to encrypt non-public data at rest.
+   Make sure to setup a strong password when running in production. Once set,
+   the politeiad user password cannot change.**
 
    The setup script assumes MySQL is running on `localhost:3306` and the users
    will be accessing the databse from `localhost`. See the setup script
@@ -116,7 +124,7 @@ politeiad
       ./tstore-mysql-setup.sh
     ```
 
-6. Run the trillian mysql setup scripts.
+5. Run the trillian mysql setup scripts.
 
    These can only be run once the trillian MySQL user has been created in the
    previous step.
@@ -140,7 +148,7 @@ politeiad
       ./resetdb.sh
     ```
 
-7. Start up the trillian instances.
+6. Start up the trillian instances.
 
    Running trillian requires running a trillian log server and a trillian log
    signer. These are seperate processes that will be started in this step. 
@@ -186,7 +194,7 @@ politeiad
       --http_endpoint=localhost:8093 
     ```
 
-8. Setup the politeiad configuration file.
+7. Setup the politeiad configuration file.
 
    [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf)
 
@@ -233,11 +241,18 @@ politeiad
     plugin=usermd
     ```
 
-9. Start up the politeiad instance. The password for the politeiad user must
-   be provided in the `DBPASS` env variable.
+8. Start up the politeiad instance.
+
+   The password for the politeiad MySQL user must be provided in the `DBPASS`
+   env variable. The encryption key used to encrypt non-public data at rest
+   will be derived from the `DBPASS`. The `DBPASS` cannot change.
+
+   A password to derive the trillian signing key must be provided in the
+   `TLOGPASS` env variable. This password has not been created yet. You can
+   set it to whatever you want, but it cannot change once set.
 
     ```
-    $ env DBPASS=politeiadpass politeiad
+    $ env DBPASS=politeiadpass TLOGPASS=tlogpass politeiad
     ```
 
 # Tools and reference clients
