@@ -334,7 +334,7 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 	case len(t.CommentIDs) == 0:
 		// Nothing to do
 		return &v1.TimestampsReply{
-			Comments: map[uint32][]v1.Timestamp{},
+			Comments: map[uint32]v1.CommentTimestamp{},
 		}, nil
 
 	case len(t.CommentIDs) > int(v1.TimestampsPageSize):
@@ -366,17 +366,35 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 	}
 
 	// Prepare reply
-	comments := make(map[uint32][]v1.Timestamp, len(ctr.Comments))
-	for commentID, timestamps := range ctr.Comments {
-		ts := make([]v1.Timestamp, 0, len(timestamps))
-		for _, v := range timestamps {
-			// Strip unvetted data blobs if the user is not an admin
-			if r.State == pdv2.RecordStateUnvetted && !isAdmin {
-				v.Data = ""
+	var (
+		comments = make(map[uint32]v1.CommentTimestamp, len(ctr.Comments))
+
+		// Unvetted data payloads are removed from the timestamp if the
+		// user is not an admin.
+		rmPayloads = (r.State == pdv2.RecordStateUnvetted) && !isAdmin
+	)
+	for commentID, ct := range ctr.Comments {
+		adds := make([]v1.Timestamp, 0, len(ct.Adds))
+		for _, ts := range ct.Adds {
+			if rmPayloads {
+				ts.Data = ""
 			}
-			ts = append(ts, convertTimestamp(v))
+			adds = append(adds, convertTimestamp(ts))
 		}
-		comments[commentID] = ts
+
+		var del *v1.Timestamp
+		if ct.Del != nil {
+			if rmPayloads {
+				ct.Del.Data = ""
+			}
+			d := convertTimestamp(*ct.Del)
+			del = &d
+		}
+
+		comments[commentID] = v1.CommentTimestamp{
+			Adds: adds,
+			Del:  del,
+		}
 	}
 
 	return &v1.TimestampsReply{

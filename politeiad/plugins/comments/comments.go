@@ -422,18 +422,39 @@ type Timestamp struct {
 	Proofs     []Proof `json:"proofs"`
 }
 
-// Timestamps retrieves the timestamps for a record's comments. If no comment
-// IDs are provided then timestamps for all comments made on the record will
-// be returned. If IncludeVotes is set to true then the timestamps for the
-// comment votes will also be returned. If a provided comment ID does not
-// exist then it will not be included in the reply.
+// CommentTimestamp contains the timestamps for the full history of a single
+// comment.
+//
+// A CommentAdd is the structure that is saved to disk anytime a comment is
+// created or edited. This structure is what will be timestamped.  The data
+// payload of a timestamp in the Adds field will contain a JSON encoded
+// CommentAdd.
+//
+// A CommentDel is the structure that is saved to disk anytime a comment is
+// deleted. This structure is what will be timestamped. The data payload of a
+// timestamp in the Del field will contain a JSON encoded CommentDel.
+//
+// A CommentVote is the structure that is saved to disk anytime a comment is
+// voted on. This structure is what will be timestamped. The data payload of
+// a timestamp in the Votes filed will contain a JSON encoded CommentVote.
+type CommentTimestamp struct {
+	Adds  []Timestamp `json:"adds"`
+	Del   *Timestamp  `json:"del,omitempty"`
+	Votes []Timestamp `json:"votes,omitempty"`
+}
+
+// Timestamps retrieves the timestamps for a record's comments. If a requested
+// comment ID does not exist, it will not be included in the reply. An error is
+// not returned.
+//
+// If IncludeVotes is set to true then the timestamps for the comment votes
+// will also be returned.
 type Timestamps struct {
-	CommentIDs   []uint32 `json:"commentids,omitempty"`
+	CommentIDs   []uint32 `json:"commentids"`
 	IncludeVotes bool     `json:"includevotes,omitempty"`
 }
 
 // TimestampsReply is the reply to the timestamps command.
 type TimestampsReply struct {
-	Comments map[uint32][]Timestamp `json:"comments"`
-	Votes    map[uint32][]Timestamp `json:"votes"`
+	Comments map[uint32]CommentTimestamp `json:"comments"`
 }

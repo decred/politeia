@@ -296,6 +296,86 @@ func (p *commentsPlugin) timestamp(token []byte, digest []byte) (*comments.Times
 	}, nil
 }
 
+// commentTimestamps returns the CommentTimestamp for each of the provided
+// comment IDs.
+func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, includeVotes bool) (*comments.TimestampsReply, error) {
+	// Verify there is work to do
+	if len(commentIDs) == 0 {
+		return &comments.TimestampsReply{
+			Comments: map[uint32]comments.CommentTimestamp{},
+		}, nil
+	}
+
+	// Get record state
+	state, err := p.tstore.RecordState(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get record index
+	ridx, err := p.recordIndex(token, state)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get timestamps for each comment ID
+	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
+	for _, cid := range commentIDs {
+		cidx, ok := ridx.Comments[cid]
+		if !ok {
+			// Comment ID does not exist. Skip it.
+			continue
+		}
+
+		// Get comment add timestamps
+		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
+		for _, v := range cidx.Adds {
+			ts, err := p.timestamp(token, v)
+			if err != nil {
+				return nil, err
+			}
+			adds = append(adds, *ts)
+		}
+
+		// Get comment del timestamps. This will only exist if the
+		// comment has been deleted.
+		var del *comments.Timestamp
+		if cidx.Del != nil {
+			ts, err := p.timestamp(token, cidx.Del)
+			if err != nil {
+				return nil, err
+			}
+			del = ts
+		}
+
+		// Get comment vote timestamps
+		var votes []comments.Timestamp
+		if includeVotes {
+			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
+			for _, voteIdxs := range cidx.Votes {
+				for _, v := range voteIdxs {
+					ts, err := p.timestamp(token, v.Digest)
+					if err != nil {
+						return nil, err
+					}
+					votes = append(votes, *ts)
+				}
+			}
+		}
+
+		// Save timestamp
+		cts[cid] = comments.CommentTimestamp{
+			Adds:  adds,
+			Del:   del,
+			Votes: votes,
+		}
+	}
+
+	return &comments.TimestampsReply{
+		Comments: cts,
+	}, nil
+}
+
 // voteScore returns the total number of downvotes and upvotes, respectively,
 // for a comment.
 func voteScore(cidx commentIndex) (uint64, uint64) {
@@ -1121,87 +1201,14 @@ func (p *commentsPlugin) cmdTimestamps(token []byte, payload string) (string, er
 		return "", err
 	}
 
-	// Get record state
-	state, err := p.tstore.RecordState(token)
-	if err != nil {
-		return "", err
-	}
-
-	// Get record index
-	ridx, err := p.recordIndex(token, state)
-	if err != nil {
-		return "", err
-	}
-
-	// If no comment IDs were given then we need to return the
-	// timestamps for all comments.
-	if len(t.CommentIDs) == 0 {
-		commentIDs := make([]uint32, 0, len(ridx.Comments))
-		for k := range ridx.Comments {
-			commentIDs = append(commentIDs, k)
-		}
-		t.CommentIDs = commentIDs
-	}
-
 	// Get timestamps
-	cmts := make(map[uint32][]comments.Timestamp, len(t.CommentIDs))
-	votes := make(map[uint32][]comments.Timestamp, len(t.CommentIDs))
-	for _, commentID := range t.CommentIDs {
-		cidx, ok := ridx.Comments[commentID]
-		if !ok {
-			// Comment ID does not exist. Skip it.
-			continue
-		}
-
-		// Get timestamps for adds
-		ts := make([]comments.Timestamp, 0, len(cidx.Adds)+1)
-		for _, v := range cidx.Adds {
-			t, err := p.timestamp(token, v)
-			if err != nil {
-				return "", err
-			}
-			ts = append(ts, *t)
-		}
-
-		// Get timestamp for del
-		if cidx.Del != nil {
-			t, err := p.timestamp(token, cidx.Del)
-			if err != nil {
-				return "", err
-			}
-			ts = append(ts, *t)
-		}
-
-		// Save timestamps
-		cmts[commentID] = ts
-
-		// Only get the comment vote timestamps if specified
-		if !t.IncludeVotes {
-			continue
-		}
-
-		// Get timestamps for votes
-		ts = make([]comments.Timestamp, 0, len(cidx.Votes))
-		for _, votes := range cidx.Votes {
-			for _, v := range votes {
-				t, err := p.timestamp(token, v.Digest)
-				if err != nil {
-					return "", err
-				}
-				ts = append(ts, *t)
-			}
-		}
-
-		// Save timestamps
-		votes[commentID] = ts
+	ctr, err := p.commentTimestamps(token, t.CommentIDs, t.IncludeVotes)
+	if err != nil {
+		return "", err
 	}
 
 	// Prepare reply
-	ts := comments.TimestampsReply{
-		Comments: cmts,
-		Votes:    votes,
-	}
-	reply, err := json.Marshal(ts)
+	reply, err := json.Marshal(*ctr)
 	if err != nil {
 		return "", err
 	}

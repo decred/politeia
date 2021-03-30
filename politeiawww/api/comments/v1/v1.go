@@ -321,15 +321,33 @@ const (
 	TimestampsPageSize uint32 = 100
 )
 
-// Timestamps requests the timestamps for the comments of a record. If no
-// comment IDs are provided then the timestamps for all comments will be
-// returned.
+// CommentTimestamp contains the timestamps for the full history of a single
+// comment.
+//
+// A CommentAdd is the comments plugin structure that is saved to disk anytime
+// a comment is created or edited. This structure is what will be timestamped.
+// The data payload of a timestamp in the Adds field will contain a JSON
+// encoded CommentAdd. See the politeiad comments plugin API for more details
+// on a CommentAdd.
+//
+// A CommentDel is the comments plugin structure that is saved to disk anytime
+// a comment is deleted. This structure is what will be timestamped. The data
+// payload of a timestamp in the Del field will contain a JSON encoded
+// CommentDel. See the politeiad comments plugin API for more details on a
+// CommentDel.
+type CommentTimestamp struct {
+	Adds []Timestamp `json:"adds"`
+	Del  *Timestamp  `json:"del,omitempty"`
+}
+
+// Timestamps requests the timestamps for the comments of a record.
 type Timestamps struct {
 	Token      string   `json:"token"`
-	CommentIDs []uint32 `json:"commentids,omitempty"`
+	CommentIDs []uint32 `json:"commentids"`
 }
 
 // TimestampsReply is the reply to the Timestamps command.
 type TimestampsReply struct {
-	Comments map[uint32][]Timestamp `json:"comments"` // [commentID]Timestamp
+	// map[commentID]CommentTimestamp
+	Comments map[uint32]CommentTimestamp `json:"comments"`
 }
