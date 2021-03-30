@@ -1272,10 +1272,12 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 	// Score needs to be filled in separately
 	return comments.Comment{
 		UserID:    cd.UserID,
+		State:     cd.State,
 		Token:     cd.Token,
 		ParentID:  cd.ParentID,
 		Comment:   "",
-		Signature: "",
+		PublicKey: cd.PublicKey,
+		Signature: cd.Signature,
 		CommentID: cd.CommentID,
 		Version:   0,
 		Timestamp: cd.Timestamp,

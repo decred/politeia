@@ -187,8 +187,7 @@ politeiad
     ```
 
     Use the following config settings to spin up a development politeiad
-    instance. You'll need to replace the `politeiadpass` with the password
-    you created for your politeiad MySQL user.
+    instance.
 
    **politeiad.conf**
 

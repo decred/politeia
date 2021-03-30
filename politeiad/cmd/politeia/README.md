@@ -22,8 +22,8 @@ Available commands:
 
 ## Obtain politeiad identity
 
-The politeiad identity is the contains the public key that is sued to verify
-replies from politeiad. 
+The politeiad identity contains the public key that is used to verify replies
+from politeiad.
 
 ```
 $ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
