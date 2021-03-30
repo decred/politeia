@@ -6,8 +6,11 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 )
 
@@ -145,4 +148,54 @@ func (c *Client) CommentTimestamps(t cmv1.Timestamps) (*cmv1.TimestampsReply, er
 	}
 
 	return &tr, nil
+}
+
+// VerifyCommentTimestamps verifies that all timestamps in a comments v1
+// TimestampsReply are valid.
+func VerifyCommentTimestamps(tr cmv1.TimestampsReply) error {
+	for cid, cts := range tr.Comments {
+		// Verify comment adds
+		for i, ts := range cts.Adds {
+			err := tstore.VerifyTimestamp(convertCommentTimestamp(ts))
+			if err != nil {
+				return fmt.Errorf("verify comment add timestamp %v %v: %v",
+					cid, i, err)
+			}
+		}
+
+		// Verify comment del if one exists
+		if cts.Del == nil {
+			continue
+		}
+		err := tstore.VerifyTimestamp(convertCommentTimestamp(*cts.Del))
+		if err != nil {
+			return fmt.Errorf("verify comment del timestamp %v: %v",
+				cid, err)
+		}
+	}
+	return nil
+}
+
+func convertCommentProof(p cmv1.Proof) backend.Proof {
+	return backend.Proof{
+		Type:       p.Type,
+		Digest:     p.Digest,
+		MerkleRoot: p.MerkleRoot,
+		MerklePath: p.MerklePath,
+		ExtraData:  p.ExtraData,
+	}
+}
+
+func convertCommentTimestamp(t cmv1.Timestamp) backend.Timestamp {
+	proofs := make([]backend.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, convertCommentProof(v))
+	}
+	return backend.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}
 }

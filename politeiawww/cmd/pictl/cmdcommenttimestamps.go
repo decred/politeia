@@ -5,10 +5,6 @@
 package main
 
 import (
-	"fmt"
-
-	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -49,46 +45,7 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 	}
 
 	// Verify timestamps
-	for commentID, timestamps := range tr.Comments {
-		for _, v := range timestamps {
-			err = verifyCommentTimestamp(v)
-			if err != nil {
-				return fmt.Errorf("verify comment timestamp %v: %v",
-					commentID, err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func verifyCommentTimestamp(t cmv1.Timestamp) error {
-	ts := convertCommentTimestamp(t)
-	return tstore.VerifyTimestamp(ts)
-}
-
-func convertCommentProof(p cmv1.Proof) backend.Proof {
-	return backend.Proof{
-		Type:       p.Type,
-		Digest:     p.Digest,
-		MerkleRoot: p.MerkleRoot,
-		MerklePath: p.MerklePath,
-		ExtraData:  p.ExtraData,
-	}
-}
-
-func convertCommentTimestamp(t cmv1.Timestamp) backend.Timestamp {
-	proofs := make([]backend.Proof, 0, len(t.Proofs))
-	for _, v := range t.Proofs {
-		proofs = append(proofs, convertCommentProof(v))
-	}
-	return backend.Timestamp{
-		Data:       t.Data,
-		Digest:     t.Digest,
-		TxID:       t.TxID,
-		MerkleRoot: t.MerkleRoot,
-		Proofs:     proofs,
-	}
+	return pclient.VerifyCommentTimestamps(*tr)
 }
 
 // commentTimestampsHelpMsg is printed to stdout by the help command.

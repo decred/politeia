@@ -522,7 +522,7 @@ func newTrillianKey() (crypto.Signer, error) {
 }
 
 // tlogKeyParams is saved to the kv store on initial derivation of the tlog
-// private key. It contains the params that were used to derive the key and a
+// signing key. It contains the params that were used to derive the key and a
 // SHA256 digest of the key. Subsequent derivations, i.e. anytime politeiad is
 // restarted, will use the existing params to derive the key and will use the
 // digest to verify that the tlog key has not changed.
@@ -563,13 +563,13 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 	)
 	b, ok := blobs[tlogKeyParamsKey]
 	if ok {
-		log.Debugf("Tlog private key params found in kv store")
+		log.Debugf("Tlog signing key params found in kv store")
 		err = json.Unmarshal(b, &tkp)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		log.Infof("Tlog private key params not found; creating new ones")
+		log.Infof("Tlog signing key params not found; creating new ones")
 		tkp = tlogKeyParams{
 			Params: util.NewArgon2Params(),
 		}
@@ -605,7 +605,7 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 			return nil, fmt.Errorf("put: %v", err)
 		}
 
-		log.Infof("Tlog private key params saved to kv store")
+		log.Infof("Tlog signing key params saved to kv store")
 	} else {
 		// This was not the first time the key was derived. Verify that
 		// the key has not changed.
