@@ -202,8 +202,9 @@ func digestsVerify(files []rcv1.File) error {
 	return nil
 }
 
-// RecordVerify verifies the censorship record of a records v1 Record.
-func RecordVerify(r rcv1.Record, serverPubKey string) error {
+// CensorshipRecordVerify verifies the censorship record of a records v1
+// Record.
+func CensorshipRecordVerify(r rcv1.Record, serverPubKey string) error {
 	// Verify censorship record merkle root
 	if len(r.Files) > 0 {
 		// Verify digests
@@ -237,6 +238,39 @@ func RecordVerify(r rcv1.Record, serverPubKey string) error {
 	msg := []byte(r.CensorshipRecord.Merkle + r.CensorshipRecord.Token)
 	if !id.VerifyMessage(msg, s) {
 		return fmt.Errorf("invalid censorship record signature")
+	}
+
+	return nil
+}
+
+// RecordVerify verfifies the contents of a record. This includes verifying
+// the censorship record, the user metadata, and any status changes that are
+// present.
+func RecordVerify(r rcv1.Record, serverPubKey string) error {
+	// Verify censorship record
+	err := CensorshipRecordVerify(r, serverPubKey)
+	if err != nil {
+		return fmt.Errorf("verify censorship record: %v", err)
+	}
+
+	// Verify user metadata
+	um, err := UserMetadataDecode(r.Metadata)
+	if err != nil {
+		return err
+	}
+	err = UserMetadataVerify(*um, r.CensorshipRecord.Merkle)
+	if err != nil {
+		return fmt.Errorf("verify user metadata: %v", err)
+	}
+
+	// Verify status changes
+	sc, err := StatusChangesDecode(r.Metadata)
+	if err != nil {
+		return err
+	}
+	err = StatusChangesVerify(sc)
+	if err != nil {
+		return fmt.Errorf("verify status changes: %v", err)
 	}
 
 	return nil
@@ -277,15 +311,15 @@ func RecordTimestampsVerify(tr rcv1.TimestampsReply) error {
 
 // UserMetadataDecode decodes and returns the UserMetadata from the provided
 // metadata streams. An error is returned if a UserMetadata is not found.
-func UserMetadataDecode(ms []v1.MetadataStream) (*usermd.UserMetadata, error) {
-	var ump *usermd.UserMetadata
+func UserMetadataDecode(ms []v1.MetadataStream) (*rcv1.UserMetadata, error) {
+	var ump *rcv1.UserMetadata
 	for _, v := range ms {
 		if v.PluginID != usermd.PluginID ||
 			v.StreamID != usermd.StreamIDUserMetadata {
 			// Not user metadata
 			continue
 		}
-		var um usermd.UserMetadata
+		var um rcv1.UserMetadata
 		err := json.Unmarshal([]byte(v.Payload), &um)
 		if err != nil {
 			return nil, err
@@ -301,31 +335,16 @@ func UserMetadataDecode(ms []v1.MetadataStream) (*usermd.UserMetadata, error) {
 
 // UserMetadataVerify verifies that the UserMetadata contains a valid user ID,
 // a valid public key, and that this signature is a valid signature of the
-// record merkle root. An error is returned if a UserMetadata is not found.
-func UserMetadataVerify(metadata []v1.MetadataStream, files []v1.File) error {
-	// Decode user metadata
-	um, err := UserMetadataDecode(metadata)
-	if err != nil {
-		return err
-	}
-
+// record merkle root.
+func UserMetadataVerify(um v1.UserMetadata, merkleRoot string) error {
 	// Verify user ID
-	_, err = uuid.Parse(um.UserID)
+	_, err := uuid.Parse(um.UserID)
 	if err != nil {
 		return fmt.Errorf("invalid user id: %v", err)
 	}
 
 	// Verify signature
-	digests := make([]string, 0, len(files))
-	for _, v := range files {
-		digests = append(digests, v.Digest)
-	}
-	m, err := util.MerkleRoot(digests)
-	if err != nil {
-		return err
-	}
-	mr := hex.EncodeToString(m[:])
-	err = util.VerifySignature(um.Signature, um.PublicKey, mr)
+	err = util.VerifySignature(um.Signature, um.PublicKey, merkleRoot)
 	if err != nil {
 		return fmt.Errorf("invalid user metadata: %v", err)
 	}
@@ -360,22 +379,16 @@ func StatusChangesDecode(metadata []v1.MetadataStream) ([]v1.StatusChange, error
 	return statuses, nil
 }
 
-// StatusChanges verifies the signatures on all status change metadata. A
-// record might not have any status changes yet so an error IS NOT returned if
-// status change metadata is not found.
-func StatusChangesVerify(metadata []v1.MetadataStream) error {
-	// Decode status changes
-	sc, err := StatusChangesDecode(metadata)
-	if err != nil {
-		return err
-	}
-
+// StatusChanges verifies the signatures on all status change metadata.
+func StatusChangesVerify(sc []v1.StatusChange) error {
 	// Verify signatures
 	for _, v := range sc {
-		status := strconv.FormatUint(uint64(v.Status), 10)
-		version := strconv.FormatUint(uint64(v.Version), 10)
-		msg := v.Token + version + status + v.Reason
-		err = util.VerifySignature(v.Signature, v.PublicKey, msg)
+		var (
+			status  = strconv.FormatUint(uint64(v.Status), 10)
+			version = strconv.FormatUint(uint64(v.Version), 10)
+			msg     = v.Token + version + status + v.Reason
+		)
+		err := util.VerifySignature(v.Signature, v.PublicKey, msg)
 		if err != nil {
 			return fmt.Errorf("invalid status change signature %v %v: %v",
 				v.Token, v1.RecordStatuses[v.Status], err)

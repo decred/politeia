@@ -1247,9 +1247,38 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 	return nil
 }
 
+// commentVersionLatest returns the latest comment version.
+func commentVersionLatest(cidx commentIndex) uint32 {
+	var maxVersion uint32
+	for version := range cidx.Adds {
+		if version > maxVersion {
+			maxVersion = version
+		}
+	}
+	return maxVersion
+}
+
+// commentExists returns whether the provided comment ID exists.
+func commentExists(ridx recordIndex, commentID uint32) bool {
+	_, ok := ridx.Comments[commentID]
+	return ok
+}
+
+// commentIDLatest returns the latest comment ID.
+func commentIDLatest(idx recordIndex) uint32 {
+	var maxID uint32
+	for id := range idx.Comments {
+		if id > maxID {
+			maxID = id
+		}
+	}
+	return maxID
+}
+
 func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
 	return comments.Comment{
 		UserID:        ca.UserID,
+		State:         ca.State,
 		Token:         ca.Token,
 		ParentID:      ca.ParentID,
 		Comment:       ca.Comment,
@@ -1287,34 +1316,6 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 		Deleted:   true,
 		Reason:    cd.Reason,
 	}
-}
-
-// commentVersionLatest returns the latest comment version.
-func commentVersionLatest(cidx commentIndex) uint32 {
-	var maxVersion uint32
-	for version := range cidx.Adds {
-		if version > maxVersion {
-			maxVersion = version
-		}
-	}
-	return maxVersion
-}
-
-// commentExists returns whether the provided comment ID exists.
-func commentExists(ridx recordIndex, commentID uint32) bool {
-	_, ok := ridx.Comments[commentID]
-	return ok
-}
-
-// commentIDLatest returns the latest comment ID.
-func commentIDLatest(idx recordIndex) uint32 {
-	var maxID uint32
-	for id := range idx.Comments {
-		if id > maxID {
-			maxID = id
-		}
-	}
-	return maxID
 }
 
 func convertSignatureError(err error) backend.PluginError {

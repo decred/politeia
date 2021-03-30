@@ -22,15 +22,6 @@ var (
 	publicKey = flag.String("k", "", "server public key")
 	token     = flag.String("t", "", "record censorship token")
 	signature = flag.String("s", "", "record censorship signature")
-
-	// Regexp for matching politeiagui bundles
-	expJSONFile         = `.json$`
-	expRecord           = `^[0-9a-f]{16}-v[\d]{1,2}.json$`
-	expRecordTimestamps = `^[0-9a-f]{16}-v[\d]{1,2}-timestamps.json$`
-
-	regexJSONFile         = regexp.MustCompile(expJSONFile)
-	regexRecord           = regexp.MustCompile(expRecord)
-	regexRecordTimestamps = regexp.MustCompile(expRecordTimestamps)
 )
 
 // loadFiles loads and returns a politeiawww records v1 File for each provided
@@ -55,7 +46,7 @@ func loadFiles(paths []string) ([]rcv1.File, error) {
 
 // verifyCensorshipRecord verifies a censorship record signature for a politeia
 // record submission. This requires passing in the server public key, the
-// censorship token, the censorship record signature, and the filepaths of all
+// censorship token, the censorship record signature, and the file paths of all
 // files that are part of the record.
 func verifyCensorshipRecord(serverPubKey, token, signature string, filepaths []string) error {
 	// Verify all args are present
@@ -116,19 +107,54 @@ func verifyCensorshipRecord(serverPubKey, token, signature string, filepaths []s
 	return nil
 }
 
+var (
+	// Regexps for matching file bundles downloaded from politeiagui
+	expJSONFile          = `.json$`
+	expRecord            = `^[0-9a-f]{16}-v[\d]{1,2}.json$`
+	expRecordTimestamps  = `^[0-9a-f]{16}-v[\d]{1,2}-timestamps.json$`
+	expComments          = `^[0-9a-f]{16}-comments.json$`
+	expCommentTimestamps = `^[0-9a-f]{16}-comments-timestamps.json$`
+	expVotes             = `^[0-9a-f]{16}-votes.json$`
+	expVoteTimestamps    = `^[0-9a-f]{16}-votes-timestamps.json$`
+
+	regexpJSONFile          = regexp.MustCompile(expJSONFile)
+	regexpRecord            = regexp.MustCompile(expRecord)
+	regexpRecordTimestamps  = regexp.MustCompile(expRecordTimestamps)
+	regexpComments          = regexp.MustCompile(expComments)
+	regexpCommentTimestamps = regexp.MustCompile(expCommentTimestamps)
+	regexpVotes             = regexp.MustCompile(expVotes)
+	regexpVoteTimestamps    = regexp.MustCompile(expVoteTimestamps)
+)
+
 // verifyFile verifies a data file downloaded from politeiagui. This can be
 // one of the data bundles or one of the timestamp files. The file name MUST
 // be the same file name that was downloaded from politeiagui.
+//
+// Files that this function accepts:
+// Record bundle     : [token]-[version].json
+// Record timestamps : [token]-[version]-timestamps.json
+// Comments bundle   : [token]-comments.json
+// Comment timestamps: [token]-comments-timestamps.json
+// Votes bundle      : [token]-votes.json
+// Vote timestamps   : [token]-votes-timestamps.json
 func verifyFile(fp string) error {
 	fp = util.CleanAndExpandPath(fp)
 	filename := filepath.Base(fp)
 
 	// Match file type
 	switch {
-	case regexRecord.FindString(filename) != "":
-		return verifyRecordBundleFile(fp)
-	case regexRecordTimestamps.FindString(filename) != "":
-		return verifyRecordTimestampsFile(fp)
+	case regexpRecord.FindString(filename) != "":
+		return verifyRecordBundle(fp)
+	case regexpRecordTimestamps.FindString(filename) != "":
+		return verifyRecordTimestamps(fp)
+	case regexpComments.FindString(filename) != "":
+		return verifyCommentsBundle(fp)
+	case regexpCommentTimestamps.FindString(filename) != "":
+		return verifyCommentTimestamps(fp)
+	case regexpVotes.FindString(filename) != "":
+		return verifyVotesBundle(fp)
+	case regexpVoteTimestamps.FindString(filename) != "":
+		return verifyVoteTimestamps(fp)
 	}
 
 	return fmt.Errorf("file not recognized")
@@ -155,12 +181,12 @@ func _main() error {
 	// The user is trying to verify a bundle file that was downloaded
 	// from politeiagui.
 	fp := args[0]
-	if regexJSONFile.FindString(fp) == "" {
+	if regexpJSONFile.FindString(fp) == "" {
 		return fmt.Errorf("'%v' is not a json file", fp)
 	}
 	err := verifyFile(fp)
 	if err != nil {
-		return err
+		return fmt.Errorf("ERR COULD NOT VERIFY: %v", err)
 	}
 
 	return nil

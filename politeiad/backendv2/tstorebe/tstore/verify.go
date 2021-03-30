@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/decred/dcrtime/merkle"
@@ -160,11 +161,18 @@ func verifyProof(p backend.Proof) error {
 	return fmt.Errorf("invalid proof type")
 }
 
+var (
+	// ErrNotTimestamped is returned when a timestamp does not contain
+	// a TxID. This indicates that the data has yet to be included in
+	// a DCR transaction.
+	ErrNotTimestamped = errors.New("data has not be included in a dcr tx yet")
+)
+
 // VerifyTimestamp verifies the inclusion of the data in the merkle root that
 // was timestamped onto the dcr blockchain.
 func VerifyTimestamp(t backend.Timestamp) error {
 	if t.TxID == "" {
-		return fmt.Errorf("data has not been included in dcr tx yet")
+		return ErrNotTimestamped
 	}
 
 	// Verify digest. The data blob may not be included in certain
