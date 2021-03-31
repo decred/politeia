@@ -49,6 +49,9 @@ const (
 
 	// StateVetted indicates a record has been made public.
 	StateVetted StateT = 2
+
+	// StateVettedLast used for unit test only.
+	StateLast StateT = 3
 )
 
 var (
@@ -85,6 +88,10 @@ const (
 	// record is locked from any further updates. An archived record
 	// have a state of either unvetted or vetted.
 	StatusArchived StatusT = 4
+
+	// StatusLast is used for unit test validation of human readable
+	// errors.
+	StatusLast StatusT = 5
 )
 
 var (

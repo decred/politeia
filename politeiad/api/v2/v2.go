@@ -53,12 +53,15 @@ const (
 	ErrorCodePageSizeExceeded        ErrorCodeT = 19
 	ErrorCodeRecordStateInvalid      ErrorCodeT = 20
 	ErrorCodeRecordStatusInvalid     ErrorCodeT = 21
+	ErrorCodeLast                    ErrorCodeT = 22
 )
 
 var (
 	// ErrorCodes contains the human readable error codes.
 	ErrorCodes = map[ErrorCodeT]string{
 		ErrorCodeInvalid:                 "invalid error",
+		ErrorCodeRequestPayloadInvalid:   "request payload invalid",
+		ErrorCodeChallengeInvalid:        "invalid challenge",
 		ErrorCodeMetadataStreamInvalid:   "metadata stream invalid",
 		ErrorCodeMetadataStreamDuplicate: "metadata stream duplicate",
 		ErrorCodeFilesEmpty:              "files are empty",
@@ -132,6 +135,10 @@ const (
 
 	// RecordStateVetted indicates a record has been made public.
 	RecordStateVetted RecordStateT = 2
+
+	// RecordStateLast is used for unit test validation of human readable
+	// errors.
+	RecordStateLast = 3
 )
 
 var (
@@ -169,6 +176,10 @@ const (
 	// archived record is locked from any further updates. An archived
 	// record can have a state of either unvetted or vetted.
 	RecordStatusArchived RecordStatusT = 4
+
+	// RecordStatusLast is used for unit test validation of human readable
+	// errors.
+	RecordStatusLast = 5
 )
 
 var (

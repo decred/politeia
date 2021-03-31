@@ -50,6 +50,7 @@ const (
 	ErrorCodeStatusChangeInvalid     ErrorCodeT = 18
 	ErrorCodeStatusReasonNotFound    ErrorCodeT = 19
 	ErrorCodePageSizeExceeded        ErrorCodeT = 20
+	ErrorCodeLast                    ErrorCodeT = 21
 )
 
 var (
@@ -130,6 +131,9 @@ const (
 
 	// RecordStateVetted indicates a record has been made public.
 	RecordStateVetted RecordStateT = 2
+
+	// RecordStateLast unit test only.
+	RecordStateLast RecordStateT = 3
 )
 
 var (
@@ -167,6 +171,9 @@ const (
 	// archived record is locked from any further updates. An archived
 	// record have a state of either unvetted or vetted.
 	RecordStatusArchived RecordStatusT = 4
+
+	// RecordStatusLast unit test only.
+	RecordStatusLast RecordStatusT = 5
 )
 
 var (

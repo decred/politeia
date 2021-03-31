@@ -32,6 +32,7 @@ const (
 	ErrorStatusVoteHasEnded     ErrorStatusT = 4
 	ErrorStatusDuplicateVote    ErrorStatusT = 5
 	ErrorStatusIneligibleTicket ErrorStatusT = 6
+	ErrorStatusLast             ErrorStatusT = 7
 )
 
 var (

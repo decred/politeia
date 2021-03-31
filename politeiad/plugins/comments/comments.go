@@ -98,6 +98,9 @@ const (
 	// ErrorCodeRecordStateInvalid is returned when the provided state
 	// does not match the record state.
 	ErrorCodeRecordStateInvalid ErrorCodeT = 11
+
+	// ErrorCodeLast unit test only.
+	ErrorCodeLast ErrorCodeT = 12
 )
 
 var (

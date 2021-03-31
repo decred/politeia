@@ -59,6 +59,7 @@ const (
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 	ErrorStatusRecordFound                   ErrorStatusT = 15
 	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
+	ErrorStatusLast                          ErrorStatusT = 17
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -68,6 +69,7 @@ const (
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
 	RecordStatusUnreviewedChanges RecordStatusT = 5 // Unvetted record that has been changed
 	RecordStatusArchived          RecordStatusT = 6 // Vetted record that has been archived
+	RecordStatusLast              RecordStatusT = 7 // Unit test only
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"

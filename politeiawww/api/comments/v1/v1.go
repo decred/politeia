@@ -35,6 +35,7 @@ const (
 	ErrorCodeRecordNotFound     ErrorCodeT = 7
 	ErrorCodeRecordLocked       ErrorCodeT = 8
 	ErrorCodePageSizeExceeded   ErrorCodeT = 9
+	ErrorCodeLast               ErrorCodeT = 10
 )
 
 var (
