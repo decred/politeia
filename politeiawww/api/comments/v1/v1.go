@@ -124,6 +124,13 @@ const (
 // treated as two distinct groups of comments. When a record becomes vetted the
 // comment ID starts back at 1.
 //
+// If a comment is deleted the PublicKey, Signature, Receipt, and Timestamp
+// fields will be the from the deletion action, not from the original comment.
+// The only fields that are retained from the original comment are the UserID
+// and Username so that the client can still display the correct user
+// information for the deleted comment. Everything else from the original
+// comment is permanently deleted.
+//
 // Signature is the client signature of State+Token+ParentID+Comment.
 type Comment struct {
 	UserID    string       `json:"userid"`    // Unique user ID
