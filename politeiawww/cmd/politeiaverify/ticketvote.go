@@ -179,7 +179,7 @@ func verifyVoteTimestamps(fp string) error {
 			// This ticket has not been timestamped yet. Continue to the
 			// code below so that the ticket hash gets printed.
 		default:
-			// An unexpected error occured
+			// An unexpected error occurred
 			return fmt.Errorf("could not verify cast vote timestamp %v: %v",
 				i, err)
 		}

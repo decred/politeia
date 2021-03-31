@@ -76,7 +76,7 @@ func verifyRecordBundle(fp string) error {
 		return err
 	}
 	if len(schanges) == 0 {
-		// No status changes have occured. We're done.
+		// No status changes have occurred. We're done.
 		return nil
 	}
 
