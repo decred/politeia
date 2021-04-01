@@ -199,7 +199,7 @@ func verifyVoteTimestamps(fp string) error {
 	for _, v := range notTimestamped {
 		fmt.Printf("  %v\n", v)
 	}
-	fmt.Printf("Cast vote timestamps verified!")
+	fmt.Printf("Cast vote timestamps verified!\n")
 
 	return nil
 }
