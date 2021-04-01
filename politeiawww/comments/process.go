@@ -452,12 +452,23 @@ func convertStateToPlugin(s v1.RecordStateT) comments.RecordStateT {
 	return comments.RecordStateInvalid
 }
 
+func convertStateToV1(s comments.RecordStateT) v1.RecordStateT {
+	switch s {
+	case comments.RecordStateUnvetted:
+		return v1.RecordStateUnvetted
+	case comments.RecordStateVetted:
+		return v1.RecordStateVetted
+	}
+	return v1.RecordStateInvalid
+}
+
 func convertComment(c comments.Comment) v1.Comment {
 	// Fields that are intentionally omitted are not stored in
 	// politeiad. They need to be pulled from the userdb.
 	return v1.Comment{
 		UserID:        c.UserID,
 		Username:      "", // Intentionally omitted
+		State:         convertStateToV1(c.State),
 		Token:         c.Token,
 		ParentID:      c.ParentID,
 		Comment:       c.Comment,

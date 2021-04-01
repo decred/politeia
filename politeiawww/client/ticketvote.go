@@ -5,10 +5,16 @@
 package client
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	"github.com/decred/politeia/util"
 )
 
 // TicketVotePolicy sends a ticketvote v1 Policy request to politeiawww.
@@ -182,4 +188,109 @@ func (c *Client) TicketVoteTimestamps(t tkv1.Timestamps) (*tkv1.TimestampsReply,
 	}
 
 	return &tr, nil
+}
+
+// TicketVoteTimestampVerify verifies that the provided ticketvote v1 Timestamp
+// is valid.
+func TicketVoteTimestampVerify(t tkv1.Timestamp) error {
+	return tstore.VerifyTimestamp(convertVoteTimestamp(t))
+}
+
+// TicketVoteTimestampsVerify verifies that all timestamps in the ticketvote
+// v1 TimestampsReply are valid.
+func TicketVoteTimestampsVerify(tr tkv1.TimestampsReply) error {
+	// Verify authorization timestamps
+	for k, v := range tr.Auths {
+		err := TicketVoteTimestampVerify(v)
+		if err != nil {
+			return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
+		}
+	}
+
+	// Verify vote details timestamp
+	if tr.Details != nil {
+		err := TicketVoteTimestampVerify(*tr.Details)
+		if err != nil {
+			return fmt.Errorf("verify vote details timestamp: %v", err)
+		}
+	}
+
+	// Verify vote timestamps
+	for k, v := range tr.Votes {
+		err := TicketVoteTimestampVerify(v)
+		if err != nil {
+			return fmt.Errorf("verify vote %v timestamp: %v", k, err)
+		}
+	}
+
+	return nil
+}
+
+// AuthDetailsVerify verifies the action, signature, and receipt of the
+// provided ticketvote v1 AuthDetails.
+func AuthDetailsVerify(a tkv1.AuthDetails, serverPublicKey string) error {
+	// Verify action
+	switch tkv1.AuthActionT(a.Action) {
+	case tkv1.AuthActionAuthorize, tkv1.AuthActionRevoke:
+		// These are allowed; continue
+	default:
+		return fmt.Errorf("invalid auth action '%v'", a.Action)
+	}
+
+	// Verify signature
+	msg := a.Token + strconv.FormatUint(uint64(a.Version), 10) + a.Action
+	err := util.VerifySignature(a.Signature, a.PublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("verify signature: %v", err)
+	}
+
+	// Verify receipt
+	err = util.VerifySignature(a.Receipt, serverPublicKey, a.Signature)
+	if err != nil {
+		return fmt.Errorf("verify receipt: %v", err)
+	}
+
+	return nil
+}
+
+// VoteDetailsVerify verifies the signature of the provided ticketvote v1
+// VoteDetails.
+func VoteDetailsVerify(vd tkv1.VoteDetails) error {
+	b, err := json.Marshal(vd.Params)
+	if err != nil {
+		return err
+	}
+	msg := hex.EncodeToString(util.Digest(b))
+	return util.VerifySignature(vd.Signature, vd.PublicKey, msg)
+}
+
+// CastVoteDetails verifies the receipt of the provided ticketvote v1
+// CastVoteDetails. The cast vote signature cannot be validated without
+// retrieving the largest commitment address for the ticket.
+func CastVoteDetailsVerify(cvd tkv1.CastVoteDetails, serverPublicKey string) error {
+	return util.VerifySignature(cvd.Receipt, serverPublicKey, cvd.Signature)
+}
+
+func convertVoteProof(p tkv1.Proof) backend.Proof {
+	return backend.Proof{
+		Type:       p.Type,
+		Digest:     p.Digest,
+		MerkleRoot: p.MerkleRoot,
+		MerklePath: p.MerklePath,
+		ExtraData:  p.ExtraData,
+	}
+}
+
+func convertVoteTimestamp(t tkv1.Timestamp) backend.Timestamp {
+	proofs := make([]backend.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, convertVoteProof(v))
+	}
+	return backend.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}
 }

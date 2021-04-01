@@ -6,13 +6,11 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strconv"
 
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
 )
 
 // cmdCommentNew submits a new comment.
@@ -91,16 +89,9 @@ func (c *cmdCommentNew) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	serverID, err := util.IdentityFromString(vr.PubKey)
+	err = pclient.CommentVerify(nr.Comment, vr.PubKey)
 	if err != nil {
 		return err
-	}
-	receiptb, err := util.ConvertSignature(nr.Comment.Receipt)
-	if err != nil {
-		return err
-	}
-	if !serverID.VerifyMessage([]byte(n.Signature), receiptb) {
-		return fmt.Errorf("could not verify receipt")
 	}
 
 	// Print receipt

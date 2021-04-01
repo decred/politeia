@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	"github.com/decred/politeia/util"
 )
 
 // CommentPolicy sends a comments v1 Policy request to politeiawww.
@@ -150,30 +152,109 @@ func (c *Client) CommentTimestamps(t cmv1.Timestamps) (*cmv1.TimestampsReply, er
 	return &tr, nil
 }
 
-// VerifyCommentTimestamps verifies that all timestamps in a comments v1
-// TimestampsReply are valid.
-func VerifyCommentTimestamps(tr cmv1.TimestampsReply) error {
-	for cid, cts := range tr.Comments {
-		// Verify comment adds
-		for i, ts := range cts.Adds {
-			err := tstore.VerifyTimestamp(convertCommentTimestamp(ts))
-			if err != nil {
-				return fmt.Errorf("verify comment add timestamp %v %v: %v",
-					cid, i, err)
-			}
-		}
+// commentDelVerify verifies the signature of a comment that has been deleted.
+// The signature will be from the deletion event, not the original comment
+// submission.
+func commentDelVerify(c cmv1.Comment, serverPublicKey string) error {
+	if !c.Deleted {
+		return fmt.Errorf("not a deleted comment")
+	}
 
-		// Verify comment del if one exists
-		if cts.Del == nil {
-			continue
-		}
-		err := tstore.VerifyTimestamp(convertCommentTimestamp(*cts.Del))
+	// Verify delete action. The deletion signature is of the
+	// State+Token+CommentID+Reason.
+	msg := strconv.FormatUint(uint64(c.State), 10) + c.Token +
+		strconv.FormatUint(uint64(c.CommentID), 10) + c.Reason
+	err := util.VerifySignature(c.Signature, c.PublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("unable to verify comment %v del signature: %v",
+			c.CommentID, err)
+	}
+
+	// Verify receipt. Receipt is the server signature of the client
+	// signature.
+	err = util.VerifySignature(c.Receipt, serverPublicKey, c.Signature)
+	if err != nil {
+		return fmt.Errorf("unable to verify comment %v receipt: %v",
+			c.CommentID, err)
+	}
+
+	return nil
+}
+
+// CommentVerify verifies the comment signature and receipt. If the comment
+// has been deleted then the deletion signature and receipt will be verified.
+func CommentVerify(c cmv1.Comment, serverPublicKey string) error {
+	if c.Deleted {
+		return commentDelVerify(c, serverPublicKey)
+	}
+
+	// Verify comment. The signature is the client signature of the
+	// State+Token+ParentID+Comment.
+	msg := strconv.FormatUint(uint64(c.State), 10) + c.Token +
+		strconv.FormatUint(uint64(c.ParentID), 10) + c.Comment
+	err := util.VerifySignature(c.Signature, c.PublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("unable to verify comment %v signature: %v",
+			c.CommentID, err)
+	}
+
+	// Verify receipt. The receipt is the server signature of the
+	// client signature.
+	err = util.VerifySignature(c.Receipt, serverPublicKey, c.Signature)
+	if err != nil {
+		return fmt.Errorf("unable to verify comment %v receipt: %v",
+			c.CommentID, err)
+	}
+
+	return nil
+}
+
+// CommentTimestampVerify verifies that all timestamps in the provided
+// CommentTimestamp are valid.
+func CommentTimestampVerify(ct cmv1.CommentTimestamp) error {
+	// Verify comment adds
+	for i, ts := range ct.Adds {
+		err := tstore.VerifyTimestamp(convertCommentTimestamp(ts))
 		if err != nil {
-			return fmt.Errorf("verify comment del timestamp %v: %v",
+			if err == tstore.ErrNotTimestamped {
+				return err
+			}
+			return fmt.Errorf("verify comment add timestamp %v: %v", i, err)
+		}
+	}
+
+	// Verify comment del if one exists
+	if ct.Del == nil {
+		return nil
+	}
+	err := tstore.VerifyTimestamp(convertCommentTimestamp(*ct.Del))
+	if err != nil {
+		if err == tstore.ErrNotTimestamped {
+			return err
+		}
+		return fmt.Errorf("verify comment del timestamp: %v", err)
+	}
+
+	return nil
+}
+
+// CommentTimestampsVerify verifies that all timestamps in a comments v1
+// TimestampsReply are valid. The IDs of comments that have not been anchored
+// yet are returned.
+func CommentTimestampsVerify(tr cmv1.TimestampsReply) ([]uint32, error) {
+	notTimestamped := make([]uint32, 0, len(tr.Comments))
+	for cid, v := range tr.Comments {
+		err := CommentTimestampVerify(v)
+		if err != nil {
+			if err == tstore.ErrNotTimestamped {
+				notTimestamped = append(notTimestamped, cid)
+				continue
+			}
+			return nil, fmt.Errorf("unable to verify comment %v timestamp: %v",
 				cid, err)
 		}
 	}
-	return nil
+	return notTimestamped, nil
 }
 
 func convertCommentProof(p cmv1.Proof) backend.Proof {

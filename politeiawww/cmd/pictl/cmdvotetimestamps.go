@@ -5,10 +5,6 @@
 package main
 
 import (
-	"fmt"
-
-	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -49,55 +45,7 @@ func (c *cmdVoteTimestamps) Execute(args []string) error {
 	}
 
 	// Verify timestamps
-	for k, v := range tr.Auths {
-		err = verifyVoteTimestamp(v)
-		if err != nil {
-			return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
-		}
-	}
-	if tr.Details != nil {
-		err = verifyVoteTimestamp(*tr.Details)
-		if err != nil {
-			return fmt.Errorf("verify vote details timestamp: %v", err)
-		}
-	}
-	for k, v := range tr.Votes {
-		err = verifyVoteTimestamp(v)
-		if err != nil {
-			return fmt.Errorf("verify vote %v timestamp: %v", k, err)
-		}
-	}
-
-	return nil
-}
-
-func verifyVoteTimestamp(t tkv1.Timestamp) error {
-	ts := convertVoteTimestamp(t)
-	return tstore.VerifyTimestamp(ts)
-}
-
-func convertVoteProof(p tkv1.Proof) backend.Proof {
-	return backend.Proof{
-		Type:       p.Type,
-		Digest:     p.Digest,
-		MerkleRoot: p.MerkleRoot,
-		MerklePath: p.MerklePath,
-		ExtraData:  p.ExtraData,
-	}
-}
-
-func convertVoteTimestamp(t tkv1.Timestamp) backend.Timestamp {
-	proofs := make([]backend.Proof, 0, len(t.Proofs))
-	for _, v := range t.Proofs {
-		proofs = append(proofs, convertVoteProof(v))
-	}
-	return backend.Timestamp{
-		Data:       t.Data,
-		Digest:     t.Digest,
-		TxID:       t.TxID,
-		MerkleRoot: t.MerkleRoot,
-		Proofs:     proofs,
-	}
+	return pclient.TicketVoteTimestampsVerify(*tr)
 }
 
 // voteTimestampsHelpMsg is printed to stdout by the help command.

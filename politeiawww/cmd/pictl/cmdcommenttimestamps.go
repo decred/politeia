@@ -45,7 +45,13 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 	}
 
 	// Verify timestamps
-	return pclient.VerifyCommentTimestamps(*tr)
+	notTimestamped, err := pclient.CommentTimestampsVerify(*tr)
+	if err != nil {
+		return err
+	}
+
+	printf("Not timestamped yet: %v", notTimestamped)
+	return nil
 }
 
 // commentTimestampsHelpMsg is printed to stdout by the help command.

@@ -6,13 +6,11 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strconv"
 
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
 )
 
 // cmdCommentCensor censors a proposal comment.
@@ -91,16 +89,9 @@ func (c *cmdCommentCensor) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	serverID, err := util.IdentityFromString(vr.PubKey)
+	err = pclient.CommentVerify(dr.Comment, vr.PubKey)
 	if err != nil {
 		return err
-	}
-	receiptb, err := util.ConvertSignature(dr.Comment.Receipt)
-	if err != nil {
-		return err
-	}
-	if !serverID.VerifyMessage([]byte(d.Signature), receiptb) {
-		return fmt.Errorf("could not verify receipt")
 	}
 
 	// Print comment
