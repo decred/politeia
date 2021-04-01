@@ -272,7 +272,7 @@ func CastVoteDetailsVerify(cvd tkv1.CastVoteDetails, serverPublicKey string) err
 	// The network must be ascertained in order to verify the
 	// signature. We can do this by looking at the P2PKH prefix.
 	var net *chaincfg.Params
-	switch cvd.Address[:1] {
+	switch cvd.Address[:2] {
 	case "Ds":
 		// Mainnet
 		net = chaincfg.MainNetParams()
