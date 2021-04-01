@@ -457,6 +457,7 @@ func convertCastVoteDetailsToV1(votes []ticketvote.CastVoteDetails) []v1.CastVot
 			Token:     v.Token,
 			Ticket:    v.Ticket,
 			VoteBit:   v.VoteBit,
+			Address:   v.Address,
 			Signature: v.Signature,
 			Receipt:   v.Receipt,
 		})
