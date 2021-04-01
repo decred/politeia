@@ -5,6 +5,7 @@
 package client
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -259,8 +260,8 @@ func VoteDetailsVerify(vd tkv1.VoteDetails) error {
 	if err != nil {
 		return err
 	}
-	msg := util.Digest(b)
-	return util.VerifySignature(vd.Signature, vd.PublicKey, string(msg))
+	msg := hex.EncodeToString(util.Digest(b))
+	return util.VerifySignature(vd.Signature, vd.PublicKey, msg)
 }
 
 // CastVoteDetails verifies the receipt of the provided ticketvote v1
