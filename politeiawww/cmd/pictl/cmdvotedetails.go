@@ -5,6 +5,8 @@
 package main
 
 import (
+	"fmt"
+
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -41,11 +43,14 @@ func (c *cmdVoteDetails) Execute(args []string) error {
 	}
 
 	// Print results
+
 	for _, v := range dr.Auths {
+		fmt.Printf("Vote authorization\n")
 		printAuthDetails(v)
 		printf("\n")
 	}
 	if dr.Vote != nil {
+		fmt.Printf("Vote details\n")
 		printVoteDetails(*dr.Vote)
 	}
 

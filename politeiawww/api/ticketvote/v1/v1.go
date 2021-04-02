@@ -322,7 +322,10 @@ type Start struct {
 }
 
 // StartReply is the reply to the Start command.
+//
+// Receipt is the server signature of ClientSignature+StartBlockHash.
 type StartReply struct {
+	Receipt          string   `json:"receipt"`
 	StartBlockHash   string   `json:"startblockhash"`
 	StartBlockHeight uint32   `json:"startblockheight"`
 	EndBlockHeight   uint32   `json:"endblockheight"`
@@ -423,10 +426,13 @@ type AuthDetails struct {
 //
 // Signature is the client signature of the SHA256 digest of the JSON encoded
 // VoteParams struct.
+//
+// Receipt is the server signature of ClientSignature+StartBlockHash.
 type VoteDetails struct {
 	Params           VoteParams `json:"params"`
 	PublicKey        string     `json:"publickey"`
 	Signature        string     `json:"signature"`
+	Receipt          string     `json:"receipt"`
 	StartBlockHeight uint32     `json:"startblockheight"`
 	StartBlockHash   string     `json:"startblockhash"`
 	EndBlockHeight   uint32     `json:"endblockheight"`

@@ -343,9 +343,16 @@ func voteParamsVerify(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 	return nil
 }
 
-// startReply fetches all date required to populate a StartReply then returns
-// the newly created StartReply.
-func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, error) {
+// voteChainParams represent the dcr blockchain parameters for a ticket vote.
+type voteChainParams struct {
+	StartBlockHeight uint32   `json:"startblockheight"`
+	StartBlockHash   string   `json:"startblockhash"`
+	EndBlockHeight   uint32   `json:"endblockheight"`
+	EligibleTickets  []string `json:"eligibletickets"` // Ticket hashes
+}
+
+// voteChainParams fetches and returns the voteChainParams for a ticket vote.
+func (p *ticketVotePlugin) voteChainParams(duration uint32) (*voteChainParams, error) {
 	// Get the best block height
 	bb, err := p.bestBlock()
 	if err != nil {
@@ -413,7 +420,7 @@ func (p *ticketVotePlugin) startReply(duration uint32) (*ticketvote.StartReply, 
 	// height to correct for this.
 	endBlockHeight := snapshotHeight + duration + ticketMaturity
 
-	return &ticketvote.StartReply{
+	return &voteChainParams{
 		StartBlockHeight: snapshotHeight,
 		StartBlockHash:   snapshotHash,
 		EndBlockHeight:   endBlockHeight,
@@ -480,7 +487,7 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 	}
 
 	// Get vote blockchain data
-	sr, err := p.startReply(sd.Params.Duration)
+	vcp, err := p.voteChainParams(sd.Params.Duration)
 	if err != nil {
 		return nil, err
 	}
@@ -521,14 +528,16 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 	}
 
 	// Prepare vote details
+	receipt := p.identity.SignMessage([]byte(sd.Signature + vcp.StartBlockHash))
 	vd := ticketvote.VoteDetails{
 		Params:           sd.Params,
 		PublicKey:        sd.PublicKey,
 		Signature:        sd.Signature,
-		StartBlockHeight: sr.StartBlockHeight,
-		StartBlockHash:   sr.StartBlockHash,
-		EndBlockHeight:   sr.EndBlockHeight,
-		EligibleTickets:  sr.EligibleTickets,
+		Receipt:          hex.EncodeToString(receipt[:]),
+		StartBlockHeight: vcp.StartBlockHeight,
+		StartBlockHash:   vcp.StartBlockHash,
+		EndBlockHeight:   vcp.EndBlockHeight,
+		EligibleTickets:  vcp.EligibleTickets,
 	}
 
 	// Save vote details
@@ -545,10 +554,11 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 	p.activeVotesAdd(vd)
 
 	return &ticketvote.StartReply{
-		StartBlockHeight: sr.StartBlockHeight,
-		StartBlockHash:   sr.StartBlockHash,
-		EndBlockHeight:   sr.EndBlockHeight,
-		EligibleTickets:  sr.EligibleTickets,
+		Receipt:          vd.Receipt,
+		StartBlockHeight: vd.StartBlockHeight,
+		StartBlockHash:   vd.StartBlockHash,
+		EndBlockHeight:   vd.EndBlockHeight,
+		EligibleTickets:  vd.EligibleTickets,
 	}, nil
 }
 
@@ -665,10 +675,12 @@ func (p *ticketVotePlugin) startRunoffForSub(token []byte, srs startRunoffSubmis
 	}
 
 	// Prepare vote details
+	receipt := p.identity.SignMessage([]byte(sd.Signature + srr.StartBlockHash))
 	vd := ticketvote.VoteDetails{
 		Params:           sd.Params,
 		PublicKey:        sd.PublicKey,
 		Signature:        sd.Signature,
+		Receipt:          hex.EncodeToString(receipt[:]),
 		StartBlockHeight: srr.StartBlockHeight,
 		StartBlockHash:   srr.StartBlockHash,
 		EndBlockHeight:   srr.EndBlockHeight,
@@ -715,7 +727,7 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 		quorum   = s.Starts[0].Params.QuorumPercentage
 		pass     = s.Starts[0].Params.PassPercentage
 	)
-	sr, err := p.startReply(duration)
+	vcp, err := p.voteChainParams(duration)
 	if err != nil {
 		return nil, err
 	}
@@ -842,10 +854,10 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 		Duration:         duration,
 		QuorumPercentage: quorum,
 		PassPercentage:   pass,
-		StartBlockHeight: sr.StartBlockHeight,
-		StartBlockHash:   sr.StartBlockHash,
-		EndBlockHeight:   sr.EndBlockHeight,
-		EligibleTickets:  sr.EligibleTickets,
+		StartBlockHeight: vcp.StartBlockHeight,
+		StartBlockHash:   vcp.StartBlockHash,
+		EndBlockHeight:   vcp.EndBlockHeight,
+		EligibleTickets:  vcp.EligibleTickets,
 	}
 
 	// Save start runoff record
