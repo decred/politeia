@@ -35,6 +35,7 @@ const (
 	ErrorStatusVoteHasEnded     ErrorStatusT = 4
 	ErrorStatusDuplicateVote    ErrorStatusT = 5
 	ErrorStatusIneligibleUserID ErrorStatusT = 6
+	ErrorStatusLast             ErrorStatusT = 7
 
 	// String constant to ensure that the observed dcc vote option is tabulated
 	// as "approved" or "disapproved".

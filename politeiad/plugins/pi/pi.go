@@ -107,6 +107,9 @@ const (
 	// ErrorCodeVoteStatusInvalid is returned when a proposal vote
 	// status does not allow changes to be made to the proposal.
 	ErrorCodeVoteStatusInvalid ErrorCodeT = 7
+
+	// ErrorCodeLast unit test only.
+	ErrorCodeLast ErrorCodeT = 8
 )
 
 var (

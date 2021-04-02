@@ -74,6 +74,7 @@ const (
 	MDStatusCensored          MDStatusT = 3 // Censored record
 	MDStatusIterationUnvetted MDStatusT = 4 // Unvetted record that has been changed
 	MDStatusArchived          MDStatusT = 5 // Vetted record that has been archived
+	MDStatusLast              MDStatusT = 6 // Unit test only
 )
 
 var (

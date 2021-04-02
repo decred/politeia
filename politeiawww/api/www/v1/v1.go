@@ -185,6 +185,7 @@ const (
 	ErrorStatusInvalidUserManageAction     ErrorStatusT = 40
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
 	ErrorStatusWrongVoteStatus             ErrorStatusT = 42
+	ErrorStatusUnused1                     ErrorStatusT = 43 // XXX
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
 	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
@@ -222,6 +223,7 @@ const (
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
 	ErrorStatusRequiresTOTPCode            ErrorStatusT = 79
 	ErrorStatusTOTPWaitForNewCode          ErrorStatusT = 80
+	ErrorStatusLast                        ErrorStatusT = 81
 
 	// Proposal state codes
 	//
@@ -247,6 +249,7 @@ const (
 	PropStatusPublic            PropStatusT = 4 // Proposal is publicly visible
 	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal is not public and has unreviewed changes
 	PropStatusAbandoned         PropStatusT = 6 // Proposal has been declared abandoned by an admin
+	PropStatusLast              PropStatusT = 7 // Unit test only
 
 	// Proposal vote status codes
 	PropVoteStatusInvalid       PropVoteStatusT = 0 // Invalid vote status
@@ -255,6 +258,7 @@ const (
 	PropVoteStatusStarted       PropVoteStatusT = 3 // Proposal vote has been started
 	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
 	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
+	PropVoteLast                PropVoteStatusT = 6 // Unit test only
 
 	// Vote types
 	//
@@ -285,6 +289,7 @@ const (
 	UserManageUnlock                          UserManageActionT = 5
 	UserManageDeactivate                      UserManageActionT = 6
 	UserManageReactivate                      UserManageActionT = 7
+	UserManageLast                            UserManageActionT = 8
 
 	// Email notification types
 	NotificationEmailMyProposalStatusChange      EmailNotificationT = 1 << 0
@@ -366,6 +371,7 @@ var (
 		ErrorStatusInvalidUserManageAction:     "invalid user edit action",
 		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
 		ErrorStatusWrongVoteStatus:             "wrong proposal vote status",
+		ErrorStatusUnused1:                     "UNUSED STATUS 1",
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
 		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
@@ -383,6 +389,7 @@ var (
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
+		ErrorStatusMaxProposalsExceededPolicy:  "max proposals exceeded",
 		ErrorStatusDuplicateComment:            "duplicate comment",
 		ErrorStatusInvalidLogin:                "invalid login credentials",
 		ErrorStatusCommentIsCensored:           "comment is censored",
@@ -406,12 +413,13 @@ var (
 
 	// PropStatus converts propsal status codes to human readable text
 	PropStatus = map[PropStatusT]string{
-		PropStatusInvalid:     "invalid proposal status",
-		PropStatusNotFound:    "not found",
-		PropStatusNotReviewed: "unreviewed",
-		PropStatusCensored:    "censored",
-		PropStatusPublic:      "public",
-		PropStatusAbandoned:   "abandoned",
+		PropStatusInvalid:           "invalid proposal status",
+		PropStatusNotFound:          "not found",
+		PropStatusNotReviewed:       "unreviewed",
+		PropStatusCensored:          "censored",
+		PropStatusPublic:            "public",
+		PropStatusUnreviewedChanges: "unreviewed changes",
+		PropStatusAbandoned:         "abandoned",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text

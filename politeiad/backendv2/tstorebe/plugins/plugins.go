@@ -61,11 +61,15 @@ const (
 
 	// HookTypePluginPost is called after a plugin command is executed.
 	HookTypePluginPost HookT = 10
+
+	// HookTypeLast unit test only
+	HookTypeLast HookT = 11
 )
 
 var (
 	// Hooks contains human readable descriptions of the plugin hooks.
 	Hooks = map[HookT]string{
+		HookTypeInvalid:             "invalid hook",
 		HookTypeNewRecordPre:        "new record pre",
 		HookTypeNewRecordPost:       "new record post",
 		HookTypeEditRecordPre:       "edit record pre",

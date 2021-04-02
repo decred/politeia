@@ -67,6 +67,9 @@ const (
 	// ErrorCodeReasonMissing is returned when the status change reason
 	// is required but is not included.
 	ErrorCodeReasonMissing ErrorCodeT = 8
+
+	// ErrorCodeLast unit test only.
+	ErrorCodeLast ErrorCodeT = 9
 )
 
 var (

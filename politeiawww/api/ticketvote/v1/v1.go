@@ -35,6 +35,7 @@ const (
 	ErrorCodeRecordLocked     ErrorCodeT = 5
 	ErrorCodeTokenInvalid     ErrorCodeT = 6
 	ErrorCodePageSizeExceeded ErrorCodeT = 7
+	ErrorCodeLast             ErrorCodeT = 8
 )
 
 var (
@@ -160,6 +161,9 @@ const (
 	// requirements but still be rejected if it does not have the most
 	// net yes votes.
 	VoteTypeRunoff VoteT = 2
+
+	// VoteTypeLast unit test only.
+	VoteTypeLast VoteT = 3
 )
 
 var (
@@ -224,6 +228,9 @@ const (
 	// VoteStatusIneligible indicates that a record is not eligible to
 	// be voted on. This happens when a record is censored or archived.
 	VoteStatusIneligible VoteStatusT = 7
+
+	// VoteStatusLast unit test only.
+	VoteStatusLast VoteStatusT = 8
 )
 
 var (

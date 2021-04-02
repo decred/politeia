@@ -177,6 +177,9 @@ const (
 	// ErrorCodeRecordStateInvalid is returned when a ticketvote write
 	// command is executed on a record that is not public.
 	ErrorCodeRecordStatusInvalid ErrorCodeT = 20
+
+	// ErrorCodeLast unit test only
+	ErrorCodeLast ErrorCodeT = 21
 )
 
 var (
@@ -448,6 +451,9 @@ const (
 	// VoteErrorTicketAlreadyVoted is returned when a vote is cast
 	// using a ticket that has already voted.
 	VoteErrorTicketAlreadyVoted VoteErrorT = 9
+
+	// VoteErrorLast unit test only.
+	VoteErrorLast VoteErrorT = 10
 )
 
 var (
@@ -553,6 +559,9 @@ const (
 	// VoteStatusIneligible indicates that a record is not eligible to
 	// be voted on. This happens when a record is censored or archived.
 	VoteStatusIneligible VoteStatusT = 7
+
+	// VoteStatusLast unit test only.
+	VoteStatusLast VoteStatusT = 8
 )
 
 var (
