@@ -444,14 +444,16 @@ type DetailsReply struct {
 	Vote  *VoteDetails  `json:"vote"`
 }
 
-// CastVoteDetails contains the details of a cast vote. A JSON encoded cast
-// vote details is 405 bytes (could vary slightly depending on the votebit).
+// CastVoteDetails contains the details of a cast vote.
 //
-// Signature is the client signature of the Token+Ticket+VoteBit.
+// Signature is the client signature of the Token+Ticket+VoteBit. The client
+// uses the ticket's largest commitment address to create the signature. The
+// receipt is the server signature of the client signature.
 type CastVoteDetails struct {
 	Token     string `json:"token"`     // Record token
 	Ticket    string `json:"ticket"`    // Ticket hash
 	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
+	Address   string `json:"address"`   // Address used in client signature
 	Signature string `json:"signature"` // Client signature
 	Receipt   string `json:"receipt"`   // Server sig of client sig
 }

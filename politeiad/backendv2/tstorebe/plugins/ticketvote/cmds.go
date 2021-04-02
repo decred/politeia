@@ -17,11 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
-	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/wire"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
@@ -1096,85 +1092,6 @@ func (p *ticketVotePlugin) cmdStart(token []byte, payload string) (string, error
 	return string(reply), nil
 }
 
-// voteMessageVerify verifies a cast vote message is properly signed. Copied
-// from:
-// github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
-func (p *ticketVotePlugin) voteMessageVerify(address, message, signature string) (bool, error) {
-	// Decode the provided address.
-	addr, err := dcrutil.DecodeAddress(address, p.activeNetParams)
-	if err != nil {
-		return false, fmt.Errorf("Could not decode address: %v",
-			err)
-	}
-
-	// Only P2PKH addresses are valid for signing.
-	if _, ok := addr.(*dcrutil.AddressPubKeyHash); !ok {
-		return false, fmt.Errorf("Address is not a pay-to-pubkey-hash "+
-			"address: %v", address)
-	}
-
-	// Decode base64 signature.
-	sig, err := base64.StdEncoding.DecodeString(signature)
-	if err != nil {
-		return false, fmt.Errorf("Malformed base64 encoding: %v", err)
-	}
-
-	// Validate the signature - this just shows that it was valid at all.
-	// we will compare it with the key next.
-	var buf bytes.Buffer
-	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
-	wire.WriteVarString(&buf, 0, message)
-	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
-		expectedMessageHash)
-	if err != nil {
-		// Mirror Bitcoin Core behavior, which treats error in
-		// RecoverCompact as invalid signature.
-		return false, nil
-	}
-
-	// Reconstruct the pubkey hash.
-	dcrPK := pk
-	var serializedPK []byte
-	if wasCompressed {
-		serializedPK = dcrPK.SerializeCompressed()
-	} else {
-		serializedPK = dcrPK.SerializeUncompressed()
-	}
-	a, err := dcrutil.NewAddressSecpPubKey(serializedPK, p.activeNetParams)
-	if err != nil {
-		// Again mirror Bitcoin Core behavior, which treats error in
-		// public key reconstruction as invalid signature.
-		return false, nil
-	}
-
-	// Return boolean if addresses match.
-	return a.Address() == address, nil
-}
-
-func (p *ticketVotePlugin) castVoteSignatureVerify(cv ticketvote.CastVote, addr string) error {
-	msg := cv.Token + cv.Ticket + cv.VoteBit
-
-	// Convert hex signature to base64. The voteMessageVerify function
-	// expects base64.
-	b, err := hex.DecodeString(cv.Signature)
-	if err != nil {
-		return fmt.Errorf("invalid hex")
-	}
-	sig := base64.StdEncoding.EncodeToString(b)
-
-	// Verify message
-	validated, err := p.voteMessageVerify(addr, msg, sig)
-	if err != nil {
-		return err
-	}
-	if !validated {
-		return fmt.Errorf("could not verify message")
-	}
-
-	return nil
-}
-
 // commitmentAddr represents the largest commitment address for a dcr ticket.
 type commitmentAddr struct {
 	addr string // Commitment address
@@ -1183,7 +1100,9 @@ type commitmentAddr struct {
 
 // largestCommitmentAddrs retrieves the largest commitment addresses for each
 // of the provided tickets from dcrdata. A map[ticket]commitmentAddr is
-// returned.
+// returned. If an error is encountered while retrieving a commitment address,
+// the error will be included in the commitmentAddr struct in the returned
+// map.
 func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) (map[string]commitmentAddr, error) {
 	// Get tx details
 	tt := dcrdata.TxsTrimmed{
@@ -1266,8 +1185,66 @@ func (p *ticketVotePlugin) voteColliderSave(token []byte, vc voteCollider) error
 	return p.tstore.BlobSave(token, *be)
 }
 
-// castVoteSave saves a CastVoteDetails to the backend.
-func (p *ticketVotePlugin) castVoteSave(token []byte, cv ticketvote.CastVoteDetails) error {
+// ballotResults is used to aggregate data for votes that are cast
+// concurrently.
+type ballotResults struct {
+	sync.RWMutex
+	addrs   map[string]string                   // [ticket]commitmentAddr
+	replies map[string]ticketvote.CastVoteReply // [ticket]CastVoteReply
+}
+
+// newBallotResults returns a new ballotResults context.
+func newBallotResults() ballotResults {
+	return ballotResults{
+		addrs:   make(map[string]string, 40960),
+		replies: make(map[string]ticketvote.CastVoteReply, 40960),
+	}
+}
+
+// addrSet sets the largest commitment addresss for a ticket.
+func (r *ballotResults) addrSet(ticket, commitmentAddr string) {
+	r.Lock()
+	defer r.Unlock()
+
+	r.addrs[ticket] = commitmentAddr
+}
+
+// addrGet returns the largest commitment address for a ticket.
+func (r *ballotResults) addrGet(ticket string) (string, bool) {
+	r.RLock()
+	defer r.RUnlock()
+
+	a, ok := r.addrs[ticket]
+	return a, ok
+}
+
+// replySet sets the CastVoteReply for a ticket.
+func (r *ballotResults) replySet(ticket string, cvr ticketvote.CastVoteReply) {
+	r.Lock()
+	defer r.Unlock()
+
+	r.replies[ticket] = cvr
+}
+
+// replyGet returns the CastVoteReply for a ticket.
+func (r *ballotResults) replyGet(ticket string) (ticketvote.CastVoteReply, bool) {
+	r.RLock()
+	defer r.RUnlock()
+
+	cvr, ok := r.replies[ticket]
+	return cvr, ok
+}
+
+// repliesLen returns the number of replies in the ballot results.
+func (r *ballotResults) repliesLen() int {
+	r.RLock()
+	defer r.RUnlock()
+
+	return len(r.replies)
+}
+
+// castVoteDetailsSave saves a CastVoteDetails to the backend.
+func (p *ticketVotePlugin) castVoteDetailsSave(token []byte, cv ticketvote.CastVoteDetails) error {
 	// Prepare blob
 	be, err := convertBlobEntryFromCastVoteDetails(cv)
 	if err != nil {
@@ -1278,38 +1255,83 @@ func (p *ticketVotePlugin) castVoteSave(token []byte, cv ticketvote.CastVoteDeta
 	return p.tstore.BlobSave(token, *be)
 }
 
+// castVoteVerifySignature verifies the signature of a CastVote. The signature
+// must be created using the largest commitment address from the ticket that is
+// casting a vote.
+func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.Params) error {
+	msg := cv.Token + cv.Ticket + cv.VoteBit
+
+	// Convert hex signature to base64. This is what the verify
+	// message function expects.
+	b, err := hex.DecodeString(cv.Signature)
+	if err != nil {
+		return fmt.Errorf("invalid hex")
+	}
+	sig := base64.StdEncoding.EncodeToString(b)
+
+	// Verify message
+	validated, err := util.VerifyMessage(addr, msg, sig, net)
+	if err != nil {
+		return err
+	}
+	if !validated {
+		return fmt.Errorf("could not verify message")
+	}
+
+	return nil
+}
+
 // ballot casts the provided votes concurrently. The vote results are passed
 // back through the results channel to the calling function. This function
 // waits until all provided votes have been cast before returning.
-func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, results chan ticketvote.CastVoteReply) {
+func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br *ballotResults) {
 	// Cast the votes concurrently
 	var wg sync.WaitGroup
 	for _, v := range votes {
 		// Increment the wait group counter
 		wg.Add(1)
 
-		go func(v ticketvote.CastVote) {
+		go func(v ticketvote.CastVote, br *ballotResults) {
 			// Decrement wait group counter once vote is cast
 			defer wg.Done()
 
+			// Declare here to prevent goto errors
+			var (
+				cvd ticketvote.CastVoteDetails
+				cvr ticketvote.CastVoteReply
+				vc  voteCollider
+				err error
+
+				receipt = p.identity.SignMessage([]byte(v.Signature))
+			)
+
+			addr, ok := br.addrGet(v.Ticket)
+			if !ok || addr == "" {
+				// Something went wrong. The largest commitment
+				// address could not be found for this ticket.
+				t := time.Now().Unix()
+				log.Errorf("cmdCastBallot: commitment addr not "+
+					"found %v", t)
+				e := ticketvote.VoteErrorInternalError
+				cvr.Ticket = v.Ticket
+				cvr.ErrorCode = e
+				cvr.ErrorContext = fmt.Sprintf("%v: %v",
+					ticketvote.VoteErrors[e], t)
+				goto saveReply
+			}
+
 			// Setup cast vote details
-			receipt := p.identity.SignMessage([]byte(v.Signature))
-			cv := ticketvote.CastVoteDetails{
+			cvd = ticketvote.CastVoteDetails{
 				Token:     v.Token,
 				Ticket:    v.Ticket,
 				VoteBit:   v.VoteBit,
 				Signature: v.Signature,
+				Address:   addr,
 				Receipt:   hex.EncodeToString(receipt[:]),
 			}
 
-			// Declare here to prevent goto errors
-			var (
-				cvr ticketvote.CastVoteReply
-				vc  voteCollider
-			)
-
-			// Save cast vote
-			err := p.castVoteSave(token, cv)
+			// Save cast vote details
+			err = p.castVoteDetailsSave(token, cvd)
 			if err == plugins.ErrDuplicateBlob {
 				// This cast vote has already been saved. Its
 				// possible that a previous attempt to vote
@@ -1326,7 +1348,7 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, res
 				cvr.ErrorCode = e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
 					ticketvote.VoteErrors[e], t)
-				goto sendResult
+				goto saveReply
 			}
 
 			// Save vote collider
@@ -1343,20 +1365,20 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, res
 				cvr.ErrorCode = e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
 					ticketvote.VoteErrors[e], t)
-				goto sendResult
+				goto saveReply
 			}
 
 			// Update receipt
 			cvr.Ticket = v.Ticket
-			cvr.Receipt = cv.Receipt
+			cvr.Receipt = cvd.Receipt
 
 			// Update cast votes cache
 			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
 
-		sendResult:
-			// Send result back to calling function
-			results <- cvr
-		}(v)
+		saveReply:
+			// Save the reply
+			br.replySet(v.Ticket, cvr)
+		}(v, br)
 	}
 
 	// Wait for the full ballot to be cast before returning.
@@ -1478,6 +1500,10 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		}
 	}
 
+	// Setup a ballotResults context. This is used to aggregate the
+	// cast vote results when votes are cast concurrently.
+	br := newBallotResults()
+
 	// Get the largest commitment address for each ticket and verify
 	// that the vote was signed using the private key from this
 	// address. We first check the active votes cache to see if the
@@ -1547,7 +1573,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 				ticketvote.VoteErrors[e], t)
 			continue
 		}
-		err = p.castVoteSignatureVerify(v, commitmentAddr.addr)
+		err = castVoteVerifySignature(v, commitmentAddr.addr, p.activeNetParams)
 		if err != nil {
 			e := ticketvote.VoteErrorSignatureInvalid
 			receipts[k].Ticket = v.Ticket
@@ -1556,6 +1582,10 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 				ticketvote.VoteErrors[e], err)
 			continue
 		}
+
+		// Stash the commitment address. This will be added to the
+		// CastVoteDetails before the vote is written to disk.
+		br.addrSet(v.Ticket, commitmentAddr.addr)
 	}
 
 	// The votes that have passed validation will be cast in batches of
@@ -1626,24 +1656,15 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		ballotCount, len(queue), batchSize)
 
 	// Cast ballot in batches
-	results := make(chan ticketvote.CastVoteReply, ballotCount)
 	for i, batch := range queue {
 		log.Debugf("Casting %v votes in batch %v/%v", len(batch), i+1,
 			len(queue))
 
-		p.ballot(token, batch, results)
+		p.ballot(token, batch, &br)
 	}
-
-	// Empty out the results channel
-	r := make(map[string]ticketvote.CastVoteReply, ballotCount)
-	close(results)
-	for v := range results {
-		r[v.Ticket] = v
-	}
-
-	if len(r) != ballotCount {
-		log.Errorf("Missing results: got %v, want %v", len(r),
-			ballotCount)
+	if br.repliesLen() != ballotCount {
+		log.Errorf("Missing results: got %v, want %v",
+			br.repliesLen(), ballotCount)
 	}
 
 	// Fill in the receipts
@@ -1652,7 +1673,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 			// Vote has an error. Skip it.
 			continue
 		}
-		cvr, ok := r[v.Ticket]
+		cvr, ok := br.replyGet(v.Ticket)
 		if !ok {
 			t := time.Now().Unix()
 			log.Errorf("cmdCastBallot: vote result not found %v: "+

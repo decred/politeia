@@ -26,9 +26,9 @@ type votesBundle struct {
 
 // verifyVotesBundle takes the filepath of a votes bundle and verifies the
 // contents of the file. This includes verifying all signatures of the vote
-// authorizations, vote details, and cast votes. The cast votes are checked
-// against the eligible tickets to ensure all cast votes are valid and are not
-// duplicates.
+// authorizations, vote details, and cast votes. The cast votes are also
+// checked against the eligible tickets to ensure all cast votes are valid and
+// are not duplicates.
 func verifyVotesBundle(fp string) error {
 	// Decode votes bundle
 	b, err := ioutil.ReadFile(fp)
@@ -80,8 +80,8 @@ func verifyVotesBundle(fp string) error {
 	fmt.Printf("\n")
 
 	// Verify cast votes. This includes verifying the cast vote
-	// receipt, verifying that the ticket is eligible to vote, and
-	// verifying that the vote is not a duplicate.
+	// signature, receipt, verifying that the ticket is eligible to
+	// vote, and verifying that the vote is not a duplicate.
 	var (
 		eligible = make(map[string]struct{}, len(vb.Details.EligibleTickets))
 		dups     = make(map[string]struct{}, len(vb.Votes))

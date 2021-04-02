@@ -5,12 +5,14 @@
 package client
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
@@ -265,10 +267,48 @@ func VoteDetailsVerify(vd tkv1.VoteDetails) error {
 }
 
 // CastVoteDetails verifies the receipt of the provided ticketvote v1
-// CastVoteDetails. The cast vote signature cannot be validated without
-// retrieving the largest commitment address for the ticket.
+// CastVoteDetails.
 func CastVoteDetailsVerify(cvd tkv1.CastVoteDetails, serverPublicKey string) error {
-	return util.VerifySignature(cvd.Receipt, serverPublicKey, cvd.Signature)
+	// The network must be ascertained in order to verify the
+	// signature. We can do this by looking at the P2PKH prefix.
+	var net *chaincfg.Params
+	switch cvd.Address[:2] {
+	case "Ds":
+		// Mainnet
+		net = chaincfg.MainNetParams()
+	case "Ts":
+		// Testnet
+		net = chaincfg.TestNet3Params()
+	case "Ss":
+		// Simnet
+		net = chaincfg.SimNetParams()
+	default:
+		return fmt.Errorf("unknown p2pkh address %v", cvd.Address)
+	}
+
+	// Verify signature. The signature must be converted from hex to
+	// base64. This is what the verify message function expects.
+	msg := cvd.Token + cvd.Ticket + cvd.VoteBit
+	b, err := hex.DecodeString(cvd.Signature)
+	if err != nil {
+		return fmt.Errorf("signature invalid hex")
+	}
+	sig := base64.StdEncoding.EncodeToString(b)
+	validated, err := util.VerifyMessage(cvd.Address, msg, sig, net)
+	if err != nil {
+		return err
+	}
+	if !validated {
+		return fmt.Errorf("invalid cast vote signature")
+	}
+
+	// Verify receipt
+	err = util.VerifySignature(cvd.Receipt, serverPublicKey, cvd.Signature)
+	if err != nil {
+		return fmt.Errorf("could not verify receipt: %v", err)
+	}
+
+	return nil
 }
 
 func convertVoteProof(p tkv1.Proof) backend.Proof {
