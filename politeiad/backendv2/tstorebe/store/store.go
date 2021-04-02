@@ -82,8 +82,34 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 	return &be, nil
 }
 
+// Tx represents an in-progess database transaction. All actions performed
+// using a Tx are guaranteed to be atomic.
+//
+// A transaction must end with a call to Commit or Rollback.
+type Tx interface {
+	// Put saves a key-value pair to the store.
+	Put(key string, value []byte, encrypt bool) error
+
+	// Del deletes an entry from the store.
+	Del(key string) error
+
+	// Get retrieves entries from the store. An entry will not exist in
+	// the returned map if for any blobs that are not found. It is the
+	// responsibility of the caller to ensure a blob was returned for
+	// all provided keys.
+	Get(keys []string) (map[string][]byte, error)
+
+	// Rollback aborts the transaction.
+	Rollback() error
+
+	// Commit commits the transaction.
+	Commit() error
+}
+
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
+	BeginTx() Tx
+
 	// Put saves the provided key-value pairs to the store. This
 	// operation is performed atomically.
 	Put(blobs map[string][]byte, encrypt bool) error
