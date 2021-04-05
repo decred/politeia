@@ -76,7 +76,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		return err
 	}
 	if policyWWW.PaywallEnabled {
-		return fmt.Errorf("paywall is not disabled")
+		fmt.Printf("WARN: politeiawww paywall is not disabled\n")
 	}
 
 	// Setup votes

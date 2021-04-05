@@ -752,22 +752,13 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 				"parent", token),
 		}
 	}
-	isExpired := vm.LinkBy < time.Now().Unix()
-	isMainNet := p.activeNetParams.Name == chaincfg.MainNetParams().Name
-	switch {
-	case !isExpired && isMainNet:
+	if vm.LinkBy > time.Now().Unix() {
 		return nil, backend.PluginError{
 			PluginID:  ticketvote.PluginID,
 			ErrorCode: uint32(ticketvote.ErrorCodeLinkByNotExpired),
 			ErrorContext: fmt.Sprintf("parent record %x linkby "+
-				"deadline not met %v", token, vm.LinkBy),
+				"deadline (%v) has not expired yet", token, vm.LinkBy),
 		}
-	case !isExpired:
-		// Allow the vote to be started before the link by deadline
-		// expires on testnet and simnet only. This makes testing the
-		// runoff vote process easier.
-		log.Warnf("Parent record linkby deadline has not been met; " +
-			"disregarding deadline since this is not mainnet")
 	}
 
 	// Compile a list of the expected submissions that should be in the
