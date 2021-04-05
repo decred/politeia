@@ -646,14 +646,17 @@ func (p *politeiawww) userHasPaid(u user.User) bool {
 // createLoginReply creates a login reply.
 func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.LoginReply, error) {
 	reply := www.LoginReply{
-		IsAdmin:         u.Admin,
-		UserID:          u.ID.String(),
-		Email:           u.Email,
-		Username:        u.Username,
-		PublicKey:       u.PublicKey(),
-		PaywallTxID:     u.NewUserPaywallTx,
-		ProposalCredits: uint64(len(u.UnspentProposalCredits)),
-		LastLoginTime:   lastLoginTime,
+		IsAdmin:            u.Admin,
+		UserID:             u.ID.String(),
+		Email:              u.Email,
+		Username:           u.Username,
+		PublicKey:          u.PublicKey(),
+		PaywallAddress:     u.NewUserPaywallAddress,
+		PaywallAmount:      u.NewUserPaywallAmount,
+		PaywallTxNotBefore: u.NewUserPaywallTxNotBefore,
+		PaywallTxID:        u.NewUserPaywallTx,
+		ProposalCredits:    uint64(len(u.UnspentProposalCredits)),
+		LastLoginTime:      lastLoginTime,
 	}
 
 	if !p.userHasPaid(*u) {
