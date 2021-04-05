@@ -553,9 +553,7 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 		return nil, err
 	}
 	if dr.Vote == nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
-		}
+		return &www.VoteResultsReply{}, nil
 	}
 	sv, svr := convertVoteDetails(*dr.Vote)
 
