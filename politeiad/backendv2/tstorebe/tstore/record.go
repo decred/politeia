@@ -518,6 +518,16 @@ func (t *Tstore) RecordDel(token []byte) error {
 				return err
 			}
 			keys = append(keys, ed.storeKey())
+
+			// When a record is made public the encrypted blobs in the kv
+			// store are re-saved as clear text, but the tlog leaf remains
+			// the same since the record content did not actually change.
+			// Both of these blobs need to be deleted.
+			if ed.storeKey() != ed.storeKeyNoPrefix() {
+				// This blob might have a clear text entry and an encrypted
+				// entry. Add both keys to be sure all content is deleted.
+				keys = append(keys, ed.storeKeyNoPrefix())
+			}
 		}
 	}
 
