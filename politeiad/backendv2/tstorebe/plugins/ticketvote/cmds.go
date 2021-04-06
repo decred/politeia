@@ -1402,8 +1402,8 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 	}
 
 	// Get the data that we need to validate the votes
-	voteDetails := p.activeVotes.VoteDetails(token)
 	eligible := p.activeVotes.EligibleTickets(token)
+	voteDetails := p.activeVotes.VoteDetails(token)
 	bestBlock, err := p.bestBlock()
 	if err != nil {
 		return "", err
@@ -1482,7 +1482,15 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		}
 
 		// Verify ticket has not already voted
-		if p.activeVotes.VoteIsDuplicate(v.Token, v.Ticket) {
+		isActive, isDup := p.activeVotes.VoteIsDuplicate(v.Token, v.Ticket)
+		if !isActive {
+			e := ticketvote.VoteErrorVoteStatusInvalid
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = fmt.Sprintf("%v: vote is "+
+				"not active", ticketvote.VoteErrors[e])
+		}
+		if isDup {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
 			receipts[k].ErrorCode = e

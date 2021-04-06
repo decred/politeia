@@ -6,7 +6,6 @@ package ticketvote
 
 import (
 	"encoding/hex"
-	"fmt"
 	"sync"
 
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -122,21 +121,23 @@ func (a *activeVotes) EligibleTickets(token []byte) map[string]struct{} {
 	return eligible
 }
 
-// VoteIsDuplicate returns whether the vote has already been cast. This
-// function will panic if the provided token does not correspond to a record in
-// the active votes cache.
-func (a *activeVotes) VoteIsDuplicate(token, ticket string) bool {
+// VoteIsDuplicate returns whether the vote has already been cast. The first
+// bool returned represents whether the record vote exists in the active votes
+// cache. The second bool returned represetns whether the ticket is a duplicate
+// vote.
+func (a *activeVotes) VoteIsDuplicate(token, ticket string) (bool, bool) {
 	a.RLock()
 	defer a.RUnlock()
 
 	av, ok := a.activeVotes[token]
 	if !ok {
-		// This should not happen
-		panic(fmt.Sprintf("active vote not found %v", token))
+		// Vote does not exist. Its possible that the vote
+		// ended while a ballot was being validated.
+		return false, false
 	}
 
 	_, isDup := av.CastVotes[ticket]
-	return isDup
+	return true, isDup
 }
 
 // CommitmentAddrs returns the largest comittment address for each of the
@@ -190,33 +191,34 @@ func (a *activeVotes) Tally(token string) map[string]uint32 {
 	return tally
 }
 
-// AddCastVote adds a cast ticket vote to the active votes cache. This function
-// will panic if the provided token does not correspond to a record in the
-// active votes cache.
+// AddCastVote adds a cast ticket vote to the active votes cache.
 func (a *activeVotes) AddCastVote(token, ticket, votebit string) {
 	a.Lock()
 	defer a.Unlock()
 
 	av, ok := a.activeVotes[token]
 	if !ok {
-		// This should not happen
-		panic(fmt.Sprintf("active vote not found %v", token))
+		// Vote does not exist. Its possible that the vote ended after
+		// the cast votes passed validation but before this cache was
+		// able to be populated. Log a warning and exit gracefully.
+		log.Warnf("AddCastVote: vote not found %v", token)
+		return
 	}
 
 	av.CastVotes[ticket] = votebit
 }
 
-// AddCommitmentAddrs adds commitment addresses to the cache for a record. This
-// function will panic if the provided token does not correspond to a record in
-// the active votes cache.
+// AddCommitmentAddrs adds commitment addresses to the cache for a record.
 func (a *activeVotes) AddCommitmentAddrs(token string, addrs map[string]commitmentAddr) {
 	a.Lock()
 	defer a.Unlock()
 
 	av, ok := a.activeVotes[token]
 	if !ok {
-		// This should not happen
-		panic(fmt.Sprintf("active vote not found %v", token))
+		// Vote does not exist. Its possible for the vote to end while
+		// in the middle of populating the commitment addresses cache.
+		// This is ok. Exit gracefully.
+		return
 	}
 
 	for ticket, v := range addrs {
