@@ -35,6 +35,70 @@ type cmdVoteStart struct {
 	Runoff bool `long:"runoff" optional:"true"`
 }
 
+// Execute executes the cmdVoteStart command.
+//
+// This function satisfies the go-flags Commander interface.
+func (c *cmdVoteStart) Execute(args []string) error {
+	token := c.Args.Token
+
+	// Verify user identity. An identity is required to sign the vote
+	// start.
+	if cfg.Identity == nil {
+		return shared.ErrUserIdentityNotFound
+	}
+
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
+	}
+
+	// Setup vote params
+	var (
+		// Default values
+		duration uint32 = 2016
+		quorum   uint32 = 20
+		pass     uint32 = 60
+	)
+	if c.Args.Duration != 0 {
+		duration = c.Args.Duration
+	}
+	if c.Args.QuorumPercentage != 0 {
+		quorum = c.Args.QuorumPercentage
+	}
+	if c.Args.PassPercentage != 0 {
+		pass = c.Args.PassPercentage
+	}
+
+	var sr *tkv1.StartReply
+	if c.Runoff {
+		sr, err = voteStartRunoff(token, duration, quorum, pass, pc)
+		if err != nil {
+			return err
+		}
+	} else {
+		sr, err = voteStartStandard(token, duration, quorum, pass, pc)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Print reply
+	printf("Receipt         : %v\n", sr.Receipt)
+	printf("StartBlockHash  : %v\n", sr.StartBlockHash)
+	printf("StartBlockHeight: %v\n", sr.StartBlockHeight)
+	printf("EndBlockHeight  : %v\n", sr.EndBlockHeight)
+
+	return nil
+}
+
 func voteStartStandard(token string, duration, quorum, pass uint32, pc *pclient.Client) (*tkv1.StartReply, error) {
 	// Get record version
 	d := rcv1.Details{
@@ -156,69 +220,6 @@ func voteStartRunoff(parentToken string, duration, quorum, pass uint32, pc *pcli
 		Starts: starts,
 	}
 	return pc.TicketVoteStart(ts)
-}
-
-// Execute executes the cmdVoteStart command.
-//
-// This function satisfies the go-flags Commander interface.
-func (c *cmdVoteStart) Execute(args []string) error {
-	token := c.Args.Token
-
-	// Verify user identity. An identity is required to sign the vote
-	// start.
-	if cfg.Identity == nil {
-		return shared.ErrUserIdentityNotFound
-	}
-
-	// Setup client
-	opts := pclient.Opts{
-		HTTPSCert:  cfg.HTTPSCert,
-		Cookies:    cfg.Cookies,
-		HeaderCSRF: cfg.CSRF,
-		Verbose:    cfg.Verbose,
-		RawJSON:    cfg.RawJSON,
-	}
-	pc, err := pclient.New(cfg.Host, opts)
-	if err != nil {
-		return err
-	}
-
-	// Setup vote params
-	var (
-		// Default values
-		duration uint32 = 2016
-		quorum   uint32 = 20
-		pass     uint32 = 60
-	)
-	if c.Args.Duration != 0 {
-		duration = c.Args.Duration
-	}
-	if c.Args.QuorumPercentage != 0 {
-		quorum = c.Args.QuorumPercentage
-	}
-	if c.Args.PassPercentage != 0 {
-		pass = c.Args.PassPercentage
-	}
-
-	var sr *tkv1.StartReply
-	if c.Runoff {
-		sr, err = voteStartRunoff(token, duration, quorum, pass, pc)
-		if err != nil {
-			return err
-		}
-	} else {
-		sr, err = voteStartStandard(token, duration, quorum, pass, pc)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Print reply
-	printf("StartBlockHash  : %v\n", sr.StartBlockHash)
-	printf("StartBlockHeight: %v\n", sr.StartBlockHeight)
-	printf("EndBlockHeight  : %v\n", sr.EndBlockHeight)
-
-	return nil
 }
 
 // voteStartHelpMsg is printed to stdout by the help command.

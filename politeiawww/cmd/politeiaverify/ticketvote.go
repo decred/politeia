@@ -70,13 +70,14 @@ func verifyVotesBundle(fp string) error {
 	fmt.Printf("Vote details\n")
 	fmt.Printf("  Public key: %v\n", vb.Details.PublicKey)
 	fmt.Printf("  Signature : %v\n", vb.Details.Signature)
+	fmt.Printf("  Receipt   : %v\n", vb.Details.Receipt)
 
-	err = client.VoteDetailsVerify(*vb.Details)
+	err = client.VoteDetailsVerify(*vb.Details, vb.ServerPublicKey)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Vote details signature verified!\n")
+	fmt.Printf("Vote details signature and receipt verified!\n")
 	fmt.Printf("\n")
 
 	// Verify cast votes. This includes verifying the cast vote

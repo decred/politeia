@@ -255,15 +255,28 @@ func AuthDetailsVerify(a tkv1.AuthDetails, serverPublicKey string) error {
 	return nil
 }
 
-// VoteDetailsVerify verifies the signature of the provided ticketvote v1
-// VoteDetails.
-func VoteDetailsVerify(vd tkv1.VoteDetails) error {
+// VoteDetailsVerify verifies the signature and receipt of the provided
+// ticketvote v1 VoteDetails.
+func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
+	// Verify client signature
 	b, err := json.Marshal(vd.Params)
 	if err != nil {
 		return err
 	}
 	msg := hex.EncodeToString(util.Digest(b))
-	return util.VerifySignature(vd.Signature, vd.PublicKey, msg)
+	err = util.VerifySignature(vd.Signature, vd.PublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("could not verify signature: %v", err)
+	}
+
+	// Verify server receipt
+	msg = vd.Signature + vd.StartBlockHash
+	err = util.VerifySignature(vd.Receipt, serverPublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("could not verify receipt: %v", err)
+	}
+
+	return nil
 }
 
 // CastVoteDetails verifies the receipt of the provided ticketvote v1

@@ -113,6 +113,7 @@ func (t *TicketVote) processStart(ctx context.Context, s v1.Start, u user.User) 
 		})
 
 	return &v1.StartReply{
+		Receipt:          tsr.Receipt,
 		StartBlockHeight: tsr.StartBlockHeight,
 		StartBlockHash:   tsr.StartBlockHash,
 		EndBlockHeight:   tsr.EndBlockHeight,
@@ -427,6 +428,7 @@ func convertVoteDetailsToV1(vd ticketvote.VoteDetails) v1.VoteDetails {
 		Params:           convertVoteParamsToV1(vd.Params),
 		PublicKey:        vd.PublicKey,
 		Signature:        vd.Signature,
+		Receipt:          vd.Receipt,
 		StartBlockHeight: vd.StartBlockHeight,
 		StartBlockHash:   vd.StartBlockHash,
 		EndBlockHeight:   vd.EndBlockHeight,
