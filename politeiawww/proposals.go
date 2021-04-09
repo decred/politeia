@@ -438,9 +438,13 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 		}, nil
 	}
 
-	// Get proposals
-	reqs := make([]pdv2.RecordRequest, 0, len(started))
-	for _, v := range started {
+	// Get the proposal details, without the actual proposal files, of
+	// all proposals that are currently being voted on. These requests
+	// must be paginated so that the politeiad maximum records page
+	// size is not exceeded.
+	reqs := make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
+	props := make(map[string]www.ProposalRecord, len(started))
+	for i, v := range started {
 		reqs = append(reqs, pdv2.RecordRequest{
 			Token: v,
 			Filenames: []string{
@@ -448,10 +452,26 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 				tkplugin.FileNameVoteMetadata,
 			},
 		})
-	}
-	props, err := p.proposals(ctx, reqs)
-	if err != nil {
-		return nil, err
+		switch {
+		case i == len(started)-1:
+			// This is the last index. We must send the proposals request
+			// even if it is not requesting a full page. Continue to the
+			// code below.
+		case len(reqs) < int(pdv2.RecordsPageSize):
+			// Page size is not exceeded yet. Keep adding requests.
+			continue
+		}
+
+		// Retrieve this page of records, save the results, and reset
+		// the requests.
+		ps, err := p.proposals(ctx, reqs)
+		if err != nil {
+			return nil, err
+		}
+		for token, prop := range ps {
+			props[token] = prop
+		}
+		reqs = make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
 	}
 
 	// Get vote details
