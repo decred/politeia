@@ -194,7 +194,7 @@ Dev commands
   seedproposals           Seed the backend with proposals
   votetestsetup           Setup a vote test
   votetest                Execute a vote test
-	legacytest              Test legacy routes that do not have a command
+  legacytest              Test legacy routes that do not have a command
 `
 
 func _main() error {
