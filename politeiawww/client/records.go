@@ -205,6 +205,12 @@ func digestsVerify(files []rcv1.File) error {
 // CensorshipRecordVerify verifies the censorship record of a records v1
 // Record.
 func CensorshipRecordVerify(r rcv1.Record, serverPubKey string) error {
+	if r.Status == rcv1.RecordStatusCensored {
+		// The files of a censored record will be deleted.
+		// There is nothing to verify.
+		return nil
+	}
+
 	// Verify censorship record merkle root
 	if len(r.Files) > 0 {
 		// Verify digests

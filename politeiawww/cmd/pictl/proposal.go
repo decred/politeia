@@ -39,10 +39,7 @@ func printProposalFiles(files []rcv1.File) error {
 	// Its possible for a proposal metadata to not exist if the
 	// proposal has been censored.
 	pm, err := pclient.ProposalMetadataDecode(files)
-	if err != nil {
-		return err
-	}
-	if pm != nil {
+	if err == nil {
 		printf("%v\n", piv1.FileNameProposalMetadata)
 		printf("  Name: %v\n", pm.Name)
 	}
