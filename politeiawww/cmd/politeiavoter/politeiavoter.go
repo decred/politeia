@@ -80,9 +80,14 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
-// ProvidePrivPassphrase is used to prompt for the private passphrase which
-// maybe required during upgrades.
-func ProvidePrivPassphrase() ([]byte, error) {
+// walletPassphrase returns the wallet passphrase from the config if one was
+// provided or prompts the user for their wallet passphrase if one was not
+// provided.
+func (c *ctx) walletPassphrase() ([]byte, error) {
+	if c.cfg.WalletPassphrase != "" {
+		return []byte(c.cfg.WalletPassphrase), nil
+	}
+
 	prompt := "Enter the private passphrase of your wallet: "
 	for {
 		fmt.Print(prompt)
@@ -998,7 +1003,7 @@ func (c *ctx) _vote(token, voteId string) error {
 	}
 	ctres.TicketAddresses = eligible
 
-	passphrase, err := ProvidePrivPassphrase()
+	passphrase, err := c.walletPassphrase()
 	if err != nil {
 		return err
 	}
