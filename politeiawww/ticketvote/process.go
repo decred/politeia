@@ -462,6 +462,7 @@ func convertCastVoteDetailsToV1(votes []ticketvote.CastVoteDetails) []v1.CastVot
 			Address:   v.Address,
 			Signature: v.Signature,
 			Receipt:   v.Receipt,
+			Timestamp: v.Timestamp,
 		})
 	}
 	return vs
