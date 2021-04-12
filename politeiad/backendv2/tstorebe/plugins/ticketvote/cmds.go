@@ -1331,6 +1331,7 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br 
 				Signature: v.Signature,
 				Address:   addr,
 				Receipt:   hex.EncodeToString(receipt[:]),
+				Timestamp: time.Now().Unix(),
 			}
 
 			// Save cast vote details

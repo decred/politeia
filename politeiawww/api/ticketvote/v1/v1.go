@@ -462,6 +462,7 @@ type CastVoteDetails struct {
 	Address   string `json:"address"`   // Address used in client signature
 	Signature string `json:"signature"` // Client signature
 	Receipt   string `json:"receipt"`   // Server sig of client sig
+	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
 
 // Results returns the cast votes for a record.
