@@ -149,7 +149,7 @@ func (c *cmdLegacyTest) Execute(args []string) error {
 		return err
 	}
 	vrr.StartVoteReply.EligibleTickets = []string{
-		fmt.Sprint("%v ticket hashes removed for readability",
+		fmt.Sprintf("%v ticket hashes removed for readability",
 			len(vrr.StartVoteReply.EligibleTickets)),
 	}
 	printJSON(vrr)
