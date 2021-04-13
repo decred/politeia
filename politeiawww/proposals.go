@@ -32,47 +32,61 @@ import (
 )
 
 func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
-	records, err := p.politeiad.Records(ctx, reqs)
-	if err != nil {
-		return nil, err
-	}
-
-	proposals := make(map[string]www.ProposalRecord, len(records))
-	for k, v := range records {
-		// Legacy www routes are only for vetted records
-		if v.State == pdv2.RecordStateUnvetted {
-			continue
+	// Break the requests up so that they do not exceed the politeiad
+	// records page size.
+	var startIdx int
+	proposals := make(map[string]www.ProposalRecord, len(reqs))
+	for startIdx < len(reqs) {
+		// Setup a page of requests
+		endIdx := startIdx + int(pdv2.RecordsPageSize)
+		if endIdx > len(reqs) {
+			endIdx = len(reqs)
 		}
 
-		// Convert to a proposal
-		pr, err := convertRecordToProposal(v)
+		records, err := p.politeiad.Records(ctx, reqs[startIdx:endIdx])
 		if err != nil {
 			return nil, err
 		}
 
-		// Get submissions list if this is an RFP
-		if pr.LinkBy != 0 {
-			subs, err := p.politeiad.TicketVoteSubmissions(ctx,
-				pr.CensorshipRecord.Token)
+		for k, v := range records {
+			// Legacy www routes are only for vetted records
+			if v.State == pdv2.RecordStateUnvetted {
+				continue
+			}
+
+			// Convert to a proposal
+			pr, err := convertRecordToProposal(v)
 			if err != nil {
 				return nil, err
 			}
-			pr.LinkedFrom = subs
+
+			// Get submissions list if this is an RFP
+			if pr.LinkBy != 0 {
+				subs, err := p.politeiad.TicketVoteSubmissions(ctx,
+					pr.CensorshipRecord.Token)
+				if err != nil {
+					return nil, err
+				}
+				pr.LinkedFrom = subs
+			}
+
+			// Fill in user data
+			userID := userIDFromMetadataStreams(v.Metadata)
+			uid, err := uuid.Parse(userID)
+			if err != nil {
+				return nil, err
+			}
+			u, err := p.db.UserGetById(uid)
+			if err != nil {
+				return nil, err
+			}
+			pr.Username = u.Username
+
+			proposals[k] = *pr
 		}
 
-		// Fill in user data
-		userID := userIDFromMetadataStreams(v.Metadata)
-		uid, err := uuid.Parse(userID)
-		if err != nil {
-			return nil, err
-		}
-		u, err := p.db.UserGetById(uid)
-		if err != nil {
-			return nil, err
-		}
-		pr.Username = u.Username
-
-		proposals[k] = *pr
+		// Update the index
+		startIdx = endIdx
 	}
 
 	return proposals, nil
@@ -176,9 +190,8 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 		return nil, err
 	}
 
-	// Get the records without any files
+	// Get the proposals without any files
 	reqs := make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
-	proposals := make([]www.ProposalRecord, 0, len(tokens))
 	for _, v := range tokens {
 		reqs = append(reqs, pdv2.RecordRequest{
 			Token: v,
@@ -187,26 +200,20 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 				tkplugin.FileNameVoteMetadata,
 			},
 		})
+	}
+	props, err := p.proposals(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
 
-		// The records request must be broken up because the records
-		// page size is much smaller than the inventory page size.
-		if len(reqs) == int(pdv2.RecordsPageSize) {
-			// Get this batch of proposals
-			props, err := p.proposals(ctx, reqs)
-			if err != nil {
-				return nil, err
-			}
-			for _, v := range reqs {
-				pr, ok := props[v.Token]
-				if !ok {
-					continue
-				}
-				proposals = append(proposals, pr)
-			}
-
-			// Reset requesets
-			reqs = make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
+	// Covert proposal map to an slice
+	proposals := make([]www.ProposalRecord, 0, len(props))
+	for _, v := range tokens {
+		pr, ok := props[v]
+		if !ok {
+			continue
 		}
+		proposals = append(proposals, pr)
 	}
 
 	return &www.GetAllVettedReply{
@@ -261,6 +268,7 @@ func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchPro
 		}
 	}
 
+	// Get the proposals batch
 	reqs := make([]pdv2.RecordRequest, 0, len(bp.Tokens))
 	for _, v := range bp.Tokens {
 		reqs = append(reqs, pdv2.RecordRequest{
@@ -275,13 +283,19 @@ func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchPro
 	if err != nil {
 		return nil, err
 	}
-	prs := make([]www.ProposalRecord, 0, len(props))
-	for _, v := range props {
-		prs = append(prs, v)
+
+	// Return the proposals in the same order they were requests in.
+	proposals := make([]www.ProposalRecord, 0, len(props))
+	for _, v := range bp.Tokens {
+		pr, ok := props[v]
+		if !ok {
+			continue
+		}
+		proposals = append(proposals, pr)
 	}
 
 	return &www.BatchProposalsReply{
-		Proposals: prs,
+		Proposals: proposals,
 	}, nil
 }
 
@@ -438,13 +452,9 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 		}, nil
 	}
 
-	// Get the proposal details, without the actual proposal files, of
-	// all proposals that are currently being voted on. These requests
-	// must be paginated so that the politeiad maximum records page
-	// size is not exceeded.
+	// Get proposals
 	reqs := make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
-	props := make(map[string]www.ProposalRecord, len(started))
-	for i, v := range started {
+	for _, v := range started {
 		reqs = append(reqs, pdv2.RecordRequest{
 			Token: v,
 			Filenames: []string{
@@ -452,26 +462,10 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 				tkplugin.FileNameVoteMetadata,
 			},
 		})
-		switch {
-		case i == len(started)-1:
-			// This is the last index. We must send the proposals request
-			// even if it is not requesting a full page. Continue to the
-			// code below.
-		case len(reqs) < int(pdv2.RecordsPageSize):
-			// Page size is not exceeded yet. Keep adding requests.
-			continue
-		}
-
-		// Retrieve this page of records, save the results, and reset
-		// the requests.
-		ps, err := p.proposals(ctx, reqs)
-		if err != nil {
-			return nil, err
-		}
-		for token, prop := range ps {
-			props[token] = prop
-		}
-		reqs = make([]pdv2.RecordRequest, 0, pdv2.RecordsPageSize)
+	}
+	props, err := p.proposals(ctx, reqs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get vote details
