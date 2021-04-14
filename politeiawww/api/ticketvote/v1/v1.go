@@ -382,7 +382,7 @@ const (
 type CastVote struct {
 	Token     string `json:"token"`     // Record token
 	Ticket    string `json:"ticket"`    // Ticket ID
-	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
+	VoteBit   string `json:"votebit"`   // Selected vote bit, hex encoded
 	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
 }
 
@@ -458,7 +458,7 @@ type DetailsReply struct {
 type CastVoteDetails struct {
 	Token     string `json:"token"`     // Record token
 	Ticket    string `json:"ticket"`    // Ticket hash
-	VoteBit   string `json:"votebits"`  // Selected vote bit, hex encoded
+	VoteBit   string `json:"votebit"`   // Selected vote bit, hex encoded
 	Address   string `json:"address"`   // Address used in client signature
 	Signature string `json:"signature"` // Client signature
 	Receipt   string `json:"receipt"`   // Server sig of client sig
