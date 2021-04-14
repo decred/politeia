@@ -741,9 +741,6 @@ func (p *politeiawww) setUserWWWRoutes() {
 		www.RouteResendVerification, p.handleResendVerification,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogin, p.handleLogin,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLogout, p.handleLogout,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
