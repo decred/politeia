@@ -2400,7 +2400,8 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 		// Some other error
 		return nil, fmt.Errorf("summaryCache: %v", err)
 	default:
-		// Caches summary was found. Return it.
+		// Cached summary was found. Update the best block and return it.
+		s.BestBlock = bestBlock
 		return s, nil
 	}
 
