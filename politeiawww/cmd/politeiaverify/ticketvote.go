@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	backend "github.com/decred/politeia/politeiad/backendv2"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/client"
@@ -176,7 +176,7 @@ func verifyVoteTimestamps(fp string) error {
 		case nil:
 			// Timestamp verified. Check the next one.
 			continue
-		case tstore.ErrNotTimestamped:
+		case backend.ErrNotTimestamped:
 			// This ticket has not been timestamped yet. Continue to the
 			// code below so that the ticket hash gets printed.
 		default:

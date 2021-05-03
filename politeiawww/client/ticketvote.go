@@ -14,7 +14,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/util"
 )
@@ -195,7 +194,7 @@ func (c *Client) TicketVoteTimestamps(t tkv1.Timestamps) (*tkv1.TimestampsReply,
 // TicketVoteTimestampVerify verifies that the provided ticketvote v1 Timestamp
 // is valid.
 func TicketVoteTimestampVerify(t tkv1.Timestamp) error {
-	return tstore.VerifyTimestamp(convertVoteTimestamp(t))
+	return backend.VerifyTimestamp(convertVoteTimestamp(t))
 }
 
 // TicketVoteTimestampsVerify verifies that all timestamps in the ticketvote
