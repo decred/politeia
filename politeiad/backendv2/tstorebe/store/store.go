@@ -19,6 +19,10 @@ var (
 	// ErrShutdown is returned when a action is attempted against a
 	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
+
+	// ErrTxDone is returned anytime a tx method is called afer the tx
+	// has already been committed or rolled back.
+	ErrTxDone = errors.New("tx is done")
 )
 
 const (
@@ -87,11 +91,11 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 //
 // A transaction must end with a call to Commit or Rollback.
 type Tx interface {
-	// Put saves a key-value pair to the store.
-	Put(key string, value []byte, encrypt bool) error
+	// Put saves the provided key-value pairs to the store.
+	Put(blobs map[string][]byte, encrypt bool) error
 
-	// Del deletes an entry from the store.
-	Del(key string) error
+	// Del deletes the provided blobs from the store.
+	Del(keys []string) error
 
 	// Get retrieves entries from the store. An entry will not exist in
 	// the returned map if for any blobs that are not found. It is the
@@ -108,8 +112,6 @@ type Tx interface {
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
-	BeginTx() Tx
-
 	// Put saves the provided key-value pairs to the store. This
 	// operation is performed atomically.
 	Put(blobs map[string][]byte, encrypt bool) error
@@ -123,6 +125,10 @@ type BlobKV interface {
 	// found. It is the responsibility of the caller to ensure a blob
 	// was returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
+
+	// Tx returns a new database transaction as well as the cancel
+	// function that releases all resources associated with it.
+	Tx() (Tx, func(), error)
 
 	// Closes closes the store connection.
 	Close()

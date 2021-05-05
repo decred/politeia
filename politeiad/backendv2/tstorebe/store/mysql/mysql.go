@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,7 +20,6 @@ import (
 
 const (
 	// Database options
-	connTimeout     = 1 * time.Minute
 	connMaxLifetime = 1 * time.Minute
 	maxOpenConns    = 0 // 0 is unlimited
 	maxIdleConns    = 100
@@ -52,16 +52,33 @@ type mysql struct {
 	testing  bool // Only set during unit tests
 }
 
-func ctxWithTimeout() (context.Context, func()) {
-	return context.WithTimeout(context.Background(), connTimeout)
-}
-
+// isShutdown returns whether the mysql context has been shutdown.
 func (s *mysql) isShutdown() bool {
 	return atomic.LoadUint64(&s.shutdown) != 0
 }
 
+// beginTx returns a new sql transaction and the cancel function for the
+// context that was used to create the transaction.
+func (s *mysql) beginTx() (*sql.Tx, func(), error) {
+	ctx, cancel := ctxForTx()
+
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := s.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("begin tx: %v", err)
+	}
+
+	return tx, cancel, nil
+}
+
 // put saves the provided blobs to the kv store using the provided transaction.
-func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
+func (s *mysql) put(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error {
+	// Setup context
+	ctx, cancel := ctxForOp()
+	defer cancel()
+
 	// Encrypt blobs
 	if encrypt {
 		encrypted := make(map[string][]byte, len(blobs))
@@ -90,6 +107,8 @@ func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, 
 		}
 	}
 
+	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
 	return nil
 }
 
@@ -104,20 +123,15 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 		return store.ErrShutdown
 	}
 
-	ctx, cancel := ctxWithTimeout()
+	// Start transaction
+	tx, cancel, err := s.beginTx()
+	if err != nil {
+		return err
+	}
 	defer cancel()
 
-	// Start transaction
-	opts := &sql.TxOptions{
-		Isolation: sql.LevelDefault,
-	}
-	tx, err := s.db.BeginTx(ctx, opts)
-	if err != nil {
-		return fmt.Errorf("begin tx: %v", err)
-	}
-
 	// Save blobs
-	err = s.put(blobs, encrypt, ctx, tx)
+	err = s.put(blobs, encrypt, tx)
 	if err != nil {
 		// Attempt to roll back the transaction
 		if err2 := tx.Rollback(); err2 != nil {
@@ -134,7 +148,31 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 		return fmt.Errorf("commit tx: %v", err)
 	}
 
-	log.Debugf("Saved blobs (%v) to store", len(blobs))
+	return nil
+}
+
+// del deletes the provided blobs from the store using the provided
+// transaction.
+func (s *mysql) del(keys []string, tx *sql.Tx) error {
+	// Setup context
+	ctx, cancel := ctxForOp()
+	defer cancel()
+
+	// Delete blobs
+	for _, v := range keys {
+		_, err := tx.ExecContext(ctx, "DELETE FROM kv WHERE k IN (?);", v)
+		if err != nil {
+			// Attempt to roll back the transaction
+			if err2 := tx.Rollback(); err2 != nil {
+				// We're in trouble!
+				e := fmt.Sprintf("del: %v, unable to rollback: %v", err, err2)
+				panic(e)
+			}
+			return err
+		}
+	}
+
+	log.Debugf("Deleted blobs (%v) from store", len(keys))
 
 	return nil
 }
@@ -150,30 +188,17 @@ func (s *mysql) Del(keys []string) error {
 		return store.ErrShutdown
 	}
 
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
 	// Start transaction
-	opts := &sql.TxOptions{
-		Isolation: sql.LevelDefault,
-	}
-	tx, err := s.db.BeginTx(ctx, opts)
+	tx, cancel, err := s.beginTx()
 	if err != nil {
 		return err
 	}
+	defer cancel()
 
 	// Delete blobs
-	for _, v := range keys {
-		_, err = tx.ExecContext(ctx, "DELETE FROM kv WHERE k IN (?);", v)
-		if err != nil {
-			// Attempt to roll back the transaction
-			if err2 := tx.Rollback(); err2 != nil {
-				// We're in trouble!
-				e := fmt.Sprintf("del: %v, unable to rollback: %v", err, err2)
-				panic(e)
-			}
-			return err
-		}
+	err = s.del(keys, tx)
+	if err != nil {
+		return err
 	}
 
 	// Commit transaction
@@ -182,57 +207,40 @@ func (s *mysql) Del(keys []string) error {
 		return fmt.Errorf("commit: %v", err)
 	}
 
-	log.Debugf("Deleted blobs (%v) from store", len(keys))
-
 	return nil
 }
 
-// Get returns blobs from the store for the provided keys. An entry will not
+// querier describes the query method that is present on both the sql DB and a
+// sql Tx. This interface allows us to use the same code for executing
+// individual database queries and transaction queries.
+type querier interface {
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+}
+
+// get returns blobs from the store for the provided keys. An entry will not
 // exist in the returned map if for any blobs that are not found. It is the
 // responsibility of the caller to ensure a blob was returned for all provided
 // keys.
-//
-// This function satisfies the store BlobKV interface.
-func (s *mysql) Get(keys []string) (map[string][]byte, error) {
-	log.Tracef("Get: %v", keys)
-
-	if s.isShutdown() {
-		return nil, store.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	// Build query. A placeholder parameter (?) is required for each
-	// key being requested.
-	//
-	// Ex 3 keys: "SELECT k, v FROM kv WHERE k IN (?, ?, ?)"
-	sql := "SELECT k, v FROM kv WHERE k IN ("
-	for i := 0; i < len(keys); i++ {
-		sql += "?"
-		// Don't add a comma on the last one
-		if i < len(keys)-1 {
-			sql += ","
-		}
-	}
-	sql += ");"
-
-	log.Tracef("%v", sql)
-
-	// The keys must be converted to []interface{} for the query method
-	// to accept them.
+func (s *mysql) get(keys []string, q querier) (map[string][]byte, error) {
+	// Converted the keys to []interface{}. The QueryContext method
+	// will only accept them as interfaces.
 	args := make([]interface{}, len(keys))
 	for i, v := range keys {
 		args[i] = v
 	}
 
+	// Setup context
+	ctx, cancel := ctxForOp()
+	defer cancel()
+
 	// Get blobs
-	rows, err := s.db.QueryContext(ctx, sql, args...)
+	rows, err := q.QueryContext(ctx, buildQuery(keys), args...)
 	if err != nil {
 		return nil, fmt.Errorf("query: %v", err)
 	}
 	defer rows.Close()
 
+	// Unpack reply
 	reply := make(map[string][]byte, len(keys))
 	for rows.Next() {
 		var k string
@@ -265,6 +273,22 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 	return reply, nil
 }
 
+// Get returns blobs from the store for the provided keys. An entry will not
+// exist in the returned map if for any blobs that are not found. It is the
+// responsibility of the caller to ensure a blob was returned for all provided
+// keys.
+//
+// This function satisfies the store BlobKV interface.
+func (s *mysql) Get(keys []string) (map[string][]byte, error) {
+	log.Tracef("Get: %v", keys)
+
+	if s.isShutdown() {
+		return nil, store.ErrShutdown
+	}
+
+	return s.get(keys, s.db)
+}
+
 // Closes closes the blob store connection.
 func (s *mysql) Close() {
 	log.Tracef("Close")
@@ -278,6 +302,7 @@ func (s *mysql) Close() {
 	s.db.Close()
 }
 
+// New returns a new mysql context.
 func New(appDir, host, user, password, dbname string) (*mysql, error) {
 	// The password is required to derive the encryption key
 	if password == "" {
@@ -325,11 +350,55 @@ func New(appDir, host, user, password, dbname string) (*mysql, error) {
 		db: db,
 	}
 
-	// Derive encryption key from password. Key is set in argon2idKey
+	// Derive the encryption key from the password. This function saves
+	// it to the mysql context.
 	err = s.deriveEncryptionKey(password)
 	if err != nil {
 		return nil, fmt.Errorf("deriveEncryptionKey: %v", err)
 	}
 
 	return s, nil
+}
+
+const (
+	// timeoutOp is the timeout for a single database operation.
+	timeoutOp = 1 * time.Minute
+
+	// timeoutTx is the timeout for a database transaction.
+	timeoutTx = 3 * time.Minute
+)
+
+// ctxForOp returns a context and cancel function for a single database
+// operation.
+func ctxForOp() (context.Context, func()) {
+	return context.WithTimeout(context.Background(), timeoutOp)
+}
+
+// ctxForTx returns a context and a cancel function for a database transaction.
+func ctxForTx() (context.Context, func()) {
+	return context.WithTimeout(context.Background(), timeoutTx)
+}
+
+// buildQuery builds and returns a SELECT query using the provided keys.
+func buildQuery(keys []string) string {
+	builder := strings.Builder{}
+
+	// A placeholder parameter (?) is required for each key being
+	// requested.
+	//
+	// Ex 3 keys: "SELECT k, v FROM kv WHERE k IN (?, ?, ?)"
+	builder.WriteString("SELECT k, v FROM kv WHERE k IN (")
+	for i := 0; i < len(keys); i++ {
+		builder.WriteString("?")
+		// Don't add a comma on the last one
+		if i < len(keys)-1 {
+			builder.WriteString(",")
+		}
+	}
+	builder.WriteString(");")
+
+	sql := builder.String()
+	log.Tracef("%v", sql)
+
+	return sql
 }
