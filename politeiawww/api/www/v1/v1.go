@@ -771,6 +771,7 @@ type LoginReply struct {
 	ProposalCredits    uint64 `json:"proposalcredits"`    // Number of the proposal credits the user has available to spend
 	LastLoginTime      int64  `json:"lastlogintime"`      // Unix timestamp of last login date
 	SessionMaxAge      int64  `json:"sessionmaxage"`      // Unix timestamp of session max age
+	TotpVerified       bool   `json:"totpverified"`       // Whether current totp secret has been verified with
 }
 
 //Logout attempts to log the user out.

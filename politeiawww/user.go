@@ -657,6 +657,7 @@ func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.
 		PaywallTxID:        u.NewUserPaywallTx,
 		ProposalCredits:    uint64(len(u.UnspentProposalCredits)),
 		LastLoginTime:      lastLoginTime,
+		TotpVerified:       u.TOTPVerified,
 	}
 
 	if !p.userHasPaid(*u) {
