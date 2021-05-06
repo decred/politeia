@@ -1063,7 +1063,7 @@ func TestLogin(t *testing.T) {
 		PaywallTxID:        "",
 		ProposalCredits:    0,
 		LastLoginTime:      0,
-		TotpVerified:       true,
+		TOTPVerified:       true,
 	}
 	requestTime := time.Now()
 	code, err := p.totpGenerateCode(key.Secret(), requestTime)
@@ -1185,7 +1185,7 @@ func TestLogin(t *testing.T) {
 		PaywallTxID:        "",
 		ProposalCredits:    0,
 		LastLoginTime:      0,
-		TotpVerified:       true,
+		TOTPVerified:       true,
 	}
 
 	// Setup tests
