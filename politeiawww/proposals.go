@@ -43,7 +43,18 @@ func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) 
 			endIdx = len(reqs)
 		}
 
-		records, err := p.politeiad.Records(ctx, reqs[startIdx:endIdx])
+		page := reqs[startIdx:endIdx]
+		records, err := p.politeiad.Records(ctx, page)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get records' comment counts
+		tokens := make([]string, 0, len(page))
+		for _, r := range page {
+			tokens = append(tokens, r.Token)
+		}
+		counts, err := p.politeiad.CommentCount(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -59,6 +70,9 @@ func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) 
 			if err != nil {
 				return nil, err
 			}
+
+			count := counts[k]
+			pr.NumComments = uint(count)
 
 			// Get submissions list if this is an RFP
 			if pr.LinkBy != 0 {
