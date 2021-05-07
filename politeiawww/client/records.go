@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -286,7 +285,7 @@ func RecordVerify(r rcv1.Record, serverPubKey string) error {
 // inclusion of the data in the merkle root that was timestamped onto the dcr
 // blockchain.
 func RecordTimestampVerify(t rcv1.Timestamp) error {
-	return tstore.VerifyTimestamp(convertRecordTimestamp(t))
+	return backend.VerifyTimestamp(convertRecordTimestamp(t))
 }
 
 // RecordTimestampsVerify verifies all timestamps in a records v1 API
