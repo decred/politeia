@@ -51,9 +51,8 @@ const (
 	defaultTlogHost = "localhost:8090"
 
 	// Environment variables
-	envDcrtimeCert = "DCRTIMECERT"
-	envDBPass      = "DBPASS"
-	envTlogPass    = "TLOGPASS"
+	envDBPass   = "DBPASS"
+	envTlogPass = "TLOGPASS"
 )
 
 var (

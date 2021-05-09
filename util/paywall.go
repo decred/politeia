@@ -190,13 +190,6 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 	return "", 0, nil
 }
 
-func getNetworkName(params *chaincfg.Params) string {
-	if strings.HasPrefix(params.Name, "testnet") {
-		return "testnet"
-	}
-	return params.Name
-}
-
 // DerivePaywallAddress derives a paywall address using the provided xpub and
 // index.
 func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (string, error) {

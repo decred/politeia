@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -176,40 +175,6 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	}
 
 	return usr, fid
-}
-
-func userPaywallClear(t *testing.T, p *politeiawww, u *user.User) {
-	t.Helper()
-
-	u.NewUserPaywallAmount = 0
-	u.NewUserPaywallTx = "cleared_during_testing"
-	u.NewUserPaywallPollExpiry = 0
-
-	err := p.db.UserUpdate(*u)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func userProposalCreditsAdd(t *testing.T, p *politeiawww, u *user.User, quantity int) {
-	t.Helper()
-
-	c := make([]user.ProposalCredit, quantity)
-	ts := time.Now().Unix()
-	for i := 0; i < quantity; i++ {
-		c[i] = user.ProposalCredit{
-			PaywallID:     0,
-			Price:         0,
-			DatePurchased: ts,
-			TxID:          "created_during_testing",
-		}
-	}
-	u.UnspentProposalCredits = append(u.UnspentProposalCredits, c...)
-
-	err := p.db.UserUpdate(*u)
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 // newCMSUser creates a new user using randomly generated user credentials and

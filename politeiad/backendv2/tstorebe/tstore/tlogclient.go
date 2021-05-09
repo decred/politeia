@@ -22,7 +22,6 @@ import (
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
 	tcrypto "github.com/google/trillian/crypto"
-	"github.com/google/trillian/crypto/keys"
 	"github.com/google/trillian/crypto/keys/der"
 	"github.com/google/trillian/crypto/keyspb"
 	"github.com/google/trillian/crypto/sigpb"
@@ -513,12 +512,6 @@ func newLogLeaf(leafValue []byte, extraData []byte) *trillian.LogLeaf {
 		LeafValue: leafValue,
 		ExtraData: extraData,
 	}
-}
-
-func newTrillianKey() (crypto.Signer, error) {
-	return keys.NewFromSpec(&keyspb.Specification{
-		Params: &keyspb.Specification_Ed25519Params{},
-	})
 }
 
 // tlogKeyParams is saved to the kv store on initial derivation of the tlog
