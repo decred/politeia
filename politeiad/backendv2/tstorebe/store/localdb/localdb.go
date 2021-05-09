@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
@@ -34,21 +34,51 @@ var (
 // encryption key is created on startup and saved to the politeiad application
 // dir. Blobs are encrypted using random 24 byte nonces.
 type localdb struct {
-	shutdown uint64
+	sync.RWMutex
 	db       *leveldb.DB
-	key      [32]byte
+	key      *[32]byte
+	shutdown bool
 }
 
 func (l *localdb) isShutdown() bool {
-	return atomic.LoadUint64(&l.shutdown) != 0
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.shutdown
 }
 
 func (l *localdb) encrypt(data []byte) ([]byte, error) {
-	return sbox.Encrypt(0, &l.key, data)
+	l.RLock()
+	defer l.RUnlock()
+
+	return sbox.Encrypt(0, l.key, data)
 }
 
 func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
-	return sbox.Decrypt(&l.key, data)
+	l.RLock()
+	defer l.RUnlock()
+
+	return sbox.Decrypt(l.key, data)
+}
+
+func (l *localdb) put(blobs map[string][]byte, encrypt bool, batch *leveldb.Batch) error {
+	// Encrypt blobs
+	if encrypt {
+		for k, v := range blobs {
+			e, err := l.encrypt(v)
+			if err != nil {
+				return fmt.Errorf("encrypt: %v", err)
+			}
+			blobs[k] = e
+		}
+	}
+
+	// Save blobs to batch
+	for k, v := range blobs {
+		batch.Put([]byte(k), v)
+	}
+
+	return nil
 }
 
 // Put saves the provided key-value pairs to the store. This operation is
@@ -62,30 +92,29 @@ func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 		return store.ErrShutdown
 	}
 
-	// Encrypt blobs
-	if encrypt {
-		for k, v := range blobs {
-			e, err := l.encrypt(v)
-			if err != nil {
-				return fmt.Errorf("encrypt: %v", err)
-			}
-			blobs[k] = e
-		}
-	}
-
-	// Setup batch
+	// Save blobs to a batch
 	batch := new(leveldb.Batch)
-	for k, v := range blobs {
-		batch.Put([]byte(k), v)
+	err := l.put(blobs, encrypt, batch)
+	if err != nil {
+		return err
 	}
 
 	// Write batch
-	err := l.db.Write(batch, nil)
+	err = l.db.Write(batch, nil)
 	if err != nil {
 		return fmt.Errorf("write batch: %v", err)
 	}
 
 	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
+	return nil
+}
+
+// del deletes the provided blobs from the store.
+func (l *localdb) del(keys []string, batch *leveldb.Batch) error {
+	for _, v := range keys {
+		batch.Delete([]byte(v))
+	}
 
 	return nil
 }
@@ -102,10 +131,12 @@ func (l *localdb) Del(keys []string) error {
 	}
 
 	batch := new(leveldb.Batch)
-	for _, v := range keys {
-		batch.Delete([]byte(v))
+	err := l.del(keys, batch)
+	if err != nil {
+		return err
 	}
-	err := l.db.Write(batch, nil)
+
+	err = l.db.Write(batch, nil)
 	if err != nil {
 		return err
 	}
@@ -125,15 +156,7 @@ func isEncrypted(b []byte) bool {
 // exist in the returned map if for any blobs that are not found. It is the
 // responsibility of the caller to ensure a blob was returned for all provided
 // keys.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Get(keys []string) (map[string][]byte, error) {
-	log.Tracef("Get: %v", keys)
-
-	if l.isShutdown() {
-		return nil, store.ErrShutdown
-	}
-
+func (l *localdb) get(keys []string) (map[string][]byte, error) {
 	// Lookup blobs
 	blobs := make(map[string][]byte, len(keys))
 	for _, v := range keys {
@@ -165,13 +188,33 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	return blobs, nil
 }
 
+// Get returns blobs from the store for the provided keys. An entry will not
+// exist in the returned map if for any blobs that are not found. It is the
+// responsibility of the caller to ensure a blob was returned for all provided
+// keys.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Get(keys []string) (map[string][]byte, error) {
+	log.Tracef("Get: %v", keys)
+
+	if l.isShutdown() {
+		return nil, store.ErrShutdown
+	}
+
+	return l.get(keys)
+}
+
 // Closes closes the store connection.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Close() {
 	log.Tracef("Close")
 
-	atomic.AddUint64(&l.shutdown, 1)
+	l.Lock()
+	defer l.Unlock()
+
+	// Prevent any more localdb calls
+	l.shutdown = true
 
 	// Zero the encryption key
 	util.Zero(l.key[:])
@@ -195,12 +238,8 @@ func New(appDir, dataDir string) (*localdb, error) {
 		return nil, err
 	}
 
-	// Create context
-	ldb := localdb{
-		db: db,
-	}
-	copy(ldb.key[:], key[:])
-	util.Zero(key[:])
-
-	return &ldb, nil
+	return &localdb{
+		db:  db,
+		key: key,
+	}, nil
 }
