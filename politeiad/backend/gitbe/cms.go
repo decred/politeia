@@ -55,9 +55,6 @@ var (
 	cmsPluginVoteCache         = make(map[string]cmsplugin.StartVote)      // [token]startvote
 	cmsPluginVoteSnapshotCache = make(map[string]cmsplugin.StartVoteReply) // [token]StartVoteReply
 
-	// Plugin specific data that CANNOT be treated as metadata
-	cmsDataDir = filepath.Join("plugins", "cms")
-
 	// Cached values, requires lock. These caches are built on startup.
 	cmsPluginVotesCache = make(map[string]map[string]struct{}) // [token][ticket]struct{}
 
@@ -115,10 +112,6 @@ func setCMSPluginSetting(key, value string) {
 	}
 
 	cmsPluginSettings[key] = value
-}
-
-func setCMSPluginHook(name string, f func(string) error) {
-	cmsPluginHooks[name] = f
 }
 
 // flushDCCVotes flushes votes journal to cms plugin directory in git. It

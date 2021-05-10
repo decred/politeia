@@ -101,7 +101,3 @@ type logClosure func() string
 func (c logClosure) String() string {
 	return c()
 }
-
-func newLogClosure(c func() string) logClosure {
-	return logClosure(c)
-}

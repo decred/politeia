@@ -18,7 +18,6 @@ import (
 
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/util"
 )
 
 var (
@@ -46,11 +45,6 @@ func (e errNotAnchored) Error() string {
 // isDigest determines if a string is a valid SHA256 digest.
 func isDigest(digest string) bool {
 	return v1.RegexpSHA256.MatchString(digest)
-}
-
-func defaultTestnetHost() string {
-	return "https://" + util.NormalizeAddress(v1.DefaultTestnetTimeHost,
-		v1.DefaultTestnetTimePort)
 }
 
 // getError returns the error that is embedded in a JSON reply.

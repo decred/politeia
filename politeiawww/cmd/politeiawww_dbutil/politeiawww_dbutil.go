@@ -46,7 +46,6 @@ const (
 
 	// Politeia repo info
 	commentsJournalFilename = "comments.journal"
-	proposalMDFilename      = "00.metadata.txt"
 
 	// Journal actions
 	journalActionAdd = "add" // Add entry
