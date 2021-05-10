@@ -5,7 +5,6 @@
 package localdb
 
 import (
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -84,16 +83,9 @@ func (t *tx) Commit() error {
 	return nil
 }
 
-// Tx returns a new database transaction as well as the cancel function that
-// releases all resources associated with it.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Tx() (store.Tx, func(), error) {
-	tx := &tx{
-		localdb: l,
-		batch:   new(leveldb.Batch),
-	}
-
+// newTx returns a new localdb tx and the cancel function that releases all
+// resources associated with the tx.
+func newTx(localdb *localdb) (*tx, func()) {
 	// There is no way to perform a transaction on leveldb so we must
 	// hold the lock for the duration of the tx. A batch of operations
 	// are created then written to disk on tx commit. The lock is
@@ -101,15 +93,18 @@ func (l *localdb) Tx() (store.Tx, func(), error) {
 	// 1. The tx is committed.
 	// 2. The tx is rolled backed.
 	// 3. The cancel function is invoked.
-	l.Lock()
+	localdb.Lock()
 
 	// Setup cancel function
 	cancel := func() {
 		// The only thing that needs to happen on cancelation is the
-		// lock being released. There are no leveldb resources that need
-		// to be released.
-		l.Unlock()
+		// lock being released. There are no leveldb resources that
+		// need to be released.
+		localdb.Unlock()
 	}
 
-	return tx, cancel, nil
+	return &tx{
+		localdb: localdb,
+		batch:   new(leveldb.Batch),
+	}, cancel
 }

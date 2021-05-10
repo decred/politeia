@@ -210,9 +210,9 @@ func (s *mysql) Del(keys []string) error {
 	return nil
 }
 
-// querier describes the query method that is present on both the sql DB and a
-// sql Tx. This interface allows us to use the same code for executing
-// individual database queries and transaction queries.
+// querier describes the query method that is present on both the sql DB
+// context and on the sql Tx context. This interface allows us to use the same
+// code for executing individual queries and transaction queries.
 type querier interface {
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 }
@@ -287,6 +287,14 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 	}
 
 	return s.get(keys, s.db)
+}
+
+// Tx returns a new database transaction as well as the cancel function that
+// releases all resources associated with it.
+//
+// This function satisfies the store BlobKV interface.
+func (s *mysql) Tx() (store.Tx, func(), error) {
+	return newSqlTx(s)
 }
 
 // Closes closes the blob store connection.

@@ -6,8 +6,6 @@ package mysql
 
 import (
 	"database/sql"
-
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
 // sqlTx implements the store Tx interface using a sql transaction.
@@ -53,18 +51,16 @@ func (s *sqlTx) Commit() error {
 	return s.tx.Commit()
 }
 
-// Tx returns a new database transaction as well as the cancel function that
-// releases all resources associated with it.
-//
-// This function satisfies the store BlobKV interface.
-func (s *mysql) Tx() (store.Tx, func(), error) {
-	tx, cancel, err := s.beginTx()
+// newTx returns a new sqlTx and the cancel function that releases all
+// resources associated with the tx.
+func newSqlTx(mysql *mysql) (*sqlTx, func(), error) {
+	tx, cancel, err := mysql.beginTx()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return &sqlTx{
-		mysql: s,
+		mysql: mysql,
 		tx:    tx,
 	}, cancel, nil
 }

@@ -208,6 +208,15 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	return l.get(keys)
 }
 
+// Tx returns a new database transaction as well as the cancel function that
+// releases all resources associated with it.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Tx() (store.Tx, func(), error) {
+	tx, cancel := newTx(l)
+	return tx, cancel, nil
+}
+
 // Closes closes the store connection.
 //
 // This function satisfies the store BlobKV interface.
