@@ -134,7 +134,7 @@ func (t *Tstore) BlobsDel(token []byte, digests [][]byte) error {
 	// Put merkle leaf hashes into a map so that we can tell if a leaf
 	// corresponds to one of the target merkle leaf hashes in O(n)
 	// time.
-	merkleHashes := make(map[string]struct{}, len(leaves))
+	merkleHashes := make(map[string]struct{}, len(digests))
 	for _, v := range digests {
 		m := hex.EncodeToString(merkleLeafHash(v))
 		merkleHashes[m] = struct{}{}
