@@ -18,14 +18,25 @@ type tx struct {
 // Put saves a key-value pair to the store.
 //
 // This function satisfies the store Tx interface.
-func (s *tx) Put(blobs map[string][]byte, encrypt bool) error {
+func (t *tx) Put(blobs map[string][]byte, encrypt bool) error {
+	err := t.localdb.put(blobs, encrypt, t.batch)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Tx saved blobs (%v)", len(blobs))
+
 	return nil
 }
 
 // Del deletes an entry from the store.
 //
 // This function satisfies the store Tx interface.
-func (s *tx) Del(keys []string) error {
+func (t *tx) Del(keys []string) error {
+	err := t.localdb.del(keys, t.batch)
+	if err != nil {
+		return err
+	}
 
 	log.Debugf("Tx deleted blobs (%v)", len(keys))
 
@@ -37,18 +48,18 @@ func (s *tx) Del(keys []string) error {
 // of the caller to ensure a blob was returned for all provided keys.
 //
 // This function satisfies the store Tx interface.
-func (s *tx) Get(keys []string) (map[string][]byte, error) {
-	return nil, nil
+func (t *tx) Get(keys []string) (map[string][]byte, error) {
+	return t.localdb.get(keys)
 }
 
 // Rollback aborts the transaction.
 //
 // This function satisfies the store Tx interface.
-func (s *tx) Rollback() error {
+func (t *tx) Rollback() error {
 	// The only thing that needs to happen on rollback is the lock
 	// being released. There are no leveldb resources that need to
 	// be released.
-	s.localdb.Unlock()
+	t.localdb.Unlock()
 
 	log.Debugf("Tx rolled back")
 
@@ -58,15 +69,15 @@ func (s *tx) Rollback() error {
 // Commit commits the transaction.
 //
 // This function satisfies the store Tx interface.
-func (s *tx) Commit() error {
+func (t *tx) Commit() error {
 	// Write the transaction operations to disk
-	err := s.localdb.db.Write(s.batch, nil)
+	err := t.localdb.db.Write(t.batch, nil)
 	if err != nil {
 		return err
 	}
 
 	// Release the lock that was held on tx creation
-	s.localdb.Unlock()
+	t.localdb.Unlock()
 
 	log.Debugf("Tx committed")
 

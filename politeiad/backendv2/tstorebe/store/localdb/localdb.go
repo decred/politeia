@@ -40,6 +40,7 @@ type localdb struct {
 	shutdown bool
 }
 
+// isShutdown returns whether the localdb context has been shutdown.
 func (l *localdb) isShutdown() bool {
 	l.RLock()
 	defer l.RUnlock()
@@ -47,6 +48,7 @@ func (l *localdb) isShutdown() bool {
 	return l.shutdown
 }
 
+// encrypt encrypts and returns the provided data blob.
 func (l *localdb) encrypt(data []byte) ([]byte, error) {
 	l.RLock()
 	defer l.RUnlock()
@@ -54,6 +56,8 @@ func (l *localdb) encrypt(data []byte) ([]byte, error) {
 	return sbox.Encrypt(0, l.key, data)
 }
 
+// decrypt decrypts the provided data blob. It unpacks the sbox header and
+// returns the version and unencrypted data if successful.
 func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
 	l.RLock()
 	defer l.RUnlock()
@@ -61,6 +65,7 @@ func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
 	return sbox.Decrypt(l.key, data)
 }
 
+// put saves the provided key-value pairs to the store.
 func (l *localdb) put(blobs map[string][]byte, encrypt bool, batch *leveldb.Batch) error {
 	// Encrypt blobs
 	if encrypt {
@@ -115,7 +120,6 @@ func (l *localdb) del(keys []string, batch *leveldb.Batch) error {
 	for _, v := range keys {
 		batch.Delete([]byte(v))
 	}
-
 	return nil
 }
 
