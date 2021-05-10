@@ -33,7 +33,7 @@ func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
 	if err != nil {
 		return err
 	}
-	idx, err := t.recordIndexLatest(leaves)
+	idx, err := t.recordIndexLatest(t.store, leaves)
 	if err != nil {
 		return err
 	}

@@ -77,8 +77,19 @@ type recordIndex struct {
 	Frozen bool `json:"frozen,omitempty"`
 }
 
+// newRecordIndex returns a new recordIndex.
+func newRecordIndex(state backend.StateT, version, iteration uint32) recordIndex {
+	return recordIndex{
+		State:     state,
+		Version:   version,
+		Iteration: iteration,
+		Metadata:  make(map[string]map[uint32][]byte, 64),
+		Files:     make(map[string][]byte, 64),
+	}
+}
+
 // recordIndexSave saves a record index to tstore.
-func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
+func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) error {
 	// Only vetted data should be saved plain text
 	var encrypt bool
 	switch idx.State {
@@ -107,9 +118,9 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 	}
 	key := storeKeyNew(encrypt)
 	kv := map[string][]byte{key: b}
-	err = t.store.Put(kv, encrypt)
+	err = tx.Put(kv, encrypt)
 	if err != nil {
-		return fmt.Errorf("store Put: %v", err)
+		return fmt.Errorf("tx Put: %v", err)
 	}
 
 	// Append record index leaf to trillian tree
@@ -147,9 +158,70 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 	return nil
 }
 
-// recordIndexes returns all record indexes found in the provided trillian
-// leaves.
-func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error) {
+// recordIndex takes a list of trillian leaves and returns the most recent
+// iteration of the specified record index version. A version of 0 indicates
+// that the most recent version should be returned. A backend ErrRecordNotFound
+// is returned if the provided version does not exist.
+func (t *Tstore) recordIndex(sg storeGetter, leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
+	// Get record indexes
+	indexes, err := t.recordIndexes(sg, leaves)
+	if err != nil {
+		return nil, err
+	}
+	if len(indexes) == 0 {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	// This function should only be used on record indexes that share the
+	// same record state. We would not want to accidentally return an
+	// unvetted index if the record is vetted. It is the responsibility of
+	// the caller to only provide a single state.
+	state := indexes[0].State
+	if state == backend.StateInvalid {
+		return nil, fmt.Errorf("invalid record index state: %v", state)
+	}
+	for _, v := range indexes {
+		if v.State != state {
+			return nil, fmt.Errorf("multiple record index states "+
+				"found: %v %v", v.State, state)
+		}
+	}
+
+	// Return the record index for the specified version
+	var ri *recordIndex
+	if version == 0 {
+		// A version of 0 indicates that the most recent version should
+		// be returned.
+		ri = &indexes[len(indexes)-1]
+	} else {
+		// Walk the indexes backwards so the most recent iteration of
+		// the specified version is selected.
+		for i := len(indexes) - 1; i >= 0; i-- {
+			r := indexes[i]
+			if r.Version == version {
+				ri = &r
+				break
+			}
+		}
+	}
+	if ri == nil {
+		// The specified version does not exist
+		return nil, backend.ErrRecordNotFound
+	}
+
+	return ri, nil
+}
+
+// recordIndexLatest takes a list of trillian leaves and returns the most
+// recent record index.
+func (t *Tstore) recordIndexLatest(sg storeGetter, leaves []*trillian.LogLeaf) (*recordIndex, error) {
+	return t.recordIndex(sg, leaves, 0)
+}
+
+// recordIndexes takes a list of trillian leaves, parses all the record index
+// leaves from the list, then pulls the record indexes from the kv store and
+// returns them.
+func (t *Tstore) recordIndexes(sg storeGetter, leaves []*trillian.LogLeaf) ([]recordIndex, error) {
 	// Walk the leaves and compile the keys for all record indexes.  Once a
 	// record is made vetted the record history is considered to restart.
 	// If any vetted indexes exist, ignore all unvetted indexes.
@@ -187,7 +259,7 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 	}
 
 	// Get record indexes from store
-	blobs, err := t.store.Get(keys)
+	blobs, err := sg.Get(keys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
@@ -259,71 +331,6 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 	}
 
 	return indexes, nil
-}
-
-// recordIndex returns the specified version of a record index for a slice of
-// trillian leaves.
-func (t *Tstore) recordIndex(leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
-	indexes, err := t.recordIndexes(leaves)
-	if err != nil {
-		return nil, err
-	}
-	return parseRecordIndex(indexes, version)
-}
-
-// recordIndexLatest returns the most recent record index for a slice of
-// trillian leaves.
-func (t *Tstore) recordIndexLatest(leaves []*trillian.LogLeaf) (*recordIndex, error) {
-	return t.recordIndex(leaves, 0)
-}
-
-// parseRecordIndex takes a list of record indexes and returns the most recent
-// iteration of the specified version. A version of 0 indicates that the latest
-// version should be returned. A backend.ErrRecordNotFound is returned if the
-// provided version does not exist.
-func parseRecordIndex(indexes []recordIndex, version uint32) (*recordIndex, error) {
-	if len(indexes) == 0 {
-		return nil, backend.ErrRecordNotFound
-	}
-
-	// This function should only be used on record indexes that share the
-	// same record state. We would not want to accidentally return an
-	// unvetted index if the record is vetted. It is the responsibility of
-	// the caller to only provide a single state.
-	state := indexes[0].State
-	if state == backend.StateInvalid {
-		return nil, fmt.Errorf("invalid record index state: %v", state)
-	}
-	for _, v := range indexes {
-		if v.State != state {
-			return nil, fmt.Errorf("multiple record index states "+
-				"found: %v %v", v.State, state)
-		}
-	}
-
-	// Return the record index for the specified version
-	var ri *recordIndex
-	if version == 0 {
-		// A version of 0 indicates that the most recent version should
-		// be returned.
-		ri = &indexes[len(indexes)-1]
-	} else {
-		// Walk the indexes backwards so the most recent iteration of
-		// the specified version is selected.
-		for i := len(indexes) - 1; i >= 0; i-- {
-			r := indexes[i]
-			if r.Version == version {
-				ri = &r
-				break
-			}
-		}
-	}
-	if ri == nil {
-		// The specified version does not exist
-		return nil, backend.ErrRecordNotFound
-	}
-
-	return ri, nil
 }
 
 func convertBlobEntryFromRecordIndex(ri recordIndex) (*store.BlobEntry, error) {
