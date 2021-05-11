@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil/v3"
-	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
+	pstypes "github.com/decred/dcrdata/v6/pubsub/types"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"

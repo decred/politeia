@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrdata/pubsub/v4/psclient"
-	"github.com/decred/dcrdata/semver"
+	"github.com/decred/dcrdata/v6/pubsub/psclient"
+	"github.com/decred/dcrdata/v6/semver"
 )
 
 type StatusT int
