@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
@@ -27,10 +26,9 @@ func NewTestTstoreBackend(t *testing.T) (*tstoreBackend, func()) {
 	dataDir := filepath.Join(appDir, "data")
 
 	tstoreBackend := tstoreBackend{
-		appDir:     appDir,
-		dataDir:    dataDir,
-		tstore:     tstore.NewTestTstore(t, dataDir),
-		recordMtxs: make(map[string]*sync.Mutex),
+		appDir:  appDir,
+		dataDir: dataDir,
+		tstore:  tstore.NewTestTstore(t, dataDir),
 	}
 
 	return &tstoreBackend, func() {

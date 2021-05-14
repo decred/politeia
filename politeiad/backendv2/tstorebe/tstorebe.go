@@ -31,40 +31,11 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
+	// TODO del mutex
 	sync.RWMutex
-	appDir   string
-	dataDir  string
-	shutdown bool
-	tstore   *tstore.Tstore
-
-	// recordMtxs allows the backend to hold a lock on an individual
-	// record so that it can perform multiple read/write operations
-	// in a concurrent safe manner. These mutexes are lazy loaded.
-	recordMtxs map[string]*sync.Mutex
-}
-
-// isShutdown returns whether the backend is shutdown.
-func (t *tstoreBackend) isShutdown() bool {
-	t.RLock()
-	defer t.RUnlock()
-
-	return t.shutdown
-}
-
-// recordMutex returns the mutex for a record.
-func (t *tstoreBackend) recordMutex(token []byte) *sync.Mutex {
-	t.Lock()
-	defer t.Unlock()
-
-	ts := hex.EncodeToString(token)
-	m, ok := t.recordMtxs[ts]
-	if !ok {
-		// recordMtxs is lazy loaded
-		m = &sync.Mutex{}
-		t.recordMtxs[ts] = m
-	}
-
-	return m
+	appDir  string
+	dataDir string
+	tstore  *tstore.Tstore
 }
 
 // metadataStreamsVerify verifies that all provided metadata streams are sane.
@@ -428,15 +399,6 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 		return nil, backend.ErrRecordNotFound
 	}
 
-	// Apply the record changes and save the new version. The record
-	// lock needs to be held for the remainder of the function.
-	if t.isShutdown() {
-		return nil, backend.ErrShutdown
-	}
-	m := t.recordMutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Get existing record
 	r, err := t.tstore.RecordLatest(token)
 	if err != nil {
@@ -525,15 +487,6 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	if !t.RecordExists(token) {
 		return nil, backend.ErrRecordNotFound
 	}
-
-	// Apply the record changes and save the new version. The record
-	// lock needs to be held for the remainder of the function.
-	if t.isShutdown() {
-		return nil, backend.ErrShutdown
-	}
-	m := t.recordMutex(token)
-	m.Lock()
-	defer m.Unlock()
 
 	// Get existing record
 	r, err := t.tstore.RecordLatest(token)
@@ -678,15 +631,6 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	if !t.RecordExists(token) {
 		return nil, backend.ErrRecordNotFound
 	}
-
-	// The existing record must be pulled and updated. The record
-	// lock must be held for the rest of this function.
-	if t.isShutdown() {
-		return nil, backend.ErrShutdown
-	}
-	m := t.recordMutex(token)
-	m.Lock()
-	defer m.Unlock()
 
 	// Get existing record
 	r, err := t.tstore.RecordLatest(token)
@@ -947,16 +891,6 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	log.Infof("Plugin '%v' write cmd '%v' on %x",
 		pluginID, pluginCmd, token)
 
-	// Hold the record lock for the remainder of this function. We
-	// do this here in the backend so that the individual plugins
-	// implementations don't need to worry about race conditions.
-	if t.isShutdown() {
-		return "", backend.ErrShutdown
-	}
-	m := t.recordMutex(token)
-	m.Lock()
-	defer m.Unlock()
-
 	// Call pre plugin hooks
 	hp := plugins.HookPluginPre{
 		Token:    token,
@@ -1010,19 +944,8 @@ func (t *tstoreBackend) PluginInventory() []backend.Plugin {
 func (t *tstoreBackend) Close() {
 	log.Tracef("Close")
 
-	t.Lock()
-	defer t.Unlock()
-
-	// Shutdown backend
-	t.shutdown = true
-
 	// Close tstore connections
 	t.tstore.Close()
-}
-
-// setup performs any required work to setup the tstore instance.
-func (t *tstoreBackend) setup() error {
-	return t.tstore.Setup()
 }
 
 // New returns a new tstoreBackend.
@@ -1036,14 +959,13 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 
 	// Setup backend
 	t := tstoreBackend{
-		appDir:     appDir,
-		dataDir:    dataDir,
-		tstore:     ts,
-		recordMtxs: make(map[string]*sync.Mutex),
+		appDir:  appDir,
+		dataDir: dataDir,
+		tstore:  ts,
 	}
 
 	// Perform any required setup
-	err = t.setup()
+	err = t.tstore.Setup()
 	if err != nil {
 		return nil, fmt.Errorf("setup: %v", err)
 	}
