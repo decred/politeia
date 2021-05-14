@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -26,10 +27,11 @@ const (
 	databaseVersion uint32 = 1
 
 	// Database table names
-	tableKeyValue   = "key_value"
-	tableUsers      = "users"
-	tableIdentities = "identities"
-	tableSessions   = "sessions"
+	tableKeyValue       = "key_value"
+	tableUsers          = "users"
+	tableIdentities     = "identities"
+	tableSessions       = "sessions"
+	tableEmailHistories = "email_histories"
 
 	// Database user (read/write access)
 	userPoliteiawww = "politeiawww"
@@ -739,6 +741,55 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	c.pluginSettings[p.ID] = p.Settings
 
 	return nil
+}
+
+func (c *cockroachdb) RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error {
+	log.Tracef(
+		"UserNew: %v %v %v",
+		recipients,
+		warningSent,
+		timestamp,
+	)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	// TODO - rewrite implementation
+	//// Create new user with a transaction
+	//tx := c.userDB.Begin()
+	//_, err := c.userNew(tx, u)
+	//if err != nil {
+	//	tx.Rollback()
+	//	return err
+	//}
+	//
+	//return tx.Commit().Error
+
+	return nil
+}
+
+func (c *cockroachdb) FetchHistories(emails []string) ([]user.EmailHistory, error) {
+	log.Tracef("FetchHistories: %v", emails)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	// TODO - rewrite implementation
+	//var u EmailHistory
+	//err := c.userDB.
+	//	Where("username = ?", username).
+	//	Find(&u).
+	//	Error
+	//if err != nil {
+	//	if errors.Is(err, gorm.ErrRecordNotFound) {
+	//		err = user.ErrUserNotFound
+	//	}
+	//	return nil, err
+	//}
+
+	return nil, nil
 }
 
 // Close shuts down the database.  All interface functions must return with

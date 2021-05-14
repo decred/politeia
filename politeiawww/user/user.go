@@ -455,6 +455,13 @@ func DecodeSession(payload []byte) (*Session, error) {
 	return &s, nil
 }
 
+// EmailHistory represents a 24h history for a User identified by email.
+type EmailHistory struct {
+	Email            string
+	SentCount24h     int
+	LimitWarningSent bool
+}
+
 // Database describes the interface used for interacting with the user
 // database.
 type Database interface {
@@ -496,6 +503,16 @@ type Database interface {
 
 	// Execute a plugin command
 	PluginExec(PluginCommand) (*PluginCommandReply, error)
+
+	// FetchHistories for recipients.
+	FetchHistories(recipients []string) ([]EmailHistory, error)
+	// RefreshHistories must be called each time after an email has been sent.
+	// It will add another history entry with the specified timestamp for each
+	// recipient in recipients list, as well as update warningSent value
+	// accordingly.
+	// It will also cut off stale history data (>24h old) to keep it from
+	// growing forever.
+	RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error
 
 	// Close performs cleanup of the backend.
 	Close() error

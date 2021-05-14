@@ -6,20 +6,22 @@ package email
 
 import (
 	"time"
+
+	"github.com/decred/politeia/politeiawww/user"
 )
 
 type Limiter struct {
-	mailer  mailer
-	storage storage
+	mailer mailer
+	userDB user.Database
 	// limit24h defines max amount of emails a recipient can receive within last 24h.
 	limit24h int
 	timeFn   func() time.Time
 }
 
-func NewLimiter(mailer mailer, storage storage, limit24h int, timeFn func() time.Time) *Limiter {
+func NewLimiter(mailer mailer, userDB user.Database, limit24h int, timeFn func() time.Time) *Limiter {
 	return &Limiter{
 		mailer:   mailer,
-		storage:  storage,
+		userDB:   userDB,
 		limit24h: limit24h,
 		timeFn:   timeFn,
 	}
@@ -36,7 +38,7 @@ func (l *Limiter) IsEnabled() bool {
 // Good recipients won't hit rate limit, they will receive the original message
 // as is specified by subject and body arguments.
 func (l *Limiter) SendTo(subject, body string, recipients []string) error {
-	histories, err := l.storage.FetchHistories(recipients)
+	histories, err := l.userDB.FetchHistories(recipients)
 	if err != nil {
 		// TODO
 	}
@@ -49,12 +51,12 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 
 	for _, recipient := range recipients {
 		history, ok := l.findHistory(recipient, histories)
-		if !ok || history.sentCount24h < l.limit24h {
+		if !ok || history.SentCount24h < l.limit24h {
 			// No rate limiting is necessary.
 			good = append(good, recipient)
 			continue
 		}
-		if history.limitWarningSent {
+		if history.LimitWarningSent {
 			// Rate limit is hit, but warning message has already been sent.
 			continue
 		}
@@ -68,7 +70,7 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 	if err != nil {
 		// TODO
 	}
-	err = l.storage.RefreshHistories(good, false, timestamp)
+	err = l.userDB.RefreshHistories(good, false, timestamp)
 	if err != nil {
 		// TODO
 	}
@@ -77,7 +79,7 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 	if err != nil {
 		// TODO
 	}
-	err = l.storage.RefreshHistories(good, true, timestamp)
+	err = l.userDB.RefreshHistories(good, true, timestamp)
 	if err != nil {
 		// TODO
 	}
@@ -85,36 +87,17 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 	return nil
 }
 
-func (l *Limiter) findHistory(recipient string, histories []UserHistory) (UserHistory, bool) {
+func (l *Limiter) findHistory(recipient string, histories []user.EmailHistory) (user.EmailHistory, bool) {
 	// This assumes histories slice is pretty small to iterate it in O(n).
 	for _, history := range histories {
-		if history.email == recipient {
+		if history.Email == recipient {
 			return history, true
 		}
 	}
-	return UserHistory{}, false
+	return user.EmailHistory{}, false
 }
 
 type mailer interface {
 	IsEnabled() bool
 	SendTo(subject, body string, recipients []string) error
-}
-
-type storage interface {
-	// FetchHistories for recipients.
-	FetchHistories(recipients []string) ([]UserHistory, error)
-	// RefreshHistories must be called each time after an email has been sent.
-	// It will add another history entry with the specified timestamp for each
-	// recipient in recipients list, as well as update warningSent value
-	// accordingly.
-	// It will also cut off stale history data (>24h old) to keep it from
-	// growing forever.
-	RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error
-}
-
-// UserHistory represents a 24h history for a user identified by email.
-type UserHistory struct {
-	email            string
-	sentCount24h     int
-	limitWarningSent bool
 }

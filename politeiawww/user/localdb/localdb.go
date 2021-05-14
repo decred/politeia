@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -399,15 +400,11 @@ func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, e
 func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
 
-	var err error
 	switch p.ID {
 	case user.CMSPluginID:
 		// This is an acceptable plugin ID
 	default:
 		return user.ErrInvalidPlugin
-	}
-	if err != nil {
-		return err
 	}
 
 	// Save plugin settings
@@ -417,6 +414,16 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	l.pluginSettings[p.ID] = p.Settings
 
 	return nil
+}
+
+func (l *localdb) RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error {
+	// TODO Implement
+	return nil
+}
+
+func (l *localdb) FetchHistories(emails []string) ([]user.EmailHistory, error) {
+	// TODO Implement
+	return nil, nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with

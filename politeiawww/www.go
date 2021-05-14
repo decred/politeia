@@ -35,7 +35,6 @@ import (
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/email"
-	"github.com/decred/politeia/politeiawww/email/cockroach"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -655,20 +654,9 @@ func _main() error {
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}
-	network := filepath.Base(loadedCfg.DataDir)
-	emailDB, err := cockroach.NewEmailDB(
-		loadedCfg.DBHost,
-		network,
-		loadedCfg.DBRootCert,
-		loadedCfg.DBCert,
-		loadedCfg.DBKey,
-	)
-	if err != nil {
-		return fmt.Errorf("new cockroach DB for email: %w", err)
-	}
 	// TODO - make limit24h configurable
 	const limit24h = 100
-	limitingMailer := email.NewLimiter(mailClient, emailDB, limit24h, time.Now)
+	limitingMailer := email.NewLimiter(mailClient, userDB, limit24h, time.Now)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
