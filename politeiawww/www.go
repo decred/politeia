@@ -668,7 +668,7 @@ func _main() error {
 	}
 	// TODO - make limit24h configurable
 	const limit24h = 100
-	mailerLimited := email.NewLimiter(mailClient, emailDB, limit24h, time.Now)
+	limitingMailer := email.NewLimiter(mailClient, emailDB, limit24h, time.Now)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
@@ -684,7 +684,7 @@ func _main() error {
 		auth:       auth,
 		politeiad:  pdc,
 		http:       httpClient,
-		mail:       mailerLimited,
+		mail:       limitingMailer,
 		db:         userDB,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),
