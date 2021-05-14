@@ -13,6 +13,7 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker/github"
 	ghdb "github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
 	"github.com/decred/politeia/politeiawww/comments"
+	"github.com/decred/politeia/politeiawww/email/cockroach"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/pi"
@@ -75,6 +76,7 @@ func init() {
 	// UserDB loggers
 	localdb.UseLogger(userdbLog)
 	cockroachdb.UseLogger(userdbLog)
+	cockroach.UseLogger(userdbLog)
 
 	// API loggers
 	records.UseLogger(apiLog)

@@ -23,7 +23,6 @@ import (
 	"github.com/decred/politeia/politeiawww/codetracker"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
-	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
@@ -72,7 +71,7 @@ type politeiawww struct {
 	auth      *mux.Router // CSRF protected subrouter
 	politeiad *pdclient.Client
 	http      *http.Client // Deprecated; use politeiad client
-	mail      *mail.Client
+	mail      mailer
 	db        user.Database
 	sessions  *sessions.Sessions
 	events    *events.Manager
@@ -432,4 +431,9 @@ func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *htt
 	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", id)
 
 	p.handleWebsocket(w, r, id)
+}
+
+type mailer interface {
+	IsEnabled() bool
+	SendTo(subject, body string, recipients []string) error
 }

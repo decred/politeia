@@ -34,6 +34,8 @@ import (
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/email"
+	"github.com/decred/politeia/politeiawww/email/cockroach"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -647,13 +649,26 @@ func _main() error {
 		log.Infof("Cookie key generated")
 	}
 
-	// Setup smtp client
 	mailClient, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
 		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
 		loadedCfg.MailSkipVerify)
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}
+	network := filepath.Base(loadedCfg.DataDir)
+	emailDB, err := cockroach.NewEmailDB(
+		loadedCfg.DBHost,
+		network,
+		loadedCfg.DBRootCert,
+		loadedCfg.DBCert,
+		loadedCfg.DBKey,
+	)
+	if err != nil {
+		return fmt.Errorf("new cockroach DB for email: %w", err)
+	}
+	// TODO - make limit24h configurable
+	const limit24h = 100
+	mailerLimited := email.NewLimiter(mailClient, emailDB, limit24h, time.Now)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
@@ -669,7 +684,7 @@ func _main() error {
 		auth:       auth,
 		politeiad:  pdc,
 		http:       httpClient,
-		mail:       mailClient,
+		mail:       mailerLimited,
 		db:         userDB,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),
