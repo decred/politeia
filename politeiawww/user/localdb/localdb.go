@@ -416,12 +416,12 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 }
 
 func (l *localdb) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
-	// TODO Implement
+	// TODO Implement ?
 	return nil, nil
 }
 
 func (l *localdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
-	// TODO Implement
+	// TODO Implement ?
 	return nil
 }
 

@@ -5,9 +5,12 @@
 package email
 
 import (
+	"fmt"
+
 	"github.com/decred/politeia/politeiawww/user"
 )
 
+// Limiter is a wrapper around mailer for implementing rate limiting functionality.
 type Limiter struct {
 	mailer mailer
 	userDB user.Database
@@ -36,7 +39,7 @@ func (l *Limiter) IsEnabled() bool {
 func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 	histories, err := l.userDB.FetchHistories24h(recipients)
 	if err != nil {
-		// TODO
+		return fmt.Errorf("fetch histories from DB: %w", err)
 	}
 
 	var (
@@ -49,8 +52,16 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 
 	for _, recipient := range recipients {
 		history, ok := l.findHistory(recipient, histories)
-		if !ok || len(history.SentTimestamps24h) < l.limit24h {
-			// No rate limiting is necessary.
+		if !ok {
+			// No previous history, no rate limiting is necessary.
+			good = append(good, recipient)
+			goodHistories = append(goodHistories, user.EmailHistory24h{
+				Email: recipient,
+			})
+			continue
+		}
+		if len(history.SentTimestamps24h) < l.limit24h {
+			// Previous history is fine, no rate limiting is necessary.
 			good = append(good, recipient)
 			goodHistories = append(goodHistories, history)
 			continue
@@ -66,20 +77,20 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 
 	err = l.mailer.SendTo(subject, body, good)
 	if err != nil {
-		// TODO
+		return fmt.Errorf("send mail: %w", err)
 	}
 	err = l.userDB.RefreshHistories24h(goodHistories, false)
 	if err != nil {
-		// TODO
+		return fmt.Errorf("refresh histories in DB: %w", err)
 	}
 
 	err = l.mailer.SendTo(subject, body, bad)
 	if err != nil {
-		// TODO
+		return fmt.Errorf("send mail: %w", err)
 	}
 	err = l.userDB.RefreshHistories24h(badHistories, true)
 	if err != nil {
-		// TODO
+		return fmt.Errorf("refresh histories in DB: %w", err)
 	}
 
 	return nil
@@ -95,6 +106,7 @@ func (l *Limiter) findHistory(recipient string, histories []user.EmailHistory24h
 	return user.EmailHistory24h{}, false
 }
 
+//go:generate moq -out ./mock_test.go . mailer
 type mailer interface {
 	IsEnabled() bool
 	SendTo(subject, body string, recipients []string) error
