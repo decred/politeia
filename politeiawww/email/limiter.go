@@ -106,6 +106,8 @@ func (l *Limiter) findHistory(recipient string, histories []user.EmailHistory24h
 	return user.EmailHistory24h{}, false
 }
 
+// mailer provides interface for sending emails.
+//
 //go:generate moq -out ./mock_test.go . mailer
 type mailer interface {
 	IsEnabled() bool

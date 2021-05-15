@@ -415,13 +415,17 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-func (l *localdb) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
-	// TODO Implement ?
+// FetchHistories24h is a no-op (stub) because localdb runs as a storage backend
+// testing/experimental environments only, so we don't care about storing user
+// email histories in these cases.
+func (l *localdb) FetchHistories24h(_ []string) ([]user.EmailHistory24h, error) {
 	return nil, nil
 }
 
+// RefreshHistories24h is a no-op (stub) because localdb runs as a storage backend
+// testing/experimental environments only, so we don't care about storing user
+// email histories in these cases.
 func (l *localdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
-	// TODO Implement ?
 	return nil
 }
 

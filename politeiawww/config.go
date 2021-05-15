@@ -30,7 +30,7 @@ import (
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/util"
-	flags "github.com/jessevdk/go-flags"
+	"github.com/jessevdk/go-flags"
 )
 
 const (
@@ -286,6 +286,7 @@ func loadConfig() (*config.Config, []string, error) {
 		Version:                  version.String(),
 		Mode:                     defaultWWWMode,
 		UserDB:                   defaultUserDB,
+		EmailHistoryLimit24h:     100,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		VoteDurationMin:          defaultVoteDurationMin,
