@@ -278,7 +278,7 @@ func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
 	return nil
 }
 
-// CastVoteDetails verifies the receipt of the provided ticketvote v1
+// CastVoteDetailsVerify verifies the receipt of the provided ticketvote v1
 // CastVoteDetails.
 func CastVoteDetailsVerify(cvd tkv1.CastVoteDetails, serverPublicKey string) error {
 	// The network must be ascertained in order to verify the
