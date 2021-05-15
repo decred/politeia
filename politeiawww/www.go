@@ -615,7 +615,7 @@ func _main() error {
 		network := filepath.Base(loadedCfg.DataDir)
 		db, err := cockroachdb.New(loadedCfg.DBHost, network,
 			loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
-			encryptionKey)
+			encryptionKey, time.Now)
 		if err != nil {
 			return fmt.Errorf("new cockroachdb: %v", err)
 		}
@@ -656,7 +656,7 @@ func _main() error {
 	}
 	// TODO - make limit24h configurable
 	const limit24h = 100
-	limitingMailer := email.NewLimiter(mailClient, userDB, limit24h, time.Now)
+	limitingMailer := email.NewLimiter(mailClient, userDB, limit24h)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)

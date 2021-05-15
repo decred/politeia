@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -416,14 +415,14 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-func (l *localdb) RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error {
-	// TODO Implement
-	return nil
-}
-
-func (l *localdb) FetchHistories(emails []string) ([]user.EmailHistory, error) {
+func (l *localdb) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
 	// TODO Implement
 	return nil, nil
+}
+
+func (l *localdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
+	// TODO Implement
+	return nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with

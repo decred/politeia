@@ -18,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -901,4 +902,196 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 	if err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
+}
+
+func TestFetchHistories24h(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	currentTime := time.Now()
+
+	cdb.currentTime = func() time.Time {
+		return currentTime
+	}
+
+	const email = "uuu@gmail.com"
+
+	ts1 := currentTime.Add(-23 * time.Hour)
+	ts2 := currentTime.Add(-25 * time.Hour)
+
+	// Arguments
+	history := user.EmailHistory24h{
+		Email:             email,
+		SentTimestamps24h: []time.Time{ts2, ts1},
+		LimitWarningSent:  true,
+	}
+
+	hb, err := user.EncodeEmailHistory(history)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Mock data
+	rows := sqlmock.NewRows([]string{"email", "blob"}).
+		AddRow(email, hb)
+
+	// Query
+	sqlSelect := `SELECT * FROM "email_histories" WHERE (email IN ($1))`
+
+	t.Run("existing recipient", func(t *testing.T) {
+		// Expectations
+		mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+			WithArgs(email).
+			WillReturnRows(rows)
+
+		// Execute method
+		got, err := cdb.FetchHistories24h([]string{email})
+		if err != nil {
+			t.Errorf("unwanted error: %s", err)
+		}
+		want := []user.EmailHistory24h{
+			{
+				Email:             email,
+				SentTimestamps24h: []time.Time{ts1},
+				LimitWarningSent:  history.LimitWarningSent,
+			},
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Error(diff)
+		}
+
+		// Make sure expectations were met for both success and failure
+		// conditions
+		err = mock.ExpectationsWereMet()
+		if err != nil {
+			t.Errorf("unfulfilled expectations: %s", err)
+		}
+	})
+
+	t.Run("non-existent recipient", func(t *testing.T) {
+		const unknownEmail = "unknown@gmail.com"
+
+		// Expectations
+		mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+			WithArgs(unknownEmail).
+			WillReturnRows(rows)
+
+		// Execute method
+		got, err := cdb.FetchHistories24h([]string{unknownEmail})
+		if err != nil {
+			t.Errorf("unwanted error: %s", err)
+		}
+		if len(got) != 0 {
+			t.Error("expected empty list")
+		}
+
+		// Make sure expectations were met for both success and failure
+		// conditions
+		err = mock.ExpectationsWereMet()
+		if err != nil {
+			t.Errorf("unfulfilled expectations: %s", err)
+		}
+	})
+}
+
+func TestRefreshHistories24h(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	currentTime := time.Now()
+
+	cdb.currentTime = func() time.Time {
+		return currentTime
+	}
+
+	const email = "uuu@gmail.com"
+
+	ts1 := currentTime.Add(-23 * time.Hour)
+	ts2 := currentTime.Add(-25 * time.Hour)
+
+	t.Run("insert new history, then update", func(t *testing.T) {
+		history := user.EmailHistory24h{
+			Email:             email,
+			SentTimestamps24h: []time.Time{ts2, ts1},
+			LimitWarningSent:  true,
+		}
+
+		wantHistory := user.EmailHistory24h{
+			Email:             email,
+			SentTimestamps24h: []time.Time{ts1, currentTime},
+			LimitWarningSent:  true,
+		}
+		wantHistoryB, err := user.EncodeEmailHistory(wantHistory)
+		if err != nil {
+			t.Fatalf("%s", err)
+		}
+
+		// Query
+		sqlSelect := `SELECT * FROM "email_histories" WHERE (email = $1)`
+
+		// Expectations
+		mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+			WithArgs(email).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		// Query
+		sqlInsert := `INSERT INTO "email_histories" ("email","blob") VALUES ($1,$2) RETURNING "email_histories"."email"`
+
+		// Expectations
+		mock.ExpectBegin()
+		mock.ExpectQuery(regexp.QuoteMeta(sqlInsert)).
+			WithArgs(email, wantHistoryB).
+			WillReturnRows(sqlmock.NewRows([]string{"email"}).AddRow(email))
+		mock.ExpectCommit()
+
+		// Execute method
+		err = cdb.RefreshHistories24h([]user.EmailHistory24h{history}, true)
+		if err != nil {
+			t.Errorf("unwanted error: %s", err)
+		}
+
+		// Expectations
+		mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+			WithArgs(email).
+			WillReturnRows(sqlmock.NewRows([]string{"email"}).AddRow(email))
+
+		// Query
+		sqlUpdate := `UPDATE "email_histories" SET "blob" = $1 WHERE "email_histories"."email" = $2`
+
+		history = user.EmailHistory24h{
+			Email:             email,
+			SentTimestamps24h: []time.Time{ts1, currentTime},
+			LimitWarningSent:  true,
+		}
+
+		wantHistory = user.EmailHistory24h{
+			Email:             email,
+			SentTimestamps24h: []time.Time{ts1, currentTime, currentTime},
+			LimitWarningSent:  false,
+		}
+		wantHistoryB, err = user.EncodeEmailHistory(wantHistory)
+		if err != nil {
+			t.Fatalf("%s", err)
+		}
+
+		// Expectations
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(sqlUpdate)).
+			WithArgs(wantHistoryB, email).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		// Execute method
+		err = cdb.RefreshHistories24h([]user.EmailHistory24h{history}, false)
+		if err != nil {
+			t.Errorf("unwanted error: %s", err)
+		}
+
+		// Make sure expectations were met for both success and failure
+		// conditions
+		err = mock.ExpectationsWereMet()
+		if err != nil {
+			t.Errorf("unfulfilled expectations: %s", err)
+		}
+	})
 }

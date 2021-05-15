@@ -49,6 +49,7 @@ type cockroachdb struct {
 	encryptionKey  *[32]byte                       // Data at rest encryption key
 	userDB         *gorm.DB                        // Database context
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
+	currentTime    func() time.Time
 }
 
 // isShutdown returns whether the backend has been shutdown.
@@ -743,53 +744,120 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-func (c *cockroachdb) RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error {
+func (c *cockroachdb) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
+	log.Tracef("FetchHistories24h: %v", recipients)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var dbResult []EmailHistory24h
+	err := c.userDB.
+		Where("email IN (?)", recipients).
+		Find(&dbResult).
+		Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	result := make([]user.EmailHistory24h, 0, len(dbResult))
+	for _, dbEntity := range dbResult {
+		entity, err := c.convertEmailHistoryFromDB(dbEntity)
+		if err != nil {
+			return nil, fmt.Errorf("convert email history from db: %w", err)
+		}
+		entity.SentTimestamps24h = c.filterOutStaleTimestamps(entity.SentTimestamps24h, 24*time.Hour)
+		result = append(result, entity)
+	}
+
+	return result, nil
+}
+
+func (c *cockroachdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
 	log.Tracef(
-		"UserNew: %v %v %v",
-		recipients,
-		warningSent,
-		timestamp,
+		"RefreshHistories24h: %v %v",
+		histories,
+		limitWarningSent,
 	)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
-	// TODO - rewrite implementation
-	//// Create new user with a transaction
-	//tx := c.userDB.Begin()
-	//_, err := c.userNew(tx, u)
-	//if err != nil {
-	//	tx.Rollback()
-	//	return err
-	//}
-	//
-	//return tx.Commit().Error
+	// Not optimal performance-wise to work with histories one by one, but very straightforward.
+	for _, history := range histories {
+		history.SentTimestamps24h = append(history.SentTimestamps24h, c.currentTime())
+		history.SentTimestamps24h = c.filterOutStaleTimestamps(history.SentTimestamps24h, 24*time.Hour)
+		history.LimitWarningSent = limitWarningSent
+
+		historyDB, err := c.convertEmailHistoryToDB(history)
+		if err != nil {
+			return fmt.Errorf("convert email history to DB: %w", err)
+		}
+
+		var update bool
+		var h EmailHistory24h
+		err = c.userDB.
+			Where("email = ?", history.Email).
+			Find(&h).
+			Error
+		switch err {
+		case nil:
+			// DB entry already exists, update it.
+			update = true
+		case gorm.ErrRecordNotFound:
+			// DB entry doesn't exist, will have to create it.
+		default:
+			// All other errors
+			return fmt.Errorf("find email history: %w", err)
+		}
+
+		if update {
+			err := c.userDB.Save(&historyDB).Error
+			if err != nil {
+				return fmt.Errorf("save: %w", err)
+			}
+		} else {
+			err := c.userDB.Create(&historyDB).Error
+			if err != nil {
+				return fmt.Errorf("create: %w", err)
+			}
+		}
+	}
 
 	return nil
 }
 
-func (c *cockroachdb) FetchHistories(emails []string) ([]user.EmailHistory, error) {
-	log.Tracef("FetchHistories: %v", emails)
+func (c *cockroachdb) convertEmailHistoryToDB(h user.EmailHistory24h) (EmailHistory24h, error) {
+	hb, err := user.EncodeEmailHistory(h)
+	if err != nil {
+		return EmailHistory24h{}, err
+	}
+	return EmailHistory24h{
+		Email: h.Email,
+		Blob:  hb,
+	}, nil
+}
 
-	if c.isShutdown() {
-		return nil, user.ErrShutdown
+func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory24h) (user.EmailHistory24h, error) {
+	return user.DecodeEmailHistory(s.Blob)
+}
+
+func (c *cockroachdb) filterOutStaleTimestamps(in []time.Time, delta time.Duration) (out []time.Time) {
+	staleBefore := c.currentTime().Add(-delta)
+	out = make([]time.Time, 0, len(in))
+
+	for _, ts := range in {
+		if ts.Before(staleBefore) {
+			continue
+		}
+		out = append(out, ts)
 	}
 
-	// TODO - rewrite implementation
-	//var u EmailHistory
-	//err := c.userDB.
-	//	Where("username = ?", username).
-	//	Find(&u).
-	//	Error
-	//if err != nil {
-	//	if errors.Is(err, gorm.ErrRecordNotFound) {
-	//		err = user.ErrUserNotFound
-	//	}
-	//	return nil, err
-	//}
-
-	return nil, nil
+	return out
 }
 
 // Close shuts down the database.  All interface functions must return with
@@ -882,7 +950,10 @@ func loadEncryptionKey(filepath string) (*[32]byte, error) {
 // New opens a connection to the CockroachDB user database and returns a new
 // cockroachdb context. sslRootCert, sslCert, sslKey, and encryptionKey are
 // file paths.
-func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*cockroachdb, error) {
+func New(
+	host, network, sslRootCert, sslCert, sslKey, encryptionKey string,
+	currentTime func() time.Time,
+) (*cockroachdb, error) {
 	log.Tracef("New: %v %v %v %v %v %v", host, network, sslRootCert,
 		sslCert, sslKey, encryptionKey)
 
@@ -922,6 +993,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 		encryptionKey:  key,
 		userDB:         db,
 		pluginSettings: make(map[string][]user.PluginSetting),
+		currentTime:    currentTime,
 	}
 
 	// Disable gorm logging. This prevents duplicate errors

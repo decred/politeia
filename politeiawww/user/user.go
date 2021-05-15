@@ -455,11 +455,37 @@ func DecodeSession(payload []byte) (*Session, error) {
 	return &s, nil
 }
 
-// EmailHistory represents a 24h history for a User identified by email.
-type EmailHistory struct {
-	Email            string
-	SentCount24h     int
-	LimitWarningSent bool
+// EmailHistory24h represents a 24h history for a User identified by email.
+type EmailHistory24h struct {
+	// Email is an email address for some User this history belongs to.
+	Email string `json:"email"`
+	// A list of timestamps (limited to 24h in the past) when mail was sent
+	// to this email address.
+	SentTimestamps24h []time.Time `json:"sent_timestamps_24h"`
+	// Tracks whether a warning email has already been sent to notify the user he exceeded his limit.
+	LimitWarningSent bool `json:"limit_warning_sent"`
+}
+
+// EncodeEmailHistory encodes EmailHistory24h into a JSON byte slice.
+func EncodeEmailHistory(h EmailHistory24h) ([]byte, error) {
+	b, err := json.Marshal(h)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeEmailHistory decodes a JSON byte slice into a EmailHistory24h.
+func DecodeEmailHistory(payload []byte) (EmailHistory24h, error) {
+	var h EmailHistory24h
+
+	err := json.Unmarshal(payload, &h)
+	if err != nil {
+		return EmailHistory24h{}, err
+	}
+
+	return h, nil
 }
 
 // Database describes the interface used for interacting with the user
@@ -504,15 +530,15 @@ type Database interface {
 	// Execute a plugin command
 	PluginExec(PluginCommand) (*PluginCommandReply, error)
 
-	// FetchHistories for recipients.
-	FetchHistories(recipients []string) ([]EmailHistory, error)
-	// RefreshHistories must be called each time after an email has been sent.
-	// It will add another history entry with the specified timestamp for each
-	// recipient in recipients list, as well as update warningSent value
+	// FetchHistories24h for recipients, for 24h in the past.
+	FetchHistories24h(recipients []string) ([]EmailHistory24h, error)
+	// RefreshHistories24h must be called each time after an email has been sent.
+	// It will add another history entry with the current timestamp for each
+	// history in histories list, as well as update limitWarningSent value
 	// accordingly.
-	// It will also cut off stale history data (>24h old) to keep it from
-	// growing forever.
-	RefreshHistories(recipients []string, warningSent bool, timestamp time.Time) error
+	// It will also delete stale history entries (>24h old) from DB to keep it
+	// from growing forever.
+	RefreshHistories24h(histories []EmailHistory24h, limitWarningSent bool) error
 
 	// Close performs cleanup of the backend.
 	Close() error

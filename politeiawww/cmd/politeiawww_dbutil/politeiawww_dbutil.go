@@ -436,7 +436,7 @@ func cmdMigrate() error {
 		return fmt.Errorf("new leveldb: %v", err)
 	}
 	cdb, err := cockroachdb.New(*host, network, *rootCert,
-		*clientCert, *clientKey, *encryptionKey)
+		*clientCert, *clientKey, *encryptionKey, time.Now)
 	if err != nil {
 		return fmt.Errorf("new cockroachdb: %v", err)
 	}
@@ -795,7 +795,7 @@ func _main() error {
 			return err
 		}
 		db, err := cockroachdb.New(*host, network, *rootCert,
-			*clientCert, *clientKey, *encryptionKey)
+			*clientCert, *clientKey, *encryptionKey, time.Now)
 		if err != nil {
 			return fmt.Errorf("new cockroachdb: %v", err)
 		}
