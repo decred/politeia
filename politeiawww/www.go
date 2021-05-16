@@ -34,7 +34,6 @@ import (
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/config"
-	"github.com/decred/politeia/politeiawww/email"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -654,7 +653,7 @@ func _main() error {
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}
-	limitingMailer := email.NewLimiter(mailClient, userDB, loadedCfg.EmailRateLimit)
+	limitingMailer := mail.NewLimiter(mailClient, userDB, loadedCfg.EmailRateLimit)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
