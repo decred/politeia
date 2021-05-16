@@ -10,15 +10,15 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-// Limiter is a wrapper around mailer for implementing rate limiting functionality.
+// Limiter is a wrapper around Mailer for implementing rate limiting functionality.
 type Limiter struct {
-	mailer mailer
+	mailer Mailer
 	userDB user.Database
 	// limit24h defines max amount of emails a recipient can receive within last 24h.
 	limit24h int
 }
 
-func NewLimiter(mailer mailer, userDB user.Database, limit24h int) *Limiter {
+func NewLimiter(mailer Mailer, userDB user.Database, limit24h int) *Limiter {
 	return &Limiter{
 		mailer:   mailer,
 		userDB:   userDB,
@@ -108,12 +108,4 @@ func (l *Limiter) findHistory(recipient string, histories []user.EmailHistory24h
 		}
 	}
 	return user.EmailHistory24h{}, false
-}
-
-// mailer provides interface for sending emails.
-//
-//go:generate moq -out ./mock_test.go . mailer
-type mailer interface {
-	IsEnabled() bool
-	SendTo(subject, body string, recipients []string) error
 }

@@ -15,6 +15,14 @@ import (
 	"github.com/dajohi/goemail"
 )
 
+// Mailer provides interface for sending emails.
+//
+//go:generate moq -out ./mock_test.go . Mailer
+type Mailer interface {
+	IsEnabled() bool
+	SendTo(subject, body string, recipients []string) error
+}
+
 // Client provides an SMTP client for sending emails from a preset email
 // address.
 type Client struct {

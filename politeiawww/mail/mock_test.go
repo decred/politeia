@@ -7,16 +7,16 @@ import (
 	"sync"
 )
 
-// Ensure, that mailerMock does implement mailer.
+// Ensure, that MailerMock does implement Mailer.
 // If this is not the case, regenerate this file with moq.
-var _ mailer = &mailerMock{}
+var _ Mailer = &MailerMock{}
 
-// mailerMock is a mock implementation of mailer.
+// MailerMock is a mock implementation of Mailer.
 //
-//     func TestSomethingThatUsesmailer(t *testing.T) {
+//     func TestSomethingThatUsesMailer(t *testing.T) {
 //
-//         // make and configure a mocked mailer
-//         mockedmailer := &mailerMock{
+//         // make and configure a mocked Mailer
+//         mockedMailer := &MailerMock{
 //             IsEnabledFunc: func() bool {
 // 	               panic("mock out the IsEnabled method")
 //             },
@@ -25,11 +25,11 @@ var _ mailer = &mailerMock{}
 //             },
 //         }
 //
-//         // use mockedmailer in code that requires mailer
+//         // use mockedMailer in code that requires Mailer
 //         // and then make assertions.
 //
 //     }
-type mailerMock struct {
+type MailerMock struct {
 	// IsEnabledFunc mocks the IsEnabled method.
 	IsEnabledFunc func() bool
 
@@ -56,9 +56,9 @@ type mailerMock struct {
 }
 
 // IsEnabled calls IsEnabledFunc.
-func (mock *mailerMock) IsEnabled() bool {
+func (mock *MailerMock) IsEnabled() bool {
 	if mock.IsEnabledFunc == nil {
-		panic("mailerMock.IsEnabledFunc: method is nil but mailer.IsEnabled was just called")
+		panic("MailerMock.IsEnabledFunc: method is nil but Mailer.IsEnabled was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -70,8 +70,8 @@ func (mock *mailerMock) IsEnabled() bool {
 
 // IsEnabledCalls gets all the calls that were made to IsEnabled.
 // Check the length with:
-//     len(mockedmailer.IsEnabledCalls())
-func (mock *mailerMock) IsEnabledCalls() []struct {
+//     len(mockedMailer.IsEnabledCalls())
+func (mock *MailerMock) IsEnabledCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -82,9 +82,9 @@ func (mock *mailerMock) IsEnabledCalls() []struct {
 }
 
 // SendTo calls SendToFunc.
-func (mock *mailerMock) SendTo(subject string, body string, recipients []string) error {
+func (mock *MailerMock) SendTo(subject string, body string, recipients []string) error {
 	if mock.SendToFunc == nil {
-		panic("mailerMock.SendToFunc: method is nil but mailer.SendTo was just called")
+		panic("MailerMock.SendToFunc: method is nil but Mailer.SendTo was just called")
 	}
 	callInfo := struct {
 		Subject    string
@@ -103,8 +103,8 @@ func (mock *mailerMock) SendTo(subject string, body string, recipients []string)
 
 // SendToCalls gets all the calls that were made to SendTo.
 // Check the length with:
-//     len(mockedmailer.SendToCalls())
-func (mock *mailerMock) SendToCalls() []struct {
+//     len(mockedMailer.SendToCalls())
+func (mock *MailerMock) SendToCalls() []struct {
 	Subject    string
 	Body       string
 	Recipients []string

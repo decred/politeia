@@ -11,7 +11,7 @@ import (
 )
 
 func TestLimiter_IsEnabled(t *testing.T) {
-	mm := &mailerMock{
+	mm := &MailerMock{
 		IsEnabledFunc: func() bool {
 			return true
 		},
@@ -37,7 +37,7 @@ func TestLimiter_SendTo(t *testing.T) {
 		wantBadHistories []user.EmailHistory24h,
 	) func(t *testing.T) {
 		return func(t *testing.T) {
-			mm := &mailerMock{
+			mm := &MailerMock{
 				SendToFunc: func(s string, b string, rs []string) error {
 					if diff := cmp.Diff(subject, s); diff != "" {
 						return fmt.Errorf("unexpected s: %v", diff)

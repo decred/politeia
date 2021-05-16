@@ -16,6 +16,7 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -28,7 +29,7 @@ type Pi struct {
 	userdb    user.Database
 	sessions  *sessions.Sessions
 	events    *events.Manager
-	mail      mailer
+	mail      mail.Mailer
 	policy    *v1.PolicyReply
 }
 
@@ -40,7 +41,7 @@ func (p *Pi) HandlePolicy(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new Pi context.
-func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, m mailer, plugins []pdv2.Plugin) (*Pi, error) {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, m mail.Mailer, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
 		textFileSizeMax    uint32
@@ -142,9 +143,4 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	p.setupEventListeners()
 
 	return &p, nil
-}
-
-type mailer interface {
-	IsEnabled() bool
-	SendTo(subject, body string, recipients []string) error
 }
