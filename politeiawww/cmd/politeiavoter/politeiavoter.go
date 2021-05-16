@@ -315,7 +315,7 @@ func convertTicketHashes(h []string) ([][]byte, error) {
 	return hashes, nil
 }
 
-func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
+func (c *ctx) makeRequest(method, api, route string, b interface{}) ([]byte, error) {
 	var requestBody []byte
 	var queryParams string
 	if b != nil {
@@ -338,7 +338,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 		}
 	}
 
-	fullRoute := c.cfg.PoliteiaWWW + route + queryParams
+	fullRoute := c.cfg.PoliteiaWWW + api + route + queryParams
 	log.Debugf("Request: %v %v", method, fullRoute)
 	if len(requestBody) != 0 {
 		log.Tracef("%v  ", string(requestBody))
@@ -459,7 +459,7 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 // getVersion retursn the server side version structure.
 func (c *ctx) getVersion() (*v1.VersionReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet,
-		v1.PoliteiaWWWAPIRoute+v1.RouteVersion, nil)
+		v1.PoliteiaWWWAPIRoute, v1.RouteVersion, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +579,7 @@ func (c *ctx) _inventory(page uint32) (*tkv1.InventoryReply, error) {
 		Status: tkv1.VoteStatusStarted,
 	}
 	responseBody, err := c.makeRequest(http.MethodPost,
-		tkv1.APIRoute+tkv1.RouteInventory, i)
+		tkv1.APIRoute, tkv1.RouteInventory, i)
 	if err != nil {
 		return nil, err
 	}
@@ -625,7 +625,7 @@ func (c *ctx) inventory() error {
 			Token: t,
 		}
 		responseBody, err := c.makeRequest(http.MethodPost,
-			tkv1.APIRoute+tkv1.RouteDetails, d)
+			tkv1.APIRoute, tkv1.RouteDetails, d)
 		if err != nil {
 			return err
 		}
@@ -645,7 +645,7 @@ func (c *ctx) inventory() error {
 			Token: t,
 		}
 		responseBody, err = c.makeRequest(http.MethodPost,
-			tkv1.APIRoute+tkv1.RouteResults, r)
+			tkv1.APIRoute, tkv1.RouteResults, r)
 		if err != nil {
 			return nil
 		}
@@ -751,7 +751,7 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 	}
 
 	responseBody, err := c.makeRequest(http.MethodPost,
-		v1.PoliteiaWWWAPIRoute+v1.RouteCastVotes, ballot)
+		v1.PoliteiaWWWAPIRoute, v1.RouteCastVotes, ballot)
 	if err != nil {
 		return nil, err
 	}
@@ -1124,7 +1124,7 @@ func (c *ctx) _vote(token, voteId string) error {
 
 	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest(http.MethodPost,
-		v1.PoliteiaWWWAPIRoute+v1.RouteCastVotes, &cv)
+		v1.PoliteiaWWWAPIRoute, v1.RouteCastVotes, &cv)
 	if err != nil {
 		return err
 	}
@@ -1195,7 +1195,7 @@ func (c *ctx) vote(args []string) error {
 
 func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		v1.PoliteiaWWWAPIRoute+v1.RouteBatchVoteSummary,
+		v1.PoliteiaWWWAPIRoute, v1.RouteBatchVoteSummary,
 		v1.BatchVoteSummary{Tokens: []string{token}})
 	if err != nil {
 		return nil, err
@@ -1213,7 +1213,7 @@ func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 
 func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
 	responseBody, err := c.makeRequest(http.MethodGet,
-		v1.PoliteiaWWWAPIRoute+"/proposals/"+token+"/votes", nil)
+		v1.PoliteiaWWWAPIRoute, "/proposals/"+token+"/votes", nil)
 	if err != nil {
 		return nil, err
 	}
