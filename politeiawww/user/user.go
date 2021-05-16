@@ -532,8 +532,8 @@ type Database interface {
 	// Execute a plugin command
 	PluginExec(PluginCommand) (*PluginCommandReply, error)
 
-	// FetchHistories24h for recipients, for 24h in the past.
-	FetchHistories24h(recipients []string) ([]EmailHistory24h, error)
+	// EmailHistoriesGet24h for recipients, for 24h in the past.
+	EmailHistoriesGet24h(recipients []string) ([]EmailHistory24h, error)
 	// RefreshHistories24h must be called each time after an email has been sent.
 	// It will add another history entry with the current timestamp for each
 	// history in histories list, as well as update limitWarningSent value

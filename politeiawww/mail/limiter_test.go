@@ -56,7 +56,7 @@ func TestLimiter_SendTo(t *testing.T) {
 				},
 			}
 			userDB := &mock.DatabaseMock{
-				FetchHistories24hFunc: func(rs []string) ([]user.EmailHistory24h, error) {
+				EmailHistoriesGet24hFunc: func(rs []string) ([]user.EmailHistory24h, error) {
 					if diff := cmp.Diff(recipients, rs); diff != "" {
 						return nil, fmt.Errorf("unexpected rs: %s", diff)
 					}

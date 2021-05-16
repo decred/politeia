@@ -71,7 +71,8 @@ const (
 	userDBLevel     = "leveldb"
 	userDBCockroach = "cockroachdb"
 
-	defaultUserDB = userDBLevel
+	defaultUserDB         = userDBLevel
+	defaultEmailRateLimit = 100
 )
 
 var (
@@ -286,7 +287,7 @@ func loadConfig() (*config.Config, []string, error) {
 		Version:                  version.String(),
 		Mode:                     defaultWWWMode,
 		UserDB:                   defaultUserDB,
-		EmailRateLimit:           100,
+		EmailRateLimit:           defaultEmailRateLimit,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		VoteDurationMin:          defaultVoteDurationMin,

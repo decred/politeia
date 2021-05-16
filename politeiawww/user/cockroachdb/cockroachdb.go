@@ -744,9 +744,9 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-// FetchHistories24h for recipients, for 24h in the past.
-func (c *cockroachdb) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
-	log.Tracef("FetchHistories24h: %v", recipients)
+// EmailHistoriesGet24h for recipients, for 24h in the past.
+func (c *cockroachdb) EmailHistoriesGet24h(recipients []string) ([]user.EmailHistory24h, error) {
+	log.Tracef("EmailHistoriesGet24h: %v", recipients)
 
 	if c.isShutdown() {
 		return nil, user.ErrShutdown

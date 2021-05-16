@@ -37,7 +37,7 @@ func (l *Limiter) IsEnabled() bool {
 // Good recipients won't hit rate limit, they will receive the original message
 // as is specified by subject and body arguments.
 func (l *Limiter) SendTo(subject, body string, recipients []string) error {
-	histories, err := l.userDB.FetchHistories24h(recipients)
+	histories, err := l.userDB.EmailHistoriesGet24h(recipients)
 	if err != nil {
 		return fmt.Errorf("fetch histories from DB: %w", err)
 	}

@@ -904,7 +904,7 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 	}
 }
 
-func TestFetchHistories24h(t *testing.T) {
+func TestEmailHistoriesGet24h(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
@@ -945,7 +945,7 @@ func TestFetchHistories24h(t *testing.T) {
 			WillReturnRows(rows)
 
 		// Execute method
-		got, err := cdb.FetchHistories24h([]string{email})
+		got, err := cdb.EmailHistoriesGet24h([]string{email})
 		if err != nil {
 			t.Errorf("unwanted error: %s", err)
 		}
@@ -977,7 +977,7 @@ func TestFetchHistories24h(t *testing.T) {
 			WillReturnRows(rows)
 
 		// Execute method
-		got, err := cdb.FetchHistories24h([]string{unknownEmail})
+		got, err := cdb.EmailHistoriesGet24h([]string{unknownEmail})
 		if err != nil {
 			t.Errorf("unwanted error: %s", err)
 		}

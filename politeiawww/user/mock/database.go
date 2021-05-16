@@ -25,8 +25,8 @@ var _ user.Database = &DatabaseMock{}
 //             CloseFunc: func() error {
 // 	               panic("mock out the Close method")
 //             },
-//             FetchHistories24hFunc: func(recipients []string) ([]user.EmailHistory24h, error) {
-// 	               panic("mock out the FetchHistories24h method")
+//             EmailHistoriesGet24hFunc: func(recipients []string) ([]user.EmailHistory24h, error) {
+// 	               panic("mock out the EmailHistoriesGet24h method")
 //             },
 //             PluginExecFunc: func(in1 user.PluginCommand) (*user.PluginCommandReply, error) {
 // 	               panic("mock out the PluginExec method")
@@ -80,8 +80,8 @@ type DatabaseMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
 
-	// FetchHistories24hFunc mocks the FetchHistories24h method.
-	FetchHistories24hFunc func(recipients []string) ([]user.EmailHistory24h, error)
+	// EmailHistoriesGet24hFunc mocks the EmailHistoriesGet24h method.
+	EmailHistoriesGet24hFunc func(recipients []string) ([]user.EmailHistory24h, error)
 
 	// PluginExecFunc mocks the PluginExec method.
 	PluginExecFunc func(in1 user.PluginCommand) (*user.PluginCommandReply, error)
@@ -132,8 +132,8 @@ type DatabaseMock struct {
 		// Close holds details about calls to the Close method.
 		Close []struct {
 		}
-		// FetchHistories24h holds details about calls to the FetchHistories24h method.
-		FetchHistories24h []struct {
+		// EmailHistoriesGet24h holds details about calls to the EmailHistoriesGet24h method.
+		EmailHistoriesGet24h []struct {
 			// Recipients is the recipients argument value.
 			Recipients []string
 		}
@@ -209,7 +209,7 @@ type DatabaseMock struct {
 	}
 	lockAllUsers               sync.RWMutex
 	lockClose                  sync.RWMutex
-	lockFetchHistories24h      sync.RWMutex
+	lockEmailHistoriesGet24h   sync.RWMutex
 	lockPluginExec             sync.RWMutex
 	lockRefreshHistories24h    sync.RWMutex
 	lockRegisterPlugin         sync.RWMutex
@@ -282,34 +282,34 @@ func (mock *DatabaseMock) CloseCalls() []struct {
 	return calls
 }
 
-// FetchHistories24h calls FetchHistories24hFunc.
-func (mock *DatabaseMock) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
-	if mock.FetchHistories24hFunc == nil {
-		panic("DatabaseMock.FetchHistories24hFunc: method is nil but Database.FetchHistories24h was just called")
+// EmailHistoriesGet24h calls EmailHistoriesGet24hFunc.
+func (mock *DatabaseMock) EmailHistoriesGet24h(recipients []string) ([]user.EmailHistory24h, error) {
+	if mock.EmailHistoriesGet24hFunc == nil {
+		panic("DatabaseMock.EmailHistoriesGet24hFunc: method is nil but Database.EmailHistoriesGet24h was just called")
 	}
 	callInfo := struct {
 		Recipients []string
 	}{
 		Recipients: recipients,
 	}
-	mock.lockFetchHistories24h.Lock()
-	mock.calls.FetchHistories24h = append(mock.calls.FetchHistories24h, callInfo)
-	mock.lockFetchHistories24h.Unlock()
-	return mock.FetchHistories24hFunc(recipients)
+	mock.lockEmailHistoriesGet24h.Lock()
+	mock.calls.EmailHistoriesGet24h = append(mock.calls.EmailHistoriesGet24h, callInfo)
+	mock.lockEmailHistoriesGet24h.Unlock()
+	return mock.EmailHistoriesGet24hFunc(recipients)
 }
 
-// FetchHistories24hCalls gets all the calls that were made to FetchHistories24h.
+// EmailHistoriesGet24hCalls gets all the calls that were made to EmailHistoriesGet24h.
 // Check the length with:
-//     len(mockedDatabase.FetchHistories24hCalls())
-func (mock *DatabaseMock) FetchHistories24hCalls() []struct {
+//     len(mockedDatabase.EmailHistoriesGet24hCalls())
+func (mock *DatabaseMock) EmailHistoriesGet24hCalls() []struct {
 	Recipients []string
 } {
 	var calls []struct {
 		Recipients []string
 	}
-	mock.lockFetchHistories24h.RLock()
-	calls = mock.calls.FetchHistories24h
-	mock.lockFetchHistories24h.RUnlock()
+	mock.lockEmailHistoriesGet24h.RLock()
+	calls = mock.calls.EmailHistoriesGet24h
+	mock.lockEmailHistoriesGet24h.RUnlock()
 	return calls
 }
 
