@@ -461,9 +461,9 @@ type EmailHistory24h struct {
 	Email string `json:"email"`
 	// A list of timestamps (limited to 24h in the past) when mail was sent
 	// to this email address.
-	SentTimestamps24h []time.Time `json:"sent_timestamps_24h"`
+	SentTimestamps24h []time.Time `json:"senttimestamps24h"`
 	// Tracks whether a warning email has already been sent to notify the user he exceeded his limit.
-	LimitWarningSent bool `json:"limit_warning_sent"`
+	LimitWarningSent bool `json:"limitwarningsent"`
 }
 
 // EncodeEmailHistory encodes EmailHistory24h into a JSON byte slice.
@@ -477,12 +477,12 @@ func EncodeEmailHistory(h EmailHistory24h) ([]byte, error) {
 }
 
 // DecodeEmailHistory decodes a JSON byte slice into a EmailHistory24h.
-func DecodeEmailHistory(payload []byte) (EmailHistory24h, error) {
-	var h EmailHistory24h
+func DecodeEmailHistory(payload []byte) (*EmailHistory24h, error) {
+	var h *EmailHistory24h
 
 	err := json.Unmarshal(payload, &h)
 	if err != nil {
-		return EmailHistory24h{}, err
+		return nil, err
 	}
 
 	return h, nil

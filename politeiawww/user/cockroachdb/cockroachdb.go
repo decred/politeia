@@ -744,6 +744,7 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
+// FetchHistories24h for recipients, for 24h in the past.
 func (c *cockroachdb) FetchHistories24h(recipients []string) ([]user.EmailHistory24h, error) {
 	log.Tracef("FetchHistories24h: %v", recipients)
 
@@ -770,18 +771,20 @@ func (c *cockroachdb) FetchHistories24h(recipients []string) ([]user.EmailHistor
 			return nil, fmt.Errorf("convert email history from db: %w", err)
 		}
 		entity.SentTimestamps24h = c.filterOutStaleTimestamps(entity.SentTimestamps24h, 24*time.Hour)
-		result = append(result, entity)
+		result = append(result, *entity)
 	}
 
 	return result, nil
 }
 
+// RefreshHistories24h must be called each time after an email has been sent.
+// It will add another history entry with the current timestamp for each
+// history in histories list, as well as update limitWarningSent value
+// accordingly.
+// It will also delete stale history entries (>24h old) from DB to keep it
+// from growing forever.
 func (c *cockroachdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
-	log.Tracef(
-		"RefreshHistories24h: %v %v",
-		histories,
-		limitWarningSent,
-	)
+	log.Tracef("RefreshHistories24h: %v %v", histories, limitWarningSent)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
@@ -842,7 +845,7 @@ func (c *cockroachdb) convertEmailHistoryToDB(h user.EmailHistory24h) (EmailHist
 	}, nil
 }
 
-func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory24h) (user.EmailHistory24h, error) {
+func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory24h) (*user.EmailHistory24h, error) {
 	return user.DecodeEmailHistory(s.Blob)
 }
 
