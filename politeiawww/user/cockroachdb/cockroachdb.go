@@ -950,10 +950,8 @@ func loadEncryptionKey(filepath string) (*[32]byte, error) {
 // New opens a connection to the CockroachDB user database and returns a new
 // cockroachdb context. sslRootCert, sslCert, sslKey, and encryptionKey are
 // file paths.
-func New(
-	host, network, sslRootCert, sslCert, sslKey, encryptionKey string,
-	currentTime func() time.Time,
-) (*cockroachdb, error) {
+func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string,
+	currentTime func() time.Time) (*cockroachdb, error) {
 	log.Tracef("New: %v %v %v %v %v %v", host, network, sslRootCert,
 		sslCert, sslKey, encryptionKey)
 
