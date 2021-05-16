@@ -75,22 +75,26 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 		badHistories = append(badHistories, history)
 	}
 
-	err = l.mailer.SendTo(subject, body, good)
-	if err != nil {
-		return fmt.Errorf("send mail: %w", err)
-	}
-	err = l.userDB.RefreshHistories24h(goodHistories, false)
-	if err != nil {
-		return fmt.Errorf("refresh histories in DB: %w", err)
+	if len(good) > 0 {
+		err = l.mailer.SendTo(subject, body, good)
+		if err != nil {
+			return fmt.Errorf("send mail: %w", err)
+		}
+		err = l.userDB.RefreshHistories24h(goodHistories, false)
+		if err != nil {
+			return fmt.Errorf("refresh histories in DB: %w", err)
+		}
 	}
 
-	err = l.mailer.SendTo(subject, body, bad)
-	if err != nil {
-		return fmt.Errorf("send mail: %w", err)
-	}
-	err = l.userDB.RefreshHistories24h(badHistories, true)
-	if err != nil {
-		return fmt.Errorf("refresh histories in DB: %w", err)
+	if len(bad) > 0 {
+		err = l.mailer.SendTo(subject, body, bad)
+		if err != nil {
+			return fmt.Errorf("send mail: %w", err)
+		}
+		err = l.userDB.RefreshHistories24h(badHistories, true)
+		if err != nil {
+			return fmt.Errorf("refresh histories in DB: %w", err)
+		}
 	}
 
 	return nil

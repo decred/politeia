@@ -132,7 +132,7 @@ type EmailHistory24h struct {
 	Blob  []byte `gorm:"not null"`    // Encrypted blob of email history.
 }
 
-// TableName returns the table name of the User table.
+// TableName returns the table name of the EmailHistory24h table.
 func (EmailHistory24h) TableName() string {
 	return tableEmailHistories
 }

@@ -49,7 +49,7 @@ type cockroachdb struct {
 	encryptionKey  *[32]byte                       // Data at rest encryption key
 	userDB         *gorm.DB                        // Database context
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
-	currentTime    func() time.Time
+	currentTime    func() time.Time                // Returns current timestamp
 }
 
 // isShutdown returns whether the backend has been shutdown.

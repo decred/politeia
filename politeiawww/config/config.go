@@ -70,14 +70,14 @@ type Config struct {
 	Mode            string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 
 	// User database settings
-	UserDB               string `long:"userdb" description:"Database choice for the user database"`
-	DBHost               string `long:"dbhost" description:"Database ip:port"`
-	DBRootCert           string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert               string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
-	DBKey                string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	EncryptionKey        string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
-	OldEncryptionKey     string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
-	EmailHistoryLimit24h int    `long:"emailhistorylimit24h" description:"A limit on the a mount of emails a user is allowed to receive over past 24h"`
+	UserDB           string `long:"userdb" description:"Database choice for the user database"`
+	DBHost           string `long:"dbhost" description:"Database ip:port"`
+	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
+	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+	EncryptionKey    string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
+	OldEncryptionKey string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
+	EmailRateLimit   int    `long:"emailratelimit" description:"A limit on the amount of emails a user is allowed to receive over past 24h"`
 
 	// SMTP settings
 	MailHost         string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`

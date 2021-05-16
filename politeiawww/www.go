@@ -654,7 +654,7 @@ func _main() error {
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}
-	limitingMailer := email.NewLimiter(mailClient, userDB, loadedCfg.EmailHistoryLimit24h)
+	limitingMailer := email.NewLimiter(mailClient, userDB, loadedCfg.EmailRateLimit)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)

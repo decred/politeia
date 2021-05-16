@@ -286,7 +286,7 @@ func loadConfig() (*config.Config, []string, error) {
 		Version:                  version.String(),
 		Mode:                     defaultWWWMode,
 		UserDB:                   defaultUserDB,
-		EmailHistoryLimit24h:     100,
+		EmailRateLimit:           100,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		VoteDurationMin:          defaultVoteDurationMin,
