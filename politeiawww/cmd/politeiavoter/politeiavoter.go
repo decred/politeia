@@ -497,20 +497,19 @@ func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	return c, nil
 }
 
-// eligibleVotes takes a vote result reply that contains the full list of
-// eligible tickets as well as the votes already cast along with a committed
-// tickets response from wallet which consists of a list of tickets the wallet
-// is aware of and returns a list of tickets that the wallet is actually able
-// to sign and vote with.
+// eligibleVotes takes a vote result reply that contains the full list of the
+// votes already cast along with a committed tickets response from wallet which
+// consists of a list of tickets the wallet is aware of and returns a list of
+// tickets that the wallet is actually able to sign and vote with.
 //
 // When a ticket has already voted, the signature is also checked to ensure it
 // is valid.  In the case it is invalid, and the wallet can sign it, the ticket
 // is included so it may be resubmitted.  This could be caused by bad data on
 // the server or if the server is lying to the client.
-func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTicketsResponse) ([]*pb.CommittedTicketsResponse_TicketAddress, error) {
+func (c *ctx) eligibleVotes(rr *tkv1.ResultsReply, ctres *pb.CommittedTicketsResponse) ([]*pb.CommittedTicketsResponse_TicketAddress, error) {
 	// Put cast votes into a map to filter in linear time
-	castVotes := make(map[string]v1.CastVote)
-	for _, v := range vrr.CastVotes {
+	castVotes := make(map[string]tkv1.CastVoteDetails)
+	for _, v := range rr.Votes {
 		castVotes[v.Ticket] = v
 	}
 
@@ -557,15 +556,8 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 			continue
 		}
 
-		var params *chaincfg.Params
-		if c.cfg.TestNet {
-			params = chaincfg.TestNet3Params()
-		} else {
-			params = chaincfg.MainNetParams()
-		}
-
-		v, ok := castVotes[h.String()]
-		if !ok || !verifyV1Vote(params, t.Address, &v) {
+		_, ok := castVotes[h.String()]
+		if !ok {
 			eligible = append(eligible, t)
 		}
 	}
@@ -573,11 +565,7 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 	return eligible, nil
 }
 
-func (c *ctx) _inventory(page uint32) (*tkv1.InventoryReply, error) {
-	i := tkv1.Inventory{
-		Page:   page,
-		Status: tkv1.VoteStatusStarted,
-	}
+func (c *ctx) _inventory(i tkv1.Inventory) (*tkv1.InventoryReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
 		tkv1.APIRoute, tkv1.RouteInventory, i)
 	if err != nil {
@@ -594,6 +582,61 @@ func (c *ctx) _inventory(page uint32) (*tkv1.InventoryReply, error) {
 	return &ar, nil
 }
 
+// voteDetails sends ticketvote API Details request, then verifies and
+// returns the reply.
+func (c *ctx) voteDetails(token, serverPubKey string) (*tkv1.DetailsReply, error) {
+	d := tkv1.Details{
+		Token: token,
+	}
+	responseBody, err := c.makeRequest(http.MethodPost,
+		tkv1.APIRoute, tkv1.RouteDetails, d)
+	if err != nil {
+		return nil, err
+	}
+
+	var dr tkv1.DetailsReply
+	err = json.Unmarshal(responseBody, &dr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal DetailsReply: %v",
+			err)
+	}
+
+	// Verify VoteDetails.
+	err = client.VoteDetailsVerify(*dr.Vote, serverPubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dr, nil
+}
+
+func (c *ctx) voteResults(token, serverPubKey string) (*tkv1.ResultsReply, error) {
+	r := tkv1.Results{
+		Token: token,
+	}
+	responseBody, err := c.makeRequest(http.MethodPost,
+		tkv1.APIRoute, tkv1.RouteResults, r)
+	if err != nil {
+		return nil, err
+	}
+
+	var rr tkv1.ResultsReply
+	err = json.Unmarshal(responseBody, &rr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ResultsReply: %v", err)
+	}
+
+	// Verify CastVoteDetails.
+	for _, cvd := range rr.Votes {
+		err = client.CastVoteDetailsVerify(cvd, serverPubKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &rr, nil
+}
+
 func (c *ctx) inventory() error {
 	// Get server public key to verify replies.
 	version, err := c.getVersion()
@@ -607,13 +650,16 @@ func (c *ctx) inventory() error {
 	page := uint32(1)
 	var tokens []string
 	for {
-		ir, err := c._inventory(page)
+		ir, err := c._inventory(tkv1.Inventory{
+			Page:   page,
+			Status: tkv1.VoteStatusStarted,
+		})
 		if err != nil {
 			return err
 		}
-		tokens = append(tokens,
-			ir.Vetted[tkv1.VoteStatuses[tkv1.VoteStatusStarted]]...)
-		if uint32(len(tokens)) < tkv1.InventoryPageSize {
+		pageTokens := ir.Vetted[tkv1.VoteStatuses[tkv1.VoteStatusStarted]]
+		tokens = append(tokens, pageTokens...)
+		if uint32(len(pageTokens)) < tkv1.InventoryPageSize {
 			break
 		}
 		page++
@@ -621,44 +667,9 @@ func (c *ctx) inventory() error {
 
 	for _, t := range tokens {
 		// Get vote details.
-		d := tkv1.Details{
-			Token: t,
-		}
-		responseBody, err := c.makeRequest(http.MethodPost,
-			tkv1.APIRoute, tkv1.RouteDetails, d)
+		dr, err := c.voteDetails(t, serverPubKey)
 		if err != nil {
 			return err
-		}
-
-		var dr tkv1.DetailsReply
-		err = json.Unmarshal(responseBody, &dr)
-		if err != nil {
-			return fmt.Errorf("Could not unmarshal DetailsReply: %v",
-				err)
-		}
-
-		// Verify VoteDetails.
-		client.VoteDetailsVerify(*dr.Vote, serverPubKey)
-
-		// Get vote results.
-		r := tkv1.Results{
-			Token: t,
-		}
-		responseBody, err = c.makeRequest(http.MethodPost,
-			tkv1.APIRoute, tkv1.RouteResults, r)
-		if err != nil {
-			return nil
-		}
-
-		var rr tkv1.ResultsReply
-		err = json.Unmarshal(responseBody, &rr)
-		if err != nil {
-			return fmt.Errorf("Could not unmarshal ResultsReply: %v", err)
-		}
-
-		// Verify CastVoteDetails.
-		for _, cvd := range rr.Votes {
-			client.CastVoteDetailsVerify(cvd, serverPubKey)
 		}
 
 		// Ensure eligibility
@@ -683,12 +694,11 @@ func (c *ctx) inventory() error {
 			fmt.Printf("No eligible tickets: %v\n", dr.Vote.Params.Token)
 		}
 
-		// _tally provides the eligible tickets snapshot as well as a list of
-		// the votes that have already been cast. Use these to filter out the
-		// tickets that have already voted.
-		vrr, err := c._tally(dr.Vote.Params.Token)
+		// voteResults provides a list of the votes that have already been cast.
+		// Use these to filter out the tickets that have already voted.
+		rr, err := c.voteResults(dr.Vote.Params.Token, serverPubKey)
 		if err != nil {
-			fmt.Printf("Failed to obtain voting results for %v: %v\n",
+			fmt.Printf("Failed to obtain vote results for %v: %v\n",
 				dr.Vote.Params.Token, err)
 			continue
 		}
@@ -697,7 +707,7 @@ func (c *ctx) inventory() error {
 		// ineligible for the wallet to sign.  Note that tickets that have
 		// already voted, but have an invalid signature are included so they
 		// may be resubmitted.
-		eligible, err := c.eligibleVotes(vrr, ctres)
+		eligible, err := c.eligibleVotes(rr, ctres)
 		if err != nil {
 			fmt.Printf("Eligible vote filtering error: %v %v\n",
 				dr.Vote.Params, err)
@@ -972,10 +982,14 @@ func (c *ctx) _vote(token, voteId string) error {
 	}
 	bestBlock := vsr.BestBlock
 
-	// _tally provides the eligible tickets snapshot as well as a list of
-	// the votes that have already been cast. We use these to filter out
-	// the tickets that have already voted.
-	vrr, err := c._tally(token)
+	// Get server public key by calling version request.
+	v, err := c.getVersion()
+	if err != nil {
+		return err
+	}
+
+	// Get vote details.
+	dr, err := c.voteDetails(token, v.PubKey)
 	if err != nil {
 		return err
 	}
@@ -985,10 +999,10 @@ func (c *ctx) _vote(token, voteId string) error {
 		voteBit string
 		found   bool
 	)
-	for _, vv := range vrr.StartVote.Vote.Options {
-		if vv.Id == voteId {
+	for _, vv := range dr.Vote.Params.Options {
+		if vv.ID == voteId {
 			found = true
-			voteBit = strconv.FormatUint(vv.Bits, 16)
+			voteBit = strconv.FormatUint(vv.Bit, 16)
 			break
 		}
 	}
@@ -997,7 +1011,7 @@ func (c *ctx) _vote(token, voteId string) error {
 	}
 
 	// Find eligble tickets
-	tix, err := convertTicketHashes(vrr.StartVoteReply.EligibleTickets)
+	tix, err := convertTicketHashes(dr.Vote.EligibleTickets)
 	if err != nil {
 		return fmt.Errorf("ticket pool corrupt: %v %v",
 			token, err)
@@ -1014,10 +1028,17 @@ func (c *ctx) _vote(token, voteId string) error {
 		return fmt.Errorf("no eligible tickets found")
 	}
 
+	// voteResults a list of the votes that have already been cast. We use these
+	// to filter out the tickets that have already voted.
+	rr, err := c.voteResults(token, "")
+	if err != nil {
+		return err
+	}
+
 	// Filter out tickets that have already voted or are otherwise ineligible
 	// for the wallet to sign.  Note that tickets that have already voted, but
 	// have an invalid signature are included so they may be resubmitted.
-	eligible, err := c.eligibleVotes(vrr, ctres)
+	eligible, err := c.eligibleVotes(rr, ctres)
 	if err != nil {
 		return err
 	}
@@ -1211,29 +1232,19 @@ func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
 	return &bvsr, nil
 }
 
-func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
-	responseBody, err := c.makeRequest(http.MethodGet,
-		v1.PoliteiaWWWAPIRoute, "/proposals/"+token+"/votes", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var vrr v1.VoteResultsReply
-	err = json.Unmarshal(responseBody, &vrr)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"ProposalVotesReply: %v", err)
-	}
-
-	return &vrr, nil
-}
-
 func (c *ctx) tally(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("tally: not enough arguments %v", args)
 	}
 
-	t, err := c._tally(args[0])
+	// Get server public key by calling version.
+	v, err := c.getVersion()
+	if err != nil {
+		return err
+	}
+
+	token := args[0]
+	t, err := c.voteResults(token, v.PubKey)
 	if err != nil {
 		return err
 	}
@@ -1241,7 +1252,7 @@ func (c *ctx) tally(args []string) error {
 	// tally votes
 	count := make(map[uint64]uint)
 	var total uint
-	for _, v := range t.CastVotes {
+	for _, v := range t.Votes {
 		bits, err := strconv.ParseUint(v.VoteBit, 10, 64)
 		if err != nil {
 			return err
@@ -1254,14 +1265,20 @@ func (c *ctx) tally(args []string) error {
 		return fmt.Errorf("no votes recorded")
 	}
 
+	// Get vote details to dump vote options.
+	dr, err := c.voteDetails(token, v.PubKey)
+	if err != nil {
+		return err
+	}
+
 	// Dump
-	for _, vo := range t.StartVote.Vote.Options {
+	for _, vo := range dr.Vote.Params.Options {
 		fmt.Printf("Vote Option:\n")
-		fmt.Printf("  Id                   : %v\n", vo.Id)
+		fmt.Printf("  Id                   : %v\n", vo.ID)
 		fmt.Printf("  Description          : %v\n",
 			vo.Description)
-		fmt.Printf("  Bits                 : %v\n", vo.Bits)
-		c := count[vo.Bits]
+		fmt.Printf("  Bits                 : %v\n", vo.Bit)
+		c := count[vo.Bit]
 		fmt.Printf("  Votes received       : %v\n", c)
 		if total == 0 {
 			continue
@@ -1485,7 +1502,7 @@ func (c *ctx) verifyVote(vote string) error {
 	// Get and cache vote results
 	voteResultsFilename := filepath.Join(dir, ".voteresults")
 	if !util.FileExists(voteResultsFilename) {
-		vrr, err := c._tally(vote)
+		rr, err := c.voteResults(vote, "")
 		if err != nil {
 			return fmt.Errorf("failed to obtain voting results "+
 				"for %v: %v\n", vote, err)
@@ -1495,7 +1512,7 @@ func (c *ctx) verifyVote(vote string) error {
 			return fmt.Errorf("create cache: %v", err)
 		}
 		e := json.NewEncoder(f)
-		err = e.Encode(vrr)
+		err = e.Encode(rr)
 		if err != nil {
 			f.Close()
 			_ = os.Remove(voteResultsFilename)

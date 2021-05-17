@@ -268,6 +268,12 @@ func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
 		return fmt.Errorf("could not verify signature: %v", err)
 	}
 
+	// Make sure we have valid vote bits.
+	if vd.Params.Token == "" || vd.Params.Mask == 0 ||
+		vd.Params.Options == nil {
+		return fmt.Errorf("invalid vote bits")
+	}
+
 	// Verify server receipt
 	msg = vd.Signature + vd.StartBlockHash
 	err = util.VerifySignature(vd.Receipt, serverPublicKey, msg)
