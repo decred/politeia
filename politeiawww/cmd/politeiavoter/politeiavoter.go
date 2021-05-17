@@ -39,7 +39,6 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
-	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -162,23 +161,16 @@ func verifyMessage(params *chaincfg.Params, address, message, signature string) 
 	return a.Address() == address, nil
 }
 
-// BallotResult is a tupple of the ticket and receipt. We combine the too
-// because CastVoteReply does not contain the ticket address.
-type BallotResult struct {
-	Ticket  string           `json:"ticket"`  // ticket address
-	Receipt v1.CastVoteReply `json:"receipt"` // result of vote
-}
-
 // ctx is the client context.
 type ctx struct {
-	sync.RWMutex                      // retryQ lock
-	retryQ             *list.List     // retry message queue FIFO
-	retryWG            sync.WaitGroup // Wait for retry loop to exit
-	mainLoopDone       chan struct{}  // message when done
-	mainLoopForceExit  chan struct{}  // message when main loop forces an exit
-	retryLoopForceExit chan struct{}  // message when retry loop forces an exit
-	ballotResults      []BallotResult // results of voting
-	voteIntervalQ      *list.List     // work that has to be completed
+	sync.RWMutex                            // retryQ lock
+	retryQ             *list.List           // retry message queue FIFO
+	retryWG            sync.WaitGroup       // Wait for retry loop to exit
+	mainLoopDone       chan struct{}        // message when done
+	mainLoopForceExit  chan struct{}        // message when main loop forces an exit
+	retryLoopForceExit chan struct{}        // message when retry loop forces an exit
+	ballotResults      []tkv1.CastVoteReply // results of voting
+	voteIntervalQ      *list.List           // work that has to be completed
 
 	run time.Time // when this run started
 
@@ -200,7 +192,7 @@ type ctx struct {
 // timing intervals and vote details. This is a JSON structure for logging
 // purposes.
 type voteInterval struct {
-	Vote v1.CastVote   `json:"vote"` // RPC vote
+	Vote tkv1.CastVote `json:"vote"` // RPC vote
 	At   time.Duration `json:"at"`   // Delay to fire off vote
 }
 
@@ -365,77 +357,6 @@ func (c *ctx) makeRequest(method, api, route string, b interface{}) ([]byte, err
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
 	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
 
-	if r.StatusCode != http.StatusOK {
-		var ue v1.UserError
-		err = json.Unmarshal(responseBody, &ue)
-		if err == nil && ue.ErrorCode != 0 {
-			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				v1.ErrorStatus[ue.ErrorCode],
-				strings.Join(ue.ErrorContext, ", "))
-		}
-
-		return nil, ErrRetry{
-			At:   "r.StatusCode != http.StatusOK",
-			Err:  err,
-			Body: responseBody,
-			Code: r.StatusCode,
-		}
-	}
-
-	return responseBody, nil
-}
-
-func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, error) {
-	var requestBody []byte
-	var queryParams string
-	if b != nil {
-		if method == http.MethodGet {
-			// GET requests don't have a request body; instead we will populate
-			// the query params.
-			form := url.Values{}
-			err := schema.NewEncoder().Encode(b, form)
-			if err != nil {
-				return nil, err
-			}
-
-			queryParams = "?" + form.Encode()
-		} else {
-			var err error
-			requestBody, err = json.Marshal(b)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + route +
-		queryParams
-	log.Debugf("Request: %v %v", method, fullRoute)
-	if len(requestBody) != 0 {
-		log.Tracef("%v  ", string(requestBody))
-	}
-
-	req, err := http.NewRequestWithContext(c.wctx, method, fullRoute, bytes.NewReader(requestBody))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("User-Agent", c.userAgent)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return nil, ErrRetry{
-			At:  "c.client.Do(req)",
-			Err: err,
-		}
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
-
-	r.StatusCode = http.StatusInternalServerError
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
@@ -749,24 +670,24 @@ func (e ErrRetry) Error() string {
 
 // sendVoteFail isa test function that will fail a Ballot call with a retryable
 // error.
-func (c *ctx) sendVoteFail(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
+func (c *ctx) sendVoteFail(ballot *tkv1.CastBallot) (*tkv1.CastVoteReply, error) {
 	return nil, ErrRetry{
 		At: "sendVoteFail",
 	}
 }
 
-func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
+func (c *ctx) sendVote(ballot *tkv1.CastBallot) (*tkv1.CastVoteReply, error) {
 	if len(ballot.Votes) != 1 {
 		return nil, fmt.Errorf("sendVote: only one vote allowed")
 	}
 
 	responseBody, err := c.makeRequest(http.MethodPost,
-		v1.PoliteiaWWWAPIRoute, v1.RouteCastVotes, ballot)
+		tkv1.APIRoute, tkv1.RouteCastBallot, ballot)
 	if err != nil {
 		return nil, err
 	}
 
-	var vr v1.BallotReply
+	var vr tkv1.CastBallotReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal "+
@@ -787,7 +708,7 @@ func (c *ctx) dumpComplete() {
 
 	fmt.Printf("Completed votes (%v):\n", len(c.ballotResults))
 	for _, v := range c.ballotResults {
-		fmt.Printf("  %v %v\n", v.Ticket, v.Receipt.Error)
+		fmt.Printf("  %v %v\n", v.Ticket, v.ErrorCode)
 	}
 }
 
@@ -832,7 +753,7 @@ func (c *ctx) voteIntervalLen() uint64 {
 func (c *ctx) _voteTrickler(token string) error {
 	// Synthesize reply, needs locking once go routines launch
 	voteCount := c.voteIntervalLen()
-	c.ballotResults = make([]BallotResult, 0, voteCount)
+	c.ballotResults = make([]tkv1.CastVoteReply, 0, voteCount)
 
 	// Launch retry loop
 	c.retryWG.Add(1)
@@ -871,8 +792,8 @@ func (c *ctx) _voteTrickler(token string) error {
 			vote.Vote.Ticket)
 
 		// Send off vote
-		b := v1.Ballot{Votes: []v1.CastVote{vote.Vote}}
-		br, err := c.sendVote(&b)
+		b := tkv1.CastBallot{Votes: []tkv1.CastVote{vote.Vote}}
+		vr, err := c.sendVote(&b)
 		var e ErrRetry
 		if errors.As(err, &e) {
 			// Append failed vote to retry queue
@@ -888,18 +809,14 @@ func (c *ctx) _voteTrickler(token string) error {
 				err)
 		} else {
 			// Vote completed
-			result := BallotResult{
-				Ticket:  vote.Vote.Ticket,
-				Receipt: *br,
-			}
 			c.Lock()
-			c.ballotResults = append(c.ballotResults, result)
+			c.ballotResults = append(c.ballotResults, *vr)
 			c.Unlock()
 
-			if br.ErrorStatus == decredplugin.ErrorStatusVoteHasEnded {
+			if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
 				// Force an exit of the both the main queue and the
 				// retry queue if the voting period has ended.
-				err = c.jsonLog(failedJournal, token, br)
+				err = c.jsonLog(failedJournal, token, vr)
 				if err != nil {
 					return err
 				}
@@ -909,7 +826,7 @@ func (c *ctx) _voteTrickler(token string) error {
 				goto exit
 			}
 
-			err = c.jsonLog(successJournal, token, result)
+			err = c.jsonLog(successJournal, token, vr)
 			if err != nil {
 				return err
 			}
@@ -1089,17 +1006,17 @@ func (c *ctx) _vote(token, voteID string) error {
 	// Vote everything at once.
 
 	// Note that ctres, sm and smr use the same index.
-	cv := v1.Ballot{
-		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
+	cv := tkv1.CastBallot{
+		Votes: make([]tkv1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
-	c.ballotResults = make([]BallotResult, 0, len(ctres.TicketAddresses))
+	c.ballotResults = make([]tkv1.CastVoteReply, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
 			return err
 		}
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
-		cv.Votes = append(cv.Votes, v1.CastVote{
+		cv.Votes = append(cv.Votes, tkv1.CastVote{
 			Token:     token,
 			Ticket:    h.String(),
 			VoteBit:   voteBit,
@@ -1108,32 +1025,32 @@ func (c *ctx) _vote(token, voteID string) error {
 
 		// Prep results since we don't CastVoteReply doesn't return
 		// ticket address.
-		c.ballotResults = append(c.ballotResults, BallotResult{
+		c.ballotResults = append(c.ballotResults, tkv1.CastVoteReply{
 			Ticket: h.String(),
 		})
 	}
 
 	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest(http.MethodPost,
-		v1.PoliteiaWWWAPIRoute, v1.RouteCastVotes, &cv)
+		tkv1.APIRoute, tkv1.RouteCastBallot, &cv)
 	if err != nil {
 		return err
 	}
 
-	var vr v1.BallotReply
-	err = json.Unmarshal(responseBody, &vr)
+	var br tkv1.CastBallotReply
+	err = json.Unmarshal(responseBody, &br)
 	if err != nil {
 		return fmt.Errorf("Could not unmarshal CastVoteReply: %v",
 			err)
 	}
 
 	// Finnish ballotResults
-	if len(vr.Receipts) != len(c.ballotResults) {
+	if len(br.Receipts) != len(c.ballotResults) {
 		return fmt.Errorf("unexpected receipt count got %v wanted %v",
-			len(vr.Receipts), len(c.ballotResults))
+			len(br.Receipts), len(c.ballotResults))
 	}
-	for k := range vr.Receipts {
-		c.ballotResults[k].Receipt = vr.Receipts[k]
+	for k := range br.Receipts {
+		c.ballotResults[k].Receipt = br.Receipts[k].Receipt
 	}
 
 	return nil
@@ -1150,23 +1067,12 @@ func (c *ctx) vote(args []string) error {
 	}
 
 	// Verify vote replies
-	failedReceipts := make([]BallotResult, 0,
+	failedReceipts := make([]tkv1.CastVoteReply, 0,
 		len(c.ballotResults))
 	for _, v := range c.ballotResults {
-		if v.Receipt.Error != "" {
+		if v.ErrorContext != "" {
 			failedReceipts = append(failedReceipts, v)
 			continue
-		}
-		sig, err := identity.SignatureFromString(v.Receipt.Signature)
-		if err != nil {
-			v.Receipt.Error = err.Error()
-			failedReceipts = append(failedReceipts, v)
-			continue
-		}
-		if !c.id.VerifyMessage([]byte(v.Receipt.ClientSignature), *sig) {
-			v.Receipt.Error = "Could not verify receipt " +
-				v.Receipt.ClientSignature
-			failedReceipts = append(failedReceipts, v)
 		}
 	}
 	fmt.Printf("Votes succeeded: %v\n", len(c.ballotResults)-
@@ -1178,7 +1084,7 @@ func (c *ctx) vote(args []string) error {
 	}
 	for _, v := range failedReceipts {
 		fmt.Printf("Failed vote    : %v %v\n",
-			v.Ticket, v.Receipt.Error)
+			v.Ticket, v.ErrorContext)
 	}
 
 	return nil
@@ -1261,7 +1167,7 @@ func (c *ctx) tally(args []string) error {
 
 type failedTuple struct {
 	Time  JSONTime
-	Votes v1.Ballot `json:"votes"`
+	Votes tkv1.CastBallot `json:"votes"`
 	Error ErrRetry
 }
 
@@ -1337,7 +1243,7 @@ exit:
 
 type successTuple struct {
 	Time   JSONTime
-	Result BallotResult
+	Result tkv1.CastVoteReply
 }
 
 func decodeSuccess(filename string, success map[string][]successTuple) error {
@@ -1451,8 +1357,14 @@ exit:
 }
 
 func (c *ctx) verifyVote(vote string) error {
-	// Vote directory
+	// Create vote directory if vote does not exist.
 	dir := filepath.Join(c.cfg.voteDir, vote)
+	if !util.FileExists(dir) {
+		err := os.Mkdir(dir, 0664)
+		if err != nil {
+			return fmt.Errorf("create vote dir: %v", err)
+		}
+	}
 
 	// See if vote is ongoing
 	vsr, err := c._summary(vote)
@@ -1515,7 +1427,8 @@ func (c *ctx) verifyVote(vote string) error {
 	// Get vote details.
 	dr, err := c.voteDetails(vote, v.PubKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to obtain vote details "+
+			"for %v: %v\n", vote, err)
 	}
 
 	// Index vote results for more vroom vroom
