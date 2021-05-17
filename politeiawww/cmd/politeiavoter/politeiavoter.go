@@ -969,18 +969,18 @@ func (c *ctx) _vote(token, voteId string) error {
 	}
 
 	// Verify vote is still active
-	vsr, err := c._summary(token)
+	sr, err := c._summary(token)
 	if err != nil {
 		return err
 	}
-	vs, ok := vsr.Summaries[token]
+	vs, ok := sr.Summaries[token]
 	if !ok {
 		return fmt.Errorf("proposal does not exist: %v", token)
 	}
-	if vs.Status != v1.PropVoteStatusStarted {
+	if vs.Status != tkv1.VoteStatusStarted {
 		return fmt.Errorf("proposal vote is not active: %v", vs.Status)
 	}
-	bestBlock := vsr.BestBlock
+	bestBlock := vs.BestBlock
 
 	// Get server public key by calling version request.
 	v, err := c.getVersion()
@@ -1096,8 +1096,8 @@ func (c *ctx) _vote(token, voteId string) error {
 
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := vs.EndHeight - bestBlock
-			if blocksLeft < c.cfg.blocksPerHour {
+			blocksLeft := vs.EndBlockHeight - bestBlock
+			if blocksLeft < uint32(c.cfg.blocksPerHour) {
 				return fmt.Errorf("less than one hour left to" +
 					" vote, please set --voteduration " +
 					"manually")
@@ -1214,22 +1214,21 @@ func (c *ctx) vote(args []string) error {
 	return nil
 }
 
-func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
+func (c *ctx) _summary(token string) (*tkv1.SummariesReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
-		v1.PoliteiaWWWAPIRoute, v1.RouteBatchVoteSummary,
-		v1.BatchVoteSummary{Tokens: []string{token}})
+		tkv1.APIRoute, tkv1.RouteSummaries,
+		tkv1.Summaries{Tokens: []string{token}})
 	if err != nil {
 		return nil, err
 	}
 
-	var bvsr v1.BatchVoteSummaryReply
-	err = json.Unmarshal(responseBody, &bvsr)
+	var sr tkv1.SummariesReply
+	err = json.Unmarshal(responseBody, &sr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"BatchVoteSummary: %v", err)
+		return nil, fmt.Errorf("Could not unmarshal SummariesReply: %v", err)
 	}
 
-	return &bvsr, nil
+	return &sr, nil
 }
 
 func (c *ctx) tally(args []string) error {
@@ -1495,13 +1494,14 @@ func (c *ctx) verifyVote(vote string) error {
 	if !ok {
 		return fmt.Errorf("proposal does not exist: %v", vote)
 	}
-	if vs.Status != v1.PropVoteStatusFinished {
+	if vs.Status != tkv1.VoteStatusFinished {
 		return fmt.Errorf("proposal vote not finished: %v\n", vs.Status)
 	}
 
 	// Get and cache vote results
 	voteResultsFilename := filepath.Join(dir, ".voteresults")
 	if !util.FileExists(voteResultsFilename) {
+		// XXX need actual server public key.
 		rr, err := c.voteResults(vote, "")
 		if err != nil {
 			return fmt.Errorf("failed to obtain voting results "+
