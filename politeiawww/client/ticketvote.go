@@ -269,9 +269,13 @@ func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
 	}
 
 	// Make sure we have valid vote bits.
-	if vd.Params.Token == "" || vd.Params.Mask == 0 ||
-		vd.Params.Options == nil {
-		return fmt.Errorf("invalid vote bits")
+	switch {
+	case vd.Params.Token == "":
+		return fmt.Errorf("token not found")
+	case vd.Params.Mask == 0:
+		return fmt.Errorf("mask not found")
+	case vd.Params.Options == nil || len(vd.Params.Options) == 0:
+		return fmt.Errorf("vote options not found")
 	}
 
 	// Verify server receipt

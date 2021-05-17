@@ -932,37 +932,7 @@ exit:
 	return nil
 }
 
-// verifyV1Vote verifies the signature of the passed in v1 vote. If the
-// signature is invalid or if an error occurs during validation, the error will
-// be logged instead of being returned. This is to prevent interuptions to
-// politeavoter while it is in the process of casting votes.
-func verifyV1Vote(params *chaincfg.Params, address string, vote *v1.CastVote) bool {
-	sig, err := hex.DecodeString(vote.Signature)
-	if err != nil {
-		log.Errorf("Could not decode signature %v: %v",
-			vote.Ticket, err)
-		return false
-	}
-
-	msg := vote.Token + vote.Ticket + vote.VoteBit
-
-	validated, err := verifyMessage(params, address, msg,
-		base64.StdEncoding.EncodeToString(sig))
-	if err != nil {
-		log.Errorf("Could not verify signature %v: %v",
-			vote.Ticket, err)
-		return false
-	}
-	if !validated {
-		log.Errorf("Invalid signature %v: %v",
-			vote.Ticket, vote.Signature)
-		return false
-	}
-
-	return true
-}
-
-func (c *ctx) _vote(token, voteId string) error {
+func (c *ctx) _vote(token, voteID string) error {
 	seed, err := generateSeed()
 	if err != nil {
 		return err
@@ -1000,14 +970,14 @@ func (c *ctx) _vote(token, voteId string) error {
 		found   bool
 	)
 	for _, vv := range dr.Vote.Params.Options {
-		if vv.ID == voteId {
+		if vv.ID == voteID {
 			found = true
 			voteBit = strconv.FormatUint(vv.Bit, 16)
 			break
 		}
 	}
 	if !found {
-		return fmt.Errorf("vote id not found: %v", voteId)
+		return fmt.Errorf("vote id not found: %v", voteID)
 	}
 
 	// Find eligble tickets
@@ -1030,7 +1000,7 @@ func (c *ctx) _vote(token, voteId string) error {
 
 	// voteResults a list of the votes that have already been cast. We use these
 	// to filter out the tickets that have already voted.
-	rr, err := c.voteResults(token, "")
+	rr, err := c.voteResults(token, v.PubKey)
 	if err != nil {
 		return err
 	}
@@ -1276,7 +1246,7 @@ func (c *ctx) tally(args []string) error {
 		fmt.Printf("  Id                   : %v\n", vo.ID)
 		fmt.Printf("  Description          : %v\n",
 			vo.Description)
-		fmt.Printf("  Bits                 : %v\n", vo.Bit)
+		fmt.Printf("  Bit                  : %v\n", vo.Bit)
 		c := count[vo.Bit]
 		fmt.Printf("  Votes received       : %v\n", c)
 		if total == 0 {
@@ -1487,24 +1457,31 @@ func (c *ctx) verifyVote(vote string) error {
 	// See if vote is ongoing
 	vsr, err := c._summary(vote)
 	if err != nil {
-		return fmt.Errorf("could not obtain proposal status: %v\n",
+		return fmt.Errorf("could not obtain proposal status: %v",
 			err)
 	}
 	vs, ok := vsr.Summaries[vote]
 	if !ok {
 		return fmt.Errorf("proposal does not exist: %v", vote)
 	}
-	if vs.Status != tkv1.VoteStatusFinished {
-		return fmt.Errorf("proposal vote not finished: %v\n", vs.Status)
+	if vs.Status != tkv1.VoteStatusFinished &&
+		vs.Status != tkv1.VoteStatusRejected &&
+		vs.Status != tkv1.VoteStatusApproved {
+		return fmt.Errorf("proposal vote not finished: %v", vs.Status)
 	}
 
-	// Get and cache vote results
+	// Get server public key.
+	v, err := c.getVersion()
+	if err != nil {
+		return err
+	}
+
+	// Get and cache vote results.
 	voteResultsFilename := filepath.Join(dir, ".voteresults")
 	if !util.FileExists(voteResultsFilename) {
-		// XXX need actual server public key.
-		rr, err := c.voteResults(vote, "")
+		rr, err := c.voteResults(vote, v.PubKey)
 		if err != nil {
-			return fmt.Errorf("failed to obtain voting results "+
+			return fmt.Errorf("failed to obtain vote results "+
 				"for %v: %v\n", vote, err)
 		}
 		f, err := os.Create(voteResultsFilename)
@@ -1521,28 +1498,34 @@ func (c *ctx) verifyVote(vote string) error {
 		f.Close()
 	}
 
-	// Open cached results
+	// Open cached vote results.
 	f, err := os.Open(voteResultsFilename)
 	if err != nil {
 		return fmt.Errorf("open cache: %v", err)
 	}
 	d := json.NewDecoder(f)
-	var vrr v1.VoteResultsReply
-	err = d.Decode(&vrr)
+	var rr tkv1.ResultsReply
+	err = d.Decode(&rr)
 	if err != nil {
 		f.Close()
 		return fmt.Errorf("decode cache: %v", err)
 	}
 	f.Close()
 
+	// Get vote details.
+	dr, err := c.voteDetails(vote, v.PubKey)
+	if err != nil {
+		return err
+	}
+
 	// Index vote results for more vroom vroom
 	eligible := make(map[string]string,
-		len(vrr.StartVoteReply.EligibleTickets))
-	for _, v := range vrr.StartVoteReply.EligibleTickets {
+		len(dr.Vote.EligibleTickets))
+	for _, v := range dr.Vote.EligibleTickets {
 		eligible[v] = "" // XXX
 	}
-	cast := make(map[string]string, len(vrr.CastVotes))
-	for _, v := range vrr.CastVotes {
+	cast := make(map[string]string, len(rr.Votes))
+	for _, v := range rr.Votes {
 		cast[v.Ticket] = "" // XXX
 	}
 
