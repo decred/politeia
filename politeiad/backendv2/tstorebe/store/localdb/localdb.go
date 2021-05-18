@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -18,6 +19,10 @@ import (
 )
 
 const (
+	// storeDirname contains the directory name that the leveldb
+	// database will be saved to.
+	storeDirname = "store"
+
 	// encryptionKeyFilename is the filename of the encryption key that
 	// is created in the store data directory.
 	encryptionKeyFilename = "leveldb-sbox.key"
@@ -238,15 +243,30 @@ func (l *localdb) Close() {
 
 // New returns a new localdb.
 func New(appDir, dataDir string) (*localdb, error) {
-	// Load encryption key.
-	keyFile := filepath.Join(appDir, encryptionKeyFilename)
-	key, err := util.LoadEncryptionKey(log, keyFile)
+	// Verify config options
+	switch {
+	case appDir == "":
+		return nil, fmt.Errorf("app dir not provided")
+	case dataDir == "":
+		return nil, fmt.Errorf("data dir not provided")
+	}
+
+	// Setup leveldb data dir
+	fp := filepath.Join(dataDir, storeDirname)
+	err := os.MkdirAll(fp, 0700)
 	if err != nil {
 		return nil, err
 	}
 
 	// Open database
-	db, err := leveldb.OpenFile(dataDir, nil)
+	db, err := leveldb.OpenFile(fp, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load encryption key
+	keyFile := filepath.Join(appDir, encryptionKeyFilename)
+	key, err := util.LoadEncryptionKey(log, keyFile)
 	if err != nil {
 		return nil, err
 	}

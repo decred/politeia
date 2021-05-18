@@ -22,7 +22,7 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	}
 
 	// Setup key-value store
-	fp, err := ioutil.TempDir(dataDir, storeDirname)
+	fp, err := ioutil.TempDir(dataDir, "store")
 	if err != nil {
 		t.Fatal(err)
 	}

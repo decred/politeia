@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	v1 "github.com/decred/dcrtime/api/v1"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -46,7 +46,7 @@ const (
 	defaultBackend = backendTstore
 
 	// Tstore default settings
-	defaultDBType   = tstore.DBTypeLevelDB
+	defaultDBType   = tstorebe.DBTypeLevelDB
 	defaultDBHost   = "localhost:3306" // MySQL default host
 	defaultTlogHost = "localhost:8090"
 
@@ -548,9 +548,9 @@ func loadConfig() (*config, []string, error) {
 
 	// Verify tstore backend database choice
 	switch cfg.DBType {
-	case tstore.DBTypeLevelDB:
+	case tstorebe.DBTypeLevelDB:
 		// Allowed; continue
-	case tstore.DBTypeMySQL:
+	case tstorebe.DBTypeMySQL:
 		// The database password is provided in an env variable
 		cfg.DBPass = os.Getenv(envDBPass)
 		if cfg.DBPass == "" {

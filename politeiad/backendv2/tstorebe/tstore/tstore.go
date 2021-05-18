@@ -16,26 +16,8 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/robfig/cron"
-)
-
-const (
-	// DBTypeLevelDB is a config option that sets the backing key-value
-	// store to a leveldb instance.
-	DBTypeLevelDB = "leveldb"
-
-	// DBTypeLevelDB is a config option that sets the backing key-value
-	// store to a MySQL instance.
-	DBTypeMySQL = "mysql"
-
-	// LevelDB settings
-	storeDirname = "store"
-
-	// MySQL settings
-	dbUser = "politeiad"
 )
 
 var (
@@ -207,37 +189,12 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err
-	}
-
-	// Setup key-value store
-	log.Infof("Database type: %v", dbType)
-	var kvstore store.BlobKV
-	switch dbType {
-	case DBTypeLevelDB:
-		fp := filepath.Join(dataDir, storeDirname)
-		err = os.MkdirAll(fp, 0700)
-		if err != nil {
-			return nil, err
-		}
-		kvstore, err = localdb.New(appDir, fp)
-		if err != nil {
-			return nil, err
-		}
-	case DBTypeMySQL:
-		// Example db name: testnet3_unvetted_kv
-		dbName := fmt.Sprintf("%v_kv", anp.Name)
-		kvstore, err = mysql.New(appDir, dbHost, dbUser, dbPass, dbName)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid db type: %v", dbType)
 	}
 
 	// Setup trillian client

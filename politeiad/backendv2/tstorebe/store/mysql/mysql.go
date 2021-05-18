@@ -311,7 +311,7 @@ func (s *mysql) Close() {
 }
 
 // New returns a new mysql context.
-func New(appDir, host, user, password, dbname string) (*mysql, error) {
+func New(host, user, password, dbname string) (*mysql, error) {
 	// The password is required to derive the encryption key
 	if password == "" {
 		return nil, fmt.Errorf("password not provided")

@@ -32,11 +32,11 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
-	// TODO del mutex
 	sync.RWMutex
 	appDir  string
 	dataDir string
 	tstore  *tstore.Tstore
+	cache   store.BlobKV
 }
 
 // metadataStreamsVerify verifies that all provided metadata streams are sane.
@@ -1035,9 +1035,23 @@ func (t *tstoreBackend) Close() {
 
 // New returns a new tstoreBackend.
 func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
+	// Setup cache key-value store
+	log.Infof("Database type: %v", dbType)
+	kv, err := newBlobKV(blobKVOpts{
+		Type:     dbType,
+		AppDir:   appDir,
+		DataDir:  dataDir,
+		Host:     dbHost,
+		Password: dbPass,
+		Net:      anp.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("new blobkv: %v", err)
+	}
+
 	// Setup tstore instances
-	ts, err := tstore.New(appDir, dataDir, anp, tlogHost,
-		tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
+	ts, err := tstore.New(appDir, dataDir, anp, kv, tlogHost,
+		tlogPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore: %v", err)
 	}
@@ -1047,6 +1061,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 		appDir:  appDir,
 		dataDir: dataDir,
 		tstore:  ts,
+		cache:   kv,
 	}
 
 	// Perform any required setup

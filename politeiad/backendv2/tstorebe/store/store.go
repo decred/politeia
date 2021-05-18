@@ -15,16 +15,16 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-var (
-	// ErrShutdown is returned when a action is attempted against a
-	// store that is shutdown.
-	ErrShutdown = errors.New("store is shutdown")
-)
-
 const (
 	// DataTypeStructure describes a blob entry that contains a
 	// structure.
 	DataTypeStructure = "struct"
+)
+
+var (
+	// ErrShutdown is returned when a action is attempted against a
+	// store that is shutdown.
+	ErrShutdown = errors.New("store is shutdown")
 )
 
 // DataDescriptor provides hints about a data blob. In practice we JSON encode
