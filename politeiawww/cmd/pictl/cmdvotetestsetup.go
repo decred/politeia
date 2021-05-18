@@ -81,7 +81,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 
 	// Setup votes
 	for i := 0; i < int(votes); i++ {
-		s := fmt.Sprintf("Starting voting period on proposal %v/%v", i+1, votes)
+		s := fmt.Sprintf("Starting voting period on proposal %v/%v\n", i+1, votes)
 		printInPlace(s)
 
 		// Create a public proposal
@@ -90,6 +90,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 			return err
 		}
 		token := r.CensorshipRecord.Token
+		fmt.Printf("Token: %v\n", token)
 
 		// Authorize vote
 		err = voteAuthorize(admin, token)

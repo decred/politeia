@@ -1022,12 +1022,6 @@ func (c *ctx) _vote(token, voteID string) error {
 			VoteBit:   voteBit,
 			Signature: signature,
 		})
-
-		// Prep results since we don't CastVoteReply doesn't return
-		// ticket address.
-		c.ballotResults = append(c.ballotResults, tkv1.CastVoteReply{
-			Ticket: h.String(),
-		})
 	}
 
 	// Vote on the supplied proposal
@@ -1043,15 +1037,7 @@ func (c *ctx) _vote(token, voteID string) error {
 		return fmt.Errorf("Could not unmarshal CastVoteReply: %v",
 			err)
 	}
-
-	// Finnish ballotResults
-	if len(br.Receipts) != len(c.ballotResults) {
-		return fmt.Errorf("unexpected receipt count got %v wanted %v",
-			len(br.Receipts), len(c.ballotResults))
-	}
-	for k := range br.Receipts {
-		c.ballotResults[k].Receipt = br.Receipts[k].Receipt
-	}
+	c.ballotResults = br.Receipts
 
 	return nil
 }
@@ -1357,14 +1343,8 @@ exit:
 }
 
 func (c *ctx) verifyVote(vote string) error {
-	// Create vote directory if vote does not exist.
+	// Vote directory
 	dir := filepath.Join(c.cfg.voteDir, vote)
-	if !util.FileExists(dir) {
-		err := os.Mkdir(dir, 0664)
-		if err != nil {
-			return fmt.Errorf("create vote dir: %v", err)
-		}
-	}
 
 	// See if vote is ongoing
 	vsr, err := c._summary(vote)
