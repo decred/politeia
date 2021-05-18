@@ -19,10 +19,6 @@ var (
 	// ErrShutdown is returned when a action is attempted against a
 	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
-
-	// ErrTxDone is returned anytime a tx method is called afer the tx
-	// has already been committed or rolled back.
-	ErrTxDone = errors.New("tx is done")
 )
 
 const (
@@ -126,8 +122,15 @@ type BlobKV interface {
 	// was returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
 
-	// Tx returns a new database transaction as well as the cancel
-	// function that releases all resources associated with it.
+	// Tx returns a new database transaction and a cancel function
+	// for the transaction.
+	//
+	// The cancel function is used until the tx is committed or rolled
+	// backed. Invoking the cancel function rolls the tx back and
+	// releases all resources associated with it. This allows the
+	// caller to defer the cancel function in order to rollback the
+	// tx on unexpected errors. Once the tx is successfully committed
+	// the deferred invocation does nothing.
 	Tx() (Tx, func(), error)
 
 	// Closes closes the store connection.

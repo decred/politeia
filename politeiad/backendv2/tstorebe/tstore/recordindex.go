@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
@@ -270,7 +271,12 @@ func (t *Tstore) recordIndexes(sg storeGetter, leaves []*trillian.LogLeaf) ([]re
 		}
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("record index not found: %v", missing)
+		// Its possible for a record index to be missing from the kv
+		// store if an unexpected error caused the tstore transaction
+		// to get rolled back after the record index leaf was added to
+		// the tlog tree. Ignore these missing record indexes. This
+		// should be an edge case that is very rare in practice.
+		log.Debugf("Record indexes missing: %v", strings.Join(missing, ", "))
 	}
 
 	var (

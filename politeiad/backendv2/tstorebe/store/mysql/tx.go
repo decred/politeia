@@ -18,6 +18,8 @@ type sqlTx struct {
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Put(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("Tx Put: %v blobs", len(blobs))
+
 	return s.mysql.put(blobs, encrypt, s.tx)
 }
 
@@ -25,6 +27,8 @@ func (s *sqlTx) Put(blobs map[string][]byte, encrypt bool) error {
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Del(keys []string) error {
+	log.Tracef("Tx Del: %v", keys)
+
 	return s.mysql.del(keys, s.tx)
 }
 
@@ -34,6 +38,8 @@ func (s *sqlTx) Del(keys []string) error {
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Get(keys []string) (map[string][]byte, error) {
+	log.Tracef("Tx Get: %v", keys)
+
 	return s.mysql.get(keys, s.tx)
 }
 
@@ -41,6 +47,8 @@ func (s *sqlTx) Get(keys []string) (map[string][]byte, error) {
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Rollback() error {
+	log.Tracef("Tx Rollback")
+
 	return s.tx.Rollback()
 }
 
@@ -48,6 +56,8 @@ func (s *sqlTx) Rollback() error {
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Commit() error {
+	log.Tracef("Tx Commit")
+
 	return s.tx.Commit()
 }
 

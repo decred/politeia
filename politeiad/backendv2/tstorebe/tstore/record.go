@@ -602,8 +602,8 @@ func (t *Tstore) RecordExists(token []byte) bool {
 
 // storeGetter describes the get method that is present on both the store
 // BlobKV interface and the store Tx interface. This allows us to use the same
-// code for executing get requests for individual get requests and get requests
-// that are part of a transaction.
+// code for executing individual get requests and get requests that are part of
+// a transaction.
 type storeGetter interface {
 	Get(keys []string) (map[string][]byte, error)
 }

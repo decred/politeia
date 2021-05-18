@@ -17,6 +17,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
@@ -204,7 +205,7 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 }
 
 // PluginWrite executes a plugin command that writes data.
-func (t *Tstore) PluginWrite(token []byte, pluginID, cmd, payload string) (string, error) {
+func (t *Tstore) PluginWrite(tx store.Tx, token []byte, pluginID, cmd, payload string) (string, error) {
 	log.Tracef("PluginWrite: %x %v %v", token, pluginID, cmd)
 
 	// Get plugin
@@ -212,6 +213,9 @@ func (t *Tstore) PluginWrite(token []byte, pluginID, cmd, payload string) (strin
 	if !ok {
 		return "", backend.ErrPluginIDInvalid
 	}
+
+	// TODO
+	_ = tx
 
 	// Execute plugin command
 	return p.client.Cmd(token, cmd, payload)
