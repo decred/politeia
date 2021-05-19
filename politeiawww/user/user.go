@@ -455,10 +455,8 @@ func DecodeSession(payload []byte) (*Session, error) {
 	return &s, nil
 }
 
-// EmailHistory24h represents a 24h history for a User identified by email.
+// EmailHistory24h represents a 24h history for some User.
 type EmailHistory24h struct {
-	// Email is an email address for some User this history belongs to.
-	Email string `json:"email"`
 	// A list of timestamps (limited to 24h in the past) when mail was sent
 	// to this email address.
 	SentTimestamps24h []time.Time `json:"senttimestamps24h"`
@@ -532,15 +530,15 @@ type Database interface {
 	// Execute a plugin command
 	PluginExec(PluginCommand) (*PluginCommandReply, error)
 
-	// EmailHistoriesGet24h for recipients, for 24h in the past.
-	EmailHistoriesGet24h(recipients []string) ([]EmailHistory24h, error)
-	// RefreshHistories24h must be called each time after an email has been sent.
-	// It will add another history entry with the current timestamp for each
-	// history in histories list, as well as update limitWarningSent value
-	// accordingly.
-	// It will also delete stale history entries (>24h old) from DB to keep it
-	// from growing forever.
-	RefreshHistories24h(histories []EmailHistory24h, limitWarningSent bool) error
+	// EmailHistoriesGet24h returns a map of histories for recipients
+	// [user ID] -> email history (for 24h in the past).
+	//
+	// If the user has no previous history, the result will still contain
+	// a mapping for this user, with existing data (e.g. his email).
+	EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUID]EmailHistory24h, error)
+	// EmailHistoriesSave24h updates histories map in the database, creating it
+	// if necessary.
+	EmailHistoriesSave24h(histories map[uuid.UUID]EmailHistory24h) error
 
 	// Close performs cleanup of the backend.
 	Close() error

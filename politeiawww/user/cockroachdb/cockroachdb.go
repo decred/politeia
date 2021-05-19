@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -49,7 +48,6 @@ type cockroachdb struct {
 	encryptionKey  *[32]byte                       // Data at rest encryption key
 	userDB         *gorm.DB                        // Database context
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
-	currentTime    func() time.Time                // Returns current timestamp
 }
 
 // isShutdown returns whether the backend has been shutdown.
@@ -744,8 +742,7 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-// EmailHistoriesGet24h for recipients, for 24h in the past.
-func (c *cockroachdb) EmailHistoriesGet24h(recipients []string) ([]user.EmailHistory24h, error) {
+func (c *cockroachdb) EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error) {
 	log.Tracef("EmailHistoriesGet24h: %v", recipients)
 
 	if c.isShutdown() {
@@ -754,7 +751,7 @@ func (c *cockroachdb) EmailHistoriesGet24h(recipients []string) ([]user.EmailHis
 
 	var dbResult []EmailHistory24h
 	err := c.userDB.
-		Where("email IN (?)", recipients).
+		Where("user_id IN (?)", recipients).
 		Find(&dbResult).
 		Error
 	if err != nil {
@@ -764,49 +761,37 @@ func (c *cockroachdb) EmailHistoriesGet24h(recipients []string) ([]user.EmailHis
 		return nil, err
 	}
 
-	result := make([]user.EmailHistory24h, 0, len(dbResult))
+	result := make(map[uuid.UUID]user.EmailHistory24h, len(dbResult))
 	for _, dbEntity := range dbResult {
 		entity, err := c.convertEmailHistoryFromDB(dbEntity)
 		if err != nil {
 			return nil, fmt.Errorf("convert email history from db: %w", err)
 		}
-		entity.SentTimestamps24h = c.filterOutStaleTimestamps(entity.SentTimestamps24h, 24*time.Hour)
-		result = append(result, *entity)
+		result[dbEntity.UserID] = *entity
 	}
 
 	return result, nil
 }
 
-// RefreshHistories24h must be called each time after an email has been sent.
-// It will add another history entry with the current timestamp for each
-// history in histories list, as well as update limitWarningSent value
-// accordingly.
-// It will also delete stale history entries (>24h old) from DB to keep it
-// from growing forever.
-func (c *cockroachdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
-	log.Tracef("RefreshHistories24h: %v %v", histories, limitWarningSent)
+func (c *cockroachdb) EmailHistoriesSave24h(histories map[uuid.UUID]user.EmailHistory24h) error {
+	log.Tracef("EmailHistoriesSave24h: %v %v", histories)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
 	// Not optimal performance-wise to work with histories one by one, but very straightforward.
-	for _, history := range histories {
-		history.SentTimestamps24h = append(history.SentTimestamps24h, c.currentTime())
-		history.SentTimestamps24h = c.filterOutStaleTimestamps(history.SentTimestamps24h, 24*time.Hour)
-		history.LimitWarningSent = limitWarningSent
-
-		historyDB, err := c.convertEmailHistoryToDB(history)
+	for userID, history := range histories {
+		historyDB, err := c.convertEmailHistoryToDB(userID, history)
 		if err != nil {
 			return fmt.Errorf("convert email history to DB: %w", err)
 		}
 
 		var update bool
-		var h EmailHistory24h
-		err = c.userDB.
-			Where("email = ?", history.Email).
-			Find(&h).
-			Error
+		h := EmailHistory24h{
+			UserID: userID,
+		}
+		err = c.userDB.Find(&h).Error
 		switch err {
 		case nil:
 			// DB entry already exists, update it.
@@ -834,33 +819,19 @@ func (c *cockroachdb) RefreshHistories24h(histories []user.EmailHistory24h, limi
 	return nil
 }
 
-func (c *cockroachdb) convertEmailHistoryToDB(h user.EmailHistory24h) (EmailHistory24h, error) {
+func (c *cockroachdb) convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory24h) (EmailHistory24h, error) {
 	hb, err := user.EncodeEmailHistory(h)
 	if err != nil {
 		return EmailHistory24h{}, err
 	}
 	return EmailHistory24h{
-		Email: h.Email,
-		Blob:  hb,
+		UserID: userID,
+		Blob:   hb,
 	}, nil
 }
 
 func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory24h) (*user.EmailHistory24h, error) {
 	return user.DecodeEmailHistory(s.Blob)
-}
-
-func (c *cockroachdb) filterOutStaleTimestamps(in []time.Time, delta time.Duration) (out []time.Time) {
-	staleBefore := c.currentTime().Add(-delta)
-	out = make([]time.Time, 0, len(in))
-
-	for _, ts := range in {
-		if ts.Before(staleBefore) {
-			continue
-		}
-		out = append(out, ts)
-	}
-
-	return out
 }
 
 // Close shuts down the database.  All interface functions must return with
@@ -953,8 +924,7 @@ func loadEncryptionKey(filepath string) (*[32]byte, error) {
 // New opens a connection to the CockroachDB user database and returns a new
 // cockroachdb context. sslRootCert, sslCert, sslKey, and encryptionKey are
 // file paths.
-func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string,
-	currentTime func() time.Time) (*cockroachdb, error) {
+func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*cockroachdb, error) {
 	log.Tracef("New: %v %v %v %v %v %v", host, network, sslRootCert,
 		sslCert, sslKey, encryptionKey)
 
@@ -994,7 +964,6 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string,
 		encryptionKey:  key,
 		userDB:         db,
 		pluginSettings: make(map[string][]user.PluginSetting),
-		currentTime:    currentTime,
 	}
 
 	// Disable gorm logging. This prevents duplicate errors

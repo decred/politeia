@@ -6,8 +6,10 @@ package mail
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 // Limiter is a wrapper around Mailer for implementing rate limiting functionality.
@@ -31,13 +33,16 @@ func (l *Limiter) IsEnabled() bool {
 	return l.mailer.IsEnabled()
 }
 
-// SendTo splits recipients in two groups: good and bad. Bad recipients are
-// those who will hit pre-configured rate limit, they will receive a special
-// warning email, but only if they haven't received one already.
-// Good recipients won't hit rate limit, they will receive the original message
-// as is specified by subject and body arguments.
 func (l *Limiter) SendTo(subject, body string, recipients []string) error {
-	histories, err := l.userDB.EmailHistoriesGet24h(recipients)
+	return l.mailer.SendTo(subject, body, recipients)
+}
+
+func (l *Limiter) SendToUsers(subject, body string, recipients map[uuid.UUID]string) error {
+	userIDs := make([]uuid.UUID, 0, len(recipients))
+	for userID := range recipients {
+		userIDs = append(userIDs, userID)
+	}
+	histories, err := l.userDB.EmailHistoriesGet24h(userIDs)
 	if err != nil {
 		return fmt.Errorf("fetch histories from DB: %w", err)
 	}
@@ -45,25 +50,19 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 	var (
 		// Optimize for good recipients (those who won't hit rate limit).
 		good          = make([]string, 0, len(recipients))
-		goodHistories = make([]user.EmailHistory24h, 0, len(recipients))
+		goodHistories = make(map[uuid.UUID]user.EmailHistory24h, len(recipients))
 		bad           []string
-		badHistories  []user.EmailHistory24h
+		badHistories  = make(map[uuid.UUID]user.EmailHistory24h)
 	)
 
-	for _, recipient := range recipients {
-		history, ok := l.findHistory(recipient, histories)
-		if !ok {
-			// No previous history, no rate limiting is necessary.
-			good = append(good, recipient)
-			goodHistories = append(goodHistories, user.EmailHistory24h{
-				Email: recipient,
-			})
-			continue
-		}
+	for userID, email := range recipients {
+		history := histories[userID]
+		history.SentTimestamps24h = l.filterOutStaleTimestamps(history.SentTimestamps24h, 24*time.Hour)
+
 		if len(history.SentTimestamps24h) < l.limit24h {
 			// Previous history is fine, no rate limiting is necessary.
-			good = append(good, recipient)
-			goodHistories = append(goodHistories, history)
+			good = append(good, email)
+			goodHistories[userID] = history
 			continue
 		}
 		if history.LimitWarningSent {
@@ -71,8 +70,8 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 			continue
 		}
 		// Rate limit is hit.
-		bad = append(bad, recipient)
-		badHistories = append(badHistories, history)
+		bad = append(bad, email)
+		badHistories[userID] = history
 	}
 
 	if len(good) > 0 {
@@ -80,9 +79,10 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 		if err != nil {
 			return fmt.Errorf("send mail: %w", err)
 		}
-		err = l.userDB.RefreshHistories24h(goodHistories, false)
+
+		err = l.refreshHistories(goodHistories, false)
 		if err != nil {
-			return fmt.Errorf("refresh histories in DB: %w", err)
+			return fmt.Errorf("refresh histories: %w", err)
 		}
 	}
 
@@ -91,21 +91,42 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 		if err != nil {
 			return fmt.Errorf("send mail: %w", err)
 		}
-		err = l.userDB.RefreshHistories24h(badHistories, true)
+		err = l.refreshHistories(badHistories, true)
 		if err != nil {
-			return fmt.Errorf("refresh histories in DB: %w", err)
+			return fmt.Errorf("refresh histories: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (l *Limiter) findHistory(recipient string, histories []user.EmailHistory24h) (user.EmailHistory24h, bool) {
-	// This assumes histories slice is pretty small to iterate it in O(n).
-	for _, history := range histories {
-		if history.Email == recipient {
-			return history, true
-		}
+func (l *Limiter) refreshHistories(histories map[uuid.UUID]user.EmailHistory24h, limitWarningSent bool) error {
+	for userID, history := range histories {
+		history.SentTimestamps24h = append(history.SentTimestamps24h, time.Now())
+		history.SentTimestamps24h = l.filterOutStaleTimestamps(history.SentTimestamps24h, 24*time.Hour)
+		history.LimitWarningSent = limitWarningSent
+
+		histories[userID] = history
 	}
-	return user.EmailHistory24h{}, false
+
+	err := l.userDB.EmailHistoriesSave24h(histories)
+	if err != nil {
+		return fmt.Errorf("save histories to DB: %w", err)
+	}
+
+	return nil
+}
+
+func (l *Limiter) filterOutStaleTimestamps(in []time.Time, delta time.Duration) (out []time.Time) {
+	staleBefore := time.Now().Add(-delta)
+	out = make([]time.Time, 0, len(in))
+
+	for _, ts := range in {
+		if ts.Before(staleBefore) {
+			continue
+		}
+		out = append(out, ts)
+	}
+
+	return out
 }

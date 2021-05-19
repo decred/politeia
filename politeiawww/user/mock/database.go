@@ -25,14 +25,14 @@ var _ user.Database = &DatabaseMock{}
 //             CloseFunc: func() error {
 // 	               panic("mock out the Close method")
 //             },
-//             EmailHistoriesGet24hFunc: func(recipients []string) ([]user.EmailHistory24h, error) {
+//             EmailHistoriesGet24hFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error) {
 // 	               panic("mock out the EmailHistoriesGet24h method")
+//             },
+//             EmailHistoriesSave24hFunc: func(histories map[uuid.UUID]user.EmailHistory24h) error {
+// 	               panic("mock out the EmailHistoriesSave24h method")
 //             },
 //             PluginExecFunc: func(in1 user.PluginCommand) (*user.PluginCommandReply, error) {
 // 	               panic("mock out the PluginExec method")
-//             },
-//             RefreshHistories24hFunc: func(histories []user.EmailHistory24h, limitWarningSent bool) error {
-// 	               panic("mock out the RefreshHistories24h method")
 //             },
 //             RegisterPluginFunc: func(in1 user.Plugin) error {
 // 	               panic("mock out the RegisterPlugin method")
@@ -81,13 +81,13 @@ type DatabaseMock struct {
 	CloseFunc func() error
 
 	// EmailHistoriesGet24hFunc mocks the EmailHistoriesGet24h method.
-	EmailHistoriesGet24hFunc func(recipients []string) ([]user.EmailHistory24h, error)
+	EmailHistoriesGet24hFunc func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error)
+
+	// EmailHistoriesSave24hFunc mocks the EmailHistoriesSave24h method.
+	EmailHistoriesSave24hFunc func(histories map[uuid.UUID]user.EmailHistory24h) error
 
 	// PluginExecFunc mocks the PluginExec method.
 	PluginExecFunc func(in1 user.PluginCommand) (*user.PluginCommandReply, error)
-
-	// RefreshHistories24hFunc mocks the RefreshHistories24h method.
-	RefreshHistories24hFunc func(histories []user.EmailHistory24h, limitWarningSent bool) error
 
 	// RegisterPluginFunc mocks the RegisterPlugin method.
 	RegisterPluginFunc func(in1 user.Plugin) error
@@ -135,19 +135,17 @@ type DatabaseMock struct {
 		// EmailHistoriesGet24h holds details about calls to the EmailHistoriesGet24h method.
 		EmailHistoriesGet24h []struct {
 			// Recipients is the recipients argument value.
-			Recipients []string
+			Recipients []uuid.UUID
+		}
+		// EmailHistoriesSave24h holds details about calls to the EmailHistoriesSave24h method.
+		EmailHistoriesSave24h []struct {
+			// Histories is the histories argument value.
+			Histories map[uuid.UUID]user.EmailHistory24h
 		}
 		// PluginExec holds details about calls to the PluginExec method.
 		PluginExec []struct {
 			// In1 is the in1 argument value.
 			In1 user.PluginCommand
-		}
-		// RefreshHistories24h holds details about calls to the RefreshHistories24h method.
-		RefreshHistories24h []struct {
-			// Histories is the histories argument value.
-			Histories []user.EmailHistory24h
-			// LimitWarningSent is the limitWarningSent argument value.
-			LimitWarningSent bool
 		}
 		// RegisterPlugin holds details about calls to the RegisterPlugin method.
 		RegisterPlugin []struct {
@@ -210,8 +208,8 @@ type DatabaseMock struct {
 	lockAllUsers               sync.RWMutex
 	lockClose                  sync.RWMutex
 	lockEmailHistoriesGet24h   sync.RWMutex
+	lockEmailHistoriesSave24h  sync.RWMutex
 	lockPluginExec             sync.RWMutex
-	lockRefreshHistories24h    sync.RWMutex
 	lockRegisterPlugin         sync.RWMutex
 	lockSessionDeleteByID      sync.RWMutex
 	lockSessionGetByID         sync.RWMutex
@@ -283,12 +281,12 @@ func (mock *DatabaseMock) CloseCalls() []struct {
 }
 
 // EmailHistoriesGet24h calls EmailHistoriesGet24hFunc.
-func (mock *DatabaseMock) EmailHistoriesGet24h(recipients []string) ([]user.EmailHistory24h, error) {
+func (mock *DatabaseMock) EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error) {
 	if mock.EmailHistoriesGet24hFunc == nil {
 		panic("DatabaseMock.EmailHistoriesGet24hFunc: method is nil but Database.EmailHistoriesGet24h was just called")
 	}
 	callInfo := struct {
-		Recipients []string
+		Recipients []uuid.UUID
 	}{
 		Recipients: recipients,
 	}
@@ -302,14 +300,45 @@ func (mock *DatabaseMock) EmailHistoriesGet24h(recipients []string) ([]user.Emai
 // Check the length with:
 //     len(mockedDatabase.EmailHistoriesGet24hCalls())
 func (mock *DatabaseMock) EmailHistoriesGet24hCalls() []struct {
-	Recipients []string
+	Recipients []uuid.UUID
 } {
 	var calls []struct {
-		Recipients []string
+		Recipients []uuid.UUID
 	}
 	mock.lockEmailHistoriesGet24h.RLock()
 	calls = mock.calls.EmailHistoriesGet24h
 	mock.lockEmailHistoriesGet24h.RUnlock()
+	return calls
+}
+
+// EmailHistoriesSave24h calls EmailHistoriesSave24hFunc.
+func (mock *DatabaseMock) EmailHistoriesSave24h(histories map[uuid.UUID]user.EmailHistory24h) error {
+	if mock.EmailHistoriesSave24hFunc == nil {
+		panic("DatabaseMock.EmailHistoriesSave24hFunc: method is nil but Database.EmailHistoriesSave24h was just called")
+	}
+	callInfo := struct {
+		Histories map[uuid.UUID]user.EmailHistory24h
+	}{
+		Histories: histories,
+	}
+	mock.lockEmailHistoriesSave24h.Lock()
+	mock.calls.EmailHistoriesSave24h = append(mock.calls.EmailHistoriesSave24h, callInfo)
+	mock.lockEmailHistoriesSave24h.Unlock()
+	return mock.EmailHistoriesSave24hFunc(histories)
+}
+
+// EmailHistoriesSave24hCalls gets all the calls that were made to EmailHistoriesSave24h.
+// Check the length with:
+//     len(mockedDatabase.EmailHistoriesSave24hCalls())
+func (mock *DatabaseMock) EmailHistoriesSave24hCalls() []struct {
+	Histories map[uuid.UUID]user.EmailHistory24h
+} {
+	var calls []struct {
+		Histories map[uuid.UUID]user.EmailHistory24h
+	}
+	mock.lockEmailHistoriesSave24h.RLock()
+	calls = mock.calls.EmailHistoriesSave24h
+	mock.lockEmailHistoriesSave24h.RUnlock()
 	return calls
 }
 
@@ -341,41 +370,6 @@ func (mock *DatabaseMock) PluginExecCalls() []struct {
 	mock.lockPluginExec.RLock()
 	calls = mock.calls.PluginExec
 	mock.lockPluginExec.RUnlock()
-	return calls
-}
-
-// RefreshHistories24h calls RefreshHistories24hFunc.
-func (mock *DatabaseMock) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
-	if mock.RefreshHistories24hFunc == nil {
-		panic("DatabaseMock.RefreshHistories24hFunc: method is nil but Database.RefreshHistories24h was just called")
-	}
-	callInfo := struct {
-		Histories        []user.EmailHistory24h
-		LimitWarningSent bool
-	}{
-		Histories:        histories,
-		LimitWarningSent: limitWarningSent,
-	}
-	mock.lockRefreshHistories24h.Lock()
-	mock.calls.RefreshHistories24h = append(mock.calls.RefreshHistories24h, callInfo)
-	mock.lockRefreshHistories24h.Unlock()
-	return mock.RefreshHistories24hFunc(histories, limitWarningSent)
-}
-
-// RefreshHistories24hCalls gets all the calls that were made to RefreshHistories24h.
-// Check the length with:
-//     len(mockedDatabase.RefreshHistories24hCalls())
-func (mock *DatabaseMock) RefreshHistories24hCalls() []struct {
-	Histories        []user.EmailHistory24h
-	LimitWarningSent bool
-} {
-	var calls []struct {
-		Histories        []user.EmailHistory24h
-		LimitWarningSent bool
-	}
-	mock.lockRefreshHistories24h.RLock()
-	calls = mock.calls.RefreshHistories24h
-	mock.lockRefreshHistories24h.RUnlock()
 	return calls
 }
 

@@ -13,14 +13,27 @@ import (
 	"net/url"
 
 	"github.com/dajohi/goemail"
+	"github.com/google/uuid"
 )
 
 // Mailer provides interface for sending emails.
 //
 //go:generate moq -out ./mock_test.go . Mailer
 type Mailer interface {
+	// IsEnabled returns whether the email server is enabled.
 	IsEnabled() bool
+
+	// SendTo sends an email to a list of email addresses. These emails
+	// do not have to correspond to politeiawww user emails. This
+	// method can be used for alternative use cases like sending
+	// notifications to sysadmins.
 	SendTo(subject, body string, recipients []string) error
+
+	// SendToUsers sends an email to a list of politeiawww users identified by
+	// recipients map which represents [userID] -> email mapping.
+	// This method rate limits the number of emails that can be sent to each
+	// user.
+	SendToUsers(subject, body string, recipients map[uuid.UUID]string) error
 }
 
 // Client provides an SMTP client for sending emails from a preset email

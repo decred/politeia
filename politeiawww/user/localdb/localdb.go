@@ -418,14 +418,14 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 // EmailHistoriesGet24h is a no-op (stub) because localdb runs as a storage backend
 // testing/experimental environments only, so we don't care about storing user
 // email histories in these cases.
-func (l *localdb) EmailHistoriesGet24h(_ []string) ([]user.EmailHistory24h, error) {
+func (l *localdb) EmailHistoriesGet24h(_ []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error) {
 	return nil, nil
 }
 
-// RefreshHistories24h is a no-op (stub) because localdb runs as a storage backend
+// EmailHistoriesSave24h is a no-op (stub) because localdb runs as a storage backend
 // testing/experimental environments only, so we don't care about storing user
 // email histories in these cases.
-func (l *localdb) RefreshHistories24h(histories []user.EmailHistory24h, limitWarningSent bool) error {
+func (l *localdb) EmailHistoriesSave24h(_ map[uuid.UUID]user.EmailHistory24h) error {
 	return nil
 }
 

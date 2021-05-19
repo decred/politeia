@@ -614,7 +614,7 @@ func _main() error {
 		network := filepath.Base(loadedCfg.DataDir)
 		db, err := cockroachdb.New(loadedCfg.DBHost, network,
 			loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
-			encryptionKey, time.Now)
+			encryptionKey)
 		if err != nil {
 			return fmt.Errorf("new cockroachdb: %v", err)
 		}
@@ -653,7 +653,6 @@ func _main() error {
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}
-	limitingMailer := mail.NewLimiter(mailClient, userDB, loadedCfg.EmailRateLimit)
 
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
@@ -669,7 +668,7 @@ func _main() error {
 		auth:       auth,
 		politeiad:  pdc,
 		http:       httpClient,
-		mail:       limitingMailer,
+		mail:       mailClient,
 		db:         userDB,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),

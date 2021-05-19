@@ -4,6 +4,7 @@
 package mail
 
 import (
+	"github.com/google/uuid"
 	"sync"
 )
 
@@ -23,6 +24,9 @@ var _ Mailer = &MailerMock{}
 //             SendToFunc: func(subject string, body string, recipients []string) error {
 // 	               panic("mock out the SendTo method")
 //             },
+//             SendToUsersFunc: func(subject string, body string, recipients map[uuid.UUID]string) error {
+// 	               panic("mock out the SendToUsers method")
+//             },
 //         }
 //
 //         // use mockedMailer in code that requires Mailer
@@ -35,6 +39,9 @@ type MailerMock struct {
 
 	// SendToFunc mocks the SendTo method.
 	SendToFunc func(subject string, body string, recipients []string) error
+
+	// SendToUsersFunc mocks the SendToUsers method.
+	SendToUsersFunc func(subject string, body string, recipients map[uuid.UUID]string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -50,9 +57,19 @@ type MailerMock struct {
 			// Recipients is the recipients argument value.
 			Recipients []string
 		}
+		// SendToUsers holds details about calls to the SendToUsers method.
+		SendToUsers []struct {
+			// Subject is the subject argument value.
+			Subject string
+			// Body is the body argument value.
+			Body string
+			// Recipients is the recipients argument value.
+			Recipients map[uuid.UUID]string
+		}
 	}
-	lockIsEnabled sync.RWMutex
-	lockSendTo    sync.RWMutex
+	lockIsEnabled   sync.RWMutex
+	lockSendTo      sync.RWMutex
+	lockSendToUsers sync.RWMutex
 }
 
 // IsEnabled calls IsEnabledFunc.
@@ -117,5 +134,44 @@ func (mock *MailerMock) SendToCalls() []struct {
 	mock.lockSendTo.RLock()
 	calls = mock.calls.SendTo
 	mock.lockSendTo.RUnlock()
+	return calls
+}
+
+// SendToUsers calls SendToUsersFunc.
+func (mock *MailerMock) SendToUsers(subject string, body string, recipients map[uuid.UUID]string) error {
+	if mock.SendToUsersFunc == nil {
+		panic("MailerMock.SendToUsersFunc: method is nil but Mailer.SendToUsers was just called")
+	}
+	callInfo := struct {
+		Subject    string
+		Body       string
+		Recipients map[uuid.UUID]string
+	}{
+		Subject:    subject,
+		Body:       body,
+		Recipients: recipients,
+	}
+	mock.lockSendToUsers.Lock()
+	mock.calls.SendToUsers = append(mock.calls.SendToUsers, callInfo)
+	mock.lockSendToUsers.Unlock()
+	return mock.SendToUsersFunc(subject, body, recipients)
+}
+
+// SendToUsersCalls gets all the calls that were made to SendToUsers.
+// Check the length with:
+//     len(mockedMailer.SendToUsersCalls())
+func (mock *MailerMock) SendToUsersCalls() []struct {
+	Subject    string
+	Body       string
+	Recipients map[uuid.UUID]string
+} {
+	var calls []struct {
+		Subject    string
+		Body       string
+		Recipients map[uuid.UUID]string
+	}
+	mock.lockSendToUsers.RLock()
+	calls = mock.calls.SendToUsers
+	mock.lockSendToUsers.RUnlock()
 	return calls
 }

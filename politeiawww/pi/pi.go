@@ -29,7 +29,7 @@ type Pi struct {
 	userdb    user.Database
 	sessions  *sessions.Sessions
 	events    *events.Manager
-	mail      mail.Mailer
+	mail      *mail.Client
 	policy    *v1.PolicyReply
 }
 
@@ -41,7 +41,7 @@ func (p *Pi) HandlePolicy(w http.ResponseWriter, r *http.Request) {
 }
 
 // New returns a new Pi context.
-func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, m mail.Mailer, plugins []pdv2.Plugin) (*Pi, error) {
+func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, m *mail.Client, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
 		textFileSizeMax    uint32
