@@ -329,7 +329,7 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	// Ensure that nominated user doesn't already have a DCC
 	dccs, err := p.cmsDB.DCCsAll()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, existingDCC := range dccs {
 		if existingDCC.NomineeUserID == dcc.NomineeUserID {
