@@ -51,7 +51,7 @@ func (p *Pi) mailNtfnProposalNew(token, name, username string, emails []string) 
 		Link:     u.String(),
 	}
 
-	subject := "New Proposal Submitted"
+	subject := "New Proposal Submitted " + token
 	body, err := populateTemplate(proposalNewTmpl, tmplData)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username s
 		Link:     u.String(),
 	}
 
-	subject := "Proposal Edited"
+	subject := "Proposal Edited " + token
 	body, err := populateTemplate(proposalEditTmpl, tmplData)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func (p *Pi) mailNtfnProposalSetStatus(token, name string, status rcv1.RecordSta
 	)
 	switch status {
 	case rcv1.RecordStatusPublic:
-		subject = "New Proposal Published"
+		subject = "New Proposal Published " + token
 		tmplData := proposalPublished{
 			Name: name,
 			Link: u.String(),
