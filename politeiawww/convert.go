@@ -1541,24 +1541,6 @@ func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
 
 }
 
-func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
-	inv.Files = nil
-	inv.Input.ContractorContact = ""
-	inv.Input.ContractorLocation = ""
-	inv.Input.ContractorName = ""
-	inv.Input.ContractorRate = 0
-	inv.Input.PaymentAddress = ""
-
-	for i, li := range inv.Input.LineItems {
-		li.Expenses = 0
-		li.SubRate = 0
-		inv.Input.LineItems[i] = li
-	}
-	inv.Payment = cms.PaymentInformation{}
-	inv.Total = 0
-	return *inv
-}
-
 func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStats {
 	cmsCodeStats := make([]cms.CodeStats, 0, len(userCodeStats))
 	for _, codeStat := range userCodeStats {
