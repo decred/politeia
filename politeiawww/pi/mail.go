@@ -196,7 +196,7 @@ func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.R
 	)
 	switch status {
 	case rcv1.RecordStatusPublic:
-		subject = "Your Proposal Has Been Published"
+		subject = "Your Proposal Has Been Published " + token
 		tmplData := proposalPublishedToAuthor{
 			Name: name,
 			Link: u.String(),
@@ -207,7 +207,7 @@ func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.R
 		}
 
 	case rcv1.RecordStatusCensored:
-		subject = "Your Proposal Has Been Censored"
+		subject = "Your Proposal Has Been Censored " + token
 		tmplData := proposalCensoredToAuthor{
 			Name:   name,
 			Reason: reason,
@@ -250,7 +250,7 @@ func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, 
 		return err
 	}
 
-	subject := "New Comment On Your Proposal"
+	subject := "New Comment On Your Proposal " + token
 	tmplData := commentNewToProposalAuthor{
 		Username: commentUsername,
 		Name:     proposalName,
@@ -289,7 +289,7 @@ func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsernam
 		return err
 	}
 
-	subject := "New Reply To Your Comment"
+	subject := "New Reply To Your Comment " + token
 	tmplData := commentReply{
 		Username: commentUsername,
 		Name:     proposalName,
@@ -325,7 +325,7 @@ func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
 		return err
 	}
 
-	subject := "Proposal Vote Authorized"
+	subject := "Proposal Vote Authorized " + token
 	tmplData := voteAuthorized{
 		Name: name,
 		Link: u.String(),
@@ -360,7 +360,7 @@ func (p *Pi) mailNtfnVoteStarted(token, name string, emails []string) error {
 		return err
 	}
 
-	subject := "Voting Started for Proposal"
+	subject := "Voting Started for Proposal " + token
 	tmplData := voteStarted{
 		Name: name,
 		Link: u.String(),
@@ -395,7 +395,7 @@ func (p *Pi) mailNtfnVoteStartedToAuthor(token, name, email string) error {
 		return err
 	}
 
-	subject := "Voting Has Started On Your Proposal"
+	subject := "Voting Has Started On Your Proposal " + token
 	tmplData := voteStartedToAuthor{
 		Name: name,
 		Link: u.String(),
