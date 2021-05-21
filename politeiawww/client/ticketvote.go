@@ -274,7 +274,7 @@ func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
 		return fmt.Errorf("token not found")
 	case vd.Params.Mask == 0:
 		return fmt.Errorf("mask not found")
-	case vd.Params.Options == nil || len(vd.Params.Options) == 0:
+	case len(vd.Params.Options) == 0:
 		return fmt.Errorf("vote options not found")
 	}
 

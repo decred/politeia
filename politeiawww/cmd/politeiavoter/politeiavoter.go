@@ -586,6 +586,12 @@ func (c *ctx) inventory() error {
 		page++
 	}
 
+	// Print empty message in case no active votes found.
+	if len(tokens) == 0 {
+		fmt.Printf("No active votes found.\n")
+		return nil
+	}
+
 	for _, t := range tokens {
 		// Get vote details.
 		dr, err := c.voteDetails(t, serverPubKey)
@@ -1359,7 +1365,8 @@ func (c *ctx) verifyVote(vote string) error {
 	if vs.Status != tkv1.VoteStatusFinished &&
 		vs.Status != tkv1.VoteStatusRejected &&
 		vs.Status != tkv1.VoteStatusApproved {
-		return fmt.Errorf("proposal vote not finished: %v", vs.Status)
+		return fmt.Errorf("proposal vote not finished: %v",
+			tkv1.VoteStatuses[vs.Status])
 	}
 
 	// Get server public key.
