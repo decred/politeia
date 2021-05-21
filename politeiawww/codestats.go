@@ -192,7 +192,9 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		}
 		payload, err := user.EncodeCMSCodeStatsByUserMonthYear(cu)
 		if err != nil {
-			return err
+			log.Errorf("encode code stats request failed: %v %v %v %v",
+				u.GitHubName, currentYear, currentMonth, err)
+			continue
 		}
 		pc := user.PluginCommand{
 			ID:      user.CMSPluginID,
@@ -203,14 +205,18 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 		// Execute plugin command
 		pcr, err := p.db.PluginExec(pc)
 		if err != nil {
-			return err
+			log.Errorf("decode code stats request failed: %v %v %v %v",
+				u.GitHubName, currentYear, currentMonth, err)
+			continue
 		}
 
 		// Decode reply
 		reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply(
 			[]byte(pcr.Payload))
 		if err != nil {
-			return err
+			log.Errorf("decode code stats failed: %v %v %v %v",
+				u.GitHubName, currentYear, currentMonth, err)
+			continue
 		}
 
 		githubUserInfo, err := p.tracker.UserInfo(org,
@@ -229,29 +235,36 @@ func (p *politeiawww) updateCodeStats(org string, repos []string, start, end int
 				currentYear, currentMonth)
 			err = p.checkUpdateCodeStats(reply.UserCodeStats, codeStats)
 			if err != nil {
-				return err
+				log.Errorf("update cms code stats failed: %v %v %v %v",
+					u.GitHubName, currentYear, currentMonth, err)
+				continue
 			}
-		}
+		} else {
+			// No existing code stats for this user month/year
+			log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, currentYear,
+				currentMonth)
+			// It'll be a new entry if no existing entry had been found
+			ncs := user.NewCMSCodeStats{
+				UserCodeStats: codeStats,
+			}
 
-		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, currentYear,
-			currentMonth)
-		// It'll be a new entry if no existing entry had been found
-		ncs := user.NewCMSCodeStats{
-			UserCodeStats: codeStats,
-		}
-
-		payload, err = user.EncodeNewCMSCodeStats(ncs)
-		if err != nil {
-			return err
-		}
-		pc = user.PluginCommand{
-			ID:      user.CMSPluginID,
-			Command: user.CmdNewCMSUserCodeStats,
-			Payload: string(payload),
-		}
-		_, err = p.db.PluginExec(pc)
-		if err != nil {
-			return err
+			payload, err = user.EncodeNewCMSCodeStats(ncs)
+			if err != nil {
+				log.Errorf("encode new cms code stats failed: %v %v %v %v",
+					u.GitHubName, currentYear, currentMonth, err)
+				continue
+			}
+			pc = user.PluginCommand{
+				ID:      user.CMSPluginID,
+				Command: user.CmdNewCMSUserCodeStats,
+				Payload: string(payload),
+			}
+			_, err = p.db.PluginExec(pc)
+			if err != nil {
+				log.Errorf("new cms code stats failed: %v %v %v %v",
+					u.GitHubName, currentYear, currentMonth, err)
+				continue
+			}
 		}
 	}
 	return nil
