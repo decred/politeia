@@ -2092,7 +2092,8 @@ Reply:
 | <a name="LineItemTypeInvalid">LineItemTypeInvalid</a>| 0 | An invalid type. This shall be considered a bug. |
 | <a name="LineItemTypeLabor">LineItemTypeLabor</a>| 1 | Line items that correspond to laborious activities. |
 | <a name="LineItemTypeExpense">LineItemTypeExpense</a> | 2 | Line items that cover expensed costs. |
-| <a name="LineItemTypeMisc">LineItemTypeMisc</a> | 3 | Any line item that doesn't fall into the above 2 categories. |
+| <a name="LineItemTypeMisc">LineItemTypeMisc</a> | 3 | Any line item that doesn't fall into the categories. |
+| <a name="LineItemTypeSubHours">LineItemTypeSubHours</a> | 4 | A line item for sub contractor hourly billing. |
 
 ### Domain type codes
 | Type | Value | Description |
@@ -2100,10 +2101,8 @@ Reply:
 | <a name="DomainTypeInvalid">DomainTypeInvalid</a>| 0 | An invalid Domain type. This shall be considered a bug. |
 | <a name="DomainTypeDeveloper">DomainTypeDeveloper</a>| 1 | Development work, typically writing code or designing software architecture. |
 | <a name="DomainTypeMarketing">DomainTypeMarketing</a>| 2 | Marketing work, typically event planning, publication outreach or writing. |
-| <a name="DomainTypeCommunity">DomainTypeCommunity</a>| 3 | Community work, typically organizing and interacting with various online communities. |
 | <a name="DomainTypeDesign">DomainTypeDesign</a>| 4 | Design work, typically creating art, web design or sound production for the project. |
 | <a name="DomainTypeResearch">DomainTypeResearch</a>| 5 | Research work, typically looking deeper into various subjects closely related to the project. |
-| <a name="DomainTypeDocumentation">DomainTypeDocumentation</a>| 6 | Documentation work, typically writing documents that help users understand the project (and its software) better. |
 
 ### Contractor type codes
 | Type | Value | Description |
@@ -2112,10 +2111,11 @@ Reply:
 | <a name="ContractorTypeDirect">ContractorTypeDirect</a>| 1 | A direct contractor that does not work under another organization. Able to submit invoices. |
 | <a name="ContractorTypeSupervisor">ContractorTypeSupervisor</a>| 2 | The supervising manager of a team of sub contractors.  Able to submit invoices for themselves and subs. |
 | <a name="ContractorTypeSubContractor">ContractorTypeSubContractor</a>| 3 | A sub contractor that works for a supervising manager.  NOT able to submit invoices. |
-| <a name="ContractorTypeRevoked">ContractorTypeRevoked</a>| 4 | A contractor that has been revoked by a DCC. |
-| <a name="ContractorTypeDormant">ContractorTypeDormant</a>| 5 | A contractor that has left for a period of time without invoice or contact. |
-| <a name="ContractorTypeNominee">ContractorTypeNominee</a>| 6 | A nominated contractor that has an associated DCC. |
-
+| <a name="ContractorTypeNominee">ContractorTypeNominee</a>| 4 | A nominated contractor that has an associated DCC. |
+| <a name="ContractorTypeRevoked">ContractorTypeRevoked</a>| 5 | A contractor that has been revoked by a DCC. |
+| <a name="ContractorTypeTemp">ContractorTypeTemp</a>| 6 | A temporary contractor that is allowed to submit 1 invoice before being deactivated. |
+| <a name="ContractorTypeTempDeactivated">ContractorTypeTempDeactivated</a>| 7 | A previously temporary contractor that has since been deactivated. |
+| <a name="ContractorTypeProposal">ContractorTypeProposal</a>| 8 | A contractor that has been implicitly approved through a stakeholder approved proposal. |
 
 ### Payment status codes
 | Status | Value | Description |

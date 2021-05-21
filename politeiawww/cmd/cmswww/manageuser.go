@@ -29,11 +29,10 @@ type CMSManageUserCmd struct {
 // Execute executes the cms manage user command.
 func (cmd *CMSManageUserCmd) Execute(args []string) error {
 	domains := map[string]cms.DomainTypeT{
-		"developer":     cms.DomainTypeDeveloper,
-		"marketing":     cms.DomainTypeMarketing,
-		"research":      cms.DomainTypeResearch,
-		"design":        cms.DomainTypeDesign,
-		"documentation": cms.DomainTypeDocumentation,
+		"developer": cms.DomainTypeDeveloper,
+		"marketing": cms.DomainTypeMarketing,
+		"research":  cms.DomainTypeResearch,
+		"design":    cms.DomainTypeDesign,
 	}
 	contractorTypes := map[string]cms.ContractorTypeT{
 		"direct":     cms.ContractorTypeDirect,
