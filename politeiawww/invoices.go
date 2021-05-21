@@ -1150,18 +1150,32 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	return nil
 }
 
-func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
+func filterDomainInvoice(inv *cms.InvoiceRecord, requestedDomain int) cms.InvoiceRecord {
 	inv.Files = nil
 	inv.Input.ContractorContact = ""
 	inv.Input.ContractorLocation = ""
 	inv.Input.ContractorName = ""
 	inv.Input.ContractorRate = 0
+	inv.Input.PaymentAddress = ""
 
-	for i, li := range inv.Input.LineItems {
-		li.Expenses = 0
-		li.SubRate = 0
-		inv.Input.LineItems[i] = li
+	filteredLineItems := make([]cms.LineItemsInput, 0, len(inv.Input.LineItems))
+	for _, li := range inv.Input.LineItems {
+		// Get the Supported CMS Domain from API
+		var cmsDomain cms.AvailableDomain
+		for _, domain := range cms.PolicySupportedCMSDomains {
+			if int(domain.Type) == requestedDomain {
+				cmsDomain = domain
+			}
+		}
+
+		// Filter out any line item that doesn't match the requested Domain
+		if strings.ToLower(li.Domain) == cmsDomain.Description {
+			li.Expenses = 0
+			li.SubRate = 0
+			filteredLineItems = append(filteredLineItems, li)
+		}
 	}
+	inv.Input.LineItems = filteredLineItems
 	inv.Payment = cms.PaymentInformation{}
 	inv.Total = 0
 	return *inv
@@ -1189,37 +1203,22 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 		return nil, err
 	}
 
-	invoiceUser, err := p.getCMSUserByIDRaw(invRec.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check to make sure the user is either an admin or shares the domain
-	// as the invoice creator (which will then be filtered).
-	if !u.Admin && (invoiceUser.Domain != requestingUser.Domain) {
-		err := www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
-		return nil, err
-	}
-
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
 	var reply cms.InvoiceDetailsReply
+
 	if u.Admin || dbInv.UserID == u.ID.String() {
 		payout, err := calculatePayout(*dbInv)
 		if err != nil {
 			return nil, err
 		}
-
 		payout.Username = u.Username
 
 		// Setup reply
 		reply.Invoice = *invRec
 		reply.Payout = payout
-
 	} else {
-		reply.Invoice = filterDomainInvoice(invRec)
+		reply.Invoice = filterDomainInvoice(invRec, requestingUser.Domain)
 	}
 	return &reply, nil
 }
@@ -1877,20 +1876,6 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 			break
 		}
 
-		invoiceUser, err := p.getCMSUserByIDRaw(v.UserID)
-		if err != nil {
-			return nil, err
-		}
-
-		// Skip invoice if requesting user is not an admin && they don't
-		// share the same domain as the invoice user.
-		// Also skip invoice if the provided user id does not match the
-		// invoices' userid.
-		if (!u.Admin && invoiceUser.Domain != requestingUser.Domain) ||
-			(ai.UserID != "" && ai.UserID != v.UserID) {
-			continue
-		}
-
 		inv, err := convertDatabaseInvoiceToInvoiceRecord(v)
 		if err != nil {
 			return nil, err
@@ -1916,9 +1901,12 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 				continue
 			}
 
-			inv = filterDomainInvoice(&inv)
+			inv = filterDomainInvoice(&inv, requestingUser.Domain)
 		}
-		invRecs = append(invRecs, inv)
+		// Only return invoices that have non-zero line items after filtering.
+		if len(inv.Input.LineItems) > 0 {
+			invRecs = append(invRecs, inv)
+		}
 	}
 
 	// Setup reply
