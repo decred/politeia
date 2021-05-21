@@ -2284,6 +2284,13 @@ func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.Use
 		}
 		propBilling = append(propBilling, lineItem)
 	}
+
+	// Sort returned invoices by month/year submitted
+	sort.Slice(propBilling, func(a, b int) bool {
+		return propBilling[a].Year < propBilling[b].Year ||
+			propBilling[a].Month < propBilling[b].Month
+	})
+
 	reply.BilledLineItems = propBilling
 	return reply, nil
 }
