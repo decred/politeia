@@ -23,11 +23,10 @@ import (
 
 // domainTypes gives human readable output for the various domain types available
 var domainTypes = map[cms.DomainTypeT]string{
-	cms.DomainTypeDeveloper:     "(1) Developer",
-	cms.DomainTypeMarketing:     "(2) Marketing",
-	cms.DomainTypeResearch:      "(4) Research",
-	cms.DomainTypeDesign:        "(5) Design",
-	cms.DomainTypeDocumentation: "(6) Documentation",
+	cms.DomainTypeDeveloper: "(1) Developer",
+	cms.DomainTypeMarketing: "(2) Marketing",
+	cms.DomainTypeResearch:  "(4) Research",
+	cms.DomainTypeDesign:    "(5) Design",
 }
 
 // contractorTypes gives human readable output for the various contractor types available
@@ -92,8 +91,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 					domainTypes[cms.DomainTypeDeveloper] + ", " +
 					domainTypes[cms.DomainTypeMarketing] + ", " +
 					domainTypes[cms.DomainTypeResearch] + ", " +
-					domainTypes[cms.DomainTypeDesign] + ", " +
-					domainTypes[cms.DomainTypeDocumentation] + ": ")
+					domainTypes[cms.DomainTypeDesign] + ", " + ": ")
 				cmd.Domain, _ = reader.ReadString('\n')
 				domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
 				if err != nil {
