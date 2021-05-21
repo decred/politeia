@@ -4,6 +4,8 @@
 
 package main
 
+import "text/template"
+
 type invoiceNotificationEmailData struct {
 	Username string
 	Month    string
@@ -252,6 +254,45 @@ If you have any questions please feel free to ask them there.
 
 You are receiving this email because {{.Email}} was used to be invited to Decred's Contractor Management System.
 If you do not recognize this, please ignore this email.
+`
+
+var invoiceFirstNotificationTmpl = template.Must(
+	template.New("first_invoice_notification").Parse(invoiceFirstText))
+var invoiceSecondNotificationTmpl = template.Must(
+	template.New("second_invoice_notification").Parse(invoiceSecondText))
+var invoiceFinalNotificationTmpl = template.Must(
+	template.New("final_invoice_notification").Parse(invoiceFinalText))
+
+type invoiceNotification struct {
+	Username string
+	Month    string
+	Year     int
+}
+
+const invoiceFirstText = `
+{{.Username}},
+
+Please submit your invoice for {{.Month}} {{.Year}}.
+
+Regards,
+Contractor Management System
+`
+
+const invoiceSecondText = `
+{{.Username}},
+
+You have not yet submitted an invoice for {{.Month}} {{.Year}}.
+
+Regards,
+Contractor Management System`
+
+const invoiceFinalText = `
+{{.Username}},
+
+You have not yet submitted an invoice for {{.Month}} {{.Year}}.  This is the final warning you will receive, if you delay further, you may not be included in this month's payout.
+
+Regards,
+Contractor Management System
 `
 
 const templateInvoiceNotificationRaw = `

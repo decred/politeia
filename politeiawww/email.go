@@ -618,12 +618,9 @@ func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
 	return p.sendEmailTo(subject, body, email)
 }
 
-// emailInvoiceNotifications emails users that have not yet submitted an invoice
-// for the given month/year
-func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
-	if p.smtp.disabled {
-		return nil
-	}
+// emailInvoiceNotifications emails users that have not yet submitted an
+// invoice for the given month/year
+func (p *politeiawww) emailInvoiceNotifications(email, username, subject string, tmpl *template.Template) error {
 	// Set the date to the first day of the previous month.
 	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
 	tplData := invoiceNotificationEmailData{
@@ -631,9 +628,7 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 		Month:    newDate.Month().String(),
 		Year:     newDate.Year(),
 	}
-
-	subject := "Awaiting Monthly Invoice"
-	body, err := createBody(templateInvoiceNotification, &tplData)
+	body, err := createBody(tmpl, &tplData)
 	if err != nil {
 		return err
 	}
