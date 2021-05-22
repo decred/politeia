@@ -70,8 +70,12 @@ const (
 	// User database options
 	userDBLevel     = "leveldb"
 	userDBCockroach = "cockroachdb"
+	userDBMySQL     = "mysqldb"
 
 	defaultUserDB = userDBLevel
+
+	// Environment variables.
+	envDBPass = "DBPASS"
 )
 
 var (
@@ -256,6 +260,47 @@ func loadIdentity(cfg *config.Config) error {
 	}
 
 	log.Infof("Identity loaded from: %v", cfg.RPCIdentityFile)
+	return nil
+}
+
+// validateEncryptionKey validates the encryption key config.
+func validateEncryptionKey(encKey, oldEncKey string) error {
+	encKey = util.CleanAndExpandPath(encKey)
+	oldEncKey = util.CleanAndExpandPath(oldEncKey)
+
+	if encKey != "" && !util.FileExists(encKey) {
+		return fmt.Errorf("file not found %v", encKey)
+	}
+
+	if oldEncKey != "" {
+		switch {
+		case encKey == "":
+			return fmt.Errorf("old encryption key param " +
+				"cannot be used without encryption key param")
+
+		case encKey == oldEncKey:
+			return fmt.Errorf("old encryption key param " +
+				"and encryption key param must be different")
+
+		case !util.FileExists(oldEncKey):
+			return fmt.Errorf("file not found %v", oldEncKey)
+		}
+	}
+
+	return nil
+}
+
+// validateDBHost validates user database host.
+func validateDBHost(host string) error {
+	if host == "" {
+		return fmt.Errorf("dbhost param is required")
+	}
+
+	_, err := url.Parse(host)
+	if err != nil {
+		return fmt.Errorf("parse dbhost: %v", err)
+	}
+
 	return nil
 }
 
@@ -667,10 +712,8 @@ func loadConfig() (*config.Config, []string, error) {
 		}
 
 	case userDBCockroach:
-		// Cockroachdb required these settings
+		// Cockroachdb requires these settings.
 		switch {
-		case cfg.DBHost == "":
-			return nil, nil, fmt.Errorf("dbhost param is required")
 		case cfg.DBRootCert == "":
 			return nil, nil, fmt.Errorf("dbrootcert param is required")
 		case cfg.DBCert == "":
@@ -684,10 +727,10 @@ func loadConfig() (*config.Config, []string, error) {
 		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
 		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
 
-		// Validate user database host
-		_, err = url.Parse(cfg.DBHost)
+		// Validate DB host.
+		err = validateDBHost(cfg.DBHost)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse dbhost: %v", err)
+			return nil, nil, err
 		}
 
 		// Validate user database root cert
@@ -708,36 +751,39 @@ func loadConfig() (*config.Config, []string, error) {
 				"and dbkey: %v", err)
 		}
 
-		// Validate user database encryption keys
-		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
-		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
-
-		if cfg.EncryptionKey != "" && !util.FileExists(cfg.EncryptionKey) {
-			return nil, nil, fmt.Errorf("file not found %v", cfg.EncryptionKey)
+		// Validate user database encryption keys.
+		err = validateEncryptionKey(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("validate encryption key: %v", err)
 		}
 
-		if cfg.OldEncryptionKey != "" {
-			switch {
-			case cfg.EncryptionKey == "":
-				return nil, nil, fmt.Errorf("old encryption key param " +
-					"cannot be used without encryption key param")
+	case userDBMySQL:
+		// The database password is provided in an env variable.
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
+				"the database password for the politeiad user in the env " +
+				"variable DBPASS")
+		}
 
-			case cfg.EncryptionKey == cfg.OldEncryptionKey:
-				return nil, nil, fmt.Errorf("old encryption key param " +
-					"and encryption key param must be different")
+		// Validate DB host.
+		err = validateDBHost(cfg.DBHost)
+		if err != nil {
+			return nil, nil, err
+		}
 
-			case !util.FileExists(cfg.OldEncryptionKey):
-				return nil, nil, fmt.Errorf("file not found %v", cfg.OldEncryptionKey)
-			}
+		// Validate user database encryption keys.
+		err = validateEncryptionKey(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("validate encryption key: %v", err)
 		}
 
 	default:
 		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
-			"be either leveldb or cockroachdb", cfg.UserDB)
+			"be leveldb, cockroachdb or mysqldb", cfg.UserDB)
 	}
 
 	// Verify paywall settings
-
 	paywallIsEnabled := cfg.PaywallAmount != 0 || cfg.PaywallXpub != ""
 	if paywallIsEnabled {
 		// Parse extended public key

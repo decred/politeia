@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
+
 # This script sets up the CockroachDB databases and assigns user privileges.
 # This script requires that you have already created CockroachDB certificates
 # using the cockroachcerts.sh script and that you have a CockroachDB instance

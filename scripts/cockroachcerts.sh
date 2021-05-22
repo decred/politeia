@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
+
 # This script creates the certificates required to run a CockroachDB node
 # locally. This includes creating a CA certificate, a node certificate, and a
 # client certificate for the root user. The root user is used to open a sql

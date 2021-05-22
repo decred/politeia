@@ -476,6 +476,10 @@ type Database interface {
 	// Return a map of public key to user record
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
 
+	// Insert a user to the database.
+	// Intended to be used for migration between databases.
+	InsertUser(User) error
+
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
 
@@ -490,6 +494,9 @@ type Database interface {
 
 	// Delete all sessions for a user except for the given session IDs
 	SessionsDeleteByUserID(id uuid.UUID, exemptSessionIDs []string) error
+
+	// Rotate encryption keys
+	RotateKeys(newKeyPath string) error
 
 	// Register a plugin
 	RegisterPlugin(Plugin) error

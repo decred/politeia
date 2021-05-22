@@ -109,6 +109,37 @@ func (l *localdb) UserNew(u user.User) error {
 	return l.userdb.Put([]byte(u.Email), payload, nil)
 }
 
+// InsertUser inserts a user record into the database. The record must be a
+// complete user record and the user must not already exist. This function is
+// intended to be used for migrations between databases.
+//
+// InsertUser satisfies the Database interface.
+func (l *localdb) InsertUser(u user.User) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	log.Debugf("InsertUser: %v", u)
+
+	// Make sure user does not exist
+	ok, err := l.userdb.Has([]byte(u.Email), nil)
+	if err != nil {
+		return err
+	} else if ok {
+		return user.ErrUserExists
+	}
+
+	payload, err := user.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	return l.userdb.Put([]byte(u.Email), payload, nil)
+}
+
 // UserGet returns a user record if found in the database.
 //
 // UserGet satisfies the Database interface.
@@ -370,6 +401,12 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	iter.Release()
 
 	return iter.Error()
+}
+
+// RotateKeys is an empty stub to satisfy the user.Database insterface.
+// Localdb implementation does not use encryption.
+func (l *localdb) RotateKeys(_ string) error {
+	return nil
 }
 
 // PluginExec executes the provided plugin command.

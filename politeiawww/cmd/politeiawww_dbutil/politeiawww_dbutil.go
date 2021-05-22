@@ -32,6 +32,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
+	"github.com/decred/politeia/politeiawww/user/mysqldb"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -39,10 +40,11 @@ import (
 )
 
 const (
-	defaultHost       = "localhost:26257"
-	defaultRootCert   = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
-	defaultClientCert = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
-	defaultClientKey  = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
+	defaultMySQLDBHost     = "localhost:3306"
+	defaultCockroachDBHost = "localhost:26257"
+	defaultRootCert        = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
+	defaultClientCert      = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
+	defaultClientKey       = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
 
 	// Politeia repo info
 	commentsJournalFilename = "comments.journal"
@@ -60,15 +62,19 @@ var (
 	// Database options
 	level     = flag.Bool("leveldb", false, "")
 	cockroach = flag.Bool("cockroachdb", false, "")
+	mysql     = flag.Bool("mysqldb", false, "")
 
 	// Application options
-	testnet       = flag.Bool("testnet", false, "")
-	dataDir       = flag.String("datadir", defaultDataDir, "")
-	host          = flag.String("host", defaultHost, "")
+	testnet         = flag.Bool("testnet", false, "")
+	dataDir         = flag.String("datadir", defaultDataDir, "")
+	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
+	mysqlhost       = flag.String("mysqlhost", defaultMySQLDBHost, "")
+
 	rootCert      = flag.String("rootcert", defaultRootCert, "")
 	clientCert    = flag.String("clientcert", defaultClientCert, "")
 	clientKey     = flag.String("clientkey", defaultClientKey, "")
 	encryptionKey = flag.String("encryptionkey", defaultEncryptionKey, "")
+	password      = flag.String("password", "", "")
 
 	// Commands
 	addCredits       = flag.Bool("addcredits", false, "")
@@ -82,9 +88,7 @@ var (
 	resetTotp        = flag.Bool("resettotp", false, "")
 
 	network string // Mainnet or testnet3
-	// XXX ldb should be abstracted away. dbutil commands should use
-	// the user.Database interface instead.
-	userDB user.Database
+	userDB  user.Database
 )
 
 const usageMsg = `politeiawww_dbutil usage:
@@ -93,6 +97,8 @@ const usageMsg = `politeiawww_dbutil usage:
           Use LevelDB
     -cockroachdb
           Use CockroachDB
+    -mysqldb
+          Use MySQLDB
 
   Application options
     -testnet
@@ -100,7 +106,7 @@ const usageMsg = `politeiawww_dbutil usage:
     -datadir string
           politeiawww data directory
           (default osDataDir/politeiawww/data)
-    -host string
+    -cockroachdbhost string
           CockroachDB ip:port 
           (default localhost:26257)
     -rootcert string
@@ -113,8 +119,13 @@ const usageMsg = `politeiawww_dbutil usage:
           File containing the CockroachDB SSL client cert key
           (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key)
     -encryptionkey string
-          File containing the CockroachDB encryption key
+          File containing the CockroachDB/MySQL encryption key
           (default osDataDir/politeiawww/sbox.key)
+    -password string
+          MySQL database password.
+    -mysqlhost string
+          MySQL ip:port 
+          (default localhost:3306)
 
   Commands
     -addcredits
@@ -146,9 +157,9 @@ const usageMsg = `politeiawww_dbutil usage:
           Args             : <destination (optional)>
                              (default osDataDir/politeiawww/sbox.key)
     -migrate
-          Migrate a LevelDB user database to CockroachDB
+          Migrate from one user database to another
           Required DB flag : None
-          Args             : None
+          Args             : <fromDB> <toDB>
 
     -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
@@ -414,54 +425,105 @@ func cmdStubUsers() error {
 	return nil
 }
 
-func cmdMigrate() error {
-	// Connect to LevelDB
+func connectLevelDB() (user.Database, error) {
 	dbDir := filepath.Join(*dataDir, network)
 	_, err := os.Stat(dbDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = fmt.Errorf("leveldb dir not found: %v", dbDir)
 		}
-		return err
+		return nil, err
 	}
-
-	ldb, err := localdb.New(dbDir)
-	if err != nil {
-		return err
-	}
-
-	// Connect to CockroachDB
-	err = validateCockroachParams()
-	if err != nil {
-		return fmt.Errorf("new leveldb: %v", err)
-	}
-	cdb, err := cockroachdb.New(*host, network, *rootCert,
-		*clientCert, *clientKey, *encryptionKey)
-	if err != nil {
-		return fmt.Errorf("new cockroachdb: %v", err)
-	}
-	defer cdb.Close()
 
 	fmt.Printf("LevelDB     : %v\n", dbDir)
-	fmt.Printf("CockroachDB : %v %v\n", *host, network)
-	fmt.Printf("Migrating records from LevelDB to CockroachDB...\n")
+	return localdb.New(dbDir)
+}
 
-	// Migrate LevelDB records to CockroachDB
+func connectCockroachDB() (user.Database, error) {
+	err := validateCockroachParams()
+	if err != nil {
+		return nil, fmt.Errorf("new cockroachdb: %v", err)
+	}
+
+	fmt.Printf("CockroachDB : %v %v %v %v %v %v\n", *cockroachdbhost, network,
+		*rootCert, *clientCert, *clientKey, *encryptionKey)
+	return cockroachdb.New(*cockroachdbhost, network, *rootCert,
+		*clientCert, *clientKey, *encryptionKey)
+}
+
+func connectMySQLDB() (user.Database, error) {
+	err := validateMySQLParams()
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("MySQLDB : %v %v\n", *mysqlhost, network)
+	return mysqldb.New(*mysqlhost, *password, network, *encryptionKey)
+}
+
+func connectDB(typeDB string) (user.Database, error) {
+	const (
+		userDBLevel     = "leveldb"
+		userDBCockroach = "cockroachdb"
+		userDBMySQL     = "mysqldb"
+	)
+
+	var userDB user.Database
+	switch typeDB {
+	case userDBLevel:
+		return connectLevelDB()
+
+	case userDBCockroach:
+		return connectCockroachDB()
+
+	case userDBMySQL:
+		return connectMySQLDB()
+	}
+
+	return userDB, nil
+}
+
+func cmdMigrate() error {
+	args := flag.Args()
+	if len(args) < 2 {
+		flag.Usage()
+		return nil
+	}
+
+	fromType := args[0]
+	toType := args[1]
+
+	// Connect to origin database.
+	fromDB, err := connectDB(fromType)
+	if err != nil {
+		return err
+	}
+	defer fromDB.Close()
+
+	// Connect to destination database.
+	toDB, err := connectDB(toType)
+	if err != nil {
+		return err
+	}
+	defer toDB.Close()
+
+	fmt.Printf("Migrating records from %v to %v...\n", fromType, toType)
+
 	var users []user.User
 	var paywallIndex uint64
 	var userCount int
 
-	// populates the user slice from leveldb users
-	err = ldb.AllUsers(func(u *user.User) {
+	// Populate the user slice from the origin database users.
+	err = fromDB.AllUsers(func(u *user.User) {
 		users = append(users, *u)
 	})
 	if err != nil {
-		return fmt.Errorf("leveldb allusers request: %v", err)
+		return fmt.Errorf("origin database allusers request: %v", err)
 	}
 
 	// Make sure the migration went ok.
 	if len(users) == 0 {
-		return fmt.Errorf("no users found in leveldb")
+		return fmt.Errorf("no users found in origin database")
 	}
 
 	for i := 0; i < len(users); i++ {
@@ -470,7 +532,7 @@ func cmdMigrate() error {
 		// Check if username already exists in db. There was a
 		// ~2 month period where a bug allowed for users to be
 		// created with duplicate usernames.
-		_, err = cdb.UserGetByUsername(u.Username)
+		_, err = toDB.UserGetByUsername(u.Username)
 
 		paywallIndex = u.PaywallAddressIndex
 		switch err {
@@ -497,7 +559,7 @@ func cmdMigrate() error {
 
 				username := strings.TrimSuffix(input, "\n")
 				u.Username = strings.ToLower(strings.TrimSpace(username))
-				_, err = cdb.UserGetByUsername(u.Username)
+				_, err = toDB.UserGetByUsername(u.Username)
 			}
 
 			fmt.Printf("Username updated to '%v'\n", u.Username)
@@ -508,7 +570,7 @@ func cmdMigrate() error {
 			return err
 		}
 
-		err = cdb.InsertUser(u)
+		err = toDB.InsertUser(u)
 		if err != nil {
 			return fmt.Errorf("migrate user '%v': %v",
 				u.ID, err)
@@ -560,10 +622,10 @@ func cmdCreateKey() error {
 
 func validateCockroachParams() error {
 	// Validate host
-	_, err := url.Parse(*host)
+	_, err := url.Parse(*cockroachdbhost)
 	if err != nil {
 		return fmt.Errorf("parse host '%v': %v",
-			*host, err)
+			*cockroachdbhost, err)
 	}
 
 	// Validate root cert
@@ -586,6 +648,27 @@ func validateCockroachParams() error {
 	}
 
 	// Ensure encryption key file exists
+	if !util.FileExists(*encryptionKey) {
+		return fmt.Errorf("file not found %v", *encryptionKey)
+	}
+
+	return nil
+}
+
+func validateMySQLParams() error {
+	// Validate host.
+	_, err := url.Parse(*mysqlhost)
+	if err != nil {
+		return fmt.Errorf("parse host '%v': %v", *mysqlhost, err)
+	}
+
+	// Validate password.
+	if *password == "" {
+		return fmt.Errorf("MySQL password missing; use -password flag to" +
+			" provide it")
+	}
+
+	// Ensure encryption key file exists.
 	if !util.FileExists(*encryptionKey) {
 		return fmt.Errorf("file not found %v", *encryptionKey)
 	}
@@ -736,72 +819,61 @@ func _main() error {
 	} else {
 		network = chaincfg.MainNetParams().Name
 	}
-	// Validate database selection
-	if *level && *cockroach {
-		return fmt.Errorf("database choice cannot be both " +
-			"-leveldb and -cockroachdb")
+
+	// Validate database selection.
+	switch {
+	case *mysql && *cockroach, *level && *mysql, *level && *cockroach,
+		*level && *cockroach && *mysql:
+		fmt.Println(mysql, cockroach)
+		return fmt.Errorf("multiple database flags; must use one of the " +
+			"following: -leveldb, -mysqldb or -cockroachdb")
 	}
 
 	switch {
 	case *addCredits || *setAdmin || *stubUsers || *resetTotp:
-		// These commands must be run with -cockroachdb or -leveldb
-		if !*level && !*cockroach {
+		// These commands must be run with -cockroachdb, -mysqldb or -leveldb.
+		if !*level && !*cockroach && !*mysql {
 			return fmt.Errorf("missing database flag; must use " +
-				"either -leveldb or -cockroachdb")
+				"-leveldb, -cockroachdb or -mysqldb")
 		}
 	case *dump:
-		// These commands must be run with -leveldb
+		// These commands must be run with -leveldb.
 		if !*level {
 			return fmt.Errorf("missing database flag; must use " +
 				"-leveldb with this command")
 		}
 	case *verifyIdentities, *setEmail:
-		// These commands must be run with -cockroachdb
+		// These commands must be run with either -cockroachdb or
+		// -mysqldb.
 		if !*cockroach || *level {
 			return fmt.Errorf("invalid database flag; must use " +
-				"-cockroachdb with this command")
+				"either -mysqldb or -cockroachdb with this command")
 		}
 	case *migrate || *createKey:
-		// These commands must be run without a database flag
-		if *level || *cockroach {
+		// These commands must be run without a database flag.
+		if *level || *cockroach || *mysql {
 			return fmt.Errorf("unexpected database flag found; " +
-				"remove database flag -leveldb and -cockroachdb")
+				"remove database flag -leveldb, -mysqldb and -cockroachdb")
 		}
 	}
 
 	// Connect to database
+	var err error
 	switch {
 	case *level:
-		dbDir := filepath.Join(*dataDir, network)
-		fmt.Printf("Database: %v\n", dbDir)
-
-		_, err := os.Stat(dbDir)
-		if err != nil {
-			if os.IsNotExist(err) {
-				err = fmt.Errorf("leveldb dir not found: %v", dbDir)
-			}
-			return err
-		}
-		ldb, err := localdb.New(dbDir)
-		if err != nil {
-			return err
-		}
-		userDB = ldb
-		defer userDB.Close()
+		userDB, err = connectLevelDB()
 
 	case *cockroach:
-		err := validateCockroachParams()
-		if err != nil {
-			return err
-		}
-		db, err := cockroachdb.New(*host, network, *rootCert,
-			*clientCert, *clientKey, *encryptionKey)
-		if err != nil {
-			return fmt.Errorf("new cockroachdb: %v", err)
-		}
-		userDB = db
-		defer userDB.Close()
+		userDB, err = connectCockroachDB()
+
+	case *mysql:
+		userDB, err = connectMySQLDB()
+
 	}
+	if err != nil {
+		return err
+	}
+	defer userDB.Close()
 
 	// Run command
 	switch {
