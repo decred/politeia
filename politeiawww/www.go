@@ -161,6 +161,16 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	// if err != nil -> if defined error -> return defined error + log.Errorf format+args
 	// if err != nil -> if !defined error -> return + log.Errorf format+args
 
+	// Check if the client dropped the connection
+	if err := r.Context().Err(); err == context.Canceled {
+		log.Infof("%v %v %v %v client aborted connection",
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
+
+		// Client dropped the connection. There is no need to
+		// respond further.
+		return
+	}
+
 	// Check for www user error
 	if userErr, ok := args[0].(www.UserError); ok {
 		// Error is a www user error. Log it and return a 400.

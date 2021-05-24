@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/util"
 )
@@ -214,9 +213,9 @@ func CommentVerify(c cmv1.Comment, serverPublicKey string) error {
 func CommentTimestampVerify(ct cmv1.CommentTimestamp) error {
 	// Verify comment adds
 	for i, ts := range ct.Adds {
-		err := tstore.VerifyTimestamp(convertCommentTimestamp(ts))
+		err := backend.VerifyTimestamp(convertCommentTimestamp(ts))
 		if err != nil {
-			if err == tstore.ErrNotTimestamped {
+			if err == backend.ErrNotTimestamped {
 				return err
 			}
 			return fmt.Errorf("verify comment add timestamp %v: %v", i, err)
@@ -227,9 +226,9 @@ func CommentTimestampVerify(ct cmv1.CommentTimestamp) error {
 	if ct.Del == nil {
 		return nil
 	}
-	err := tstore.VerifyTimestamp(convertCommentTimestamp(*ct.Del))
+	err := backend.VerifyTimestamp(convertCommentTimestamp(*ct.Del))
 	if err != nil {
-		if err == tstore.ErrNotTimestamped {
+		if err == backend.ErrNotTimestamped {
 			return err
 		}
 		return fmt.Errorf("verify comment del timestamp: %v", err)
@@ -246,7 +245,7 @@ func CommentTimestampsVerify(tr cmv1.TimestampsReply) ([]uint32, error) {
 	for cid, v := range tr.Comments {
 		err := CommentTimestampVerify(v)
 		if err != nil {
-			if err == tstore.ErrNotTimestamped {
+			if err == backend.ErrNotTimestamped {
 				notTimestamped = append(notTimestamped, cid)
 				continue
 			}

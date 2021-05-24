@@ -814,7 +814,7 @@ func (p *politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Reque
 	pbr, err := p.processProposalBilling(pb, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalBilling: processSetDCCStatus: %v", err)
+			"handleProposalBilling: processProposalBilling: %v", err)
 		return
 	}
 

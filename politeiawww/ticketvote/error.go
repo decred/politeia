@@ -5,6 +5,7 @@
 package ticketvote
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,6 +19,17 @@ import (
 )
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
+	// Check if the client dropped the connection
+	if err := r.Context().Err(); err == context.Canceled {
+		log.Infof("%v %v %v %v client aborted connection",
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
+
+		// Client dropped the connection. There is no need to
+		// respond further.
+		return
+	}
+
+	// Check for expected error types
 	var (
 		ue  v1.UserErrorReply
 		pde pdclient.RespError

@@ -1008,7 +1008,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 
 	// Setup proof for data digest inclusion in the log merkle root
-	edt := ExtraDataTrillianRFC6962{
+	edt := backend.ExtraDataTrillianRFC6962{
 		LeafIndex: p.LeafIndex,
 		TreeSize:  int64(a.LogRoot.TreeSize),
 	}
@@ -1021,7 +1021,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 		merklePath = append(merklePath, hex.EncodeToString(v))
 	}
 	trillianProof := backend.Proof{
-		Type:       ProofTypeTrillianRFC6962,
+		Type:       backend.ProofTypeTrillianRFC6962,
 		Digest:     ts.Digest,
 		MerkleRoot: hex.EncodeToString(a.LogRoot.RootHash),
 		MerklePath: merklePath,
@@ -1038,7 +1038,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 		hashes    = a.VerifyDigest.ChainInformation.MerklePath.Hashes
 		flags     = a.VerifyDigest.ChainInformation.MerklePath.Flags
 	)
-	edd := ExtraDataDcrtime{
+	edd := backend.ExtraDataDcrtime{
 		NumLeaves: numLeaves,
 		Flags:     base64.StdEncoding.EncodeToString(flags),
 	}
@@ -1051,7 +1051,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 		merklePath = append(merklePath, hex.EncodeToString(v[:]))
 	}
 	dcrtimeProof := backend.Proof{
-		Type:       ProofTypeDcrtime,
+		Type:       backend.ProofTypeDcrtime,
 		Digest:     a.VerifyDigest.Digest,
 		MerkleRoot: a.VerifyDigest.ChainInformation.MerkleRoot,
 		MerklePath: merklePath,
@@ -1067,7 +1067,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 
 	// Verify timestamp
-	err = VerifyTimestamp(ts)
+	err = backend.VerifyTimestamp(ts)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyTimestamp: %v", err)
 	}

@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package tstore
+package backendv2
 
 import (
 	"crypto/sha256"
@@ -14,7 +14,6 @@ import (
 
 	"github.com/decred/dcrtime/merkle"
 	dmerkle "github.com/decred/dcrtime/merkle"
-	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	tmerkle "github.com/google/trillian/merkle"
@@ -38,7 +37,7 @@ type ExtraDataTrillianRFC6962 struct {
 }
 
 // verifyProofTrillian verifies a proof with the type ProofTypeTrillianRFC6962.
-func verifyProofTrillian(p backend.Proof) error {
+func verifyProofTrillian(p Proof) error {
 	// Verify type
 	if p.Type != ProofTypeTrillianRFC6962 {
 		return fmt.Errorf("invalid proof type")
@@ -90,7 +89,7 @@ type ExtraDataDcrtime struct {
 }
 
 // verifyProofDcrtime verifies a proof with the type ProofTypeDcrtime.
-func verifyProofDcrtime(p backend.Proof) error {
+func verifyProofDcrtime(p Proof) error {
 	if p.Type != ProofTypeDcrtime {
 		return fmt.Errorf("invalid proof type")
 	}
@@ -151,7 +150,7 @@ func verifyProofDcrtime(p backend.Proof) error {
 }
 
 // verifyProof verifies a backend proof.
-func verifyProof(p backend.Proof) error {
+func verifyProof(p Proof) error {
 	switch p.Type {
 	case ProofTypeTrillianRFC6962:
 		return verifyProofTrillian(p)
@@ -170,7 +169,7 @@ var (
 
 // VerifyTimestamp verifies the inclusion of the data in the merkle root that
 // was timestamped onto the dcr blockchain.
-func VerifyTimestamp(t backend.Timestamp) error {
+func VerifyTimestamp(t Timestamp) error {
 	if t.TxID == "" {
 		return ErrNotTimestamped
 	}

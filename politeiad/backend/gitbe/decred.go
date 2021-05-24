@@ -35,10 +35,8 @@ import (
 // XXX plugins really need to become an interface. Run with this for now.
 
 const (
-	decredPluginIdentity        = "fullidentity"
-	decredPluginJournals        = "journals"
-	decredPluginVoteDurationMin = "votedurationmin"
-	decredPluginVoteDurationMax = "votedurationmax"
+	decredPluginIdentity = "fullidentity"
+	decredPluginJournals = "journals"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -61,10 +59,6 @@ const (
 var (
 	// errDuplicateVote is emitted when a cast vote is a duplicate.
 	errDuplicateVote = errors.New("duplicate vote")
-
-	// errIneligibleTicket is emitted when a vote is cast using an
-	// ineligible ticket.
-	errIneligibleTicket = errors.New("ineligible ticket")
 )
 
 // FlushRecord is a structure that is stored on disk when a journal has been
@@ -394,35 +388,6 @@ func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 	return &bdb, nil
 }
 
-func snapshot(hash string) ([]string, error) {
-	url := decredPluginSettings["dcrdata"] + "/api/stake/pool/b/" + hash +
-		"/full?sort=true"
-	log.Debugf("connecting to %v", url)
-	r, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-
-	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return nil, fmt.Errorf("dcrdata error: %v %v %v",
-				r.StatusCode, url, err)
-		}
-		return nil, fmt.Errorf("dcrdata error: %v %v %s",
-			r.StatusCode, url, body)
-	}
-
-	var tickets []string
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&tickets); err != nil {
-		return nil, err
-	}
-
-	return tickets, nil
-}
-
 func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
 	// Request body is dcrdataapi.Txns marshalled to JSON
 	reqBody, err := json.Marshal(dcrdataapi.Txns{
@@ -459,52 +424,6 @@ func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
 		return nil, err
 	}
 	return ttx, nil
-}
-
-// largestCommitmentResult returns the largest commitment address or an error.
-type largestCommitmentResult struct {
-	bestAddr string
-	err      error
-}
-
-func largestCommitmentAddresses(hashes []string) ([]largestCommitmentResult, error) {
-	// Batch request all of the transaction info from dcrdata.
-	ttxs, err := batchTransactions(hashes)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find largest commitment address for each transaction.
-	r := make([]largestCommitmentResult, len(hashes))
-	for i := range ttxs {
-		// Best is address with largest commit amount.
-		var bestAddr string
-		var bestAmount float64
-		for _, v := range ttxs[i].Vout {
-			if v.ScriptPubKeyDecoded.CommitAmt == nil {
-				continue
-			}
-			if *v.ScriptPubKeyDecoded.CommitAmt > bestAmount {
-				if len(v.ScriptPubKeyDecoded.Addresses) == 0 {
-					// jrick, does this need to be printed?
-					log.Errorf("unexpected addresses "+
-						"length: %v", ttxs[i].TxID)
-					continue
-				}
-				bestAddr = v.ScriptPubKeyDecoded.Addresses[0]
-				bestAmount = *v.ScriptPubKeyDecoded.CommitAmt
-			}
-		}
-
-		if bestAddr == "" || bestAmount == 0.0 {
-			r[i].err = fmt.Errorf("no best commitment address found: %v",
-				ttxs[i].TxID)
-			continue
-		}
-		r[i].bestAddr = bestAddr
-	}
-
-	return r, nil
 }
 
 // pluginBestBlock returns current best block height from wallet.

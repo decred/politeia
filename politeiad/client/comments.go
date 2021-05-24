@@ -104,9 +104,9 @@ func (c *Client) CommentDel(ctx context.Context, d comments.Del) (*comments.DelR
 }
 
 // CommentCount sends a batch of comment plugin Count commands to the
-// politeiad v2 API and returns a map[token]count with the results. If a record
-// is not found for a token or any other error occurs, that token will not be
-// included in the reply.
+// politeiad v2 API and returns a map[token]count with the results. If a
+// record is not found for a token or any other error occurs, that token
+// will not be included in the reply.
 func (c *Client) CommentCount(ctx context.Context, tokens []string) (map[string]uint32, error) {
 	// Setup request
 	cmds := make([]pdv2.PluginCmd, 0, len(tokens))

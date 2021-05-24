@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	jsonrpc "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
-	v5 "github.com/decred/dcrdata/api/types/v5"
+	types "github.com/decred/dcrdata/v6/api/types"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/util"
 )
@@ -213,13 +213,13 @@ func (p *dcrdataPlugin) makeReq(method string, route string, headers map[string]
 }
 
 // bestBlockHTTP fetches and returns the best block from the dcrdata http API.
-func (p *dcrdataPlugin) bestBlockHTTP() (*v5.BlockDataBasic, error) {
+func (p *dcrdataPlugin) bestBlockHTTP() (*types.BlockDataBasic, error) {
 	resBody, err := p.makeReq(http.MethodGet, routeBestBlock, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var bdb v5.BlockDataBasic
+	var bdb types.BlockDataBasic
 	err = json.Unmarshal(resBody, &bdb)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (p *dcrdataPlugin) bestBlockHTTP() (*v5.BlockDataBasic, error) {
 
 // blockDetails returns the block details for the block at the specified block
 // height.
-func (p *dcrdataPlugin) blockDetails(height uint32) (*v5.BlockDataBasic, error) {
+func (p *dcrdataPlugin) blockDetails(height uint32) (*types.BlockDataBasic, error) {
 	h := strconv.FormatUint(uint64(height), 10)
 
 	route := strings.Replace(routeBlockDetails, "{height}", h, 1)
@@ -239,7 +239,7 @@ func (p *dcrdataPlugin) blockDetails(height uint32) (*v5.BlockDataBasic, error) 
 		return nil, err
 	}
 
-	var bdb v5.BlockDataBasic
+	var bdb types.BlockDataBasic
 	err = json.Unmarshal(resBody, &bdb)
 	if err != nil {
 		return nil, err
@@ -268,8 +268,8 @@ func (p *dcrdataPlugin) ticketPool(blockHash string) ([]string, error) {
 }
 
 // txsTrimmed returns the TrimmedTx for the specified tx IDs.
-func (p *dcrdataPlugin) txsTrimmed(txIDs []string) ([]v5.TrimmedTx, error) {
-	t := v5.Txns{
+func (p *dcrdataPlugin) txsTrimmed(txIDs []string) ([]types.TrimmedTx, error) {
+	t := types.Txns{
 		Transactions: txIDs,
 	}
 	headers := map[string]string{
@@ -280,7 +280,7 @@ func (p *dcrdataPlugin) txsTrimmed(txIDs []string) ([]v5.TrimmedTx, error) {
 		return nil, err
 	}
 
-	var txs []v5.TrimmedTx
+	var txs []types.TrimmedTx
 	err = json.Unmarshal(resBody, &txs)
 	if err != nil {
 		return nil, err
@@ -289,7 +289,7 @@ func (p *dcrdataPlugin) txsTrimmed(txIDs []string) ([]v5.TrimmedTx, error) {
 	return txs, nil
 }
 
-func convertTicketPoolInfoFromV5(t v5.TicketPoolInfo) dcrdata.TicketPoolInfo {
+func convertTicketPoolInfoFromV5(t types.TicketPoolInfo) dcrdata.TicketPoolInfo {
 	return dcrdata.TicketPoolInfo{
 		Height:  t.Height,
 		Size:    t.Size,
@@ -299,7 +299,7 @@ func convertTicketPoolInfoFromV5(t v5.TicketPoolInfo) dcrdata.TicketPoolInfo {
 	}
 }
 
-func convertBlockDataBasicFromV5(b v5.BlockDataBasic) dcrdata.BlockDataBasic {
+func convertBlockDataBasicFromV5(b types.BlockDataBasic) dcrdata.BlockDataBasic {
 	var poolInfo *dcrdata.TicketPoolInfo
 	if b.PoolInfo != nil {
 		p := convertTicketPoolInfoFromV5(*b.PoolInfo)
@@ -354,7 +354,7 @@ func convertVinsFromV5(ins []jsonrpc.Vin) []dcrdata.Vin {
 	return i
 }
 
-func convertScriptPubKeyFromV5(s v5.ScriptPubKey) dcrdata.ScriptPubKey {
+func convertScriptPubKeyFromV5(s types.ScriptPubKey) dcrdata.ScriptPubKey {
 	return dcrdata.ScriptPubKey{
 		Asm:       s.Asm,
 		Hex:       s.Hex,
@@ -365,14 +365,14 @@ func convertScriptPubKeyFromV5(s v5.ScriptPubKey) dcrdata.ScriptPubKey {
 	}
 }
 
-func convertTxInputIDFromV5(t v5.TxInputID) dcrdata.TxInputID {
+func convertTxInputIDFromV5(t types.TxInputID) dcrdata.TxInputID {
 	return dcrdata.TxInputID{
 		Hash:  t.Hash,
 		Index: t.Index,
 	}
 }
 
-func convertVoutFromV5(v v5.Vout) dcrdata.Vout {
+func convertVoutFromV5(v types.Vout) dcrdata.Vout {
 	var spend *dcrdata.TxInputID
 	if v.Spend != nil {
 		s := convertTxInputIDFromV5(*v.Spend)
@@ -387,7 +387,7 @@ func convertVoutFromV5(v v5.Vout) dcrdata.Vout {
 	}
 }
 
-func convertVoutsFromV5(outs []v5.Vout) []dcrdata.Vout {
+func convertVoutsFromV5(outs []types.Vout) []dcrdata.Vout {
 	o := make([]dcrdata.Vout, 0, len(outs))
 	for _, v := range outs {
 		o = append(o, convertVoutFromV5(v))
@@ -395,7 +395,7 @@ func convertVoutsFromV5(outs []v5.Vout) []dcrdata.Vout {
 	return o
 }
 
-func convertTrimmedTxFromV5(t v5.TrimmedTx) dcrdata.TrimmedTx {
+func convertTrimmedTxFromV5(t types.TrimmedTx) dcrdata.TrimmedTx {
 	return dcrdata.TrimmedTx{
 		TxID:     t.TxID,
 		Version:  t.Version,
@@ -406,7 +406,7 @@ func convertTrimmedTxFromV5(t v5.TrimmedTx) dcrdata.TrimmedTx {
 	}
 }
 
-func convertTrimmedTxsFromV5(txs []v5.TrimmedTx) []dcrdata.TrimmedTx {
+func convertTrimmedTxsFromV5(txs []types.TrimmedTx) []dcrdata.TrimmedTx {
 	t := make([]dcrdata.TrimmedTx, 0, len(txs))
 	for _, v := range txs {
 		t = append(t, convertTrimmedTxFromV5(v))

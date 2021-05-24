@@ -114,6 +114,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 // returning a 500 response.
 func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Defer the function so that it gets executed when the request
+		// is being closed out, not when its being opened.
 		defer func() {
 			if err := recover(); err != nil {
 				errorCode := time.Now().Unix()

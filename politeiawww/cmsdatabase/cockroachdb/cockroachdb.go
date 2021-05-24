@@ -613,7 +613,8 @@ func (c *cockroachdb) InvoicesByDateRange(start, end int64) ([]database.Invoice,
 // be omitted.
 func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database.Invoice, error) {
 	log.Debugf("InvoicesByLineItemsProposalToken: %v", token)
-	// Get all line items with proposal token
+	// Get all line items from approved, new, updated or paid invoices based
+	// on the provided proposal token
 	query := `SELECT 
               invoices.month, 
               invoices.year, 
@@ -637,8 +638,17 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]database
               AND invoices.version < b.version
             INNER JOIN line_items
               ON invoices.key = line_items.invoice_key
-              WHERE line_items.proposal_url = ? AND invoices.status = ?`
-	rows, err := c.recordsdb.Raw(query, token, int(v1.InvoiceStatusPaid)).Rows()
+              WHERE line_items.proposal_url = ? AND (
+				invoices.status = ? OR 
+				invoices.status = ? OR 
+				invoices.status = ? OR
+				invoices.status = ?)`
+	rows, err := c.recordsdb.Raw(query, token,
+		int(v1.InvoiceStatusNew),
+		int(v1.InvoiceStatusUpdated),
+		int(v1.InvoiceStatusApproved),
+		int(v1.InvoiceStatusPaid),
+	).Rows()
 	if err != nil {
 		return nil, err
 	}
