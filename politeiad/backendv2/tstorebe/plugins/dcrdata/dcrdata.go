@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	exptypes "github.com/decred/dcrdata/explorer/types/v2"
-	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
+	exptypes "github.com/decred/dcrdata/v6/explorer/types"
+	pstypes "github.com/decred/dcrdata/v6/pubsub/types"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
