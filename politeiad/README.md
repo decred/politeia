@@ -1,68 +1,124 @@
 politeiad
 ====
 
-# Installing and running
+## Installing and running
 
-## Install dependencies
+### Install dependencies
 
-<details><summary><b>MySQL/MariaDB</b></summary>
+<details><summary><b>Go 1.15 or 1.16</b></summary>
 
-  Installation instructions can be found at the links below.
-  MySQL: https://www.mysql.com
-  MariaDB: https://mariadb.com
+  Installation instructions can be at https://golang.org/doc/install.
+  Ensure Go was installed properly and is a supported version:
+  ```
+  $ go version
+  $ go env GOROOT GOPATH
+  ```
+  NOTE: `GOROOT` and `GOPATH` must not be on the same path. Since Go 1.8
+  (2016), `GOROOT` and `GOPATH` are set automatically, and you do not need to
+  change them. However, you still need to add `$GOPATH/bin` to your `PATH` in
+  order to run binaries installed by `go get` and `go install` (On Windows,
+  this happens automatically).
+
+  Unix example -- add these lines to .profile:
+
+  ```
+  PATH="$PATH:/usr/local/go/bin"  # main Go binaries ($GOROOT/bin)
+  PATH="$PATH:$HOME/go/bin"       # installed Go projects ($GOPATH/bin)
+  ```
 
 </details>
 
+<details><summary><b>Git</b></summary>
 
-## Build from source
+  Installation instructions can be found at https://git-scm.com or
+  https://gitforwindows.org.
+  ```
+  $ git version
+  ```
 
-1. Set the password for the MySQL root user and update the MySQL max
-   connections settings.
+</details>
 
-   Max connections defaults to 151 which is not enough for trillian. You will
-   be prompted for the MySQL root user's password when running these commands.
+<details><summary><b>MySQL/MariaDB</b></summary>
 
-    ```
-    # Update max connections    
-    $ mysql -u root -p -e "SET GLOBAL max_connections = 2000;"
+  Installation instructions can be found at the links below.  
+  MySQL: https://www.mysql.com  
+  MariaDB: https://mariadb.com  
 
-    # Verify the setting
-    $ mysql -u root -p -e "SHOW VARIABLES LIKE 'max_connections';"
-    ```
+  Unix example:  
 
-   You can also update the config file so you don't need to set it manually in
-   the future.  Make sure to restart MySQL once you update the config file.
+  ```
+  $ sudo apt install mariadb-server
+  ```
 
-   MariaDB config file: `/etc/mysql/mariadb.cnf`  
-   MySQL config file: `/etc/mysql/my.cnf`  
-    
-    ```
-    [mysqld]
-    max_connections = 2000
-    ```
+  Run the security script to configure MariaDB. You MUST set a password for
+  the root user. The politeiad scripts will not run properly if the root user
+  does not have a password.  
 
-2. Install trillian v1.3.13.
+  ```
+  $ sudo mysql_secure_installation
+  ```
 
-    ```
-    $ mkdir -p $GOPATH/src/github.com/google/
-    $ cd $GOPATH/src/github.com/google/
-    $ git clone git@github.com:google/trillian.git
-    $ cd trillian
-    $ git checkout tags/v1.3.13 -b v1.3.13
-    $ go install -v ./...
-    ```
+  Update the max connections setting. This is required for politeiad to run
+  properly. You will be prompted for the MySQL root user's password when
+  running these commands.  
 
-3. Install politeia.
+  ```
+  # Update max connections    
+  $ mysql -u root -p -e "SET GLOBAL max_connections = 2000;"
 
-    ```
-    $ mkdir -p $GOPATH/src/github.com/decred
-    $ cd $GOPATH/src/github.com/decred
-    $ git clone git@github.com:decred/politeia.git
-    $ cd politeia
-    $ go install -v ./...
-    ```
+  # Verify the setting
+  $ mysql -u root -p -e "SHOW VARIABLES LIKE 'max_connections';"
+  ```
 
-4. Run the politeiad mysql setup scripts.
+  You can also update the config file so you don't need to set it manually in
+  the future.  Make sure to restart MySQL once you update the config file.  
+
+  MariaDB config file: `/etc/mysql/mariadb.cnf`  
+  MySQL config file: `/etc/mysql/my.cnf`  
+
+  ```
+  [mysqld]
+  max_connections = 2000
+  ```
+
+</details>
+
+<details><summary><b>Trillian 1.3.13</b></summary>
+
+  Installation instructions can be found at https://github.com/google/trillian.
+
+  Unix example:
+
+  ```
+  $ mkdir -p $GOPATH/src/github.com/google/
+  $ cd $GOPATH/src/github.com/google/
+  $ git clone git@github.com:google/trillian.git
+  $ cd trillian
+  $ git checkout tags/v1.3.13 -b v1.3.13
+  $ go install -v ./...
+  ```
+
+</details>
+
+### Install politeia
+
+This step downloads and installs the politeiad and politeiawww binaries.  
+
+You must have all dependencies installed before continuing. The MySQL/MariaDB
+root user must have a password and the max connections setting must be updated.
+See the MySQL/MariaDB installation section for more details.
+
+  ```
+  $ mkdir -p $GOPATH/src/github.com/decred
+  $ cd $GOPATH/src/github.com/decred
+  $ git clone git@github.com:decred/politeia.git
+  $ cd politeia
+  $ go install -v ./...
+  ```
+
+### Setup and run politeiad
+
+1. Run the politeiad mysql setup scripts.
 
    This will create the politeiad and trillian users as well as creating the
    politeiad databases. Password authentication is used for all database
@@ -91,7 +147,7 @@ politeiad
       ./tstore-mysql-setup.sh
     ```
 
-5. Run the trillian mysql setup scripts.
+2. Run the trillian mysql setup scripts.
 
    These can only be run once the trillian MySQL user has been created in the
    previous step.
@@ -115,7 +171,7 @@ politeiad
       ./resetdb.sh
     ```
 
-6. Start up the trillian instances.
+3. Start up trillian.
 
    Running trillian requires running a trillian log server and a trillian log
    signer. These are seperate processes that will be started in this step. 
@@ -161,7 +217,7 @@ politeiad
       --http_endpoint=localhost:8093 
     ```
 
-7. Setup the politeiad configuration file.
+4. Setup the politeiad configuration file.
 
    [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf)
 
@@ -180,7 +236,7 @@ politeiad
 
      `~/.politeiad/politeiad.conf`
 
-    ``` 
+    ```
     $ mkdir -p ${HOME}/.politeiad/
     $ cd $GOPATH/src/github.com/decred/politeia/politeiad
     $ cp ./sample-politeiad.conf ${HOME}/.politeiad/politeiad.conf
@@ -198,7 +254,14 @@ politeiad
 
     ; Tstore settings
     dbtype=mysql
+    ```
 
+    **Pi configuration**
+
+    Pi, Decred's proposal system, requires adding the following additional
+    settings to your configuration file.  
+
+    ```
     ; Pi plugin configuration
     plugin=pi
     plugin=comments
@@ -206,8 +269,7 @@ politeiad
     plugin=ticketvote
     plugin=usermd
     ```
-
-8. Start up the politeiad instance.
+5. Start up politeiad.
 
    The password for the politeiad MySQL user must be provided in the `DBPASS`
    env variable. The encryption key used to encrypt non-public data at rest
@@ -221,6 +283,6 @@ politeiad
     $ env DBPASS=politeiadpass TLOGPASS=tlogpass politeiad
     ```
 
-# Tools and reference clients
+## Tools and reference clients
 
 * [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) - Reference client for politeiad.
