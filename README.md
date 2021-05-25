@@ -36,6 +36,11 @@ Core software:
 * politeiad - Reference server daemon. Data layer.
 * politeiawww - Web backend server; depends on politeiad. User layer.
 
+**The [politeiawww APIs](https://github.com/decred/politeia/tree/master/politeiawww/api/)
+and [politeiawww client](https://github.com/decred/politeia/tree/master/politeiawww/client)
+can be treated as stable. All other APIs and libraries should be treated as
+unstable and subject to breaking changes.**
+
 See the politeiad [README](https://github.com/decred/politeia/tree/master/politeiad#politeiad) for instructions on building and running politeiad.  
 
 See the politeiawww [README](https://github.com/decred/politeia/tree/master/politeiawww#politeiawww) for instructions on building and running politeiawww.  

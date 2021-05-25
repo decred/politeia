@@ -282,6 +282,13 @@ See the MySQL/MariaDB installation section for more details.
     ```
     $ env DBPASS=politeiadpass TLOGPASS=tlogpass politeiad
     ```
+## API
+
+- [politeiad API](https://github.com/decred/politeia/tree/master/politeiad/api/v2)
+- [politeiad client](https://github.com/decred/politeia/tree/master/politeiad/client)
+
+The politeiad APIs and libraries should be treated as unstable and subject to
+breaking changes.
 
 ## Tools and reference clients
 

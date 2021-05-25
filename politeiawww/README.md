@@ -111,6 +111,13 @@ must already be setup and running before you attempt to run politeiawww.
     ```
     $ politeiawww
     ```
+## API
+
+The [politeiawww APIs](https://github.com/decred/politeia/tree/master/politeiawww/api/)
+and [politeiawww client](https://github.com/decred/politeia/tree/master/politeiawww/client)
+can be treated as stable. All other APIs and libraries should be treated as
+unstable and subject to breaking changes.
+
 
 ## Tools and reference clients
 
