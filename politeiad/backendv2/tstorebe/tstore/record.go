@@ -600,14 +600,6 @@ func (t *Tstore) RecordExists(token []byte) bool {
 	return err == nil
 }
 
-// storeGetter describes the get method that is present on both the store
-// BlobKV interface and the store Tx interface. This allows us to use the same
-// code for executing individual get requests and get requests that are part of
-// a transaction.
-type storeGetter interface {
-	Get(keys []string) (map[string][]byte, error)
-}
-
 // record returns the specified record.
 //
 // Version is used to request a specific version of a record. If no version is
@@ -618,7 +610,7 @@ type storeGetter interface {
 //
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
-func (t *Tstore) record(sg storeGetter, treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+func (t *Tstore) record(sg store.Getter, treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	// Get tree leaves
 	leaves, err := t.leavesAll(treeID)
 	if err != nil {
