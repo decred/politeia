@@ -489,8 +489,6 @@ func DecodeEmailHistory(payload []byte) (*EmailHistory, error) {
 
 // Database describes the interface used for interacting with the user
 // database.
-//
-//go:generate moq -out ./mock/database.go -pkg mock . Database
 type Database interface {
 	// Add a new user
 	UserNew(User) error

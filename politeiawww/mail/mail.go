@@ -17,8 +17,6 @@ import (
 )
 
 // Mailer provides interface for sending emails.
-//
-//go:generate moq -out ./mock_test.go . Mailer
 type Mailer interface {
 	// IsEnabled returns whether the email server is enabled.
 	IsEnabled() bool

@@ -1,3 +1,7 @@
+// Copyright (c) 2020-2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package mail
 
 import (
@@ -5,14 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/decred/politeia/politeiawww/mail/mock"
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/politeiawww/user/mock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 )
 
 func TestLimiter_IsEnabled(t *testing.T) {
-	mm := &MailerMock{
+	mm := &mock.MailerMock{
 		IsEnabledFunc: func() bool {
 			return true
 		},
@@ -59,7 +63,7 @@ func TestLimiter_SendTo(t *testing.T) {
 			LimitWarningSent: false,
 		}
 
-		mm := &MailerMock{
+		mm := &mock.MailerMock{
 			SendToFunc: func(s string, b string, rs []string) error {
 				if diff := cmp.Diff(subject, s); diff != "" {
 					return fmt.Errorf("unexpected s: %v", diff)
@@ -151,7 +155,7 @@ func TestLimiter_SendTo(t *testing.T) {
 			LimitWarningSent: false,
 		}
 
-		mm := &MailerMock{
+		mm := &mock.MailerMock{
 			SendToFunc: func(s string, b string, rs []string) error {
 				if diff := cmp.Diff(subject, s); diff != "" {
 					return fmt.Errorf("unexpected s: %v", diff)
