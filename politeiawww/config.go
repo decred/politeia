@@ -30,7 +30,7 @@ import (
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/util"
-	"github.com/jessevdk/go-flags"
+	flags "github.com/jessevdk/go-flags"
 )
 
 const (
