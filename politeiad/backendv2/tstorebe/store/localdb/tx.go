@@ -12,12 +12,23 @@ import (
 type tx struct {
 	localdb *localdb
 	batch   *leveldb.Batch
+
+	// The cancel function starts off as a function that releases the
+	// localdb lock when invoked. This allows the caller to defer
+	// invocation of it in order to handle any unexpected errors. Once
+	// the tx has been committed or rolled back this cancel function is
+	// replaced with an empty function where any future invocations do
+	// nothing. This prevents deferred invocations from trying to
+	// unlock a mutex that is already unlocked and causing a panic.
+	cancel func()
 }
 
 // Put saves a key-value pair to the store.
 //
 // This function satisfies the store Tx interface.
 func (t *tx) Put(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("Tx Put: %v blobs", len(blobs))
+
 	err := t.localdb.put(blobs, encrypt, t.batch)
 	if err != nil {
 		return err
@@ -32,6 +43,8 @@ func (t *tx) Put(blobs map[string][]byte, encrypt bool) error {
 //
 // This function satisfies the store Tx interface.
 func (t *tx) Del(keys []string) error {
+	log.Tracef("Tx Del: %v", keys)
+
 	err := t.localdb.del(keys, t.batch)
 	if err != nil {
 		return err
@@ -48,6 +61,8 @@ func (t *tx) Del(keys []string) error {
 //
 // This function satisfies the store Tx interface.
 func (t *tx) Get(keys []string) (map[string][]byte, error) {
+	log.Tracef("Tx Get: %v", keys)
+
 	return t.localdb.get(keys)
 }
 
@@ -59,6 +74,10 @@ func (t *tx) Rollback() error {
 	// being released. There are no leveldb resources that need to
 	// be released.
 	t.localdb.Unlock()
+
+	// The cancel function should do nothing when invoked now
+	// that the tx has been rolled back.
+	t.cancel = func() {}
 
 	log.Debugf("Tx rolled back")
 
@@ -78,6 +97,10 @@ func (t *tx) Commit() error {
 	// Release the lock that was held on tx creation
 	t.localdb.Unlock()
 
+	// The cancel function should do nothing when invoked now
+	// that the tx has been committed.
+	t.cancel = func() {}
+
 	log.Debugf("Tx committed")
 
 	return nil
@@ -95,16 +118,29 @@ func newTx(localdb *localdb) (*tx, func()) {
 	// 3. The cancel function is invoked.
 	localdb.Lock()
 
-	// Setup cancel function
-	cancel := func() {
-		// The only thing that needs to happen on cancelation is the
-		// lock being released. There are no leveldb resources that
-		// need to be released.
-		localdb.Unlock()
-	}
-
-	return &tx{
+	// Setup transaction
+	t := &tx{
 		localdb: localdb,
 		batch:   new(leveldb.Batch),
-	}, cancel
+		cancel: func() {
+			// The only thing that needs to happen on cancelation is the
+			// lock being released. There are no leveldb resources that
+			// need to be released.
+			localdb.Unlock()
+		},
+	}
+
+	return t, func() {
+		// The cancel function uses the tx.cancel() method instead of
+		// just returning a closure that unlocks the mutex so that the
+		// tx.cancel() method can be replaced with a empty function once
+		// the tx has been committed or rolled back. The point of the
+		// cancel function is to allow the caller to defer its invocation
+		// in order to handle unexpected errors. Once the tx has been
+		// committed or rolled back the tx.cancel() method is replaced
+		// with an empty function where any future invocations do
+		// nothing. This prevents deferred invocations from trying to
+		// unlock a mutex that is already unlocked and causing a panic.
+		t.cancel()
+	}
 }

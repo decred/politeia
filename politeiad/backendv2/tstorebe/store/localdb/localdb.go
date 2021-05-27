@@ -34,40 +34,38 @@ var (
 
 // localdb implements the store BlobKV interface using leveldb.
 //
+// This implementation takes a very simple approach to implementing the store
+// BlobKV interface and the store Tx interface. All exported calls are locked
+// against concurrent access. While this may not be the most performant
+// approach, it is the simpliest way to implement a database transaction using
+// leveldb.
+//
 // NOTE: this implementation was created for testing. The encryption techniques
 // used may not be suitable for a production environment. A random secretbox
 // encryption key is created on startup and saved to the politeiad application
 // dir. Blobs are encrypted using random 24 byte nonces.
 type localdb struct {
-	sync.RWMutex
+	sync.Mutex
 	db       *leveldb.DB
 	key      *[32]byte
 	shutdown bool
 }
 
-// isShutdown returns whether the localdb context has been shutdown.
-func (l *localdb) isShutdown() bool {
-	l.RLock()
-	defer l.RUnlock()
-
-	return l.shutdown
-}
-
 // encrypt encrypts and returns the provided data blob.
 func (l *localdb) encrypt(data []byte) ([]byte, error) {
-	l.RLock()
-	defer l.RUnlock()
-
 	return sbox.Encrypt(0, l.key, data)
 }
 
 // decrypt decrypts the provided data blob. It unpacks the sbox header and
 // returns the version and unencrypted data if successful.
 func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
-	l.RLock()
-	defer l.RUnlock()
-
 	return sbox.Decrypt(l.key, data)
+}
+
+// isEncrypted returns whether the provided blob has been prefixed with an sbox
+// header, indicating that it is an encrypted blob.
+func isEncrypted(b []byte) bool {
+	return bytes.HasPrefix(b, []byte("sbox"))
 }
 
 // put saves the provided key-value pairs to the store.
@@ -91,35 +89,6 @@ func (l *localdb) put(blobs map[string][]byte, encrypt bool, batch *leveldb.Batc
 	return nil
 }
 
-// Put saves the provided key-value pairs to the store. This operation is
-// performed atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
-	log.Tracef("Put: %v blobs", len(blobs))
-
-	if l.isShutdown() {
-		return store.ErrShutdown
-	}
-
-	// Save blobs to a batch
-	batch := new(leveldb.Batch)
-	err := l.put(blobs, encrypt, batch)
-	if err != nil {
-		return err
-	}
-
-	// Write batch
-	err = l.db.Write(batch, nil)
-	if err != nil {
-		return fmt.Errorf("write batch: %v", err)
-	}
-
-	log.Debugf("Saved blobs (%v) to store", len(blobs))
-
-	return nil
-}
-
 // del deletes the provided blobs from the store.
 func (l *localdb) del(keys []string, batch *leveldb.Batch) error {
 	for _, v := range keys {
@@ -128,40 +97,7 @@ func (l *localdb) del(keys []string, batch *leveldb.Batch) error {
 	return nil
 }
 
-// Del deletes the provided blobs from the store. This operation is performed
-// atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Del(keys []string) error {
-	log.Tracef("Del: %v", keys)
-
-	if l.isShutdown() {
-		return store.ErrShutdown
-	}
-
-	batch := new(leveldb.Batch)
-	err := l.del(keys, batch)
-	if err != nil {
-		return err
-	}
-
-	err = l.db.Write(batch, nil)
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Deleted blobs (%v) from store", len(keys))
-
-	return nil
-}
-
-// isEncrypted returns whether the provided blob has been prefixed with an sbox
-// header, indicating that it is an encrypted blob.
-func isEncrypted(b []byte) bool {
-	return bytes.HasPrefix(b, []byte("sbox"))
-}
-
-// Get returns blobs from the store for the provided keys. An entry will not
+// get returns blobs from the store for the provided keys. An entry will not
 // exist in the returned map if for any blobs that are not found. It is the
 // responsibility of the caller to ensure a blob was returned for all provided
 // keys.
@@ -197,6 +133,66 @@ func (l *localdb) get(keys []string) (map[string][]byte, error) {
 	return blobs, nil
 }
 
+// Put saves the provided key-value pairs to the store. This operation is
+// performed atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("Put: %v blobs", len(blobs))
+
+	l.Lock()
+	defer l.Unlock()
+	if l.shutdown {
+		return store.ErrShutdown
+	}
+
+	// Save blobs to a batch
+	batch := new(leveldb.Batch)
+	err := l.put(blobs, encrypt, batch)
+	if err != nil {
+		return err
+	}
+
+	// Write batch
+	err = l.db.Write(batch, nil)
+	if err != nil {
+		return fmt.Errorf("write batch: %v", err)
+	}
+
+	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
+	return nil
+}
+
+// Del deletes the provided blobs from the store. This operation is performed
+// atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Del(keys []string) error {
+	log.Tracef("Del: %v", keys)
+
+	l.Lock()
+	defer l.Unlock()
+	if l.shutdown {
+		return store.ErrShutdown
+	}
+
+	batch := new(leveldb.Batch)
+	err := l.del(keys, batch)
+	if err != nil {
+		return err
+	}
+
+	err = l.db.Write(batch, nil)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Deleted blobs (%v) from store", len(keys))
+
+	return nil
+}
+
 // Get returns blobs from the store for the provided keys. An entry will not
 // exist in the returned map if for any blobs that are not found. It is the
 // responsibility of the caller to ensure a blob was returned for all provided
@@ -206,7 +202,9 @@ func (l *localdb) get(keys []string) (map[string][]byte, error) {
 func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	log.Tracef("Get: %v", keys)
 
-	if l.isShutdown() {
+	l.Lock()
+	defer l.Unlock()
+	if l.shutdown {
 		return nil, store.ErrShutdown
 	}
 

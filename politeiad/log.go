@@ -54,7 +54,7 @@ var (
 	gitbeLog     = backendLog.Logger("GITB")
 	tstorebeLog  = backendLog.Logger("BACK")
 	tstoreLog    = backendLog.Logger("TSTR")
-	kvstoreLog   = backendLog.Logger("STOR")
+	kvstoreLog   = backendLog.Logger("KVST")
 	wsdcrdataLog = backendLog.Logger("WSDD")
 	pluginLog    = backendLog.Logger("PLUG")
 )
@@ -86,7 +86,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"GITB": gitbeLog,
 	"BACK": tstorebeLog,
 	"TSTR": tstoreLog,
-	"STOR": kvstoreLog,
+	"KVST": kvstoreLog,
 	"WSDD": wsdcrdataLog,
 	"PLUG": pluginLog,
 }
