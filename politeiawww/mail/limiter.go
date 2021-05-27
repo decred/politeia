@@ -102,7 +102,7 @@ func (l *Limiter) SendToUsers(subject, body string, recipients map[uuid.UUID]str
 
 func (l *Limiter) refreshHistories(histories map[uuid.UUID]user.EmailHistory, limitWarningSent bool) error {
 	for userID, history := range histories {
-		history.SentTimestamps = append(history.SentTimestamps, time.Now())
+		history.SentTimestamps = append(history.SentTimestamps, time.Now().Unix())
 		history.SentTimestamps = l.filterOutStaleTimestamps(history.SentTimestamps, 24*time.Hour)
 		history.LimitWarningSent = limitWarningSent
 
@@ -117,12 +117,13 @@ func (l *Limiter) refreshHistories(histories map[uuid.UUID]user.EmailHistory, li
 	return nil
 }
 
-func (l *Limiter) filterOutStaleTimestamps(in []time.Time, delta time.Duration) (out []time.Time) {
+func (l *Limiter) filterOutStaleTimestamps(in []int64, delta time.Duration) (out []int64) {
 	staleBefore := time.Now().Add(-delta)
-	out = make([]time.Time, 0, len(in))
+	out = make([]int64, 0, len(in))
 
 	for _, ts := range in {
-		if ts.Before(staleBefore) {
+		timestamp := time.Unix(ts, 0)
+		if timestamp.Before(staleBefore) {
 			continue
 		}
 		out = append(out, ts)

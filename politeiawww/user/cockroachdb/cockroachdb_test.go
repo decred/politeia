@@ -910,11 +910,11 @@ func TestEmailHistoriesGet(t *testing.T) {
 
 	userID := uuid.New()
 
-	currentTime := time.Now()
+	currentTime := time.Now().Unix()
 
 	// Arguments
 	history := user.EmailHistory{
-		SentTimestamps:   []time.Time{currentTime},
+		SentTimestamps:   []int64{currentTime},
 		LimitWarningSent: true,
 	}
 
@@ -987,11 +987,11 @@ func TestEmailHistoriesSave(t *testing.T) {
 
 	userID := uuid.New()
 
-	currentTime := time.Now()
+	currentTime := time.Now().Unix()
 
 	t.Run("insert new history, then update", func(t *testing.T) {
 		history := user.EmailHistory{
-			SentTimestamps:   []time.Time{currentTime},
+			SentTimestamps:   []int64{currentTime},
 			LimitWarningSent: true,
 		}
 

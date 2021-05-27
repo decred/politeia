@@ -38,23 +38,23 @@ func TestLimiter_SendTo(t *testing.T) {
 	userIDBad := uuid.New()
 
 	currentTime := time.Now()
-	ts1 := currentTime.Add(-1 * time.Hour)
-	ts2 := currentTime.Add(-22 * time.Hour)
-	ts3 := currentTime.Add(-23 * time.Hour)
-	ts4 := currentTime.Add(-25 * time.Hour)
+	ts1 := currentTime.Add(-1 * time.Hour).Unix()
+	ts2 := currentTime.Add(-22 * time.Hour).Unix()
+	ts3 := currentTime.Add(-23 * time.Hour).Unix()
+	ts4 := currentTime.Add(-25 * time.Hour).Unix()
 
 	historyGood := user.EmailHistory{
-		SentTimestamps:   []time.Time{ts2, ts3, ts4},
+		SentTimestamps:   []int64{ts2, ts3, ts4},
 		LimitWarningSent: false,
 	}
 	// Exceeds limit, warning has already been sent.
 	historyIgnored := user.EmailHistory{
-		SentTimestamps:   []time.Time{ts1, ts2, ts3, ts4},
+		SentTimestamps:   []int64{ts1, ts2, ts3, ts4},
 		LimitWarningSent: true,
 	}
 	// Exceeds limit, warning hasn't yet been sent.
 	historyBad := user.EmailHistory{
-		SentTimestamps:   []time.Time{ts1, ts2, ts3, ts4},
+		SentTimestamps:   []int64{ts1, ts2, ts3, ts4},
 		LimitWarningSent: false,
 	}
 
