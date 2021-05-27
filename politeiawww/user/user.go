@@ -455,17 +455,17 @@ func DecodeSession(payload []byte) (*Session, error) {
 	return &s, nil
 }
 
-// EmailHistory24h represents a 24h history for some User.
-type EmailHistory24h struct {
+// EmailHistory represents a 24h history for some User.
+type EmailHistory struct {
 	// A list of timestamps (limited to 24h in the past) when mail was sent
 	// to this email address.
-	SentTimestamps24h []time.Time `json:"senttimestamps24h"`
+	SentTimestamps []time.Time `json:"senttimestamps24h"`
 	// Tracks whether a warning email has already been sent to notify the user he exceeded his limit.
 	LimitWarningSent bool `json:"limitwarningsent"`
 }
 
-// EncodeEmailHistory encodes EmailHistory24h into a JSON byte slice.
-func EncodeEmailHistory(h EmailHistory24h) ([]byte, error) {
+// EncodeEmailHistory encodes EmailHistory into a JSON byte slice.
+func EncodeEmailHistory(h EmailHistory) ([]byte, error) {
 	b, err := json.Marshal(h)
 	if err != nil {
 		return nil, err
@@ -474,9 +474,9 @@ func EncodeEmailHistory(h EmailHistory24h) ([]byte, error) {
 	return b, nil
 }
 
-// DecodeEmailHistory decodes a JSON byte slice into a EmailHistory24h.
-func DecodeEmailHistory(payload []byte) (*EmailHistory24h, error) {
-	var h *EmailHistory24h
+// DecodeEmailHistory decodes a JSON byte slice into a EmailHistory.
+func DecodeEmailHistory(payload []byte) (*EmailHistory, error) {
+	var h *EmailHistory
 
 	err := json.Unmarshal(payload, &h)
 	if err != nil {
@@ -535,10 +535,10 @@ type Database interface {
 	//
 	// If the user has no previous history, the result will still contain
 	// a mapping for this user, with existing data (e.g. his email).
-	EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUID]EmailHistory24h, error)
+	EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
 	// EmailHistoriesSave24h updates histories map in the database, creating it
 	// if necessary.
-	EmailHistoriesSave24h(histories map[uuid.UUID]EmailHistory24h) error
+	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
 
 	// Close performs cleanup of the backend.
 	Close() error

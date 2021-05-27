@@ -43,19 +43,19 @@ func TestLimiter_SendTo(t *testing.T) {
 	ts3 := currentTime.Add(-23 * time.Hour)
 	ts4 := currentTime.Add(-25 * time.Hour)
 
-	historyGood := user.EmailHistory24h{
-		SentTimestamps24h: []time.Time{ts2, ts3, ts4},
-		LimitWarningSent:  false,
+	historyGood := user.EmailHistory{
+		SentTimestamps:   []time.Time{ts2, ts3, ts4},
+		LimitWarningSent: false,
 	}
 	// Exceeds limit, warning has already been sent.
-	historyIgnored := user.EmailHistory24h{
-		SentTimestamps24h: []time.Time{ts1, ts2, ts3, ts4},
-		LimitWarningSent:  true,
+	historyIgnored := user.EmailHistory{
+		SentTimestamps:   []time.Time{ts1, ts2, ts3, ts4},
+		LimitWarningSent: true,
 	}
 	// Exceeds limit, warning hasn't yet been sent.
-	historyBad := user.EmailHistory24h{
-		SentTimestamps24h: []time.Time{ts1, ts2, ts3, ts4},
-		LimitWarningSent:  false,
+	historyBad := user.EmailHistory{
+		SentTimestamps:   []time.Time{ts1, ts2, ts3, ts4},
+		LimitWarningSent: false,
 	}
 
 	mm := &MailerMock{
@@ -77,17 +77,17 @@ func TestLimiter_SendTo(t *testing.T) {
 		},
 	}
 	userDB := &mock.DatabaseMock{
-		EmailHistoriesGet24hFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error) {
+		EmailHistoriesGet24hFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 			if diff := cmp.Diff(3, len(recipients)); diff != "" {
 				return nil, fmt.Errorf("expected only 3 recipients: %s", diff)
 			}
-			return map[uuid.UUID]user.EmailHistory24h{
+			return map[uuid.UUID]user.EmailHistory{
 				userIDGood:    historyGood,
 				userIDIgnored: historyIgnored,
 				userIDBad:     historyBad,
 			}, nil
 		},
-		EmailHistoriesSave24hFunc: func(histories map[uuid.UUID]user.EmailHistory24h) error {
+		EmailHistoriesSave24hFunc: func(histories map[uuid.UUID]user.EmailHistory) error {
 			if 1 != len(histories) {
 				return fmt.Errorf("unexpected histories: %v", histories)
 			}
@@ -98,9 +98,9 @@ func TestLimiter_SendTo(t *testing.T) {
 					return fmt.Errorf("good history, LimitWarningSent, want: %t, got: %t",
 						false, got.LimitWarningSent)
 				}
-				if 3 != len(got.SentTimestamps24h) {
-					return fmt.Errorf("good history, SentTimestamps24h, want: %d, got: %d",
-						3, len(got.SentTimestamps24h))
+				if 3 != len(got.SentTimestamps) {
+					return fmt.Errorf("good history, SentTimestamps, want: %d, got: %d",
+						3, len(got.SentTimestamps))
 				}
 				return nil
 			}
@@ -111,9 +111,9 @@ func TestLimiter_SendTo(t *testing.T) {
 					return fmt.Errorf("bad history, LimitWarningSent, want: %t, got: %t",
 						true, got.LimitWarningSent)
 				}
-				if 4 != len(got.SentTimestamps24h) {
-					return fmt.Errorf("bad history, SentTimestamps24h, want: %d, got: %d",
-						4, len(got.SentTimestamps24h))
+				if 4 != len(got.SentTimestamps) {
+					return fmt.Errorf("bad history, SentTimestamps, want: %d, got: %d",
+						4, len(got.SentTimestamps))
 				}
 				return nil
 			}

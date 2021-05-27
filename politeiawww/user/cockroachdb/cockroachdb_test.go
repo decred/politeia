@@ -913,9 +913,9 @@ func TestEmailHistoriesGet24h(t *testing.T) {
 	currentTime := time.Now()
 
 	// Arguments
-	history := user.EmailHistory24h{
-		SentTimestamps24h: []time.Time{currentTime},
-		LimitWarningSent:  true,
+	history := user.EmailHistory{
+		SentTimestamps:   []time.Time{currentTime},
+		LimitWarningSent: true,
 	}
 
 	hb, err := user.EncodeEmailHistory(history)
@@ -936,11 +936,11 @@ func TestEmailHistoriesGet24h(t *testing.T) {
 			WillReturnRows(rows)
 
 		// Execute method
-		got, err := cdb.EmailHistoriesGet24h([]uuid.UUID{userID})
+		got, err := cdb.EmailHistoriesGet([]uuid.UUID{userID})
 		if err != nil {
 			t.Errorf("unwanted error: %s", err)
 		}
-		want := map[uuid.UUID]user.EmailHistory24h{
+		want := map[uuid.UUID]user.EmailHistory{
 			userID: history,
 		}
 		if diff := cmp.Diff(want, got); diff != "" {
@@ -964,7 +964,7 @@ func TestEmailHistoriesGet24h(t *testing.T) {
 			WillReturnError(gorm.ErrRecordNotFound)
 
 		// Execute method
-		got, err := cdb.EmailHistoriesGet24h([]uuid.UUID{nonExistentUserID})
+		got, err := cdb.EmailHistoriesGet([]uuid.UUID{nonExistentUserID})
 		if err != nil {
 			t.Errorf("unwanted error: %s", err)
 		}
@@ -990,9 +990,9 @@ func TestEmailHistoriesSave24h(t *testing.T) {
 	currentTime := time.Now()
 
 	t.Run("insert new history, then update", func(t *testing.T) {
-		history := user.EmailHistory24h{
-			SentTimestamps24h: []time.Time{currentTime},
-			LimitWarningSent:  true,
+		history := user.EmailHistory{
+			SentTimestamps:   []time.Time{currentTime},
+			LimitWarningSent: true,
 		}
 
 		historyB, err := user.EncodeEmailHistory(history)
@@ -1019,7 +1019,7 @@ func TestEmailHistoriesSave24h(t *testing.T) {
 		mock.ExpectCommit()
 
 		// Execute method
-		err = cdb.EmailHistoriesSave24h(map[uuid.UUID]user.EmailHistory24h{
+		err = cdb.EmailHistoriesSave(map[uuid.UUID]user.EmailHistory{
 			userID: history,
 		})
 		if err != nil {
@@ -1042,7 +1042,7 @@ func TestEmailHistoriesSave24h(t *testing.T) {
 		mock.ExpectCommit()
 
 		// Execute method
-		err = cdb.EmailHistoriesSave24h(map[uuid.UUID]user.EmailHistory24h{
+		err = cdb.EmailHistoriesSave(map[uuid.UUID]user.EmailHistory{
 			userID: history,
 		})
 		if err != nil {

@@ -125,14 +125,14 @@ func (CMSCodeStats) TableName() string {
 	return tableCMSCodeStats
 }
 
-// EmailHistory24h represents a history of emails sent to the user with
+// EmailHistory represents a history of emails sent to the user with
 // a certain email address in the past 24h.
-type EmailHistory24h struct {
+type EmailHistory struct {
 	UserID uuid.UUID `gorm:"primary_key"` // User ID
 	Blob   []byte    `gorm:"not null"`    // Encrypted blob of email history
 }
 
-// TableName returns the table name of the EmailHistory24h table.
-func (EmailHistory24h) TableName() string {
+// TableName returns the table name of the EmailHistory table.
+func (EmailHistory) TableName() string {
 	return tableEmailHistories
 }

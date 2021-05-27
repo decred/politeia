@@ -742,14 +742,14 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-func (c *cockroachdb) EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory24h, error) {
-	log.Tracef("EmailHistoriesGet24h: %v", recipients)
+func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistoriesGet: %v", recipients)
 
 	if c.isShutdown() {
 		return nil, user.ErrShutdown
 	}
 
-	var dbResult []EmailHistory24h
+	var dbResult []EmailHistory
 	err := c.userDB.
 		Where("user_id IN (?)", recipients).
 		Find(&dbResult).
@@ -761,7 +761,7 @@ func (c *cockroachdb) EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUI
 		return nil, err
 	}
 
-	result := make(map[uuid.UUID]user.EmailHistory24h, len(dbResult))
+	result := make(map[uuid.UUID]user.EmailHistory, len(dbResult))
 	for _, dbEntity := range dbResult {
 		entity, err := c.convertEmailHistoryFromDB(dbEntity)
 		if err != nil {
@@ -773,8 +773,8 @@ func (c *cockroachdb) EmailHistoriesGet24h(recipients []uuid.UUID) (map[uuid.UUI
 	return result, nil
 }
 
-func (c *cockroachdb) EmailHistoriesSave24h(histories map[uuid.UUID]user.EmailHistory24h) error {
-	log.Tracef("EmailHistoriesSave24h: %v %v", histories)
+func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	log.Tracef("EmailHistoriesSave: %v %v", histories)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
@@ -788,7 +788,7 @@ func (c *cockroachdb) EmailHistoriesSave24h(histories map[uuid.UUID]user.EmailHi
 		}
 
 		var update bool
-		h := EmailHistory24h{
+		h := EmailHistory{
 			UserID: userID,
 		}
 		err = c.userDB.Find(&h).Error
@@ -819,18 +819,18 @@ func (c *cockroachdb) EmailHistoriesSave24h(histories map[uuid.UUID]user.EmailHi
 	return nil
 }
 
-func (c *cockroachdb) convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory24h) (EmailHistory24h, error) {
+func (c *cockroachdb) convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory) (EmailHistory, error) {
 	hb, err := user.EncodeEmailHistory(h)
 	if err != nil {
-		return EmailHistory24h{}, err
+		return EmailHistory{}, err
 	}
-	return EmailHistory24h{
+	return EmailHistory{
 		UserID: userID,
 		Blob:   hb,
 	}, nil
 }
 
-func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory24h) (*user.EmailHistory24h, error) {
+func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory) (*user.EmailHistory, error) {
 	return user.DecodeEmailHistory(s.Blob)
 }
 
