@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -31,6 +32,8 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
+	// TODO remove
+	sync.RWMutex
 	appDir  string
 	dataDir string
 	tstore  *tstore.Tstore
@@ -377,12 +380,6 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	// Update the inventory cache
 	t.inventoryAdd(backend.StateUnvetted, token, backend.StatusUnreviewed)
 
-	// Get the full record to return
-	r, err := t.tstore.TxRecordLatest(tx, token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %x: %v", token, err)
-	}
-
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
@@ -392,6 +389,12 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 				err, err2))
 		}
 		return nil, fmt.Errorf("commit tx: %v", err)
+	}
+
+	// Get the full record to return
+	r, err := t.tstore.RecordLatest(token)
+	if err != nil {
+		return nil, fmt.Errorf("RecordLatest %x: %v", token, err)
 	}
 
 	return r, nil
@@ -482,12 +485,6 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	// Call post plugin hooks
 	t.tstore.PluginHookPost(plugins.HookTypeEditRecordPost, string(b))
 
-	// Get the updated record to return
-	r, err = t.tstore.TxRecordLatest(tx, token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest: %v", err)
-	}
-
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
@@ -497,6 +494,12 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 				err, err2))
 		}
 		return nil, fmt.Errorf("commit tx: %v", err)
+	}
+
+	// Get the updated record to return
+	r, err = t.tstore.RecordLatest(token)
+	if err != nil {
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
@@ -577,12 +580,6 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	// Call post plugin hooks
 	t.tstore.PluginHookPost(plugins.HookTypeEditMetadataPost, string(b))
 
-	// Return updated record
-	r, err = t.tstore.TxRecordLatest(tx, token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest: %v", err)
-	}
-
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
@@ -592,6 +589,12 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 				err, err2))
 		}
 		return nil, fmt.Errorf("commit tx: %v", err)
+	}
+
+	// Return updated record
+	r, err = t.tstore.RecordLatest(token)
+	if err != nil {
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil
@@ -782,12 +785,6 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		t.inventoryUpdate(r.RecordMetadata.State, token, status)
 	}
 
-	// Return updated record
-	r, err = t.tstore.TxRecordLatest(tx, token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest: %v", err)
-	}
-
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
@@ -797,6 +794,12 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 				err, err2))
 		}
 		return nil, fmt.Errorf("commit tx: %v", err)
+	}
+
+	// Return updated record
+	r, err = t.tstore.RecordLatest(token)
+	if err != nil {
+		return nil, fmt.Errorf("RecordLatest: %v", err)
 	}
 
 	return r, nil

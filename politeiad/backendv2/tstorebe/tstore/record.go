@@ -896,7 +896,7 @@ func (t *Tstore) TxRecordLatest(tx store.Tx, token []byte) (*backend.Record, err
 	}
 
 	treeID := treeIDFromToken(token)
-	return t.record(t.store, treeID, 0, []string{}, false)
+	return t.record(tx, treeID, 0, []string{}, false)
 }
 
 // TxRecordPartial uses a transaction to return a partial record. This method
