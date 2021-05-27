@@ -459,7 +459,7 @@ func DecodeSession(payload []byte) (*Session, error) {
 type EmailHistory struct {
 	// A list of timestamps (limited to 24h in the past) when mail was sent
 	// to this email address.
-	SentTimestamps []time.Time `json:"senttimestamps24h"`
+	SentTimestamps []time.Time `json:"senttimestamps"`
 	// Tracks whether a warning email has already been sent to notify the user he exceeded his limit.
 	LimitWarningSent bool `json:"limitwarningsent"`
 }
