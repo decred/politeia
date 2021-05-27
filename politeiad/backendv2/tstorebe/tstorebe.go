@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -32,11 +31,15 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
-	sync.RWMutex
 	appDir  string
 	dataDir string
 	tstore  *tstore.Tstore
-	cache   store.BlobKV
+
+	// kv is a key-value store that is used to cache data. This is the
+	// same key-value store that tstore uses, allowing the backend to
+	// interact with cached data using either a tstore transaction or
+	// by interacting directly with the key-value store.
+	kv store.BlobKV
 }
 
 // metadataStreamsVerify verifies that all provided metadata streams are sane.
@@ -1061,7 +1064,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 		appDir:  appDir,
 		dataDir: dataDir,
 		tstore:  ts,
-		cache:   kv,
+		kv:      kv,
 	}
 
 	// Perform any required setup

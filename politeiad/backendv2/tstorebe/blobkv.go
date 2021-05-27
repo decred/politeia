@@ -17,8 +17,8 @@ const (
 	// key-value store to a leveldb instance.
 	DBTypeLevelDB = "leveldb"
 
-	// DBTypeLevelDB is a config option that sets the backing
-	// key-value store to a MySQL instance.
+	// DBTypeMySQL is a config option that sets the backing key-value
+	// store to a MySQL instance.
 	DBTypeMySQL = "mysql"
 
 	// dbUser contains the username that will be used to connect to

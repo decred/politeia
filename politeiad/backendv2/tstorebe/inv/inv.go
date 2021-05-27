@@ -13,7 +13,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
-// entry represents a entry in the inventory.
+// entry represents an entry in the inventory.
 type entry struct {
 	Token     string `json:"token"`     // Unique token
 	Bits      uint64 `json:"bits"`      // Bitwise filtering bits
@@ -42,7 +42,7 @@ type inv struct {
 }
 
 // save saves the inventory to the key-value store using the provided
-// transaction. The inventory is saved as an encrypted blob.
+// transaction.
 func (i *inv) save(tx store.Tx, key string, encrypt bool) error {
 	b, err := json.Marshal(i)
 	if err != nil {
@@ -151,7 +151,47 @@ func (i *Inv) Del(tx store.Tx, token string) error {
 
 // Get returns a page of tokens that match the provided filtering criteria.
 func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, page uint32) ([]string, error) {
-	return nil, nil
+	// Get existing inventory
+	inv, err := invGet(sg, i.key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter out the requested page of entries
+	filtered := filterEntries(inv.Entries, bits, pageSize, page)
+
+	// Compile tokens
+	tokens := make([]string, 0, len(filtered))
+	for _, v := range filtered {
+		tokens = append(tokens, v.Token)
+	}
+
+	return tokens, nil
+}
+
+// GetMulti returns a page of tokens for each of the provided bits. The bits
+// are used as filtering criteria. The returned map is a map[bits][]token.
+func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, page uint32) (map[uint64][]string, error) {
+	// Get existing inventory
+	inv, err := invGet(sg, i.key)
+	if err != nil {
+		return nil, err
+	}
+
+	pages := make(map[uint64][]string, len(bits))
+	for _, v := range bits {
+		// Filter out the requested page of entries
+		filtered := filterEntries(inv.Entries, v, pageSize, page)
+
+		// Compile tokens
+		tokens := make([]string, 0, len(filtered))
+		for _, v := range filtered {
+			tokens = append(tokens, v.Token)
+		}
+		pages[v] = tokens
+	}
+
+	return pages, nil
 }
 
 // delEntry removes the entry for a token and returns the updated slice.
@@ -180,20 +220,20 @@ func delEntry(entries []entry, token string) ([]entry, error) {
 
 // filterEntriesi returns a page of entries that meet the provided filtering
 // criteria.
-func filterEntries(entries []entry, bits uint64, countPerPage, page uint32) []entry {
-	filtered := make([]entry, 0, countPerPage)
-	if countPerPage == 0 || page == 0 {
+func filterEntries(entries []entry, bits uint64, pageSize, page uint32) []entry {
+	filtered := make([]entry, 0, pageSize)
+	if pageSize == 0 || page == 0 {
 		return filtered
 	}
 
 	var (
-		// matchCount is the total number of matches that have been
-		// found.
+		// matchCount is the total number of matches that have
+		// been found.
 		matchCount uint32
 
-		// pageStart is the match count that the requested page starts
-		// at.
-		pageStart = (page - 1) * countPerPage
+		// pageStart is the match count that the requested page
+		// starts at.
+		pageStart = (page - 1) * pageSize
 	)
 	for _, v := range entries {
 		if (v.Bits & bits) != bits {
@@ -205,7 +245,7 @@ func filterEntries(entries []entry, bits uint64, countPerPage, page uint32) []en
 		// Match found
 		if matchCount >= pageStart {
 			filtered = append(filtered, v)
-			if len(filtered) == int(countPerPage) {
+			if len(filtered) == int(pageSize) {
 				// We have a full page. We're done.
 				return filtered
 			}
