@@ -530,13 +530,13 @@ type Database interface {
 	// Execute a plugin command
 	PluginExec(PluginCommand) (*PluginCommandReply, error)
 
-	// EmailHistoriesGet24h returns a map of histories for recipients
+	// EmailHistoriesGet returns a map of histories for recipients
 	// [user ID] -> email history (for 24h in the past).
 	//
 	// If the user has no previous history, the result will still contain
 	// a mapping for this user, with existing data (e.g. his email).
 	EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
-	// EmailHistoriesSave24h updates histories map in the database, creating it
+	// EmailHistoriesSave updates histories map in the database, creating it
 	// if necessary.
 	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
 

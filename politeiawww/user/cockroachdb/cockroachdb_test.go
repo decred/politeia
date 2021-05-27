@@ -904,7 +904,7 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 	}
 }
 
-func TestEmailHistoriesGet24h(t *testing.T) {
+func TestEmailHistoriesGet(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 
@@ -981,7 +981,7 @@ func TestEmailHistoriesGet24h(t *testing.T) {
 	})
 }
 
-func TestEmailHistoriesSave24h(t *testing.T) {
+func TestEmailHistoriesSave(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
 

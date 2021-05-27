@@ -77,7 +77,7 @@ func TestLimiter_SendTo(t *testing.T) {
 		},
 	}
 	userDB := &mock.DatabaseMock{
-		EmailHistoriesGet24hFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+		EmailHistoriesGetFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 			if diff := cmp.Diff(3, len(recipients)); diff != "" {
 				return nil, fmt.Errorf("expected only 3 recipients: %s", diff)
 			}
@@ -87,7 +87,7 @@ func TestLimiter_SendTo(t *testing.T) {
 				userIDBad:     historyBad,
 			}, nil
 		},
-		EmailHistoriesSave24hFunc: func(histories map[uuid.UUID]user.EmailHistory) error {
+		EmailHistoriesSaveFunc: func(histories map[uuid.UUID]user.EmailHistory) error {
 			if 1 != len(histories) {
 				return fmt.Errorf("unexpected histories: %v", histories)
 			}
