@@ -544,3 +544,9 @@ type Database interface {
 	// Close performs cleanup of the backend.
 	Close() error
 }
+
+const (
+	// EmailHistoriesPageLimit defines the limit on how many histories Database
+	// can work with at any single time (single page).
+	EmailHistoriesPageLimit = 100
+)

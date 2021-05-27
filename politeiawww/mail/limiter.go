@@ -18,6 +18,8 @@ type Limiter struct {
 	userDB user.Database
 	// limit defines max amount of emails a recipient can receive within last 24h.
 	limit int
+	// emailHistoriesPageSize defines the page size that is used when querying DB.
+	emailHistoriesPageSize int
 }
 
 func NewLimiter(mailer Mailer, userDB user.Database, limit int) *Limiter {
@@ -38,6 +40,26 @@ func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 }
 
 func (l *Limiter) SendToUsers(subject, body string, recipients map[uuid.UUID]string) error {
+	page := make(map[uuid.UUID]string)
+
+	// There might be a lot of recipients, handle them page by page.
+	for userID, email := range recipients {
+		if len(page) == l.emailHistoriesPageSize {
+			err := l.sendToUsersPaginated(subject, body, page)
+			if err != nil {
+				return fmt.Errorf("send to users paginated: %w", err)
+			}
+
+			page = make(map[uuid.UUID]string)
+		}
+
+		page[userID] = email
+	}
+
+	return nil
+}
+
+func (l *Limiter) sendToUsersPaginated(subject, body string, recipients map[uuid.UUID]string) error {
 	userIDs := make([]uuid.UUID, 0, len(recipients))
 	for userID := range recipients {
 		userIDs = append(userIDs, userID)

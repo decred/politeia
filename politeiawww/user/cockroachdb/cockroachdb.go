@@ -749,6 +749,11 @@ func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]u
 		return nil, user.ErrShutdown
 	}
 
+	if len(recipients) > user.EmailHistoriesPageLimit {
+		return nil, fmt.Errorf("too many recipients: %d, can't handle more than: %d at a time",
+			len(recipients), user.EmailHistoriesPageLimit)
+	}
+
 	var dbResult []EmailHistory
 	err := c.userDB.
 		Where("user_id IN (?)", recipients).
@@ -778,6 +783,11 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 
 	if c.isShutdown() {
 		return user.ErrShutdown
+	}
+
+	if len(histories) > user.EmailHistoriesPageLimit {
+		return fmt.Errorf("too many recipients: %d, can't handle more than: %d at a time",
+			len(histories), user.EmailHistoriesPageLimit)
 	}
 
 	// Not optimal performance-wise to work with histories one by one, but very straightforward.
