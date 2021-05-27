@@ -127,8 +127,6 @@ func TestLimiter_SendTo(t *testing.T) {
 		}
 		limiter := NewLimiter(mm, userDB, 3)
 
-		limiter.emailHistoriesPageSize = user.EmailHistoriesPageLimit
-
 		got := limiter.SendToUsers(subject, body, map[uuid.UUID]string{
 			userIDGood:    emailGood,
 			userIDIgnored: emailIgnored,

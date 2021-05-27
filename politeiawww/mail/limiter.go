@@ -25,9 +25,10 @@ type Limiter struct {
 // NewLimiter returns new instance.
 func NewLimiter(mailer Mailer, userDB user.Database, limit int) *Limiter {
 	return &Limiter{
-		mailer: mailer,
-		userDB: userDB,
-		limit:  limit,
+		mailer:                 mailer,
+		userDB:                 userDB,
+		limit:                  limit,
+		emailHistoriesPageSize: user.EmailHistoriesPageLimit,
 	}
 }
 
