@@ -742,6 +742,7 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
+// EmailHistoriesGet see user.Database for details.
 func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 	log.Tracef("EmailHistoriesGet: %v", recipients)
 
@@ -778,6 +779,7 @@ func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]u
 	return result, nil
 }
 
+// EmailHistoriesSave see user.Database for details.
 func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistoriesSave: %v %v", histories)
 

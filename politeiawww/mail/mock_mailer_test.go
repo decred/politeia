@@ -2,15 +2,14 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package mock
+package mail
 
 import (
-	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/google/uuid"
 )
 
 // Ensure, that MailerMock does implement Mailer.
-var _ mail.Mailer = &MailerMock{}
+var _ Mailer = &MailerMock{}
 
 // MailerMock is a mock implementation of Mailer.
 type MailerMock struct {

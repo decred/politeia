@@ -9,14 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/mail/mock"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 )
 
 func TestLimiter_IsEnabled(t *testing.T) {
-	mm := &mock.MailerMock{
+	mm := &MailerMock{
 		IsEnabledFunc: func() bool {
 			return true
 		},
@@ -63,7 +62,7 @@ func TestLimiter_SendTo(t *testing.T) {
 			LimitWarningSent: false,
 		}
 
-		mm := &mock.MailerMock{
+		mm := &MailerMock{
 			SendToFunc: func(s string, b string, rs []string) error {
 				if diff := cmp.Diff(subject, s); diff != "" {
 					return fmt.Errorf("unexpected s: %v", diff)
@@ -81,7 +80,7 @@ func TestLimiter_SendTo(t *testing.T) {
 				return fmt.Errorf("unexpected rs: %v", rs)
 			},
 		}
-		userDB := &mock.DatabaseMock{
+		userDB := &DatabaseMock{
 			EmailHistoriesGetFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 				if diff := cmp.Diff(3, len(recipients)); diff != "" {
 					return nil, fmt.Errorf("expected only 3 recipients: %s", diff)
@@ -155,7 +154,7 @@ func TestLimiter_SendTo(t *testing.T) {
 			LimitWarningSent: false,
 		}
 
-		mm := &mock.MailerMock{
+		mm := &MailerMock{
 			SendToFunc: func(s string, b string, rs []string) error {
 				if diff := cmp.Diff(subject, s); diff != "" {
 					return fmt.Errorf("unexpected s: %v", diff)
@@ -173,7 +172,7 @@ func TestLimiter_SendTo(t *testing.T) {
 				return fmt.Errorf("unexpected rs: %v", rs)
 			},
 		}
-		userDB := &mock.DatabaseMock{
+		userDB := &DatabaseMock{
 			EmailHistoriesGetFunc: func(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 				if diff := cmp.Diff(1, len(recipients)); diff != "" {
 					return nil, fmt.Errorf("expected only 1 recipients: %s", diff)

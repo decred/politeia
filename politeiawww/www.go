@@ -647,6 +647,7 @@ func _main() error {
 		log.Infof("Cookie key generated")
 	}
 
+	// Setup smtp client
 	mailClient, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
 		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
 		loadedCfg.MailSkipVerify)

@@ -22,6 +22,7 @@ type Limiter struct {
 	emailHistoriesPageSize int
 }
 
+// NewLimiter returns new instance.
 func NewLimiter(mailer Mailer, userDB user.Database, limit int) *Limiter {
 	return &Limiter{
 		mailer: mailer,
@@ -30,15 +31,17 @@ func NewLimiter(mailer Mailer, userDB user.Database, limit int) *Limiter {
 	}
 }
 
-// IsEnabled returns whether the mail server is enabled.
+// IsEnabled see mail.Mailer for details.
 func (l *Limiter) IsEnabled() bool {
 	return l.mailer.IsEnabled()
 }
 
+// SendTo see mail.Mailer for details.
 func (l *Limiter) SendTo(subject, body string, recipients []string) error {
 	return l.mailer.SendTo(subject, body, recipients)
 }
 
+// SendToUsers see mail.Mailer for details.
 func (l *Limiter) SendToUsers(subject, body string, recipients map[uuid.UUID]string) error {
 	page := make(map[uuid.UUID]string)
 
