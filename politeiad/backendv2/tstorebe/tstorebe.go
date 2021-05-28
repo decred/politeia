@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -32,8 +31,6 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
-	// TODO remove
-	sync.RWMutex
 	appDir  string
 	dataDir string
 	tstore  *tstore.Tstore
@@ -43,6 +40,8 @@ type tstoreBackend struct {
 	// interact with cached data using either a tstore transaction or
 	// by interacting directly with the key-value store.
 	kv store.BlobKV
+
+	inv *recordInv
 }
 
 // metadataStreamsVerify verifies that all provided metadata streams are sane.
@@ -378,7 +377,7 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	t.tstore.PluginHookPost(plugins.HookTypeNewRecordPost, string(b))
 
 	// Update the inventory cache
-	t.inventoryAdd(backend.StateUnvetted, token, backend.StatusUnreviewed)
+	t.invAdd(tx, token, rm.Timestamp)
 
 	// Commit the tstore transaction
 	err = tx.Commit()
@@ -780,9 +779,10 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	switch status {
 	case backend.StatusPublic:
 		// The state is updated to vetted when a record is made public
-		t.inventoryMoveToVetted(token, status)
+		t.invMoveToVetted(tx, token, r.RecordMetadata.Timestamp)
 	default:
-		t.inventoryUpdate(r.RecordMetadata.State, token, status)
+		t.invUpdate(tx, r.RecordMetadata.State, token,
+			status, r.RecordMetadata.Timestamp)
 	}
 
 	// Commit the tstore transaction
@@ -881,17 +881,18 @@ func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backen
 // record state and record status. The tokens are ordered by the timestamp of
 // their most recent status change, sorted from newest to oldest.
 //
-// The state, status, and page arguments can be provided to request a specific
-// page of record tokens.
+// The state, status, and pageNum arguments can be provided to request a
+// specific page of record tokens.
 //
 // If no status is provided then the most recent page of tokens for all
-// statuses will be returned. All other arguments are ignored.
+// statuses will be returned. The state and pageNum arguments are ignored when
+// no status is provided.
 //
 // This function satisfies the backendv2 Backend interface.
-func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, pageSize, pageNumber uint32) (*backend.Inventory, error) {
-	log.Tracef("Inventory: %v %v %v %v", state, status, pageSize, pageNumber)
+func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, pageSize, pageNum uint32) (*backend.Inventory, error) {
+	log.Tracef("Inventory: %v %v %v %v", state, status, pageSize, pageNum)
 
-	inv, err := t.invByStatus(state, status, pageSize, pageNumber)
+	inv, err := t.invByStatus(t.kv, state, status, pageSize, pageNum)
 	if err != nil {
 		return nil, err
 	}
@@ -1068,6 +1069,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 		dataDir: dataDir,
 		tstore:  ts,
 		kv:      kv,
+		inv:     newRecordInv(),
 	}
 
 	// Perform any required setup

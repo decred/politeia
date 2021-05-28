@@ -30,8 +30,7 @@ func newEntry(token string, bits uint64, timestamp int64) entry {
 }
 
 const (
-	// invVersion is the most recent version of the inv struct that is
-	// saved to the key-value store.
+	// invVersion is the most recent version of the inv struct.
 	invVersion uint32 = 1
 )
 
@@ -84,9 +83,10 @@ type Inv struct {
 }
 
 // New returns a new Inv.
-func New(key string) *Inv {
+func New(key string, encrypt bool) *Inv {
 	return &Inv{
-		key: key,
+		key:     key,
+		encrypt: encrypt,
 	}
 }
 
@@ -107,8 +107,8 @@ func (i *Inv) Add(tx store.Tx, token string, bits uint64, timestamp int64) error
 	return inv.save(tx, i.key, i.encrypt)
 }
 
-// Edit edits an inventory entry.
-func (i *Inv) Edit(tx store.Tx, token string, bits uint64, timestamp int64) error {
+// Update updates an inventory entry.
+func (i *Inv) Update(tx store.Tx, token string, bits uint64, timestamp int64) error {
 	// Get existing inventory
 	inv, err := invGet(tx, i.key)
 	if err != nil {
@@ -122,7 +122,7 @@ func (i *Inv) Edit(tx store.Tx, token string, bits uint64, timestamp int64) erro
 			continue
 		}
 
-		// We have a match. Edit it.
+		// We have a match. Update it.
 		inv.Entries[i] = newEntry(token, bits, timestamp)
 		break
 	}
@@ -150,7 +150,7 @@ func (i *Inv) Del(tx store.Tx, token string) error {
 }
 
 // Get returns a page of tokens that match the provided filtering criteria.
-func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, page uint32) ([]string, error) {
+func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]string, error) {
 	// Get existing inventory
 	inv, err := invGet(sg, i.key)
 	if err != nil {
@@ -158,7 +158,7 @@ func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, page uint32) ([]string
 	}
 
 	// Filter out the requested page of entries
-	filtered := filterEntries(inv.Entries, bits, pageSize, page)
+	filtered := filterEntries(inv.Entries, bits, pageSize, pageNum)
 
 	// Compile tokens
 	tokens := make([]string, 0, len(filtered))
