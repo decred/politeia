@@ -465,6 +465,10 @@ type EmailHistory struct {
 	LimitWarningSent bool `json:"limitwarningsent"`
 }
 
+// EmailHistoriesPageLimit defines the limit on how many histories Database
+// can work with at any single time (single page).
+const EmailHistoriesPageLimit = 100
+
 // EncodeEmailHistory encodes EmailHistory into a JSON byte slice.
 func EncodeEmailHistory(h EmailHistory) ([]byte, error) {
 	b, err := json.Marshal(h)
@@ -535,6 +539,7 @@ type Database interface {
 	// If the user has no previous history, the result will still contain
 	// a mapping for this user, with existing data (e.g. his email).
 	EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
+
 	// EmailHistoriesSave updates histories map in the database, creating it
 	// if necessary.
 	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
@@ -542,9 +547,3 @@ type Database interface {
 	// Close performs cleanup of the backend.
 	Close() error
 }
-
-const (
-	// EmailHistoriesPageLimit defines the limit on how many histories Database
-	// can work with at any single time (single page).
-	EmailHistoriesPageLimit = 100
-)

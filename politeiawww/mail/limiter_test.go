@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestLimiter_IsEnabled(t *testing.T) {
+func TestIsEnabled(t *testing.T) {
 	mm := &MailerMock{
 		IsEnabledFunc: func() bool {
 			return true
@@ -28,7 +28,7 @@ func TestLimiter_IsEnabled(t *testing.T) {
 	}
 }
 
-func TestLimiter_SendTo(t *testing.T) {
+func TestSendToUsers(t *testing.T) {
 	const subject = "some subject"
 	const body = "some body"
 
@@ -64,6 +64,10 @@ func TestLimiter_SendTo(t *testing.T) {
 
 		mm := &MailerMock{
 			SendToFunc: func(s string, b string, rs []string) error {
+				// TODO
+				// This doesn't fail for "rate limit hit" email for some reason
+				// need to fix that.
+
 				if diff := cmp.Diff(subject, s); diff != "" {
 					return fmt.Errorf("unexpected s: %v", diff)
 				}

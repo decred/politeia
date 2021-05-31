@@ -742,7 +742,11 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-// EmailHistoriesGet see user.Database for details.
+// EmailHistoriesGet returns a map of histories for recipients
+// [user ID] -> email history (for 24h in the past).
+//
+// If the user has no previous history, the result will still contain
+// a mapping for this user, with existing data (e.g. his email).
 func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 	log.Tracef("EmailHistoriesGet: %v", recipients)
 
@@ -769,7 +773,7 @@ func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]u
 
 	result := make(map[uuid.UUID]user.EmailHistory, len(dbResult))
 	for _, dbEntity := range dbResult {
-		entity, err := c.convertEmailHistoryFromDB(dbEntity)
+		entity, err := convertEmailHistoryFromDB(dbEntity)
 		if err != nil {
 			return nil, fmt.Errorf("convert email history from db: %w", err)
 		}
@@ -779,7 +783,8 @@ func (c *cockroachdb) EmailHistoriesGet(recipients []uuid.UUID) (map[uuid.UUID]u
 	return result, nil
 }
 
-// EmailHistoriesSave see user.Database for details.
+// EmailHistoriesSave updates histories map in the database, creating it
+// if necessary.
 func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistoriesSave: %v %v", histories)
 
@@ -794,7 +799,7 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 
 	// Not optimal performance-wise to work with histories one by one, but very straightforward.
 	for userID, history := range histories {
-		historyDB, err := c.convertEmailHistoryToDB(userID, history)
+		historyDB, err := convertEmailHistoryToDB(userID, history)
 		if err != nil {
 			return fmt.Errorf("convert email history to DB: %w", err)
 		}
@@ -831,7 +836,7 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 	return nil
 }
 
-func (c *cockroachdb) convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory) (EmailHistory, error) {
+func convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory) (EmailHistory, error) {
 	hb, err := user.EncodeEmailHistory(h)
 	if err != nil {
 		return EmailHistory{}, err
@@ -842,7 +847,7 @@ func (c *cockroachdb) convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHist
 	}, nil
 }
 
-func (c *cockroachdb) convertEmailHistoryFromDB(s EmailHistory) (*user.EmailHistory, error) {
+func convertEmailHistoryFromDB(s EmailHistory) (*user.EmailHistory, error) {
 	return user.DecodeEmailHistory(s.Blob)
 }
 
