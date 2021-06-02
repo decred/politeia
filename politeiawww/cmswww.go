@@ -949,7 +949,7 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	}
 
 	// If testnet just use the main site and carry on
-	if !p.cfg.TestNet {
+	if p.cfg.TestNet {
 		util.RespondRaw(w, http.StatusOK, data)
 		return
 	}
@@ -1018,7 +1018,7 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	}
 
 	// If testnet just use the main site and carry on
-	if !p.cfg.TestNet {
+	if p.cfg.TestNet {
 		util.RespondRaw(w, http.StatusOK, data)
 		return
 	}
