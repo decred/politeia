@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"text/template"
 
-	"github.com/davecgh/go-spew/spew"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -944,7 +943,6 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 
 	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
-		log.Errorf("unmarshal token inv 1 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
@@ -959,7 +957,6 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	var tir1 www.TokenInventoryReply
 	err = json.Unmarshal(data, &tir1)
 	if err != nil {
-		log.Errorf("unmarshal token inv 2 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: unmarshal reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -969,7 +966,6 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 
 	archiveData, err := p.makeProposalsRequestArchive(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
-		log.Errorf("unmarshal token inv 3 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
@@ -978,7 +974,6 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	var tir2 www.TokenInventoryReply
 	err = json.Unmarshal(archiveData, &tir2)
 	if err != nil {
-		log.Errorf("unmarshal token inv 4 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: unmarshal reply archive",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -989,17 +984,16 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	tirBoth := www.TokenInventoryReply{
 		Approved: append(tir1.Approved, tir2.Approved...),
 	}
-	spew.Dump(tirBoth)
+
 	reply, err := json.Marshal(tirBoth)
 	if err != nil {
-		log.Errorf("unmarshal token inv 5 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: marshal both reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
-	//spew.Dump(reply)
+
 	util.RespondRaw(w, http.StatusOK, reply)
 }
 
@@ -1015,10 +1009,9 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 			})
 		return
 	}
-	spew.Dump(bp)
+
 	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
 	if err != nil {
-		log.Errorf("unmarshal batch proposals 1 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
 		return
@@ -1033,14 +1026,13 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	var bpr1 www.BatchProposalsReply
 	err = json.Unmarshal(data, &bpr1)
 	if err != nil {
-		log.Errorf("unmarshal batch proposals 2 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
-	spew.Dump(bpr1)
+
 	// need to clean data to avoid invalid tokens on archive
 	cleanedBatchTokens := make([]string, 0, len(bp.Tokens))
 	for _, token := range bp.Tokens {
@@ -1057,7 +1049,6 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 
 	archiveData, err := p.makeProposalsRequestArchive(http.MethodPost, www.RouteBatchProposals, bp)
 	if err != nil {
-		log.Errorf("unmarshal batch proposals 122 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
 		return
@@ -1065,7 +1056,6 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	var bpr2 www.BatchProposalsReply
 	err = json.Unmarshal(archiveData, &bpr2)
 	if err != nil {
-		log.Errorf("unmarshal batch proposals 3 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal reply archive",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -1076,17 +1066,16 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	bprBoth := www.BatchProposalsReply{
 		Proposals: append(bpr1.Proposals, bpr2.Proposals...),
 	}
-	spew.Dump(bprBoth)
+
 	reply, err := json.Marshal(bprBoth)
 	if err != nil {
-		log.Errorf("unmarshal batch proposals 4 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: marshal both reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
-	//spew.Dump(reply)
+
 	util.RespondRaw(w, http.StatusOK, reply)
 }
 
@@ -1222,8 +1211,7 @@ func (p *politeiawww) makeProposalsRequestArchive(method string, route string, v
 	if err != nil {
 		return nil, err
 	}
-	spew.Dump(route)
-	spew.Dump(requestBody)
+
 	r, err := client.Do(req)
 	if err != nil {
 		return nil, err
