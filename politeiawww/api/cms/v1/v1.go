@@ -246,6 +246,9 @@ const (
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
+
+	ProposalsMainnetArchive = "https://proposals-archive.decred.org"
+	ProposalsTestnetArchive = "https://test-proposals.decred.org"
 )
 
 var (
