@@ -1,3 +1,7 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package mysqldb
 
 import (
@@ -904,6 +908,50 @@ func (m *mysqldb) RotateKeys(newKeyPath string) error {
 	return nil
 }
 
+// PluginExec executes a plugin command.
+func (m *mysqldb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
+	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
+
+	if m.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var payload string
+	var err error
+	switch pc.ID {
+	case user.CMSPluginID:
+		// XXX add cms plgunin commands.
+		// payload, err = c.cmsPluginExec(pc.Command, pc.Payload)
+	default:
+		return nil, user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user.PluginCommandReply{
+		ID:      pc.ID,
+		Command: pc.Command,
+		Payload: payload,
+	}, nil
+}
+
+// Close shuts down the database.  All interface functions must return with
+// errShutdown if the backend is shutting down.
+func (m *mysqldb) Close() error {
+	log.Tracef("Close")
+
+	m.Lock()
+	defer m.Unlock()
+
+	// Zero out encryption key.
+	util.Zero(m.encryptionKey[:])
+	m.encryptionKey = nil
+
+	m.shutdown = true
+	return m.userDB.Close()
+}
+
 // New connects to a mysql instance using the given connection params,
 // and returns pointer to the created mysql struct.
 func New(host, password, network, encryptionKey string) (*mysqldb, error) {
@@ -971,48 +1019,4 @@ func New(host, password, network, encryptionKey string) (*mysqldb, error) {
 		userDB:        db,
 		encryptionKey: key,
 	}, nil
-}
-
-// PluginExec executes a plugin command.
-func (m *mysqldb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
-	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
-
-	if m.isShutdown() {
-		return nil, user.ErrShutdown
-	}
-
-	var payload string
-	var err error
-	switch pc.ID {
-	case user.CMSPluginID:
-		// XXX add cms plgunin commands.
-		// payload, err = c.cmsPluginExec(pc.Command, pc.Payload)
-	default:
-		return nil, user.ErrInvalidPlugin
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &user.PluginCommandReply{
-		ID:      pc.ID,
-		Command: pc.Command,
-		Payload: payload,
-	}, nil
-}
-
-// Close shuts down the database.  All interface functions must return with
-// errShutdown if the backend is shutting down.
-func (m *mysqldb) Close() error {
-	log.Tracef("Close")
-
-	m.Lock()
-	defer m.Unlock()
-
-	// Zero out encryption key.
-	util.Zero(m.encryptionKey[:])
-	m.encryptionKey = nil
-
-	m.shutdown = true
-	return m.userDB.Close()
 }

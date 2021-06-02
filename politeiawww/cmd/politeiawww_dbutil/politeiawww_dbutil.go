@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,11 +40,17 @@ import (
 )
 
 const (
-	defaultMySQLDBHost     = "localhost:3306"
+	defaultMySQLHost       = "localhost:3306"
 	defaultCockroachDBHost = "localhost:26257"
-	defaultRootCert        = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
-	defaultClientCert      = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
-	defaultClientKey       = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
+	// The following hardcoded CockroachDB paths are not ideal, instead they
+	// should use OS specific path:
+	// `dcrutil.AppDataDir("cockroachdb", false)`, but since we use
+	// `~/.cockroachdb` in our script to generate the CockroachDB certs (see
+	// `scripts/cockroachcerts.sh`) we are limited to use the same hardcoded
+	// paths here.
+	defaultRootCert   = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
+	defaultClientCert = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
+	defaultClientKey  = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
 
 	// Politeia repo info
 	commentsJournalFilename = "comments.journal"
@@ -62,13 +68,13 @@ var (
 	// Database options
 	level     = flag.Bool("leveldb", false, "")
 	cockroach = flag.Bool("cockroachdb", false, "")
-	mysql     = flag.Bool("mysqldb", false, "")
+	mysql     = flag.Bool("mysql", false, "")
 
 	// Application options
 	testnet         = flag.Bool("testnet", false, "")
 	dataDir         = flag.String("datadir", defaultDataDir, "")
 	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
-	mysqlhost       = flag.String("mysqlhost", defaultMySQLDBHost, "")
+	mysqlhost       = flag.String("mysqlhost", defaultMySQLHost, "")
 
 	rootCert      = flag.String("rootcert", defaultRootCert, "")
 	clientCert    = flag.String("clientcert", defaultClientCert, "")
@@ -97,8 +103,8 @@ const usageMsg = `politeiawww_dbutil usage:
           Use LevelDB
     -cockroachdb
           Use CockroachDB
-    -mysqldb
-          Use MySQLDB
+    -mysql
+          Use MySQL
 
   Application options
     -testnet
@@ -159,7 +165,8 @@ const usageMsg = `politeiawww_dbutil usage:
     -migrate
           Migrate from one user database to another
           Required DB flag : None
-          Args             : <fromDB> <toDB>
+          Args             : <fromDB> <mysql/cockroachdb/leveldb>
+                             <toDB> <mysql/cockroachdb/leveldb>
 
     -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
@@ -451,36 +458,30 @@ func connectCockroachDB() (user.Database, error) {
 		*clientCert, *clientKey, *encryptionKey)
 }
 
-func connectMySQLDB() (user.Database, error) {
+func connectMySQL() (user.Database, error) {
 	err := validateMySQLParams()
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("MySQLDB : %v %v\n", *mysqlhost, network)
+	fmt.Printf("MySQL : %v %v\n", *mysqlhost, network)
 	return mysqldb.New(*mysqlhost, *password, network, *encryptionKey)
 }
 
 func connectDB(typeDB string) (user.Database, error) {
-	const (
-		userDBLevel     = "leveldb"
-		userDBCockroach = "cockroachdb"
-		userDBMySQL     = "mysqldb"
-	)
-
-	var userDB user.Database
 	switch typeDB {
-	case userDBLevel:
+	case "leveldb":
 		return connectLevelDB()
 
-	case userDBCockroach:
+	case "cockroachdb":
 		return connectCockroachDB()
 
-	case userDBMySQL:
-		return connectMySQLDB()
-	}
+	case "mysql":
+		return connectMySQL()
 
-	return userDB, nil
+	default:
+		return nil, fmt.Errorf("invalid database type: %v", typeDB)
+	}
 }
 
 func cmdMigrate() error {
@@ -492,6 +493,11 @@ func cmdMigrate() error {
 
 	fromType := args[0]
 	toType := args[1]
+
+	if fromType == toType {
+		return fmt.Errorf("origin and destination databases can not " +
+			"be the same")
+	}
 
 	// Connect to origin database.
 	fromDB, err := connectDB(fromType)
@@ -826,15 +832,15 @@ func _main() error {
 		*level && *cockroach && *mysql:
 		fmt.Println(mysql, cockroach)
 		return fmt.Errorf("multiple database flags; must use one of the " +
-			"following: -leveldb, -mysqldb or -cockroachdb")
+			"following: -leveldb, -mysql or -cockroachdb")
 	}
 
 	switch {
 	case *addCredits || *setAdmin || *stubUsers || *resetTotp:
-		// These commands must be run with -cockroachdb, -mysqldb or -leveldb.
+		// These commands must be run with -cockroachdb, -mysql or -leveldb.
 		if !*level && !*cockroach && !*mysql {
 			return fmt.Errorf("missing database flag; must use " +
-				"-leveldb, -cockroachdb or -mysqldb")
+				"-leveldb, -cockroachdb or -mysql")
 		}
 	case *dump:
 		// These commands must be run with -leveldb.
@@ -843,17 +849,16 @@ func _main() error {
 				"-leveldb with this command")
 		}
 	case *verifyIdentities, *setEmail:
-		// These commands must be run with either -cockroachdb or
-		// -mysqldb.
+		// These commands must be run with either -cockroachdb or -mysql.
 		if !*cockroach || *level {
 			return fmt.Errorf("invalid database flag; must use " +
-				"either -mysqldb or -cockroachdb with this command")
+				"either -mysql or -cockroachdb with this command")
 		}
 	case *migrate || *createKey:
 		// These commands must be run without a database flag.
 		if *level || *cockroach || *mysql {
 			return fmt.Errorf("unexpected database flag found; " +
-				"remove database flag -leveldb, -mysqldb and -cockroachdb")
+				"remove database flag -leveldb, -mysql and -cockroachdb")
 		}
 	}
 
@@ -867,7 +872,7 @@ func _main() error {
 		userDB, err = connectCockroachDB()
 
 	case *mysql:
-		userDB, err = connectMySQLDB()
+		userDB, err = connectMySQL()
 
 	}
 	if err != nil {

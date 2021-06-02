@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # This script sets up the CockroachDB databases for the politeiawww user data
 # and assigns user privileges.
