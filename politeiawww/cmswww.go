@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"text/template"
 
+	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
@@ -941,20 +942,22 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 
 	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
+		log.Errorf("unmarshal token inv 1 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
 	}
-
-	// If testnet just use the main site and carry on
-	if !p.cfg.TestNet {
-		util.RespondRaw(w, http.StatusOK, data)
-		return
-	}
-
+	/*
+		// If testnet just use the main site and carry on
+		if !p.cfg.TestNet {
+			util.RespondRaw(w, http.StatusOK, data)
+			return
+		}
+	*/
 	var tir1 www.TokenInventoryReply
 	err = json.Unmarshal(data, &tir1)
 	if err != nil {
+		log.Errorf("unmarshal token inv 2 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: unmarshal reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -964,6 +967,7 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 
 	archiveData, err := p.makeProposalsRequestArchive(http.MethodGet, www.RouteTokenInventory, nil)
 	if err != nil {
+		log.Errorf("unmarshal token inv 3 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
@@ -972,6 +976,7 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	var tir2 www.TokenInventoryReply
 	err = json.Unmarshal(archiveData, &tir2)
 	if err != nil {
+		log.Errorf("unmarshal token inv 4 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: unmarshal reply archive",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -985,12 +990,14 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 
 	reply, err := json.Marshal(tirBoth)
 	if err != nil {
+		log.Errorf("unmarshal token inv 5 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: marshal both reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
+	spew.Dump(reply)
 	util.RespondRaw(w, http.StatusOK, reply)
 }
 
@@ -1009,19 +1016,22 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 
 	data, err := p.makeProposalsRequest(http.MethodPost, www.RouteBatchProposals, bp)
 	if err != nil {
+		log.Errorf("unmarshal batch proposals 1 %v", err)
 		RespondWithError(w, r, 0,
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
 		return
 	}
-	// If testnet just use the main site and carry on
-	if !p.cfg.TestNet {
-		util.RespondRaw(w, http.StatusOK, data)
-		return
-	}
-
+	/*
+		// If testnet just use the main site and carry on
+		if !p.cfg.TestNet {
+			util.RespondRaw(w, http.StatusOK, data)
+			return
+		}
+	*/
 	var bpr1 www.BatchProposalsReply
 	err = json.Unmarshal(data, &bpr1)
 	if err != nil {
+		log.Errorf("unmarshal batch proposals 2 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -1038,6 +1048,7 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	var bpr2 www.BatchProposalsReply
 	err = json.Unmarshal(archiveData, &bpr2)
 	if err != nil {
+		log.Errorf("unmarshal batch proposals 3 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal reply archive",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
@@ -1051,12 +1062,14 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 
 	reply, err := json.Marshal(bprBoth)
 	if err != nil {
+		log.Errorf("unmarshal batch proposals 4 %v", err)
 		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: marshal both reply",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
+	spew.Dump(reply)
 	util.RespondRaw(w, http.StatusOK, reply)
 }
 
