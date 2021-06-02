@@ -245,10 +245,10 @@ const (
 	ErrorStatusTrackerNotStarted              www.ErrorStatusT = 1058
 
 	ProposalsMainnet = "https://proposals.decred.org"
-	ProposalsTestnet = "https://proposals.decred.org"
+	ProposalsTestnet = "https://test-proposals.decred.org"
 
 	ProposalsMainnetArchive = "https://proposals-archive.decred.org"
-	ProposalsTestnetArchive = "https://proposals-archive.decred.org"
+	ProposalsTestnetArchive = "https://test-proposals.decred.org"
 )
 
 var (

@@ -947,13 +947,13 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
 	}
-	/*
-		// If testnet just use the main site and carry on
-		if !p.cfg.TestNet {
-			util.RespondRaw(w, http.StatusOK, data)
-			return
-		}
-	*/
+
+	// If testnet just use the main site and carry on
+	if !p.cfg.TestNet {
+		util.RespondRaw(w, http.StatusOK, data)
+		return
+	}
+
 	var tir1 www.TokenInventoryReply
 	err = json.Unmarshal(data, &tir1)
 	if err != nil {
@@ -1016,13 +1016,13 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
 		return
 	}
-	/*
-		// If testnet just use the main site and carry on
-		if !p.cfg.TestNet {
-			util.RespondRaw(w, http.StatusOK, data)
-			return
-		}
-	*/
+
+	// If testnet just use the main site and carry on
+	if !p.cfg.TestNet {
+		util.RespondRaw(w, http.StatusOK, data)
+		return
+	}
+
 	var bpr1 www.BatchProposalsReply
 	err = json.Unmarshal(data, &bpr1)
 	if err != nil {
