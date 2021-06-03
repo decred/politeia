@@ -43,10 +43,10 @@ const (
 	defaultMySQLHost       = "localhost:3306"
 	defaultCockroachDBHost = "localhost:26257"
 	// The following hardcoded CockroachDB paths are not ideal, instead they
-	// should use OS specific path:
+	// should use OS specific paths:
 	// `dcrutil.AppDataDir("cockroachdb", false)`, but since we use
 	// `~/.cockroachdb` in our script to generate the CockroachDB certs (see
-	// `scripts/cockroachcerts.sh`) we are limited to use the same hardcoded
+	// `/scripts/cockroachcerts.sh`) we are limited to use the same hardcoded
 	// paths here.
 	defaultRootCert   = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
 	defaultClientCert = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
@@ -136,21 +136,21 @@ const usageMsg = `politeiawww_dbutil usage:
   Commands
     -addcredits
           Add proposal credits to a user's account
-          Required DB flag : -leveldb or -cockroachdb
+          Required DB flag : -leveldb, -cockroachdb or -mysql
           LevelDB args     : <email> <quantity>
           CockroachDB args : <username> <quantity>
     -setadmin
           Set the admin flag for a user
-          Required DB flag : -leveldb or -cockroachdb
+          Required DB flag : -leveldb, -cockroachdb or -mysql
           LevelDB args     : <email> <true/false>
           CockroachDB args : <username> <true/false>
     -setemail
           Set a user's email to the provided email address
-          Required DB flag : -cockroachdb
+          Required DB flag : -cockroachdb or -mysql
           CockroachDB args : <username> <email>
     -stubusers
           Create user stubs for the public keys in a politeia repo
-          Required DB flag : -leveldb or -cockroachdb
+          Required DB flag : -leveldb, -cockroachdb or -mysql
           LevelDB args     : <importDir>
           CockroachDB args : <importDir>
     -dump
@@ -165,18 +165,16 @@ const usageMsg = `politeiawww_dbutil usage:
     -migrate
           Migrate from one user database to another
           Required DB flag : None
-          Args             : <fromDB> <mysql/cockroachdb/leveldb>
-                             <toDB> <mysql/cockroachdb/leveldb>
-
+          Args             : <fromDB> <toDB>
+                             Valid DBs are mysql, cockroachdb, leveldb
     -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
-          Required DB flag : -cockroachdb
-
+          Required DB flag : -cockroachdb or -mysql
     -resettotp
           Reset a user's totp settings in case they are locked out and 
           confirm identity. 
-          Required DB flag : -leveldb or -cockroachdb
+          Required DB flag : -leveldb, -cockroachdb or -mysql
           LevelDB args     : <email>
           CockroachDB args : <username>
 `
