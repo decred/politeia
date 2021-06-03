@@ -32,7 +32,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
-	"github.com/decred/politeia/politeiawww/user/mysqldb"
+	mysqldb "github.com/decred/politeia/politeiawww/user/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	_ "github.com/jinzhu/gorm/dialects/postgres"

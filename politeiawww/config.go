@@ -70,7 +70,7 @@ const (
 	// User database options
 	userDBLevel     = "leveldb"
 	userDBCockroach = "cockroachdb"
-	userDBMySQL     = "mysqldb"
+	userDBMySQL     = "mysql"
 
 	defaultUserDB = userDBLevel
 
@@ -780,7 +780,7 @@ func loadConfig() (*config.Config, []string, error) {
 
 	default:
 		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
-			"be leveldb, cockroachdb or mysqldb", cfg.UserDB)
+			"be leveldb, cockroachdb or mysql", cfg.UserDB)
 	}
 
 	// Verify paywall settings

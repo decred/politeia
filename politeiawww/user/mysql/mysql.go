@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package mysqldb
+package mysql
 
 import (
 	"bytes"
@@ -80,11 +80,11 @@ const tableSessions = `
 `
 
 var (
-	_ user.Database = (*mysqldb)(nil)
+	_ user.Database = (*mysql)(nil)
 )
 
-// mysqldb implements the user.Database interface.
-type mysqldb struct {
+// mysql implements the user.Database interface.
+type mysql struct {
 	sync.RWMutex
 
 	shutdown       bool                            // Backend is shutdown
@@ -97,34 +97,34 @@ func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
 
-func (m *mysqldb) isShutdown() bool {
+func (m *mysql) isShutdown() bool {
 	m.RLock()
 	defer m.RUnlock()
 
 	return m.shutdown
 }
 
-// encrypt encrypts the provided data with the mysqldb encryption key. The
+// encrypt encrypts the provided data with the mysql encryption key. The
 // encrypted blob is prefixed with an sbox header which encodes the provided
 // version. The read lock is taken despite the encryption key being a static
 // value because the encryption key is zeroed out on shutdown, which causes
 // race conditions to be reported when the golang race detector is used.
 //
 // This function must be called without the lock held.
-func (m *mysqldb) encrypt(version uint32, b []byte) ([]byte, error) {
+func (m *mysql) encrypt(version uint32, b []byte) ([]byte, error) {
 	m.RLock()
 	defer m.RUnlock()
 
 	return sbox.Encrypt(version, m.encryptionKey, b)
 }
 
-// decrypt decrypts the provided packed blob using the mysqldb encryption
+// decrypt decrypts the provided packed blob using the mysql encryption
 // key. The read lock is taken despite the encryption key being a static value
 // because the encryption key is zeroed out on shutdown, which causes race
 // conditions to be reported when the golang race detector is used.
 //
 // This function must be called without the lock held.
-func (m *mysqldb) decrypt(b []byte) ([]byte, uint32, error) {
+func (m *mysql) decrypt(b []byte) ([]byte, uint32, error) {
 	m.RLock()
 	defer m.RUnlock()
 
@@ -150,7 +150,7 @@ func setPaywallAddressIndex(ctx context.Context, tx *sql.Tx, index uint64) error
 // index are set before the user record is inserted into the database.
 //
 // This function must be called using a transaction.
-func (m *mysqldb) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUID, error) {
+func (m *mysql) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUID, error) {
 	// Set user paywall address index.
 	var index uint64
 	var dbIndex []byte
@@ -318,7 +318,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 // intended to be used for migrations between databases.
 //
 // InsertUser satisfies the Database interface.
-func (m *mysqldb) InsertUser(u user.User) error {
+func (m *mysql) InsertUser(u user.User) error {
 	log.Tracef("UserInsert: %v", u.Username)
 
 	if m.isShutdown() {
@@ -361,7 +361,7 @@ func (m *mysqldb) InsertUser(u user.User) error {
 }
 
 // UserNew creates a new user record in the database.
-func (m *mysqldb) UserNew(u user.User) error {
+func (m *mysql) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
 
 	if m.isShutdown() {
@@ -395,7 +395,7 @@ func (m *mysqldb) UserNew(u user.User) error {
 }
 
 // UserUpdate updates an existing user.
-func (m *mysqldb) UserUpdate(u user.User) error {
+func (m *mysql) UserUpdate(u user.User) error {
 	log.Tracef("UserUpdate: %v", u.Username)
 
 	if m.isShutdown() {
@@ -438,7 +438,7 @@ func (m *mysqldb) UserUpdate(u user.User) error {
 
 // UserGetByUsername returns a user record given its username, if found in the
 // database. returns user.ErrUserNotFound user not found.
-func (m *mysqldb) UserGetByUsername(username string) (*user.User, error) {
+func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 	log.Tracef("UserGetByUsername: %v", username)
 
 	if m.isShutdown() {
@@ -473,7 +473,7 @@ func (m *mysqldb) UserGetByUsername(username string) (*user.User, error) {
 
 // UserGetById returns a user record given its UUID, if found in the
 // database.
-func (m *mysqldb) UserGetById(id uuid.UUID) (*user.User, error) {
+func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 	log.Tracef("UserGetById: %v", id)
 
 	if m.isShutdown() {
@@ -508,7 +508,7 @@ func (m *mysqldb) UserGetById(id uuid.UUID) (*user.User, error) {
 
 // UserGetByPubKey returns a user record given its public key. The public key
 // can be any of the public keys in the user's identity history.
-func (m *mysqldb) UserGetByPubKey(pubKey string) (*user.User, error) {
+func (m *mysql) UserGetByPubKey(pubKey string) (*user.User, error) {
 	log.Tracef("UserGetByPubKey: %v", pubKey)
 
 	if m.isShutdown() {
@@ -551,7 +551,7 @@ func (m *mysqldb) UserGetByPubKey(pubKey string) (*user.User, error) {
 // results are returned for all of the provided public keys.
 //
 // UsersGetByPubKey satisfies the Database interface.
-func (m *mysqldb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
+func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
 	log.Tracef("UserGetByPubKey: %v", pubKeys)
 
 	if m.isShutdown() {
@@ -614,7 +614,7 @@ func (m *mysqldb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, erro
 }
 
 // AllUsers iterate over all users and executes given callback.
-func (m *mysqldb) AllUsers(callback func(u *user.User)) error {
+func (m *mysql) AllUsers(callback func(u *user.User)) error {
 	log.Tracef("AllUsers")
 
 	if m.isShutdown() {
@@ -666,7 +666,7 @@ func (m *mysqldb) AllUsers(callback func(u *user.User)) error {
 // inserted into the database. Existing sessions are updated in the database.
 //
 // SessionSave satisfies the user Database interface.
-func (m *mysqldb) SessionSave(us user.Session) error {
+func (m *mysql) SessionSave(us user.Session) error {
 	log.Tracef("SessionSave: %v", us.ID)
 
 	if m.isShutdown() {
@@ -745,7 +745,7 @@ func (m *mysqldb) SessionSave(us user.Session) error {
 // session ID does not exist
 //
 // SessionGetByID satisfies the Database interface.
-func (m *mysqldb) SessionGetByID(sid string) (*user.Session, error) {
+func (m *mysql) SessionGetByID(sid string) (*user.Session, error) {
 	log.Tracef("SessionGetByID: %v", sid)
 
 	if m.isShutdown() {
@@ -776,7 +776,7 @@ func (m *mysqldb) SessionGetByID(sid string) (*user.Session, error) {
 // SessionDeleteByID deletes the session with the given id.
 //
 // SessionDeleteByID satisfies the Database interface.
-func (m *mysqldb) SessionDeleteByID(sid string) error {
+func (m *mysql) SessionDeleteByID(sid string) error {
 	log.Tracef("SessionDeleteByID: %v", sid)
 
 	if m.isShutdown() {
@@ -799,7 +799,7 @@ func (m *mysqldb) SessionDeleteByID(sid string) error {
 // the session IDs in exemptSessionIDs.
 //
 // SessionsDeleteByUserID satisfies the Database interface.
-func (m *mysqldb) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string) error {
+func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string) error {
 	log.Tracef("SessionsDeleteByUserID: %v %v", uid.String(), exemptSessionIDs)
 
 	ctx, cancel := ctxWithTimeout()
@@ -826,7 +826,7 @@ func (m *mysqldb) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []strin
 }
 
 // RegisterPlugin registers a plugin.
-func (m *mysqldb) RegisterPlugin(p user.Plugin) error {
+func (m *mysql) RegisterPlugin(p user.Plugin) error {
 	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
 
 	if m.isShutdown() {
@@ -857,7 +857,7 @@ func (m *mysqldb) RegisterPlugin(p user.Plugin) error {
 
 // RotateKeys rotates the existing database encryption key with the given new
 // key.
-func (m *mysqldb) RotateKeys(newKeyPath string) error {
+func (m *mysql) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
 
 	if m.isShutdown() {
@@ -909,7 +909,7 @@ func (m *mysqldb) RotateKeys(newKeyPath string) error {
 }
 
 // PluginExec executes a plugin command.
-func (m *mysqldb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
+func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
 	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
 
 	if m.isShutdown() {
@@ -938,7 +938,7 @@ func (m *mysqldb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, e
 
 // Close shuts down the database.  All interface functions must return with
 // errShutdown if the backend is shutting down.
-func (m *mysqldb) Close() error {
+func (m *mysql) Close() error {
 	log.Tracef("Close")
 
 	m.Lock()
@@ -954,7 +954,7 @@ func (m *mysqldb) Close() error {
 
 // New connects to a mysql instance using the given connection params,
 // and returns pointer to the created mysql struct.
-func New(host, password, network, encryptionKey string) (*mysqldb, error) {
+func New(host, password, network, encryptionKey string) (*mysql, error) {
 	// Connect to database.
 	dbname := databaseID + "_" + network
 	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", userPoliteiawww, host,
@@ -1015,7 +1015,7 @@ func New(host, password, network, encryptionKey string) (*mysqldb, error) {
 		return nil, err
 	}
 
-	return &mysqldb{
+	return &mysql{
 		userDB:        db,
 		encryptionKey: key,
 	}, nil

@@ -40,7 +40,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
-	"github.com/decred/politeia/politeiawww/user/mysqldb"
+	"github.com/decred/politeia/politeiawww/user/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/decred/politeia/wsdcrdata"
@@ -626,7 +626,7 @@ func _main() error {
 		var err error
 		switch loadedCfg.UserDB {
 		case userDBMySQL:
-			userDB, err = mysqldb.New(loadedCfg.DBHost, loadedCfg.DBPass, network,
+			userDB, err = mysql.New(loadedCfg.DBHost, loadedCfg.DBPass, network,
 				encryptionKey)
 		case userDBCockroach:
 			userDB, err = cockroachdb.New(loadedCfg.DBHost, network,
