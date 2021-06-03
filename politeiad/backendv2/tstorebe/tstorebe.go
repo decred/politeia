@@ -911,7 +911,7 @@ func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, 
 func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
 	log.Tracef("InventoryOrdered: %v %v %v", state, pageSize, pageNumber)
 
-	tokens, err := t.invOrdered(state, pageSize, pageNumber)
+	tokens, err := t.invOrdered(t.kv, state, pageSize, pageNumber)
 	if err != nil {
 		return nil, err
 	}

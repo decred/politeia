@@ -25,8 +25,12 @@ const (
 type invBits uint64
 
 const (
-	// Record status bits
-	bitsInvalid          invBits = 0
+	// bitsInvalid is an invalid bit flag.
+	bitsInvalid invBits = 0
+
+	// Record status bits. These map directly to the backend record
+	// statuses and are used to request tokens from the inventory by
+	// record status.
 	bitsStatusUnreviewed invBits = 1 << 0
 	bitsStatusPublic     invBits = 1 << 1
 	bitsStatusCensored   invBits = 1 << 2
@@ -198,24 +202,36 @@ func (t *tstoreBackend) invByStatusAll(sg store.Getter, pageSize uint32) (*invBy
 // statuses will be returned. The state and pageNum arguments are ignored when
 // no status is provided.
 func (t *tstoreBackend) invByStatus(sg store.Getter, state backend.StateT, status backend.StatusT, pageSize, pageNum uint32) (*invByStatus, error) {
-	// If no status is provided a page of tokens for each status should
-	// be returned.
+	// If no status is provided then a page of tokens for
+	// each status is be returned.
 	if status == backend.StatusInvalid {
 		return t.invByStatusAll(sg, pageSize)
 	}
 
+	// Get the requests page of tokens
 	var (
-		unvetted = make(map[backend.StatusT][]string, 16)
-		vetted   = make(map[backend.StatusT][]string, 16)
+		unvetted  = make(map[backend.StatusT][]string, 16)
+		vetted    = make(map[backend.StatusT][]string, 16)
+		statusBit = uint64(invBitsForStatus(status))
 	)
 	switch state {
 	case backend.StateUnvetted:
-		// Get the requested page of entries
-		// TODO pick up here
+		tokens, err := t.inv.unvetted.Get(sg, statusBit, pageSize, pageNum)
+		if err != nil {
+			return nil, err
+		}
+		unvetted[status] = tokens
 	case backend.StateVetted:
+		tokens, err := t.inv.vetted.Get(sg, statusBit, pageSize, pageNum)
+		if err != nil {
+			return nil, err
+		}
+		vetted[status] = tokens
+	default:
+		return nil, fmt.Errorf("invalid record state %v", state)
 	}
 
-	return *invByStatus{
+	return &invByStatus{
 		Unvetted: unvetted,
 		Vetted:   vetted,
 	}, nil
@@ -224,11 +240,27 @@ func (t *tstoreBackend) invByStatus(sg store.Getter, state backend.StateT, statu
 // invOrdered returns a page of record tokens ordered by the timestamp of their
 // most recent status change. The returned tokens will include tokens for all
 // record statuses.
-func (t *tstoreBackend) invOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
-	// Get inventory file path
-	// Get inventory
-	// Return specified page of tokens
-	return nil, nil
+func (t *tstoreBackend) invOrdered(sg store.Getter, state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
+	var (
+		tokens []string
+		err    error
+	)
+	switch state {
+	case backend.StateUnvetted:
+		tokens, err = t.inv.unvetted.GetOrdered(sg, pageSize, pageNumber)
+		if err != nil {
+			return nil, err
+		}
+	case backend.StateVetted:
+		tokens, err = t.inv.vetted.GetOrdered(sg, pageSize, pageNumber)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("invalid record state %v", state)
+	}
+
+	return tokens, nil
 }
 
 // invBits returns the invBits for the provided record status.

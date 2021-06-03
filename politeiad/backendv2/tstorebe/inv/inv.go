@@ -3,12 +3,14 @@
 // license that can be found in the LICENSE file.
 
 // Package inv implements a concurrency safe API for managing an inventory of
-// tokens.
+// tokens. Bit flags are used to encode relevant data into inventory entries.
+// The inventory can be queried by bit flags or by entry timestamp.
 package inv
 
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
@@ -30,7 +32,7 @@ func newEntry(token string, bits uint64, timestamp int64) entry {
 }
 
 const (
-	// invVersion is the most recent version of the inv struct.
+	// invVersion is the version of the inv struct.
 	invVersion uint32 = 1
 )
 
@@ -127,6 +129,11 @@ func (i *Inv) Update(tx store.Tx, token string, bits uint64, timestamp int64) er
 		break
 	}
 
+	// Sort the inventory by timestamp from newest to oldest
+	sort.SliceStable(inv.Entries, func(i, j int) bool {
+		return inv.Entries[i].Timestamp > inv.Entries[j].Timestamp
+	})
+
 	// Save the updated inventory
 	return inv.save(tx, i.key, i.encrypt)
 }
@@ -171,7 +178,7 @@ func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]str
 
 // GetMulti returns a page of tokens for each of the provided bits. The bits
 // are used as filtering criteria. The returned map is a map[bits][]token.
-func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, page uint32) (map[uint64][]string, error) {
+func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint32) (map[uint64][]string, error) {
 	// Get existing inventory
 	inv, err := invGet(sg, i.key)
 	if err != nil {
@@ -181,7 +188,7 @@ func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, page uint32) (m
 	pages := make(map[uint64][]string, len(bits))
 	for _, v := range bits {
 		// Filter out the requested page of entries
-		filtered := filterEntries(inv.Entries, v, pageSize, page)
+		filtered := filterEntries(inv.Entries, v, pageSize, pageNum)
 
 		// Compile tokens
 		tokens := make([]string, 0, len(filtered))
@@ -192,6 +199,30 @@ func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, page uint32) (m
 	}
 
 	return pages, nil
+}
+
+// GetOrdered orders the entries from newest to oldest and returns the
+// specified page.
+func (i *Inv) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
+	// Get inventory. The tokens will already be sorted by
+	// their timestamp from newest to oldest.
+	inv, err := invGet(sg, i.key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return specified page. Using a filtering bit of 0
+	// means that every entry will match. This is what we
+	// want since the entries are already sorted.
+	filtered := filterEntries(inv.Entries, 0, pageSize, pageNum)
+
+	// Compile tokens
+	tokens := make([]string, 0, len(filtered))
+	for _, v := range filtered {
+		tokens = append(tokens, v.Token)
+	}
+
+	return tokens, nil
 }
 
 // delEntry removes the entry for a token and returns the updated slice.
@@ -219,10 +250,11 @@ func delEntry(entries []entry, token string) ([]entry, error) {
 }
 
 // filterEntriesi returns a page of entries that meet the provided filtering
-// criteria.
-func filterEntries(entries []entry, bits uint64, pageSize, page uint32) []entry {
+// criteria. The bits are bit flags that indicate what entries should be
+// returned.
+func filterEntries(entries []entry, bits uint64, pageSize, pageNum uint32) []entry {
 	filtered := make([]entry, 0, pageSize)
-	if pageSize == 0 || page == 0 {
+	if pageSize == 0 || pageNum == 0 {
 		return filtered
 	}
 
@@ -233,22 +265,26 @@ func filterEntries(entries []entry, bits uint64, pageSize, page uint32) []entry 
 
 		// pageStart is the match count that the requested page
 		// starts at.
-		pageStart = (page - 1) * pageSize
+		pageStart = (pageNum - 1) * pageSize
 	)
 	for _, v := range entries {
 		if (v.Bits & bits) != bits {
-			// Entry bits do not contains all of the provided
-			// filtering bits. This is not a match.
+			// Bits for the inventory entry do not contain all of
+			// the provided filtering bits. This is not a match.
 			continue
 		}
 
-		// Match found
-		if matchCount >= pageStart {
-			filtered = append(filtered, v)
-			if len(filtered) == int(pageSize) {
-				// We have a full page. We're done.
-				return filtered
-			}
+		// Match found. Check if it's part of the requested page.
+		if matchCount < pageStart {
+			// Entry is not part of the requested page
+			continue
+		}
+
+		// Entry is part of the requested page
+		filtered = append(filtered, v)
+		if len(filtered) == int(pageSize) {
+			// We have a full page. We're done.
+			return filtered
 		}
 
 		matchCount++

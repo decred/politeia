@@ -94,7 +94,7 @@ type Tx interface {
 	Del(keys []string) error
 
 	// Get retrieves entries from the store. An entry will not exist in
-	// the returned map if for any blobs that are not found. It is the
+	// the returned map for any blobs that are not found. It is the
 	// responsibility of the caller to ensure a blob was returned for
 	// all provided keys.
 	Get(keys []string) (map[string][]byte, error)
