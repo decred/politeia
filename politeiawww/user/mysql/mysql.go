@@ -134,12 +134,12 @@ func (m *mysql) decrypt(b []byte) ([]byte, uint32, error) {
 // setPaywallAddressIndex updates the paywall address index record in the
 // key-value store.
 //
-// This function should be called using a transaction necessary.
+// This function must be called using a transaction.
 func setPaywallAddressIndex(ctx context.Context, tx *sql.Tx, index uint64) error {
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, index)
 	_, err := tx.ExecContext(ctx,
-		"UPDATE key_value SET v = ? WHERE k = ?", b, keyPaywallAddressIndex)
+		"UPDATE key_value SET v = $1 WHERE k = $2", b, keyPaywallAddressIndex)
 	if err != nil {
 		return fmt.Errorf("update paywallet index error: %v", err)
 	}
@@ -197,7 +197,7 @@ func (m *mysql) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUI
 		CreatedAt: time.Now().Unix(),
 	}
 	_, err = tx.ExecContext(ctx,
-		"INSERT into users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
+		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES ($1, $2, $3, $4)",
 		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("create user: %v", err)
@@ -351,7 +351,7 @@ func (m *mysql) InsertUser(u user.User) error {
 		CreatedAt: time.Now().Unix(),
 	}
 	_, err = m.userDB.ExecContext(ctx,
-		"INSERT into users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
+		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES ($1, $2, $3, $4)",
 		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert user: %v", err)
