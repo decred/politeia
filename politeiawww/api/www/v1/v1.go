@@ -1010,6 +1010,7 @@ type PolicyReply struct {
 	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 	MinVoteDuration            uint32   `json:"minvoteduration"`
 	MaxVoteDuration            uint32   `json:"maxvoteduration"`
+	PaywallConfirmations       uint64   `json:"paywallconfirmations"`
 }
 
 // VoteOption describes a single vote option.
