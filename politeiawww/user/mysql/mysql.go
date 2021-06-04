@@ -155,7 +155,7 @@ func (m *mysql) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUI
 	// Set user paywall address index.
 	var index uint64
 	var dbIndex []byte
-	err := tx.QueryRowContext(ctx, "SELECT v FROM key_value WHERE k=?",
+	err := tx.QueryRowContext(ctx, "SELECT v FROM key_value WHERE k = $1",
 		keyPaywallAddressIndex).Scan(&dbIndex)
 	switch err {
 	// No errors, use database index.
@@ -762,7 +762,7 @@ func (m *mysql) SessionGetByID(sid string) (*user.Session, error) {
 	defer cancel()
 
 	var blob []byte
-	err := m.userDB.QueryRowContext(ctx, "SELECT sBlob FROM sessions WHERE k = ?",
+	err := m.userDB.QueryRowContext(ctx, "SELECT sBlob FROM sessions WHERE k = $1",
 		hex.EncodeToString(util.Digest([]byte(sid)))).
 		Scan(&blob)
 	switch {
@@ -792,7 +792,7 @@ func (m *mysql) SessionDeleteByID(sid string) error {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
-	_, err := m.userDB.ExecContext(ctx, "DELETE FROM sessions WHERE k=?",
+	_, err := m.userDB.ExecContext(ctx, "DELETE FROM sessions WHERE k = $1",
 		hex.EncodeToString(util.Digest([]byte(sid))))
 	if err != nil {
 		return err
@@ -821,7 +821,7 @@ func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string)
 	// deleted.
 	if len(exempt) == 0 {
 		_, err := m.userDB.
-			ExecContext(ctx, "DELETE FROM sessions WHERE userID = ?", uid.String())
+			ExecContext(ctx, "DELETE FROM sessions WHERE userID = $1", uid.String())
 		return err
 	}
 

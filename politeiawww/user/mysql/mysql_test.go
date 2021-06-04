@@ -118,7 +118,7 @@ func TestUserNew(t *testing.T) {
 	}
 
 	// Queries
-	sqlSelectIndex := `SELECT v FROM key_value WHERE k=?`
+	sqlSelectIndex := `SELECT v FROM key_value WHERE k = $1`
 	sqlInsertUser := `INSERT INTO users ` +
 		`(ID, username, uBlob, createdAt) ` +
 		`VALUES ($1, $2, $3, $4)`
@@ -609,6 +609,210 @@ func TestSessionSave(t *testing.T) {
 	err = mdb.SessionSave(user.Session{})
 	if err == nil {
 		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestSessionGetByID(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	session := user.Session{
+		ID:        "1",
+		UserID:    uuid.New(),
+		CreatedAt: time.Now().Unix(),
+		Values:    "",
+	}
+	sessionKey := hex.EncodeToString(util.Digest([]byte(session.ID)))
+	sb, err := user.EncodeSession(session)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	eb, err := mdb.encrypt(user.VersionSession, sb)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Mock data
+	rows := sqlmock.NewRows([]string{"sBlob"}).
+		AddRow(eb)
+
+	// Queries
+	sql := `SELECT sBlob FROM sessions WHERE k = $1`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(sessionKey).
+		WillReturnRows(rows)
+
+	// Execute method
+	s, err := mdb.SessionGetByID(session.ID)
+	if err != nil {
+		t.Errorf("SessionGetByID unwanted error: %s", err)
+	}
+
+	// Make sure correct session was returned
+	if session.ID != s.ID {
+		t.Errorf("expecting session %s but got %s", session.ID, s.ID)
+	}
+
+	// Negative Expectations
+	randomID := "2"
+	randomKey := hex.EncodeToString(util.Digest([]byte(randomID)))
+	expectedError := user.ErrSessionNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomKey).
+		WillReturnError(expectedError)
+
+	// Execute method
+	s, err = mdb.SessionGetByID(randomID)
+	if err == nil {
+		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure no sessions were returned
+	if s != nil {
+		t.Errorf("expected no session but got %v", s)
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestSessionDeleteByID(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	session := user.Session{
+		ID:        "1",
+		UserID:    uuid.New(),
+		CreatedAt: time.Now().Unix(),
+		Values:    "",
+	}
+	sessionKey := hex.EncodeToString(util.Digest([]byte(session.ID)))
+	sb, err := user.EncodeSession(session)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	eb, err := mdb.encrypt(user.VersionSession, sb)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Mock data
+	sqlmock.NewRows([]string{"sBlob"}).
+		AddRow(eb)
+
+	// Queries
+	sql := `DELETE FROM sessions WHERE k = $1`
+
+	// Success Expectations
+	mock.ExpectExec(regexp.QuoteMeta(sql)).
+		WithArgs(sessionKey).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Execute method
+	err = mdb.SessionDeleteByID(session.ID)
+	if err != nil {
+		t.Errorf("SessionDeleteByID unwanted error: %s", err)
+	}
+
+	// Negative Expectations
+	randomID := "random"
+	randomKey := hex.EncodeToString(util.Digest([]byte(randomID)))
+	mock.ExpectExec(regexp.QuoteMeta(sql)).
+		WithArgs(randomKey).
+		WillReturnError(errDelete)
+
+	// Execute method
+	err = mdb.SessionDeleteByID(randomID)
+	if err == nil {
+		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, errDelete) {
+		t.Errorf("expecting error %s but got %s", errDelete, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestSessionsDeleteByUserID(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	session := user.Session{
+		ID:        "1",
+		UserID:    uuid.New(),
+		CreatedAt: time.Now().Unix(),
+		Values:    "",
+	}
+	sb, err := user.EncodeSession(session)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	eb, err := mdb.encrypt(user.VersionSession, sb)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Mock data
+	sqlmock.NewRows([]string{"sBlob"}).
+		AddRow(eb)
+
+	// Queries
+	sql := `DELETE FROM sessions WHERE userID = $1`
+
+	// Success Expectations
+	mock.ExpectExec(regexp.QuoteMeta(sql)).
+		WithArgs(session.UserID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Execute method
+	err = mdb.SessionsDeleteByUserID(session.UserID, []string{})
+	if err != nil {
+		t.Errorf("SessionsDeleteByUserID unwanted error: %s", err)
+	}
+
+	// Negative Expectations
+	randomID := uuid.New()
+	mock.ExpectExec(regexp.QuoteMeta(sql)).
+		WithArgs(randomID).
+		WillReturnError(errDelete)
+
+	// Execute method
+	err = mdb.SessionsDeleteByUserID(randomID, []string{})
+	if err == nil {
+		t.Errorf("expecting error but got none")
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, errDelete) {
+		t.Errorf("expecting error %s but got %s", errDelete, err)
 	}
 
 	// Make sure expectations were met for both success and failure
