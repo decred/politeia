@@ -187,6 +187,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxLinkByPeriod:            0,
 		MinVoteDuration:            0,
 		MaxVoteDuration:            0,
+		PaywallConfirmations:       p.cfg.MinConfirmationsRequired,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
