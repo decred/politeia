@@ -65,7 +65,7 @@ const tableUsers = `
 
 // tableIdentities defines the identities table.
 const tableIdentities = `
-  publicKey CHAR(68) NOT NULL PRIMARY KEY,
+  publicKey CHAR(64) NOT NULL PRIMARY KEY,
   userID    VARCHAR(36) NOT NULL,
   activated INT(11) NOT NULL,
   deactivated INT(11) NOT NULL,
@@ -378,7 +378,6 @@ func (m *mysql) UserNew(u user.User) error {
 		Isolation: sql.LevelDefault,
 	}
 	tx, err := m.userDB.BeginTx(ctx, opts)
-	defer tx.Rollback()
 	if err != nil {
 		return fmt.Errorf("begin tx: %v", err)
 	}
@@ -390,7 +389,12 @@ func (m *mysql) UserNew(u user.User) error {
 
 	// Commit transaction.
 	if err := tx.Commit(); err != nil {
-		return err
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
 	}
 
 	return nil
@@ -893,7 +897,6 @@ func (m *mysql) RotateKeys(newKeyPath string) error {
 		Isolation: sql.LevelDefault,
 	}
 	tx, err := m.userDB.BeginTx(ctx, opts)
-	defer tx.Rollback()
 	if err != nil {
 		return err
 	}
@@ -904,7 +907,12 @@ func (m *mysql) RotateKeys(newKeyPath string) error {
 
 	// Commit transaction.
 	if err := tx.Commit(); err != nil {
-		return err
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
 	}
 
 	// Update context.
