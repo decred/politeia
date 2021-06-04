@@ -5,14 +5,21 @@
 package mysql
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"encoding/binary"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 // Custom go-sqlmock types for type assertion
@@ -27,6 +34,45 @@ func (a AnyBlob) Match(v driver.Value) bool {
 func (a AnyTime) Match(v driver.Value) bool {
 	_, ok := v.(int64)
 	return ok
+}
+
+// Helpers
+var (
+	errSelect = fmt.Errorf("select user error")
+	errDelete = fmt.Errorf("delete user error")
+)
+
+func newUser(t *testing.T, mdb *mysql) (user.User, []byte) {
+	t.Helper()
+
+	uuid := uuid.New()
+	u := user.User{
+		ID:       uuid,
+		Username: "test" + uuid.String(),
+	}
+
+	// Make user identity
+	fid, err := identity.New()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	id, err := user.NewIdentity(hex.EncodeToString(fid.Public.Key[:]))
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	u.Identities = append(u.Identities, *id)
+
+	// Make user blob
+	eu, err := user.EncodeUser(u)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	eb, err := mdb.encrypt(user.VersionUser, eu)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	return u, eb
 }
 
 func setupTestDB(t *testing.T) (*mysql, sqlmock.Sqlmock, func()) {
@@ -61,7 +107,7 @@ func newPaywallAddressIndex(t *testing.T, i uint64) *[]byte {
 
 // Tests
 func TestUserNew(t *testing.T) {
-	mysqldb, mock, close := setupTestDB(t)
+	mdb, mock, close := setupTestDB(t)
 	defer close()
 
 	// Arguments
@@ -97,7 +143,7 @@ func TestUserNew(t *testing.T) {
 	mock.ExpectCommit()
 
 	// Execute method
-	err := mysqldb.UserNew(usr)
+	err := mdb.UserNew(usr)
 	if err != nil {
 		t.Errorf("UserNew unwanted error: %s", err)
 	}
@@ -111,13 +157,12 @@ func TestUserNew(t *testing.T) {
 			AddRow(index))
 	// User already exists error
 	mock.ExpectExec(regexp.QuoteMeta(sqlInsertUser)).
-		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{},
-			AnyTime{}).
+		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{}, AnyTime{}).
 		WillReturnError(expectedError)
 	mock.ExpectRollback()
 
 	// Execute method
-	err = mysqldb.UserNew(usr)
+	err = mdb.UserNew(usr)
 	if err == nil {
 		t.Errorf("expecting error but there was none")
 	}
@@ -126,6 +171,444 @@ func TestUserNew(t *testing.T) {
 	wantErr := fmt.Errorf("create user: %v", expectedError)
 	if err.Error() != wantErr.Error() {
 		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestUserUpdate(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	id := uuid.New()
+	usr := user.User{
+		ID:         id,
+		Identities: []user.Identity{},
+		Email:      "test@test.com",
+		Username:   "test",
+	}
+
+	// Query
+	sql := `UPDATE users ` +
+		`SET username = $1, uBlob = $2, updatedAt = $3 ` +
+		`WHERE ID = $4`
+
+	// Success Expectations
+	mock.ExpectExec(regexp.QuoteMeta(sql)).
+		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, usr.ID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Execute method
+	err := mdb.UserUpdate(usr)
+	if err != nil {
+		t.Errorf("UserUpdate unwanted error: %s", err)
+	}
+
+	// Make sure expectations were met
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestUserGetByUsername(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	usr, blob := newUser(t, mdb)
+
+	// Mock rows data
+	rows := sqlmock.NewRows([]string{
+		"uBlob",
+	}).AddRow(blob)
+
+	// Query
+	sql := `SELECT uBlob FROM users WHERE username = $1`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(usr.Username).
+		WillReturnRows(rows)
+
+	// Execute method
+	u, err := mdb.UserGetByUsername(usr.Username)
+	if err != nil {
+		t.Errorf("UserGetByUsername unwanted error: %s", err)
+	}
+
+	// Make sure correct user was fetched
+	if u.ID != usr.ID {
+		t.Errorf("expecting user of id %s but received %s", usr.ID, u.ID)
+	}
+
+	// Negative Expectations
+	randomUsername := "random"
+	expectedError := user.ErrUserNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomUsername).
+		WillReturnError(expectedError)
+
+	// Execute method
+	u, err = mdb.UserGetByUsername(randomUsername)
+	if err == nil {
+		t.Errorf("expecting error %s, but there was none", expectedError)
+	}
+
+	// Make sure no user was fetched
+	if u != nil {
+		t.Errorf("expecting nil user to be returned, but got user %s", u.ID)
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestUserGetById(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	usr, blob := newUser(t, mdb)
+
+	// Mock rows data
+	rows := sqlmock.NewRows([]string{
+		"uBlob",
+	}).AddRow(blob)
+
+	// Query
+	sql := `SELECT uBlob FROM users WHERE ID = $1`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(usr.ID).
+		WillReturnRows(rows)
+
+	// Execute method
+	u, err := mdb.UserGetById(usr.ID)
+	if err != nil {
+		t.Errorf("UserGetById unwanted error: %s", err)
+	}
+
+	// Make sure correct user was fetched
+	if u.ID != usr.ID {
+		t.Errorf("expecting user of id %s but received %s", usr.ID, u.ID)
+	}
+
+	// Negative Expectations
+	expectedError := user.ErrUserNotFound
+	randomID := uuid.New()
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomID).
+		WillReturnError(expectedError)
+
+	// Execute method
+	u, err = mdb.UserGetById(randomID)
+	if err == nil {
+		t.Errorf("expecting error %s, but there was none", expectedError)
+	}
+
+	// Make sure no user was fetched
+	if u != nil {
+		t.Errorf("expecting nil user to be returned, but got user %s", u.ID)
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestUserGetByPubKey(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	usr, blob := newUser(t, mdb)
+	pubkey := usr.Identities[0].String()
+
+	// Mock rows data
+	rows := sqlmock.NewRows([]string{
+		"uBlob",
+	}).AddRow(blob)
+
+	// Query
+	sql := `SELECT uBlob FROM users ` +
+		`INNER JOIN identities ON users.ID = identities.userID ` +
+		`WHERE identities.publicKey = $1`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(pubkey).
+		WillReturnRows(rows)
+
+	// Execute method
+	ur, err := mdb.UserGetByPubKey(pubkey)
+	if err != nil {
+		t.Errorf("UserGetByPubKey unwanted error: %s", err)
+	}
+
+	// Make sure correct user was fetched
+	if ur.ID != usr.ID {
+		t.Errorf("expecting user of id %s but received %s", usr.ID, ur.ID)
+	}
+
+	// Negative Expectations
+	randomUsr, _ := newUser(t, mdb)
+	randomPubkey := randomUsr.Identities[0].String()
+	expectedError := user.ErrUserNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomPubkey).
+		WillReturnError(expectedError)
+
+	// Execute method
+	ur, err = mdb.UserGetByPubKey(randomPubkey)
+	if err == nil {
+		t.Errorf("expecting error user not found, but there was none")
+	}
+
+	// Make sure no user was fetched
+	if ur != nil {
+		t.Errorf("expecting nil user to be returned, but got user %s", ur.ID)
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestUsersGetByPubKey(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	usr, blob := newUser(t, mdb)
+	pubkey := usr.Identities[0].String()
+
+	// Mock data
+	rows := sqlmock.NewRows([]string{
+		"uBlob",
+	}).AddRow(blob)
+
+	// Query
+	sql := `SELECT uBlob FROM users ` +
+		`INNER JOIN identities ON users.ID = identities.userID ` +
+		`WHERE identities.publicKey IN (?)`
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(pubkey).
+		WillReturnRows(rows)
+
+	// Execute method
+	ur, err := mdb.UsersGetByPubKey([]string{pubkey})
+	if err != nil {
+		t.Errorf("UsersGetByPubKey unwanted error: %s", err)
+	}
+
+	// Make sure correct user was fetched
+	fetchedUser := ur[pubkey]
+	if fetchedUser.ID != usr.ID {
+		t.Errorf("expecting user of id %s but received %s",
+			usr.ID, fetchedUser.ID)
+	}
+
+	// Negative Expectations
+	randomUsr, _ := newUser(t, mdb)
+	randomPubkey := randomUsr.Identities[0].String()
+	expectedError := user.ErrUserNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomPubkey).
+		WillReturnError(expectedError)
+
+	// Execute method
+	ur, err = mdb.UsersGetByPubKey([]string{randomPubkey})
+	if err == nil {
+		t.Errorf("expecting error but there was none")
+	}
+
+	// Make sure no user was fetched
+	if len(ur) != 0 {
+		t.Errorf("expecting nil user to be returned, but got user %s",
+			ur[randomPubkey].ID)
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestAllUsers(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	_, blob := newUser(t, mdb)
+	_, blob2 := newUser(t, mdb)
+
+	// Query
+	sql := `SELECT uBlob FROM users`
+
+	// Mock data
+	rows := sqlmock.NewRows([]string{
+		"uBlob",
+	}).
+		AddRow(blob).
+		AddRow(blob2)
+
+	// Success Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WillReturnRows(rows)
+
+	// Execute method
+	var users []user.User
+	err := mdb.AllUsers(func(u *user.User) {
+		users = append(users, *u)
+	})
+	if err != nil {
+		t.Errorf("AllUsers unwanted error: %s", err)
+	}
+
+	// Check if both mocked users were returned
+	if len(users) != 2 {
+		t.Errorf("did not return all users")
+	}
+
+	// Negative Expectations
+	expectedError := user.ErrUserNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WillReturnError(expectedError)
+
+	// Execute method
+	var us []user.User
+	err = mdb.AllUsers(func(u *user.User) {
+		us = append(us, *u)
+	})
+	if err == nil {
+		t.Errorf("expecting error but there was none")
+	}
+
+	// Make sure no users were returned
+	if len(us) != 0 {
+		t.Errorf("expected no users but returned %v users", len(us))
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestSessionSave(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	session := user.Session{
+		ID:        "1",
+		UserID:    uuid.New(),
+		CreatedAt: time.Now().Unix(),
+		Values:    "",
+	}
+	sessionKey := hex.EncodeToString(util.Digest([]byte(session.ID)))
+
+	// Query
+	sqlSelect := `SELECT k FROM sessions WHERE k = $1`
+
+	sqlInsert := `INSERT INTO sessions ` +
+		`(k, userID, createdAt, sBlob) ` +
+		`VALUES ($1, $2, $3, $4)`
+
+	// Success Create Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WithArgs(sessionKey).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(regexp.QuoteMeta(sqlInsert)).
+		WithArgs(sessionKey, session.UserID, session.CreatedAt, AnyBlob{}).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Execute method
+	err := mdb.SessionSave(session)
+	if err != nil {
+		t.Errorf("SessionSave unwanted error: %s", err)
+	}
+
+	// Mock data for updating a user session
+	rows := sqlmock.NewRows([]string{"sBlob"}).
+		AddRow([]byte{})
+
+	// Queries
+	sqlUpdate := `UPDATE sessions ` +
+		`SET userID = $1, createdAt = $2, sBlob = $3 ` +
+		`WHERE k = $4`
+
+	// Success Update Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WithArgs(sessionKey).
+		WillReturnRows(rows)
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpdate)).
+		WithArgs(session.UserID, session.CreatedAt, AnyBlob{}, sessionKey).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Execute method
+	err = mdb.SessionSave(session)
+	if err != nil {
+		t.Errorf("SessionSave unwanted error: %s", err)
+	}
+
+	// Negative Expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WillReturnError(errSelect)
+
+	// Execute method
+	err = mdb.SessionSave(user.Session{})
+	if err == nil {
+		t.Errorf("expected error but there was none")
 	}
 
 	// Make sure expectations were met for both success and failure

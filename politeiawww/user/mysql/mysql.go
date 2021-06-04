@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -258,7 +259,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 		v.Blob = eb
 		// Store new user blob.
 		_, err = tx.ExecContext(ctx,
-			"UPDATE users SET uBlob = ? WHERE ID = ?", v.Blob, v.ID)
+			"UPDATE users SET uBlob = ? WHERE ID = $1", v.Blob, v.ID)
 		if err != nil {
 			return fmt.Errorf("save user '%v': %v", v.ID, err)
 		}
@@ -304,7 +305,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 		v.Blob = eb
 		// Store new user blob.
 		_, err = tx.ExecContext(ctx,
-			"UPDATE sessions SET sBlob = ? WHERE k = ?", v.Blob, v.Key)
+			"UPDATE sessions SET sBlob = $1 WHERE k = $2", v.Blob, v.Key)
 		if err != nil {
 			return fmt.Errorf("save session '%v': %v", v.Key, err)
 		}
@@ -427,7 +428,7 @@ func (m *mysql) UserUpdate(u user.User) error {
 		UpdatedAt: time.Now().Unix(),
 	}
 	_, err = m.userDB.ExecContext(ctx,
-		"UPDATE users SET username = ?, uBlob = ?, updatedAt = ? WHERE ID = ? ",
+		"UPDATE users SET username = $1, uBlob = $2, updatedAt = $3 WHERE ID = $4 ",
 		ur.Username, ur.Blob, ur.UpdatedAt, ur.ID)
 	if err != nil {
 		return fmt.Errorf("create user: %v", err)
@@ -450,7 +451,7 @@ func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 
 	var uBlob []byte
 	err := m.userDB.QueryRowContext(ctx,
-		"SELECT uBlob FROM users WHERE username=?", username).Scan(&uBlob)
+		"SELECT uBlob FROM users WHERE username = $1", username).Scan(&uBlob)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, user.ErrUserNotFound
@@ -485,7 +486,7 @@ func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 
 	var uBlob []byte
 	err := m.userDB.QueryRowContext(ctx,
-		"SELECT uBlob FROM users WHERE ID=?", id).Scan(&uBlob)
+		"SELECT uBlob FROM users WHERE ID = $1", id).Scan(&uBlob)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, user.ErrUserNotFound
@@ -523,7 +524,7 @@ func (m *mysql) UserGetByPubKey(pubKey string) (*user.User, error) {
         FROM users
         INNER JOIN identities
           ON users.ID = identities.userID
-          WHERE identities.publicKey = ?`
+          WHERE identities.publicKey = $1`
 	err := m.userDB.QueryRowContext(ctx, q, pubKey).Scan(&uBlob)
 	switch {
 	case err == sql.ErrNoRows:
@@ -565,9 +566,15 @@ func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error)
 	q := `SELECT uBlob
           FROM users
             INNER JOIN identities
-            ON users.ID = identities.ID
-            WHERE identities.publicKey IN (?)`
-	rows, err := m.userDB.QueryContext(ctx, q, pubKeys)
+            ON users.ID = identities.userID
+            WHERE identities.publicKey IN (?` +
+		strings.Repeat(",?", len(pubKeys)-1) + `)`
+
+	args := make([]interface{}, len(pubKeys))
+	for i, id := range pubKeys {
+		args[i] = id
+	}
+	rows, err := m.userDB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +710,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 		k      string
 	)
 	err = m.userDB.
-		QueryRowContext(ctx, "SELECT k FROM sessions WHERE k = ?", session.Key).
+		QueryRowContext(ctx, "SELECT k FROM sessions WHERE k = $1", session.Key).
 		Scan(&k)
 	switch err {
 	case nil:
@@ -720,10 +727,9 @@ func (m *mysql) SessionSave(us user.Session) error {
 	if update {
 		_, err := m.userDB.ExecContext(ctx,
 			`UPDATE sessions
-		  SET userID = ?,
-			    CreatedAt = ?,
-					sBlob = ?`,
-			session.UserID, session.CreatedAt, session.Blob)
+		  SET userID = $1, createdAt = $2, sBlob = $3
+			WHERE k = $4`,
+			session.UserID, session.CreatedAt, session.Blob, session.Key)
 		if err != nil {
 			return fmt.Errorf("upate: %v", err)
 		}
@@ -731,7 +737,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 		_, err := m.userDB.ExecContext(ctx,
 			`INSERT INTO sessions
 		(k, userID, createdAt, sBlob)
-		VALUES (?, ?, ?, ?)`,
+		VALUES ($1, $2, $3, $4)`,
 			session.Key, session.UserID, session.CreatedAt, session.Blob)
 		if err != nil {
 			return fmt.Errorf("create: %v", err)
