@@ -762,7 +762,7 @@ func loadConfig() (*config.Config, []string, error) {
 		cfg.DBPass = os.Getenv(envDBPass)
 		if cfg.DBPass == "" {
 			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
-				"the database password for the politeiad user in the env " +
+				"the database password for the politeiawww user in the env " +
 				"variable DBPASS")
 		}
 

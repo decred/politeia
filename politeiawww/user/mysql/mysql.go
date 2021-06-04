@@ -169,6 +169,7 @@ func (m *mysql) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUI
 		return nil, fmt.Errorf("find paywall index: %v", err)
 	}
 
+	log.Debugf("userNew paywall index: %v", index)
 	u.PaywallAddressIndex = index
 
 	// Set user ID.
@@ -843,8 +844,6 @@ func (m *mysql) RegisterPlugin(p user.Plugin) error {
 	var err error
 	switch p.ID {
 	case user.CMSPluginID:
-		// XXX add the following:
-		// err = m.cmsPluginSetup()
 	default:
 		return user.ErrInvalidPlugin
 	}
@@ -926,8 +925,6 @@ func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, err
 	var err error
 	switch pc.ID {
 	case user.CMSPluginID:
-		// XXX add cms plgunin commands.
-		// payload, err = c.cmsPluginExec(pc.Command, pc.Payload)
 	default:
 		return nil, user.ErrInvalidPlugin
 	}
