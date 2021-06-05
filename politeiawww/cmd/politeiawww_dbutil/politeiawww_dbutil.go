@@ -531,14 +531,15 @@ func cmdMigrate() error {
 	}
 
 	for i := 0; i < len(users); i++ {
-
 		u := users[i]
 		// Check if username already exists in db. There was a
 		// ~2 month period where a bug allowed for users to be
 		// created with duplicate usernames.
 		_, err = toDB.UserGetByUsername(u.Username)
 
-		paywallIndex = u.PaywallAddressIndex
+		if u.PaywallAddressIndex > paywallIndex {
+			paywallIndex = u.PaywallAddressIndex
+		}
 		switch err {
 		case nil:
 			for !errors.Is(err, user.ErrUserNotFound) {

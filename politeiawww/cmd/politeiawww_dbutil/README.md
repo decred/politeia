@@ -122,12 +122,12 @@ Create an encryption key.
 
 Migrate the user database.
 
-    $ politeiawww_dbutil -testnet -password grrr -migrate cockroachdb mysql 
-    CockroachDB : localhost:26257 testnet3 
-    MySQLDB : localhost:3306 testnet3
+    $ politeiawww_dbutil -testnet -password grrr -migrate cockroachdb mysql
+    CockroachDB : localhost:26257 testnet3
+    MySQL : localhost:3306 testnet3
     Migrating records from cockroachdb to mysql...
-    Users migrated : 1
-    Paywall index  : 0
+    Users migrated : 6
+    Paywall index  : 5
     Done!
 
 Update your politeiawww.conf file.  The location of the encryption key may
