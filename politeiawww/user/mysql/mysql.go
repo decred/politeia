@@ -141,54 +141,13 @@ func setPaywallAddressIndex(ctx context.Context, tx *sql.Tx, index uint64) error
 	binary.LittleEndian.PutUint64(b, index)
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO key_value (k,v)
-      VALUES (?, ?)
-      ON DUPLICATE KEY UPDATE
-      v = ?`,
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE
+         v = ?`,
 		keyPaywallAddressIndex, b, b)
 	if err != nil {
 		return fmt.Errorf("update paywallet index error: %v", err)
 	}
-	return nil
-}
-
-// SetPaywallAddressIndex updates the paywall address index.
-//
-// SetPaywallAddressIndex satisfies the Database interface.
-func (m *mysql) SetPaywallAddressIndex(index uint64) error {
-	log.Tracef("SetPaywallAddressIndex: %v", index)
-
-	if m.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	// Start transaction.
-	opts := &sql.TxOptions{
-		Isolation: sql.LevelDefault,
-	}
-	tx, err := m.userDB.BeginTx(ctx, opts)
-	if err != nil {
-		return fmt.Errorf("begin tx: %v", err)
-	}
-	defer tx.Rollback()
-
-	err = setPaywallAddressIndex(ctx, tx, index)
-	if err != nil {
-		return err
-	}
-
-	// Commit transaction.
-	if err := tx.Commit(); err != nil {
-		if err2 := tx.Rollback(); err2 != nil {
-			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
-				err, err2))
-		}
-		return fmt.Errorf("commit tx: %v", err)
-	}
-
 	return nil
 }
 
@@ -906,6 +865,47 @@ func (m *mysql) RegisterPlugin(p user.Plugin) error {
 	defer m.Unlock()
 
 	m.pluginSettings[p.ID] = p.Settings
+
+	return nil
+}
+
+// SetPaywallAddressIndex updates the paywall address index.
+//
+// SetPaywallAddressIndex satisfies the Database interface.
+func (m *mysql) SetPaywallAddressIndex(index uint64) error {
+	log.Tracef("SetPaywallAddressIndex: %v", index)
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	err = setPaywallAddressIndex(ctx, tx, index)
+	if err != nil {
+		return err
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
 
 	return nil
 }

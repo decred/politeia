@@ -824,3 +824,50 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestSetPaywallAddressIndex(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Query
+	sqlUpsertIndex := `INSERT INTO key_value (k,v)
+    VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE
+    v = ?`
+
+	// Success Expectations
+	mock.ExpectBegin()
+	// Upsert paywall address index
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpsertIndex)).
+		WithArgs(keyPaywallAddressIndex, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	// Execute method
+	err := mdb.SetPaywallAddressIndex(7)
+	if err != nil {
+		t.Errorf("SetPaywallAddressIndex unwanted error: %s", err)
+	}
+
+	// Negative Expectations
+	expectedError := fmt.Errorf("some error")
+	mock.ExpectBegin()
+	// User already exists error
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpsertIndex)).
+		WithArgs(keyPaywallAddressIndex, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnError(expectedError)
+	mock.ExpectRollback()
+
+	// Execute method
+	err = mdb.SetPaywallAddressIndex(7)
+	if err == nil {
+		t.Errorf("expecting error but there was none")
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
