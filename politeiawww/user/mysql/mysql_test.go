@@ -122,8 +122,10 @@ func TestUserNew(t *testing.T) {
 	sqlInsertUser := `INSERT INTO users ` +
 		`(ID, username, uBlob, createdAt) ` +
 		`VALUES (?, ?, ?, ?)`
-	sqlUpdateIndex := `UPDATE key_value SET v = ? ` +
-		`WHERE k = ?`
+	sqlUpsertIndex := `INSERT INTO key_value (k,v)
+    VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE
+    v = ?`
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -137,8 +139,8 @@ func TestUserNew(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), usr.Username, AnyBlob{}, AnyTime{}).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	// Update paywall address index
-	mock.ExpectExec(regexp.QuoteMeta(sqlUpdateIndex)).
-		WithArgs(sqlmock.AnyArg(), keyPaywallAddressIndex).
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpsertIndex)).
+		WithArgs(keyPaywallAddressIndex, sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
