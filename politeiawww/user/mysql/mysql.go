@@ -141,9 +141,9 @@ func setPaywallAddressIndex(ctx context.Context, tx *sql.Tx, index uint64) error
 	binary.LittleEndian.PutUint64(b, index)
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO key_value (k,v)
-         VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE
-         v = ?`,
+    VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE
+    v = ?`,
 		keyPaywallAddressIndex, b, b)
 	if err != nil {
 		return fmt.Errorf("update paywallet index error: %v", err)
