@@ -495,6 +495,9 @@ type Database interface {
 	// Delete all sessions for a user except for the given session IDs
 	SessionsDeleteByUserID(id uuid.UUID, exemptSessionIDs []string) error
 
+	// SetPaywallAddressIndex updates the paywall address index.
+	SetPaywallAddressIndex(index uint64) error
+
 	// Rotate encryption keys
 	RotateKeys(newKeyPath string) error
 

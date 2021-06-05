@@ -582,6 +582,15 @@ func cmdMigrate() error {
 		}
 		userCount++
 	}
+	// If at least one user was migrated, update paywall address index in
+	// destination database.
+	if userCount > 0 {
+		err = toDB.SetPaywallAddressIndex(paywallIndex)
+		if err != nil {
+			return fmt.Errorf("update paywall index '%v': %v", paywallIndex,
+				err)
+		}
+	}
 
 	fmt.Printf("Users migrated : %v\n", userCount)
 	fmt.Printf("Paywall index  : %v\n", paywallIndex)

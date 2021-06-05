@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
+	"github.com/decred/politeia/politeiawww/user/mysql"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
@@ -75,6 +76,7 @@ func init() {
 	// UserDB loggers
 	localdb.UseLogger(userdbLog)
 	cockroachdb.UseLogger(userdbLog)
+	mysql.UseLogger(userdbLog)
 
 	// API loggers
 	records.UseLogger(apiLog)

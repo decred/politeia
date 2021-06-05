@@ -3,6 +3,7 @@ package localdb
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -91,9 +92,7 @@ func (l *localdb) UserNew(u user.User) error {
 	u.PaywallAddressIndex = lastPaywallIndex
 
 	// Write the new paywall index back to the db.
-	b = make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, lastPaywallIndex)
-	err = l.userdb.Put([]byte(LastPaywallAddressIndex), b, nil)
+	err = l.SetPaywallAddressIndex(lastPaywallIndex)
 	if err != nil {
 		return err
 	}
@@ -107,6 +106,16 @@ func (l *localdb) UserNew(u user.User) error {
 	}
 
 	return l.userdb.Put([]byte(u.Email), payload, nil)
+}
+
+// SetPaywallAddressIndex updates the paywall address index.
+func (l *localdb) SetPaywallAddressIndex(index uint64) error {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, index)
+	if err := l.userdb.Put([]byte(LastPaywallAddressIndex), b, nil); err != nil {
+		return fmt.Errorf("error updating paywall index: %v", err)
+	}
+	return nil
 }
 
 // InsertUser inserts a user record into the database. The record must be a
