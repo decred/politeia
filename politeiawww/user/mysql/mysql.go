@@ -140,7 +140,7 @@ func setPaywallAddressIndex(ctx context.Context, tx *sql.Tx, index uint64) error
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, index)
 	_, err := tx.ExecContext(ctx,
-		"UPDATE key_value SET v = $1 WHERE k = $2", b, keyPaywallAddressIndex)
+		"UPDATE key_value SET v = ? WHERE k = ?", b, keyPaywallAddressIndex)
 	if err != nil {
 		return fmt.Errorf("update paywallet index error: %v", err)
 	}
@@ -155,7 +155,7 @@ func (m *mysql) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUI
 	// Set user paywall address index.
 	var index uint64
 	var dbIndex []byte
-	err := tx.QueryRowContext(ctx, "SELECT v FROM key_value WHERE k = $1",
+	err := tx.QueryRowContext(ctx, "SELECT v FROM key_value WHERE k = ?",
 		keyPaywallAddressIndex).Scan(&dbIndex)
 	switch err {
 	// No errors, use database index.
@@ -199,7 +199,7 @@ func (m *mysql) userNew(ctx context.Context, tx *sql.Tx, u user.User) (*uuid.UUI
 		CreatedAt: time.Now().Unix(),
 	}
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES ($1, $2, $3, $4)",
+		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
 		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("create user: %v", err)
@@ -260,7 +260,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 		v.Blob = eb
 		// Store new user blob.
 		_, err = tx.ExecContext(ctx,
-			"UPDATE users SET uBlob = ? WHERE ID = $1", v.Blob, v.ID)
+			"UPDATE users SET uBlob = ? WHERE ID = ?", v.Blob, v.ID)
 		if err != nil {
 			return fmt.Errorf("save user '%v': %v", v.ID, err)
 		}
@@ -306,7 +306,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 		v.Blob = eb
 		// Store new user blob.
 		_, err = tx.ExecContext(ctx,
-			"UPDATE sessions SET sBlob = $1 WHERE k = $2", v.Blob, v.Key)
+			"UPDATE sessions SET sBlob = ? WHERE k = ?", v.Blob, v.Key)
 		if err != nil {
 			return fmt.Errorf("save session '%v': %v", v.Key, err)
 		}
@@ -353,7 +353,7 @@ func (m *mysql) InsertUser(u user.User) error {
 		CreatedAt: time.Now().Unix(),
 	}
 	_, err = m.userDB.ExecContext(ctx,
-		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES ($1, $2, $3, $4)",
+		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
 		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert user: %v", err)
@@ -381,6 +381,7 @@ func (m *mysql) UserNew(u user.User) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %v", err)
 	}
+	defer tx.Rollback()
 
 	_, err = m.userNew(ctx, tx, u)
 	if err != nil {
@@ -433,7 +434,7 @@ func (m *mysql) UserUpdate(u user.User) error {
 		UpdatedAt: time.Now().Unix(),
 	}
 	_, err = m.userDB.ExecContext(ctx,
-		"UPDATE users SET username = $1, uBlob = $2, updatedAt = $3 WHERE ID = $4 ",
+		"UPDATE users SET username = ?, uBlob = ?, updatedAt = ? WHERE ID = ? ",
 		ur.Username, ur.Blob, ur.UpdatedAt, ur.ID)
 	if err != nil {
 		return fmt.Errorf("create user: %v", err)
@@ -456,7 +457,7 @@ func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 
 	var uBlob []byte
 	err := m.userDB.QueryRowContext(ctx,
-		"SELECT uBlob FROM users WHERE username = $1", username).Scan(&uBlob)
+		"SELECT uBlob FROM users WHERE username = ?", username).Scan(&uBlob)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, user.ErrUserNotFound
@@ -491,7 +492,7 @@ func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 
 	var uBlob []byte
 	err := m.userDB.QueryRowContext(ctx,
-		"SELECT uBlob FROM users WHERE ID = $1", id).Scan(&uBlob)
+		"SELECT uBlob FROM users WHERE ID = ?", id).Scan(&uBlob)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, user.ErrUserNotFound
@@ -529,7 +530,7 @@ func (m *mysql) UserGetByPubKey(pubKey string) (*user.User, error) {
         FROM users
         INNER JOIN identities
           ON users.ID = identities.userID
-          WHERE identities.publicKey = $1`
+          WHERE identities.publicKey = ?`
 	err := m.userDB.QueryRowContext(ctx, q, pubKey).Scan(&uBlob)
 	switch {
 	case err == sql.ErrNoRows:
@@ -715,7 +716,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 		k      string
 	)
 	err = m.userDB.
-		QueryRowContext(ctx, "SELECT k FROM sessions WHERE k = $1", session.Key).
+		QueryRowContext(ctx, "SELECT k FROM sessions WHERE k = ?", session.Key).
 		Scan(&k)
 	switch err {
 	case nil:
@@ -732,8 +733,8 @@ func (m *mysql) SessionSave(us user.Session) error {
 	if update {
 		_, err := m.userDB.ExecContext(ctx,
 			`UPDATE sessions
-		  SET userID = $1, createdAt = $2, sBlob = $3
-			WHERE k = $4`,
+		  SET userID = ?, createdAt = ?, sBlob = ?
+			WHERE k = ?`,
 			session.UserID, session.CreatedAt, session.Blob, session.Key)
 		if err != nil {
 			return fmt.Errorf("upate: %v", err)
@@ -742,7 +743,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 		_, err := m.userDB.ExecContext(ctx,
 			`INSERT INTO sessions
 		(k, userID, createdAt, sBlob)
-		VALUES ($1, $2, $3, $4)`,
+		VALUES (?, ?, ?, ?)`,
 			session.Key, session.UserID, session.CreatedAt, session.Blob)
 		if err != nil {
 			return fmt.Errorf("create: %v", err)
@@ -767,12 +768,12 @@ func (m *mysql) SessionGetByID(sid string) (*user.Session, error) {
 	defer cancel()
 
 	var blob []byte
-	err := m.userDB.QueryRowContext(ctx, "SELECT sBlob FROM sessions WHERE k = $1",
+	err := m.userDB.QueryRowContext(ctx, "SELECT sBlob FROM sessions WHERE k = ?",
 		hex.EncodeToString(util.Digest([]byte(sid)))).
 		Scan(&blob)
 	switch {
 	case err == sql.ErrNoRows:
-		return nil, user.ErrUserNotFound
+		return nil, user.ErrSessionNotFound
 	case err != nil:
 		return nil, err
 	}
@@ -797,7 +798,7 @@ func (m *mysql) SessionDeleteByID(sid string) error {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
-	_, err := m.userDB.ExecContext(ctx, "DELETE FROM sessions WHERE k = $1",
+	_, err := m.userDB.ExecContext(ctx, "DELETE FROM sessions WHERE k = ?",
 		hex.EncodeToString(util.Digest([]byte(sid))))
 	if err != nil {
 		return err
@@ -826,7 +827,7 @@ func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string)
 	// deleted.
 	if len(exempt) == 0 {
 		_, err := m.userDB.
-			ExecContext(ctx, "DELETE FROM sessions WHERE userID = $1", uid.String())
+			ExecContext(ctx, "DELETE FROM sessions WHERE userID = ?", uid.String())
 		return err
 	}
 
@@ -900,6 +901,8 @@ func (m *mysql) RotateKeys(newKeyPath string) error {
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
+
 	err = rotateKeys(ctx, tx, m.encryptionKey, newKey)
 	if err != nil {
 		return err

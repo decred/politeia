@@ -876,7 +876,9 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	defer userDB.Close()
+	if userDB != nil {
+		defer userDB.Close()
+	}
 
 	// Run command
 	switch {

@@ -118,12 +118,12 @@ func TestUserNew(t *testing.T) {
 	}
 
 	// Queries
-	sqlSelectIndex := `SELECT v FROM key_value WHERE k = $1`
+	sqlSelectIndex := `SELECT v FROM key_value WHERE k = ?`
 	sqlInsertUser := `INSERT INTO users ` +
 		`(ID, username, uBlob, createdAt) ` +
-		`VALUES ($1, $2, $3, $4)`
-	sqlUpdateIndex := `UPDATE key_value SET v = $1 ` +
-		`WHERE k = $2`
+		`VALUES (?, ?, ?, ?)`
+	sqlUpdateIndex := `UPDATE key_value SET v = ? ` +
+		`WHERE k = ?`
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -196,8 +196,8 @@ func TestUserUpdate(t *testing.T) {
 
 	// Query
 	sql := `UPDATE users ` +
-		`SET username = $1, uBlob = $2, updatedAt = $3 ` +
-		`WHERE ID = $4`
+		`SET username = ?, uBlob = ?, updatedAt = ? ` +
+		`WHERE ID = ?`
 
 	// Success Expectations
 	mock.ExpectExec(regexp.QuoteMeta(sql)).
@@ -230,7 +230,7 @@ func TestUserGetByUsername(t *testing.T) {
 	}).AddRow(blob)
 
 	// Query
-	sql := `SELECT uBlob FROM users WHERE username = $1`
+	sql := `SELECT uBlob FROM users WHERE username = ?`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -292,7 +292,7 @@ func TestUserGetById(t *testing.T) {
 	}).AddRow(blob)
 
 	// Query
-	sql := `SELECT uBlob FROM users WHERE ID = $1`
+	sql := `SELECT uBlob FROM users WHERE ID = ?`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -357,7 +357,7 @@ func TestUserGetByPubKey(t *testing.T) {
 	// Query
 	sql := `SELECT uBlob FROM users ` +
 		`INNER JOIN identities ON users.ID = identities.userID ` +
-		`WHERE identities.publicKey = $1`
+		`WHERE identities.publicKey = ?`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -558,11 +558,11 @@ func TestSessionSave(t *testing.T) {
 	sessionKey := hex.EncodeToString(util.Digest([]byte(session.ID)))
 
 	// Query
-	sqlSelect := `SELECT k FROM sessions WHERE k = $1`
+	sqlSelect := `SELECT k FROM sessions WHERE k = ?`
 
 	sqlInsert := `INSERT INTO sessions ` +
 		`(k, userID, createdAt, sBlob) ` +
-		`VALUES ($1, $2, $3, $4)`
+		`VALUES (?, ?, ?, ?)`
 
 	// Success Create Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
@@ -584,8 +584,8 @@ func TestSessionSave(t *testing.T) {
 
 	// Queries
 	sqlUpdate := `UPDATE sessions ` +
-		`SET userID = $1, createdAt = $2, sBlob = $3 ` +
-		`WHERE k = $4`
+		`SET userID = ?, createdAt = ?, sBlob = ? ` +
+		`WHERE k = ?`
 
 	// Success Update Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
@@ -645,7 +645,7 @@ func TestSessionGetByID(t *testing.T) {
 		AddRow(eb)
 
 	// Queries
-	sql := `SELECT sBlob FROM sessions WHERE k = $1`
+	sql := `SELECT sBlob FROM sessions WHERE k = ?`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -721,7 +721,7 @@ func TestSessionDeleteByID(t *testing.T) {
 		AddRow(eb)
 
 	// Queries
-	sql := `DELETE FROM sessions WHERE k = $1`
+	sql := `DELETE FROM sessions WHERE k = ?`
 
 	// Success Expectations
 	mock.ExpectExec(regexp.QuoteMeta(sql)).
@@ -785,7 +785,7 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 		AddRow(eb)
 
 	// Queries
-	sql := `DELETE FROM sessions WHERE userID = $1`
+	sql := `DELETE FROM sessions WHERE userID = ?`
 
 	// Success Expectations
 	mock.ExpectExec(regexp.QuoteMeta(sql)).
