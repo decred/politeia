@@ -57,13 +57,13 @@ func newRecordInv() *recordInv {
 
 // invAdd adds a new entry to the unvetted record inventory.
 func (t *tstoreBackend) invAdd(tx store.Tx, token []byte, timestamp int64) error {
+	log.Debugf("Inv add to unvetted %x", token)
+
 	err := t.inv.unvetted.Add(tx, hex.EncodeToString(token),
 		uint64(bitsStatusUnreviewed), timestamp)
 	if err != nil {
 		return err
 	}
-
-	log.Debugf("Inv add unvetted %x", token)
 
 	return nil
 }
@@ -71,6 +71,9 @@ func (t *tstoreBackend) invAdd(tx store.Tx, token []byte, timestamp int64) error
 // invUpdate updates the status and timestamp of a record entry in the
 // inventory. The record state must remain the same when using this function.
 func (t *tstoreBackend) invUpdate(tx store.Tx, state backend.StateT, token []byte, status backend.StatusT, timestamp int64) error {
+	log.Debugf("Inv update %v %x to %v",
+		backend.States[state], token, backend.Statuses[status])
+
 	switch state {
 	case backend.StateUnvetted:
 		err := t.inv.unvetted.Update(tx, hex.EncodeToString(token),
@@ -88,15 +91,14 @@ func (t *tstoreBackend) invUpdate(tx store.Tx, state backend.StateT, token []byt
 		return fmt.Errorf("invalid record state: %v", state)
 	}
 
-	log.Debugf("Inv update %v %x to %v",
-		backend.States[state], token, backend.Statuses[status])
-
 	return nil
 }
 
 // invMoveToVetted deletes a record from the unvetted inventory then adds it
 // to the vetted inventory.
 func (t *tstoreBackend) invMoveToVetted(tx store.Tx, token []byte, timestamp int64) error {
+	log.Debugf("Inv del from unvetted %x", token)
+
 	// Del entry from unvetted inv
 	tkn := hex.EncodeToString(token)
 	err := t.inv.unvetted.Del(tx, tkn)
@@ -104,13 +106,13 @@ func (t *tstoreBackend) invMoveToVetted(tx store.Tx, token []byte, timestamp int
 		return err
 	}
 
+	log.Debugf("Inv add to vetted %x", token)
+
 	// Add entry to vetted inv
 	err = t.inv.vetted.Add(tx, tkn, uint64(bitsStatusPublic), timestamp)
 	if err != nil {
 		return fmt.Errorf("vetted add: %v", err)
 	}
-
-	log.Debugf("Inv move to vetted %x", token)
 
 	return nil
 }

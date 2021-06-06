@@ -61,10 +61,8 @@ func (t *Tstore) RecordNew() ([]byte, error) {
 // for the newly saved record. If the record state is unvetted the record
 // content will be saved to the key-value store encrypted.
 //
-// If the record is being made public the record version and iteration are both
-// reset back to 1. This function detects when a record is being made public
-// and re-saves any encrypted content that is part of the public record as
-// clear text in the key-value store.
+// If the record is being made public, any encrypted content that is part of
+// the public record is re-saved to the key-value store as clear text.
 func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
 	// Get tree leaves
 	leavesAll, err := t.leavesAll(treeID)
@@ -432,10 +430,10 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 
 // RecordSave saves the provided record to tstore. Once the record contents
 // have been successfully saved to tstore, a recordIndex is created for this
-// version of the record and saved to tstore as well. The record update is not
-// considered to be valid until the record index has been successfully saved.
-// If the record content makes it in but the record index does not, the record
-// content blobs are orphaned and ignored.
+// version/iteration of the record and saved to tstore as well. The record
+// update is not considered to be valid until the record index has been
+// successfully saved. If the record content makes it in but the record index
+// does not, the record content blobs are orphaned and ignored.
 func (t *Tstore) RecordSave(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("RecordSave: %x", token)
 
@@ -461,6 +459,45 @@ func (t *Tstore) RecordSave(tx store.Tx, token []byte, rm backend.RecordMetadata
 	return nil
 }
 
+// RecordSaveMetadata saved the provided record metadata and metadata streams
+// to tstore. Once the record contents have been successfully saved to tstore,
+// a recordIndex is created for this version/iteration of the record and saved
+// to tstore as well. The record update is not considered to be valid until the
+// record index has been successfully saved. If the record content makes it in
+// but the record index does not, the record content blobs are orphaned and
+// ignored.
+func (t *Tstore) RecordSaveMetadata(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	log.Tracef("RecordSaveMetadata: %x", token)
+
+	// Verify token is valid. The full length token must be
+	// used when writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ErrTokenInvalid
+	}
+
+	// Lookup the record files. These need to be included when we save
+	// the updated metadata.
+	treeID := treeIDFromToken(token)
+	r, err := t.record(tx, treeID, 0, []string{}, false)
+	if err != nil {
+		return err
+	}
+
+	// Save the record
+	idx, err := t.recordSave(tx, treeID, rm, metadata, r.Files)
+	if err != nil {
+		return err
+	}
+
+	// Save the record index
+	err = t.recordIndexSave(tx, treeID, *idx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // RecordDel walks the provided tree and deletes all blobs in the store that
 // correspond to record files. This is done for all versions and all iterations
 // of the record. Record metadata and metadata stream blobs are not deleted.
@@ -480,17 +517,7 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 		return err
 	}
 
-	// Ensure tree is frozen. Deleting files from the store
-	// is only allowed on frozen trees.
-	currIdx, err := t.recordIndexLatest(tx, leavesAll)
-	if err != nil {
-		return err
-	}
-	if !currIdx.Frozen {
-		return fmt.Errorf("tree is not frozen")
-	}
-
-	// Retrieve all record indexes
+	// Get all record indexes
 	indexes, err := t.recordIndexes(tx, leavesAll)
 	if err != nil {
 		return err
@@ -536,8 +563,9 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 	return nil
 }
 
-// RecordFreeze updates the status of a record then freezes the trillian tree
-// to prevent any additional updates.
+// RecordFreeze updates the metadata of a record, this will include a status
+// update but other metadata may be updates as well, then freezes the trillian
+// tree to prevent any additional updates.
 //
 // A tree is considered to be frozen once the record index has been saved with
 // its Frozen field set to true. The only thing that can be appended onto a
@@ -545,7 +573,7 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 // anchored, the tstore fsck function will update the status of the tree to
 // frozen in trillian, at which point trillian will prevent any changes to the
 // tree.
-func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	log.Tracef("RecordFreeze: %x", token)
 
 	// Verify token is valid. The full length token must be
@@ -554,9 +582,16 @@ func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetada
 		return backend.ErrTokenInvalid
 	}
 
-	// Save updated record
+	// Lookup the record files. These need to be included when we save
+	// the updated metadata.
 	treeID := treeIDFromToken(token)
-	idx, err := t.recordSave(tx, treeID, rm, metadata, files)
+	r, err := t.record(tx, treeID, 0, []string{}, false)
+	if err != nil {
+		return err
+	}
+
+	// Save the record
+	idx, err := t.recordSave(tx, treeID, rm, metadata, r.Files)
 	if err != nil {
 		return err
 	}

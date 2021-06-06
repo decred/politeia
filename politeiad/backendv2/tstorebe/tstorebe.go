@@ -41,6 +41,8 @@ type tstoreBackend struct {
 	// by interacting directly with the key-value store.
 	kv store.BlobKV
 
+	// inv contains the tokens of all records that have been submitted
+	// to the tstore backend.
 	inv *recordInv
 }
 
@@ -631,18 +633,15 @@ func statusChangeIsAllowed(from, to backend.StatusT) bool {
 }
 
 // setStatusPublic updates the status of a record to public.
-//
-// This function must be called WITH the record lock held.
-func (t *tstoreBackend) setStatusPublic(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
-	return t.tstore.RecordSave(tx, token, rm, metadata, files)
+func (t *tstoreBackend) setStatusPublic(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	return t.tstore.RecordSaveMetadata(tx, token, rm, metadata)
 }
 
-// setStatusArchived updates the status of a record to archived.
-//
-// This function must be called WITH the record lock held.
-func (t *tstoreBackend) setStatusArchived(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+// setStatusArchived freezes the provided record. The provided record metadata
+// and metadata streams are saved to tstore as part of the freezing process.
+func (t *tstoreBackend) setStatusArchived(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze record
-	err := t.tstore.RecordFreeze(tx, token, rm, metadata, files)
+	err := t.tstore.RecordFreeze(tx, token, rm, metadata)
 	if err != nil {
 		return fmt.Errorf("RecordFreeze: %v", err)
 	}
@@ -654,12 +653,12 @@ func (t *tstoreBackend) setStatusArchived(tx store.Tx, token []byte, rm backend.
 	return nil
 }
 
-// setStatusCensored updates the status of a record to censored.
-//
-// This function must be called WITH the record lock held.
-func (t *tstoreBackend) setStatusCensored(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+// setStatusCensored freezes the provided record and deletes all record files
+// for all versions of the record. The provided record metadata and metadata
+// streams are saved to tstore as part of the freezing process.
+func (t *tstoreBackend) setStatusCensored(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	// Freeze the tree
-	err := t.tstore.RecordFreeze(tx, token, rm, metadata, files)
+	err := t.tstore.RecordFreeze(tx, token, rm, metadata)
 	if err != nil {
 		return fmt.Errorf("RecordFreeze: %v", err)
 	}
@@ -749,17 +748,17 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	// Update record status
 	switch status {
 	case backend.StatusPublic:
-		err := t.setStatusPublic(tx, token, *recordMD, metadata, r.Files)
+		err := t.setStatusPublic(tx, token, *recordMD, metadata)
 		if err != nil {
 			return nil, err
 		}
 	case backend.StatusArchived:
-		err := t.setStatusArchived(tx, token, *recordMD, metadata, r.Files)
+		err := t.setStatusArchived(tx, token, *recordMD, metadata)
 		if err != nil {
 			return nil, err
 		}
 	case backend.StatusCensored:
-		err := t.setStatusCensored(tx, token, *recordMD, metadata, r.Files)
+		err := t.setStatusCensored(tx, token, *recordMD, metadata)
 		if err != nil {
 			return nil, err
 		}
