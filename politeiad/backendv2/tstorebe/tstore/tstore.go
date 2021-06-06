@@ -149,11 +149,6 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 	return fullToken, nil
 }
 
-// NewTx returns a new tstore database transaction.
-func (t *Tstore) NewTx() (store.Tx, func(), error) {
-	return t.store.Tx()
-}
-
 // Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck() {
 	// Set tree status to frozen for any trees that are frozen and have

@@ -27,10 +27,67 @@ const (
 	dataDescriptorAnchor         = "pd-anchor-v1"
 )
 
+// recordLock locks a tstore record by retrieving the record lock entry in the
+// key-value store using a transaction.
+func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
+	// Use a digest of the token so unvetted tokens are not
+	// exposed.
+	key := "lock-" + hex.EncodeToString(util.Digest(token))
+
+	// Get record lock entry
+	blobs, err := tx.Get([]string{key})
+	if err != nil {
+		return err
+	}
+	_, ok := blobs[key]
+	if ok {
+		// Lock entry found. We're done.
+		return nil
+	}
+
+	// A lock entry does not exist yet for this record.
+	// Create one.
+	return tx.Put(map[string][]byte{key: []byte{}}, false)
+}
+
+// RecordTx returns a new tstore transaction for a record.
+//
+// Tlog does not give us the ability to lock a tree while a key-value store
+// transaction is in progress. We get around this by creating a lock entry in
+// the key-value store for each tstore record and "locking" the record by
+// retreiving the lock entry using a key-value store transaction. This prevents
+// concurrency issues for record writes as long the writes are performed using
+// a transaction returned by this function.
+func (t *Tstore) RecordTx(token []byte) (store.Tx, func(), error) {
+	log.Tracef("RecordTx: %x", token)
+
+	// Setup store transaction
+	tx, cancel, err := t.store.Tx()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Lock the record
+	err = t.recordLock(tx, token)
+	if err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: err:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return nil, nil, fmt.Errorf("recordLock %x: %v", token, err)
+	}
+
+	return tx, cancel, nil
+}
+
 // RecordNew creates a new record in the tstore and returns the record token
 // that serves as the unique identifier for the record. Creating a new record
 // means creating a tlog tree for the record. Nothing is saved to the tree yet.
 func (t *Tstore) RecordNew() ([]byte, error) {
+	log.Tracef("RecordNew")
+
+	// Create a new tlog tree
 	var token []byte
 	for retries := 0; retries < 10; retries++ {
 		tree, _, err := t.tlog.TreeNew()

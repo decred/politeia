@@ -37,12 +37,12 @@ type tstoreBackend struct {
 
 	// kv is a key-value store that is used to cache data. This is the
 	// same key-value store that tstore uses, allowing the backend to
-	// interact with cached data using either a tstore transaction or
-	// by interacting directly with the key-value store.
+	// interact with cached data using a tstore transaction.
 	kv store.BlobKV
 
-	// inv contains the tokens of all records that have been submitted
-	// to the tstore backend.
+	// inv provides a concurrency save API for tracking the record
+	// inventory. Only the record tokens and some additional filtering
+	// criteria, such as record status, are saved to the inventory.
 	inv *recordInv
 }
 
@@ -326,13 +326,6 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 		return nil, err
 	}
 
-	// Setup a new tstore transaction
-	tx, cancel, err := t.tstore.NewTx()
-	if err != nil {
-		return nil, err
-	}
-	defer cancel()
-
 	// Call pre plugin hooks
 	pre := plugins.HookNewRecordPre{
 		Metadata: metadata,
@@ -359,6 +352,13 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		return nil, err
 	}
+
+	// Setup a new tstore transaction
+	tx, cancel, err := t.tstore.RecordTx(token)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
 
 	// Save the record
 	err = t.tstore.RecordSave(tx, token, *rm, metadata, files)
@@ -421,7 +421,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	}
 
 	// Setup a new tstore transaction
-	tx, cancel, err := t.tstore.NewTx()
+	tx, cancel, err := t.tstore.RecordTx(token)
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +526,7 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Setup a new tstore transaction
-	tx, cancel, err := t.tstore.NewTx()
+	tx, cancel, err := t.tstore.RecordTx(token)
 	if err != nil {
 		return nil, err
 	}
@@ -683,7 +683,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	log.Tracef("RecordSetStatus: %x %v", token, status)
 
 	// Setup a new tstore transaction
-	tx, cancel, err := t.tstore.NewTx()
+	tx, cancel, err := t.tstore.RecordTx(token)
 	if err != nil {
 		return nil, err
 	}
@@ -965,7 +965,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 		pluginID, pluginCmd, token)
 
 	// Setup a new tstore transaction
-	tx, cancel, err := t.tstore.NewTx()
+	tx, cancel, err := t.tstore.RecordTx(token)
 	if err != nil {
 		return "", err
 	}
