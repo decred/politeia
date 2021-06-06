@@ -47,7 +47,7 @@ func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
 
 	// A lock entry does not exist yet for this record.
 	// Create one.
-	return tx.Put(map[string][]byte{key: []byte{}}, false)
+	return tx.Put(map[string][]byte{key: {}}, false)
 }
 
 // RecordTx returns a new tstore transaction for a record.
