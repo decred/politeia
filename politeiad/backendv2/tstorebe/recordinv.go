@@ -25,12 +25,10 @@ const (
 type invBits uint64
 
 const (
-	// bitsInvalid is an invalid bit flag.
-	bitsInvalid invBits = 0
-
 	// Record status bits. These map directly to the backend record
 	// statuses and are used to request tokens from the inventory by
 	// record status.
+	bitsInvalid          invBits = 0
 	bitsStatusUnreviewed invBits = 1 << 0
 	bitsStatusPublic     invBits = 1 << 1
 	bitsStatusCensored   invBits = 1 << 2

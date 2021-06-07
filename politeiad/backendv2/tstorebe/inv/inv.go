@@ -78,7 +78,7 @@ func invGet(sg store.Getter, key string) (*inv, error) {
 }
 
 // Inv provides an API for interacting with a specific inv object. The key
-// identities the key-value store key for the inv object.
+// identities the key-value store key for the inv record.
 type Inv struct {
 	key     string // Key-value store key
 	encrypt bool   // Save encrypted
@@ -222,6 +222,19 @@ func (i *Inv) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, e
 		tokens = append(tokens, v.Token)
 	}
 
+	return tokens, nil
+}
+
+// GetAll returns all tokens in the inventory
+func (i *Inv) GetAll(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
+	inv, err := invGet(sg, i.key)
+	if err != nil {
+		return nil, err
+	}
+	tokens := make([]string, 0, len(inv.Entries))
+	for _, v := range inv.Entries {
+		tokens = append(tokens, v.Token)
+	}
 	return tokens, nil
 }
 
