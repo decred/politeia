@@ -14,6 +14,7 @@ import (
 	pstypes "github.com/decred/dcrdata/v6/pubsub/types"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
@@ -191,11 +192,22 @@ func (p *dcrdataPlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. Operations in a write plugin
+// command are executed atomically. The plugin does not need to worry about
+// concurrency issues. This is handled by the tstore instance.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("dcrdata Cmd: %x %v %v", token, cmd, payload)
+func (p *dcrdataPlugin) Write(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("dcrdata Write: %x %v %v", token, cmd, payload)
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a read-only plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *dcrdataPlugin) Read(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("dcrdata Read: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case dcrdata.CmdBestBlock:
@@ -214,7 +226,7 @@ func (p *dcrdataPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *dcrdataPlugin) Hook(tx store.Tx, h plugins.HookT, payload string) error {
 	log.Tracef("dcrdata Hook: %v", plugins.Hooks[h])
 
 	return nil

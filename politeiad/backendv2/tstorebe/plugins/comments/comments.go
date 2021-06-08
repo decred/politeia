@@ -14,6 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 )
 
@@ -53,11 +54,13 @@ func (p *commentsPlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. Operations in a write plugin
+// command are executed atomically. The plugin does not need to worry about
+// concurrency issues. This is handled by the tstore instance.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("comments Cmd: %x %v %v", token, cmd, payload)
+func (p *commentsPlugin) Write(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("comments Write: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case comments.CmdNew:
@@ -68,6 +71,18 @@ func (p *commentsPlugin) Cmd(token []byte, cmd, payload string) (string, error) 
 		return p.cmdDel(token, payload)
 	case comments.CmdVote:
 		return p.cmdVote(token, payload)
+	}
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a read-only plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *commentsPlugin) Read(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("comments Read: %x %v %v", token, cmd, payload)
+
+	switch cmd {
 	case comments.CmdGet:
 		return p.cmdGet(token, payload)
 	case comments.CmdGetAll:
@@ -88,7 +103,7 @@ func (p *commentsPlugin) Cmd(token []byte, cmd, payload string) (string, error) 
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *commentsPlugin) Hook(tx store.Tx, h plugins.HookT, payload string) error {
 	log.Tracef("comments Hook: %x %v", plugins.Hooks[h])
 
 	return nil

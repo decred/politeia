@@ -16,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
@@ -149,11 +150,13 @@ func (p *ticketVotePlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. Operations in a write plugin
+// command are executed atomically. The plugin does not need to worry about
+// concurrency issues. This is handled by the tstore instance.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("ticketvote Cmd: %x %v %v", token, cmd, payload)
+func (p *ticketVotePlugin) Write(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("ticketvote Write: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case ticketvote.CmdAuthorize:
@@ -162,6 +165,22 @@ func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error
 		return p.cmdStart(token, payload)
 	case ticketvote.CmdCastBallot:
 		return p.cmdCastBallot(token, payload)
+
+		// Internal plugin commands
+	case cmdStartRunoffSubmission:
+		return p.cmdStartRunoffSubmission(token, payload)
+	}
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *ticketVotePlugin) Read(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("ticketvote Read: %x %v %v", token, cmd, payload)
+
+	switch cmd {
 	case ticketvote.CmdDetails:
 		return p.cmdDetails(token)
 	case ticketvote.CmdResults:
@@ -176,8 +195,6 @@ func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error
 		return p.cmdTimestamps(token, payload)
 
 		// Internal plugin commands
-	case cmdStartRunoffSubmission:
-		return p.cmdStartRunoffSubmission(token, payload)
 	case cmdRunoffDetails:
 		return p.cmdRunoffDetails(token)
 	}
@@ -188,7 +205,7 @@ func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
+func (p *ticketVotePlugin) Hook(tx store.Tx, h plugins.HookT, payload string) error {
 	log.Tracef("ticketvote Hook: %v", plugins.Hooks[h])
 
 	switch h {

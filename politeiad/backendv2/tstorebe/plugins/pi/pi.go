@@ -14,6 +14,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/util"
 )
@@ -55,11 +56,22 @@ func (p *piPlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. Operations in a write plugin
+// command are executed atomically. The plugin does not need to worry about
+// concurrency issues. This is handled by the tstore instance.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("pi Cmd: %x %v %v", token, cmd, payload)
+func (p *piPlugin) Write(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("pi Write: %x %v %v", token, cmd, payload)
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a read-only plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *piPlugin) Read(token []byte, cmd, payload string) (string, error) {
+	log.Tracef("pi Read: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
 }
@@ -67,7 +79,7 @@ func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *piPlugin) Hook(tx store.Tx, h plugins.HookT, payload string) error {
 	log.Tracef("pi Hook: %v", plugins.Hooks[h])
 
 	switch h {

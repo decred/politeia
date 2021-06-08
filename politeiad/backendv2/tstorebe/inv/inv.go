@@ -4,7 +4,7 @@
 
 // Package inv implements a concurrency safe API for managing an inventory of
 // tokens. Bit flags are used to encode relevant data into inventory entries.
-// The inventory can be queried by bit flags or by entry timestamp.
+// The inventory can be queried by the bit flags or by the entry timestamp.
 package inv
 
 import (
@@ -36,7 +36,8 @@ const (
 	invVersion uint32 = 1
 )
 
-// inv represents an inventory. This structure is saved to the key-value store.
+// inv represents an inventory. This is the structure is saved to the key-value
+// store.
 type inv struct {
 	Version uint32  `json:"version"` // Struct version
 	Entries []entry `json:"entries"`

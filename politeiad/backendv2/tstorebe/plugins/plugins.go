@@ -147,11 +147,17 @@ type PluginClient interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 
-	// Cmd executes a plugin command.
-	Cmd(token []byte, cmd, payload string) (string, error)
+	// Write executes a read/write plugin command. Operations in a
+	// write plugin command are executed atomically. The plugin does
+	// not need to worry about concurrency issues. This is handled by
+	// the tstore instance.
+	Write(token []byte, cmd, payload string) (string, error)
+
+	// Read executes a read-only plugin command.
+	Read(token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook.
-	Hook(h HookT, payload string) error
+	Hook(tx store.Tx, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
 	Fsck() error
@@ -220,6 +226,6 @@ type TstoreClient interface {
 	RecordPartial(token []byte, version uint32, filenames []string,
 		omitAllFiles bool) (*backend.Record, error)
 
-	// RecordState returns whether the record is unvetted or vetted.
+	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
 }

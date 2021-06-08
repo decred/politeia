@@ -135,13 +135,13 @@ func (t *Tstore) PluginSetup(pluginID string) error {
 // are executed prior to the tstore backend writing data to disk. These hooks
 // give plugins the opportunity to add plugin specific validation to record
 // methods or plugin commands that write data.
-func (t *Tstore) PluginHookPre(h plugins.HookT, payload string) error {
+func (t *Tstore) PluginHookPre(tx store.Tx, h plugins.HookT, payload string) error {
 	log.Tracef("PluginHookPre: %v", plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
 		p, _ := t.plugin(v)
-		err := p.client.Hook(h, payload)
+		err := p.client.Hook(tx, h, payload)
 		if err != nil {
 			var e backend.PluginError
 			if errors.As(err, &e) {
@@ -157,7 +157,7 @@ func (t *Tstore) PluginHookPre(h plugins.HookT, payload string) error {
 // PluginHookPre executes a tstore backend post hook. Post hooks are hooks that
 // are executed after the tstore backend successfully writes data to disk.
 // These hooks give plugins the opportunity to cache data from the write.
-func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {
+func (t *Tstore) PluginHookPost(tx store.Tx, h plugins.HookT, payload string) {
 	log.Tracef("PluginHookPost: %v", plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
@@ -167,7 +167,7 @@ func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {
 			log.Errorf("%v PluginHookPost: plugin not found %v", v)
 			continue
 		}
-		err := p.client.Hook(h, payload)
+		err := p.client.Hook(tx, h, payload)
 		if err != nil {
 			// This is the post plugin hook so the data has already been
 			// saved to tstore. We do not have the ability to unwind. Log
@@ -177,6 +177,20 @@ func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {
 			continue
 		}
 	}
+}
+
+// PluginWrite executes a read/write plugin command.
+func (t *Tstore) PluginWrite(tx store.Tx, token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("PluginWrite: %x %v %v", token, pluginID, cmd)
+
+	// Get plugin
+	p, ok := t.plugin(pluginID)
+	if !ok {
+		return "", backend.ErrPluginIDInvalid
+	}
+
+	// Execute plugin command
+	return p.client.Write(token, cmd, payload)
 }
 
 // PluginRead executes a read-only plugin command.
@@ -201,24 +215,7 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 	}
 
 	// Execute plugin command
-	return p.client.Cmd(token, cmd, payload)
-}
-
-// PluginWrite executes a plugin command that writes data.
-func (t *Tstore) PluginWrite(tx store.Tx, token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("PluginWrite: %x %v %v", token, pluginID, cmd)
-
-	// Get plugin
-	p, ok := t.plugin(pluginID)
-	if !ok {
-		return "", backend.ErrPluginIDInvalid
-	}
-
-	// TODO
-	_ = tx
-
-	// Execute plugin command
-	return p.client.Cmd(token, cmd, payload)
+	return p.client.Read(token, cmd, payload)
 }
 
 // Plugins returns all registered plugins for the tstore instance.
