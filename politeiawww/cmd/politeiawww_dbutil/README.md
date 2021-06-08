@@ -12,6 +12,7 @@ connection at a time.
 You should add a custom config file to make `politeiawww_dbutil` usage easier.
 
 1. create a `politeiawww_dbutil.conf` file into the politeiawww config path
+   `(~/.politeiawww/politeiawww_dbutil.conf)`
 2. copy and change the `sample-politeiawww_dbutil.conf` file
    Or you can use a default config file:
 
