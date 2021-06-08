@@ -79,7 +79,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		client, err = comments.New(t, p.Settings, dataDir, p.Identity)
+		client, err = comments.New(p.Settings, dataDir, p.Identity)
 		if err != nil {
 			return err
 		}
@@ -141,7 +141,7 @@ func (t *Tstore) PluginHookPre(tx store.Tx, h plugins.HookT, payload string) err
 	// Pass hook event and payload to each plugin
 	for _, v := range t.pluginIDs() {
 		p, _ := t.plugin(v)
-		err := p.client.Hook(tx, h, payload)
+		err := p.client.Hook(h, payload)
 		if err != nil {
 			var e backend.PluginError
 			if errors.As(err, &e) {
@@ -167,7 +167,7 @@ func (t *Tstore) PluginHookPost(tx store.Tx, h plugins.HookT, payload string) {
 			log.Errorf("%v PluginHookPost: plugin not found %v", v)
 			continue
 		}
-		err := p.client.Hook(tx, h, payload)
+		err := p.client.Hook(h, payload)
 		if err != nil {
 			// This is the post plugin hook so the data has already been
 			// saved to tstore. We do not have the ability to unwind. Log
@@ -189,8 +189,11 @@ func (t *Tstore) PluginWrite(tx store.Tx, token []byte, pluginID, cmd, payload s
 		return "", backend.ErrPluginIDInvalid
 	}
 
+	// Setup tstore client
+	c := newClient(pluginID, cmd, t, tx, nil)
+
 	// Execute plugin command
-	return p.client.Write(token, cmd, payload)
+	return p.client.Write(c, token, cmd, payload)
 }
 
 // PluginRead executes a read-only plugin command.
@@ -214,8 +217,11 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 		return "", backend.ErrPluginIDInvalid
 	}
 
+	// Setup tstore client
+	c := newClient(pluginID, cmd, t, nil, store)
+
 	// Execute plugin command
-	return p.client.Read(token, cmd, payload)
+	return p.client.Read(c, token, cmd, payload)
 }
 
 // Plugins returns all registered plugins for the tstore instance.

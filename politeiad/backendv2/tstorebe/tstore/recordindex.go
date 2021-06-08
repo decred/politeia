@@ -163,9 +163,9 @@ func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) err
 // iteration of the specified record index version. A version of 0 indicates
 // that the most recent version should be returned. A backend ErrRecordNotFound
 // is returned if the provided version does not exist.
-func (t *Tstore) recordIndex(sg store.Getter, leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
+func (t *Tstore) recordIndex(kv store.Getter, leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
 	// Get record indexes
-	indexes, err := t.recordIndexes(sg, leaves)
+	indexes, err := t.recordIndexes(kv, leaves)
 	if err != nil {
 		return nil, err
 	}
@@ -215,14 +215,14 @@ func (t *Tstore) recordIndex(sg store.Getter, leaves []*trillian.LogLeaf, versio
 
 // recordIndexLatest takes a list of trillian leaves and returns the most
 // recent record index.
-func (t *Tstore) recordIndexLatest(sg store.Getter, leaves []*trillian.LogLeaf) (*recordIndex, error) {
-	return t.recordIndex(sg, leaves, 0)
+func (t *Tstore) recordIndexLatest(g store.Getter, leaves []*trillian.LogLeaf) (*recordIndex, error) {
+	return t.recordIndex(g, leaves, 0)
 }
 
 // recordIndexes takes a list of trillian leaves, parses all the record index
 // leaves from the list, then pulls the record indexes from the kv store and
 // returns them.
-func (t *Tstore) recordIndexes(sg store.Getter, leaves []*trillian.LogLeaf) ([]recordIndex, error) {
+func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]recordIndex, error) {
 	// Walk the leaves and compile the keys for all record indexes.  Once a
 	// record is made vetted the record history is considered to restart.
 	// If any vetted indexes exist, ignore all unvetted indexes.
@@ -260,7 +260,7 @@ func (t *Tstore) recordIndexes(sg store.Getter, leaves []*trillian.LogLeaf) ([]r
 	}
 
 	// Get record indexes from store
-	blobs, err := sg.Get(keys)
+	blobs, err := g.Get(keys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}

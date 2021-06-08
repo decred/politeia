@@ -11,7 +11,6 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
@@ -42,9 +41,9 @@ func (p *usermdPlugin) Setup() error {
 	return nil
 }
 
-// Write executes a read/write plugin command. Operations in a write plugin
-// command are executed atomically. The plugin does not need to worry about
-// concurrency issues. This is handled by the tstore instance.
+// Write executes a read/write plugin command. All operations are executed
+// atomically by tstore when using this method. The plugin does not need to
+// worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *usermdPlugin) Write(token []byte, cmd, payload string) (string, error) {
@@ -72,7 +71,7 @@ func (p *usermdPlugin) Read(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Hook(tx store.Tx, h plugins.HookT, payload string) error {
+func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 	log.Tracef("usermd Hook: %v", plugins.Hooks[h])
 
 	switch h {

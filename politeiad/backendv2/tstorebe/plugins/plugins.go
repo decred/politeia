@@ -147,17 +147,16 @@ type PluginClient interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 
-	// Write executes a read/write plugin command. Operations in a
-	// write plugin command are executed atomically. The plugin does
-	// not need to worry about concurrency issues. This is handled by
-	// the tstore instance.
-	Write(token []byte, cmd, payload string) (string, error)
+	// Write executes a read/write plugin command. All operations are
+	// executed atomically by tstore when using this method. The plugin
+	// does not need to worry about concurrency issues.
+	Write(c TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Read executes a read-only plugin command.
-	Read(token []byte, cmd, payload string) (string, error)
+	Read(c TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook.
-	Hook(tx store.Tx, h HookT, payload string) error
+	Hook(h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
 	Fsck() error
@@ -168,7 +167,7 @@ type PluginClient interface {
 
 // TstoreClient provides an API for plugins to interact with a tstore instance.
 // Plugins are allowed to save, delete, and get plugin data to/from the tstore
-// backend. Editing plugin data is not allowed.
+// backend.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record

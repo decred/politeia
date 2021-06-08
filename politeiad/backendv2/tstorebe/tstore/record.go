@@ -702,7 +702,7 @@ func (t *Tstore) RecordExists(token []byte) bool {
 //
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
-func (t *Tstore) record(sg store.Getter, treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	// Get tree leaves
 	leaves, err := t.leavesAll(treeID)
 	if err != nil {
@@ -712,7 +712,7 @@ func (t *Tstore) record(sg store.Getter, treeID int64, version uint32, filenames
 	// Use the record index to pull the record content from the store.
 	// The keys for the record content first need to be extracted from
 	// their log leaf.
-	idx, err := t.recordIndex(sg, leaves, version)
+	idx, err := t.recordIndex(g, leaves, version)
 	if err != nil {
 		return nil, err
 	}
@@ -776,7 +776,7 @@ func (t *Tstore) record(sg store.Getter, treeID int64, version uint32, filenames
 	}
 
 	// Get record content from store
-	blobs, err := sg.Get(keys)
+	blobs, err := g.Get(keys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}

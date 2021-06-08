@@ -16,6 +16,7 @@ import (
 	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
@@ -31,7 +32,7 @@ const (
 )
 
 // commentAddSave saves a CommentAdd to the backend.
-func (p *commentsPlugin) commentAddSave(token []byte, ca comments.CommentAdd) ([]byte, error) {
+func commentAddSave(tstore plugins.TstoreClient, token []byte, ca comments.CommentAdd) ([]byte, error) {
 	be, err := convertBlobEntryFromCommentAdd(ca)
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func (p *commentsPlugin) commentAddSave(token []byte, ca comments.CommentAdd) ([
 	if err != nil {
 		return nil, err
 	}
-	err = p.tstore.BlobSave(token, *be)
+	err = tstore.BlobSave(token, *be)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +428,7 @@ func voteScore(cidx commentIndex) (uint64, uint64) {
 }
 
 // cmdNew creates a new comment.
-func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var n comments.New
 	err := json.Unmarshal([]byte(payload), &n)
@@ -460,7 +461,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -507,7 +508,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Save comment
-	digest, err := p.commentAddSave(token, ca)
+	digest, err := commentAddSave(tstore, token, ca)
 	if err != nil {
 		return "", fmt.Errorf("commentAddSave: %v", err)
 	}

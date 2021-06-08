@@ -16,7 +16,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
@@ -150,9 +149,9 @@ func (p *ticketVotePlugin) Setup() error {
 	return nil
 }
 
-// Write executes a read/write plugin command. Operations in a write plugin
-// command are executed atomically. The plugin does not need to worry about
-// concurrency issues. This is handled by the tstore instance.
+// Write executes a read/write plugin command. All operations are executed
+// atomically by tstore when using this method. The plugin does not need to
+// worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Write(token []byte, cmd, payload string) (string, error) {
@@ -205,7 +204,7 @@ func (p *ticketVotePlugin) Read(token []byte, cmd, payload string) (string, erro
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Hook(tx store.Tx, h plugins.HookT, payload string) error {
+func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
 	log.Tracef("ticketvote Hook: %v", plugins.Hooks[h])
 
 	switch h {

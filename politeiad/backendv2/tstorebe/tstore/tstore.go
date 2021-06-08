@@ -14,14 +14,9 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/robfig/cron"
-)
-
-var (
-	_ plugins.TstoreClient = (*Tstore)(nil)
 )
 
 // Tstore is a data store that automatically timestamps all data saved to it
