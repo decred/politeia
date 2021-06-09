@@ -28,6 +28,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
+	errs "github.com/pkg/errors"
 )
 
 type permission uint
@@ -81,8 +82,24 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.Erro
 	})
 }
 
-func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64) {
-	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+// stackTracer represents the stack trace functionality for an error from
+// pkg/errors.
+type stackTracer interface {
+	StackTrace() errs.StackTrace
+}
+
+func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64, err error) {
+	// If this is a pkg/errors error then we can pull the
+	// stack trace out of the error, otherwise, we use the
+	// stack trace for this function.
+	stacktrace := string(debug.Stack())
+	e, ok := errs.Cause(err).(stackTracer)
+	if ok {
+		stacktrace = fmt.Sprintf("%+v\n", e.StackTrace())
+	}
+
+	log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stacktrace)
+
 	util.RespondWithJSON(w, http.StatusInternalServerError, v1.ServerErrorReply{
 		ErrorCode: errorCode,
 	})

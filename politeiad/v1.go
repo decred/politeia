@@ -73,7 +73,7 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 		errorCode := time.Now().Unix()
 		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
 			errorCode, err)
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -176,7 +176,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Update %v record error code %v: %v",
 			remoteAddr(r), cmd, errorCode, err)
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -224,7 +224,7 @@ func (p *politeia) updateReadme(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errorCode := time.Now().Unix()
 		log.Errorf("Error updating readme: %v", err)
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -269,7 +269,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Get unvetted record error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	} else {
 		reply.Record = p.convertBackendRecord(*bpr)
@@ -284,7 +284,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
-			p.respondWithServerError(w, errorCode)
+			p.respondWithServerError(w, errorCode, err)
 			return
 		}
 
@@ -333,7 +333,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Get vetted record error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	} else {
 		reply.Record = p.convertBackendRecord(*bpr)
@@ -348,7 +348,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
-			p.respondWithServerError(w, errorCode)
+			p.respondWithServerError(w, errorCode, err)
 			return
 		}
 		log.Infof("Get vetted record %v: token %v", remoteAddr(r),
@@ -386,7 +386,7 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Inventory error code %v: %v", remoteAddr(r),
 			errorCode, err)
 
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -454,7 +454,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Set status error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -517,7 +517,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Set unvetted status error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -582,7 +582,7 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Update vetted metadata error code %v: %v",
 			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 
@@ -622,7 +622,7 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get plugins error code %v: %v",
 			remoteAddr(r), errorCode, err)
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 	for _, v := range plugins {
@@ -654,7 +654,7 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v %v: backend plugin failed with "+
 			"command:%v payload:%v err:%v", remoteAddr(r),
 			errorCode, pc.Command, pc.Payload, err)
-		p.respondWithServerError(w, errorCode)
+		p.respondWithServerError(w, errorCode, err)
 		return
 	}
 

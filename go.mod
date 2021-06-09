@@ -43,6 +43,7 @@ require (
 	github.com/marcopeereboom/sbox v1.1.0
 	github.com/otiai10/copy v1.0.1
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
 	github.com/robfig/cron v1.2.0

@@ -16,7 +16,14 @@ import (
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
+	errs "github.com/pkg/errors"
 )
+
+// stackTracer represents the stack trace functionality for an error from
+// pkg/errors.
+type stackTracer interface {
+	StackTrace() errs.StackTrace
+}
 
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	// Check if the client dropped the connection
@@ -77,7 +84,17 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		e := fmt.Sprintf(format, err)
 		log.Errorf("%v %v %v %v Internal error %v: %v",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
-		log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+
+		// If this is a pkg/errors error then we can pull the
+		// stack trace out of the error, otherwise, we use the
+		// stack trace for this function.
+		stacktrace := string(debug.Stack())
+		err, ok := errs.Cause(err).(stackTracer)
+		if ok {
+			stacktrace = fmt.Sprintf("%+v\n", err.StackTrace())
+		}
+
+		log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stacktrace)
 
 		util.RespondWithJSON(w, http.StatusInternalServerError,
 			v1.ServerErrorReply{
