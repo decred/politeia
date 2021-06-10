@@ -149,10 +149,12 @@ type PluginClient interface {
 
 	// Write executes a read/write plugin command. All operations are
 	// executed atomically by tstore when using this method. The plugin
-	// does not need to worry about concurrency issues.
+	// does not need to worry about concurrency issues. This is handled
+	// by tstore.
 	Write(c TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Read executes a read-only plugin command.
+	// Read executes a read-only plugin command. Operations performed
+	// using this method are not atomic.
 	Read(c TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook.
@@ -227,4 +229,16 @@ type TstoreClient interface {
 
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
+
+	// CacheSave saves the provided key-value pairs to the tstore
+	// cache. Cached data is not timestamped onto the Decred
+	// blockchain. Only data that can be recreated by walking the
+	// tlog trees should be cached.
+	CacheSave(kv map[string][]byte) error
+
+	// CacheGet returns blobs from the cache for the provided keys. An
+	// entry will not exist in the returned map if for any blobs that
+	// are not found. It is the responsibility of the caller to ensure
+	// a blob was returned for all provided keys.
+	CacheGet(keys []string) (map[string][]byte, error)
 }
