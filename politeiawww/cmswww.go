@@ -6,11 +6,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"text/template"
 
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
@@ -945,7 +947,54 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
 		return
 	}
-	util.RespondRaw(w, http.StatusOK, data)
+
+	// If testnet just use the main site and carry on
+	if p.cfg.TestNet {
+		util.RespondRaw(w, http.StatusOK, data)
+		return
+	}
+
+	var tir1 www.TokenInventoryReply
+	err = json.Unmarshal(data, &tir1)
+	if err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: unmarshal reply",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	archiveData, err := p.makeProposalsRequestArchive(http.MethodGet, www.RouteTokenInventory, nil)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughTokenInventory: makeProposalsRequest: %v", err)
+		return
+	}
+
+	var tir2 www.TokenInventoryReply
+	err = json.Unmarshal(archiveData, &tir2)
+	if err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: unmarshal reply archive",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	tirBoth := www.TokenInventoryReply{
+		Approved: append(tir1.Approved, tir2.Approved...),
+	}
+
+	reply, err := json.Marshal(tirBoth)
+	if err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughTokenInventory: marshal both reply",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	util.RespondRaw(w, http.StatusOK, reply)
 }
 
 func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
@@ -967,7 +1016,67 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
 		return
 	}
-	util.RespondRaw(w, http.StatusOK, data)
+
+	// If testnet just use the main site and carry on
+	if p.cfg.TestNet {
+		util.RespondRaw(w, http.StatusOK, data)
+		return
+	}
+
+	var bpr1 www.BatchProposalsReply
+	err = json.Unmarshal(data, &bpr1)
+	if err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal reply",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	// need to clean data to avoid invalid tokens on archive
+	cleanedBatchTokens := make([]string, 0, len(bp.Tokens))
+	for _, token := range bp.Tokens {
+		b, err := hex.DecodeString(token)
+		if err != nil {
+			continue
+		}
+		if len(b) != pd.TokenSize {
+			continue
+		}
+		cleanedBatchTokens = append(cleanedBatchTokens, token)
+	}
+	bp.Tokens = cleanedBatchTokens
+
+	archiveData, err := p.makeProposalsRequestArchive(http.MethodPost, www.RouteBatchProposals, bp)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughBatchProposals: makeProposalsRequest: %v", err)
+		return
+	}
+	var bpr2 www.BatchProposalsReply
+	err = json.Unmarshal(archiveData, &bpr2)
+	if err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: unmarshal reply archive",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	bprBoth := www.BatchProposalsReply{
+		Proposals: append(bpr1.Proposals, bpr2.Proposals...),
+	}
+
+	reply, err := json.Marshal(bprBoth)
+	if err != nil {
+		RespondWithError(w, r, 0, "handlePassThroughBatchProposals: marshal both reply",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	util.RespondRaw(w, http.StatusOK, reply)
 }
 
 func (p *politeiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
@@ -1042,6 +1151,57 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	dest := cms.ProposalsMainnet
 	if p.cfg.TestNet {
 		dest = cms.ProposalsTestnet
+	}
+
+	route = dest + "/api/v1" + route
+
+	req, err := http.NewRequest(method, route,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusT(r.StatusCode),
+		}
+	}
+
+	responseBody = util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
+}
+
+// makeProposalsRequestArchive submits pass through requests to the proposals sites
+// (testnet or mainnet).  It takes a http method type, proposals route and a
+// request interface as arguments.  It returns the response body as byte array
+// (which can then be decoded as though a response directly from proposals).
+func (p *politeiawww) makeProposalsRequestArchive(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		requestBody  []byte
+		responseBody []byte
+		err          error
+	)
+	if v != nil {
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	client, err := util.NewClient(false, "")
+	if err != nil {
+		return nil, err
+	}
+
+	dest := cms.ProposalsMainnetArchive
+	if p.cfg.TestNet {
+		dest = cms.ProposalsTestnetArchive
 	}
 
 	route = dest + "/api/v1" + route
