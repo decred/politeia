@@ -201,10 +201,10 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 	query := `SELECT *
               FROM invoices
               WHERE month = ? AND year = ? AND status = ? AND version = (
-				SELECT max(version) 
-				FROM invoices b 
-				WHERE invoices.token = b.token
-			  )`
+                SELECT max(version) 
+                FROM invoices b 
+                WHERE invoices.token = b.token
+              )`
 	fmt.Println("here", query)
 	rows, err := c.recordsdb.Raw(query, month, year, status).Rows()
 	if err != nil {
@@ -258,10 +258,10 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 	query := `SELECT *
             FROM invoices
             WHERE month = ? AND year = ? AND version = (
-			  SELECT max(version) 
-			  FROM invoices b 
-			  WHERE invoices.token = b.token
-			)`
+              SELECT max(version) 
+              FROM invoices b 
+              WHERE invoices.token = b.token
+            )`
 	rows, err := c.recordsdb.Raw(query, month, year).Rows()
 	if err != nil {
 		return nil, err
@@ -315,10 +315,10 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	query := `SELECT *
             FROM invoices
             WHERE status = ? AND version = (
-			  SELECT max(version) 
-			  FROM invoices b 
-			  WHERE invoices.token = b.token
-			)`
+              SELECT max(version) 
+              FROM invoices b 
+              WHERE invoices.token = b.token
+            )`
 	rows, err := c.recordsdb.Raw(query, status).Rows()
 	if err != nil {
 		return nil, err
@@ -372,11 +372,11 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	// Lookup the latest version of each invoice
 	query := `SELECT *
             FROM invoices 
-			WHERE version = (
-			  SELECT max(version) 
-			  FROM invoices b 
-			  WHERE invoices.token = b.token
-			)`
+            WHERE version = (
+              SELECT max(version) 
+              FROM invoices b 
+              WHERE invoices.token = b.token
+            )`
 	fmt.Println("all", query)
 	rows, err := c.recordsdb.Raw(query).Rows()
 	if err != nil {
