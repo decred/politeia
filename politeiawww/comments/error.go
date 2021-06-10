@@ -129,7 +129,16 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		e := fmt.Sprintf(format, err)
 		log.Errorf("%v %v %v %v Internal error %v: %v",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
-		log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+
+		// If this is a pkg/errors error then we can pull the
+		// stack trace out of the error, otherwise, we use the
+		// stack trace for this function.
+		stack, ok := util.StackTrace(err)
+		if !ok {
+			stack = string(debug.Stack())
+		}
+
+		log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
 
 		util.RespondWithJSON(w, http.StatusInternalServerError,
 			v1.ServerErrorReply{
