@@ -199,12 +199,13 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 
 	// Lookup the latest version of each invoice
 	query := `SELECT *
-            FROM invoices a
-            LEFT OUTER JOIN invoices b
-              ON a.token = b.token
-              AND a.version < b.version
-              WHERE b.token IS NULL
-              AND month = ? AND year = ? AND status = ?`
+              FROM invoices
+              WHERE month = ? AND year = ? AND status = ? AND version = (
+				SELECT max(version) 
+				FROM invoices b 
+				WHERE invoices.token = b.token
+			  )`
+	fmt.Println("here", query)
 	rows, err := c.recordsdb.Raw(query, month, year, status).Rows()
 	if err != nil {
 		return nil, err
@@ -255,12 +256,12 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 
 	// Lookup the latest version of each invoice
 	query := `SELECT *
-            FROM invoices a
-            LEFT OUTER JOIN invoices b
-              ON a.token = b.token
-              AND a.version < b.version
-              WHERE b.token IS NULL
-              AND a.month = ? AND a.year = ?`
+            FROM invoices
+            WHERE month = ? AND year = ? AND version = (
+			  SELECT max(version) 
+			  FROM invoices b 
+			  WHERE invoices.token = b.token
+			)`
 	rows, err := c.recordsdb.Raw(query, month, year).Rows()
 	if err != nil {
 		return nil, err
@@ -312,11 +313,12 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 
 	// Lookup the latest version of each invoice
 	query := `SELECT *
-            FROM invoices a
-            LEFT OUTER JOIN invoices b
-              ON a.token = b.token
-              AND a.version < b.version
-              WHERE a.status = ?`
+            FROM invoices
+            WHERE status = ? AND version = (
+			  SELECT max(version) 
+			  FROM invoices b 
+			  WHERE invoices.token = b.token
+			)`
 	rows, err := c.recordsdb.Raw(query, status).Rows()
 	if err != nil {
 		return nil, err
@@ -369,10 +371,13 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	// Lookup the latest version of each invoice
 	query := `SELECT *
-            FROM invoices a
-            LEFT OUTER JOIN invoices b
-              ON a.token = b.token
-              AND a.version < b.version`
+            FROM invoices 
+			WHERE version = (
+			  SELECT max(version) 
+			  FROM invoices b 
+			  WHERE invoices.token = b.token
+			)`
+	fmt.Println("all", query)
 	rows, err := c.recordsdb.Raw(query).Rows()
 	if err != nil {
 		return nil, err
