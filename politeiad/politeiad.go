@@ -81,8 +81,17 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter, errorCode v1.Erro
 	})
 }
 
-func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64) {
-	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64, err error) {
+	// If this is a pkg/errors error then we can pull the
+	// stack trace out of the error, otherwise, we use the
+	// stack trace for this function.
+	stack, ok := util.StackTrace(err)
+	if !ok {
+		stack = string(debug.Stack())
+	}
+
+	log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
+
 	util.RespondWithJSON(w, http.StatusInternalServerError, v1.ServerErrorReply{
 		ErrorCode: errorCode,
 	})
