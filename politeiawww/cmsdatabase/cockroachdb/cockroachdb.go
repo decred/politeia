@@ -205,7 +205,6 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
                 FROM invoices b 
                 WHERE invoices.token = b.token
               )`
-	fmt.Println("here", query)
 	rows, err := c.recordsdb.Raw(query, month, year, status).Rows()
 	if err != nil {
 		return nil, err
@@ -377,7 +376,6 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
               FROM invoices b 
               WHERE invoices.token = b.token
             )`
-	fmt.Println("all", query)
 	rows, err := c.recordsdb.Raw(query).Rows()
 	if err != nil {
 		return nil, err
