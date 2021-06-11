@@ -149,8 +149,7 @@ type PluginClient interface {
 
 	// Write executes a read/write plugin command. All operations are
 	// executed atomically by tstore when using this method. The plugin
-	// does not need to worry about concurrency issues. This is handled
-	// by tstore.
+	// does not need to worry about concurrency issues.
 	Write(c TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Read executes a read-only plugin command. Operations performed
@@ -158,7 +157,7 @@ type PluginClient interface {
 	Read(c TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook.
-	Hook(h HookT, payload string) error
+	Hook(c TstoreClient, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
 	Fsck() error

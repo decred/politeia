@@ -79,7 +79,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		client, err = comments.New(p.Settings, dataDir, p.Identity)
+		client, err = comments.New(p.Settings, p.Identity)
 		if err != nil {
 			return err
 		}

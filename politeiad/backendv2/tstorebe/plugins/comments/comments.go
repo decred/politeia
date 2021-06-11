@@ -91,7 +91,7 @@ func (p *commentsPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, pa
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *commentsPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("comments Hook: %x %v", plugins.Hooks[h])
 
 	return nil
@@ -128,7 +128,7 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new comments plugin.
-func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, id *identity.FullIdentity) (*commentsPlugin, error) {
+func New(settings []backend.PluginSetting, id *identity.FullIdentity) (*commentsPlugin, error) {
 	// Default plugin settings
 	var (
 		commentLengthMax = comments.SettingCommentLengthMax

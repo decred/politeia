@@ -196,7 +196,7 @@ func (p *dcrdataPlugin) Setup() error {
 // worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Write(token []byte, cmd, payload string) (string, error) {
+func (p *dcrdataPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("dcrdata Write: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
@@ -205,7 +205,7 @@ func (p *dcrdataPlugin) Write(token []byte, cmd, payload string) (string, error)
 // Read executes a read-only plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Read(token []byte, cmd, payload string) (string, error) {
+func (p *dcrdataPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("dcrdata Read: %x %v %v", token, cmd, payload)
 
 	switch cmd {
@@ -225,7 +225,7 @@ func (p *dcrdataPlugin) Read(token []byte, cmd, payload string) (string, error) 
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *dcrdataPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("dcrdata Hook: %v", plugins.Hooks[h])
 
 	return nil

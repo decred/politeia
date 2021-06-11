@@ -46,7 +46,7 @@ func (p *usermdPlugin) Setup() error {
 // worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Write(token []byte, cmd, payload string) (string, error) {
+func (p *usermdPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("usermd Write: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
@@ -55,7 +55,7 @@ func (p *usermdPlugin) Write(token []byte, cmd, payload string) (string, error) 
 // Read executes a read-only plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Read(token []byte, cmd, payload string) (string, error) {
+func (p *usermdPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("usermd Read: %x %v %v", token, cmd, payload)
 
 	switch cmd {
@@ -71,7 +71,7 @@ func (p *usermdPlugin) Read(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *usermdPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("usermd Hook: %v", plugins.Hooks[h])
 
 	switch h {

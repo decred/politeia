@@ -60,7 +60,7 @@ func (p *piPlugin) Setup() error {
 // worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Write(token []byte, cmd, payload string) (string, error) {
+func (p *piPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Write: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
@@ -69,7 +69,7 @@ func (p *piPlugin) Write(token []byte, cmd, payload string) (string, error) {
 // Read executes a read-only plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Read(token []byte, cmd, payload string) (string, error) {
+func (p *piPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Read: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
@@ -78,7 +78,7 @@ func (p *piPlugin) Read(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *piPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("pi Hook: %v", plugins.Hooks[h])
 
 	switch h {
