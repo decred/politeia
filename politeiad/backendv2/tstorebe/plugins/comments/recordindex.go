@@ -5,7 +5,6 @@
 package comments
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -20,14 +19,14 @@ import (
 // recordIndex contains a commentIndex for all comments made on a record. The
 // record index is saved to the tstore cache.
 type recordIndex struct {
-	Token    string                  `json:"token"`    // Hex encoded
+	Token    []byte                  `json:"token"`
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
 // newRecordIndex returns a new recordIndex.
 func newRecordIndex(token []byte) recordIndex {
 	return recordIndex{
-		Token:    hex.EncodeToString(token),
+		Token:    token,
 		Comments: make(map[uint32]commentIndex, 256),
 	}
 }
@@ -35,7 +34,7 @@ func newRecordIndex(token []byte) recordIndex {
 // commentIDLatest returns the latest comment ID.
 func (r *recordIndex) commentIDLatest() uint32 {
 	var maxID uint32
-	for id := range idx.Comments {
+	for id := range r.Comments {
 		if id > maxID {
 			maxID = id
 		}
@@ -50,8 +49,8 @@ func (r *recordIndex) commentExists(commentID uint32) bool {
 }
 
 // comment returns the latest version of a comment.
-func (r *recordIndex) comment(commentID uint32) (*comments.Comment, error) {
-	cs, err := r.comments([]uint32{commentID})
+func (r *recordIndex) comment(tstore plugins.TstoreClient, commentID uint32) (*comments.Comment, error) {
+	cs, err := r.comments(tstore, []uint32{commentID})
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +67,7 @@ func (r *recordIndex) comment(commentID uint32) (*comments.Comment, error) {
 // comment ID is excluded from the returned map. An error will not be returned.
 // It is the responsibility of the caller to ensure a comment is returned for
 // each of the provided comment IDs.
-func (r *recordIndex) comments(commentIDs []uint32) (map[uint32]comments.Comment, error) {
+func (r *recordIndex) comments(tstore plugins.TstoreClient, commentIDs []uint32) (map[uint32]comments.Comment, error) {
 	// Aggregate the digests for all records that need to be
 	// looked up. If a comment has been deleted then the only
 	// record that will still exist is the comment del record.
@@ -103,13 +102,13 @@ func (r *recordIndex) comments(commentIDs []uint32) (map[uint32]comments.Comment
 	}
 
 	// Get CommentAdd records
-	adds, err := commentAdds(r.Token, addDigests)
+	adds, err := commentAdds(tstore, r.Token, addDigests)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get CommentDel records
-	dels, err := commentDels(r.Token, delDigests)
+	dels, err := commentDels(tstore, r.Token, delDigests)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +120,7 @@ func (r *recordIndex) comments(commentIDs []uint32) (map[uint32]comments.Comment
 		c := commentAddConvert(v)
 
 		// Populate the vote score
-		cidx, ok := ridx.Comments[c.CommentID]
+		cidx, ok := r.Comments[c.CommentID]
 		if !ok {
 			return nil, pkgerrors.Errorf("comment index not found %v",
 				c.CommentID)
@@ -185,7 +184,7 @@ func (c *commentIndex) digests() ([]byte, []byte) {
 
 // voteScore returns the total number of downvotes and upvotes, respectively,
 // for a comment.
-func (c *commentsIndex) voteScore() (uint64, uint64) {
+func (c *commentIndex) voteScore() (uint64, uint64) {
 	// Find the vote score by replaying all existing votes from all
 	// users. The net effect of a new vote on a comment score depends
 	// on the previous vote from that uuid. Example, a user upvotes a
@@ -249,8 +248,7 @@ const (
 )
 
 // recordIndexKey returns the key-value store key for a cached record index. It
-// accepts both the full length token or the short token, but the short token
-// is always used in the file path string.
+// accepts both the full length token or the short token.
 func recordIndexKey(token []byte, s backend.StateT) (string, error) {
 	var key string
 	switch s {
@@ -271,21 +269,21 @@ func recordIndexKey(token []byte, s backend.StateT) (string, error) {
 }
 
 // recordIndexSave saves the provided recordIndex to the tstore cache.
-func recordIndexSave(tstore plugins.TstoreClient, token []byte, s backend.StateT, ridx recordIndex) error {
+func recordIndexSave(tstore plugins.TstoreClient, s backend.StateT, ridx recordIndex) error {
 	b, err := json.Marshal(ridx)
 	if err != nil {
 		return err
 	}
-	key, err := recordIndexKey(token, s)
+	key, err := recordIndexKey(ridx.Token, s)
 	if err != nil {
 		return err
 	}
 	return tstore.CacheSave(map[string][]byte{key: b})
 }
 
-// recordIndex returns the cached recordIndex for the provided record. If a
+// recordIndexGet returns the cached recordIndex for the provided record. If a
 // cached recordIndex does not exist, a new one will be returned.
-func (p *commentsPlugin) recordIndex(tstore plugins.TstoreClient, token []byte, s backend.StateT) (*recordIndex, error) {
+func recordIndexGet(tstore plugins.TstoreClient, token []byte, s backend.StateT) (*recordIndex, error) {
 	key, err := recordIndexKey(token, s)
 	if err != nil {
 		return nil, err
@@ -298,7 +296,8 @@ func (p *commentsPlugin) recordIndex(tstore plugins.TstoreClient, token []byte, 
 	b, ok := blobs[key]
 	if !ok {
 		// Cached recordIndex does't exist. Return a new one.
-		return newRecordIndex(token), nil
+		r := newRecordIndex(token)
+		return &r, nil
 	}
 
 	var ridx recordIndex

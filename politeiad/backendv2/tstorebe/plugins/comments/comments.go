@@ -6,10 +6,7 @@ package comments
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -26,14 +23,6 @@ var (
 //
 // commentsPlugin satisfies the plugins PluginClient interface.
 type commentsPlugin struct {
-	sync.RWMutex
-	tstore plugins.TstoreClient
-
-	// dataDir is the comments plugin data directory. The only data
-	// that is stored here is cached data that can be re-created at any
-	// time by walking the trillian trees.
-	dataDir string
-
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
@@ -58,18 +47,18 @@ func (p *commentsPlugin) Setup() error {
 // worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Write(c plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+func (p *commentsPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("comments Write: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case comments.CmdNew:
-		return p.cmdNew(c, token, payload)
+		return p.cmdNew(tstore, token, payload)
 	case comments.CmdEdit:
-		return p.cmdEdit(token, payload)
+		return p.cmdEdit(tstore, token, payload)
 	case comments.CmdDel:
-		return p.cmdDel(token, payload)
+		return p.cmdDel(tstore, token, payload)
 	case comments.CmdVote:
-		return p.cmdVote(token, payload)
+		return p.cmdVote(tstore, token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -78,22 +67,22 @@ func (p *commentsPlugin) Write(c plugins.TstoreClient, token []byte, cmd, payloa
 // Read executes a read-only plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Read(c plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+func (p *commentsPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("comments Read: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case comments.CmdGet:
-		return p.cmdGet(token, payload)
+		return p.cmdGet(tstore, token, payload)
 	case comments.CmdGetAll:
-		return p.cmdGetAll(token)
+		return p.cmdGetAll(tstore, token)
 	case comments.CmdGetVersion:
-		return p.cmdGetVersion(token, payload)
+		return p.cmdGetVersion(tstore, token, payload)
 	case comments.CmdCount:
-		return p.cmdCount(token)
+		return p.cmdCount(tstore, token)
 	case comments.CmdVotes:
-		return p.cmdVotes(token, payload)
+		return p.cmdVotes(tstore, token, payload)
 	case comments.CmdTimestamps:
-		return p.cmdTimestamps(token, payload)
+		return p.cmdTimestamps(tstore, token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -139,14 +128,7 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new comments plugin.
-func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*commentsPlugin, error) {
-	// Setup comments plugin data dir
-	dataDir = filepath.Join(dataDir, comments.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
+func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, id *identity.FullIdentity) (*commentsPlugin, error) {
 	// Default plugin settings
 	var (
 		commentLengthMax = comments.SettingCommentLengthMax
@@ -177,7 +159,6 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 
 	return &commentsPlugin{
 		identity:         id,
-		dataDir:          dataDir,
 		commentLengthMax: commentLengthMax,
 		voteChangesMax:   voteChangesMax,
 	}, nil
