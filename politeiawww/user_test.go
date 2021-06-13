@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -1973,6 +1974,290 @@ func TestProcessEditUser(t *testing.T) {
 			bitsGot := u.EmailNotifications & mask
 			if !(bitsWant|bitsGot == bitsWant) {
 				t.Errorf("notification bits got %#x, want %#x", bitsGot, bitsWant)
+			}
+		})
+	}
+}
+
+func TestProcessManageUser(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// Create a new user. This is the user
+	// that we will be managing.
+	usr, _ := newUser(t, p, true, false)
+	uid := usr.ID.String()
+
+	// Create a new admin. This user will be
+	// used to manage the user
+	admin, _ := newUser(t, p, true, false)
+
+	var tests = []struct {
+		name  string
+		mu    www.ManageUser
+		admin *user.User
+		want  error
+	}{
+		{
+			"invalid manage action",
+			www.ManageUser{
+				UserID: uid,
+				Action: www.UserManageInvalid,
+				Reason: "reason",
+			},
+			admin,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidUserManageAction,
+			},
+		},
+		{
+			"invalid reason",
+			www.ManageUser{
+				UserID: uid,
+				Action: www.UserManageExpireNewUserVerification,
+				Reason: "",
+			},
+			admin,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			},
+		},
+		{
+			"unsupported edit action",
+			www.ManageUser{
+				UserID: uid,
+				Action: 9,
+				Reason: "reason",
+			},
+			admin,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidUserManageAction,
+			},
+		},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processManageUser(&v.mu, v.admin)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestProcessUsers(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// Create a new user.
+	usr, id := newUser(t, p, true, false)
+	// Create an admin user.
+	adm, _ := newUser(t, p, true, true)
+
+	usrpk := id.Public.String()
+
+	// empty user list
+	empty := make([]www.AbridgedUser, 0, www.UserListPageSize)
+	usrlistpub := append(empty, www.AbridgedUser{
+		ID:       usr.ID.String(),
+		Email:    "",
+		Username: usr.Username,
+	})
+
+	var allusers = []www.AbridgedUser{
+		{
+			ID:       adm.ID.String(),
+			Email:    adm.Email,
+			Username: adm.Username,
+		},
+		{
+			ID:       usr.ID.String(),
+			Email:    usr.Email,
+			Username: usr.Username,
+		},
+	}
+	// sorts all users buy username
+	sort.Slice(allusers, func(i, j int) bool {
+		return allusers[i].Username < allusers[j].Username
+	})
+
+	var tests = []struct {
+		name      string
+		u         www.Users
+		isAdmin   bool
+		wantReply www.UsersReply
+	}{
+		{
+			"pubkey not found",
+			www.Users{
+				PublicKey: "",
+			},
+			false,
+			www.UsersReply{
+				Users: empty,
+			},
+		},
+		{
+			"email not found",
+			www.Users{
+				Email: "notfound",
+			},
+			false,
+			www.UsersReply{
+				Users: empty,
+			},
+		},
+		{
+			"username not found",
+			www.Users{
+				Username: "notfound",
+			},
+			false,
+			www.UsersReply{
+				Users: empty,
+			},
+		},
+		{
+			"regular users can find users by pubkey",
+			www.Users{
+				PublicKey: usrpk,
+			},
+			false,
+			www.UsersReply{
+				Users:        usrlistpub,
+				TotalMatches: 1,
+			},
+		},
+		{
+			"regular users can find users by username",
+			www.Users{
+				Username: usr.Username,
+			},
+			false,
+			www.UsersReply{
+				Users:        usrlistpub,
+				TotalMatches: 1,
+			},
+		},
+		{
+			"regular users can't find users by email",
+			www.Users{
+				Email: usr.Email,
+			},
+			false,
+			www.UsersReply{
+				Users: empty,
+			},
+		},
+		{
+			"admin can find user by pubkey",
+			www.Users{
+				PublicKey: usrpk,
+			},
+			true,
+			www.UsersReply{
+				Users: []www.AbridgedUser{
+					{
+						Username: usr.Username,
+						Email:    usr.Email,
+						ID:       usr.ID.String(),
+					},
+				},
+				TotalMatches: 1,
+				TotalUsers:   2,
+			},
+		},
+		{
+			"admin can find user by email",
+			www.Users{
+				Email: usr.Email,
+			},
+			true,
+			www.UsersReply{
+				Users: []www.AbridgedUser{
+					{
+						Username: usr.Username,
+						Email:    usr.Email,
+						ID:       usr.ID.String(),
+					},
+				},
+				TotalMatches: 1,
+				TotalUsers:   2,
+			},
+		},
+		{
+			"admin can find user by username",
+			www.Users{
+				Username: usr.Username,
+			},
+			true,
+			www.UsersReply{
+				Users: []www.AbridgedUser{
+					{
+						Username: usr.Username,
+						Email:    usr.Email,
+						ID:       usr.ID.String(),
+					},
+				},
+				TotalMatches: 1,
+				TotalUsers:   2,
+			},
+		},
+		{
+			"admin fetches all users when email is empty",
+			www.Users{
+				Email: "",
+			},
+			true,
+			www.UsersReply{
+				Users:        allusers,
+				TotalMatches: 2,
+				TotalUsers:   2,
+			},
+		},
+		{
+			"admin fetches all users when username is empty",
+			www.Users{
+				Username: "",
+			},
+			true,
+			www.UsersReply{
+				Users:        allusers,
+				TotalMatches: 2,
+				TotalUsers:   2,
+			},
+		},
+		{
+			"admin fetches all users when pubkey is empty",
+			www.Users{
+				PublicKey: "",
+			},
+			true,
+			www.UsersReply{
+				Users:        allusers,
+				TotalMatches: 2,
+				TotalUsers:   2,
+			},
+		},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			pur, err := p.processUsers(&v.u, v.isAdmin)
+			if err != nil {
+				return
+			}
+			// Verify reply
+			diff := deep.Equal(*pur, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
 			}
 		})
 	}

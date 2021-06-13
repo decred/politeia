@@ -268,6 +268,16 @@ func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
 		return fmt.Errorf("could not verify signature: %v", err)
 	}
 
+	// Make sure we have valid vote bits.
+	switch {
+	case vd.Params.Token == "":
+		return fmt.Errorf("token not found")
+	case vd.Params.Mask == 0:
+		return fmt.Errorf("mask not found")
+	case len(vd.Params.Options) == 0:
+		return fmt.Errorf("vote options not found")
+	}
+
 	// Verify server receipt
 	msg = vd.Signature + vd.StartBlockHash
 	err = util.VerifySignature(vd.Receipt, serverPublicKey, msg)
@@ -278,7 +288,7 @@ func VoteDetailsVerify(vd tkv1.VoteDetails, serverPublicKey string) error {
 	return nil
 }
 
-// CastVoteDetails verifies the receipt of the provided ticketvote v1
+// CastVoteDetailsVerify verifies the receipt of the provided ticketvote v1
 // CastVoteDetails.
 func CastVoteDetailsVerify(cvd tkv1.CastVoteDetails, serverPublicKey string) error {
 	// The network must be ascertained in order to verify the

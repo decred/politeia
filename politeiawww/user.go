@@ -1630,8 +1630,9 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 	case www.UserManageReactivate:
 		user.Deactivated = false
 	default:
-		return nil, fmt.Errorf("unsupported user edit action: %v",
-			www.UserManageAction[mu.Action])
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUserManageAction,
+		}
 	}
 
 	// Update the user in the database.

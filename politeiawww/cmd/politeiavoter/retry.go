@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/politeia/decredplugin"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/util"
 )
 
 type retry struct {
 	retries uint
-	vote    v1.CastVote
+	vote    tkv1.CastVote
 }
 
 func (c *ctx) retryPush(r *retry) {
@@ -105,9 +104,9 @@ func (c *ctx) retryLoop() {
 
 		// Vote
 		ticket := e.vote.Ticket
-		b := v1.Ballot{Votes: []v1.CastVote{e.vote}}
+		b := tkv1.CastBallot{Votes: []tkv1.CastVote{e.vote}}
 		log.Debugf("retryLoop: sendVote %v", ticket)
-		br, err := c.sendVote(&b)
+		vr, err := c.sendVote(&b)
 		var serr ErrRetry
 		if errors.As(err, &serr) {
 			// Push to back retry later
@@ -129,18 +128,14 @@ func (c *ctx) retryLoop() {
 		}
 
 		// Vote completed
-		result := BallotResult{
-			Ticket:  ticket,
-			Receipt: *br,
-		}
 		c.Lock()
-		c.ballotResults = append(c.ballotResults, result)
+		c.ballotResults = append(c.ballotResults, *vr)
 		c.Unlock()
 
-		if br.ErrorStatus == decredplugin.ErrorStatusVoteHasEnded {
+		if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
 			// Force an exit of the both the main queue and the
 			// retry queue if the voting period has ended.
-			err = c.jsonLog("failed.json", ticket, br)
+			err = c.jsonLog("failed.json", ticket, vr)
 			if err != nil {
 				log.Errorf("retryLoop: c.jsonLog 2: %v", err)
 			}
@@ -152,13 +147,13 @@ func (c *ctx) retryLoop() {
 			return
 		}
 
-		err = c.jsonLog("success.json", e.vote.Token, result)
+		err = c.jsonLog("success.json", e.vote.Token, vr)
 		if err != nil {
 			log.Errorf("retryLoop: c.jsonLog 3: %v", err)
 			continue
 		}
 
-		log.Debugf("retryLoop: success %v", spew.Sdump(br))
+		log.Debugf("retryLoop: success %v", spew.Sdump(vr))
 
 		// Check if we are done here as well
 		if mainLoopDone && c.retryLen() == 0 {
