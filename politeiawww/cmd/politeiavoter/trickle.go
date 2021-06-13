@@ -10,7 +10,7 @@ import (
 
 	pb "decred.org/dcrwallet/rpc/walletrpc"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/politeiawww/cmd/politeiavoter/uniformprng"
 )
 
@@ -47,7 +47,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
 
 		buckets[k] = &voteInterval{
-			Vote: v1.CastVote{
+			Vote: tkv1.CastVote{
 				Token:     token,
 				Ticket:    h.String(),
 				VoteBit:   voteBit,
