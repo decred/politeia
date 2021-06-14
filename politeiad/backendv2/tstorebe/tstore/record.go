@@ -680,8 +680,10 @@ func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetada
 // light weight. Its for this reason that we rely on the tree exists call
 // despite the edge case.
 func (t *Tstore) RecordExists(token []byte) bool {
-	// Lookup the full length token. Read methods
-	// are only allowed on full length tokens.
+	log.Tracef("RecordExists: %x", token)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -871,8 +873,8 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 	log.Tracef("Record: %x %v", token, version)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -887,8 +889,8 @@ func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
 	log.Tracef("RecordLatest: %x", token)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -915,8 +917,8 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 	log.Tracef("RecordPartial: %x %v %v %v",
 		token, version, omitAllFiles, filenames)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -930,17 +932,11 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 // RecordState returns the state of a record. This call does not require
 // retrieving any blobs from the kv store. The record state can be derived from
 // only the tlog leaves.
-//
-// TODO this call needs to be removed since it can't be included in a tx. It
-// worked because the record was locked in tstorebe for plugins, but these
-// mutexes are going to be removed now that we have the store Tx interface.
-// We can add this back in once we have the ability to lock a tree, i.e. create
-// a transaction that locks the record in the kv store AND the trillian tree.
 func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 	log.Tracef("RecordState: %x", token)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -963,8 +959,8 @@ func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 func (t *Tstore) TxRecord(tx store.Tx, token []byte, version uint32) (*backend.Record, error) {
 	log.Tracef("TxRecord: %x %v", token, version)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -979,8 +975,8 @@ func (t *Tstore) TxRecord(tx store.Tx, token []byte, version uint32) (*backend.R
 func (t *Tstore) TxRecordLatest(tx store.Tx, token []byte) (*backend.Record, error) {
 	log.Tracef("TxRecordLatest: %x", token)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -1008,8 +1004,8 @@ func (t *Tstore) TxRecordPartial(tx store.Tx, token []byte, version uint32, file
 	log.Tracef("TxRecordPartial: %x %v %v %v",
 		token, version, omitAllFiles, filenames)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -1165,8 +1161,8 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
 
-	// Lookup the full length token. Read methods are only
-	// allowed on the full length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {

@@ -15,8 +15,6 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
@@ -94,16 +92,20 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case tkplugin.PluginID:
+		/* TODO
 		client, err = ticketvote.New(b, t, p.Settings, dataDir,
 			p.Identity, t.activeNetParams)
 		if err != nil {
 			return err
 		}
+		*/
 	case umplugin.PluginID:
+		/* TODO
 		client, err = usermd.New(t, p.Settings, dataDir)
 		if err != nil {
 			return err
 		}
+		*/
 	default:
 		return backend.ErrPluginIDInvalid
 	}
@@ -139,15 +141,22 @@ func (t *Tstore) PluginHookPre(tx store.Tx, h plugins.HookT, payload string) err
 	log.Tracef("PluginHookPre: %v", plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
-	for _, v := range t.pluginIDs() {
-		p, _ := t.plugin(v)
-		err := p.client.Hook(h, payload)
+	for _, pid := range t.pluginIDs() {
+		// Setup the tstore client
+		clientID := fmt.Sprintf("%v hook: %v:", pid, plugins.Hooks[h])
+		c := newClient(clientID, t, tx, nil)
+
+		// Setup the plugin
+		p, _ := t.plugin(pid)
+
+		// Execute the hook
+		err := p.client.Hook(c, h, payload)
 		if err != nil {
 			var e backend.PluginError
 			if errors.As(err, &e) {
 				return err
 			}
-			return fmt.Errorf("hook %v: %v", v, err)
+			return fmt.Errorf("hook %v: %v", pid, err)
 		}
 	}
 
@@ -161,19 +170,26 @@ func (t *Tstore) PluginHookPost(tx store.Tx, h plugins.HookT, payload string) {
 	log.Tracef("PluginHookPost: %v", plugins.Hooks[h])
 
 	// Pass hook event and payload to each plugin
-	for _, v := range t.pluginIDs() {
-		p, ok := t.plugin(v)
+	for _, pid := range t.pluginIDs() {
+		// Setup the tstore client
+		clientID := fmt.Sprintf("%v hook: %v:", pid, plugins.Hooks[h])
+		c := newClient(clientID, t, tx, nil)
+
+		// Setup the plugin
+		p, ok := t.plugin(pid)
 		if !ok {
-			log.Errorf("%v PluginHookPost: plugin not found %v", v)
+			log.Errorf("%v PluginHookPost: plugin not found %v", pid)
 			continue
 		}
-		err := p.client.Hook(h, payload)
+
+		// Execute the hook
+		err := p.client.Hook(c, h, payload)
 		if err != nil {
 			// This is the post plugin hook so the data has already been
 			// saved to tstore. We do not have the ability to unwind. Log
 			// the error and continue.
 			log.Criticalf("%v PluginHookPost %v %v: %v: %v",
-				v, h, err, payload)
+				pid, h, err, payload)
 			continue
 		}
 	}
@@ -190,7 +206,8 @@ func (t *Tstore) PluginWrite(tx store.Tx, token []byte, pluginID, cmd, payload s
 	}
 
 	// Setup tstore client
-	c := newClient(pluginID, cmd, t, tx, nil)
+	clientID := fmt.Sprintf("%v read: %v:", pluginID, cmd)
+	c := newClient(clientID, t, tx, nil)
 
 	// Execute plugin command
 	return p.client.Write(c, token, cmd, payload)
@@ -218,7 +235,8 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 	}
 
 	// Setup tstore client
-	c := newClient(pluginID, cmd, t, nil, store)
+	clientID := fmt.Sprintf("%v read: %v:", pluginID, cmd)
+	c := newClient(clientID, t, nil, t.store)
 
 	// Execute plugin command
 	return p.client.Read(c, token, cmd, payload)

@@ -150,14 +150,16 @@ type PluginClient interface {
 	// Write executes a read/write plugin command. All operations are
 	// executed atomically by tstore when using this method. The plugin
 	// does not need to worry about concurrency issues.
-	Write(c TstoreClient, token []byte, cmd, payload string) (string, error)
+	Write(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Read executes a read-only plugin command. Operations performed
 	// using this method are not atomic.
-	Read(c TstoreClient, token []byte, cmd, payload string) (string, error)
+	Read(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Hook executes a plugin hook.
-	Hook(c TstoreClient, h HookT, payload string) error
+	// Hook executes a plugin hook. All operations are executed
+	// atomically by tstore when using this method. The plugin does not
+	// need to worry about concurrency issues.
+	Hook(t TstoreClient, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
 	Fsck() error
@@ -167,8 +169,8 @@ type PluginClient interface {
 }
 
 // TstoreClient provides an API for plugins to interact with a tstore instance.
-// Plugins are allowed to save, delete, and get plugin data to/from the tstore
-// backend.
+// Plugins are allowed to save, delete, and retrieve plugin data to/from the
+// tstore backend.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -202,6 +204,18 @@ type TstoreClient interface {
 	// will be returned.
 	Timestamp(token []byte, digest []byte) (*backend.Timestamp, error)
 
+	// CacheSave saves the provided key-value pairs to the tstore
+	// cache. Cached data is not timestamped onto the Decred
+	// blockchain. Only data that can be recreated by walking the
+	// tlog trees should be cached.
+	CacheSave(kv map[string][]byte) error
+
+	// CacheGet returns blobs from the cache for the provided keys. An
+	// entry will not exist in the returned map if for any blobs that
+	// are not found. It is the responsibility of the caller to ensure
+	// a blob was returned for all provided keys.
+	CacheGet(keys []string) (map[string][]byte, error)
+
 	// Record returns a version of a record.
 	Record(token []byte, version uint32) (*backend.Record, error)
 
@@ -228,16 +242,4 @@ type TstoreClient interface {
 
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
-
-	// CacheSave saves the provided key-value pairs to the tstore
-	// cache. Cached data is not timestamped onto the Decred
-	// blockchain. Only data that can be recreated by walking the
-	// tlog trees should be cached.
-	CacheSave(kv map[string][]byte) error
-
-	// CacheGet returns blobs from the cache for the provided keys. An
-	// entry will not exist in the returned map if for any blobs that
-	// are not found. It is the responsibility of the caller to ensure
-	// a blob was returned for all provided keys.
-	CacheGet(keys []string) (map[string][]byte, error)
 }
