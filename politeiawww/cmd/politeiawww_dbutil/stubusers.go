@@ -55,18 +55,6 @@ func (cmd *StubUsersCmd) Execute(args []string) error {
 				if err != nil {
 					return err
 				}
-			// case proposalMDFilename:
-			// 	b, err := ioutil.ReadFile(path)
-			// 	if err != nil {
-			// 		return err
-			// 	}
-
-			// 	var md mdstream.ProposalGeneralV2
-			// 	err = json.Unmarshal(b, &md)
-			// 	if err != nil {
-			// 		return fmt.Errorf("proposal md: %v", err)
-			// 	}
-			// 	pubkeys[md.PublicKey] = struct{}{}
 			}
 
 			return nil
