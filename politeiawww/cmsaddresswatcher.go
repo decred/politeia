@@ -226,14 +226,7 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 		// Check to see if running mainnet, if so, only accept transactions
 		// that originate from the Treasury Subsidy.
 		if !p.cfg.TestNet && !p.cfg.SimNet {
-			found := false
-			for _, address := range tx.InputAddresses {
-				if address == mainnetSubsidyAddr {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !tx.TreasuryGen {
 				continue
 			}
 		}
