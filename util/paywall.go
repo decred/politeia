@@ -65,6 +65,7 @@ type BETransactionPrevOut struct {
 type BETransactionVout struct {
 	Amount       json.Number               `json:"value"`        // Transaction amount (in DCR)
 	ScriptPubkey BETransactionScriptPubkey `json:"scriptPubkey"` // Transaction script info
+	Type         string                    `json:"type"`
 }
 
 // BETransactionScriptPubkey holds the script info for a
@@ -84,6 +85,7 @@ type TxDetails struct {
 	Timestamp      int64    // Transaction timestamp
 	Confirmations  uint64   // Number of confirmations
 	InputAddresses []string /// An array of all addresses from previous outputs
+	TreasuryGen    bool     // Bool whether or not the Transaction is a treasurygen
 }
 
 func makeRequest(ctx context.Context, url string, timeout time.Duration) ([]byte, error) {
@@ -339,12 +341,17 @@ func fetchTxsWithBE(ctx context.Context, url string) ([]BETransaction, error) {
 
 func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetails, error) {
 	var amount uint64
+	treasuryGen := false
 	for _, vout := range tx.Vout {
 		amt, err := DcrStringToAmount(vout.Amount.String())
 		if err != nil {
 			return nil, err
 		}
-
+		// If ANY output from the transaction is determined to be treasury gen,
+		// then we can assume it is a TSPEND tx.
+		if vout.Type == "treasurygen" {
+			treasuryGen = true
+		}
 		for _, addr := range vout.ScriptPubkey.Addresses {
 			if address == addr {
 				amount += amt
@@ -363,6 +370,7 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 		Confirmations:  tx.Confirmations,
 		Timestamp:      tx.Timestamp,
 		InputAddresses: inputAddresses,
+		TreasuryGen:    treasuryGen,
 	}, nil
 }
 
