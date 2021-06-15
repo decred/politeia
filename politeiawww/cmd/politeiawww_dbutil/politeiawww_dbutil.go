@@ -450,8 +450,15 @@ func connectCockroachDB() (user.Database, error) {
 		return nil, fmt.Errorf("new cockroachdb: %v", err)
 	}
 
-	fmt.Printf("CockroachDB : %v %v %v %v %v %v\n", *cockroachdbhost, network,
-		*rootCert, *clientCert, *clientKey, *encryptionKey)
+	fmt.Printf(`CockroachDB : %v %v 
+		%v 
+		%v 
+		%v 
+		%v
+`,
+		*cockroachdbhost, network, *rootCert, *clientCert,
+		*clientKey, *encryptionKey)
+
 	return cockroachdb.New(*cockroachdbhost, network, *rootCert,
 		*clientCert, *clientKey, *encryptionKey)
 }

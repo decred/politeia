@@ -1019,22 +1019,25 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", userPoliteiawww, host,
 		dbname)
 
-	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", userPoliteiawww, password, host, dbname)
+	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", userPoliteiawww, password,
+		host, dbname)
 	db, err := sql.Open("mysql", h)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify database connection.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err = db.PingContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("db ping: %v", err)
 	}
 
 	// Setup database options.
 	db.SetConnMaxLifetime(connMaxLifetime)
 	db.SetMaxOpenConns(maxOpenConns)
 	db.SetMaxIdleConns(maxIdleConns)
-
-	// Verify database connection.
-	err = db.Ping()
-	if err != nil {
-		return nil, fmt.Errorf("db ping: %v", err)
-	}
 
 	// Setup key-value table.
 	q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`,

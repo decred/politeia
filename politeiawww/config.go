@@ -263,31 +263,32 @@ func loadIdentity(cfg *config.Config) error {
 	return nil
 }
 
-// validateEncryptionKey validates the encryption key config.
-func validateEncryptionKey(encKey, oldEncKey string) error {
+// validateEncryptionKeys validates the encryption keys config and returns
+// the keys' cleaned paths.
+func validateEncryptionKeys(encKey, oldEncKey string) (string, string, error) {
 	encKey = util.CleanAndExpandPath(encKey)
 	oldEncKey = util.CleanAndExpandPath(oldEncKey)
 
 	if encKey != "" && !util.FileExists(encKey) {
-		return fmt.Errorf("file not found %v", encKey)
+		return "", "", fmt.Errorf("file not found %v", encKey)
 	}
 
 	if oldEncKey != "" {
 		switch {
 		case encKey == "":
-			return fmt.Errorf("old encryption key param " +
+			return "", "", fmt.Errorf("old encryption key param " +
 				"cannot be used without encryption key param")
 
 		case encKey == oldEncKey:
-			return fmt.Errorf("old encryption key param " +
+			return "", "", fmt.Errorf("old encryption key param " +
 				"and encryption key param must be different")
 
 		case !util.FileExists(oldEncKey):
-			return fmt.Errorf("file not found %v", oldEncKey)
+			return "", "", fmt.Errorf("file not found %v", oldEncKey)
 		}
 	}
 
-	return nil
+	return encKey, oldEncKey, nil
 }
 
 // validateDBHost validates user database host.
@@ -752,9 +753,10 @@ func loadConfig() (*config.Config, []string, error) {
 		}
 
 		// Validate user database encryption keys.
-		err = validateEncryptionKey(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		cfg.EncryptionKey, cfg.OldEncryptionKey, err =
+			validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("validate encryption key: %v", err)
+			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
 		}
 
 	case userDBMySQL:
@@ -773,9 +775,10 @@ func loadConfig() (*config.Config, []string, error) {
 		}
 
 		// Validate user database encryption keys.
-		err = validateEncryptionKey(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		cfg.EncryptionKey, cfg.OldEncryptionKey, err =
+			validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("validate encryption key: %v", err)
+			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
 		}
 
 	default:
