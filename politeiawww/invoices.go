@@ -867,7 +867,10 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 		reply.Invoice = *invRec
 		reply.Payout = payout
 	} else {
-		reply.Invoice = filterDomainInvoice(invRec, requestingUser.Domain)
+		filteredInvoice := filterDomainInvoice(invRec, requestingUser.Domain)
+		if len(filteredInvoice.Input.LineItems) > 0 {
+			reply.Invoice = filteredInvoice
+		}
 	}
 	return &reply, nil
 }
