@@ -51,6 +51,33 @@ can be skipped if you already completed it while setting up politeiad.
     $ go install -v ./...
     ```
 
+### Setup MySQL (optional)
+
+This repo includes a script to setup a MySQL user database, it creates the 
+needed databases, the politeiawww user and assigns user privileges. Password 
+authentication is used for all database connections.
+
+**The password that you set for the politeiawww MySQL user will be used to 
+derive an encryption key that is used to encrypt non-public data at rest. 
+Make sure to setup a strong password when running in production. Once set, the 
+politeiawww user password cannot change.**
+
+The setup script assumes MySQL is running on localhost:3306 and the users will 
+be accessing the databse from localhost. See the setup script comments for more 
+complex setups.
+
+Run the following commands. You will need to replace rootpass with the existing 
+password of your root user. The politeiawwwpass is the password that will be 
+set for the politeiawww user when it's created.
+
+```
+$ cd $GOPATH/src/github.com/decred/politeia/politeiawww/scripts/userdb
+$ env \
+  MYSQL_ROOT_PASSWORD=rootpass \
+  MYSQL_POLITEIAWWW_PASSWORD=politeiawwwpass \
+  ./mysqlsetup.sh
+```
+
 ### Setup and run politeiawww
 
 [politeiad](https://github.com/decred/politeia/tree/master/politeiad#politeiad)
