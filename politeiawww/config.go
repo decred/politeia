@@ -72,17 +72,21 @@ const (
 	userDBCockroach = "cockroachdb"
 	userDBMySQL     = "mysql"
 
-	defaultUserDB = userDBLevel
+	defaultUserDB          = userDBLevel
+	defaultMySQLDBHost     = "localhost:3306"  // MySQL default host
+	defaultCockroachDBHost = "localhost:26257" // CockroachDB default host
 
 	// Environment variables.
 	envDBPass = "DBPASS"
 )
 
 var (
-	defaultHTTPSKeyFile  = filepath.Join(config.DefaultHomeDir, "https.key")
-	defaultRPCCertFile   = filepath.Join(config.DefaultHomeDir, "rpc.cert")
-	defaultCookieKeyFile = filepath.Join(config.DefaultHomeDir, "cookie.key")
-	defaultLogDir        = filepath.Join(config.DefaultHomeDir, defaultLogDirname)
+	defaultHomeDir       = config.DefaultHomeDir
+	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
+	defaultHTTPSKeyFile  = filepath.Join(defaultHomeDir, "https.key")
+	defaultRPCCertFile   = filepath.Join(defaultHomeDir, "rpc.cert")
+	defaultCookieKeyFile = filepath.Join(defaultHomeDir, "cookie.key")
+	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 
 	// Default start date to start pulling code statistics if none specified.
 	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
@@ -265,30 +269,27 @@ func loadIdentity(cfg *config.Config) error {
 
 // validateEncryptionKeys validates the encryption keys config and returns
 // the keys' cleaned paths.
-func validateEncryptionKeys(encKey, oldEncKey string) (string, string, error) {
-	encKey = util.CleanAndExpandPath(encKey)
-	oldEncKey = util.CleanAndExpandPath(oldEncKey)
-
+func validateEncryptionKeys(encKey, oldEncKey string) error {
 	if encKey != "" && !util.FileExists(encKey) {
-		return "", "", fmt.Errorf("file not found %v", encKey)
+		return fmt.Errorf("file not found %v", encKey)
 	}
 
 	if oldEncKey != "" {
 		switch {
 		case encKey == "":
-			return "", "", fmt.Errorf("old encryption key param " +
+			return fmt.Errorf("old encryption key param " +
 				"cannot be used without encryption key param")
 
 		case encKey == oldEncKey:
-			return "", "", fmt.Errorf("old encryption key param " +
+			return fmt.Errorf("old encryption key param " +
 				"and encryption key param must be different")
 
 		case !util.FileExists(oldEncKey):
-			return "", "", fmt.Errorf("file not found %v", oldEncKey)
+			return fmt.Errorf("file not found %v", oldEncKey)
 		}
 	}
 
-	return encKey, oldEncKey, nil
+	return nil
 }
 
 // validateDBHost validates user database host.
@@ -723,15 +724,33 @@ func loadConfig() (*config.Config, []string, error) {
 			return nil, nil, fmt.Errorf("dbkey param is required")
 		}
 
-		// Clean user database settings
-		cfg.DBRootCert = util.CleanAndExpandPath(cfg.DBRootCert)
-		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
-		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
+		// Set default DBHost if not set.
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultCockroachDBHost
+		}
 
 		// Validate DB host.
 		err = validateDBHost(cfg.DBHost)
 		if err != nil {
 			return nil, nil, err
+		}
+
+		// Set default encryption key path if not set.
+		if cfg.EncryptionKey == "" {
+			cfg.EncryptionKey = defaultEncryptionKey
+		}
+
+		// Clean user database settings
+		cfg.DBRootCert = util.CleanAndExpandPath(cfg.DBRootCert)
+		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
+		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
+		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
+		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
+
+		// Validate user database encryption keys.
+		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
 		}
 
 		// Validate user database root cert
@@ -752,13 +771,6 @@ func loadConfig() (*config.Config, []string, error) {
 				"and dbkey: %v", err)
 		}
 
-		// Validate user database encryption keys.
-		cfg.EncryptionKey, cfg.OldEncryptionKey, err =
-			validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
-		}
-
 	case userDBMySQL:
 		// The database password is provided in an env variable.
 		cfg.DBPass = os.Getenv(envDBPass)
@@ -768,15 +780,28 @@ func loadConfig() (*config.Config, []string, error) {
 				"variable DBPASS")
 		}
 
+		// Set default DBHost if not set.
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultMySQLDBHost
+		}
+
 		// Validate DB host.
 		err = validateDBHost(cfg.DBHost)
 		if err != nil {
 			return nil, nil, err
 		}
 
+		// Set default encryption key path if not set.
+		if cfg.EncryptionKey == "" {
+			cfg.EncryptionKey = defaultEncryptionKey
+		}
+
+		// Clean encryption keys paths.
+		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
+		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
+
 		// Validate user database encryption keys.
-		cfg.EncryptionKey, cfg.OldEncryptionKey, err =
-			validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
 		if err != nil {
 			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
 		}

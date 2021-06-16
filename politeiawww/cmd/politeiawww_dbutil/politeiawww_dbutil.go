@@ -450,14 +450,7 @@ func connectCockroachDB() (user.Database, error) {
 		return nil, fmt.Errorf("new cockroachdb: %v", err)
 	}
 
-	fmt.Printf(`CockroachDB : %v %v 
-		%v 
-		%v 
-		%v 
-		%v
-`,
-		*cockroachdbhost, network, *rootCert, *clientCert,
-		*clientKey, *encryptionKey)
+	fmt.Printf("CockroachDB : %v %v", *cockroachdbhost, network)
 
 	return cockroachdb.New(*cockroachdbhost, network, *rootCert,
 		*clientCert, *clientKey, *encryptionKey)
@@ -685,8 +678,8 @@ func validateMySQLParams() error {
 
 	// Validate password.
 	if *password == "" {
-		return fmt.Errorf("MySQL password missing; use -password flag to" +
-			" provide it")
+		return fmt.Errorf("MySQL politeiawww user's password is missing;" +
+			" use -password flag to provide it")
 	}
 
 	// Ensure encryption key file exists.

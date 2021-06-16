@@ -57,10 +57,8 @@ This repo includes a script to setup a MySQL user database, it creates the
 needed databases, the politeiawww user and assigns user privileges. Password 
 authentication is used for all database connections.
 
-**The password that you set for the politeiawww MySQL user will be used to 
-derive an encryption key that is used to encrypt non-public data at rest. 
-Make sure to setup a strong password when running in production. Once set, the 
-politeiawww user password cannot change.**
+**Note:** This is an optional step. By default, politeiawww will use a LevelDB 
+instance that does not require any additional setup.
 
 The setup script assumes MySQL is running on localhost:3306 and the users will 
 be accessing the databse from localhost. See the setup script comments for more 
@@ -71,12 +69,25 @@ password of your root user. The politeiawwwpass is the password that will be
 set for the politeiawww user when it's created.
 
 ```
-$ cd $GOPATH/src/github.com/decred/politeia/politeiawww/scripts/userdb
+$ cd $GOPATH/src/github.com/decred/politeia/scripts/userdb
 $ env \
   MYSQL_ROOT_PASSWORD=rootpass \
   MYSQL_POLITEIAWWW_PASSWORD=politeiawwwpass \
   ./mysqlsetup.sh
 ```
+
+You will need to use the `--userdb=mysql` flag when starting politeiawww or 
+add `userdb=mysql` to the `politeiawww.config` file that is setup in the steps
+below.
+
+Also, an encryption key is required when using a MySQL database, use
+`politeiawww_dbutil` cmd tool to create one: 
+```
+politeiawww_dbutil -createkey 
+```
+Then, add  `encryptionkey` to `politeiawww.config` or use 
+`--encryptionkey flag when starting `politeiawww` to set the encryption 
+key path.
 
 ### Setup and run politeiawww
 
