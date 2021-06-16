@@ -48,11 +48,13 @@ type Tstore struct {
 	cron            *cron.Cron
 	plugins         map[string]plugin // [pluginID]plugin
 
+	// TODO anchor dropping needs to be concurrency safe
 	// droppingAnchor indicates whether tstore is in the process of
 	// dropping an anchor, i.e. timestamping unanchored tlog trees
 	// using dcrtime. An anchor is dropped periodically using cron.
 	droppingAnchor bool
 
+	// TODO remove
 	// tokens contains the short token to full token mappings. The
 	// short token is the first n characters of the hex encoded record
 	// token, where n is defined by the short token length politeiad
@@ -144,8 +146,20 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 	return fullToken, nil
 }
 
+// Tx returns a key-value store transaction. This method does not lock a record
+// and should not be used for record updates. See the RecordTx() method for
+// more details.
+func (t *Tstore) Tx() (store.Tx, func(), error) {
+	log.Tracef("Tx")
+
+	return t.store.Tx()
+}
+
+// TODO implement all fsck's
 // Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck() {
+	log.Tracef("Fsck")
+
 	// Set tree status to frozen for any trees that are frozen and have
 	// been anchored one last time.
 	// Verify all file blobs have been deleted for censored records.

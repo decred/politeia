@@ -84,7 +84,9 @@ func (t *Tstore) RecordTx(token []byte) (store.Tx, func(), error) {
 // RecordNew creates a new record in the tstore and returns the record token
 // that serves as the unique identifier for the record. Creating a new record
 // means creating a tlog tree for the record. Nothing is saved to the tree yet.
-func (t *Tstore) RecordNew() ([]byte, error) {
+// Once the record has been created, it is locked using the provided
+// transaction.
+func (t *Tstore) RecordNew(tx store.Tx) ([]byte, error) {
 	log.Tracef("RecordNew")
 
 	// Create a new tlog tree
@@ -108,6 +110,12 @@ func (t *Tstore) RecordNew() ([]byte, error) {
 		// still exist.
 		t.tokenAdd(token)
 		break
+	}
+
+	// Lock the record
+	err := t.recordLock(tx, token)
+	if err != nil {
+		return nil, err
 	}
 
 	return token, nil

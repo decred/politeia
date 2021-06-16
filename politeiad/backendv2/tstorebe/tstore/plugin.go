@@ -5,29 +5,17 @@
 package tstore
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
-)
-
-const (
-	// pluginDataDirname is the plugin data directory name. It is
-	// located in the tstore backend data directory and is provided
-	// to the plugins for storing plugin data.
-	pluginDataDirname = "plugins"
 )
 
 // plugin represents a tstore plugin.
@@ -72,25 +60,30 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	var (
 		client plugins.PluginClient
 		err    error
-
-		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
+		_ = err
+		/* TODO
 		client, err = comments.New(p.Settings, p.Identity)
 		if err != nil {
 			return err
 		}
+		*/
 	case ddplugin.PluginID:
+		/* TODO
 		client, err = dcrdata.New(p.Settings, t.activeNetParams)
 		if err != nil {
 			return err
 		}
+		*/
 	case piplugin.PluginID:
+		/* TODO
 		client, err = pi.New(b, p.Settings, dataDir)
 		if err != nil {
 			return err
 		}
+		*/
 	case tkplugin.PluginID:
 		/* TODO
 		client, err = ticketvote.New(b, t, p.Settings, dataDir,
@@ -133,66 +126,35 @@ func (t *Tstore) PluginSetup(pluginID string) error {
 	return p.client.Setup()
 }
 
-// PluginHookPre executes a tstore backend pre hook. Pre hooks are hooks that
-// are executed prior to the tstore backend writing data to disk. These hooks
-// give plugins the opportunity to add plugin specific validation to record
-// methods or plugin commands that write data.
-func (t *Tstore) PluginHookPre(tx store.Tx, h plugins.HookT, payload string) error {
-	log.Tracef("PluginHookPre: %v", plugins.Hooks[h])
+// PluginHookPre executes a plugin hook.
+//
+// Pre hooks are hooks that are executed prior to the backend writing data to
+// disk. These hooks give plugins the opportunity to add plugin specific
+// validation to record methods or plugin commands that write data.
+//
+// Post hooks are hooks that are executed after the backend successfully writes
+// data to disk. These hooks give plugins the opportunity to cache data from
+// the write.
+func (t *Tstore) PluginHook(tx store.Tx, h plugins.HookT, payload string) error {
+	log.Tracef("PluginHook: %v", plugins.Hooks[h])
 
-	// Pass hook event and payload to each plugin
+	// Pass the hook event and payload to each plugin
 	for _, pid := range t.pluginIDs() {
 		// Setup the tstore client
 		clientID := fmt.Sprintf("%v hook: %v:", pid, plugins.Hooks[h])
 		c := newClient(clientID, t, tx, nil)
 
-		// Setup the plugin
+		// Get the plugin
 		p, _ := t.plugin(pid)
 
 		// Execute the hook
 		err := p.client.Hook(c, h, payload)
 		if err != nil {
-			var e backend.PluginError
-			if errors.As(err, &e) {
-				return err
-			}
-			return fmt.Errorf("hook %v: %v", pid, err)
+			return err
 		}
 	}
 
 	return nil
-}
-
-// PluginHookPre executes a tstore backend post hook. Post hooks are hooks that
-// are executed after the tstore backend successfully writes data to disk.
-// These hooks give plugins the opportunity to cache data from the write.
-func (t *Tstore) PluginHookPost(tx store.Tx, h plugins.HookT, payload string) {
-	log.Tracef("PluginHookPost: %v", plugins.Hooks[h])
-
-	// Pass hook event and payload to each plugin
-	for _, pid := range t.pluginIDs() {
-		// Setup the tstore client
-		clientID := fmt.Sprintf("%v hook: %v:", pid, plugins.Hooks[h])
-		c := newClient(clientID, t, tx, nil)
-
-		// Setup the plugin
-		p, ok := t.plugin(pid)
-		if !ok {
-			log.Errorf("%v PluginHookPost: plugin not found %v", pid)
-			continue
-		}
-
-		// Execute the hook
-		err := p.client.Hook(c, h, payload)
-		if err != nil {
-			// This is the post plugin hook so the data has already been
-			// saved to tstore. We do not have the ability to unwind. Log
-			// the error and continue.
-			log.Criticalf("%v PluginHookPost %v %v: %v: %v",
-				pid, h, err, payload)
-			continue
-		}
-	}
 }
 
 // PluginWrite executes a read/write plugin command.

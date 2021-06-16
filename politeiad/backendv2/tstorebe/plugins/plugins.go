@@ -21,83 +21,80 @@ var (
 type HookT int
 
 const (
-	// HookTypeInvalid is an invalid plugin hook.
-	HookTypeInvalid HookT = 0
+	// HookInvalid is an invalid plugin hook.
+	HookInvalid HookT = 0
 
-	// HootTypeNewRecordPre is called before a new record is saved to
+	// HookRecordNewPre is called before a new record is saved to disk.
+	HookRecordNewPre HookT = 1
+
+	// HookRecordNewPost is called after a new record is saved to disk.
+	HookRecordNewPost HookT = 2
+
+	// HookRecordEditPre is called before a record edit is saved to
 	// disk.
-	HookTypeNewRecordPre HookT = 1
+	HookRecordEditPre HookT = 3
 
-	// HootTypeNewRecordPost is called after a new record is saved to
+	// HookRecordEditPost is called after a record edit is saved to
 	// disk.
-	HookTypeNewRecordPost HookT = 2
+	HookRecordEditPost HookT = 4
 
-	// HookTypeEditRecordPre is called before a record update is saved
-	// to disk.
-	HookTypeEditRecordPre HookT = 3
+	// HookRecordEditMetadataPre is called before a record metadata
+	// edit is saved to disk.
+	HookRecordEditMetadataPre HookT = 5
 
-	// HookTypeEditRecordPost is called after a record update is saved
-	// to disk.
-	HookTypeEditRecordPost HookT = 4
+	// HookRecordEditMetadataPost is called after a record metadata
+	// edit is saved to disk.
+	HookRecordEditMetadataPost HookT = 6
 
-	// HookTypeEditMetadataPre is called before a metadata update is
-	// saved to disk.
-	HookTypeEditMetadataPre HookT = 5
+	// HookRecordSetStatusPre is called before a record status change
+	// is saved to disk.
+	HookRecordSetStatusPre HookT = 7
 
-	// HookTypeEditMetadataPost is called after a metadata update is
-	// saved to disk.
-	HookTypeEditMetadataPost HookT = 6
+	// HookRecordSetStatusPost is called after a record status change
+	// is saved to disk.
+	HookRecordSetStatusPost HookT = 8
 
-	// HookTypeSetRecordStatusPre is called before a record status
-	// change is saved to disk.
-	HookTypeSetRecordStatusPre HookT = 7
+	// HookPluginWritePre is called before a write plugin command is
+	// executed.
+	HookPluginWritePre HookT = 9
 
-	// HookTypeSetRecordStatusPost is called after a record status
-	// change is saved to disk.
-	HookTypeSetRecordStatusPost HookT = 8
+	// HookPluginWritePost is called after a write plugin command is
+	// executed.
+	HookPluginWritePost HookT = 10
 
-	// HookTypePluginPre is called before a plugin command is executed.
-	HookTypePluginPre HookT = 9
-
-	// HookTypePluginPost is called after a plugin command is executed.
-	HookTypePluginPost HookT = 10
-
-	// HookTypeLast unit test only
-	HookTypeLast HookT = 11
+	// HookLast is used by unit tests to verify that all hooks have
+	// a entry in the Hooks map. This hook will never be used.
+	HookLast HookT = 11
 )
 
 var (
-	// Hooks contains human readable descriptions of the plugin hooks.
+	// Hooks contains human readable descriptions for the plugin hooks.
 	Hooks = map[HookT]string{
-		HookTypeInvalid:             "invalid hook",
-		HookTypeNewRecordPre:        "new record pre",
-		HookTypeNewRecordPost:       "new record post",
-		HookTypeEditRecordPre:       "edit record pre",
-		HookTypeEditRecordPost:      "edit record post",
-		HookTypeEditMetadataPre:     "edit metadata pre",
-		HookTypeEditMetadataPost:    "edit metadata post",
-		HookTypeSetRecordStatusPre:  "set record status pre",
-		HookTypeSetRecordStatusPost: "set record status post",
-		HookTypePluginPre:           "plugin pre",
-		HookTypePluginPost:          "plugin post",
+		HookInvalid:                "invalid hook",
+		HookRecordNewPre:           "record new pre",
+		HookRecordNewPost:          "record new post",
+		HookRecordEditPre:          "record edit pre",
+		HookRecordEditPost:         "record edit post",
+		HookRecordEditMetadataPre:  "record edit metadata pre",
+		HookRecordEditMetadataPost: "record edit metadata post",
+		HookRecordSetStatusPre:     "record set status pre",
+		HookRecordSetStatusPost:    "record set status post",
+		HookPluginWritePre:         "plugin write pre",
+		HookPluginWritePost:        "plugin write post",
 	}
 )
 
-// HookNewRecordPre is the payload for the pre new record hook.
-type HookNewRecordPre struct {
+// RecordNew is the payload for the RecordNew hooks.
+type RecordNew struct {
 	Metadata []backend.MetadataStream `json:"metadata"`
 	Files    []backend.File           `json:"files"`
+
+	// RecordMetadata will only be populated in the post hook.
+	RecordMetadata *backend.RecordMetadata `json:"recordmetadata,omitempty"`
 }
 
-// HookNewRecordPost is the payload for the post new record hook.
-type HookNewRecordPost struct {
-	Metadata       []backend.MetadataStream `json:"metadata"`
-	Files          []backend.File           `json:"files"`
-	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-}
-
-// HookEditRecord is the payload for the pre and post edit record hooks.
-type HookEditRecord struct {
+// RecordEdit is the payload for the RecordEdit hooks.
+type RecordEdit struct {
 	Record backend.Record `json:"record"` // Record pre update
 
 	// Updated fields
@@ -106,17 +103,16 @@ type HookEditRecord struct {
 	Files          []backend.File           `json:"files"`
 }
 
-// HookEditMetadata is the payload for the pre and post edit metadata hooks.
-type HookEditMetadata struct {
+// RecordEditMetadata is the payload for the RecordEditMetadata hooks.
+type RecordEditMetadata struct {
 	Record backend.Record `json:"record"` // Record pre update
 
 	// Updated fields
 	Metadata []backend.MetadataStream `json:"metadata"`
 }
 
-// HookSetRecordStatus is the payload for the pre and post set record status
-// hooks.
-type HookSetRecordStatus struct {
+// RecordSetStatus is the payload for the RecordSetStatus hooks.
+type RecordSetStatus struct {
 	Record backend.Record `json:"record"` // Record pre update
 
 	// Updated fields
@@ -124,21 +120,12 @@ type HookSetRecordStatus struct {
 	Metadata       []backend.MetadataStream `json:"metadata"`
 }
 
-// HookPluginPre is the payload for the pre plugin hook.
-type HookPluginPre struct {
+// PluginWrite is the payload for the PluginWrite hooks.
+type PluginWrite struct {
 	Token    []byte `json:"token"`
 	PluginID string `json:"pluginid"`
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"`
-}
-
-// HookPluginPost is the payload for the post plugin hook. The post plugin hook
-// includes the plugin reply.
-type HookPluginPost struct {
-	PluginID string `json:"pluginid"`
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"`
-	Reply    string `json:"reply"`
 }
 
 // PluginClient provides an API for a tstore instance to use when interacting

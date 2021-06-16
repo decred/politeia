@@ -326,6 +326,18 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 		return nil, err
 	}
 
+	// Setup a new tstore transaction. The Tx method is used instead
+	// of the RecordTx method because we have not created the record
+	// yet. Creating a record creates a tree in tlog. A record should
+	// not be created until the plugin validation (HookNewRecordPre)
+	// has passed, but we still need a key-value store tx in order to
+	// execute the plugin hooks so we use the Tx method.
+	tx, cancel, err := t.tstore.Tx()
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+
 	// Call pre plugin hooks
 	pre := plugins.HookNewRecordPre{
 		Metadata: metadata,
@@ -335,13 +347,13 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(plugins.HookTypeNewRecordPre, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookTypeNewRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new token
-	token, err := t.tstore.RecordNew()
+	token, err := t.tstore.RecordNew(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -353,17 +365,10 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 		return nil, err
 	}
 
-	// Setup a new tstore transaction
-	tx, cancel, err := t.tstore.RecordTx(token)
-	if err != nil {
-		return nil, err
-	}
-	defer cancel()
-
 	// Save the record
 	err = t.tstore.RecordSave(tx, token, *rm, metadata, files)
 	if err != nil {
-		return nil, fmt.Errorf("RecordSave: %v", err)
+		return nil, err
 	}
 
 	// Call post plugin hooks
@@ -376,10 +381,16 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		return nil, err
 	}
-	t.tstore.PluginHookPost(plugins.HookTypeNewRecordPost, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookTypeNewRecordPost, string(b))
+	if err != nil {
+		return nil, err
+	}
 
 	// Update the inventory cache
-	t.invAdd(tx, token, rm.Timestamp)
+	err = t.invAdd(tx, token, rm.Timestamp)
+	if err != nil {
+		return nil, err
+	}
 
 	// Commit the tstore transaction
 	err = tx.Commit()
@@ -389,13 +400,13 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
 				err, err2))
 		}
-		return nil, fmt.Errorf("commit tx: %v", err)
+		return nil, err
 	}
 
 	// Get the full record to return
 	r, err := t.tstore.RecordLatest(token)
 	if err != nil {
-		return nil, fmt.Errorf("RecordLatest %x: %v", token, err)
+		return nil, err
 	}
 
 	return r, nil
@@ -467,7 +478,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(plugins.HookTypeEditRecordPre, string(b))
+	err = t.tstore.PluginHookPre(tx, plugins.HookTypeEditRecordPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +495,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	}
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(plugins.HookTypeEditRecordPost, string(b))
+	t.tstore.PluginHookPost(tx, plugins.HookTypeEditRecordPost, string(b))
 
 	// Commit the tstore transaction
 	err = tx.Commit()
@@ -562,7 +573,7 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(plugins.HookTypeEditMetadataPre, string(b))
+	err = t.tstore.PluginHookPre(tx, plugins.HookTypeEditMetadataPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +590,7 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(plugins.HookTypeEditMetadataPost, string(b))
+	t.tstore.PluginHookPost(tx, plugins.HookTypeEditMetadataPost, string(b))
 
 	// Commit the tstore transaction
 	err = tx.Commit()
@@ -740,7 +751,8 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(plugins.HookTypeSetRecordStatusPre, string(b))
+	err = t.tstore.PluginHookPre(tx,
+		plugins.HookTypeSetRecordStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -772,7 +784,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		backend.Statuses[status], status)
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(plugins.HookTypeSetRecordStatusPost, string(b))
+	t.tstore.PluginHookPost(tx, plugins.HookTypeSetRecordStatusPost, string(b))
 
 	// Update inventory cache
 	switch status {
@@ -982,7 +994,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	if err != nil {
 		return "", err
 	}
-	err = t.tstore.PluginHookPre(plugins.HookTypePluginPre, string(b))
+	err = t.tstore.PluginHookPre(tx, plugins.HookTypePluginPre, string(b))
 	if err != nil {
 		return "", err
 	}
@@ -1004,7 +1016,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	if err != nil {
 		return "", err
 	}
-	t.tstore.PluginHookPost(plugins.HookTypePluginPost, string(b))
+	t.tstore.PluginHookPost(tx, plugins.HookTypePluginPost, string(b))
 
 	// Commit the tstore transaction
 	err = tx.Commit()
