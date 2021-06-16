@@ -86,7 +86,7 @@ Also, an encryption key is required when using a MySQL database, use
 politeiawww_dbutil -createkey 
 ```
 Then, add  `encryptionkey` to `politeiawww.config` or use 
-`--encryptionkey flag when starting `politeiawww` to set the encryption 
+`--encryptionkey` flag when starting `politeiawww` to set the encryption 
 key path.
 
 ### Setup and run politeiawww
