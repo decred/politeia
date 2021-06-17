@@ -70,15 +70,23 @@ const (
 	// User database options
 	userDBLevel     = "leveldb"
 	userDBCockroach = "cockroachdb"
+	userDBMySQL     = "mysql"
 
-	defaultUserDB = userDBLevel
+	defaultUserDB          = userDBLevel
+	defaultMySQLDBHost     = "localhost:3306"  // MySQL default host
+	defaultCockroachDBHost = "localhost:26257" // CockroachDB default host
+
+	// Environment variables.
+	envDBPass = "DBPASS"
 )
 
 var (
-	defaultHTTPSKeyFile  = filepath.Join(config.DefaultHomeDir, "https.key")
-	defaultRPCCertFile   = filepath.Join(config.DefaultHomeDir, "rpc.cert")
-	defaultCookieKeyFile = filepath.Join(config.DefaultHomeDir, "cookie.key")
-	defaultLogDir        = filepath.Join(config.DefaultHomeDir, defaultLogDirname)
+	defaultHomeDir       = config.DefaultHomeDir
+	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
+	defaultHTTPSKeyFile  = filepath.Join(defaultHomeDir, "https.key")
+	defaultRPCCertFile   = filepath.Join(defaultHomeDir, "rpc.cert")
+	defaultCookieKeyFile = filepath.Join(defaultHomeDir, "cookie.key")
+	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 
 	// Default start date to start pulling code statistics if none specified.
 	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
@@ -256,6 +264,45 @@ func loadIdentity(cfg *config.Config) error {
 	}
 
 	log.Infof("Identity loaded from: %v", cfg.RPCIdentityFile)
+	return nil
+}
+
+// validateEncryptionKeys validates the encryption keys config and returns
+// the keys' cleaned paths.
+func validateEncryptionKeys(encKey, oldEncKey string) error {
+	if encKey != "" && !util.FileExists(encKey) {
+		return fmt.Errorf("file not found %v", encKey)
+	}
+
+	if oldEncKey != "" {
+		switch {
+		case encKey == "":
+			return fmt.Errorf("old encryption key param " +
+				"cannot be used without encryption key param")
+
+		case encKey == oldEncKey:
+			return fmt.Errorf("old encryption key param " +
+				"and encryption key param must be different")
+
+		case !util.FileExists(oldEncKey):
+			return fmt.Errorf("file not found %v", oldEncKey)
+		}
+	}
+
+	return nil
+}
+
+// validateDBHost validates user database host.
+func validateDBHost(host string) error {
+	if host == "" {
+		return fmt.Errorf("dbhost param is required")
+	}
+
+	_, err := url.Parse(host)
+	if err != nil {
+		return fmt.Errorf("parse dbhost: %v", err)
+	}
+
 	return nil
 }
 
@@ -667,10 +714,8 @@ func loadConfig() (*config.Config, []string, error) {
 		}
 
 	case userDBCockroach:
-		// Cockroachdb required these settings
+		// Cockroachdb requires these settings.
 		switch {
-		case cfg.DBHost == "":
-			return nil, nil, fmt.Errorf("dbhost param is required")
 		case cfg.DBRootCert == "":
 			return nil, nil, fmt.Errorf("dbrootcert param is required")
 		case cfg.DBCert == "":
@@ -679,15 +724,33 @@ func loadConfig() (*config.Config, []string, error) {
 			return nil, nil, fmt.Errorf("dbkey param is required")
 		}
 
+		// Set default DBHost if not set.
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultCockroachDBHost
+		}
+
+		// Validate DB host.
+		err = validateDBHost(cfg.DBHost)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Set default encryption key path if not set.
+		if cfg.EncryptionKey == "" {
+			cfg.EncryptionKey = defaultEncryptionKey
+		}
+
 		// Clean user database settings
 		cfg.DBRootCert = util.CleanAndExpandPath(cfg.DBRootCert)
 		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
 		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
+		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
+		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
 
-		// Validate user database host
-		_, err = url.Parse(cfg.DBHost)
+		// Validate user database encryption keys.
+		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse dbhost: %v", err)
+			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
 		}
 
 		// Validate user database root cert
@@ -708,36 +771,47 @@ func loadConfig() (*config.Config, []string, error) {
 				"and dbkey: %v", err)
 		}
 
-		// Validate user database encryption keys
+	case userDBMySQL:
+		// The database password is provided in an env variable.
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
+				"the database password for the politeiawww user in the env " +
+				"variable DBPASS")
+		}
+
+		// Set default DBHost if not set.
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultMySQLDBHost
+		}
+
+		// Validate DB host.
+		err = validateDBHost(cfg.DBHost)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Set default encryption key path if not set.
+		if cfg.EncryptionKey == "" {
+			cfg.EncryptionKey = defaultEncryptionKey
+		}
+
+		// Clean encryption keys paths.
 		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
 		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
 
-		if cfg.EncryptionKey != "" && !util.FileExists(cfg.EncryptionKey) {
-			return nil, nil, fmt.Errorf("file not found %v", cfg.EncryptionKey)
-		}
-
-		if cfg.OldEncryptionKey != "" {
-			switch {
-			case cfg.EncryptionKey == "":
-				return nil, nil, fmt.Errorf("old encryption key param " +
-					"cannot be used without encryption key param")
-
-			case cfg.EncryptionKey == cfg.OldEncryptionKey:
-				return nil, nil, fmt.Errorf("old encryption key param " +
-					"and encryption key param must be different")
-
-			case !util.FileExists(cfg.OldEncryptionKey):
-				return nil, nil, fmt.Errorf("file not found %v", cfg.OldEncryptionKey)
-			}
+		// Validate user database encryption keys.
+		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
 		}
 
 	default:
 		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
-			"be either leveldb or cockroachdb", cfg.UserDB)
+			"be leveldb, cockroachdb or mysql", cfg.UserDB)
 	}
 
 	// Verify paywall settings
-
 	paywallIsEnabled := cfg.PaywallAmount != 0 || cfg.PaywallXpub != ""
 	if paywallIsEnabled {
 		// Parse extended public key

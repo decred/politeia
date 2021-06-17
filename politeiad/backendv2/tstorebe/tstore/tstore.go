@@ -27,7 +27,7 @@ const (
 	// store to a leveldb instance.
 	DBTypeLevelDB = "leveldb"
 
-	// DBTypeLevelDB is a config option that sets the backing key-value
+	// DBTypeMySQL is a config option that sets the backing key-value
 	// store to a MySQL instance.
 	DBTypeMySQL = "mysql"
 
@@ -227,7 +227,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 	case DBTypeMySQL:
 		// Example db name: testnet3_unvetted_kv
 		dbName := fmt.Sprintf("%v_kv", anp.Name)
-		kvstore, err = mysql.New(appDir, dbHost, dbUser, dbPass, dbName)
+		kvstore, err = mysql.New(dbHost, dbUser, dbPass, dbName)
 		if err != nil {
 			return nil, err
 		}

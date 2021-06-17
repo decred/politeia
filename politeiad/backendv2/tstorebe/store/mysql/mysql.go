@@ -14,6 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 
+	// MySQL driver.
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -278,7 +279,9 @@ func (s *mysql) Close() {
 	s.db.Close()
 }
 
-func New(appDir, host, user, password, dbname string) (*mysql, error) {
+// New connects to a mysql instance using the given connection params,
+// and returns pointer to the created mysql struct.
+func New(host, user, password, dbname string) (*mysql, error) {
 	// The password is required to derive the encryption key
 	if password == "" {
 		return nil, fmt.Errorf("password not provided")
