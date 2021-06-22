@@ -156,3 +156,13 @@ func (c *cmdLegacyTest) Execute(args []string) error {
 
 	return nil
 }
+
+// legacyTestHelpMsg is the printed to stdout by the help command.
+const legacyTestHelpMsg = `legacytest [flags] "adminemail" "adminpassword"
+
+Test the legacy API routes.
+
+Arguments:
+1. adminemail     (string, required)  Email for admin account.
+2. adminpassword  (string, required)  Password for admin account.
+`
