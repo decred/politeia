@@ -69,7 +69,7 @@ password of your root user. The politeiawwwpass is the password that will be
 set for the politeiawww user when it's created.
 
 ```
-$ cd $GOPATH/src/github.com/decred/politeia/scripts/userdb
+$ cd $GOPATH/src/github.com/decred/politeia/politeiawww/scripts/userdb
 $ env \
   MYSQL_ROOT_PASSWORD=rootpass \
   MYSQL_POLITEIAWWW_PASSWORD=politeiawwwpass \
@@ -146,6 +146,13 @@ must already be setup and running before you attempt to run politeiawww.
     ```
     $ politeiawww
     ```
+    
+    if politeiawww requires --fetchidentity flag
+    
+    ```
+    $ politeiawww --fetchidentity
+    ```
+    
 ## API
 
 The [politeiawww APIs](https://github.com/decred/politeia/tree/master/politeiawww/api/)
