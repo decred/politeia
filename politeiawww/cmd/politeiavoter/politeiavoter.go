@@ -1714,7 +1714,13 @@ func _main() error {
 func main() {
 	err := _main()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		// Print the error to stderr if the logs have not been
+		// setup yet.
+		if logRotator == nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		} else {
+			log.Error(err)
+		}
 		os.Exit(1)
 	}
 }
