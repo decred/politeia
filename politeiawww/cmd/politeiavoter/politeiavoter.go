@@ -1058,8 +1058,6 @@ func (c *ctx) vote(args []string) error {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
-	log.Debugf("-------- args: %v", args)
-
 	err := c._vote(args[0], args[1])
 	if err != nil {
 		return err
@@ -1110,8 +1108,6 @@ func (c *ctx) tally(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("tally: not enough arguments %v", args)
 	}
-
-	log.Debugf("-------- args: %v", args)
 
 	// Get server public key by calling version.
 	v, err := c.getVersion()
@@ -1614,8 +1610,6 @@ func (c *ctx) verifyVote(vote string) error {
 }
 
 func (c *ctx) verify(args []string) error {
-	log.Debugf("-------- args: %v", args)
-
 	// Override 0 to list all possible votes.
 	if len(args) == 0 {
 		fa, err := ioutil.ReadDir(c.cfg.voteDir)
