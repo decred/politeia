@@ -155,7 +155,7 @@ Proposal commands
   proposalpolicy          (public) Get the pi api policy
   proposalnew             (user)   Submit a new proposal
   proposaledit            (user)   Edit an existing proposal
-  proposalstatusset       (admin)  Set the status of a proposal
+  proposalsetstatus       (admin)  Set the status of a proposal
   proposaldetails         (public) Get a full proposal record
   proposaltimestamps      (public) Get timestamps for a proposal
   proposals               (public) Get proposals without their files

@@ -5,11 +5,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"strconv"
 
 	"decred.org/dcrwallet/rpc/walletrpc"
@@ -18,7 +16,6 @@ import (
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 // cmdCastBallot casts a ballot of votes.
@@ -123,14 +120,9 @@ func (c *cmdCastBallot) Execute(args []string) error {
 		passphrase = []byte(c.Password)
 	} else {
 		// Prompt user for password
-		for len(passphrase) == 0 {
-			printf("Enter the private passphrase of your wallet: ")
-			pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-			if err != nil {
-				return err
-			}
-			printf("\n")
-			passphrase = bytes.TrimSpace(pass)
+		passphrase, err = promptWalletPassword()
+		if err != nil {
+			return err
 		}
 	}
 

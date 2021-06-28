@@ -1,18 +1,24 @@
 # politeiaverify
 
-`politeiaverify` is a tool that allows anyone to independently verify the
-validity of data submitted to Politeia. This includes:
-- Verifying the censorship record of a record submission. A censorship record
-  provides cryptographic proof that a record was received by Politeia.
-- Verifying the receipts for non-record data (ex. comments). The receipts
-  provide cryptographic proof the non-record data was received by Politeia. 
-- Verifying user signatures. Anytime a user submits data to Politeia they must
-  sign the data using a key pair that is specific to the user. The public key
-  and signature is saved along with the data, providing cryptographic proof
+`politeiaverify` is a tool that allows anyone to independently verify data
+submitted to Politeia. This includes:
+
+- Censorship records - a user is provided with a censorship record whenever a
+  record is submitted or updated. A censorship record provides cryptographic
+  proof that a record was received by Politeia.
+
+- Plugin receipts - when plugin data is submitted, such as a new comment, a
+  receipt is returned by the server. The receipt provide cryptographic proof
+  that the data was received by politeia.
+
+- User signatures - anytime a user submits any type of data to Politeia they
+  must sign the data using a key that is specific to the user. The public key
+  and signature are saved along with the data, providing cryptographic proof
   that the data was submitted by the user.
-- Verifying timestamps. All data submitted to Politeia is timestamped onto
-  the Decred blockchain. A timestamp provides cryptographic proof that data
-  existed at block height x and has not been altered since then.
+
+- Timestamps - all data submitted to Politeia is timestamped onto the Decred
+  blockchain. A timestamp provides cryptographic proof that the data existed at
+  a specific block height and has not been altered since then.
 
 ## Usage
 
@@ -27,10 +33,9 @@ Options:
 
 ## Verifying politeiagui bundles
 
-Any of the file bundles that are available for download in politeiagui can be
-passed into `politeiaverify` directly. These files contain all the data needed
-to verify the contents. Listed below are the different files that can be
-verified using this tool.
+File bundles that are available for download in politeiagui can be passed
+directly into `politeiaverify`. These files contain everything needed to verify
+their contents. Files accepted by this tool are listed below.
 
 ```
 Record bundle     : [token]-[version].json

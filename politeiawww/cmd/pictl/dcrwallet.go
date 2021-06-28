@@ -5,12 +5,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"decred.org/dcrwallet/rpc/walletrpc"
+	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -46,4 +49,16 @@ func newDcrwalletClient(walletHost, walletCert, clientCert, clientKey string) (*
 		conn:   conn,
 		wallet: walletrpc.NewWalletServiceClient(conn),
 	}, nil
+}
+
+// promptWalletPassword prints a message to stdout prompting the user for their
+// wallet password then reads in the password from stdin.
+func promptWalletPassword() ([]byte, error) {
+	printf("Enter the private passphrase of your wallet: ")
+	pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return nil, err
+	}
+	printf("\n")
+	return bytes.TrimSpace(pass), nil
 }

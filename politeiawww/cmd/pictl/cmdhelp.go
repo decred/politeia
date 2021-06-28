@@ -135,10 +135,18 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", subscribeHelpMsg)
 
 	// Dev commands
-	case "testrun":
-		fmt.Printf("%s\n", testRunHelpMsg)
 	case "sendfaucettx":
 		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
+	case "testrun":
+		fmt.Printf("%s\n", testRunHelpMsg)
+	case "seedproposals":
+		fmt.Printf("%s\n", seedProposalsHelpMsg)
+	case "votetestsetup":
+		fmt.Printf("%s\n", voteTestSetupHelpMsg)
+	case "votetest":
+		fmt.Printf("%s\n", voteTestHelpMsg)
+	case "legacytest":
+		fmt.Printf("%s\n", legacyTestHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use the -h,--help flag to view the " +

@@ -1484,6 +1484,7 @@ func (cmd *cmdTestRun) Execute(args []string) error {
 }
 */
 
+// testRunHelpMsg is the printed to stdout by the help command.
 const testRunHelpMsg = `testrun "adminusername" "adminpassword"
 
 Run a series of tests on the politeiawww routes.  This command can only be run

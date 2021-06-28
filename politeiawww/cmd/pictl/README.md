@@ -2,7 +2,7 @@ pictl
 ====
 
 pictl is a command line tool that allows you to interact with the politeiawww
-pi API.
+API and has been configured to be a pi (Decred's proposal system) client.
 
 # Available Commands
 You can view the available commands and application options by using the help
@@ -143,7 +143,7 @@ commands. The censorship record token of the proposal example shown above is
 The proposal must first be vetted by an admin and have the proposal status set
 to public before it will be publicly viewable.
 
-    $ pictl proposalstatusset --unvetted [token] public
+    $ pictl proposalsetstatus [token] public
 
 Now that the proposal status has been made public, any user can comment on the
 proposal. Once the proposal author feels the discussion period was sufficient,
@@ -165,11 +165,14 @@ voting period at any point.
 
 ## Voting on a proposal
 
+Voting on a proposal can be done using either `pictl` or `politeiavoter`.
+`pictl` is for development uses only. `politeiavoter` should be used when
+voting on production proposals.
+
 ### politeiavoter
 
-Voting on a proposal can be done using the `politeiavoter` tool.
-
-[politeiavoter](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiavoter/)
+See the [politeiavoter](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiavoter/)
+documentation for more information on using `politeiavoter`.
 
 ### pictl
 
@@ -203,8 +206,19 @@ $ gencerts ~/.pictl/client{,-key}.pem
 $ cat ~/.pictl/client.pem >> ~/.dcrwallet/clients.pem
 ```
 
-# Reference implementation
+# Dev commands
 
-The pictl `testrun` command runs a series of tests on all of the politeiawww pi
-API routes.  This command can be used as a reference implementation for the pi
-API.
+`pictl` comes with commands that are useful during development. 
+
+`seedproposals` seeds the backend with users, proposals, comments, and comment
+upvotes/downvotes.
+
+    $ pictl seedproposals email@example.com password
+
+`votetestsetup` and `votetest` can be used to setup a batch of proposal votes
+then to vote on them using your eligible tickets.
+
+    $ pictl votetestsetup email@example.com password
+    $ pictl votetest
+
+Print the help message, `pictl -h`, to see a full list of these dev commands.
