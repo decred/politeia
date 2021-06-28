@@ -51,7 +51,7 @@ func (p *Pi) mailNtfnProposalNew(token, name, username string, emails []string) 
 		Link:     u.String(),
 	}
 
-	subject := "New Proposal Submitted " + token
+	subject := "New Proposal Submitted " + name
 	body, err := populateTemplate(proposalNewTmpl, tmplData)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username s
 		Link:     u.String(),
 	}
 
-	subject := "Proposal Edited " + token
+	subject := "Proposal Edited " + name
 	body, err := populateTemplate(proposalEditTmpl, tmplData)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func (p *Pi) mailNtfnProposalSetStatus(token, name string, status rcv1.RecordSta
 	)
 	switch status {
 	case rcv1.RecordStatusPublic:
-		subject = "New Proposal Published " + token
+		subject = "New Proposal Published " + name
 		tmplData := proposalPublished{
 			Name: name,
 			Link: u.String(),
@@ -207,7 +207,7 @@ func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.R
 		}
 
 	case rcv1.RecordStatusCensored:
-		subject = "Your Proposal Has Been Censored " + token
+		subject = "Your Proposal Has Been Censored " + name
 		tmplData := proposalCensoredToAuthor{
 			Name:   name,
 			Reason: reason,
@@ -250,7 +250,7 @@ func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, 
 		return err
 	}
 
-	subject := "New Comment On Your Proposal " + token
+	subject := "New Comment On Your Proposal " + proposalName
 	tmplData := commentNewToProposalAuthor{
 		Username: commentUsername,
 		Name:     proposalName,
@@ -289,7 +289,7 @@ func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsernam
 		return err
 	}
 
-	subject := "New Reply To Your Comment " + token
+	subject := "New Reply To Your Comment " + proposalName
 	tmplData := commentReply{
 		Username: commentUsername,
 		Name:     proposalName,
@@ -325,7 +325,7 @@ func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
 		return err
 	}
 
-	subject := "Proposal Vote Authorized " + token
+	subject := "Proposal Vote Authorized " + name
 	tmplData := voteAuthorized{
 		Name: name,
 		Link: u.String(),
@@ -360,7 +360,7 @@ func (p *Pi) mailNtfnVoteStarted(token, name string, emails []string) error {
 		return err
 	}
 
-	subject := "Voting Started for Proposal " + token
+	subject := "Voting Started for Proposal " + name
 	tmplData := voteStarted{
 		Name: name,
 		Link: u.String(),
@@ -395,7 +395,7 @@ func (p *Pi) mailNtfnVoteStartedToAuthor(token, name, email string) error {
 		return err
 	}
 
-	subject := "Voting Has Started On Your Proposal " + token
+	subject := "Voting Has Started On Your Proposal " + name
 	tmplData := voteStartedToAuthor{
 		Name: name,
 		Link: u.String(),
