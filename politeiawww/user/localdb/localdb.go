@@ -3,6 +3,7 @@ package localdb
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -91,15 +92,54 @@ func (l *localdb) UserNew(u user.User) error {
 	u.PaywallAddressIndex = lastPaywallIndex
 
 	// Write the new paywall index back to the db.
-	b = make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, lastPaywallIndex)
-	err = l.userdb.Put([]byte(LastPaywallAddressIndex), b, nil)
+	err = l.SetPaywallAddressIndex(lastPaywallIndex)
 	if err != nil {
 		return err
 	}
 
 	// Set unique uuid for the user.
 	u.ID = uuid.New()
+
+	payload, err := user.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	return l.userdb.Put([]byte(u.Email), payload, nil)
+}
+
+// SetPaywallAddressIndex updates the paywall address index.
+func (l *localdb) SetPaywallAddressIndex(index uint64) error {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, index)
+	if err := l.userdb.Put([]byte(LastPaywallAddressIndex), b, nil); err != nil {
+		return fmt.Errorf("error updating paywall index: %v", err)
+	}
+	return nil
+}
+
+// InsertUser inserts a user record into the database. The record must be a
+// complete user record and the user must not already exist. This function is
+// intended to be used for migrations between databases.
+//
+// InsertUser satisfies the Database interface.
+func (l *localdb) InsertUser(u user.User) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	log.Debugf("InsertUser: %v", u)
+
+	// Make sure user does not exist
+	ok, err := l.userdb.Has([]byte(u.Email), nil)
+	if err != nil {
+		return err
+	} else if ok {
+		return user.ErrUserExists
+	}
 
 	payload, err := user.EncodeUser(u)
 	if err != nil {
@@ -370,6 +410,12 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	iter.Release()
 
 	return iter.Error()
+}
+
+// RotateKeys is an empty stub to satisfy the user.Database insterface.
+// Localdb implementation does not use encryption.
+func (l *localdb) RotateKeys(_ string) error {
+	return nil
 }
 
 // PluginExec executes the provided plugin command.

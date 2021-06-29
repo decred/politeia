@@ -14,16 +14,27 @@ import (
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
 
+// cmdVoteTest casts all eligible tickets in the user's wallet on all ongoing
+// votes.
 type cmdVoteTest struct {
-	Args struct {
-		Password string `positional-arg-name:"password"`
-	} `positional-args:"true" required:"true"`
+	Password string `long:"password" optional:"true"`
 }
 
 // Execute executes the cmdVoteTest command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteTest) Execute(args []string) error {
+	// Prompt the user for their password if they haven't already
+	// provided it.
+	password := c.Password
+	if password == "" {
+		pass, err := promptWalletPassword()
+		if err != nil {
+			return err
+		}
+		password = string(pass)
+	}
+
 	// We don't want the output of individual commands printed.
 	cfg.Verbose = false
 	cfg.RawJSON = false
@@ -80,7 +91,7 @@ func (c *cmdVoteTest) Execute(args []string) error {
 
 			fmt.Printf("%v elapsed time %v\n", token, elapsed)
 
-		}(&wg, v, voteOption, c.Args.Password)
+		}(&wg, v, voteOption, password)
 	}
 
 	wg.Wait()
@@ -114,3 +125,18 @@ func castBallot(token, voteID, password string) error {
 	c.Args.VoteID = voteID
 	return c.Execute(nil)
 }
+
+// voteTestHelpMsg is the printed to stdout by the help command.
+const voteTestHelpMsg = `votetest [flags]
+
+Cast dcr ticket votes on all ongoing proposal votes. This command will randomly
+select a vote option and cast all eligible tickets for that option.
+
+dcrwallet must be running on localhost and listening on the default dcrwallet
+port.
+
+Flags:
+ --password (string, required) dcrwallet password. The user will be prompted
+                               for their password if one is not provided using
+                               this flag.
+`

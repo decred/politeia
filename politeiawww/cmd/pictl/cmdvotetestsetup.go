@@ -8,15 +8,18 @@ import (
 	"fmt"
 )
 
+// cmdVoteTestSetup sets up a batch of proposal votes.
 type cmdVoteTestSetup struct {
 	Args struct {
-		AdminEmail       string `positional-arg-name:"adminemail" required:"true"`
-		AdminPassword    string `positional-arg-name:"adminpassword" required:"true"`
-		Votes            uint32 `positional-arg-name:"votes"`
-		Duration         uint32 `positional-arg-name:"duration"`
-		QuorumPercentage uint32 `positional-arg-name:"quorumpercentage"`
-		PassPercentage   uint32 `positional-arg-name:"passpercentage"`
+		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
+		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
 	} `positional-args:"true"`
+
+	// Options to adjust the vote params.
+	Votes            uint32 `long:"votes" optional:"true"`
+	Duration         uint32 `long:"duration" optional:"true"`
+	QuorumPercentage uint32 `long:"quorumpercentage" optional:"true"`
+	PassPercentage   uint32 `long:"passpercentage" optional:"true"`
 
 	// IncludeImages is used to include a random number of images when
 	// submitting proposals.
@@ -34,17 +37,17 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		quorum   uint32 = 1  // Percentage of total tickets
 		pass     uint32 = 50 // Percentage of votes cast
 	)
-	if c.Args.Votes > 0 {
-		votes = c.Args.Votes
+	if c.Votes > 0 {
+		votes = c.Votes
 	}
-	if c.Args.Duration > 0 {
-		duration = c.Args.Duration
+	if c.Duration > 0 {
+		duration = c.Duration
 	}
-	if c.Args.QuorumPercentage > 0 {
-		quorum = c.Args.QuorumPercentage
+	if c.QuorumPercentage > 0 {
+		quorum = c.QuorumPercentage
 	}
-	if c.Args.PassPercentage > 0 {
-		pass = c.Args.PassPercentage
+	if c.PassPercentage > 0 {
+		pass = c.PassPercentage
 	}
 
 	// We don't want the output of individual commands printed.
@@ -164,3 +167,25 @@ func voteStart(admin user, token string, duration, quorum, pass uint32) error {
 
 	return nil
 }
+
+// voteTestSetupHelpMsg is the printed to stdout by the help command.
+const voteTestSetupHelpMsg = `votetestsetup [flags] "adminemail" "adminpassword"
+
+Setup a batch of proposal votes. This command submits the specified number of
+proposals, makes them public, then starts the voting period on each one.
+
+Arguments:
+1. adminemail     (string, required)  Email for admin account.
+2. adminpassword  (string, required)  Password for admin account.
+
+Flags
+ --votes         (uint32) Number of votes to start. (default: 10)
+ --duration      (uint32) Duration of each vote in blocks. (default: 6)
+ --quorum        (uint32) Percent of total votes required to reach a quorum.
+                          (default: 1)
+ --pass          (uint32) Percent of votes cast required for the vote to be
+                          approved. (default: 50)
+ --includeimages (bool)   Include images in proposal submissions. This will
+                          substantially increase the size of the proposal
+                          payload.
+`

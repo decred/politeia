@@ -17,18 +17,25 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// cmdSeedProposals seeds the backend with randomly generated users, proposals,
+// comments, and comment votes.
 type cmdSeedProposals struct {
 	Args struct {
 		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
 		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
-		Users         int    `positional-arg-name:"users"`
-		Proposals     int    `positional-arg-name:"proposals"`
-		Comments      *int   `positional-arg-name:"comments"`
-		CommentVotes  *int   `positional-arg-name:"commentvotes"`
 	} `positional-args:"true"`
 
-	// IncludeImages is used to include a random number of images when
-	// submitting proposals.
+	// Options to adjust the quantity being seeded. Default values are
+	// used when these flags are not provided. Pointers are used when
+	// a value of 0 is allowed.
+	Users        uint32  `long:"users" optional:"true"`
+	Proposals    uint32  `long:"proposals" optional:"true"`
+	Comments     *uint32 `long:"comments" optional:"true"`
+	CommentVotes *uint32 `long:"commentvotes" optional:"true"`
+
+	// IncludeImages is used to include image attachments in the
+	// proposal submissions. Each proposal will contain a random number
+	// of randomly generated images when this flag is used.
 	IncludeImages bool `long:"includeimages"`
 }
 
@@ -38,25 +45,25 @@ type cmdSeedProposals struct {
 func (c *cmdSeedProposals) Execute(args []string) error {
 	// Setup default parameters
 	var (
-		userCount               = 10
-		proposalCount           = 25
-		commentsPerProposal     = 150
-		commentSize             = 32 // In characters
-		commentVotesPerProposal = 500
+		userCount               uint32 = 10
+		proposalCount           uint32 = 25
+		commentsPerProposal     uint32 = 150
+		commentSize             uint32 = 32 // In characters
+		commentVotesPerProposal uint32 = 500
 
 		includeImages = c.IncludeImages
 	)
-	if c.Args.Users != 0 {
-		userCount = c.Args.Users
+	if c.Users != 0 {
+		userCount = c.Users
 	}
-	if c.Args.Proposals != 0 {
-		proposalCount = c.Args.Proposals
+	if c.Proposals != 0 {
+		proposalCount = c.Proposals
 	}
-	if c.Args.Comments != nil {
-		commentsPerProposal = *c.Args.Comments
+	if c.Comments != nil {
+		commentsPerProposal = *c.Comments
 	}
-	if c.Args.CommentVotes != nil {
-		commentVotesPerProposal = *c.Args.CommentVotes
+	if c.CommentVotes != nil {
+		commentVotesPerProposal = *c.CommentVotes
 	}
 
 	// We don't want the output of individual commands printed.
@@ -103,7 +110,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 
 	// Setup users
 	users := make([]user, 0, userCount)
-	for i := 0; i < userCount; i++ {
+	for i := 0; i < int(userCount); i++ {
 		log := fmt.Sprintf("Creating user %v/%v", i+1, userCount)
 		printInPlace(log)
 
@@ -151,7 +158,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 		// These will be used when we add comments to the proposals.
 		public = make([]string, 0, proposalCount)
 	)
-	for i := 0; i < proposalCount; i++ {
+	for i := 0; i < int(proposalCount); i++ {
 		// Select a random user
 		r := rand.Intn(len(users))
 		u := users[r]
@@ -296,7 +303,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 
 	// Setup comments
 	for i, token := range public {
-		for j := 0; j < commentsPerProposal; j++ {
+		for j := 0; j < int(commentsPerProposal); j++ {
 			log := fmt.Sprintf("Submitting comments for proposal %v/%v, "+
 				"comment %v/%v", i+1, len(public), j+1, commentsPerProposal)
 			printInPlace(log)
@@ -325,7 +332,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 			}
 
 			// Create random comment
-			b, err := util.Random(commentSize / 2)
+			b, err := util.Random(int(commentSize) / 2)
 			if err != nil {
 				return err
 			}
@@ -360,7 +367,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 			needToLogin bool   = true
 			commentID   uint32 = 1
 		)
-		for j := 0; j < commentVotesPerProposal; j++ {
+		for j := 0; j < int(commentVotesPerProposal); j++ {
 			log := fmt.Sprintf("Submitting comment votes for proposal %v/%v, "+
 				"comment %v/%v", i+1, len(public), j+1, commentVotesPerProposal)
 			printInPlace(log)
@@ -832,3 +839,27 @@ func commentVote(u user, token string, commentID uint32, vote string) error {
 
 	return nil
 }
+
+// seedProposalsHelpMsg is the printed to stdout by the help command.
+const seedProposalsHelpMsg = `seedproposals [flags] "adminemail" "adminpassword"
+
+Seed the backend with randomly generated users, proposals, comments, and
+comment votes.
+
+Arguments:
+1. adminemail     (string, required)  Email for admin account.
+2. adminpassword  (string, required)  Password for admin account.
+
+Flags:
+ --users         (uint32) Number of users to seed the backend with.
+                          (default: 10)
+ --proposals     (uint32) Number of proposals to seed the backend with.
+                          (default: 25)
+ --comments      (uint32) Number of comments that will be made on each
+                          proposal. (default: 150)
+ --commentvotes  (uint32) Number of comment upvotes/downvotes that will be cast
+                          on each proposal. (default: 500)
+ --includeimages (bool)   Include images in proposal submissions. This will
+                          substantially increase the size of the proposal
+                          payload.
+`

@@ -357,15 +357,20 @@ func (c *ctx) makeRequest(method, api, route string, b interface{}) ([]byte, err
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
 	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
 
-	if r.StatusCode != http.StatusOK {
-		var ue v1.UserError
+	switch r.StatusCode {
+	case http.StatusOK:
+		// Nothing to do. Continue.
+	case http.StatusBadRequest:
+		// The error was caused by the client. These will result in
+		// the same error every time so should not be retried.
+		var ue tkv1.UserErrorReply
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil && ue.ErrorCode != 0 {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				v1.ErrorStatus[ue.ErrorCode],
-				strings.Join(ue.ErrorContext, ", "))
+				tkv1.ErrorCodes[ue.ErrorCode], ue.ErrorContext)
 		}
-
+	default:
+		// Retry all other errors
 		return nil, ErrRetry{
 			At:   "r.StatusCode != http.StatusOK",
 			Err:  err,
@@ -1709,7 +1714,13 @@ func _main() error {
 func main() {
 	err := _main()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		// Print the error to stderr if the logs have not been
+		// setup yet.
+		if logRotator == nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		} else {
+			log.Error(err)
+		}
 		os.Exit(1)
 	}
 }

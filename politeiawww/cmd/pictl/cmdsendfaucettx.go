@@ -48,7 +48,7 @@ func (c *cmdSendFaucetTx) Execute(args []string) error {
 	return nil
 }
 
-// sendFaucetTxHelpMsg is the help command message.
+// sendFaucetTxHelpMsg is the printed to stdout by the help command.
 const sendFaucetTxHelpMsg = `sendfaucettx "address" "amount" "overridetoken"
 
 Use the Decred testnet faucet to send DCR (in atoms) to an address. One atom is

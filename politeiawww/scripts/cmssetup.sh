@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# This script sets up the CockroachDB databases for the politeiawww user data
-# and assigns user privileges.
+
+# This script sets up the CockroachDB databases and assigns user privileges.
 # This script requires that you have already created CockroachDB certificates
 # using the cockroachcerts.sh script and that you have a CockroachDB instance
 # listening on the default port localhost:26257.
@@ -28,14 +28,16 @@ elif [ ! -f "${ROOT_CERTS_DIR}/ca.crt" ]; then
   exit
 fi
 
-# Database names
-readonly DB_MAINNET="users_mainnet"
-readonly DB_TESTNET="users_testnet3"
+# Database names.
+readonly DB_MAINNET="cms_mainnet"
+readonly DB_TESTNET="cms_testnet3"
 
-# Database usernames
-readonly USER_POLITEIAWWW="politeiawww"
+readonly GITHUB_TRACKER="ghtracker"
 
-# Create the mainnet and testnet databases for the politeiawww user data.
+# Database usernames.
+readonly 	USER_POLITEIAWWW="politeiawww" 
+
+# Create the mainnet and testnet databases for the cms database.
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "CREATE DATABASE IF NOT EXISTS ${DB_MAINNET}"
@@ -44,7 +46,7 @@ cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "CREATE DATABASE IF NOT EXISTS ${DB_TESTNET}"
 
-# Create politeiawww user and assign privileges.
+# Create the politeiawww user and assign privileges.
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "CREATE USER IF NOT EXISTS ${USER_POLITEIAWWW}"
@@ -58,3 +60,14 @@ cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
   ON DATABASE ${DB_TESTNET} TO  ${USER_POLITEIAWWW}"
+
+# Create the code tracker database that contains pullrequest and review
+# information from gihtub.
+cockroach sql \
+  --certs-dir="${ROOT_CERTS_DIR}" \
+  --execute "CREATE DATABASE IF NOT EXISTS ${GITHUB_TRACKER}"
+
+cockroach sql \
+  --certs-dir="${ROOT_CERTS_DIR}" \
+  --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
+  ON DATABASE ${GITHUB_TRACKER} TO  ${USER_POLITEIAWWW}"

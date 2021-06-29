@@ -40,6 +40,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
+	"github.com/decred/politeia/politeiawww/user/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/decred/politeia/wsdcrdata"
@@ -609,7 +610,7 @@ func _main() error {
 		}
 		userDB = db
 
-	case userDBCockroach:
+	case userDBMySQL, userDBCockroach:
 		// If old encryption key is set it means that we need
 		// to open a db connection using the old key and then
 		// rotate keys.
@@ -620,19 +621,25 @@ func _main() error {
 			encryptionKey = loadedCfg.EncryptionKey
 		}
 
-		// Open db connection
+		// Open db connection.
 		network := filepath.Base(loadedCfg.DataDir)
-		db, err := cockroachdb.New(loadedCfg.DBHost, network,
-			loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
-			encryptionKey)
-		if err != nil {
-			return fmt.Errorf("new cockroachdb: %v", err)
+		var err error
+		switch loadedCfg.UserDB {
+		case userDBMySQL:
+			userDB, err = mysql.New(loadedCfg.DBHost, loadedCfg.DBPass, network,
+				encryptionKey)
+		case userDBCockroach:
+			userDB, err = cockroachdb.New(loadedCfg.DBHost, network,
+				loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
+				encryptionKey)
 		}
-		userDB = db
+		if err != nil {
+			return fmt.Errorf("new %v db: %v", loadedCfg.UserDB, err)
+		}
 
-		// Rotate keys
+		// Rotate keys.
 		if loadedCfg.OldEncryptionKey != "" {
-			err = db.RotateKeys(loadedCfg.EncryptionKey)
+			err = userDB.RotateKeys(loadedCfg.EncryptionKey)
 			if err != nil {
 				return fmt.Errorf("rotate userdb keys: %v", err)
 			}

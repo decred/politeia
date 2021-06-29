@@ -18,6 +18,7 @@ import (
 	"github.com/google/trillian"
 	tmerkle "github.com/google/trillian/merkle"
 	"github.com/google/trillian/merkle/hashers/registry"
+	_ "github.com/google/trillian/merkle/rfc6962"
 )
 
 const (

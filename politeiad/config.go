@@ -537,39 +537,17 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("RPC password not set, using random value")
 	}
 
-	// Verify backend type
+	// Verify backend specific settings
 	switch cfg.Backend {
-	case backendGit, backendTstore:
-		// Allowed; continue
+	case backendGit:
+		// Nothing to do
+	case backendTstore:
+		err = verifyTstoreSettings(&cfg)
+		if err != nil {
+			return nil, nil, err
+		}
 	default:
 		return nil, nil, fmt.Errorf("invalid backend type '%v'", cfg.Backend)
-	}
-
-	// Verify tstore backend database choice
-	switch cfg.DBType {
-	case tstorebe.DBTypeLevelDB:
-		// Allowed; continue
-	case tstorebe.DBTypeMySQL:
-		// The database password is provided in an env variable
-		cfg.DBPass = os.Getenv(envDBPass)
-		if cfg.DBPass == "" {
-			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
-				"the database password for the politeiad user in the env " +
-				"variable DBPASS")
-		}
-	}
-
-	// Verify tlog options
-	_, err = url.Parse(cfg.TlogHost)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid tlog host '%v': %v",
-			cfg.TlogHost, err)
-	}
-	cfg.TlogPass = os.Getenv(envTlogPass)
-	if cfg.TlogPass == "" {
-		return nil, nil, fmt.Errorf("tlogpass not found: a tlog "+
-			"password that will be used to derive the tlog signing key "+
-			"must be provided in the env variable %v", envTlogPass)
 	}
 
 	// Warn about missing config file only after all other configuration is
@@ -580,4 +558,36 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	return &cfg, remainingArgs, nil
+}
+
+// verifyTstoreSettings verifies the config settings that are specific to the
+// tstore backend.
+func verifyTstoreSettings(cfg *config) error {
+	// Verify tstore backend database choice
+	switch cfg.DBType {
+	case tstorebe.DBTypeLevelDB:
+		// Allowed; continue
+	case tstorebe.DBTypeMySQL:
+		// The database password is provided in an env variable
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return fmt.Errorf("dbpass not found; you must provide the " +
+				"database password for the politeiad user in the env " +
+				"variable DBPASS")
+		}
+	}
+
+	// Verify tlog options
+	_, err := url.Parse(cfg.TlogHost)
+	if err != nil {
+		return fmt.Errorf("invalid tlog host '%v': %v", cfg.TlogHost, err)
+	}
+	cfg.TlogPass = os.Getenv(envTlogPass)
+	if cfg.TlogPass == "" {
+		return fmt.Errorf("tlogpass not found: a tlog password that "+
+			"be used to derive the tlog signing key must be provided in "+
+			"the env variable %v", envTlogPass)
+	}
+
+	return nil
 }

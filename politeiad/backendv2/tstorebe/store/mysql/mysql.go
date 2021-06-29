@@ -15,6 +15,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 
+	// MySQL driver.
 	_ "github.com/go-sql-driver/mysql"
 )
 
