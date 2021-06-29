@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 	"github.com/subosito/gozaru"
 )
 
@@ -339,7 +340,7 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	defer cancel()
 
 	// Call pre plugin hooks
-	pre := plugins.HookNewRecordPre{
+	pre := plugins.RecordNew{
 		Metadata: metadata,
 		Files:    files,
 	}
@@ -347,7 +348,7 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHook(tx, plugins.HookTypeNewRecordPre, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordNewPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -372,16 +373,16 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	}
 
 	// Call post plugin hooks
-	post := plugins.HookNewRecordPost{
+	post := plugins.RecordNew{
 		Metadata:       metadata,
 		Files:          files,
-		RecordMetadata: *rm,
+		RecordMetadata: rm,
 	}
 	b, err = json.Marshal(post)
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHook(tx, plugins.HookTypeNewRecordPost, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordNewPost, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -397,19 +398,14 @@ func (t *tstoreBackend) RecordNew(metadata []backend.MetadataStream, files []bac
 	if err != nil {
 		if err2 := tx.Rollback(); err2 != nil {
 			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
-				err, err2))
+			panic(fmt.Sprintf("rollback tx failed: "+
+				"commit:'%v' rollback:'%v'", err, err2))
 		}
 		return nil, err
 	}
 
-	// Get the full record to return
-	r, err := t.tstore.RecordLatest(token)
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
+	// Return the full record
+	return t.tstore.RecordLatest(token)
 }
 
 // RecordEdit edits an existing record. This creates a new version of the
@@ -441,10 +437,7 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	// Get existing record
 	r, err := t.tstore.TxRecordLatest(tx, token)
 	if err != nil {
-		if err == backend.ErrRecordNotFound {
-			return nil, err
-		}
-		return nil, fmt.Errorf("RecordLatest: %v", err)
+		return nil, err
 	}
 
 	// Apply changes
@@ -468,17 +461,17 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	}
 
 	// Call pre plugin hooks
-	her := plugins.HookEditRecord{
+	re := plugins.RecordEdit{
 		Record:         *r,
 		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 		Files:          files,
 	}
-	b, err := json.Marshal(her)
+	b, err := json.Marshal(re)
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(tx, plugins.HookTypeEditRecordPre, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordEditPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -486,35 +479,28 @@ func (t *tstoreBackend) RecordEdit(token []byte, mdAppend, mdOverwrite []backend
 	// Save record
 	err = t.tstore.RecordSave(tx, token, *recordMD, metadata, files)
 	if err != nil {
-		switch err {
-		case backend.ErrRecordLocked:
-			return nil, err
-		default:
-			return nil, fmt.Errorf("RecordSave: %v", err)
-		}
+		return nil, err
 	}
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(tx, plugins.HookTypeEditRecordPost, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordEditPost, string(b))
+	if err != nil {
+		return nil, err
+	}
 
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
 		if err2 := tx.Rollback(); err2 != nil {
 			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
-				err, err2))
+			panic(fmt.Sprintf("rollback tx failed: "+
+				"commit:'%v' rollback:'%v'", err, err2))
 		}
-		return nil, fmt.Errorf("commit tx: %v", err)
+		return nil, err
 	}
 
-	// Get the updated record to return
-	r, err = t.tstore.RecordLatest(token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest: %v", err)
-	}
-
-	return r, nil
+	// Return the updated record
+	return t.tstore.RecordLatest(token)
 }
 
 // RecordEditMetadata edits the metadata of a record without changing any
@@ -549,7 +535,7 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 		if err == backend.ErrRecordNotFound {
 			return nil, err
 		}
-		return nil, fmt.Errorf("RecordLatest: %v", err)
+		return nil, err
 	}
 
 	// Apply changes. The version is not incremented for metadata only
@@ -565,15 +551,15 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	}
 
 	// Call pre plugin hooks
-	hem := plugins.HookEditMetadata{
+	em := plugins.RecordEditMetadata{
 		Record:   *r,
 		Metadata: metadata,
 	}
-	b, err := json.Marshal(hem)
+	b, err := json.Marshal(em)
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(tx, plugins.HookTypeEditMetadataPre, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordEditMetadataPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -581,35 +567,28 @@ func (t *tstoreBackend) RecordEditMetadata(token []byte, mdAppend, mdOverwrite [
 	// Update metadata
 	err = t.tstore.RecordSave(tx, token, *recordMD, metadata, r.Files)
 	if err != nil {
-		switch err {
-		case backend.ErrRecordLocked, backend.ErrNoRecordChanges:
-			return nil, err
-		default:
-			return nil, fmt.Errorf("RecordSave: %v", err)
-		}
+		return nil, err
 	}
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(tx, plugins.HookTypeEditMetadataPost, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordEditMetadataPost, string(b))
+	if err != nil {
+		return nil, err
+	}
 
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
 		if err2 := tx.Rollback(); err2 != nil {
 			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
-				err, err2))
+			panic(fmt.Sprintf("rollback tx failed: "+
+				"commit:'%v' rollback:'%v'", err, err2))
 		}
-		return nil, fmt.Errorf("commit tx: %v", err)
+		return nil, err
 	}
 
 	// Return updated record
-	r, err = t.tstore.RecordLatest(token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest: %v", err)
-	}
-
-	return r, nil
+	return t.tstore.RecordLatest(token)
 }
 
 var (
@@ -654,7 +633,7 @@ func (t *tstoreBackend) setStatusArchived(tx store.Tx, token []byte, rm backend.
 	// Freeze record
 	err := t.tstore.RecordFreeze(tx, token, rm, metadata)
 	if err != nil {
-		return fmt.Errorf("RecordFreeze: %v", err)
+		return err
 	}
 
 	log.Debugf("Record frozen %x", token)
@@ -671,7 +650,7 @@ func (t *tstoreBackend) setStatusCensored(tx store.Tx, token []byte, rm backend.
 	// Freeze the tree
 	err := t.tstore.RecordFreeze(tx, token, rm, metadata)
 	if err != nil {
-		return fmt.Errorf("RecordFreeze: %v", err)
+		return err
 	}
 
 	log.Debugf("Record frozen %x", token)
@@ -679,7 +658,7 @@ func (t *tstoreBackend) setStatusCensored(tx store.Tx, token []byte, rm backend.
 	// Delete all record files
 	err = t.tstore.RecordDel(tx, token)
 	if err != nil {
-		return fmt.Errorf("RecordDel: %v", err)
+		return err
 	}
 
 	log.Debugf("Record contents deleted %x", token)
@@ -703,10 +682,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	// Get existing record
 	r, err := t.tstore.TxRecordLatest(tx, token)
 	if err != nil {
-		if err == backend.ErrRecordNotFound {
-			return nil, err
-		}
-		return nil, fmt.Errorf("RecordLatest: %v", err)
+		return nil, err
 	}
 	currStatus := r.RecordMetadata.Status
 
@@ -742,17 +718,16 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	metadata := metadataStreamsUpdate(r.Metadata, mdAppend, mdOverwrite)
 
 	// Call pre plugin hooks
-	hsrs := plugins.HookSetRecordStatus{
+	rss := plugins.RecordSetStatus{
 		Record:         *r,
 		RecordMetadata: *recordMD,
 		Metadata:       metadata,
 	}
-	b, err := json.Marshal(hsrs)
+	b, err := json.Marshal(rss)
 	if err != nil {
 		return nil, err
 	}
-	err = t.tstore.PluginHookPre(tx,
-		plugins.HookTypeSetRecordStatusPre, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordSetStatusPre, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -776,7 +751,7 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		}
 	default:
 		// Should not happen
-		return nil, fmt.Errorf("unknown status %v", status)
+		return nil, errors.Errorf("unknown status %v", status)
 	}
 
 	log.Debugf("Status updated %x from %v (%v) to %v (%v)",
@@ -784,16 +759,25 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 		backend.Statuses[status], status)
 
 	// Call post plugin hooks
-	t.tstore.PluginHookPost(tx, plugins.HookTypeSetRecordStatusPost, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookRecordSetStatusPost, string(b))
+	if err != nil {
+		return nil, err
+	}
 
 	// Update inventory cache
 	switch status {
 	case backend.StatusPublic:
 		// The state is updated to vetted when a record is made public
-		t.invMoveToVetted(tx, token, r.RecordMetadata.Timestamp)
+		err = t.invMoveToVetted(tx, token, r.RecordMetadata.Timestamp)
+		if err != nil {
+			return nil, err
+		}
 	default:
-		t.invUpdate(tx, r.RecordMetadata.State, token,
+		err = t.invUpdate(tx, r.RecordMetadata.State, token,
 			status, r.RecordMetadata.Timestamp)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Commit the tstore transaction
@@ -801,19 +785,14 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 	if err != nil {
 		if err2 := tx.Rollback(); err2 != nil {
 			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
-				err, err2))
+			panic(fmt.Sprintf("rollback tx failed: "+
+				"commit:'%v' rollback:'%v'", err, err2))
 		}
-		return nil, fmt.Errorf("commit tx: %v", err)
+		return nil, err
 	}
 
 	// Return updated record
-	r, err = t.tstore.RecordLatest(token)
-	if err != nil {
-		return nil, fmt.Errorf("RecordLatest: %v", err)
-	}
-
-	return r, nil
+	return t.tstore.RecordLatest(token)
 }
 
 // RecordExists returns whether a record exists.
@@ -922,18 +901,15 @@ func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, 
 func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
 	log.Tracef("InventoryOrdered: %v %v %v", state, pageSize, pageNumber)
 
-	tokens, err := t.invOrdered(t.kv, state, pageSize, pageNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	return tokens, nil
+	return t.invOrdered(t.kv, state, pageSize, pageNumber)
 }
 
 // PluginRegister registers a plugin.
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginRegister(p backend.Plugin) error {
+	log.Tracef("PluginRegister: %v %v", p.ID, p.Settings)
+
 	return t.tstore.PluginRegister(t, p)
 }
 
@@ -984,17 +960,17 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	defer cancel()
 
 	// Call pre plugin hooks
-	hp := plugins.HookPluginPre{
+	pw := plugins.PluginWrite{
 		Token:    token,
 		PluginID: pluginID,
 		Cmd:      pluginCmd,
 		Payload:  payload,
 	}
-	b, err := json.Marshal(hp)
+	b, err := json.Marshal(pw)
 	if err != nil {
 		return "", err
 	}
-	err = t.tstore.PluginHookPre(tx, plugins.HookTypePluginPre, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookPluginWritePre, string(b))
 	if err != nil {
 		return "", err
 	}
@@ -1006,27 +982,30 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	}
 
 	// Call post plugin hooks
-	hpp := plugins.HookPluginPost{
+	pw = plugins.PluginWrite{
 		PluginID: pluginID,
 		Cmd:      pluginCmd,
 		Payload:  payload,
 		Reply:    reply,
 	}
-	b, err = json.Marshal(hpp)
+	b, err = json.Marshal(pw)
 	if err != nil {
 		return "", err
 	}
-	t.tstore.PluginHookPost(tx, plugins.HookTypePluginPost, string(b))
+	err = t.tstore.PluginHook(tx, plugins.HookPluginWritePost, string(b))
+	if err != nil {
+		return "", err
+	}
 
 	// Commit the tstore transaction
 	err = tx.Commit()
 	if err != nil {
 		if err2 := tx.Rollback(); err2 != nil {
 			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
-				err, err2))
+			panic(fmt.Sprintf("rollback tx failed: "+
+				"commit:'%v' rollback:'%v'", err, err2))
 		}
-		return "", fmt.Errorf("commit tx: %v", err)
+		return "", err
 	}
 
 	return reply, nil
@@ -1036,7 +1015,7 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginInventory() []backend.Plugin {
-	log.Tracef("Plugins")
+	log.Tracef("PluginInventory")
 
 	return t.tstore.Plugins()
 }
@@ -1064,14 +1043,14 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 		Net:      anp.Name,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("new blobkv: %v", err)
+		return nil, err
 	}
 
 	// Setup tstore instances
 	ts, err := tstore.New(appDir, dataDir, anp, kv, tlogHost,
 		tlogPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
-		return nil, fmt.Errorf("new tstore: %v", err)
+		return nil, err
 	}
 
 	// Setup backend
@@ -1086,7 +1065,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 	// Perform any required setup
 	err = t.tstore.Setup()
 	if err != nil {
-		return nil, fmt.Errorf("setup: %v", err)
+		return nil, err
 	}
 
 	return &t, nil

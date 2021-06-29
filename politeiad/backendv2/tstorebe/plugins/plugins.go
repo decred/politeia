@@ -63,7 +63,7 @@ const (
 	HookPluginWritePost HookT = 10
 
 	// HookLast is used by unit tests to verify that all hooks have
-	// a entry in the Hooks map. This hook will never be used.
+	// an entry in the Hooks map. This hook will never be used.
 	HookLast HookT = 11
 )
 
@@ -89,7 +89,7 @@ type RecordNew struct {
 	Metadata []backend.MetadataStream `json:"metadata"`
 	Files    []backend.File           `json:"files"`
 
-	// RecordMetadata will only be populated in the post hook.
+	// RecordMetadata will only be populated on the post hook.
 	RecordMetadata *backend.RecordMetadata `json:"recordmetadata,omitempty"`
 }
 
@@ -126,6 +126,10 @@ type PluginWrite struct {
 	PluginID string `json:"pluginid"`
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"`
+
+	// Reply contains the plugin command reply payload and will only
+	// be populated on the post hook.
+	Reply string `json:"reply,omitempty"`
 }
 
 // PluginClient provides an API for a tstore instance to use when interacting

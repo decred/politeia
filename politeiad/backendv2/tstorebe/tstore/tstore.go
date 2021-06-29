@@ -180,7 +180,7 @@ func (t *Tstore) Setup() error {
 
 	tokens, err := t.Inventory()
 	if err != nil {
-		return fmt.Errorf("Inventory: %v", err)
+		return err
 	}
 
 	log.Infof("%v records in the tstore", len(tokens))
