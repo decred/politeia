@@ -50,6 +50,10 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		nameLengthMin      uint32
 		nameLengthMax      uint32
 		nameSupportedChars []string
+		amountMin          uint32
+		amountMax          uint32
+		endDateMax         uint64
+		domains            []string
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -95,6 +99,31 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 					return nil, err
 				}
 				nameSupportedChars = sc
+			case pi.SettingKeyProposalAmountMin:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				amountMin = uint32(u)
+			case pi.SettingKeyProposalAmountMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				amountMax = uint32(u)
+			case pi.SettingKeyProposalEndDateMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				endDateMax = u
+			case pi.SettingKeyProposalDomains:
+				var ds []string
+				err := json.Unmarshal([]byte(v.Value), &ds)
+				if err != nil {
+					return nil, err
+				}
+				domains = ds
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -119,6 +148,21 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	case nameLengthMax == 0:
 		return nil, fmt.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalNameLengthMax)
+	case len(nameSupportedChars) == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalNameSupportedChars)
+	case amountMin == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalAmountMin)
+	case amountMax == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalAmountMax)
+	case endDateMax == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalEndDateMax)
+	case len(domains) == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalDomains)
 	}
 
 	// Setup pi context
@@ -136,6 +180,10 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 			NameLengthMin:      nameLengthMin,
 			NameLengthMax:      nameLengthMax,
 			NameSupportedChars: nameSupportedChars,
+			AmountMin:          amountMin,
+			AmountMax:          amountMax,
+			EndDateMax:         endDateMax,
+			Domains:            domains,
 		},
 	}
 

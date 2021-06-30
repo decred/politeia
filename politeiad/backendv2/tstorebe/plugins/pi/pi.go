@@ -142,6 +142,10 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Key:   pi.SettingKeyProposalEndDateMax,
 			Value: strconv.FormatUint(p.proposalEndDateMax, 10),
 		},
+		{
+			Key:   pi.SettingKeyProposalDomains,
+			Value: p.proposalDomains,
+		},
 	}
 }
 
