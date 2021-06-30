@@ -38,6 +38,22 @@ const (
 	// SettingKeyProposalNameSupportedChars is the plugin setting key
 	// for the SettingProposalNameSupportedChars plugin setting.
 	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
+
+	// SettingKeyProposalAmountMin is the plugin setting key for
+	// the SettingProposalAmountMin plugin setting.
+	SettingKeyProposalAmountMin = "proposalamountmin"
+
+	// SettingKeyProposalAmountMax is the plugin setting key for
+	// the SettingProposalAmountMax plugin setting.
+	SettingKeyProposalAmountMax = "proposalamountmax"
+
+	// SettingKeyProposalEndDateMax is the plugin settings key for
+	// the SettingProposalEndDateMax plugin setting.
+	SettingKeyProposalEndDateMax = "proposalenddatemax"
+
+	// SettingKeyProposalDomains is the plugin setting key for the
+	// SettingProposalDomains plugin setting.
+	SettingKeyProposalDomains = "proposaldomains"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -62,6 +78,18 @@ const (
 	// SettingProposalNameLengthMax is the default maximum number of
 	// characters that a proposal name can be.
 	SettingProposalNameLengthMax uint32 = 80
+
+	// SettingProposalAmountMin is the default minimum funding amount
+	// in cents a proposal can have.
+	SettingProposalAmountMin uint32 = 100000 // 1k usd in cents.
+
+	// SettingProposalAmountMax is the default maximum funding amount
+	// in cents a proposal can have.
+	SettingProposalAmountMax uint32 = 100000000 // 1m usd in cents.
+
+	// SettingProposalEndDateMax is the default maximum possible proposal
+	// end date - seconds from current time.
+	SettingProposalEndDateMax uint64 = 31557600 // 365.25 days in seconds.
 )
 
 var (
@@ -71,6 +99,10 @@ var (
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#",
 		"/", "(", ")", "!", "?", "\"", "'",
 	}
+
+	// SettingProposalDomains contains the default proposal domains.
+	SettingProposalDomains []string = []string{"development", "marketing",
+		"research", "design"}
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
@@ -110,6 +142,22 @@ const (
 
 	// ErrorCodeLast unit test only.
 	ErrorCodeLast ErrorCodeT = 8
+
+	// ErrorCodeProposalStartDateInvalid is returned when a proposal start date
+	// does not adhere to the proposal start date settings.
+	ErrorCodeProposalStartDateInvalid ErrorCodeT = 9
+
+	// ErrorCodeProposalEndDateInvalid is returned when a proposal end date
+	// does not adhere to the proposal end date settings.
+	ErrorCodeProposalEndDateInvalid ErrorCodeT = 10
+
+	// ErrorCodeProposalAmountInvalid is returned when a proposal amount
+	// is not in the range defined by the amount min/max plugin settings.
+	ErrorCodeProposalAmountInvalid ErrorCodeT = 11
+
+	// ErrorCodeProposalDomainInvalid is returned when a proposal domain
+	// is not one of the supported domains.
+	ErrorCodeProposalDomainInvalid ErrorCodeT = 12
 )
 
 var (
@@ -146,5 +194,9 @@ const (
 // object is saved to politeiad as a file, not as a metadata stream, since it
 // needs to be included in the merkle root that politeiad signs.
 type ProposalMetadata struct {
-	Name string `json:"name"`
+	Name      string `json:"name"`
+	Amount    uint64 `json:"amount"`    // Funding amount in cents
+	StartDate int64  `json:"startdate"` // Start date, Unix time
+	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
+	Domain    string `json:"domain"`    // Proposal domain
 }
