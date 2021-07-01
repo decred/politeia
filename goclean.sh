@@ -26,4 +26,6 @@ golangci-lint run --disable-all --deadline=10m \
   --enable=unconvert \
   --enable=ineffassign \
   --enable=misspell \
-  --enable=bodyclose
+  --enable=bodyclose \
+  --enable=rowserrcheck \
+  --enable=sqlclosecheck \
