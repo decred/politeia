@@ -139,22 +139,20 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 	return p.proposalNameRegexp.MatchString(name)
 }
 
-// proposalStartDateIsValid returns whether the provided start date is a valid
-// date.
+// proposalStartDateIsValid returns whether the provided start date is valid.
 //
 // A valid start date of a proposal must be in the future.
 func (p *piPlugin) proposalStartDateIsValid(sd int64) bool {
 	return sd > time.Now().Unix()
 }
 
-// proposalEndDateIsValid returns whether the provided end date is a valid
-// date.
+// proposalEndDateIsValid returns whether the provided end date is valid.
 //
-// A valid end date must be before the end of the time interval set by
-// the proposalEndDateMax plugin setting.
-func (p *piPlugin) proposalEndDateIsValid(ed int64) bool {
-	return uint64(time.Now().Unix())+p.proposalEndDateMax >
-		uint64(ed)
+// A valid end date must be after the start date and before the end of the
+// time interval set by the proposalEndDateMax plugin setting.
+func (p *piPlugin) proposalEndDateIsValid(sd int64, ed int64) bool {
+	return ed > sd &&
+		time.Now().Unix()+int64(p.proposalEndDateMax) > ed
 }
 
 // proposalAmountIsValid returns whether the provided amount is in the range
@@ -301,11 +299,13 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	}
 
 	// Validate proposal end date.
-	if !p.proposalEndDateIsValid(pm.EndDate) {
+	if !p.proposalEndDateIsValid(pm.StartDate, pm.EndDate) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeProposalEndDateInvalid),
-			ErrorContext: fmt.Sprintf("got %v end date, max is %v",
+			ErrorContext: fmt.Sprintf("got %v end date, min is start date %v, "+
+				"max is %v",
+				pm.EndDate,
 				pm.StartDate,
 				uint64(time.Now().Unix())+pi.SettingProposalEndDateMax),
 		}

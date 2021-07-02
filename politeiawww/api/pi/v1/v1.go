@@ -50,7 +50,11 @@ const (
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission.
 type ProposalMetadata struct {
-	Name string `json:"name"` // Proposal name
+	Name      string `json:"name"`      // Proposal name
+	Amount    uint64 `json:"amount"`    // Funding amount in cents
+	StartDate int64  `json:"startdate"` // Start date, Unix time
+	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
+	Domain    string `json:"domain"`    // Proposal domain
 }
 
 // VoteMetadata is metadata that is specified by the user on proposal

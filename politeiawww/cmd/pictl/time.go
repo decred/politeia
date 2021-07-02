@@ -21,3 +21,14 @@ func timestampFromUnix(unixTime int64) string {
 	t := time.Unix(unixTime, 0)
 	return t.Format(timeFormat)
 }
+
+// unixFromTimestamp converts a human readable timestamp string formatted
+// according to the timeFormat global variable into a unix timestamp.
+func unixFromTimestamp(timestamp string) (int64, error) {
+	t, err := time.Parse(timeFormat, timestamp)
+	if err != nil {
+		return 0, err
+	}
+
+	return t.Unix(), nil
+}

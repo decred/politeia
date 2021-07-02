@@ -27,9 +27,13 @@ type cmdProposalNew struct {
 	} `positional-args:"true" optional:"true"`
 
 	// Metadata fields that can be set by the user
-	Name   string `long:"name" optional:"true"`
-	LinkTo string `long:"linkto" optional:"true"`
-	LinkBy string `long:"linkby" optional:"true"`
+	Name      string `long:"name" optional:"true"`
+	LinkTo    string `long:"linkto" optional:"true"`
+	LinkBy    string `long:"linkby" optional:"true"`
+	Amount    uint64 `long:"amount" optional:"true"`
+	StartDate string `long:"startdate" optional:"true"`
+	EndDate   string `long:"enddate" optional:"true"`
+	Domain    string `long:"domain" optional:"true"`
 
 	// RFP is a flag that is intended to make submitting an RFP easier
 	// by calculating and inserting a linkby timestamp automatically
@@ -130,15 +134,49 @@ func proposalNew(c *cmdProposalNew) (*rcv1.Record, error) {
 	}
 
 	// Setup proposal metadata
-	if c.Random && c.Name == "" {
-		r, err := util.Random(int(pr.NameLengthMin))
-		if err != nil {
-			return nil, err
+	if c.Random {
+		if c.Name == "" {
+			r, err := util.Random(int(pr.NameLengthMin))
+			if err != nil {
+				return nil, err
+			}
+			c.Name = fmt.Sprintf("A Proposal Name %x", r)
 		}
-		c.Name = fmt.Sprintf("A Proposal Name %x", r)
+		// Set start date one month from now if not provided
+		if c.StartDate == "" {
+			monthInSeconds := int64(30 * 24 * 60 * 60)
+			c.StartDate = timestampFromUnix(time.Now().Unix() + monthInSeconds)
+		}
+		// Set end date 4 months from now if not provided
+		if c.EndDate == "" {
+			fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
+			c.EndDate = timestampFromUnix(time.Now().Unix() + fourMonthsInSeconds)
+		}
+		// Set proposal domain if not provided
+		if c.Domain == "" {
+			c.Domain = "research"
+		}
+		if c.Amount == 0 {
+			c.Amount = 2000000 // 20k usd in cents.
+		}
 	}
+
+	// Parse start & end dates string timestamps.
+	sd, err := unixFromTimestamp(c.StartDate)
+	if err != nil {
+		return nil, err
+	}
+	ed, err := unixFromTimestamp(c.EndDate)
+	if err != nil {
+		return nil, err
+	}
+
 	pm := piv1.ProposalMetadata{
-		Name: c.Name,
+		Name:      c.Name,
+		StartDate: sd,
+		EndDate:   ed,
+		Amount:    c.Amount,
+		Domain:    c.Domain,
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
@@ -240,6 +278,15 @@ Arguments:
 
 Flags:
  --name         (string) Name of the proposal.
+ 
+ --amount       (int)    Funding amount in cents.
+
+ --startdate    (string) Start Date, Format: "01/02/2006 3:04pm MST"
+
+ --enddate      (string) End Date, Format: "01/02/2006 3:04pm MST"
+
+ --domain       (string) Default supported domains: ["development", 
+                         "research", "design", "marketing"]
 
  --linkto       (string) Token of an existing public proposal to link to.
 
