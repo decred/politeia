@@ -5,104 +5,47 @@
 package mail
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"io/ioutil"
-	"net/mail"
-	"net/url"
-
-	"github.com/dajohi/goemail"
+	"github.com/decred/politeia/politeiawww/user"
 )
 
-// Client provides an SMTP client for sending emails from a preset email
-// address.
-type Client struct {
-	smtp        *goemail.SMTP // SMTP server
-	mailName    string        // From name
-	mailAddress string        // From email address
-	disabled    bool          // Has email been disabled
+// Mailer is agnostic to the notion of politeiawww users, and functionality
+// that involves them must come from different Mailer wrappers who implement
+// it.
+type Mailer interface {
+	// IsEnabled determines if the smtp server is enabled or not
+	IsEnabled() bool
+
+	// SendTo sends an email to a list of recipients email addresses. This
+	// function is agnostic to the concept of www users.
+	SendTo(subject, body string, recipients []string) error
 }
 
-// IsEnabled returns whether the mail server is enabled.
-func (c *Client) IsEnabled() bool {
-	return !c.disabled
-}
+// New returns a new mailer. Can instantiate a default client or a limiter client.
+func New(host, user, password, emailAddress, certPath string, skipVerify bool, db user.Database, limit int) (Mailer, error) {
+	var mailer Mailer
 
-// SendTo sends an email with the given subject and body to the provided list
-// of email addresses.
-func (c *Client) SendTo(subject, body string, recipients []string) error {
-	if c.disabled || len(recipients) == 0 {
-		return nil
-	}
-
-	// Setup email
-	msg := goemail.NewMessage(c.mailAddress, subject, body)
-	msg.SetName(c.mailName)
-
-	// Add all recipients to BCC
-	for _, v := range recipients {
-		msg.AddBCC(v)
-	}
-
-	return c.smtp.Send(msg)
-}
-
-// New returns a new mail Client.
-func New(host, user, password, emailAddress, certPath string, skipVerify bool) (*Client, error) {
 	// Email is considered disabled if any of the required user
 	// credentials are mising.
 	if host == "" || user == "" || password == "" {
 		log.Infof("Email: DISABLED")
-		return &Client{
+		mailer = &client{
 			disabled: true,
-		}, nil
-	}
-
-	// Parse mail host
-	h := fmt.Sprintf("smtps://%v:%v@%v", user, password, host)
-	u, err := url.Parse(h)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("Mail host: smtps://%v:[password]@%v", user, host)
-
-	// Parse email address
-	a, err := mail.ParseAddress(emailAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("Mail address: %v", a.String())
-
-	// Setup tls config
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
-	}
-	if !skipVerify && certPath != "" {
-		cert, err := ioutil.ReadFile(certPath)
-		if err != nil {
-			return nil, err
 		}
-		certPool, err := x509.SystemCertPool()
-		if err != nil {
-			certPool = x509.NewCertPool()
-		}
-		certPool.AppendCertsFromPEM(cert)
-		tlsConfig.RootCAs = certPool
+		return mailer, nil
 	}
 
-	// Setup smtp context
-	smtp, err := goemail.NewSMTP(u.String(), tlsConfig)
+	// Create default client as our initial mailer
+	client, err := newClient(host, user, password, emailAddress, certPath, skipVerify)
 	if err != nil {
 		return nil, err
 	}
+	mailer = client
 
-	return &Client{
-		smtp:        smtp,
-		mailName:    a.Name,
-		mailAddress: a.Address,
-		disabled:    false,
-	}, nil
+	// If rate limiting feature is enabled, wrap client with limiter
+	// functionality.
+	if limit != 0 {
+		mailer = newLimiter(*client, db, limit)
+	}
+
+	return mailer, nil
 }

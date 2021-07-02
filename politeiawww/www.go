@@ -665,9 +665,10 @@ func _main() error {
 	}
 
 	// Setup smtp client
-	mailClient, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
+	limit := 0
+	mailer, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
 		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
-		loadedCfg.MailSkipVerify)
+		loadedCfg.MailSkipVerify, userDB, limit)
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}
@@ -686,7 +687,7 @@ func _main() error {
 		auth:       auth,
 		politeiad:  pdc,
 		http:       httpClient,
-		mail:       mailClient,
+		mail:       mailer,
 		db:         userDB,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),

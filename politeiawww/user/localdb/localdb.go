@@ -477,6 +477,16 @@ func (l *localdb) Close() error {
 	return l.userdb.Close()
 }
 
+// stub temp
+func (l *localdb) EmailHistoriesGet(_ []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	return nil, nil
+}
+
+// stub temp
+func (l *localdb) EmailHistoriesSave(_ map[uuid.UUID]user.EmailHistory) error {
+	return nil
+}
+
 // SessionSave saves the given session to the database. New sessions are
 // inserted into the database. Existing sessions are updated in the database.
 //

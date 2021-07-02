@@ -299,7 +299,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup mail client
-	mailClient, err := mail.New("", "", "", "", "", false)
+	mailClient, err := mail.New("", "", "", "", "", false, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup smtp
-	mailClient, err := mail.New("", "", "", "", "", false)
+	mailClient, err := mail.New("", "", "", "", "", false, nil, 0)
 	if err != nil {
 		t.Fatalf("setup SMTP: %v", err)
 	}

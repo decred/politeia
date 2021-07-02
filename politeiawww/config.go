@@ -76,6 +76,8 @@ const (
 	defaultMySQLDBHost     = "localhost:3306"  // MySQL default host
 	defaultCockroachDBHost = "localhost:26257" // CockroachDB default host
 
+	defaultMailRateLimit = 100 // Email limit per user
+
 	// Environment variables.
 	envDBPass = "DBPASS"
 )
@@ -337,6 +339,7 @@ func loadConfig() (*config.Config, []string, error) {
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		VoteDurationMin:          defaultVoteDurationMin,
 		VoteDurationMax:          defaultVoteDurationMax,
+		MailRateLimit:            defaultMailRateLimit,
 	}
 
 	// Service options which are only added on Windows.

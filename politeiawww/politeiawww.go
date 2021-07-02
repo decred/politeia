@@ -72,8 +72,8 @@ type politeiawww struct {
 	auth      *mux.Router // CSRF protected subrouter
 	politeiad *pdclient.Client
 	http      *http.Client // Deprecated; use politeiad client
-	mail      *mail.Client
 	db        user.Database
+	mail      mail.Mailer
 	sessions  *sessions.Sessions
 	events    *events.Manager
 

@@ -26,10 +26,11 @@ const (
 	databaseVersion uint32 = 1
 
 	// Database table names
-	tableKeyValue   = "key_value"
-	tableUsers      = "users"
-	tableIdentities = "identities"
-	tableSessions   = "sessions"
+	tableKeyValue       = "key_value"
+	tableUsers          = "users"
+	tableIdentities     = "identities"
+	tableSessions       = "sessions"
+	tableEmailHistories = "email_histories"
 
 	// Database user (read/write access)
 	userPoliteiawww = "politeiawww"
@@ -429,6 +430,98 @@ func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
 	return user.DecodeSession(b)
 }
 
+func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistorySet: %v", users)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var result []EmailHistory
+	err := c.userDB.
+		Where("user_id IN (?)", users).
+		Find(&result).
+		Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("no db inserts for these users: %v", users) // ?????
+		}
+		return nil, err
+	}
+
+	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
+	for _, row := range result {
+		hist, err := convertEmailHistoryFromDB(row)
+		if err != nil {
+			return nil, fmt.Errorf("convert email history from db: %w", err)
+		}
+		histories[row.UserID] = *hist
+	}
+
+	return histories, nil
+}
+
+func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	log.Tracef("EmailHistorySet: %v", histories)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	for userID, history := range histories {
+		h := EmailHistory{
+			UserID: userID,
+		}
+
+		var update bool
+		err := c.userDB.Find(&h).Error
+		switch err {
+		case nil:
+			// DB entry already exists, update it.
+			update = true
+		case gorm.ErrRecordNotFound:
+			// DB entry doesn't exist, create new one.
+		default:
+			// All other errors
+			return fmt.Errorf("find email history: %w", err)
+		}
+
+		historyDB, err := convertEmailHistoryToDB(userID, history)
+		if err != nil {
+			return fmt.Errorf("convert email history to DB: %w", err)
+		}
+
+		if update {
+			err := c.userDB.Save(&historyDB).Error
+			if err != nil {
+				return fmt.Errorf("save: %w", err)
+			}
+		} else {
+			err := c.userDB.Create(&historyDB).Error
+			if err != nil {
+				return fmt.Errorf("create: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory) (EmailHistory, error) {
+	eh, err := user.EncodeEmailHistory(h)
+	if err != nil {
+		return EmailHistory{}, err
+	}
+	return EmailHistory{
+		UserID: userID,
+		Blob:   eh,
+	}, nil
+}
+
+func convertEmailHistoryFromDB(s EmailHistory) (*user.EmailHistory, error) {
+	return user.DecodeEmailHistory(s.Blob)
+}
+
 // SessionSave saves the given session to the database. New sessions are
 // inserted into the database. Existing sessions are updated in the database.
 //
@@ -778,6 +871,12 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	}
 	if !tx.HasTable(tableSessions) {
 		err := tx.CreateTable(&Session{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableEmailHistories) {
+		err := tx.CreateTable(&EmailHistory{}).Error
 		if err != nil {
 			return err
 		}

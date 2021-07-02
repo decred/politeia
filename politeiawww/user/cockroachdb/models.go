@@ -48,6 +48,15 @@ func (User) TableName() string {
 	return tableUsers
 }
 
+type EmailHistory struct {
+	UserID uuid.UUID `gorm:"primary_key"`
+	Blob   []byte    `gorm:"not null"`
+}
+
+func (EmailHistory) TableName() string {
+	return tableEmailHistories
+}
+
 // Session represents a user session.
 //
 // Key is a SHA256 hash of the decoded session ID. The session Store handles

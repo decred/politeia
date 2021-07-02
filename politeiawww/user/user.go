@@ -352,6 +352,35 @@ func (u *User) ActivateIdentity(key []byte) error {
 	return nil
 }
 
+type EmailHistory struct {
+	EmailTimestamps  []int64 `json:"emailtimestamps"`
+	LimitWarningSent bool    `json:"limitwarningsent"` // rename to Locked?
+}
+
+const VersionEmailHistory uint32 = 1
+
+// EncodeEmailHistory encodes EmailHistory into a JSON byte slice.
+func EncodeEmailHistory(h EmailHistory) ([]byte, error) {
+	b, err := json.Marshal(h)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeEmailHistory decodes a JSON byte slice into a EmailHistory.
+func DecodeEmailHistory(payload []byte) (*EmailHistory, error) {
+	var h EmailHistory
+
+	err := json.Unmarshal(payload, &h)
+	if err != nil {
+		return nil, err
+	}
+
+	return &h, nil
+}
+
 // NotificationIsEnabled returns whether the user has the provided notification
 // bit enabled. This function will always return false if the user has been
 // deactivated.
@@ -482,6 +511,12 @@ type Database interface {
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
+
+	// Create or update users email histories
+	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
+
+	// Return a map of user ids to its email history
+	EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
 
 	// Create or update a user session
 	SessionSave(Session) error
