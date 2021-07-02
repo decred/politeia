@@ -926,7 +926,7 @@ func (t *tstoreBackend) PluginSetup(pluginID string) error {
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) PluginRead(token []byte, pluginID, pluginCmd, payload string) (string, error) {
-	log.Tracef("PluginRead: %x %v %v", token, pluginID, pluginCmd)
+	log.Tracef("PluginRead: %x %v %v %v", token, pluginID, pluginCmd, payload)
 
 	// Verify record exists if a token was provided. The token is
 	// optional on read commands so one may not exist.
@@ -948,9 +948,6 @@ func (t *tstoreBackend) PluginWrite(token []byte, pluginID, pluginCmd, payload s
 	if !t.RecordExists(token) {
 		return "", backend.ErrRecordNotFound
 	}
-
-	log.Infof("Plugin '%v' write cmd '%v' on %x",
-		pluginID, pluginCmd, token)
 
 	// Setup a new tstore transaction
 	tx, cancel, err := t.tstore.RecordTx(token)

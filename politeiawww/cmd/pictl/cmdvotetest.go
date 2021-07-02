@@ -6,12 +6,12 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"strconv"
 	"sync"
 	"time"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	"github.com/decred/politeia/util"
 )
 
 // cmdVoteTest casts all eligible tickets in the user's wallet on all ongoing
@@ -69,8 +69,12 @@ func (c *cmdVoteTest) Execute(args []string) error {
 	var wg sync.WaitGroup
 	for _, v := range votes {
 		// Select vote option randomly
-		r := rand.Intn(len(voteOptions))
-		voteOption := voteOptions[r]
+		r, err := util.RandomUint64()
+		if err != nil {
+			return err
+		}
+		idx := int(r % uint64(len(voteOptions)))
+		voteOption := voteOptions[idx]
 
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, token, voteOption, password string) {

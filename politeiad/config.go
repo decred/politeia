@@ -81,8 +81,6 @@ type config struct {
 	TestNet     bool     `long:"testnet" description:"Use the test network"`
 	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
 	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
 	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
 	Version     string

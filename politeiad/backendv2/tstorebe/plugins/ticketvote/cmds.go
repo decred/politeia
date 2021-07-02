@@ -1284,10 +1284,12 @@ func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.
 	return nil
 }
 
-// ballot casts the provided votes concurrently. The vote results are passed
-// back through the results channel to the calling function. This function
-// waits until all provided votes have been cast before returning.
-func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br *ballotResults) {
+// castBallot casts a ballot of votes. The ballot is split up into individual
+// votes and cast concurrently. We do it this way because tstore only allows
+// one blob to be saved at a time. The vote results are passed back to the
+// calling function using the ballotResults pointer.  This function waits until
+// all provided votes have been cast before returning.
+func (p *ticketVotePlugin) castBallot(token []byte, votes []ticketvote.CastVote, br *ballotResults) {
 	// Cast the votes concurrently
 	var wg sync.WaitGroup
 	for _, v := range votes {
@@ -1403,7 +1405,8 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 
 	// Verify there is work to do
 	if len(votes) == 0 {
-		// Nothing to do
+		log.Infof("No votes found")
+
 		cbr := ticketvote.CastBallotReply{
 			Receipts: []ticketvote.CastVoteReply{},
 		}
@@ -1411,6 +1414,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if err != nil {
 			return "", err
 		}
+
 		return string(reply), nil
 	}
 
@@ -1529,6 +1533,22 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		}
 		tickets = append(tickets, v.Ticket)
 	}
+	if len(tickets) == 0 {
+		log.Infof("No valid votes found in ballot of %v votes", len(votes))
+
+		// There are no valid votes. All attempted
+		// votes have an error. Nothing else to do.
+		cbr := ticketvote.CastBallotReply{
+			Receipts: receipts,
+		}
+		reply, err := json.Marshal(cbr)
+		if err != nil {
+			return "", err
+		}
+
+		return string(reply), nil
+	}
+
 	addrs := p.activeVotes.CommitmentAddrs(token, tickets)
 	notInCache := make([]string, 0, len(tickets))
 	for _, v := range tickets {
@@ -1664,15 +1684,15 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		queue = append(queue, batch)
 	}
 
-	log.Debugf("Casting %v votes in %v batches of size %v",
-		ballotCount, len(queue), batchSize)
+	log.Infof("Casting %v/%v votes in %v batches of size %v",
+		ballotCount, len(votes), len(queue), batchSize)
 
 	// Cast ballot in batches
 	for i, batch := range queue {
 		log.Debugf("Casting %v votes in batch %v/%v", len(batch), i+1,
 			len(queue))
 
-		p.ballot(token, batch, &br)
+		p.castBallot(token, batch, &br)
 	}
 	if br.repliesLen() != ballotCount {
 		log.Errorf("Missing results: got %v, want %v",
@@ -2706,23 +2726,22 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 		// Quorum not met
 		approved = false
 
-		log.Debugf("Quorum not met on %v: votes cast %v, quorum %v",
+		log.Infof("Quorum not met %v: votes cast %v, quorum required %v",
 			vd.Params.Token, total, quorum)
 
 	case approvedVotes < pass:
 		// Pass percentage not met
 		approved = false
 
-		log.Debugf("Pass threshold not met on %v: approved %v, "+
-			"required %v", vd.Params.Token, total, quorum)
+		log.Infof("Vote rejected %v: required %v approval votes, received %v/%v",
+			vd.Params.Token, pass, approvedVotes, total)
 
 	default:
 		// Vote was approved
 		approved = true
 
-		log.Debugf("Vote %v approved: quorum %v, pass %v, total %v, "+
-			"approved %v", vd.Params.Token, quorum, pass, total,
-			approvedVotes)
+		log.Infof("Vote approved %v: required %v approval votes, received %v/%v",
+			vd.Params.Token, pass, approvedVotes, total)
 	}
 
 	return approved
