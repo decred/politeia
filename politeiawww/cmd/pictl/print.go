@@ -50,5 +50,5 @@ func byteCountSI(b int64) string {
 // existing stdout text. This function can be called multiple times. Each
 // subsequent call will overwrite the existing text that was printed to stdout.
 func printInPlace(s string) {
-	fmt.Printf("\033[2K\r%s", s)
+	printf("\033[2K\r%s", s)
 }

@@ -502,6 +502,9 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Infof("%v Plugin write %x '%v' '%v'",
+		util.RemoteAddr(r), token, pw.Cmd.ID, pw.Cmd.Command)
+
 	// Execute plugin cmd
 	payload, err := p.backendv2.PluginWrite(token, pw.Cmd.ID,
 		pw.Cmd.Command, pw.Cmd.Payload)
@@ -518,8 +521,8 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 		Payload:  payload,
 	}
 
-	log.Infof("%v Plugin '%v' write cmd '%v' executed",
-		util.RemoteAddr(r), pw.Cmd.ID, pw.Cmd.Command)
+	log.Infof("%v Plugin write %x '%v' '%v' executed",
+		util.RemoteAddr(r), token, pw.Cmd.ID, pw.Cmd.Command)
 
 	util.RespondWithJSON(w, http.StatusOK, pwr)
 }
@@ -562,6 +565,12 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
+		}
+
+		if v.Token == "" {
+			log.Debugf("Plugin read '%v' '%v'", v.ID, v.Command)
+		} else {
+			log.Debugf("Plugin read %v '%v' '%v'", v.Token, v.ID, v.Command)
 		}
 
 		// Execute plugin cmd

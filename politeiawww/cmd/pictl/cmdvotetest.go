@@ -6,12 +6,12 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"strconv"
 	"sync"
 	"time"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	"github.com/decred/politeia/util"
 )
 
 // cmdVoteTest casts all eligible tickets in the user's wallet on all ongoing
@@ -34,6 +34,11 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		}
 		password = string(pass)
 	}
+
+	// Save the original print settings. We turn off printing for most
+	// of this command to reduce the noise then turn it back on to
+	// print summary statistics.
+	silent := cfg.Silent
 
 	// We don't want the output of individual commands printed.
 	cfg.Verbose = false
@@ -65,31 +70,34 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		tkv1.VoteOptionIDReject,
 	}
 
+	// Set printing back to its original setting.
+	cfg.Silent = silent
+
 	// Cast ballots concurrently
 	var wg sync.WaitGroup
 	for _, v := range votes {
 		// Select vote option randomly
-		r := rand.Intn(len(voteOptions))
-		voteOption := voteOptions[r]
+		r, err := util.RandomUint64()
+		if err != nil {
+			return err
+		}
+		voteOption := voteOptions[int(r)%len(voteOptions)]
 
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, token, voteOption, password string) {
 			defer wg.Done()
 
-			// Turn printing back on for this part
-			cfg.Silent = false
-
 			// Cast ballot
-			fmt.Printf("Casting ballot for %v %v\n", token, voteOption)
+			printf("Casting ballot for %v %v\n", token, voteOption)
 			start := time.Now()
 			err := castBallot(token, voteOption, password)
 			if err != nil {
-				fmt.Printf("castBallot %v: %v\n", token, err)
+				printf("castBallot %v: %v\n", token, err)
 			}
 			end := time.Now()
 			elapsed := end.Sub(start)
 
-			fmt.Printf("%v elapsed time %v\n", token, elapsed)
+			printf("%v elapsed time %v\n", token, elapsed)
 
 		}(&wg, v, voteOption, password)
 	}
