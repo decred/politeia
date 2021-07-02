@@ -219,7 +219,7 @@ See the MySQL/MariaDB installation section for more details.
 
 4. Setup the politeiad configuration file.
 
-   [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf)
+   [`sample-politeiad.conf`](sample-politeiad.conf)
 
    Copy the sample configuration file to the politeiad app data directory. The
    app data directory will depend on your OS.
@@ -248,11 +248,12 @@ See the MySQL/MariaDB installation section for more details.
    **politeiad.conf**
 
     ```
+    ; politeiad settings
     rpcuser=user
     rpcpass=pass
     testnet=true
 
-    ; Tstore settings
+    ; tstore settings
     dbtype=mysql
     ```
 
@@ -279,17 +280,55 @@ See the MySQL/MariaDB installation section for more details.
    `TLOGPASS` env variable. This password has not been created yet. You can
    set it to whatever you want, but it cannot change once set.
 
-    ```
-    $ env DBPASS=politeiadpass TLOGPASS=tlogpass politeiad
-    ```
-## API
+   ```
+   $ env DBPASS=politeiadpass TLOGPASS=tlogpass politeiad
+   ```
 
-- [politeiad API](https://github.com/decred/politeia/tree/master/politeiad/api/v2)
-- [politeiad client](https://github.com/decred/politeia/tree/master/politeiad/client)
+## Politeiad API
+
+- [politeiad API](api/v2)
+- [politeiad client](client/)
 
 The politeiad APIs and libraries should be treated as unstable and subject to
 breaking changes.
 
+## Plugins
+
+The basic politeiad API allows users to submit and edit records, where a record
+is an arbitrary set of files. A Decred proposal is an example of a record.
+
+politeiad uses a plugin architecture to extend records with additional
+functionality. For example, the comments plugin extends a record with comment
+functionality. It provides and API for creating, editing, deleting, and
+retrieving comments.
+
+The plugins and their APIs can be found [here](plugins/).
+
+Plugins can be specified using the `--plugin` flag or a `plugin` config file
+entry.
+
+Plugins have default settings that can be overridden using the
+`--pluginsetting` flag or a `pluginsetting` config file entry. Plugin settings
+are key-value settings that must use the format:
+
+    pluginID,key,value
+
+The list of settings for each plugin can be found in the [plugin
+APIs](plugins/).
+
+The following example shows what an entry in the politeiad config file would
+look like if the user wanted to override the default comments plugin setting
+for a maximum comment length. This would set the max comment length to 2500
+characters.
+
+    pluginsetting=comments,commentlengthmax,2500
+
+Some plugin settings require multiple values to be provided. One such example
+is when a list of supported characters is required. You can provide multiple
+values for a single plugin setting by passing the values in a array:
+
+    pluginsetting=pluginID,key,[value1,value2,value3]
+
 ## Tools and reference clients
 
-* [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) - Reference client for politeiad.
+* [politeia](cmd/politeia) - Reference client for politeiad.

@@ -7,6 +7,7 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 type permission uint
@@ -209,6 +211,130 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 	return nil
 }
 
+// parsePluginSetting parses a politeiad config plugin setting. Plugin settings
+// will be in following format. The value may be a single value of an array of
+// values.
+//
+// "pluginID,key,value"
+// "pluginID,key,[value1,value2,value3...]"
+//
+// When multiple values are provided, the values are parsed and returned as a
+// JSON encoded []string. Plugins should expect to receive the JSON.
+func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error) {
+	formatMsg := "expected plugin setting format is " +
+		"'pluginID,key,value' or 'pluginID,key,[value1,value2,value3...]'"
+
+	// A plugin setting will be a comma separated list containing
+	// at least two commas, but possibly more.
+	if strings.Count(setting, ",") < 2 {
+		return "", nil, errors.Errorf("invalid format '%v'; %v",
+			setting, formatMsg)
+	}
+
+	// Clean setting
+	setting = strings.ToLower(setting)
+	setting = strings.TrimSpace(setting)
+
+	// Find the indexes of the commas
+	var (
+		comma1 int
+		comma2 int
+	)
+	for i, v := range setting {
+		if string(v) != "," {
+			continue
+		}
+		switch {
+		case comma1 == 0:
+			comma1 = i
+		case comma2 == 0:
+			comma2 = i
+		}
+		if comma2 != 0 {
+			// We're done
+			break
+		}
+	}
+
+	// Parse the plugin setting
+	var (
+		pluginID     = strings.TrimSpace(setting[0:comma1])
+		settingKey   = strings.TrimSpace(setting[comma1+1 : comma2])
+		settingValue = strings.TrimSpace(setting[comma2+1:])
+	)
+	switch {
+	case len(pluginID) == 0:
+		return "", nil, errors.Errorf("plugin id not found in '%v'; %v",
+			setting, formatMsg)
+	case len(settingKey) == 0:
+		return "", nil, errors.Errorf("setting key not found in '%v'; %v",
+			setting, formatMsg)
+	case len(settingValue) == 0:
+		return "", nil, errors.Errorf("setting value not found in '%v'; %v",
+			setting, formatMsg)
+	}
+
+	// The setting value can either be a single value or multiple
+	// values. Multiple values are parsed and returned as a JSON
+	// array. Plugins should expect to receive a JSON array.
+	if strings.Index(settingValue, "[") == 0 {
+		// This setting value contains multiple values. Verify that
+		// it has a closing bracket.
+		if strings.LastIndex(settingValue, "]") != len(settingValue)-1 {
+			return "", nil, errors.Errorf("invalid setting value; "+
+				"expected to find a closing ']' in '%v'; %v",
+				settingValue, formatMsg)
+		}
+
+		// Trim opening and closing brackets
+		settingValue = settingValue[1 : len(settingValue)-1]
+
+		// Parse the values. We do this manually in case the setting
+		// value contains an escaped comma, indicating that the
+		// comma is the value itself and not a list item separator.
+		var (
+			values   = make([]string, 0, 256)
+			startIdx int
+			escaped  bool
+		)
+		for i, v := range settingValue {
+			switch {
+			case escaped:
+				// This character is escaped. Reset escaped
+				// and continue.
+				escaped = false
+				continue
+			case string(v) == `\`:
+				// Escaped character found
+				escaped = true
+				continue
+			case string(v) != ",":
+				continue
+			}
+
+			// This is a comma. Parse the preceding value.
+			value := settingValue[startIdx:i]
+			values = append(values, value)
+			startIdx = i + 1
+		}
+
+		// Add the last value to the list
+		values = append(values, settingValue[startIdx:])
+
+		// Update settingValue to its JSON encoded equivalent
+		b, err := json.Marshal(values)
+		if err != nil {
+			return "", nil, err
+		}
+		settingValue = string(b)
+	}
+
+	return pluginID, &backendv2.PluginSetting{
+		Key:   settingKey,
+		Value: settingValue,
+	}, nil
+}
+
 func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
 		p.cfg.TlogHost, p.cfg.TlogPass, p.cfg.DBType, p.cfg.DBHost,
@@ -260,27 +386,21 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		// Parse plugin settings
 		settings := make(map[string][]backendv2.PluginSetting)
 		for _, v := range p.cfg.PluginSettings {
-			// Plugin setting will be in format: pluginID,key,value
-			s := strings.Split(v, ",")
-			if len(s) != 3 {
-				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
-					"should be 'pluginID,key,value'", s)
+			// Parse plugin setting
+			pluginID, ps, err := parsePluginSetting(v)
+			if err != nil {
+				return err
 			}
-			var (
-				pluginID = s[0]
-				key      = s[1]
-				value    = s[2]
-			)
-			ps, ok := settings[pluginID]
-			if !ok {
-				ps = make([]backendv2.PluginSetting, 0, 16)
-			}
-			ps = append(ps, backendv2.PluginSetting{
-				Key:   key,
-				Value: value,
-			})
 
-			settings[pluginID] = ps
+			// Add to settings list
+			pss, ok := settings[pluginID]
+			if !ok {
+				pss = make([]backendv2.PluginSetting, 0, 16)
+			}
+			pss = append(pss, *ps)
+
+			// Save settings list
+			settings[pluginID] = pss
 		}
 
 		// Register plugins
