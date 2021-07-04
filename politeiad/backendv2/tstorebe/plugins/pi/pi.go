@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -47,7 +48,7 @@ type piPlugin struct {
 	proposalAmountMin          uint64 // In cents
 	proposalAmountMax          uint64 // In cents
 	proposalEndDateMax         int64  // Seconds for current time
-	proposalDomains            string // JSON encoded []string
+	proposalDomains            []string
 }
 
 // Setup performs any plugin setup that is required.
@@ -144,7 +145,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 		},
 		{
 			Key:   pi.SettingKeyProposalDomains,
-			Value: p.proposalDomains,
+			Value: strings.Join(p.proposalDomains, ","),
 		},
 	}
 }
@@ -268,14 +269,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	}
 	nameSupportedCharsString := string(b)
 
-	// Encode the supported proposal domains so that they can be
-	// returned as a plugin setting string.
-	b, err = json.Marshal(domains)
-	if err != nil {
-		return nil, err
-	}
-	domainsString := string(b)
-
 	return &piPlugin{
 		dataDir:                    dataDir,
 		backend:                    backend,
@@ -289,6 +282,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		proposalAmountMin:          amountMin,
 		proposalAmountMax:          amountMax,
 		proposalEndDateMax:         endDateMax,
-		proposalDomains:            domainsString,
+		proposalDomains:            domains,
 	}, nil
 }
