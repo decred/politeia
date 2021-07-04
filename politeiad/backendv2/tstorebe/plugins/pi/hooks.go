@@ -307,7 +307,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 				"max is %v",
 				pm.EndDate,
 				pm.StartDate,
-				uint64(time.Now().Unix())+pi.SettingProposalEndDateMax),
+				time.Now().Unix()+pi.SettingProposalEndDateMax),
 		}
 	}
 

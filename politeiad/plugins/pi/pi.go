@@ -81,15 +81,15 @@ const (
 
 	// SettingProposalAmountMin is the default minimum funding amount
 	// in cents a proposal can have.
-	SettingProposalAmountMin uint32 = 100000 // 1k usd in cents.
+	SettingProposalAmountMin uint64 = 100000 // 1k usd in cents.
 
 	// SettingProposalAmountMax is the default maximum funding amount
 	// in cents a proposal can have.
-	SettingProposalAmountMax uint32 = 100000000 // 1m usd in cents.
+	SettingProposalAmountMax uint64 = 100000000 // 1m usd in cents.
 
 	// SettingProposalEndDateMax is the default maximum possible proposal
 	// end date - seconds from current time.
-	SettingProposalEndDateMax uint64 = 31557600 // 365.25 days in seconds.
+	SettingProposalEndDateMax int64 = 31557600 // 365.25 days in seconds.
 )
 
 var (
@@ -101,8 +101,12 @@ var (
 	}
 
 	// SettingProposalDomains contains the default proposal domains.
-	SettingProposalDomains []string = []string{"development", "marketing",
-		"research", "design"}
+	SettingProposalDomains []string = []string{
+		"development",
+		"marketing",
+		"research",
+		"design",
+	}
 )
 
 // ErrorCodeT represents a plugin error that was caused by the user.
