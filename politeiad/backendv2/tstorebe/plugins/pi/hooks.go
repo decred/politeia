@@ -152,14 +152,14 @@ func (p *piPlugin) proposalStartDateIsValid(sd int64) bool {
 // time interval set by the proposalEndDateMax plugin setting.
 func (p *piPlugin) proposalEndDateIsValid(sd int64, ed int64) bool {
 	return ed > sd &&
-		time.Now().Unix()+int64(p.proposalEndDateMax) > ed
+		time.Now().Unix()+p.proposalEndDateMax > ed
 }
 
 // proposalAmountIsValid returns whether the provided amount is in the range
 // defined by the proposalAmountMin & proposalAmountMax plugin settings.
 func (p *piPlugin) proposalAmountIsValid(amount uint64) bool {
-	return uint64(p.proposalAmountMin) <= amount &&
-		uint64(p.proposalAmountMax) >= amount
+	return p.proposalAmountMin <= amount &&
+		p.proposalAmountMax >= amount
 }
 
 // proposalDomainIsValid returns whether the provided domain is
