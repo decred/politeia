@@ -430,37 +430,6 @@ func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
 	return user.DecodeSession(b)
 }
 
-func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
-	log.Tracef("EmailHistorySet: %v", users)
-
-	if c.isShutdown() {
-		return nil, user.ErrShutdown
-	}
-
-	var result []EmailHistory
-	err := c.userDB.
-		Where("user_id IN (?)", users).
-		Find(&result).
-		Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("no db inserts for these users: %v", users) // ?????
-		}
-		return nil, err
-	}
-
-	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
-	for _, row := range result {
-		hist, err := convertEmailHistoryFromDB(row)
-		if err != nil {
-			return nil, fmt.Errorf("convert email history from db: %w", err)
-		}
-		histories[row.UserID] = *hist
-	}
-
-	return histories, nil
-}
-
 func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistorySet: %v", histories)
 
@@ -483,23 +452,23 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 			// DB entry doesn't exist, create new one.
 		default:
 			// All other errors
-			return fmt.Errorf("find email history: %w", err)
+			return fmt.Errorf("find email history: %v", err)
 		}
 
-		historyDB, err := convertEmailHistoryToDB(userID, history)
+		historyDB, err := c.convertEmailHistoryFromUser(userID, history)
 		if err != nil {
-			return fmt.Errorf("convert email history to DB: %w", err)
+			return err
 		}
 
 		if update {
 			err := c.userDB.Save(&historyDB).Error
 			if err != nil {
-				return fmt.Errorf("save: %w", err)
+				return fmt.Errorf("save: %v", err)
 			}
 		} else {
 			err := c.userDB.Create(&historyDB).Error
 			if err != nil {
-				return fmt.Errorf("create: %w", err)
+				return fmt.Errorf("create: %v", err)
 			}
 		}
 	}
@@ -507,19 +476,58 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 	return nil
 }
 
-func convertEmailHistoryToDB(userID uuid.UUID, h user.EmailHistory) (EmailHistory, error) {
+func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistorySet: %v", users)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var result []EmailHistory
+	err := c.userDB.
+		Where("user_id IN (?)", users).
+		Find(&result).
+		Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = user.ErrEmailHistoryNotFound
+		}
+		return nil, err
+	}
+
+	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
+	for _, row := range result {
+		hist, err := c.convertEmailHistoryToUser(row)
+		if err != nil {
+			return nil, err
+		}
+		histories[row.UserID] = *hist
+	}
+
+	return histories, nil
+}
+
+func (c *cockroachdb) convertEmailHistoryFromUser(userID uuid.UUID, h user.EmailHistory) (*EmailHistory, error) {
 	eh, err := user.EncodeEmailHistory(h)
 	if err != nil {
-		return EmailHistory{}, err
+		return nil, err
 	}
-	return EmailHistory{
+	eb, err := c.encrypt(user.VersionEmailHistory, eh)
+	if err != nil {
+		return nil, err
+	}
+	return &EmailHistory{
 		UserID: userID,
-		Blob:   eh,
+		Blob:   eb,
 	}, nil
 }
 
-func convertEmailHistoryFromDB(s EmailHistory) (*user.EmailHistory, error) {
-	return user.DecodeEmailHistory(s.Blob)
+func (c *cockroachdb) convertEmailHistoryToUser(eh EmailHistory) (*user.EmailHistory, error) {
+	b, _, err := c.decrypt(eh.Blob)
+	if err != nil {
+		return nil, err
+	}
+	return user.DecodeEmailHistory(b)
 }
 
 // SessionSave saves the given session to the database. New sessions are

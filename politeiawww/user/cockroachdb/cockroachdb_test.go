@@ -611,6 +611,162 @@ func TestAllUsers(t *testing.T) {
 	}
 }
 
+func TestEmailHistoriesSave(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	userid := uuid.New()
+	histories := make(map[uuid.UUID]user.EmailHistory, 1)
+	histories[userid] = user.EmailHistory{
+		Timestamps:       []int64{time.Now().Unix()},
+		LimitWarningSent: false,
+	}
+
+	// Queries
+	sqlSelect := `SELECT * FROM "email_histories" ` +
+		`WHERE "email_histories"."user_id" = $1`
+
+	sqlInsert := `INSERT INTO "email_histories" ` +
+		`("user_id","blob") ` +
+		`VALUES ($1,$2) RETURNING "email_histories"."user_id"`
+
+	// Success create expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WithArgs(userid).
+		WillReturnRows(sqlmock.NewRows([]string{}))
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(sqlInsert)).
+		WithArgs(userid, AnyBlob{}).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(userid))
+	mock.ExpectCommit()
+
+	// Execute method
+	err := cdb.EmailHistoriesSave(histories)
+	if err != nil {
+		t.Errorf("EmailHistoriesSave unwanted error: %s", err)
+	}
+
+	// Mock data for updating an email history
+	rows := sqlmock.NewRows([]string{"user_id", "blob"}).
+		AddRow(userid, []byte{})
+
+	// Query
+	sqlUpdate := `UPDATE "email_histories" ` +
+		`SET "blob" = $1 ` +
+		`WHERE "email_histories"."user_id" = $2`
+
+	// Success update expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WithArgs(userid).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpdate)).
+		WithArgs(AnyBlob{}, userid).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	// Execute method
+	err = cdb.EmailHistoriesSave(histories)
+	if err != nil {
+		t.Errorf("EmailHistoriesSave unwanted error: %s", err)
+	}
+
+	// Negative expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WillReturnError(errSelect)
+
+	// Execute method
+	badHistories := make(map[uuid.UUID]user.EmailHistory, 1)
+	badHistories[uuid.New()] = user.EmailHistory{}
+	err = cdb.EmailHistoriesSave(badHistories)
+	if err == nil {
+		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestEmailHistoriesGet(t *testing.T) {
+	cdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	userid := uuid.New()
+	ts := time.Now().Unix()
+	history := user.EmailHistory{
+		Timestamps:       []int64{ts},
+		LimitWarningSent: false,
+	}
+	hb, err := user.EncodeEmailHistory(history)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	eb, err := cdb.encrypt(user.VersionEmailHistory, hb)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Mock data
+	rows := sqlmock.NewRows([]string{"user_id", "blob"}).
+		AddRow(userid, eb)
+
+	// Query
+	sql := `SELECT * FROM "email_histories" WHERE (user_id IN ($1))`
+
+	// Success expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(userid).
+		WillReturnRows(rows)
+
+	// Execute method
+	eh, err := cdb.EmailHistoriesGet([]uuid.UUID{userid})
+	if err != nil {
+		t.Errorf("EmailHistoriesGet unwanted error: %s", err)
+	}
+
+	// Make sure correct history was returned
+	if ts != eh[userid].Timestamps[0] {
+		t.Errorf("expecting timestamp %d but got %d",
+			ts, eh[userid].Timestamps[0])
+	}
+
+	// Negative expectations
+	randomUserID := uuid.New()
+	expectedError := user.ErrEmailHistoryNotFound
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomUserID).
+		WillReturnError(expectedError)
+
+	// Execute method
+	h, err := cdb.EmailHistoriesGet([]uuid.UUID{randomUserID})
+	if err == nil {
+		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure no sessions were returned
+	if h != nil {
+		t.Errorf("expected no email history but got %v", h)
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
 func TestSessionSave(t *testing.T) {
 	cdb, mock, close := setupTestDB(t)
 	defer close()
@@ -625,7 +781,7 @@ func TestSessionSave(t *testing.T) {
 	sessionKey := hex.EncodeToString(util.Digest([]byte(session.ID)))
 
 	// Query
-	sqlSelect := `SELECT * FROM "sessions"  WHERE (key = $1)`
+	sqlSelect := `SELECT * FROM "sessions" WHERE (key = $1)`
 
 	sqlInsert := `INSERT INTO "sessions" ` +
 		`("key","user_id","created_at","blob") ` +

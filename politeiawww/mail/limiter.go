@@ -94,6 +94,7 @@ func (l *limiter) SendTo(subjects, body string, recipients []string) error {
 		// update email history.
 		valid = append(valid, email)
 		history.Timestamps = append(history.Timestamps, time.Now().Unix())
+		history.LimitWarningSent = false
 		newHistories[id] = history
 	}
 

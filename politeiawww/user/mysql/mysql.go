@@ -686,67 +686,6 @@ func (m *mysql) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
-func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
-	log.Tracef("EmailHistoriesGet: %v", users)
-
-	if m.isShutdown() {
-		return nil, user.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	// Lookup email histories by user ids.
-	q := `SELECT userID, hBlob FROM email_histories WHERE userID IN (?` +
-		strings.Repeat(",?", len(users)-1) + `)`
-
-	args := make([]interface{}, len(users))
-	for i, id := range users {
-		args[i] = id.String()
-	}
-	rows, err := m.userDB.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Decrypt email history blob and compile the userid maps with their
-	// respective email hitory.
-	type EmailHistory struct {
-		UserID string
-		Blob   []byte
-	}
-	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
-	for rows.Next() {
-		var hist EmailHistory
-		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
-			return nil, err
-		}
-
-		b, _, err := m.decrypt(hist.Blob)
-		if err != nil {
-			return nil, err
-		}
-
-		eh, err := user.DecodeEmailHistory(b)
-		if err != nil {
-			return nil, err
-		}
-
-		uuid, err := uuid.Parse(hist.UserID)
-		if err != nil {
-			return nil, err
-		}
-
-		histories[uuid] = *eh
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return histories, nil
-}
-
 func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistoriesSave: %v", histories)
 
@@ -806,6 +745,67 @@ func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) er
 	}
 
 	return nil
+}
+
+func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistoriesGet: %v", users)
+
+	if m.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup email histories by user ids.
+	q := `SELECT userID, hBlob FROM email_histories WHERE userID IN (?` +
+		strings.Repeat(",?", len(users)-1) + `)`
+
+	args := make([]interface{}, len(users))
+	for i, id := range users {
+		args[i] = id.String()
+	}
+	rows, err := m.userDB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Decrypt email history blob and compile the userid maps with their
+	// respective email hitory.
+	type EmailHistory struct {
+		UserID string
+		Blob   []byte
+	}
+	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
+	for rows.Next() {
+		var hist EmailHistory
+		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
+			return nil, err
+		}
+
+		b, _, err := m.decrypt(hist.Blob)
+		if err != nil {
+			return nil, err
+		}
+
+		eh, err := user.DecodeEmailHistory(b)
+		if err != nil {
+			return nil, err
+		}
+
+		uuid, err := uuid.Parse(hist.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		histories[uuid] = *eh
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return histories, nil
 }
 
 // SessionSave saves the given session to the database. New sessions are

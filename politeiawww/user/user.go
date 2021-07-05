@@ -21,6 +21,10 @@ var (
 	// in the database.
 	ErrSessionNotFound = errors.New("no user session found")
 
+	// ErrEmailHistoryNotFound indicates that a email history for a user
+	// was not found in the database.
+	ErrEmailHistoryNotFound = errors.New("no email history found")
+
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")

@@ -49,8 +49,8 @@ func (User) TableName() string {
 }
 
 type EmailHistory struct {
-	UserID uuid.UUID `gorm:"primary_key"`
-	Blob   []byte    `gorm:"not null"`
+	UserID uuid.UUID `gorm:"primary_key"` // User UUID
+	Blob   []byte    `gorm:"not null"`    // Encrypted email history
 }
 
 func (EmailHistory) TableName() string {
