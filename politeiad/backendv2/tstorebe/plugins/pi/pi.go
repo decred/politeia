@@ -239,6 +239,11 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
+			// Ensure provided max end date is not in the past
+			if u < 0 {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': "+
+					"must be in the future", v.Key, v.Value)
+			}
 			endDateMax = u
 		case pi.SettingKeyProposalDomains:
 			var ds []string
