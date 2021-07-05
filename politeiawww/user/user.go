@@ -353,8 +353,8 @@ func (u *User) ActivateIdentity(key []byte) error {
 }
 
 type EmailHistory struct {
-	EmailTimestamps  []int64 `json:"emailtimestamps"`
-	LimitWarningSent bool    `json:"limitwarningsent"` // rename to Locked?
+	Timestamps       []int64 `json:"timestamps"`
+	LimitWarningSent bool    `json:"limitwarningsent"`
 }
 
 const VersionEmailHistory uint32 = 1

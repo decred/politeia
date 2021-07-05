@@ -6,6 +6,7 @@ package mail
 
 import (
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 // Mailer is agnostic to the notion of politeiawww users, and functionality
@@ -21,7 +22,7 @@ type Mailer interface {
 }
 
 // New returns a new mailer. Can instantiate a default client or a limiter client.
-func New(host, user, password, emailAddress, certPath string, skipVerify bool, db user.Database, limit int) (Mailer, error) {
+func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.Database, userEmails map[string]uuid.UUID) (Mailer, error) {
 	var mailer Mailer
 
 	// Email is considered disabled if any of the required user
@@ -44,7 +45,7 @@ func New(host, user, password, emailAddress, certPath string, skipVerify bool, d
 	// If rate limiting feature is enabled, wrap client with limiter
 	// functionality.
 	if limit != 0 {
-		mailer = newLimiter(*client, db, limit)
+		mailer = newLimiter(*client, db, limit, userEmails)
 	}
 
 	return mailer, nil

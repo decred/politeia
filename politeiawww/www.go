@@ -664,15 +664,6 @@ func _main() error {
 		log.Infof("Cookie key generated")
 	}
 
-	// Setup smtp client
-	limit := 0
-	mailer, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
-		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
-		loadedCfg.MailSkipVerify, userDB, limit)
-	if err != nil {
-		return fmt.Errorf("new mail client: %v", err)
-	}
-
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
 	if err != nil {
@@ -687,7 +678,6 @@ func _main() error {
 		auth:       auth,
 		politeiad:  pdc,
 		http:       httpClient,
-		mail:       mailer,
 		db:         userDB,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),
@@ -700,6 +690,15 @@ func _main() error {
 	if err != nil {
 		return err
 	}
+
+	// Setup smtp client
+	mailer, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
+		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
+		loadedCfg.MailSkipVerify, loadedCfg.MailRateLimit, p.db, p.userEmails)
+	if err != nil {
+		return fmt.Errorf("new mail client: %v", err)
+	}
+	p.mail = mailer
 
 	// Perform application specific setup
 	switch p.cfg.Mode {

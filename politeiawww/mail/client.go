@@ -26,12 +26,16 @@ var (
 )
 
 // IsEnabled returns whether the mail server is enabled.
+//
+// This function satisfies the Mailer interface.
 func (c *client) IsEnabled() bool {
 	return !c.disabled
 }
 
 // SendTo sends an email with the given subject and body to the provided list
 // of email addresses.
+//
+// This function satisfies the Mailer interface.
 func (c *client) SendTo(subject, body string, recipients []string) error {
 	if c.disabled || len(recipients) == 0 {
 		return nil
