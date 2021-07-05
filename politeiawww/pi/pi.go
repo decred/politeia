@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
@@ -118,12 +119,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				}
 				endDateMax = u
 			case pi.SettingKeyProposalDomains:
-				var ds []string
-				err := json.Unmarshal([]byte(v.Value), &ds)
-				if err != nil {
-					return nil, err
-				}
-				domains = ds
+				domains = strings.Split(v.Value, ",")
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)

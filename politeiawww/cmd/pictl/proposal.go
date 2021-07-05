@@ -42,6 +42,10 @@ func printProposalFiles(files []rcv1.File) error {
 	if err == nil {
 		printf("%v\n", piv1.FileNameProposalMetadata)
 		printf("  Name: %v\n", pm.Name)
+		printf("  Amount: %v\n", pm.Amount)
+		printf("  Start Date: %v\n", pm.StartDate)
+		printf("  End Date: %v\n", pm.EndDate)
+		printf("  Domain: %v\n", pm.Domain)
 	}
 
 	// A vote metadata file is optional

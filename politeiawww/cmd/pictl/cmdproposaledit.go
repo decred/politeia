@@ -177,12 +177,12 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		// Set start date one month from now if not provided
 		if c.StartDate == "" {
 			monthInSeconds := int64(30 * 24 * 60 * 60)
-			c.StartDate = timestampFromUnix(time.Now().Unix() + monthInSeconds)
+			c.StartDate = dateFromUnix(time.Now().Unix() + monthInSeconds)
 		}
 		// Set end date 4 months from now if not provided
 		if c.EndDate == "" {
 			fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
-			c.EndDate = timestampFromUnix(time.Now().Unix() + fourMonthsInSeconds)
+			c.EndDate = dateFromUnix(time.Now().Unix() + fourMonthsInSeconds)
 		}
 		// Set proposal domain if not provided
 		if c.Domain == "" {
@@ -320,9 +320,9 @@ Flags:
 
  --amount       (int)    Funding amount in cents.
  
- --startdate    (string) Start Date, Format: "01/02/2006 3:04pm MST"
+ --startdate    (string) Start Date, Format: "01/02/2006"
 
- --enddate      (string) End Date, Format: "01/02/2006 3:04pm MST"
+ --enddate      (string) End Date, Format: "01/02/2006"
 
  --domain       (string) Default supported domains: ["development", 
                          "research", "design", "marketing"]
