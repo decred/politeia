@@ -300,9 +300,19 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 		for i, v := range settingValue {
 			switch {
 			case escaped:
-				// This character is escaped. Reset escaped
-				// and continue.
+				// This character is escaped. Reset escaped and
+				// continue.
 				escaped = false
+				if string(v) == "," {
+					// If the value being escaped is a comma, the start
+					// index is updated to be the current index. This is
+					// required because a comma is not a known escape
+					// sequence in golang so the backslash is interpreted
+					// as a value instead of an escape character. This
+					// results in the list item value being "\\," when
+					// it should be ",".
+					startIdx = i
+				}
 				continue
 			case string(v) == `\`:
 				// Escaped character found
@@ -314,12 +324,15 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 
 			// This is a comma. Parse the preceding value.
 			value := settingValue[startIdx:i]
+			value = strings.TrimSpace(value)
+
+			// Add value to the list
 			values = append(values, value)
 			startIdx = i + 1
 		}
 
 		// Add the last value to the list
-		values = append(values, settingValue[startIdx:])
+		values = append(values, strings.TrimSpace(settingValue[startIdx:]))
 
 		// Update settingValue to its JSON encoded equivalent
 		b, err := json.Marshal(values)
