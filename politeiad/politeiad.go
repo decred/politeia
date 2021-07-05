@@ -212,14 +212,15 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 }
 
 // parsePluginSetting parses a politeiad config plugin setting. Plugin settings
-// will be in following format. The value may be a single value of an array of
+// will be in following format. The value may be a single value or an array of
 // values.
 //
 // "pluginID,key,value"
 // "pluginID,key,[value1,value2,value3...]"
 //
 // When multiple values are provided, the values are parsed and returned as a
-// JSON encoded []string. Plugins should expect to receive the JSON.
+// JSON encoded []string. Plugins should expect to receive the JSON encoded
+// string array.
 func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error) {
 	formatMsg := "expected plugin setting format is " +
 		"'pluginID,key,value' or 'pluginID,key,[value1,value2,value3...]'"
@@ -231,11 +232,12 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 			setting, formatMsg)
 	}
 
-	// Clean setting
+	// Clean the setting
 	setting = strings.ToLower(setting)
 	setting = strings.TrimSpace(setting)
 
-	// Find the indexes of the commas
+	// Find the indexes of the commas that separate
+	// the plugin ID, setting key, and setting value.
 	var (
 		comma1 int
 		comma2 int
@@ -276,7 +278,7 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 
 	// The setting value can either be a single value or multiple
 	// values. Multiple values are parsed and returned as a JSON
-	// array. Plugins should expect to receive a JSON array.
+	// encoded []string.
 	if strings.Index(settingValue, "[") == 0 {
 		// This setting value contains multiple values. Verify that
 		// it has a closing bracket.
@@ -334,7 +336,7 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 		// Add the last value to the list
 		values = append(values, strings.TrimSpace(settingValue[startIdx:]))
 
-		// Update settingValue to its JSON encoded equivalent
+		// Update setting value to its JSON encoded equivalent
 		b, err := json.Marshal(values)
 		if err != nil {
 			return "", nil, err

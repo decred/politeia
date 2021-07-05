@@ -252,8 +252,8 @@ type Inventory struct {
 
 // PluginSetting represents a configurable plugin setting.
 //
-// The value can either be a single value of multiple values. Multiple values
-// will be formatted as a JSON encoded []string.
+// The value can either contain a single value or multiple values. Multiple
+// values will be formatted as a JSON encoded []string.
 type PluginSetting struct {
 	Key   string // Name of setting
 	Value string // Value of setting
