@@ -299,7 +299,7 @@ is an arbitrary set of files. A Decred proposal is an example of a record.
 
 politeiad uses a plugin architecture to extend records with additional
 functionality. For example, the comments plugin extends a record with comment
-functionality. It provides and API for creating, editing, deleting, and
+functionality. It provides an API for creating, editing, deleting, and
 retrieving comments.
 
 The plugins and their APIs can be found [here](plugins/).
@@ -325,9 +325,20 @@ characters.
 
 Some plugin settings require multiple values to be provided. One such example
 is when a list of supported characters is required. You can provide multiple
-values for a single plugin setting by passing the values in a array:
+values for a single plugin setting by passing the values in an array:
 
     pluginsetting=pluginID,key,[value1,value2,value3]
+
+If one of the values is meant to be a comma, it must be escaped in order to
+be interpreted as one of the list values.
+
+    ; Supported characters: ["a", "b", "c", ",", "1", "2", "3"]
+    pluginsetting=pluginID,supportedchars,[a,b,c,\,,1,2,3]
+
+Whitespaces in the list of values are interpreted as part of the value.
+
+    ; Supported characters: ["a", "b", "c", " ", "1", "2", "3"]
+    pluginsetting=pluginID,supportedchars,[a,b,c, ,1,2,3]
 
 ## Tools and reference clients
 
