@@ -280,7 +280,7 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 		}
 
 		// Re-encode the JSON. This will remove any funny
-		// formatting like white spaces.
+		// formatting like whitespaces.
 		b, err := json.Marshal(s)
 		if err != nil {
 			return "", nil, err
