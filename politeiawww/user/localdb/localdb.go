@@ -412,7 +412,17 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	return iter.Error()
 }
 
-// RotateKeys is an empty stub to satisfy the user.Database insterface.
+// EmailHistoriesGet is a stub to satisfy the user database interface.
+func (l *localdb) EmailHistoriesGet(_ []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	return nil, nil
+}
+
+// EmailHistoriesSave is a stub to satisfy the user database interface.
+func (l *localdb) EmailHistoriesSave(_ map[uuid.UUID]user.EmailHistory) error {
+	return nil
+}
+
+// RotateKeys is an empty stub to satisfy the user.Database interface.
 // Localdb implementation does not use encryption.
 func (l *localdb) RotateKeys(_ string) error {
 	return nil
@@ -475,16 +485,6 @@ func (l *localdb) Close() error {
 
 	l.shutdown = true
 	return l.userdb.Close()
-}
-
-// stub temp
-func (l *localdb) EmailHistoriesGet(_ []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
-	return nil, nil
-}
-
-// stub temp
-func (l *localdb) EmailHistoriesSave(_ map[uuid.UUID]user.EmailHistory) error {
-	return nil
 }
 
 // SessionSave saves the given session to the database. New sessions are

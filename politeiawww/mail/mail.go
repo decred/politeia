@@ -9,8 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Mailer is a simple interface used to send emails to a list of recipients.
-// Any additional feature must come from the objects that implements it.
+// Mailer is an interface used to send emails to a list of recipients.
 type Mailer interface {
 	// IsEnabled determines if the smtp server is enabled or not.
 	IsEnabled() bool

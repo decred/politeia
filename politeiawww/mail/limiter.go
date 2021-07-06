@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Limiter wraps around Client from the mail package and adds a
-// email rate limit functionality for users.
+// Limiter wraps around client from the mail package and adds an email
+// rate limit functionality for users.
 type limiter struct {
 	client client
 	userDB user.Database

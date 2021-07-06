@@ -55,8 +55,7 @@ func (c *client) SendTo(subject, body string, recipients []string) error {
 
 func newClient(host, user, password, emailAddress, certPath string, skipVerify bool) (*client, error) {
 	// Parse mail host
-	// TODO: rollback to smtps://
-	h := fmt.Sprintf("smtp://%v:%v@%v", user, password, host)
+	h := fmt.Sprintf("smtps://%v:%v@%v", user, password, host)
 	u, err := url.Parse(h)
 	if err != nil {
 		return nil, err
