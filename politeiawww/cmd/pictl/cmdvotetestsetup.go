@@ -50,11 +50,6 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		pass = c.PassPercentage
 	}
 
-	// Save the original print settings. We turn off printing while
-	// the proposals are being setup then turn it back on to print
-	// setup statistics.
-	silent := cfg.Silent
-
 	// We don't want the output of individual commands printed.
 	cfg.Verbose = false
 	cfg.RawJSON = false
@@ -84,23 +79,13 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		return err
 	}
 	if policyWWW.PaywallEnabled {
-		printf("WARN: politeiawww paywall is not disabled\n")
+		fmt.Printf("WARN: politeiawww paywall is not disabled\n")
 	}
 
 	// Setup votes
 	for i := 0; i < int(votes); i++ {
-		// Flip printing back to its original setting.
-		cfg.Silent = silent
-
 		s := fmt.Sprintf("Starting voting period on proposal %v/%v", i+1, votes)
 		printInPlace(s)
-		if i == int(votes)-1 {
-			// This is the last vote. Finish printing.
-			printf("\n")
-		}
-
-		// Turn printing back off for the proposal setup part.
-		cfg.Silent = true
 
 		// Create a public proposal
 		r, err := proposalPublic(admin, admin, false)
@@ -121,6 +106,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 			return err
 		}
 	}
+	fmt.Printf("\n")
 
 	return nil
 }

@@ -35,11 +35,6 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		password = string(pass)
 	}
 
-	// Save the original print settings. We turn off printing for most
-	// of this command to reduce the noise then turn it back on to
-	// print summary statistics.
-	silent := cfg.Silent
-
 	// We don't want the output of individual commands printed.
 	cfg.Verbose = false
 	cfg.RawJSON = false
@@ -70,9 +65,6 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		tkv1.VoteOptionIDReject,
 	}
 
-	// Set printing back to its original setting.
-	cfg.Silent = silent
-
 	// Cast ballots concurrently
 	var wg sync.WaitGroup
 	for _, v := range votes {
@@ -81,23 +73,24 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		voteOption := voteOptions[int(r)%len(voteOptions)]
+		idx := int(r % uint64(len(voteOptions)))
+		voteOption := voteOptions[idx]
 
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, token, voteOption, password string) {
 			defer wg.Done()
 
 			// Cast ballot
-			printf("Casting ballot for %v %v\n", token, voteOption)
+			fmt.Printf("Casting ballot for %v %v\n", token, voteOption)
 			start := time.Now()
 			err := castBallot(token, voteOption, password)
 			if err != nil {
-				printf("castBallot %v: %v\n", token, err)
+				fmt.Printf("castBallot %v: %v\n", token, err)
 			}
 			end := time.Now()
 			elapsed := end.Sub(start)
 
-			printf("%v elapsed time %v\n", token, elapsed)
+			fmt.Printf("%v elapsed time %v\n", token, elapsed)
 
 		}(&wg, v, voteOption, password)
 	}
