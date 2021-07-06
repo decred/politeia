@@ -247,7 +247,7 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 		return "", nil, errors.Errorf("missing csv entry '%v'; %v",
 			setting, formatMsg)
 	case len(parsed) == 3:
-	// This is expected; continue
+		// This is expected; continue
 	case len(parsed) > 3 && isMulti:
 		// This is expected; continue
 	default:
