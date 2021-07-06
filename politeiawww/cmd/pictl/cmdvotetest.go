@@ -80,6 +80,9 @@ func (c *cmdVoteTest) Execute(args []string) error {
 		go func(wg *sync.WaitGroup, token, voteOption, password string) {
 			defer wg.Done()
 
+			// Turn printing back on for this part
+			cfg.Silent = false
+
 			// Cast ballot
 			fmt.Printf("Casting ballot for %v %v\n", token, voteOption)
 			start := time.Now()
