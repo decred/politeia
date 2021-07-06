@@ -119,7 +119,7 @@ func (p *dcrdataPlugin) websocketMonitor() {
 		// Handle new message
 		switch m := msg.Message.(type) {
 		case *exptypes.WebsocketBlock:
-			log.Infof("WebsocketBlock: %v", m.Block.Height)
+			log.Debugf("WebsocketBlock: %v", m.Block.Height)
 
 			// Update cached best block
 			p.bestBlockSet(uint32(m.Block.Height))
