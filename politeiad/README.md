@@ -325,20 +325,14 @@ characters.
 
 Some plugin settings require multiple values to be provided. One such example
 is when a list of supported characters is required. You can provide multiple
-values for a single plugin setting by passing the values in an array:
+values for a single plugin setting by passing the values in an array. The
+array must be a valid JSON encoded []string.
 
-    pluginsetting=pluginID,key,[value1,value2,value3]
+    # Easiest method
+    pluginsetting=pluginID,key,["value1","value2","value3"]
 
-If one of the values is meant to be a comma, it must be escaped in order to
-be interpreted as one of the list values.
-
-    ; Supported characters: ["a", "b", "c", ",", "1", "2", "3"]
-    pluginsetting=pluginID,supportedchars,[a,b,c,\,,1,2,3]
-
-Whitespaces in the list of values are interpreted as part of the value.
-
-    ; Supported characters: ["a", "b", "c", " ", "1", "2", "3"]
-    pluginsetting=pluginID,supportedchars,[a,b,c, ,1,2,3]
+    # Or you can manually escape the quotes
+    pluginsetting="pluginID,key,[\"value1\",\"value2\",\"value3\"]"
 
 ## Tools and reference clients
 

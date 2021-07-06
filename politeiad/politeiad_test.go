@@ -44,6 +44,14 @@ func TestParsePluginSetting(t *testing.T) {
 			"",
 		},
 		{
+			"invalid setting not json",
+			"pluginid,key,[value1,value2,value3]",
+			true,
+			"",
+			"",
+			"",
+		},
+		{
 			"single value normal",
 			"pluginid,key,value",
 			false,
@@ -53,11 +61,11 @@ func TestParsePluginSetting(t *testing.T) {
 		},
 		{
 			"single value mixed case",
-			"pluginID,KEY,vAlUe",
+			"pLugInID,KeY,vAlUe",
 			false,
 			"pluginid",
 			"key",
-			"value",
+			"vAlUe",
 		},
 		{
 			"single value whitespaces",
@@ -69,7 +77,7 @@ func TestParsePluginSetting(t *testing.T) {
 		},
 		{
 			"multi value normal",
-			"pluginid,key,[value1,value2,value3]",
+			`pluginid,key,["value1","value2","value3"]`,
 			false,
 			"pluginid",
 			"key",
@@ -77,7 +85,7 @@ func TestParsePluginSetting(t *testing.T) {
 		},
 		{
 			"multi value whitespaces",
-			"pluginid, key, [value1, value2, value3]",
+			`pluginid,key,["value1", "value2", "value3"]`,
 			false,
 			"pluginid",
 			"key",
@@ -85,25 +93,23 @@ func TestParsePluginSetting(t *testing.T) {
 		},
 		{
 			"multi value with one entry",
-			"pluginid,key,[value1]",
+			`pluginid,key,["value1"]`,
 			false,
 			"pluginid",
 			"key",
 			`["value1"]`,
 		},
 		{
-			"multi value escaped quotes",
-			"pluginid,key,[value1,value2,\",value4]",
+			"multi value with escaped quotes",
+			`pluginid,key,["value1","value2","\"","value4"]`,
 			false,
 			"pluginid",
 			"key",
 			`["value1","value2","\"","value4"]`,
 		},
 		{
-			"multi value escaped comma",
-			// The comma is a value in the list (value 3),
-			// not a list item separator.
-			`pluginid,key,[value1,value2,\,,value4]`,
+			"multi value with comma value",
+			`pluginid,key,["value1","value2",",","value4"]`,
 			false,
 			"pluginid",
 			"key",
@@ -122,8 +128,7 @@ func TestParsePluginSetting(t *testing.T) {
 				// Receieved the expected error output. Continue.
 
 			case !v.err && err != nil:
-				t.Errorf("got error '%v' for '%v', want nil error",
-					err, v.setting)
+				t.Errorf("got error '%v', want nil error", err)
 
 			case pluginID != v.pluginID:
 				t.Errorf("invalid plugin id: got %v, want %v",

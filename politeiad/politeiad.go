@@ -14,6 +14,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"os/signal"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"syscall"
@@ -211,136 +212,81 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 	return nil
 }
 
+var (
+	// regexpPluginSettingMulti matches against the plugin setting
+	// value when it contains multiple values.
+	//
+	// pluginID,key,["value1","value2"] matches ["value1","value2"]
+	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
+)
+
 // parsePluginSetting parses a politeiad config plugin setting. Plugin settings
 // will be in following format. The value may be a single value or an array of
 // values.
 //
-// "pluginID,key,value"
-// "pluginID,key,[value1,value2,value3...]"
+// pluginID,key,value
+// pluginID,key,["value1","value2","value3"...]
 //
-// When multiple values are provided, the values are parsed and returned as a
-// JSON encoded []string. Plugins should expect to receive the JSON encoded
-// string array.
+// When multiple values are provided, the values must be formatted as a JSON
+// encoded []string.
 func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error) {
-	formatMsg := "expected plugin setting format is " +
-		"'pluginID,key,value' or 'pluginID,key,[value1,value2,value3...]'"
+	formatMsg := `expected plugin setting format is ` +
+		`pluginID,key,value OR pluginID,key,["value1","value2","value3"]`
 
-	// A plugin setting will be a comma separated list containing
-	// at least two commas, but possibly more.
-	if strings.Count(setting, ",") < 2 {
+	// Parse the plugin setting
+	var (
+		parsed = strings.Split(setting, ",")
+
+		// isMulti indicates whether the plugin setting contains
+		// multiple values. If the setting only contains a single
+		// value then isMulti will be false.
+		isMulti = regexpPluginSettingMulti.MatchString(setting)
+	)
+	switch {
+	case len(parsed) < 3:
+		return "", nil, errors.Errorf("missing csv entry '%v'; %v",
+			setting, formatMsg)
+	case len(parsed) == 3:
+	// This is expected; continue
+	case len(parsed) > 3 && isMulti:
+		// This is expected; continue
+	default:
 		return "", nil, errors.Errorf("invalid format '%v'; %v",
 			setting, formatMsg)
 	}
 
-	// Clean the setting
-	setting = strings.ToLower(setting)
-	setting = strings.TrimSpace(setting)
-
-	// Find the indexes of the commas that separate
-	// the plugin ID, setting key, and setting value.
 	var (
-		comma1 int
-		comma2 int
+		pluginID     = parsed[0]
+		settingKey   = parsed[1]
+		settingValue = parsed[2]
 	)
-	for i, v := range setting {
-		if string(v) != "," {
-			continue
-		}
-		switch {
-		case comma1 == 0:
-			comma1 = i
-		case comma2 == 0:
-			comma2 = i
-		}
-		if comma2 != 0 {
-			// We're done
-			break
-		}
-	}
 
-	// Parse the plugin setting
-	var (
-		pluginID     = strings.TrimSpace(setting[0:comma1])
-		settingKey   = strings.TrimSpace(setting[comma1+1 : comma2])
-		settingValue = strings.TrimSpace(setting[comma2+1:])
-	)
-	switch {
-	case len(pluginID) == 0:
-		return "", nil, errors.Errorf("plugin id not found in '%v'; %v",
-			setting, formatMsg)
-	case len(settingKey) == 0:
-		return "", nil, errors.Errorf("setting key not found in '%v'; %v",
-			setting, formatMsg)
-	case len(settingValue) == 0:
-		return "", nil, errors.Errorf("setting value not found in '%v'; %v",
-			setting, formatMsg)
-	}
+	// Clean the strings. The setting value is allowed to be case
+	// sensitive.
+	pluginID = strings.ToLower(strings.TrimSpace(pluginID))
+	settingKey = strings.ToLower(strings.TrimSpace(settingKey))
+	settingValue = strings.TrimSpace(settingValue)
 
-	// The setting value can either be a single value or multiple
-	// values. Multiple values are parsed and returned as a JSON
-	// encoded []string.
-	if strings.Index(settingValue, "[") == 0 {
-		// This setting value contains multiple values. Verify that
-		// it has a closing bracket.
-		if strings.LastIndex(settingValue, "]") != len(settingValue)-1 {
-			return "", nil, errors.Errorf("invalid setting value; "+
-				"expected to find a closing ']' in '%v'; %v",
-				settingValue, formatMsg)
-		}
+	// Handle multiple values
+	if isMulti {
+		// Parse values
+		values := regexpPluginSettingMulti.FindString(setting)
 
-		// Trim opening and closing brackets
-		settingValue = settingValue[1 : len(settingValue)-1]
-
-		// Parse the values. We do this manually in case the setting
-		// value contains an escaped comma, indicating that the
-		// comma is the value itself and not a list item separator.
-		var (
-			values   = make([]string, 0, 256)
-			startIdx int
-			escaped  bool
-		)
-		for i, v := range settingValue {
-			switch {
-			case escaped:
-				// This character is escaped. Reset escaped and
-				// continue.
-				escaped = false
-				if string(v) == "," {
-					// If the value being escaped is a comma, the start
-					// index is updated to be the current index. This is
-					// required because a comma is not a known escape
-					// sequence in golang so the backslash is interpreted
-					// as a value instead of an escape character. This
-					// results in the list item value being "\\," when
-					// it should be ",".
-					startIdx = i
-				}
-				continue
-			case string(v) == `\`:
-				// Escaped character found
-				escaped = true
-				continue
-			case string(v) != ",":
-				continue
-			}
-
-			// This is a comma. Parse the preceding value.
-			value := settingValue[startIdx:i]
-			value = strings.TrimSpace(value)
-
-			// Add value to the list
-			values = append(values, value)
-			startIdx = i + 1
-		}
-
-		// Add the last value to the list
-		values = append(values, strings.TrimSpace(settingValue[startIdx:]))
-
-		// Update setting value to its JSON encoded equivalent
-		b, err := json.Marshal(values)
+		// Verify the values are formatted as valid JSON
+		var s []string
+		err := json.Unmarshal([]byte(values), &s)
 		if err != nil {
 			return "", nil, err
 		}
+
+		// Re-encode the JSON. This will remove any funny
+		// formatting like white spaces.
+		b, err := json.Marshal(s)
+		if err != nil {
+			return "", nil, err
+		}
+
+		// Save the value
 		settingValue = string(b)
 	}
 
