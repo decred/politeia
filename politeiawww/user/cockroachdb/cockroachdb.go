@@ -430,6 +430,9 @@ func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
 	return user.DecodeSession(b)
 }
 
+// EmailHistoriesSave creates or updates the email histories.
+//
+// EmailHistoriesSave satisfies the user Database interface.
 func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistorySet: %v", histories)
 
@@ -476,6 +479,9 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 	return nil
 }
 
+// EmailHistoriesGet returns the email histories for the specified users.
+//
+// EmailHistoriesGet satisfies the user Database interface.
 func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 	log.Tracef("EmailHistorySet: %v", users)
 

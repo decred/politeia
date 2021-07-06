@@ -9,19 +9,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// Mailer is agnostic to the notion of politeiawww users, and functionality
-// that involves them must come from different Mailer wrappers who implement
-// it.
+// Mailer is a simple interface used to send emails to a list of recipients.
+// Any additional feature must come from the objects that implements it.
 type Mailer interface {
-	// IsEnabled determines if the smtp server is enabled or not
+	// IsEnabled determines if the smtp server is enabled or not.
 	IsEnabled() bool
 
-	// SendTo sends an email to a list of recipients email addresses. This
-	// function is agnostic to the concept of www users.
+	// SendTo sends an email to a list of recipients email addresses.
 	SendTo(subject, body string, recipients []string) error
 }
 
-// New returns a new mailer. Can instantiate a default client or a limiter client.
+// New returns a new mailer. The instantiated mailer depends on the passed in
+// arguments.
 func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.Database, userEmails map[string]uuid.UUID) (Mailer, error) {
 	var mailer Mailer
 
@@ -35,8 +34,9 @@ func New(host, user, password, emailAddress, certPath string, skipVerify bool, l
 		return mailer, nil
 	}
 
-	// Create default client as our initial mailer
-	client, err := newClient(host, user, password, emailAddress, certPath, skipVerify)
+	// Create a default client as the initial mailer.
+	client, err := newClient(host, user, password, emailAddress, certPath,
+		skipVerify)
 	if err != nil {
 		return nil, err
 	}

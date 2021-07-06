@@ -686,6 +686,9 @@ func (m *mysql) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
+// EmailHistoriesSave creates or updates the email histories.
+//
+// EmailHistoriesSave satisfies the user Database interface.
 func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistoriesSave: %v", histories)
 
@@ -713,10 +716,10 @@ func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) er
 			// Email history doesn't exist for this user, create new one.
 		default:
 			// All other errors
-			return fmt.Errorf("email_histories lookup: %v", err)
+			return fmt.Errorf("lookup: %v", err)
 		}
 
-		// blob
+		// Make email history blob
 		ehb, err := user.EncodeEmailHistory(history)
 		if err != nil {
 			return fmt.Errorf("convert email history to DB: %w", err)
@@ -732,14 +735,14 @@ func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) er
 				`UPDATE email_histories SET hBlob = ? WHERE userID = ?`,
 				eb, userID)
 			if err != nil {
-				return fmt.Errorf("email_histories update: %v", err)
+				return fmt.Errorf("update: %v", err)
 			}
 		} else {
 			_, err := m.userDB.ExecContext(ctx,
 				`INSERT INTO email_histories (userID, hBlob) VALUES (?, ?)`,
 				userID, eb)
 			if err != nil {
-				return fmt.Errorf("email_histories create: %v", err)
+				return fmt.Errorf("create: %v", err)
 			}
 		}
 	}
@@ -747,6 +750,9 @@ func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) er
 	return nil
 }
 
+// EmailHistoriesGet returns the email histories for the specified users.
+//
+// EmailHistoriesGet satisfies the user Database interface.
 func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 	log.Tracef("EmailHistoriesGet: %v", users)
 
@@ -772,7 +778,7 @@ func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHi
 	defer rows.Close()
 
 	// Decrypt email history blob and compile the userid maps with their
-	// respective email hitory.
+	// respective email history.
 	type EmailHistory struct {
 		UserID string
 		Blob   []byte

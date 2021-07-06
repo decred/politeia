@@ -5,7 +5,6 @@
 package mail
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
@@ -34,68 +33,14 @@ func (l *limiter) IsEnabled() bool {
 }
 
 // SendTo sends an email with the given subject and body to the provided list
-// of email addresses. This also adds an email rate limit functionality ...
+// of email addresses. This adds an email rate limit functionality in order
+// to avoid spamming from malicious users.
 //
 // This function satisfies the Mailer interface.
 func (l *limiter) SendTo(subjects, body string, recipients []string) error {
-	fmt.Println("sending mails via limiter")
-
-	// Compile user IDs from recipients and get their email histories
-	userIDs := make([]uuid.UUID, 0, len(recipients))
-	for _, email := range recipients {
-		userIDs = append(userIDs, l.userEmails[email])
-	}
-	histories, err := l.userDB.EmailHistoriesGet(userIDs)
+	valid, invalid, histories, err := l.filterRecipients(recipients)
 	if err != nil {
-		return fmt.Errorf("fetch histories from DB: %w", err)
-	}
-
-	// Divide recipients into valid and invalid recipients. This handles
-	// sending email to users who have not hit the rate limit, and warning
-	// users that their rate limit has been hit. Also, updates their email
-	// histories on the db.
-	var (
-		valid   []string // Valid recipients (rate limit not hit)
-		invalid []string // Invalid recipients (rate limit hit)
-
-		newHistories = make(map[uuid.UUID]user.EmailHistory, len(recipients))
-	)
-	for _, email := range recipients {
-		id := l.userEmails[email]
-		history, ok := histories[id]
-		if !ok {
-			// User does not have a mail history yet, add user to valid
-			// recipients and create his email history.
-			newHistories[id] = user.EmailHistory{
-				Timestamps:       []int64{time.Now().Unix()},
-				LimitWarningSent: false,
-			}
-			valid = append(valid, email)
-			continue
-		}
-
-		// Filter timestamps for the past 24h.
-		history.Timestamps = l.filterTimestamps(history.Timestamps,
-			24*time.Hour)
-
-		if len(history.Timestamps) > l.limit {
-			// Rate limit has been hit. If limit warning email has not yet
-			// been sent, add user to invalid recipients and update email
-			// history.
-			if !history.LimitWarningSent {
-				invalid = append(invalid, email)
-				history.LimitWarningSent = true
-				newHistories[id] = history
-			}
-			continue
-		}
-
-		// Rate limit has not been hit, add user to valid recipients and
-		// update email history.
-		valid = append(valid, email)
-		history.Timestamps = append(history.Timestamps, time.Now().Unix())
-		history.LimitWarningSent = false
-		newHistories[id] = history
+		return err
 	}
 
 	// Handle valid recipients.
@@ -108,25 +53,97 @@ func (l *limiter) SendTo(subjects, body string, recipients []string) error {
 
 	// Handle invalid recipients.
 	if len(invalid) > 0 {
-		err := l.client.SendTo("rate limit hit", "rate limit hit", invalid)
+		err = l.client.SendTo(limitEmailSubject, limitEmailBody, invalid)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Update email histories on db.
-	l.userDB.EmailHistoriesSave(newHistories)
+	if len(histories) > 0 {
+		l.userDB.EmailHistoriesSave(histories)
+	}
 
 	return nil
 }
 
+// filterRecipients devides recipients into valid, those that are able to
+// receive emails, and invalid, those that have hit the email rate limit,
+// but have not yet received the warning email. It also updates the email
+// history for each user inside the recipients list.
+func (l *limiter) filterRecipients(rs []string) ([]string, []string, map[uuid.UUID]user.EmailHistory, error) {
+	// Sanity check
+	if len(rs) == 0 {
+		return nil, nil, nil, nil
+	}
+
+	// Compile user IDs from recipients and get their email histories.
+	ids := make([]uuid.UUID, 0, len(rs))
+	for _, email := range rs {
+		ids = append(ids, l.userEmails[email])
+	}
+	hs, err := l.userDB.EmailHistoriesGet(ids)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Divide recipients into valid and invalid recipients, and parse their
+	// new email history.
+	var (
+		valid     []string
+		invalid   []string
+		histories = make(map[uuid.UUID]user.EmailHistory, len(rs))
+	)
+	for _, email := range rs {
+		id := l.userEmails[email]
+		history, ok := hs[id]
+		if !ok {
+			// User does not have a mail history yet, add user to valid
+			// recipients and create his email history.
+			histories[id] = user.EmailHistory{
+				Timestamps:       []int64{time.Now().Unix()},
+				LimitWarningSent: false,
+			}
+			valid = append(valid, email)
+			continue
+		}
+
+		// Filter timestamps for the past 24h.
+		history.Timestamps = l.filterTimestamps(history.Timestamps,
+			24*time.Hour)
+
+		if len(history.Timestamps) >= l.limit {
+			// Rate limit has been hit. If limit warning email has not yet
+			// been sent, add user to invalid recipients and update email
+			// history.
+			if !history.LimitWarningSent {
+				invalid = append(invalid, email)
+				history.LimitWarningSent = true
+				histories[id] = history
+			}
+			continue
+		}
+
+		// Rate limit has not been hit, add user to valid recipients and
+		// update email history.
+		valid = append(valid, email)
+		history.Timestamps = append(history.Timestamps, time.Now().Unix())
+		history.LimitWarningSent = false
+		histories[id] = history
+	}
+
+	return valid, invalid, histories, nil
+}
+
+// filterTimestamps filters out timestamps from the passed in slice that comes
+// before the specified delta time duration.
 func (l *limiter) filterTimestamps(in []int64, delta time.Duration) []int64 {
-	staleBefore := time.Now().Add(-delta)
+	before := time.Now().Add(-delta)
 	out := make([]int64, 0, len(in))
 
 	for _, ts := range in {
 		timestamp := time.Unix(ts, 0)
-		if timestamp.Before(staleBefore) {
+		if timestamp.Before(before) {
 			continue
 		}
 		out = append(out, ts)
@@ -134,6 +151,15 @@ func (l *limiter) filterTimestamps(in []int64, delta time.Duration) []int64 {
 
 	return out
 }
+
+// Limit warning email texts that are sent to invalid users.
+const limitEmailSubject = "Email Rate Limit Hit"
+const limitEmailBody = `
+Your email rate limit for the past 24h has been hit. This measure is used
+to avoid malicious users spamming Politeia's email server. 
+	
+We apologize for any inconvenience.
+`
 
 func newLimiter(c client, db user.Database, l int, ue map[string]uuid.UUID) *limiter {
 	return &limiter{
