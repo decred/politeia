@@ -73,7 +73,7 @@ func (p *politeiawww) emailUserEmailVerify(email, token, username string) error 
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailUserKeyUpdate emails the link with the verification token used for
@@ -97,7 +97,7 @@ func (p *politeiawww) emailUserKeyUpdate(username, email, publicKey, token strin
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailUserPasswordReset emails the link with the reset password verification
@@ -124,7 +124,7 @@ func (p *politeiawww) emailUserPasswordReset(email, username, token string) erro
 	}
 
 	// Send email
-	return p.mail.SendTo(subject, body, []string{email})
+	return p.mail.SendToUsers(subject, body, []string{email})
 }
 
 // emailUserAccountLocked notifies the user its account has been locked and
@@ -149,7 +149,7 @@ func (p *politeiawww) emailUserAccountLocked(username, email string) error {
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailUserPasswordChanged notifies the user that his password was changed,
@@ -166,7 +166,7 @@ func (p *politeiawww) emailUserPasswordChanged(username, email string) error {
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailUserCMSInvite emails the invitation link for the Contractor Management
@@ -189,7 +189,7 @@ func (p *politeiawww) emailUserCMSInvite(email, token string) error {
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailUserDCCApproved emails the link to invite a user that has been approved
@@ -206,7 +206,7 @@ func (p *politeiawww) emailUserDCCApproved(email string) error {
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailDCCSubmitted sends email regarding the DCC New event. Sends email
@@ -228,7 +228,7 @@ func (p *politeiawww) emailDCCSubmitted(token string, emails []string) error {
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
@@ -250,7 +250,7 @@ func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 // emailInvoiceStatusUpdate sends email for the invoice status update event.
@@ -267,7 +267,7 @@ func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) e
 	}
 	recipients := []string{userEmail}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailInvoiceNotifications emails users that have not yet submitted an
@@ -286,7 +286,7 @@ func (p *politeiawww) emailInvoiceNotifications(email, username, subject string,
 	}
 	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 // emailInvoiceNewComment sends email for the invoice new comment event. Send
@@ -301,5 +301,5 @@ func (p *politeiawww) emailInvoiceNewComment(userEmail string) error {
 	}
 	recipients := []string{userEmail}
 
-	return p.mail.SendTo(subject, body, recipients)
+	return p.mail.SendToUsers(subject, body, recipients)
 }

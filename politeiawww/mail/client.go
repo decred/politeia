@@ -1,3 +1,7 @@
+// Copyright (c) 2020-2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package mail
 
 import (
@@ -12,8 +16,7 @@ import (
 )
 
 // client provides an SMTP client for sending emails from a preset email
-// address. This option does not need exposure to any user db, unlike
-// the limiter mailer option
+// address.
 type client struct {
 	smtp        *goemail.SMTP // SMTP server
 	mailName    string        // From name
@@ -21,21 +24,13 @@ type client struct {
 	disabled    bool          // Has email been disabled
 }
 
-var (
-	_ Mailer = (*client)(nil)
-)
-
 // IsEnabled returns whether the mail server is enabled.
-//
-// This function satisfies the Mailer interface.
 func (c *client) IsEnabled() bool {
 	return !c.disabled
 }
 
 // SendTo sends an email with the given subject and body to the provided list
 // of email addresses.
-//
-// This function satisfies the Mailer interface.
 func (c *client) SendTo(subject, body string, recipients []string) error {
 	if c.disabled || len(recipients) == 0 {
 		return nil

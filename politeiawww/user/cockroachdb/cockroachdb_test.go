@@ -738,7 +738,7 @@ func TestEmailHistoriesGet(t *testing.T) {
 
 	// Negative expectations
 	randomUserID := uuid.New()
-	expectedError := user.ErrEmailHistoryNotFound
+	expectedError := errors.New("email history not found")
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
 		WithArgs(randomUserID).
 		WillReturnError(expectedError)

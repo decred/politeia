@@ -21,10 +21,6 @@ var (
 	// in the database.
 	ErrSessionNotFound = errors.New("no user session found")
 
-	// ErrEmailHistoryNotFound indicates that a email history for a user
-	// was not found in the database.
-	ErrEmailHistoryNotFound = errors.New("no email history found")
-
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")
@@ -356,6 +352,12 @@ func (u *User) ActivateIdentity(key []byte) error {
 	return nil
 }
 
+// EmailHistory keeps track of the received emails by each user. This is
+// used to rate limit the amount of emails an user can receive in a 24h
+// time window. This was not stored in the user object in order to avoid
+// race conditions on db calls, since our user db currently does not support
+// transactions, and email notifications run in a separate goroutine. This
+// workaround won't be necessary once the user layer gets rewritten.
 type EmailHistory struct {
 	Timestamps       []int64 `json:"timestamps"`
 	LimitWarningSent bool    `json:"limitwarningsent"`

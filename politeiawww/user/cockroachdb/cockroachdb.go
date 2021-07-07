@@ -495,9 +495,6 @@ func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.E
 		Find(&result).
 		Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = user.ErrEmailHistoryNotFound
-		}
 		return nil, err
 	}
 

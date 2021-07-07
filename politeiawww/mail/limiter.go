@@ -14,10 +14,9 @@ import (
 // Limiter wraps around client from the mail package and adds an email
 // rate limit functionality for users.
 type limiter struct {
-	client client
-	userDB user.Database
-	limit  int
-
+	client     client
+	userDB     user.Database
+	limit      int
 	userEmails map[string]uuid.UUID
 }
 
@@ -33,11 +32,17 @@ func (l *limiter) IsEnabled() bool {
 }
 
 // SendTo sends an email with the given subject and body to the provided list
+// of email addresses.
+func (l *limiter) SendTo(subject, body string, recipients []string) error {
+	return l.client.SendTo(subject, body, recipients)
+}
+
+// SendToUsers sends an email with the given subject and body to the provided list
 // of email addresses. This adds an email rate limit functionality in order
 // to avoid spamming from malicious users.
 //
 // This function satisfies the Mailer interface.
-func (l *limiter) SendTo(subjects, body string, recipients []string) error {
+func (l *limiter) SendToUsers(subjects, body string, recipients []string) error {
 	valid, invalid, histories, err := l.filterRecipients(recipients)
 	if err != nil {
 		return err
@@ -67,7 +72,7 @@ func (l *limiter) SendTo(subjects, body string, recipients []string) error {
 	return nil
 }
 
-// filterRecipients devides recipients into valid, those that are able to
+// filterRecipients divides recipients into valid, those that are able to
 // receive emails, and invalid, those that have hit the email rate limit,
 // but have not yet received the warning email. It also updates the email
 // history for each user inside the recipients list.
@@ -155,12 +160,12 @@ func (l *limiter) filterTimestamps(in []int64, delta time.Duration) []int64 {
 // Limit warning email texts that are sent to invalid users.
 const limitEmailSubject = "Email Rate Limit Hit"
 const limitEmailBody = `
-Your email rate limit for the past 24h has been hit. This measure is used
-to avoid malicious users spamming Politeia's email server. 
+Your email rate limit for the past 24h has been hit. This measure is used to avoid malicious users spamming Politeia's email server. 
 	
 We apologize for any inconvenience.
 `
 
+// newLimiter returns a new limiter that implements the Mailer interface.
 func newLimiter(c client, db user.Database, l int, ue map[string]uuid.UUID) *limiter {
 	return &limiter{
 		client:     c,

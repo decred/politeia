@@ -14,38 +14,43 @@ type Mailer interface {
 	// IsEnabled determines if the smtp server is enabled or not.
 	IsEnabled() bool
 
-	// SendTo sends an email to a list of recipients email addresses.
+	// SendTo sends an email to a list of recipients email addresses. This
+	// function does not limit emails, and is used to send email to sysadmins
+	// or similar operations.
 	SendTo(subject, body string, recipients []string) error
+
+	// SendToUsers sends an email to a list of recipients email addresses. This
+	// function rate limits the amount of emails a www user can receive in a
+	// specific time window.
+	SendToUsers(subject, body string, recipients []string) error
 }
 
-// New returns a new mailer. The instantiated mailer depends on the passed in
-// arguments.
+// New returns a new mailer.
 func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.Database, userEmails map[string]uuid.UUID) (Mailer, error) {
 	var mailer Mailer
 
 	// Email is considered disabled if any of the required user
 	// credentials are mising.
 	if host == "" || user == "" || password == "" {
-		log.Infof("Email: DISABLED")
-		mailer = &client{
+		log.Infof("Mail: DISABLED")
+		c := &client{
 			disabled: true,
+		}
+		mailer = &limiter{
+			client: *c,
 		}
 		return mailer, nil
 	}
 
-	// Create a default client as the initial mailer.
+	// Create a new smtp client.
 	client, err := newClient(host, user, password, emailAddress, certPath,
 		skipVerify)
 	if err != nil {
 		return nil, err
 	}
-	mailer = client
 
-	// If rate limiting feature is enabled, wrap client with limiter
-	// functionality.
-	if limit != 0 {
-		mailer = newLimiter(*client, db, limit, userEmails)
-	}
+	// Create a new mailer with rate limiting functionality.
+	mailer = newLimiter(*client, db, limit, userEmails)
 
 	return mailer, nil
 }

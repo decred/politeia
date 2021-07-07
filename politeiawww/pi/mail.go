@@ -57,7 +57,7 @@ func (p *Pi) mailNtfnProposalNew(token, name, username string, emails []string) 
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 type proposalEdit struct {
@@ -97,7 +97,7 @@ func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username s
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 type proposalPublished struct {
@@ -142,7 +142,7 @@ func (p *Pi) mailNtfnProposalSetStatus(token, name string, status rcv1.RecordSta
 		return fmt.Errorf("no mail ntfn for status %v", status)
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 type proposalPublishedToAuthor struct {
@@ -221,7 +221,7 @@ func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.R
 		return fmt.Errorf("no author notification for prop status %v", status)
 	}
 
-	return p.mail.SendTo(subject, body, []string{authorEmail})
+	return p.mail.SendToUsers(subject, body, []string{authorEmail})
 }
 
 type commentNewToProposalAuthor struct {
@@ -261,7 +261,7 @@ func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, 
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, []string{proposalAuthorEmail})
+	return p.mail.SendToUsers(subject, body, []string{proposalAuthorEmail})
 }
 
 type commentReply struct {
@@ -300,7 +300,7 @@ func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsernam
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, []string{parentAuthorEmail})
+	return p.mail.SendToUsers(subject, body, []string{parentAuthorEmail})
 }
 
 type voteAuthorized struct {
@@ -335,7 +335,7 @@ func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 type voteStarted struct {
@@ -370,7 +370,7 @@ func (p *Pi) mailNtfnVoteStarted(token, name string, emails []string) error {
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, emails)
 }
 
 type voteStartedToAuthor struct {
@@ -405,7 +405,7 @@ func (p *Pi) mailNtfnVoteStartedToAuthor(token, name, email string) error {
 		return err
 	}
 
-	return p.mail.SendTo(subject, body, []string{email})
+	return p.mail.SendToUsers(subject, body, []string{email})
 }
 
 func populateTemplate(tmpl *template.Template, tmplData interface{}) (string, error) {
