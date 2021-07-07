@@ -38,6 +38,7 @@ func New(host, user, password, emailAddress, certPath string, skipVerify bool, l
 		}
 		mailer = &limiter{
 			client: *c,
+			userDB: db,
 		}
 		return mailer, nil
 	}

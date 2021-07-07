@@ -28,7 +28,7 @@ var (
 //
 // This function satisfies the Mailer interface.
 func (l *limiter) IsEnabled() bool {
-	return l.client.disabled
+	return l.client.IsEnabled()
 }
 
 // SendTo sends an email with the given subject and body to the provided list
