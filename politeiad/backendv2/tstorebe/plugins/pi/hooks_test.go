@@ -8,103 +8,259 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/util"
 )
 
-func TestProposalNameIsValid(t *testing.T) {
+func TestHookNewRecordPre(t *testing.T) {
 	// Setup pi plugin
 	p, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
-	tests := []struct {
-		name string
-		want bool
-	}{
-		// empty test
-		{
-			"",
-			false,
-		},
-		// 7 characters
-		{
-			"abcdefg",
-			false,
-		},
+	// Run tests
+	for _, v := range proposalFormatTests(t) {
+		t.Run(v.name, func(t *testing.T) {
+			// Decode the expected error into a PluginError. If
+			// an error is being returned it should always be a
+			// PluginError.
+			var wantErrorCode pi.ErrorCodeT
+			if v.err != nil {
+				var pe backend.PluginError
+				if !errors.As(v.err, &pe) {
+					t.Fatalf("error is not a plugin error '%v'", v.err)
+				}
+				wantErrorCode = pi.ErrorCodeT(pe.ErrorCode)
+			}
 
-		// 81 characters
-		{
-			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			false,
-		},
-		// 8 characters
-		{
-			"12345678",
-			true,
-		},
-		{
-			"valid title",
-			true,
-		},
-		{
-			" - title: is valid; title. !.,  ",
-			true,
-		},
-		{
-			" - title: is valid; title.   ",
-			true,
-		},
-		{
-			"\n\n#This-is MY tittle###",
-			false,
-		},
-		{
-			"{this-is-the-title}",
-			false,
-		},
-		{
-			"\t<this- is-the title>",
-			false,
-		},
-		{
-			"{this   -is-the-title}   ",
-			false,
-		},
-		{
-			"###this is the title***",
-			false,
-		},
-		{
-			"###this is the title@+",
-			true,
-		},
-	}
-	for _, test := range tests {
-		t.Run("", func(t *testing.T) {
-			isValid := p.proposalNameIsValid(test.name)
-			if isValid != test.want {
-				t.Errorf("got %v, want %v", isValid, test.want)
+			// Setup payload
+			hnrp := plugins.HookNewRecordPre{
+				Files: v.files,
+			}
+			b, err := json.Marshal(hnrp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := string(b)
+
+			// Run test
+			err = p.hookNewRecordPre(payload)
+			switch {
+			case v.err != nil && err == nil:
+				// Wanted an error but didn't get one
+				t.Errorf("want error '%v', got nil",
+					pi.ErrorCodes[wantErrorCode])
+
+			case v.err == nil && err != nil:
+				// Wanted success but got an error
+				t.Errorf("want error nil, got '%v'", err)
+
+			case v.err != nil && err != nil:
+				// Wanted an error and got an error. Verify
+				// that it's the correct error.
+				var gotErr backend.PluginError
+				if !errors.As(v.err, &gotErr) {
+					t.Errorf("want error '%v', got '%v'",
+						pi.ErrorCodes[wantErrorCode], v.err)
+				}
+
+				gotErrorCode := pi.ErrorCodeT(gotErr.ErrorCode)
+				if wantErrorCode != gotErrorCode {
+					t.Errorf("want error '%v', got '%v'",
+						pi.ErrorCodes[wantErrorCode],
+						pi.ErrorCodes[gotErrorCode])
+				}
+
+				// Success; continue to next test
+				return
+
+			case v.err == nil && err == nil:
+				// Sucess; continue to next test
+				return
 			}
 		})
 	}
 }
 
-type proposalTest struct {
-	name string
-
+// proposalFormatTest contains the input and output for a test that verifies
+// the proposal format meets the pi plugin requirements.
+type proposalFormatTest struct {
+	name  string         // Test name
 	files []backend.File // Input
-	err   error          // Output
+	err   error          // Expected output
 }
 
-func fileIndex() backend.File {
-	var (
-		text = `Hello, world. This is my proposal. It would be
-            really cool if you could approve it and pay me
-            all the moneys. DCR to the moon!`
+// proposalFormatTests returns a list of tests that verify the files of a
+// proposal meet all formatting criteria that the pi plugin requires.
+func proposalFormatTests(t *testing.T) []proposalFormatTest {
+	tests := []proposalFormatTest{
+		{
+			"text file name invalid",
+			[]backend.File{},
+			// pi.ErrorCodeTextFileNameInvalid,
+			nil,
+		},
+		{
+			"text file size invalid",
+			[]backend.File{},
+			// pi.ErrorCodeTextFileSizeInvalid,
+			nil,
+		},
+		{
+			"image file size invalid",
+			[]backend.File{},
+			// pi.ErrorCodeImageFileSizeInvalid,
+			nil,
+		},
+		{
+			"index file missing",
+			[]backend.File{},
+			// pi.ErrorCodeTextFileMissing,
+			nil,
+		},
+		{
+			"too many images",
+			[]backend.File{},
+			// pi.ErrorCodeImageFileCountInvalid,
+			nil,
+		},
+		{
+			"proposal metadata missing",
+			[]backend.File{},
+			// pi.ErrorCodeTextFileMissing,
+			nil,
+		},
+	}
 
+	tests = append(tests, proposalNameTests(t)...)
+	return tests
+}
+
+// proposalNameTests returns a list of tests that verify the proposal name
+// requirements.
+func proposalNameTests(t *testing.T) []proposalFormatTest {
+	// Create names to test min and max lengths
+	var (
+		nameTooShort  string
+		nameTooLong   string
+		nameMinLength string
+		nameMaxLength string
+
+		b strings.Builder
+	)
+	for i := 0; i < int(pi.SettingProposalNameLengthMin)-1; i++ {
+		b.WriteString("a")
+	}
+	nameTooShort = b.String()
+	b.Reset()
+
+	for i := 0; i < int(pi.SettingProposalNameLengthMax)+1; i++ {
+		b.WriteString("a")
+	}
+	nameTooLong = b.String()
+	b.Reset()
+
+	for i := 0; i < int(pi.SettingProposalNameLengthMin); i++ {
+		b.WriteString("a")
+	}
+	nameMinLength = b.String()
+	b.Reset()
+
+	for i := 0; i < int(pi.SettingProposalNameLengthMax); i++ {
+		b.WriteString("a")
+	}
+	nameMaxLength = b.String()
+
+	// errNameInvalid is returned when proposal name validation
+	// fails.
+	errNameInvalid := backend.PluginError{
+		PluginID:  pi.PluginID,
+		ErrorCode: uint32(pi.ErrorCodeProposalNameInvalid),
+	}
+
+	return []proposalFormatTest{
+		{
+			"name is empty",
+			filesWithProposalName(t, ""),
+			errNameInvalid,
+		},
+		{
+			"name is too short",
+			filesWithProposalName(t, nameTooShort),
+			errNameInvalid,
+		},
+		{
+			"name is too long",
+			filesWithProposalName(t, nameTooLong),
+			errNameInvalid,
+		},
+		{
+			"name is the min length",
+			filesWithProposalName(t, nameMinLength),
+			nil,
+		},
+		{
+			"name is the max length",
+			filesWithProposalName(t, nameMaxLength),
+			nil,
+		},
+		{
+			"name contains A to Z",
+			filesWithProposalName(t, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+			nil,
+		},
+		{
+			"name contains a to z",
+			filesWithProposalName(t, "abcdefghijklmnopqrstuvwxyz"),
+			nil,
+		},
+		{
+			"name contains 0 to 9",
+			filesWithProposalName(t, "0123456789"),
+			nil,
+		},
+		{
+			"name contains supported chars",
+			filesWithProposalName(t, "&.,:;- @+#/()!?\"'"),
+			nil,
+		},
+		{
+			"name contains newline",
+			filesWithProposalName(t, "proposal name\n"),
+			errNameInvalid,
+		},
+		{
+			"name contains tab",
+			filesWithProposalName(t, "proposal name\t"),
+			errNameInvalid,
+		},
+		{
+			"name contains brackets",
+			filesWithProposalName(t, "{proposal name}"),
+			errNameInvalid,
+		},
+		{
+			"name is valid lowercase",
+			filesWithProposalName(t, "proposal name"),
+			nil,
+		},
+		{
+			"name is valid mixed case",
+			filesWithProposalName(t, "Proposal Name"),
+			nil,
+		},
+	}
+}
+
+// fileProposalIndex returns a backend file for a proposal index file.
+func fileProposalIndex() backend.File {
+	var (
+		text    = "Hello, world. This is my proposal. Pay me."
 		payload = []byte(text)
 	)
 	return backend.File{
@@ -115,9 +271,9 @@ func fileIndex() backend.File {
 	}
 }
 
-// fileProposalMetadata returns a backend file for a proposal metadata. The
-// proposal metadata can optionally be provided as an argument. If no proposal
-// metadata is provided, one is created and filled with test data.
+// fileProposalMetadata returns a backend file for a proposal metadata file.
+// The proposal metadata can optionally be provided as an argument. If no
+// proposal metadata is provided, one is created and filled with test data.
 func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	if pm == nil {
 		pm = &pi.ProposalMetadata{
@@ -136,141 +292,24 @@ func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	}
 }
 
+// filesNoAttachments returns the backend files for a valid proposal. The
+// returned files only include the files required by the pi plugin API. No
+// attachment files are included.
 func filesNoAttachments(t *testing.T) []backend.File {
 	return []backend.File{
-		fileIndex(),
+		fileProposalIndex(),
 		fileProposalMetadata(t, nil),
 	}
 }
 
+// filesNoAttachments returns the backend files for a valid proposal, using the
+// provided name as the proposal name. The returned files only include the
+// files required by the pi plugin API. No attachment files are included.
 func filesWithProposalName(t *testing.T, name string) []backend.File {
 	return []backend.File{
-		fileIndex(),
+		fileProposalIndex(),
 		fileProposalMetadata(t, &pi.ProposalMetadata{
 			Name: name,
 		}),
-	}
-}
-
-func proposalNameTests(t *testing.T) []proposalTest {
-	var (
-		nameTooLong = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +
-			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
-		errNameInvalid = backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeProposalNameInvalid),
-		}
-	)
-	return []proposalTest{
-		{
-			"proposal name empty",
-			filesWithProposalName(t, ""),
-			errNameInvalid,
-		},
-		{
-			"proposal name too short", // 7 characters
-			filesWithProposalName(t, "abcdefg"),
-			errNameInvalid,
-		},
-
-		// 81 characters
-		{
-			"proposal name too long", // 81 characters
-			filesWithProposalName(t, nameTooLong),
-			errNameInvalid,
-		},
-		{
-			"proposal name min length", // 8 characters
-			"12345678",
-			nil,
-		},
-		{
-			"valid title",
-			nil,
-		},
-		{
-			" - title: is valid; title. !.,  ",
-			nil,
-		},
-		{
-			" - title: is valid; title.   ",
-			nil,
-		},
-		{
-			"\n\n#This-is MY tittle###",
-			errNameInvalid,
-		},
-		{
-			"{this-is-the-title}",
-			errNameInvalid,
-		},
-		{
-			"\t<this- is-the title>",
-			errNameInvalid,
-		},
-		{
-			"{this   -is-the-title}   ",
-			errNameInvalid,
-		},
-		{
-			"###this is the title***",
-			errNameInvalid,
-		},
-		{
-			"###this is the title@+",
-			nil,
-		},
-	}
-}
-
-// proposalTests returns a list of tests that verify the files of a proposal
-// meet all formatting criteria that the pi plugin requires.
-func proposalTests() []proposalTest {
-	return []proposalTest{
-		{
-			"text file name invalid",
-			[]backend.File{},
-			pi.ErrorCodeTextFileNameInvalid,
-		},
-		{
-			"text file size invalid",
-			[]backend.File{},
-			pi.ErrorCodeTextFileSizeInvalid,
-		},
-		{
-			"image file size invalid",
-			[]backend.File{},
-			pi.ErrorCodeImageFileSizeInvalid,
-		},
-		{
-			"index file missing",
-			[]backend.File{},
-			pi.ErrorCodeTextFileMissing,
-		},
-		{
-			"too many images",
-			[]backend.File{},
-			pi.ErrorCodeImageFileCountInvalid,
-		},
-		{
-			"proposal metadata missing",
-			[]backend.File{},
-			pi.ErrorCodeTextFileMissing,
-		},
-		{
-			"proposal name invalid",
-			[]backend.File{},
-		},
-	}
-}
-
-func TestProposalFilesVerify(t *testing.T) {
-	var tests = []struct {
-		name string
-	}{}
-	for _, v := range tests {
-		t.Run(v.name, func(t *testing.T) {
-		})
 	}
 }
