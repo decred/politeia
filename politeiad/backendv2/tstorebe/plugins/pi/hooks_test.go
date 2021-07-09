@@ -80,7 +80,7 @@ func TestHookNewRecordPre(t *testing.T) {
 				return
 
 			case v.err == nil && err == nil:
-				// Sucess; continue to next test
+				// Success; continue to next test
 				return
 			}
 		})
@@ -101,9 +101,14 @@ func proposalFormatTests(t *testing.T) []proposalFormatTest {
 	tests := []proposalFormatTest{
 		{
 			"text file name invalid",
-			[]backend.File{},
-			// pi.ErrorCodeTextFileNameInvalid,
-			nil,
+			filesForProposal(t,
+				backend.File{
+					Name: "notallowed.txt",
+				}),
+			backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeTextFileNameInvalid),
+			},
 		},
 		{
 			"text file size invalid",
@@ -292,19 +297,25 @@ func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	}
 }
 
-// filesNoAttachments returns the backend files for a valid proposal. The
+// filesForProposal returns the backend files for a valid proposal. The
 // returned files only include the files required by the pi plugin API. No
-// attachment files are included.
-func filesNoAttachments(t *testing.T) []backend.File {
-	return []backend.File{
+// attachment files are included. The caller can pass in additional files that
+// will be included in the returned list.
+func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
+	fs := []backend.File{
 		fileProposalIndex(),
 		fileProposalMetadata(t, nil),
 	}
+	for _, v := range files {
+		fs = append(fs, v)
+	}
+	return fs
 }
 
-// filesNoAttachments returns the backend files for a valid proposal, using the
-// provided name as the proposal name. The returned files only include the
-// files required by the pi plugin API. No attachment files are included.
+// filesWithNoProposalName returns the backend files for a valid proposal,
+// using the provided name as the proposal name. The returned files only
+// include the files required by the pi plugin API. No attachment files are
+// included.
 func filesWithProposalName(t *testing.T, name string) []backend.File {
 	return []backend.File{
 		fileProposalIndex(),
