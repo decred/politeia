@@ -518,12 +518,6 @@ type Database interface {
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
 
-	// Create or update users email histories
-	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
-
-	// Return a map of user ids to its email history
-	EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
-
 	// Create or update a user session
 	SessionSave(Session) error
 
@@ -550,4 +544,14 @@ type Database interface {
 
 	// Close performs cleanup of the backend.
 	Close() error
+}
+
+// MailerDB describes the interface used to interact with the email histories
+// table from the user database, used by the mail client.
+type MailerDB interface {
+	// Create or update users email histories
+	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
+
+	// Return a map of user ids to its email history
+	EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
 }

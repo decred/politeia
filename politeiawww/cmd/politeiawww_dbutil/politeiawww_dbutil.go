@@ -452,8 +452,10 @@ func connectCockroachDB() (user.Database, error) {
 
 	fmt.Printf("CockroachDB : %v %v", *cockroachdbhost, network)
 
-	return cockroachdb.New(*cockroachdbhost, network, *rootCert,
+	cdb, _, err := cockroachdb.New(*cockroachdbhost, network, *rootCert,
 		*clientCert, *clientKey, *encryptionKey)
+
+	return cdb, err
 }
 
 func connectMySQL() (user.Database, error) {
@@ -463,7 +465,11 @@ func connectMySQL() (user.Database, error) {
 	}
 
 	fmt.Printf("MySQL : %v %v\n", *mysqlhost, network)
-	return mysqldb.New(*mysqlhost, *password, network, *encryptionKey)
+
+	mysql, _, err := mysqldb.New(*mysqlhost, *password, network,
+		*encryptionKey)
+
+	return mysql, err
 }
 
 func connectDB(typeDB string) (user.Database, error) {

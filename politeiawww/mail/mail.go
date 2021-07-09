@@ -16,7 +16,7 @@ type Mailer interface {
 
 	// SendTo sends an email to a list of recipients email addresses. This
 	// function does not limit emails, and is used to send email to sysadmins
-	// or similar operations.
+	// or similar cases.
 	SendTo(subject, body string, recipients []string) error
 
 	// SendToUsers sends an email to a list of recipients email addresses. This
@@ -25,33 +25,25 @@ type Mailer interface {
 	SendToUsers(subject, body string, recipients []string) error
 }
 
-// New returns a new mailer.
-func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.Database, userEmails map[string]uuid.UUID) (Mailer, error) {
-	var mailer Mailer
-
+// New returns a new Mailer.
+func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.MailerDB, userEmails map[string]uuid.UUID) (Mailer, error) {
 	// Email is considered disabled if any of the required user
-	// credentials are mising.
+	// credentials are missing.
 	if host == "" || user == "" || password == "" {
 		log.Infof("Mail: DISABLED")
 		c := &client{
 			disabled: true,
+			mailerDB: db,
 		}
-		mailer = &limiter{
-			client: *c,
-			userDB: db,
-		}
-		return mailer, nil
+		return c, nil
 	}
 
 	// Create a new smtp client.
-	client, err := newClient(host, user, password, emailAddress, certPath,
-		skipVerify)
+	mailer, err := newClient(host, user, password, emailAddress, certPath,
+		skipVerify, db, limit, userEmails)
 	if err != nil {
 		return nil, err
 	}
-
-	// Create a new mailer with rate limiting functionality.
-	mailer = newLimiter(*client, db, limit, userEmails)
 
 	return mailer, nil
 }

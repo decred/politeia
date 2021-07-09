@@ -602,6 +602,7 @@ func _main() error {
 	log.Infof("User database: %v", loadedCfg.UserDB)
 
 	var userDB user.Database
+	var mailerDB user.MailerDB
 	switch loadedCfg.UserDB {
 	case userDBLevel:
 		db, err := localdb.New(loadedCfg.DataDir)
@@ -626,10 +627,10 @@ func _main() error {
 		var err error
 		switch loadedCfg.UserDB {
 		case userDBMySQL:
-			userDB, err = mysql.New(loadedCfg.DBHost, loadedCfg.DBPass, network,
-				encryptionKey)
+			userDB, mailerDB, err = mysql.New(loadedCfg.DBHost,
+				loadedCfg.DBPass, network, encryptionKey)
 		case userDBCockroach:
-			userDB, err = cockroachdb.New(loadedCfg.DBHost, network,
+			userDB, mailerDB, err = cockroachdb.New(loadedCfg.DBHost, network,
 				loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
 				encryptionKey)
 		}
@@ -694,7 +695,7 @@ func _main() error {
 	// Setup smtp client
 	mailer, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
 		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
-		loadedCfg.MailSkipVerify, loadedCfg.MailRateLimit, p.db, p.userEmails)
+		loadedCfg.MailSkipVerify, loadedCfg.MailRateLimit, mailerDB, p.userEmails)
 	if err != nil {
 		return fmt.Errorf("new mail client: %v", err)
 	}

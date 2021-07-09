@@ -89,6 +89,7 @@ const tableEmailHistories = `
 
 var (
 	_ user.Database = (*mysql)(nil)
+	_ user.MailerDB = (*mysql)(nil)
 )
 
 // mysql implements the user.Database interface.
@@ -686,134 +687,6 @@ func (m *mysql) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
-// EmailHistoriesSave creates or updates the email histories.
-//
-// EmailHistoriesSave satisfies the user Database interface.
-func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
-	log.Tracef("EmailHistoriesSave: %v", histories)
-
-	if m.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	for userID, history := range histories {
-		var (
-			update bool
-			id     string
-		)
-		err := m.userDB.
-			QueryRowContext(ctx,
-				"SELECT userID FROM email_histories WHERE userID = ?", userID).
-			Scan(&id)
-		switch err {
-		case nil:
-			// Email history already exists for this user, update it.
-			update = true
-		case sql.ErrNoRows:
-			// Email history doesn't exist for this user, create new one.
-		default:
-			// All other errors
-			return fmt.Errorf("lookup: %v", err)
-		}
-
-		// Make email history blob
-		ehb, err := user.EncodeEmailHistory(history)
-		if err != nil {
-			return fmt.Errorf("convert email history to DB: %w", err)
-		}
-		eb, err := m.encrypt(user.VersionEmailHistory, ehb)
-		if err != nil {
-			return err
-		}
-
-		// Save email history
-		if update {
-			_, err := m.userDB.ExecContext(ctx,
-				`UPDATE email_histories SET hBlob = ? WHERE userID = ?`,
-				eb, userID)
-			if err != nil {
-				return fmt.Errorf("update: %v", err)
-			}
-		} else {
-			_, err := m.userDB.ExecContext(ctx,
-				`INSERT INTO email_histories (userID, hBlob) VALUES (?, ?)`,
-				userID, eb)
-			if err != nil {
-				return fmt.Errorf("create: %v", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// EmailHistoriesGet returns the email histories for the specified users.
-//
-// EmailHistoriesGet satisfies the user Database interface.
-func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
-	log.Tracef("EmailHistoriesGet: %v", users)
-
-	if m.isShutdown() {
-		return nil, user.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	// Lookup email histories by user ids.
-	q := `SELECT userID, hBlob FROM email_histories WHERE userID IN (?` +
-		strings.Repeat(",?", len(users)-1) + `)`
-
-	args := make([]interface{}, len(users))
-	for i, id := range users {
-		args[i] = id.String()
-	}
-	rows, err := m.userDB.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Decrypt email history blob and compile the userid maps with their
-	// respective email history.
-	type EmailHistory struct {
-		UserID string
-		Blob   []byte
-	}
-	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
-	for rows.Next() {
-		var hist EmailHistory
-		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
-			return nil, err
-		}
-
-		b, _, err := m.decrypt(hist.Blob)
-		if err != nil {
-			return nil, err
-		}
-
-		eh, err := user.DecodeEmailHistory(b)
-		if err != nil {
-			return nil, err
-		}
-
-		uuid, err := uuid.Parse(hist.UserID)
-		if err != nil {
-			return nil, err
-		}
-
-		histories[uuid] = *eh
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return histories, nil
-}
-
 // SessionSave saves the given session to the database. New sessions are
 // inserted into the database. Existing sessions are updated in the database.
 //
@@ -1146,9 +1019,137 @@ func (m *mysql) Close() error {
 	return m.userDB.Close()
 }
 
+// EmailHistoriesSave creates or updates the email histories.
+//
+// EmailHistoriesSave satisfies the user MailerDB interface.
+func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	log.Tracef("EmailHistoriesSave: %v", histories)
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	for userID, history := range histories {
+		var (
+			update bool
+			id     string
+		)
+		err := m.userDB.
+			QueryRowContext(ctx,
+				"SELECT userID FROM email_histories WHERE userID = ?", userID).
+			Scan(&id)
+		switch err {
+		case nil:
+			// Email history already exists for this user, update it.
+			update = true
+		case sql.ErrNoRows:
+			// Email history doesn't exist for this user, create new one.
+		default:
+			// All other errors
+			return fmt.Errorf("lookup: %v", err)
+		}
+
+		// Make email history blob
+		ehb, err := user.EncodeEmailHistory(history)
+		if err != nil {
+			return fmt.Errorf("convert email history to DB: %w", err)
+		}
+		eb, err := m.encrypt(user.VersionEmailHistory, ehb)
+		if err != nil {
+			return err
+		}
+
+		// Save email history
+		if update {
+			_, err := m.userDB.ExecContext(ctx,
+				`UPDATE email_histories SET hBlob = ? WHERE userID = ?`,
+				eb, userID)
+			if err != nil {
+				return fmt.Errorf("update: %v", err)
+			}
+		} else {
+			_, err := m.userDB.ExecContext(ctx,
+				`INSERT INTO email_histories (userID, hBlob) VALUES (?, ?)`,
+				userID, eb)
+			if err != nil {
+				return fmt.Errorf("create: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// EmailHistoriesGet returns the email histories for the specified users.
+//
+// EmailHistoriesGet satisfies the user MailerDB interface.
+func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistoriesGet: %v", users)
+
+	if m.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup email histories by user ids.
+	q := `SELECT userID, hBlob FROM email_histories WHERE userID IN (?` +
+		strings.Repeat(",?", len(users)-1) + `)`
+
+	args := make([]interface{}, len(users))
+	for i, id := range users {
+		args[i] = id.String()
+	}
+	rows, err := m.userDB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Decrypt email history blob and compile the userid maps with their
+	// respective email history.
+	type EmailHistory struct {
+		UserID string
+		Blob   []byte
+	}
+	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
+	for rows.Next() {
+		var hist EmailHistory
+		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
+			return nil, err
+		}
+
+		b, _, err := m.decrypt(hist.Blob)
+		if err != nil {
+			return nil, err
+		}
+
+		eh, err := user.DecodeEmailHistory(b)
+		if err != nil {
+			return nil, err
+		}
+
+		uuid, err := uuid.Parse(hist.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		histories[uuid] = *eh
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return histories, nil
+}
+
 // New connects to a mysql instance using the given connection params,
 // and returns pointer to the created mysql struct.
-func New(host, password, network, encryptionKey string) (*mysql, error) {
+func New(host, password, network, encryptionKey string) (*mysql, user.MailerDB, error) {
 	// Connect to database.
 	dbname := databaseID + "_" + network
 	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", userPoliteiawww, host,
@@ -1158,7 +1159,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		host, dbname)
 	db, err := sql.Open("mysql", h)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Verify database connection.
@@ -1166,7 +1167,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 	defer cancel()
 	err = db.PingContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("db ping: %v", err)
+		return nil, nil, fmt.Errorf("db ping: %v", err)
 	}
 
 	// Setup database options.
@@ -1179,7 +1180,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		tableNameKeyValue, tableKeyValue)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create %v table: %v", tableNameKeyValue, err)
+		return nil, nil, fmt.Errorf("create %v table: %v", tableNameKeyValue, err)
 	}
 
 	// Setup users table.
@@ -1187,7 +1188,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		tableNameUsers, tableUsers)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create %v table: %v", tableNameUsers, err)
+		return nil, nil, fmt.Errorf("create %v table: %v", tableNameUsers, err)
 	}
 
 	// Setup identities table.
@@ -1195,7 +1196,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		tableNameIdentities, tableIdentities)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create %v table: %v", tableNameIdentities, err)
+		return nil, nil, fmt.Errorf("create %v table: %v", tableNameIdentities, err)
 	}
 
 	// Setup sessions table.
@@ -1203,7 +1204,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		tableNameSessions, tableSessions)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create %v table: %v", tableNameSessions, err)
+		return nil, nil, fmt.Errorf("create %v table: %v", tableNameSessions, err)
 	}
 
 	// Setup email_histories table.
@@ -1211,18 +1212,24 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		tableNameEmailHistories, tableEmailHistories)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create %v table: %v",
+		return nil, nil, fmt.Errorf("create %v table: %v",
 			tableNameEmailHistories, err)
 	}
 
 	// Load encryption key.
 	key, err := util.LoadEncryptionKey(log, encryptionKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &mysql{
+	// Create mysql
+	mysql := &mysql{
 		userDB:        db,
 		encryptionKey: key,
-	}, nil
+	}
+
+	// Create MailerDB
+	mailerDB := mysql
+
+	return mysql, mailerDB, nil
 }

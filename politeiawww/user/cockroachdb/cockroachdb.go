@@ -40,6 +40,11 @@ const (
 	keyPaywallAddressIndex = "paywalladdressindex"
 )
 
+var (
+	_ user.Database = (*cockroachdb)(nil)
+	_ user.MailerDB = (*cockroachdb)(nil)
+)
+
 // cockroachdb implements the user database interface.
 type cockroachdb struct {
 	sync.RWMutex
@@ -430,109 +435,6 @@ func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
 	return user.DecodeSession(b)
 }
 
-// EmailHistoriesSave creates or updates the email histories.
-//
-// EmailHistoriesSave satisfies the user Database interface.
-func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
-	log.Tracef("EmailHistorySet: %v", histories)
-
-	if c.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	for userID, history := range histories {
-		h := EmailHistory{
-			UserID: userID,
-		}
-
-		var update bool
-		err := c.userDB.Find(&h).Error
-		switch err {
-		case nil:
-			// DB entry already exists, update it.
-			update = true
-		case gorm.ErrRecordNotFound:
-			// DB entry doesn't exist, create new one.
-		default:
-			// All other errors
-			return fmt.Errorf("find email history: %v", err)
-		}
-
-		historyDB, err := c.convertEmailHistoryFromUser(userID, history)
-		if err != nil {
-			return err
-		}
-
-		if update {
-			err := c.userDB.Save(&historyDB).Error
-			if err != nil {
-				return fmt.Errorf("save: %v", err)
-			}
-		} else {
-			err := c.userDB.Create(&historyDB).Error
-			if err != nil {
-				return fmt.Errorf("create: %v", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// EmailHistoriesGet returns the email histories for the specified users.
-//
-// EmailHistoriesGet satisfies the user Database interface.
-func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
-	log.Tracef("EmailHistorySet: %v", users)
-
-	if c.isShutdown() {
-		return nil, user.ErrShutdown
-	}
-
-	var result []EmailHistory
-	err := c.userDB.
-		Where("user_id IN (?)", users).
-		Find(&result).
-		Error
-	if err != nil {
-		return nil, err
-	}
-
-	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
-	for _, row := range result {
-		hist, err := c.convertEmailHistoryToUser(row)
-		if err != nil {
-			return nil, err
-		}
-		histories[row.UserID] = *hist
-	}
-
-	return histories, nil
-}
-
-func (c *cockroachdb) convertEmailHistoryFromUser(userID uuid.UUID, h user.EmailHistory) (*EmailHistory, error) {
-	eh, err := user.EncodeEmailHistory(h)
-	if err != nil {
-		return nil, err
-	}
-	eb, err := c.encrypt(user.VersionEmailHistory, eh)
-	if err != nil {
-		return nil, err
-	}
-	return &EmailHistory{
-		UserID: userID,
-		Blob:   eb,
-	}, nil
-}
-
-func (c *cockroachdb) convertEmailHistoryToUser(eh EmailHistory) (*user.EmailHistory, error) {
-	b, _, err := c.decrypt(eh.Blob)
-	if err != nil {
-		return nil, err
-	}
-	return user.DecodeEmailHistory(b)
-}
-
 // SessionSave saves the given session to the database. New sessions are
 // inserted into the database. Existing sessions are updated in the database.
 //
@@ -845,7 +747,7 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-// Close shuts down the database.  All interface functions must return with
+// Close shuts down the database. All interface functions must return with
 // errShutdown if the backend is shutting down.
 func (c *cockroachdb) Close() error {
 	log.Tracef("Close")
@@ -859,6 +761,109 @@ func (c *cockroachdb) Close() error {
 
 	c.shutdown = true
 	return c.userDB.Close()
+}
+
+// EmailHistoriesSave creates or updates the email histories.
+//
+// EmailHistoriesSave satisfies the user MailerDB interface.
+func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	log.Tracef("EmailHistorySet: %v", histories)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	for userID, history := range histories {
+		h := EmailHistory{
+			UserID: userID,
+		}
+
+		var update bool
+		err := c.userDB.Find(&h).Error
+		switch err {
+		case nil:
+			// DB entry already exists, update it.
+			update = true
+		case gorm.ErrRecordNotFound:
+			// DB entry doesn't exist, create new one.
+		default:
+			// All other errors
+			return fmt.Errorf("find email history: %v", err)
+		}
+
+		historyDB, err := c.convertEmailHistoryFromUser(userID, history)
+		if err != nil {
+			return err
+		}
+
+		if update {
+			err := c.userDB.Save(&historyDB).Error
+			if err != nil {
+				return fmt.Errorf("save: %v", err)
+			}
+		} else {
+			err := c.userDB.Create(&historyDB).Error
+			if err != nil {
+				return fmt.Errorf("create: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// EmailHistoriesGet returns the email histories for the specified users.
+//
+// EmailHistoriesGet satisfies the user MailerDB interface.
+func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistorySet: %v", users)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var result []EmailHistory
+	err := c.userDB.
+		Where("user_id IN (?)", users).
+		Find(&result).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
+	for _, row := range result {
+		hist, err := c.convertEmailHistoryToUser(row)
+		if err != nil {
+			return nil, err
+		}
+		histories[row.UserID] = *hist
+	}
+
+	return histories, nil
+}
+
+func (c *cockroachdb) convertEmailHistoryFromUser(userID uuid.UUID, h user.EmailHistory) (*EmailHistory, error) {
+	eh, err := user.EncodeEmailHistory(h)
+	if err != nil {
+		return nil, err
+	}
+	eb, err := c.encrypt(user.VersionEmailHistory, eh)
+	if err != nil {
+		return nil, err
+	}
+	return &EmailHistory{
+		UserID: userID,
+		Blob:   eb,
+	}, nil
+}
+
+func (c *cockroachdb) convertEmailHistoryToUser(eh EmailHistory) (*user.EmailHistory, error) {
+	b, _, err := c.decrypt(eh.Blob)
+	if err != nil {
+		return nil, err
+	}
+	return user.DecodeEmailHistory(b)
 }
 
 func (c *cockroachdb) createTables(tx *gorm.DB) error {
@@ -941,7 +946,7 @@ func loadEncryptionKey(filepath string) (*[32]byte, error) {
 // New opens a connection to the CockroachDB user database and returns a new
 // cockroachdb context. sslRootCert, sslCert, sslKey, and encryptionKey are
 // file paths.
-func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*cockroachdb, error) {
+func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*cockroachdb, user.MailerDB, error) {
 	log.Tracef("New: %v %v %v %v %v %v", host, network, sslRootCert,
 		sslCert, sslKey, encryptionKey)
 
@@ -950,7 +955,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	h := "postgresql://" + userPoliteiawww + "@" + host + "/" + dbName
 	u, err := url.Parse(h)
 	if err != nil {
-		return nil, fmt.Errorf("parse url '%v': %v",
+		return nil, nil, fmt.Errorf("parse url '%v': %v",
 			h, err)
 	}
 
@@ -964,7 +969,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	// Connect to database
 	db, err := gorm.Open("postgres", u.String())
 	if err != nil {
-		return nil, fmt.Errorf("connect to database '%v': %v",
+		return nil, nil, fmt.Errorf("connect to database '%v': %v",
 			u.String(), err)
 	}
 
@@ -973,7 +978,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	// Load encryption key
 	key, err := loadEncryptionKey(encryptionKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create context
@@ -996,12 +1001,12 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	err = c.createTables(tx)
 	if err != nil {
 		tx.Rollback()
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = tx.Commit().Error
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Check version record
@@ -1010,16 +1015,19 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	}
 	err = c.userDB.Find(&kv).Error
 	if err != nil {
-		return nil, fmt.Errorf("find version: %v", err)
+		return nil, nil, fmt.Errorf("find version: %v", err)
 	}
 
 	// XXX A version mismatch will need to trigger a db
 	// migration, but just return an error for now.
 	version := binary.LittleEndian.Uint32(kv.Value)
 	if version != databaseVersion {
-		return nil, fmt.Errorf("version mismatch: got %v, want %v",
+		return nil, nil, fmt.Errorf("version mismatch: got %v, want %v",
 			version, databaseVersion)
 	}
 
-	return c, err
+	// Create MailerDB for the mail client.
+	mDB := c
+
+	return c, mDB, err
 }
