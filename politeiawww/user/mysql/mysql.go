@@ -94,6 +94,13 @@ type mysql struct {
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
 }
 
+type mysqlIdentity struct {
+	publicKey   string
+	userID      string
+	activated   int64
+	deactivated int64
+}
+
 func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
@@ -426,6 +433,16 @@ func (m *mysql) UserUpdate(u user.User) error {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
+	// Init a sql transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	ur := struct {
 		ID        string
 		Username  string
@@ -437,14 +454,155 @@ func (m *mysql) UserUpdate(u user.User) error {
 		Blob:      eb,
 		UpdatedAt: time.Now().Unix(),
 	}
-	_, err = m.userDB.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		"UPDATE users SET username = ?, uBlob = ?, updatedAt = ? WHERE ID = ? ",
 		ur.Username, ur.Blob, ur.UpdatedAt, ur.ID)
 	if err != nil {
 		return fmt.Errorf("create user: %v", err)
 	}
 
+	// Update user identities in multiple steps:
+	// - Get user's identities from db.
+	// - Compare against provided user.User Identities field.
+	// - Remove old identities if found and insert new ones.
+	identities, err := userIdentities(ctx, tx, ur.ID)
+
+	// Compare user identites against db identites.
+	var newIdentities, oldIdentities []mysqlIdentity
+	var found bool
+	for _, dbIdentity := range identities {
+		for _, uIdentity := range u.Identities {
+			if uIdentity.String() == dbIdentity.publicKey {
+				found = true
+			}
+		}
+		// If an identity exists on db but not on current user identities list
+		// it should be deleted from db.
+		if !found {
+			oldIdentities = append(oldIdentities, dbIdentity)
+		}
+		found = false
+	}
+	for _, uIdentity := range u.Identities {
+		for _, dbIdentity := range identities {
+			if uIdentity.String() == dbIdentity.publicKey {
+				found = true
+			}
+		}
+		// If an identity exists on user's struct but not on db, it should be
+		// inserted to the db.
+		if !found {
+			newIdentities = append(newIdentities, mysqlIdentity{
+				publicKey:   uIdentity.String(),
+				activated:   uIdentity.Activated,
+				deactivated: uIdentity.Deactivated,
+				userID:      ur.ID,
+			})
+		}
+		found = false
+	}
+
+	// Insert new user identities if found any.
+	if len(newIdentities) > 0 {
+		err = insertIdentities(ctx, tx, newIdentities)
+		if err != nil {
+			return fmt.Errorf("insert new identities: %v", err)
+		}
+	}
+
+	// Remove old identities.
+	if len(oldIdentities) > 0 {
+		err = deleteIdentities(ctx, tx, oldIdentities)
+		if err != nil {
+			return fmt.Errorf("delete old identities: %v", err)
+		}
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
 	return nil
+}
+
+func deleteIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
+	q := `DELETE FROMM identities WHERE publicKey IN (?,` +
+		strings.Repeat(",?", len(ids)-1) + `)`
+
+	vals := make([]interface{}, 0, len(ids))
+	for _, id := range ids {
+		vals = append(vals, id.publicKey)
+	}
+
+	// Prepare the statement
+	stmt, err := tx.PrepareContext(ctx, q)
+	if err != nil {
+		return err
+	}
+
+	_, err = stmt.ExecContext(ctx, vals...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func insertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
+	q := "INSERT INTO identities(publicKey, userID, activated, deactivated) VALUES "
+	vals := []interface{}{}
+
+	for _, id := range ids {
+		q += "(?, ?, ?, ?),"
+		vals = append(vals, id.publicKey, id.userID, id.activated, id.deactivated)
+	}
+	// Trim the last ,
+	q = strings.TrimSuffix(q, ",")
+
+	// Prepare the statement
+	stmt, err := tx.PrepareContext(ctx, q)
+	if err != nil {
+		return err
+	}
+
+	_, err = stmt.ExecContext(ctx, vals...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func userIdentities(ctx context.Context, tx *sql.Tx, userID string) ([]mysqlIdentity, error) {
+	rows, err := tx.QueryContext(ctx, "SELECT publicKey, activated, deactivated"+
+		" FROM identities WHERE userID = ?", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var identities []mysqlIdentity
+	for rows.Next() {
+		var id mysqlIdentity
+		err := rows.Scan(&id.publicKey, &id.activated, &id.deactivated)
+		if err != nil {
+			return nil, err
+		}
+		id.userID = userID
+
+		identities = append(identities, id)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return identities, nil
 }
 
 // UserGetByUsername returns a user record given its username, if found in the
