@@ -564,12 +564,14 @@ func TestEmailHistoriesSave(t *testing.T) {
 	sqlInsert := `INSERT INTO email_histories (email, h_blob) VALUES (?, ?)`
 
 	// Success create expectations
+	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
 		WithArgs(email).
 		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(sqlInsert)).
 		WithArgs(email, AnyBlob{}).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	// Execute method
 	err := mdb.EmailHistoriesSave(histories)
@@ -584,12 +586,14 @@ func TestEmailHistoriesSave(t *testing.T) {
 	sqlUpdate := `UPDATE email_histories SET h_blob = ? WHERE email = ?`
 
 	// Success update expectations
+	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
 		WithArgs(email).
 		WillReturnRows(rows)
 	mock.ExpectExec(regexp.QuoteMeta(sqlUpdate)).
 		WithArgs(AnyBlob{}, email).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	// Execute method
 	err = mdb.EmailHistoriesSave(histories)
@@ -598,8 +602,10 @@ func TestEmailHistoriesSave(t *testing.T) {
 	}
 
 	// Negative expectations
+	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
 		WillReturnError(errSelect)
+	mock.ExpectRollback()
 
 	// Execute method
 	badHistories := make(map[string]user.EmailHistory, 1)

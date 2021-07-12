@@ -1055,7 +1055,7 @@ func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories ma
 			em     string
 		)
 		err := tx.QueryRowContext(ctx,
-			"SELECT email FROM email_histories WHERE userID = ?", email).
+			"SELECT email FROM email_histories WHERE email = ?", email).
 			Scan(&em)
 		switch err {
 		case nil:

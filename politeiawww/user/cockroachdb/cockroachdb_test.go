@@ -713,7 +713,7 @@ func TestEmailHistoriesGet(t *testing.T) {
 	}
 
 	// Mock data
-	rows := sqlmock.NewRows([]string{"user_id", "blob"}).
+	rows := sqlmock.NewRows([]string{"email", "blob"}).
 		AddRow(email, eb)
 
 	// Query
