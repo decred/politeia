@@ -461,61 +461,19 @@ func (m *mysql) UserUpdate(u user.User) error {
 		return fmt.Errorf("create user: %v", err)
 	}
 
-	// Update user identities in multiple steps:
-	// - Get user's identities from db.
-	// - Compare against provided user.User Identities field.
-	// - Remove old identities if found and insert new ones.
-	identities, err := userIdentities(ctx, tx, ur.ID)
-
-	// Compare user identites against db identites.
-	var newIdentities, oldIdentities []mysqlIdentity
-	var found bool
-	for _, dbIdentity := range identities {
-		for _, uIdentity := range u.Identities {
-			if uIdentity.String() == dbIdentity.publicKey {
-				found = true
-			}
-		}
-		// If an identity exists on db but not on current user identities list
-		// it should be deleted from db.
-		if !found {
-			oldIdentities = append(oldIdentities, dbIdentity)
-		}
-		found = false
-	}
+	// Upsert user identities
+	var ids []mysqlIdentity
 	for _, uIdentity := range u.Identities {
-		for _, dbIdentity := range identities {
-			if uIdentity.String() == dbIdentity.publicKey {
-				found = true
-			}
-		}
-		// If an identity exists on user's struct but not on db, it should be
-		// inserted to the db.
-		if !found {
-			newIdentities = append(newIdentities, mysqlIdentity{
-				publicKey:   uIdentity.String(),
-				activated:   uIdentity.Activated,
-				deactivated: uIdentity.Deactivated,
-				userID:      ur.ID,
-			})
-		}
-		found = false
+		ids = append(ids, mysqlIdentity{
+			publicKey:   uIdentity.String(),
+			activated:   uIdentity.Activated,
+			deactivated: uIdentity.Deactivated,
+			userID:      ur.ID,
+		})
 	}
-
-	// Insert new user identities if found any.
-	if len(newIdentities) > 0 {
-		err = insertIdentities(ctx, tx, newIdentities)
-		if err != nil {
-			return fmt.Errorf("insert new identities: %v", err)
-		}
-	}
-
-	// Remove old identities.
-	if len(oldIdentities) > 0 {
-		err = deleteIdentities(ctx, tx, oldIdentities)
-		if err != nil {
-			return fmt.Errorf("delete old identities: %v", err)
-		}
+	err = upsertIdentities(ctx, tx, ids)
+	if err != nil {
+		return fmt.Errorf("insert new identities: %v", err)
 	}
 
 	// Commit transaction.
@@ -531,30 +489,7 @@ func (m *mysql) UserUpdate(u user.User) error {
 	return nil
 }
 
-func deleteIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
-	q := `DELETE FROMM identities WHERE publicKey IN (?,` +
-		strings.Repeat(",?", len(ids)-1) + `)`
-
-	vals := make([]interface{}, 0, len(ids))
-	for _, id := range ids {
-		vals = append(vals, id.publicKey)
-	}
-
-	// Prepare the statement
-	stmt, err := tx.PrepareContext(ctx, q)
-	if err != nil {
-		return err
-	}
-
-	_, err = stmt.ExecContext(ctx, vals...)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func insertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
+func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
 	q := "INSERT INTO identities(publicKey, userID, activated, deactivated) VALUES "
 	vals := []interface{}{}
 
@@ -565,6 +500,10 @@ func insertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) erro
 	// Trim the last ,
 	q = strings.TrimSuffix(q, ",")
 
+	// Update activated & deactivated columns when key already exists.
+	q += "ON DUPLICATE KEY UPDATE activated=VALUES(activated), " +
+		"deactivated=VALUES(deactivated)"
+
 	// Prepare the statement
 	stmt, err := tx.PrepareContext(ctx, q)
 	if err != nil {
@@ -577,32 +516,6 @@ func insertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) erro
 	}
 
 	return nil
-}
-
-func userIdentities(ctx context.Context, tx *sql.Tx, userID string) ([]mysqlIdentity, error) {
-	rows, err := tx.QueryContext(ctx, "SELECT publicKey, activated, deactivated"+
-		" FROM identities WHERE userID = ?", userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var identities []mysqlIdentity
-	for rows.Next() {
-		var id mysqlIdentity
-		err := rows.Scan(&id.publicKey, &id.activated, &id.deactivated)
-		if err != nil {
-			return nil, err
-		}
-		id.userID = userID
-
-		identities = append(identities, id)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return identities, nil
 }
 
 // UserGetByUsername returns a user record given its username, if found in the
