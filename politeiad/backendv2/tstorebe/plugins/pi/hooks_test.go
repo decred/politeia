@@ -28,7 +28,7 @@ func TestHookNewRecordPre(t *testing.T) {
 	p, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
-	// Run proposal format tests
+	// Run tests
 	runProposalFormatTests(t, p.hookNewRecordPre)
 }
 
@@ -37,7 +37,7 @@ func TestHookEditRecordPre(t *testing.T) {
 	p, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
-	// Run proposal format tests
+	// Run tests
 	runProposalFormatTests(t, p.hookEditRecordPre)
 }
 
