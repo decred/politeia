@@ -509,6 +509,7 @@ func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) erro
 	if err != nil {
 		return err
 	}
+	defer stmt.Close()
 
 	_, err = stmt.ExecContext(ctx, vals...)
 	if err != nil {
