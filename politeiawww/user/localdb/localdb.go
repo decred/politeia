@@ -412,16 +412,6 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	return iter.Error()
 }
 
-// EmailHistoriesGet is a stub to satisfy the user database interface.
-func (l *localdb) EmailHistoriesGet(_ []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
-	return nil, nil
-}
-
-// EmailHistoriesSave is a stub to satisfy the user database interface.
-func (l *localdb) EmailHistoriesSave(_ map[uuid.UUID]user.EmailHistory) error {
-	return nil
-}
-
 // RotateKeys is an empty stub to satisfy the user.Database interface.
 // Localdb implementation does not use encryption.
 func (l *localdb) RotateKeys(_ string) error {
@@ -472,6 +462,16 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 
 	l.pluginSettings[p.ID] = p.Settings
 
+	return nil
+}
+
+// EmailHistoriesGet is a stub to satisfy the user MailerDB interface.
+func (l *localdb) EmailHistoriesGet(_ []string) (map[string]user.EmailHistory, error) {
+	return nil, nil
+}
+
+// EmailHistoriesSave is a stub to satisfy the user MailerDB interface.
+func (l *localdb) EmailHistoriesSave(_ map[string]user.EmailHistory) error {
 	return nil
 }
 

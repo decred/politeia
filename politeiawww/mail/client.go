@@ -15,28 +15,32 @@ import (
 
 	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 )
 
 // client provides an SMTP client for sending emails from a preset email
 // address.
+//
+// client implements the Mailer interface.
 type client struct {
-	smtp        *goemail.SMTP        // SMTP server
-	mailName    string               // From name
-	mailAddress string               // From email address
-	disabled    bool                 // Has email been disabled
-	mailerDB    user.MailerDB        // User database in www
-	limit       int                  // Email rate limit
-	userEmails  map[string]uuid.UUID // User email to uuid
+	smtp        *goemail.SMTP // SMTP server
+	mailName    string        // From name
+	mailAddress string        // From email address
+	limit       int           // Email rate limit
+	mailerDB    user.MailerDB // User mailer database in www
+	disabled    bool          // Has email been disabled
 }
 
 // IsEnabled returns whether the mail server is enabled.
+//
+// This function satisfies the Mailer interface.
 func (c *client) IsEnabled() bool {
 	return !c.disabled
 }
 
 // SendTo sends an email with the given subject and body to the provided list
 // of email addresses.
+//
+// This function satisfies the Mailer interface.
 func (c *client) SendTo(subject, body string, recipients []string) error {
 	if c.disabled || len(recipients) == 0 {
 		return nil
@@ -91,20 +95,16 @@ func (c *client) SendToUsers(subjects, body string, recipients []string) error {
 
 // filterRecipients divides recipients into valid, those that are able to
 // receive emails, and invalid, those that have hit the email rate limit,
-// but have not yet received the warning email. It also updates the email
-// history for each user inside the recipients list.
-func (c *client) filterRecipients(rs []string) ([]string, []string, map[uuid.UUID]user.EmailHistory, error) {
+// but have not yet received the warning email. It also returns an updated
+// email history for each user to be saved on the db.
+func (c *client) filterRecipients(rs []string) ([]string, []string, map[string]user.EmailHistory, error) {
 	// Sanity check
 	if len(rs) == 0 {
 		return nil, nil, nil, nil
 	}
 
-	// Compile user IDs from recipients and get their email histories.
-	ids := make([]uuid.UUID, 0, len(rs))
-	for _, email := range rs {
-		ids = append(ids, c.userEmails[email])
-	}
-	hs, err := c.mailerDB.EmailHistoriesGet(ids)
+	// Get email histories for recipients
+	hs, err := c.mailerDB.EmailHistoriesGet(rs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -114,15 +114,14 @@ func (c *client) filterRecipients(rs []string) ([]string, []string, map[uuid.UUI
 	var (
 		valid     []string
 		invalid   []string
-		histories = make(map[uuid.UUID]user.EmailHistory, len(rs))
+		histories = make(map[string]user.EmailHistory, len(rs))
 	)
 	for _, email := range rs {
-		id := c.userEmails[email]
-		history, ok := hs[id]
+		history, ok := hs[email]
 		if !ok {
 			// User does not have a mail history yet, add user to valid
 			// recipients and create his email history.
-			histories[id] = user.EmailHistory{
+			histories[email] = user.EmailHistory{
 				Timestamps:       []int64{time.Now().Unix()},
 				LimitWarningSent: false,
 			}
@@ -141,7 +140,7 @@ func (c *client) filterRecipients(rs []string) ([]string, []string, map[uuid.UUI
 			if !history.LimitWarningSent {
 				invalid = append(invalid, email)
 				history.LimitWarningSent = true
-				histories[id] = history
+				histories[email] = history
 			}
 			continue
 		}
@@ -151,7 +150,7 @@ func (c *client) filterRecipients(rs []string) ([]string, []string, map[uuid.UUI
 		valid = append(valid, email)
 		history.Timestamps = append(history.Timestamps, time.Now().Unix())
 		history.LimitWarningSent = false
-		histories[id] = history
+		histories[email] = history
 	}
 
 	return valid, invalid, histories, nil
@@ -182,7 +181,8 @@ Your email rate limit for the past 24h has been hit. This measure is used to avo
 We apologize for any inconvenience.
 `
 
-func newClient(host, user, password, emailAddress, certPath string, skipVerify bool, db user.MailerDB, l int, ue map[string]uuid.UUID) (*client, error) {
+// newClient returns a new client.
+func newClient(host, user, password, emailAddress, certPath string, skipVerify bool, db user.MailerDB, limit int) (*client, error) {
 	// Parse mail host
 	h := fmt.Sprintf("smtps://%v:%v@%v", user, password, host)
 	u, err := url.Parse(h)
@@ -223,15 +223,12 @@ func newClient(host, user, password, emailAddress, certPath string, skipVerify b
 		return nil, err
 	}
 
-	client := &client{
+	return &client{
 		smtp:        smtp,
 		mailName:    a.Name,
 		mailAddress: a.Address,
 		disabled:    false,
 		mailerDB:    db,
-		limit:       l,
-		userEmails:  ue,
-	}
-
-	return client, nil
+		limit:       limit,
+	}, nil
 }

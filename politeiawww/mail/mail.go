@@ -6,7 +6,6 @@ package mail
 
 import (
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 )
 
 // Mailer is an interface used to send emails to a list of recipients.
@@ -25,8 +24,8 @@ type Mailer interface {
 	SendToUsers(subject, body string, recipients []string) error
 }
 
-// New returns a new Mailer.
-func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.MailerDB, userEmails map[string]uuid.UUID) (Mailer, error) {
+// New returns a new client that implements Mailer.
+func New(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.MailerDB) (*client, error) {
 	// Email is considered disabled if any of the required user
 	// credentials are missing.
 	if host == "" || user == "" || password == "" {
@@ -38,12 +37,7 @@ func New(host, user, password, emailAddress, certPath string, skipVerify bool, l
 		return c, nil
 	}
 
-	// Create a new smtp client.
-	mailer, err := newClient(host, user, password, emailAddress, certPath,
-		skipVerify, db, limit, userEmails)
-	if err != nil {
-		return nil, err
-	}
-
-	return mailer, nil
+	// Return a new mailer smtp client.
+	return newClient(host, user, password, emailAddress, certPath,
+		skipVerify, db, limit)
 }

@@ -747,35 +747,19 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	return nil
 }
 
-// Close shuts down the database. All interface functions must return with
-// errShutdown if the backend is shutting down.
-func (c *cockroachdb) Close() error {
-	log.Tracef("Close")
-
-	c.Lock()
-	defer c.Unlock()
-
-	// Zero out encryption key
-	util.Zero(c.encryptionKey[:])
-	c.encryptionKey = nil
-
-	c.shutdown = true
-	return c.userDB.Close()
-}
-
 // EmailHistoriesSave creates or updates the email histories.
 //
 // EmailHistoriesSave satisfies the user MailerDB interface.
-func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+func (c *cockroachdb) EmailHistoriesSave(histories map[string]user.EmailHistory) error {
 	log.Tracef("EmailHistorySet: %v", histories)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
-	for userID, history := range histories {
+	for email, history := range histories {
 		h := EmailHistory{
-			UserID: userID,
+			Email: email,
 		}
 
 		var update bool
@@ -791,7 +775,7 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 			return fmt.Errorf("find email history: %v", err)
 		}
 
-		historyDB, err := c.convertEmailHistoryFromUser(userID, history)
+		historyDB, err := c.convertEmailHistoryFromUser(email, history)
 		if err != nil {
 			return err
 		}
@@ -815,7 +799,7 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHisto
 // EmailHistoriesGet returns the email histories for the specified users.
 //
 // EmailHistoriesGet satisfies the user MailerDB interface.
-func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+func (c *cockroachdb) EmailHistoriesGet(users []string) (map[string]user.EmailHistory, error) {
 	log.Tracef("EmailHistorySet: %v", users)
 
 	if c.isShutdown() {
@@ -824,26 +808,26 @@ func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.E
 
 	var result []EmailHistory
 	err := c.userDB.
-		Where("user_id IN (?)", users).
+		Where("email IN (?)", users).
 		Find(&result).
 		Error
 	if err != nil {
 		return nil, err
 	}
 
-	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
+	histories := make(map[string]user.EmailHistory, len(result))
 	for _, row := range result {
 		hist, err := c.convertEmailHistoryToUser(row)
 		if err != nil {
 			return nil, err
 		}
-		histories[row.UserID] = *hist
+		histories[row.Email] = *hist
 	}
 
 	return histories, nil
 }
 
-func (c *cockroachdb) convertEmailHistoryFromUser(userID uuid.UUID, h user.EmailHistory) (*EmailHistory, error) {
+func (c *cockroachdb) convertEmailHistoryFromUser(email string, h user.EmailHistory) (*EmailHistory, error) {
 	eh, err := user.EncodeEmailHistory(h)
 	if err != nil {
 		return nil, err
@@ -853,8 +837,8 @@ func (c *cockroachdb) convertEmailHistoryFromUser(userID uuid.UUID, h user.Email
 		return nil, err
 	}
 	return &EmailHistory{
-		UserID: userID,
-		Blob:   eb,
+		Email: email,
+		Blob:  eb,
 	}, nil
 }
 
@@ -864,6 +848,22 @@ func (c *cockroachdb) convertEmailHistoryToUser(eh EmailHistory) (*user.EmailHis
 		return nil, err
 	}
 	return user.DecodeEmailHistory(b)
+}
+
+// Close shuts down the database. All interface functions must return with
+// errShutdown if the backend is shutting down.
+func (c *cockroachdb) Close() error {
+	log.Tracef("Close")
+
+	c.Lock()
+	defer c.Unlock()
+
+	// Zero out encryption key
+	util.Zero(c.encryptionKey[:])
+	c.encryptionKey = nil
+
+	c.shutdown = true
+	return c.userDB.Close()
 }
 
 func (c *cockroachdb) createTables(tx *gorm.DB) error {
@@ -946,7 +946,7 @@ func loadEncryptionKey(filepath string) (*[32]byte, error) {
 // New opens a connection to the CockroachDB user database and returns a new
 // cockroachdb context. sslRootCert, sslCert, sslKey, and encryptionKey are
 // file paths.
-func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*cockroachdb, user.MailerDB, error) {
+func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*cockroachdb, error) {
 	log.Tracef("New: %v %v %v %v %v %v", host, network, sslRootCert,
 		sslCert, sslKey, encryptionKey)
 
@@ -955,7 +955,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	h := "postgresql://" + userPoliteiawww + "@" + host + "/" + dbName
 	u, err := url.Parse(h)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse url '%v': %v",
+		return nil, fmt.Errorf("parse url '%v': %v",
 			h, err)
 	}
 
@@ -969,7 +969,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	// Connect to database
 	db, err := gorm.Open("postgres", u.String())
 	if err != nil {
-		return nil, nil, fmt.Errorf("connect to database '%v': %v",
+		return nil, fmt.Errorf("connect to database '%v': %v",
 			u.String(), err)
 	}
 
@@ -978,7 +978,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	// Load encryption key
 	key, err := loadEncryptionKey(encryptionKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create context
@@ -1001,12 +1001,12 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	err = c.createTables(tx)
 	if err != nil {
 		tx.Rollback()
-		return nil, nil, err
+		return nil, err
 	}
 
 	err = tx.Commit().Error
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Check version record
@@ -1015,19 +1015,16 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	}
 	err = c.userDB.Find(&kv).Error
 	if err != nil {
-		return nil, nil, fmt.Errorf("find version: %v", err)
+		return nil, fmt.Errorf("find version: %v", err)
 	}
 
 	// XXX A version mismatch will need to trigger a db
 	// migration, but just return an error for now.
 	version := binary.LittleEndian.Uint32(kv.Value)
 	if version != databaseVersion {
-		return nil, nil, fmt.Errorf("version mismatch: got %v, want %v",
+		return nil, fmt.Errorf("version mismatch: got %v, want %v",
 			version, databaseVersion)
 	}
 
-	// Create MailerDB for the mail client.
-	mDB := c
-
-	return c, mDB, err
+	return c, err
 }
