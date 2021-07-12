@@ -28,7 +28,24 @@ func TestHookNewRecordPre(t *testing.T) {
 	p, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
-	// Run tests
+	// Run proposal format tests
+	runProposalFormatTests(t, p.hookNewRecordPre)
+}
+
+func TestHookEditRecordPre(t *testing.T) {
+	// Setup pi plugin
+	p, cleanup := newTestPiPlugin(t)
+	defer cleanup()
+
+	// Run proposal format tests
+	runProposalFormatTests(t, p.hookEditRecordPre)
+}
+
+// runProposalFormatTests runs the proposal format tests using the provided
+// hook function as the test function. This allows us to run the same set of
+// formatting tests of multiple hooks without needing to duplicate the setup
+// and error handling code.
+func runProposalFormatTests(t *testing.T, hookFn func(string) error) {
 	for _, v := range proposalFormatTests(t) {
 		t.Run(v.name, func(t *testing.T) {
 			// Decode the expected error into a PluginError. If
@@ -54,7 +71,7 @@ func TestHookNewRecordPre(t *testing.T) {
 			payload := string(b)
 
 			// Run test
-			err = p.hookNewRecordPre(payload)
+			err = hookFn(payload)
 			switch {
 			case v.err != nil && err == nil:
 				// Wanted an error but didn't get one
@@ -357,7 +374,7 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 	}
 }
 
-// file returns a backend File for the provided data.
+// file returns a backend file for the provided data.
 func file(name string, payload []byte) backend.File {
 	return backend.File{
 		Name:    name,
@@ -367,15 +384,17 @@ func file(name string, payload []byte) backend.File {
 	}
 }
 
-// fileProposalIndex returns a backend file for a proposal index file.
+// fileProposalIndex returns a backend file that contains a proposal index
+// file.
 func fileProposalIndex() backend.File {
 	text := "Hello, world. This is my proposal. Pay me."
 	return file(pi.FileNameIndexFile, []byte(text))
 }
 
-// fileProposalMetadata returns a backend file for a proposal metadata file.
-// The proposal metadata can optionally be provided as an argument. If no
-// proposal metadata is provided, one is created and filled with test data.
+// fileProposalMetadata returns a backend file that contains a proposal
+// metadata file. The proposal metadata can optionally be provided as an
+// argument. If no proposal metadata is provided, one is created and filled
+// with test data.
 func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	t.Helper()
 
@@ -392,8 +411,8 @@ func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	return file(pi.FileNameProposalMetadata, pmb)
 }
 
-// fileEmptyPNG returns a backend File for an empty PNG image. The file name is
-// randomly generated.
+// fileEmptyPNG returns a backend File that contains an empty PNG image. The
+// file name is randomly generated.
 func fileEmptyPNG(t *testing.T) backend.File {
 	t.Helper()
 
@@ -425,9 +444,7 @@ func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
 		fileProposalIndex(),
 		fileProposalMetadata(t, nil),
 	}
-	for _, v := range files {
-		fs = append(fs, v)
-	}
+	fs = append(fs, files...)
 
 	return fs
 }
