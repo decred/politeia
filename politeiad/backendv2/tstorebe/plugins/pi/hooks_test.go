@@ -5,10 +5,15 @@
 package pi
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -55,18 +60,26 @@ func TestHookNewRecordPre(t *testing.T) {
 				// Wanted an error but didn't get one
 				t.Errorf("want error '%v', got nil",
 					pi.ErrorCodes[wantErrorCode])
+				return
 
 			case v.err == nil && err != nil:
 				// Wanted success but got an error
 				t.Errorf("want error nil, got '%v'", err)
+				return
 
 			case v.err != nil && err != nil:
-				// Wanted an error and got an error. Verify
-				// that it's the correct error.
+				// Wanted an error and got an error. Verify that it's
+				// the correct error. All errors should be backend
+				// plugin errors.
 				var gotErr backend.PluginError
-				if !errors.As(v.err, &gotErr) {
-					t.Errorf("want error '%v', got '%v'",
-						pi.ErrorCodes[wantErrorCode], v.err)
+				if !errors.As(err, &gotErr) {
+					t.Errorf("want plugin error, got '%v'", err)
+					return
+				}
+				if pi.PluginID != gotErr.PluginID {
+					t.Errorf("want plugin error with plugin ID '%v', got '%v'",
+						pi.PluginID, gotErr.PluginID)
+					return
 				}
 
 				gotErrorCode := pi.ErrorCodeT(gotErr.ErrorCode)
@@ -98,46 +111,126 @@ type proposalFormatTest struct {
 // proposalFormatTests returns a list of tests that verify the files of a
 // proposal meet all formatting criteria that the pi plugin requires.
 func proposalFormatTests(t *testing.T) []proposalFormatTest {
+	t.Helper()
+
+	// Setup test files
+	var (
+		index = fileProposalIndex()
+
+		indexTooLarge backend.File
+		png           backend.File
+		pngTooLarge   backend.File
+	)
+
+	// Create a index file that is too large
+	var sb strings.Builder
+	for i := 0; i <= int(pi.SettingTextFileSizeMax); i++ {
+		sb.WriteString("a")
+	}
+	indexTooLarge = file(index.Name, []byte(sb.String()))
+
+	// Load test fixtures
+	b, err := ioutil.ReadFile("testdata/valid.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	png = file("valid.png", b)
+
+	b, err = ioutil.ReadFile("testdata/too-large.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pngTooLarge = file("too-large.png", b)
+
+	// Setup tests
 	tests := []proposalFormatTest{
 		{
 			"text file name invalid",
-			filesForProposal(t,
-				backend.File{
-					Name: "notallowed.txt",
-				}),
+			[]backend.File{
+				{
+					Name:    "notallowed.txt",
+					MIME:    index.MIME,
+					Digest:  index.Digest,
+					Payload: index.Payload,
+				},
+				fileProposalMetadata(t, nil),
+			},
 			backend.PluginError{
 				PluginID:  pi.PluginID,
 				ErrorCode: uint32(pi.ErrorCodeTextFileNameInvalid),
 			},
 		},
 		{
-			"text file size invalid",
-			[]backend.File{},
-			// pi.ErrorCodeTextFileSizeInvalid,
-			nil,
+			"text file too large",
+			[]backend.File{
+				indexTooLarge,
+				fileProposalMetadata(t, nil),
+			},
+			backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeTextFileSizeInvalid),
+			},
 		},
 		{
-			"image file size invalid",
-			[]backend.File{},
-			// pi.ErrorCodeImageFileSizeInvalid,
-			nil,
+			"image file too large",
+			[]backend.File{
+				fileProposalIndex(),
+				fileProposalMetadata(t, nil),
+				pngTooLarge,
+			},
+			backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeImageFileSizeInvalid),
+			},
 		},
 		{
 			"index file missing",
-			[]backend.File{},
-			// pi.ErrorCodeTextFileMissing,
-			nil,
+			[]backend.File{
+				fileProposalMetadata(t, nil),
+			},
+			backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeTextFileMissing),
+			},
 		},
 		{
 			"too many images",
-			[]backend.File{},
-			// pi.ErrorCodeImageFileCountInvalid,
-			nil,
+			[]backend.File{
+				fileProposalIndex(),
+				fileProposalMetadata(t, nil),
+				fileEmptyPNG(t), fileEmptyPNG(t), fileEmptyPNG(t),
+				fileEmptyPNG(t), fileEmptyPNG(t), fileEmptyPNG(t),
+			},
+			backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeImageFileCountInvalid),
+			},
 		},
 		{
 			"proposal metadata missing",
-			[]backend.File{},
-			// pi.ErrorCodeTextFileMissing,
+			[]backend.File{
+				fileProposalIndex(),
+			},
+			backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeTextFileMissing),
+			},
+		},
+		{
+			"success no attachments",
+			[]backend.File{
+				fileProposalIndex(),
+				fileProposalMetadata(t, nil),
+			},
+			nil,
+		},
+		{
+			"success with attachments",
+			[]backend.File{
+				fileProposalIndex(),
+				fileProposalMetadata(t, nil),
+				png,
+			},
 			nil,
 		},
 	}
@@ -149,6 +242,8 @@ func proposalFormatTests(t *testing.T) []proposalFormatTest {
 // proposalNameTests returns a list of tests that verify the proposal name
 // requirements.
 func proposalNameTests(t *testing.T) []proposalFormatTest {
+	t.Helper()
+
 	// Create names to test min and max lengths
 	var (
 		nameTooShort  string
@@ -262,24 +357,28 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 	}
 }
 
-// fileProposalIndex returns a backend file for a proposal index file.
-func fileProposalIndex() backend.File {
-	var (
-		text    = "Hello, world. This is my proposal. Pay me."
-		payload = []byte(text)
-	)
+// file returns a backend File for the provided data.
+func file(name string, payload []byte) backend.File {
 	return backend.File{
-		Name:    pi.FileNameIndexFile,
-		MIME:    "text/plain; charset=utf-8",
+		Name:    name,
+		MIME:    http.DetectContentType(payload),
 		Digest:  hex.EncodeToString(util.Digest(payload)),
 		Payload: base64.StdEncoding.EncodeToString(payload),
 	}
+}
+
+// fileProposalIndex returns a backend file for a proposal index file.
+func fileProposalIndex() backend.File {
+	text := "Hello, world. This is my proposal. Pay me."
+	return file(pi.FileNameIndexFile, []byte(text))
 }
 
 // fileProposalMetadata returns a backend file for a proposal metadata file.
 // The proposal metadata can optionally be provided as an argument. If no
 // proposal metadata is provided, one is created and filled with test data.
 func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
+	t.Helper()
+
 	if pm == nil {
 		pm = &pi.ProposalMetadata{
 			Name: "Test Proposal Name",
@@ -289,12 +388,30 @@ func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return backend.File{
-		Name:    pi.FileNameProposalMetadata,
-		MIME:    "text/plain; charset=utf-8",
-		Digest:  hex.EncodeToString(util.Digest(pmb)),
-		Payload: base64.StdEncoding.EncodeToString(pmb),
+
+	return file(pi.FileNameProposalMetadata, pmb)
+}
+
+// fileEmptyPNG returns a backend File for an empty PNG image. The file name is
+// randomly generated.
+func fileEmptyPNG(t *testing.T) backend.File {
+	t.Helper()
+
+	var (
+		b   = new(bytes.Buffer)
+		img = image.NewRGBA(image.Rect(0, 0, 1000, 500))
+	)
+	err := png.Encode(b, img)
+	if err != nil {
+		t.Fatal(err)
 	}
+	r, err := util.Random(8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := hex.EncodeToString(r) + ".png"
+
+	return file(name, b.Bytes())
 }
 
 // filesForProposal returns the backend files for a valid proposal. The
@@ -302,6 +419,8 @@ func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 // attachment files are included. The caller can pass in additional files that
 // will be included in the returned list.
 func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
+	t.Helper()
+
 	fs := []backend.File{
 		fileProposalIndex(),
 		fileProposalMetadata(t, nil),
@@ -309,6 +428,7 @@ func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
 	for _, v := range files {
 		fs = append(fs, v)
 	}
+
 	return fs
 }
 
@@ -317,6 +437,8 @@ func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
 // include the files required by the pi plugin API. No attachment files are
 // included.
 func filesWithProposalName(t *testing.T, name string) []backend.File {
+	t.Helper()
+
 	return []backend.File{
 		fileProposalIndex(),
 		fileProposalMetadata(t, &pi.ProposalMetadata{
