@@ -498,6 +498,7 @@ func convertCommentVotes(cv []comments.CommentVote) []v1.CommentVote {
 		c = append(c, v1.CommentVote{
 			UserID:    v.UserID,
 			Token:     v.Token,
+			State:     convertStateToV1(v.State),
 			CommentID: v.CommentID,
 			Vote:      v1.VoteT(v.Vote),
 			PublicKey: v.PublicKey,
