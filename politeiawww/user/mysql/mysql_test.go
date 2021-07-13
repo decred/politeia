@@ -196,15 +196,26 @@ func TestUserUpdate(t *testing.T) {
 		Username:   "test",
 	}
 
-	// Query
-	sql := `UPDATE users ` +
+	// Update user query
+	uq := `UPDATE users ` +
 		`SET username = ?, uBlob = ?, updatedAt = ? ` +
 		`WHERE ID = ?`
 
 	// Success Expectations
-	mock.ExpectExec(regexp.QuoteMeta(sql)).
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(uq)).
 		WithArgs(usr.Username, AnyBlob{}, AnyTime{}, usr.ID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Upsert user identities query
+	iq := "INSERT INTO identities(publicKey, userID, activated, deactivated) " +
+		"VALUES ON DUPLICATE KEY UPDATE " +
+		"activated=VALUES(activated), deactivated=VALUES(deactivated)"
+
+	mock.ExpectExec(regexp.QuoteMeta(iq)).
+		WithArgs().
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
 	// Execute method
 	err := mdb.UserUpdate(usr)

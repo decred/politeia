@@ -94,6 +94,13 @@ type mysql struct {
 	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
 }
 
+type mysqlIdentity struct {
+	publicKey   string
+	userID      string
+	activated   int64
+	deactivated int64
+}
+
 func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
@@ -426,6 +433,16 @@ func (m *mysql) UserUpdate(u user.User) error {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
+	// Init a sql transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	ur := struct {
 		ID        string
 		Username  string
@@ -437,11 +454,69 @@ func (m *mysql) UserUpdate(u user.User) error {
 		Blob:      eb,
 		UpdatedAt: time.Now().Unix(),
 	}
-	_, err = m.userDB.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		"UPDATE users SET username = ?, uBlob = ?, updatedAt = ? WHERE ID = ? ",
 		ur.Username, ur.Blob, ur.UpdatedAt, ur.ID)
 	if err != nil {
 		return fmt.Errorf("create user: %v", err)
+	}
+
+	// Upsert user identities
+	var ids []mysqlIdentity
+	for _, uIdentity := range u.Identities {
+		ids = append(ids, mysqlIdentity{
+			publicKey:   uIdentity.String(),
+			activated:   uIdentity.Activated,
+			deactivated: uIdentity.Deactivated,
+			userID:      ur.ID,
+		})
+	}
+	err = upsertIdentities(ctx, tx, ids)
+	if err != nil {
+		return fmt.Errorf("insert new identities: %v", err)
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// upsertIdentities upserts list of given user identities to db.
+// It inserts new identities and updates identities if they exist on db.
+//
+// This func should be called with a sql transaction.
+func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO " +
+		"identities(publicKey, userID, activated, deactivated) VALUES ")
+
+	vals := make([]interface{}, 0, len(ids))
+	for i, id := range ids {
+		// Trim , for last item
+		switch i {
+		case len(ids) - 1:
+			sb.WriteString("(?, ?, ?, ?)")
+		default:
+			sb.WriteString("(?, ?, ?, ?),")
+		}
+		vals = append(vals, id.publicKey, id.userID, id.activated, id.deactivated)
+	}
+
+	// Update activated & deactivated columns when key already exists.
+	sb.WriteString("ON DUPLICATE KEY UPDATE activated=VALUES(activated), " +
+		"deactivated=VALUES(deactivated)")
+
+	_, err := tx.ExecContext(ctx, sb.String(), vals...)
+	if err != nil {
+		return err
 	}
 
 	return nil

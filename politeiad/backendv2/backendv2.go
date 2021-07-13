@@ -280,7 +280,7 @@ type PluginError struct {
 
 // Error satisfies the error interface.
 func (e PluginError) Error() string {
-	return fmt.Sprintf("plugin '%v' error code %v",
+	return fmt.Sprintf("%v plugin error code %v",
 		e.PluginID, e.ErrorCode)
 }
 
