@@ -66,16 +66,16 @@ const tableUsers = `
 // tableIdentities defines the identities table.
 const tableIdentities = `
   public_key CHAR(64) NOT NULL PRIMARY KEY,
-  user_ID    VARCHAR(36) NOT NULL,
+  user_id    VARCHAR(36) NOT NULL,
   activated INT(11) NOT NULL,
   deactivated INT(11) NOT NULL,
-  FOREIGN KEY (user_ID) REFERENCES users(ID)
+  FOREIGN KEY (user_id) REFERENCES users(ID)
 `
 
 // tableSessions defines the sessions table.
 const tableSessions = `
   k CHAR(64) NOT NULL PRIMARY KEY,
-  user_ID VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
   created_at INT(11) NOT NULL,
   s_blob BLOB NOT NULL
 `
@@ -496,7 +496,7 @@ func (m *mysql) UserUpdate(u user.User) error {
 func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
 	var sb strings.Builder
 	sb.WriteString("INSERT INTO " +
-		"identities(public_key, user_ID, activated, deactivated) VALUES ")
+		"identities(public_key, user_id, activated, deactivated) VALUES ")
 
 	vals := make([]interface{}, 0, len(ids))
 	for i, id := range ids {
@@ -608,7 +608,7 @@ func (m *mysql) UserGetByPubKey(pubKey string) (*user.User, error) {
 	q := `SELECT u_blob
         FROM users
         INNER JOIN identities
-          ON users.ID = identities.user_ID
+          ON users.ID = identities.user_id
           WHERE identities.public_key = ?`
 	err := m.userDB.QueryRowContext(ctx, q, pubKey).Scan(&uBlob)
 	switch {
@@ -651,7 +651,7 @@ func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error)
 	q := `SELECT u_blob
           FROM users
             INNER JOIN identities
-            ON users.ID = identities.user_ID
+            ON users.ID = identities.user_id
             WHERE identities.public_key IN (?` +
 		strings.Repeat(",?", len(pubKeys)-1) + `)`
 
@@ -815,7 +815,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 	if update {
 		_, err := m.userDB.ExecContext(ctx,
 			`UPDATE sessions
-		  SET user_ID = ?, created_at = ?, s_blob = ?
+		  SET user_id = ?, created_at = ?, s_blob = ?
 			WHERE k = ?`,
 			session.UserID, session.CreatedAt, session.Blob, session.Key)
 		if err != nil {
@@ -824,7 +824,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 	} else {
 		_, err := m.userDB.ExecContext(ctx,
 			`INSERT INTO sessions
-		(k, user_ID, created_at, s_blob)
+		(k, user_id, created_at, s_blob)
 		VALUES (?, ?, ?, ?)`,
 			session.Key, session.UserID, session.CreatedAt, session.Blob)
 		if err != nil {
@@ -909,7 +909,7 @@ func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string)
 	// deleted.
 	if len(exempt) == 0 {
 		_, err := m.userDB.
-			ExecContext(ctx, "DELETE FROM sessions WHERE user_ID = ?", uid.String())
+			ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", uid.String())
 		return err
 	}
 

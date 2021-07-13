@@ -208,7 +208,7 @@ func TestUserUpdate(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Upsert user identities query
-	iq := "INSERT INTO identities(public_key, user_ID, activated, deactivated) " +
+	iq := "INSERT INTO identities(public_key, user_id, activated, deactivated) " +
 		"VALUES ON DUPLICATE KEY UPDATE " +
 		"activated=VALUES(activated), deactivated=VALUES(deactivated)"
 
@@ -369,7 +369,7 @@ func TestUserGetByPubKey(t *testing.T) {
 
 	// Query
 	sql := `SELECT u_blob FROM users ` +
-		`INNER JOIN identities ON users.ID = identities.user_ID ` +
+		`INNER JOIN identities ON users.ID = identities.user_id ` +
 		`WHERE identities.public_key = ?`
 
 	// Success Expectations
@@ -435,7 +435,7 @@ func TestUsersGetByPubKey(t *testing.T) {
 
 	// Query
 	sql := `SELECT u_blob FROM users ` +
-		`INNER JOIN identities ON users.ID = identities.user_ID ` +
+		`INNER JOIN identities ON users.ID = identities.user_id ` +
 		`WHERE identities.public_key IN (?)`
 
 	// Success Expectations
@@ -574,7 +574,7 @@ func TestSessionSave(t *testing.T) {
 	sqlSelect := `SELECT k FROM sessions WHERE k = ?`
 
 	sqlInsert := `INSERT INTO sessions ` +
-		`(k, user_ID, created_at, s_blob) ` +
+		`(k, user_id, created_at, s_blob) ` +
 		`VALUES (?, ?, ?, ?)`
 
 	// Success Create Expectations
@@ -597,7 +597,7 @@ func TestSessionSave(t *testing.T) {
 
 	// Queries
 	sqlUpdate := `UPDATE sessions ` +
-		`SET user_ID = ?, created_at = ?, s_blob = ? ` +
+		`SET user_id = ?, created_at = ?, s_blob = ? ` +
 		`WHERE k = ?`
 
 	// Success Update Expectations
@@ -798,7 +798,7 @@ func TestSessionsDeleteByUserID(t *testing.T) {
 		AddRow(eb)
 
 	// Queries
-	sql := `DELETE FROM sessions WHERE user_ID = ?`
+	sql := `DELETE FROM sessions WHERE user_id = ?`
 
 	// Success Expectations
 	mock.ExpectExec(regexp.QuoteMeta(sql)).
