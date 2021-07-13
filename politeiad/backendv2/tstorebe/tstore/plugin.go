@@ -10,6 +10,8 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
@@ -63,13 +65,10 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		_ = err
-		/* TODO
 		client, err = comments.New(p.Settings, p.Identity)
 		if err != nil {
 			return err
 		}
-		*/
 	case ddplugin.PluginID:
 		/* TODO
 		client, err = dcrdata.New(p.Settings, t.activeNetParams)
@@ -78,12 +77,10 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		}
 		*/
 	case piplugin.PluginID:
-		/* TODO
-		client, err = pi.New(b, p.Settings, dataDir)
+		client, err = pi.New(b, p.Settings)
 		if err != nil {
 			return err
 		}
-		*/
 	case tkplugin.PluginID:
 		/* TODO
 		client, err = ticketvote.New(b, t, p.Settings, dataDir,

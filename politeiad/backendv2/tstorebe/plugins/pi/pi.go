@@ -7,8 +7,6 @@ package pi
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 
@@ -33,7 +31,7 @@ type piPlugin struct {
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
 	// by walking the trillian trees.
-	dataDir string
+	// dataDir string
 
 	// Plugin settings
 	textFileCountMax           uint32
@@ -82,12 +80,12 @@ func (p *piPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload st
 	log.Tracef("pi Hook: %v", plugins.Hooks[h])
 
 	switch h {
-	case plugins.HookTypeNewRecordPre:
-		return p.hookNewRecordPre(payload)
-	case plugins.HookTypeEditRecordPre:
-		return p.hookEditRecordPre(payload)
-	case plugins.HookTypePluginPre:
-		return p.hookPluginPre(payload)
+	case plugins.HookRecordNewPre:
+		return p.hookRecordNewPre(payload)
+	case plugins.HookRecordEditPre:
+		return p.hookRecordEditPre(payload)
+	case plugins.HookPluginWritePre:
+		return p.hookPluginWritePre(payload)
 	}
 
 	return nil
@@ -141,14 +139,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new piPlugin.
-func New(backend backend.Backend, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
-	// Create plugin data directory
-	dataDir = filepath.Join(dataDir, pi.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
+func New(backend backend.Backend, settings []backend.PluginSetting) (*piPlugin, error) {
 	// Setup plugin setting default values
 	var (
 		textFileSizeMax    = pi.SettingTextFileSizeMax
@@ -226,7 +217,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	nameSupportedCharsString := string(b)
 
 	return &piPlugin{
-		dataDir:                    dataDir,
 		backend:                    backend,
 		textFileSizeMax:            textFileSizeMax,
 		imageFileCountMax:          imageFileCountMax,

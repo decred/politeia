@@ -143,8 +143,7 @@ type PluginClient interface {
 	// does not need to worry about concurrency issues.
 	Write(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Read executes a read-only plugin command. Operations performed
-	// using this method are not atomic.
+	// Read executes a read-only plugin command.
 	Read(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook. All operations are executed
