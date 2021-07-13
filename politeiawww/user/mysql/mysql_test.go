@@ -212,8 +212,7 @@ func TestUserUpdate(t *testing.T) {
 		"VALUES ON DUPLICATE KEY UPDATE " +
 		"activated=VALUES(activated), deactivated=VALUES(deactivated)"
 
-	mock.
-		ExpectExec(regexp.QuoteMeta(iq)).
+	mock.ExpectExec(regexp.QuoteMeta(iq)).
 		WithArgs().
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
