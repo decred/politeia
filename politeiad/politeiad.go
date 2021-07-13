@@ -7,12 +7,14 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"os/signal"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"syscall"
@@ -28,6 +30,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 type permission uint
@@ -209,6 +212,90 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 	return nil
 }
 
+var (
+	// regexpPluginSettingMulti matches against the plugin setting
+	// value when it contains multiple values.
+	//
+	// pluginID,key,["value1","value2"] matches ["value1","value2"]
+	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
+)
+
+// parsePluginSetting parses a politeiad config plugin setting. Plugin settings
+// will be in following format. The value may be a single value or an array of
+// values.
+//
+// pluginID,key,value
+// pluginID,key,["value1","value2","value3"...]
+//
+// When multiple values are provided, the values must be formatted as a JSON
+// encoded []string.
+func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error) {
+	formatMsg := `expected plugin setting format is ` +
+		`pluginID,key,value OR pluginID,key,["value1","value2","value3"]`
+
+	// Parse the plugin setting
+	var (
+		parsed = strings.Split(setting, ",")
+
+		// isMulti indicates whether the plugin setting contains
+		// multiple values. If the setting only contains a single
+		// value then isMulti will be false.
+		isMulti = regexpPluginSettingMulti.MatchString(setting)
+	)
+	switch {
+	case len(parsed) < 3:
+		return "", nil, errors.Errorf("missing csv entry '%v'; %v",
+			setting, formatMsg)
+	case len(parsed) == 3:
+		// This is expected; continue
+	case len(parsed) > 3 && isMulti:
+		// This is expected; continue
+	default:
+		return "", nil, errors.Errorf("invalid format '%v'; %v",
+			setting, formatMsg)
+	}
+
+	var (
+		pluginID     = parsed[0]
+		settingKey   = parsed[1]
+		settingValue = parsed[2]
+	)
+
+	// Clean the strings. The setting value is allowed to be case
+	// sensitive.
+	pluginID = strings.ToLower(strings.TrimSpace(pluginID))
+	settingKey = strings.ToLower(strings.TrimSpace(settingKey))
+	settingValue = strings.TrimSpace(settingValue)
+
+	// Handle multiple values
+	if isMulti {
+		// Parse values
+		values := regexpPluginSettingMulti.FindString(setting)
+
+		// Verify the values are formatted as valid JSON
+		var s []string
+		err := json.Unmarshal([]byte(values), &s)
+		if err != nil {
+			return "", nil, err
+		}
+
+		// Re-encode the JSON. This will remove any funny
+		// formatting like whitespaces.
+		b, err := json.Marshal(s)
+		if err != nil {
+			return "", nil, err
+		}
+
+		// Save the value
+		settingValue = string(b)
+	}
+
+	return pluginID, &backendv2.PluginSetting{
+		Key:   settingKey,
+		Value: settingValue,
+	}, nil
+}
+
 func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
 		p.cfg.TlogHost, p.cfg.TlogPass, p.cfg.DBType, p.cfg.DBHost,
@@ -260,27 +347,21 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		// Parse plugin settings
 		settings := make(map[string][]backendv2.PluginSetting)
 		for _, v := range p.cfg.PluginSettings {
-			// Plugin setting will be in format: pluginID,key,value
-			s := strings.Split(v, ",")
-			if len(s) != 3 {
-				return fmt.Errorf("failed to parse plugin setting '%v'; format "+
-					"should be 'pluginID,key,value'", s)
+			// Parse plugin setting
+			pluginID, ps, err := parsePluginSetting(v)
+			if err != nil {
+				return err
 			}
-			var (
-				pluginID = s[0]
-				key      = s[1]
-				value    = s[2]
-			)
-			ps, ok := settings[pluginID]
-			if !ok {
-				ps = make([]backendv2.PluginSetting, 0, 16)
-			}
-			ps = append(ps, backendv2.PluginSetting{
-				Key:   key,
-				Value: value,
-			})
 
-			settings[pluginID] = ps
+			// Add to settings list
+			pss, ok := settings[pluginID]
+			if !ok {
+				pss = make([]backendv2.PluginSetting, 0, 16)
+			}
+			pss = append(pss, *ps)
+
+			// Save settings list
+			settings[pluginID] = pss
 		}
 
 		// Register plugins

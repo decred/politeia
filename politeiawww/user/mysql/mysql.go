@@ -244,7 +244,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 		users = append(users, u)
 	}
 	// Rows.Err will report the last error encountered by Rows.Scan.
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return err
 	}
 
@@ -290,7 +290,7 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 		sessions = append(sessions, s)
 	}
 	// Rows.Err will report the last error encountered by Rows.Scan.
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return err
 	}
 
@@ -659,6 +659,9 @@ func (m *mysql) AllUsers(callback func(u *user.User)) error {
 			return err
 		}
 		users = append(users, u)
+	}
+	if err = rows.Err(); err != nil {
+		return err
 	}
 
 	// Invoke callback on each user.
