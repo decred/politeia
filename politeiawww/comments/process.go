@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
@@ -320,6 +321,11 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 		return nil, err
 	}
 	commentVotePopulateUserData(cv, *u)
+
+	// Sort comment votes by timestamp from newest to oldest.
+	sort.SliceStable(cv, func(i, j int) bool {
+		return cv[i].Timestamp > cv[j].Timestamp
+	})
 
 	return &v1.VotesReply{
 		Votes: cv,
