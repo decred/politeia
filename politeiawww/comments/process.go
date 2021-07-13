@@ -322,9 +322,10 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	}
 	commentVotePopulateUserData(cv, *u)
 
-	// Sort comment votes by timestamp.
-	sort.Slice(cv,
-		func(i, j int) bool { return cv[i].Timestamp > cv[j].Timestamp })
+	// Sort comment votes by timestamp from newest to oldest.
+	sort.SliceStable(cv, func(i, j int) bool {
+		return cv[i].Timestamp > cv[j].Timestamp
+	})
 
 	return &v1.VotesReply{
 		Votes: cv,
