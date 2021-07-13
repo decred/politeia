@@ -251,6 +251,9 @@ type Inventory struct {
 }
 
 // PluginSetting represents a configurable plugin setting.
+//
+// The value can either contain a single value or multiple values. Multiple
+// values will be formatted as a JSON encoded []string.
 type PluginSetting struct {
 	Key   string // Name of setting
 	Value string // Value of setting
@@ -277,7 +280,7 @@ type PluginError struct {
 
 // Error satisfies the error interface.
 func (e PluginError) Error() string {
-	return fmt.Sprintf("plugin '%v' error code %v",
+	return fmt.Sprintf("%v plugin error code %v",
 		e.PluginID, e.ErrorCode)
 }
 
