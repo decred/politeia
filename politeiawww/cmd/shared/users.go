@@ -11,7 +11,7 @@ import v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 type UsersCmd struct {
 	Email     string `long:"email"`    // Email filter
 	Username  string `long:"username"` // Username filter
-	PublicKey string `long:"pubkey"`   // Username filter
+	PublicKey string `long:"pubkey"`   // Public key filter
 }
 
 // Execute executes the users command.

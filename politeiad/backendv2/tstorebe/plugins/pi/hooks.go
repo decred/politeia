@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -16,6 +17,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -182,11 +184,17 @@ func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
 // name, a valid base64 payload, and that the file digest and MIME type are
 // correct.
 func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
+	// Sanity check
+	if len(files) == 0 {
+		return errors.Errorf("no files found")
+	}
+
+	// Verify file types and sizes
 	var imagesCount uint32
 	for _, v := range files {
 		payload, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
-			return fmt.Errorf("invalid base64 %v", v.Name)
+			return errors.Errorf("invalid base64 %v", v.Name)
 		}
 
 		// MIME type specific validation
@@ -195,10 +203,16 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			// Verify text file is allowed
 			_, ok := allowedTextFiles[v.Name]
 			if !ok {
+				allowed := make([]string, 0, len(allowedTextFiles))
+				for name := range allowedTextFiles {
+					allowed = append(allowed, name)
+				}
 				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    uint32(pi.ErrorCodeTextFileNameInvalid),
-					ErrorContext: v.Name,
+					PluginID:  pi.PluginID,
+					ErrorCode: uint32(pi.ErrorCodeTextFileNameInvalid),
+					ErrorContext: fmt.Sprintf("invalid text file name "+
+						"%v; allowed text file names are %v",
+						v.Name, strings.Join(allowed, ", ")),
 				}
 			}
 
@@ -230,7 +244,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			}
 
 		default:
-			return fmt.Errorf("invalid mime: %v", v.MIME)
+			return errors.Errorf("invalid mime: %v", v.MIME)
 		}
 	}
 

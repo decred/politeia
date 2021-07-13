@@ -50,10 +50,23 @@ func (p *usermdPlugin) cmdUserRecords(payload string) (string, error) {
 		return "", err
 	}
 
+	// The tokens in the user cache are ordered oldest to
+	// newest. We need to return them newest to oldest.
+	var (
+		unvetted = make([]string, 0, len(uc.Unvetted))
+		vetted   = make([]string, 0, len(uc.Vetted))
+	)
+	for i := len(uc.Unvetted) - 1; i >= 0; i-- {
+		unvetted = append(unvetted, uc.Unvetted[i])
+	}
+	for i := len(uc.Vetted) - 1; i >= 0; i-- {
+		vetted = append(vetted, uc.Vetted[i])
+	}
+
 	// Prepare reply
 	urr := usermd.UserRecordsReply{
-		Unvetted: uc.Unvetted,
-		Vetted:   uc.Vetted,
+		Unvetted: unvetted,
+		Vetted:   vetted,
 	}
 	reply, err := json.Marshal(urr)
 	if err != nil {

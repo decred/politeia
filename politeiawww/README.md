@@ -69,19 +69,20 @@ password of your root user. The politeiawwwpass is the password that will be
 set for the politeiawww user when it's created.
 
 ```
-$ cd $GOPATH/src/github.com/decred/politeia/scripts/userdb
+$ cd $GOPATH/src/github.com/decred/politeia/politeiawww/scripts
 $ env \
   MYSQL_ROOT_PASSWORD=rootpass \
   MYSQL_POLITEIAWWW_PASSWORD=politeiawwwpass \
-  ./mysqlsetup.sh
+  ./userdb-mysql-setup.sh
 ```
 
 You will need to use the `--userdb=mysql` flag when starting politeiawww or 
-add `userdb=mysql` to the `politeiawww.config` file that is setup in the steps
+add `userdb=mysql` to the `politeiawww.conf` file that is setup in the steps
 below.
 
-Also, an encryption key is required when using a MySQL database, use
+An encryption key is required when using a MySQL database, use
 `politeiawww_dbutil` cmd tool to create one: 
+
 ```
 politeiawww_dbutil -createkey 
 ```
@@ -141,11 +142,18 @@ must already be setup and running before you attempt to run politeiawww.
     ; paywallamount=10000000
     ```
 
-2. Start up politeiawww.
+2. Fetch the politeiad identity. The first time you start politeiawww you will
+   need to fetch the public key that politeiad uses to sign all responses. This
+   is referred to as politeiad's identity and can be retrieved using the
+   `--fetchidentity` flag. politeiawww will save the identity locally so that
+   this only needs to be done once.
 
-    ```
+    $ politeiawww --fetchidentity
+
+3. Start up politeiawww.
+
     $ politeiawww
-    ```
+
 ## API
 
 The [politeiawww APIs](https://github.com/decred/politeia/tree/master/politeiawww/api/)
