@@ -120,7 +120,7 @@ func TestUserNew(t *testing.T) {
 	// Queries
 	sqlSelectIndex := `SELECT v FROM key_value WHERE k = ?`
 	sqlInsertUser := `INSERT INTO users ` +
-		`(ID, username, u_blob, created_at) ` +
+		`(id, username, u_blob, created_at) ` +
 		`VALUES (?, ?, ?, ?)`
 	sqlUpsertIndex := `INSERT INTO key_value (k,v)
     VALUES (?, ?)
@@ -199,7 +199,7 @@ func TestUserUpdate(t *testing.T) {
 	// Update user query
 	uq := `UPDATE users ` +
 		`SET username = ?, u_blob = ?, updated_at = ? ` +
-		`WHERE ID = ?`
+		`WHERE id = ?`
 
 	// Success Expectations
 	mock.ExpectBegin()
@@ -305,7 +305,7 @@ func TestUserGetById(t *testing.T) {
 	}).AddRow(blob)
 
 	// Query
-	sql := `SELECT u_blob FROM users WHERE ID = ?`
+	sql := `SELECT u_blob FROM users WHERE id = ?`
 
 	// Success Expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
@@ -369,7 +369,7 @@ func TestUserGetByPubKey(t *testing.T) {
 
 	// Query
 	sql := `SELECT u_blob FROM users ` +
-		`INNER JOIN identities ON users.ID = identities.user_id ` +
+		`INNER JOIN identities ON users.id = identities.user_id ` +
 		`WHERE identities.public_key = ?`
 
 	// Success Expectations
@@ -435,7 +435,7 @@ func TestUsersGetByPubKey(t *testing.T) {
 
 	// Query
 	sql := `SELECT u_blob FROM users ` +
-		`INNER JOIN identities ON users.ID = identities.user_id ` +
+		`INNER JOIN identities ON users.id = identities.user_id ` +
 		`WHERE identities.public_key IN (?)`
 
 	// Success Expectations
