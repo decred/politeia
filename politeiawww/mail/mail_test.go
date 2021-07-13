@@ -18,7 +18,7 @@ type TestMailerDB struct {
 	histories map[string]user.EmailHistory
 }
 
-// EmailHistoriesSave implements the save function using a in memory cache
+// EmailHistoriesSave implements the save function using the in memory cache
 // for testing purposes.
 //
 // This function satisfies the MailerDB interface.

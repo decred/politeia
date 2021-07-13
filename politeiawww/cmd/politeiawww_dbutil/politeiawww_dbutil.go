@@ -464,8 +464,7 @@ func connectMySQL() (user.Database, error) {
 
 	fmt.Printf("MySQL : %v %v\n", *mysqlhost, network)
 
-	return mysqldb.New(*mysqlhost, *password, network,
-		*encryptionKey)
+	return mysqldb.New(*mysqlhost, *password, network, *encryptionKey)
 }
 
 func connectDB(typeDB string) (user.Database, error) {

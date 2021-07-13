@@ -91,32 +91,6 @@ func (c *cockroachdb) decrypt(b []byte) ([]byte, uint32, error) {
 	return sbox.Decrypt(c.encryptionKey, b)
 }
 
-// setPaywallAddressIndex updates the paywall address index record in the
-// key-value store.
-//
-// This function can be called using a transaction when necessary.
-func setPaywallAddressIndex(db *gorm.DB, index uint64) error {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, index)
-	kv := KeyValue{
-		Key:   keyPaywallAddressIndex,
-		Value: b,
-	}
-	return db.Save(&kv).Error
-}
-
-// SetPaywallAddressIndex updates the paywall address index record in the
-// key-value database table.
-func (c *cockroachdb) SetPaywallAddressIndex(index uint64) error {
-	log.Tracef("SetPaywallAddressIndex: %v", index)
-
-	if c.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	return setPaywallAddressIndex(c.userDB, index)
-}
-
 // userNew creates a new user the database.  The userID and paywall address
 // index are set before the user record is inserted into the database.
 //
@@ -168,6 +142,8 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) (*uuid.UUID, error) {
 }
 
 // UserNew creates a new user record in the database.
+//
+// UserNew satisfies the Database interface.
 func (c *cockroachdb) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
 
@@ -186,8 +162,34 @@ func (c *cockroachdb) UserNew(u user.User) error {
 	return tx.Commit().Error
 }
 
+// UserUpdate updates an existing user record in the database.
+//
+// UserUpdate satisfies the Database interface.
+func (c *cockroachdb) UserUpdate(u user.User) error {
+	log.Tracef("UserUpdate: %v", u.Username)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	b, err := user.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	eb, err := c.encrypt(user.VersionUser, b)
+	if err != nil {
+		return err
+	}
+
+	ur := convertUserFromUser(u, eb)
+	return c.userDB.Save(ur).Error
+}
+
 // UserGetByUsername returns a user record given its username, if found in the
 // database.
+//
+// UserGetByUsername satisfies the Database interface.
 func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 	log.Tracef("UserGetByUsername: %v", username)
 
@@ -220,8 +222,10 @@ func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 	return usr, nil
 }
 
-// UserGetByUsername returns a user record given its UUID, if found in the
+// UserGetById returns a user record given its UUID, if found in the
 // database.
+//
+// UserGetById satisfies the Database interface.
 func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 	log.Tracef("UserGetById: %v", id)
 
@@ -256,6 +260,8 @@ func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 
 // UserGetByPubKey returns a user record given its public key. The public key
 // can be any of the public keys in the user's identity history.
+//
+// UserGetByPubKey satisfies the Database interface.
 func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	log.Tracef("UserGetByPubKey: %v", pubKey)
 
@@ -355,30 +361,36 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
 	return users, nil
 }
 
-// UserUpdate updates an existing user record in the database.
-func (c *cockroachdb) UserUpdate(u user.User) error {
-	log.Tracef("UserUpdate: %v", u.Username)
+// InsertUser inserts a user record into the database. The record must be a
+// complete user record and the user must not already exist. This function is
+// intended to be used for migrations between databases.
+//
+// InsertUser satisfies the Database interface.
+func (c *cockroachdb) InsertUser(u user.User) error {
+	log.Tracef("InsertUser: %v", u.ID)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
-	b, err := user.EncodeUser(u)
+	ub, err := user.EncodeUser(u)
 	if err != nil {
 		return err
 	}
 
-	eb, err := c.encrypt(user.VersionUser, b)
+	eb, err := c.encrypt(user.VersionUser, ub)
 	if err != nil {
 		return err
 	}
 
 	ur := convertUserFromUser(u, eb)
-	return c.userDB.Save(ur).Error
+	return c.userDB.Create(&ur).Error
 }
 
 // AllUsers iterates over every user in the database, invoking the given
 // callback function on each user.
+//
+// AllUsers satisfies the Database interface.
 func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	log.Tracef("AllUsers")
 
@@ -560,6 +572,34 @@ func (c *cockroachdb) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []s
 		Error
 }
 
+// setPaywallAddressIndex updates the paywall address index record in the
+// key-value store.
+//
+// This function can be called using a transaction when necessary.
+func setPaywallAddressIndex(db *gorm.DB, index uint64) error {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, index)
+	kv := KeyValue{
+		Key:   keyPaywallAddressIndex,
+		Value: b,
+	}
+	return db.Save(&kv).Error
+}
+
+// SetPaywallAddressIndex updates the paywall address index record in the
+// key-value database table.
+//
+// SetPaywallAddressIndex satisfies the Database interface.
+func (c *cockroachdb) SetPaywallAddressIndex(index uint64) error {
+	log.Tracef("SetPaywallAddressIndex: %v", index)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	return setPaywallAddressIndex(c.userDB, index)
+}
+
 // rotateKeys rotates the existing database encryption key with the given new
 // key.
 //
@@ -626,6 +666,8 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 
 // RotateKeys rotates the existing database encryption key with the given new
 // key.
+//
+// RotateKeys satisfies the Database interface.
 func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
 
@@ -668,58 +710,9 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	return nil
 }
 
-// InsertUser inserts a user record into the database. The record must be a
-// complete user record and the user must not already exist. This function is
-// intended to be used for migrations between databases.
-func (c *cockroachdb) InsertUser(u user.User) error {
-	log.Tracef("InsertUser: %v", u.ID)
-
-	if c.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	ub, err := user.EncodeUser(u)
-	if err != nil {
-		return err
-	}
-
-	eb, err := c.encrypt(user.VersionUser, ub)
-	if err != nil {
-		return err
-	}
-
-	ur := convertUserFromUser(u, eb)
-	return c.userDB.Create(&ur).Error
-}
-
-// PluginExec executes the provided plugin command.
-func (c *cockroachdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
-	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
-
-	if c.isShutdown() {
-		return nil, user.ErrShutdown
-	}
-
-	var payload string
-	var err error
-	switch pc.ID {
-	case user.CMSPluginID:
-		payload, err = c.cmsPluginExec(pc.Command, pc.Payload)
-	default:
-		return nil, user.ErrInvalidPlugin
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &user.PluginCommandReply{
-		ID:      pc.ID,
-		Command: pc.Command,
-		Payload: payload,
-	}, nil
-}
-
 // RegisterPlugin registers a plugin with the user database.
+//
+// RegisterPlugin satisfies the Database interface.
 func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
 
@@ -746,6 +739,35 @@ func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
 	c.pluginSettings[p.ID] = p.Settings
 
 	return nil
+}
+
+// PluginExec executes the provided plugin command.
+//
+// PluginExec satisfies the Database interface.
+func (c *cockroachdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
+	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var payload string
+	var err error
+	switch pc.ID {
+	case user.CMSPluginID:
+		payload, err = c.cmsPluginExec(pc.Command, pc.Payload)
+	default:
+		return nil, user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user.PluginCommandReply{
+		ID:      pc.ID,
+		Command: pc.Command,
+		Payload: payload,
+	}, nil
 }
 
 // EmailHistoriesSave creates or updates the email histories.
@@ -858,6 +880,8 @@ func (c *cockroachdb) convertEmailHistoryToUser(eh EmailHistory) (*user.EmailHis
 
 // Close shuts down the database. All interface functions must return with
 // errShutdown if the backend is shutting down.
+//
+// Close satisfies the Database interface.
 func (c *cockroachdb) Close() error {
 	log.Tracef("Close")
 

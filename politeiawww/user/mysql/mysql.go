@@ -328,54 +328,9 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 	return nil
 }
 
-// InsertUser inserts a user record into the database. The record must be a
-// complete user record and the user must not already exist. This function is
-// intended to be used for migrations between databases.
-//
-// InsertUser satisfies the Database interface.
-func (m *mysql) InsertUser(u user.User) error {
-	log.Tracef("UserInsert: %v", u.Username)
-
-	if m.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	ub, err := user.EncodeUser(u)
-	if err != nil {
-		return err
-	}
-
-	eb, err := m.encrypt(user.VersionUser, ub)
-	if err != nil {
-		return err
-	}
-
-	// Insert new user into database.
-	ur := struct {
-		ID        string
-		Username  string
-		Blob      []byte
-		CreatedAt int64
-	}{
-		ID:        u.ID.String(),
-		Username:  u.Username,
-		Blob:      eb,
-		CreatedAt: time.Now().Unix(),
-	}
-	_, err = m.userDB.ExecContext(ctx,
-		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
-		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
-	if err != nil {
-		return fmt.Errorf("insert user: %v", err)
-	}
-
-	return nil
-}
-
 // UserNew creates a new user record in the database.
+//
+// UserNew satisfies the Database interface.
 func (m *mysql) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
 
@@ -415,6 +370,8 @@ func (m *mysql) UserNew(u user.User) error {
 }
 
 // UserUpdate updates an existing user.
+//
+// UserUpdate satisfies the Database interface.
 func (m *mysql) UserUpdate(u user.User) error {
 	log.Tracef("UserUpdate: %v", u.Username)
 
@@ -458,6 +415,8 @@ func (m *mysql) UserUpdate(u user.User) error {
 
 // UserGetByUsername returns a user record given its username, if found in the
 // database. returns user.ErrUserNotFound user not found.
+//
+// UserGetByUsername satisfies the Database interface.
 func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 	log.Tracef("UserGetByUsername: %v", username)
 
@@ -493,6 +452,8 @@ func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 
 // UserGetById returns a user record given its UUID, if found in the
 // database.
+//
+// UserGetById satisfies the Database interface.
 func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 	log.Tracef("UserGetById: %v", id)
 
@@ -528,6 +489,8 @@ func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 
 // UserGetByPubKey returns a user record given its public key. The public key
 // can be any of the public keys in the user's identity history.
+//
+// UserGetByPubKey satisfies the Database interface.
 func (m *mysql) UserGetByPubKey(pubKey string) (*user.User, error) {
 	log.Tracef("UserGetByPubKey: %v", pubKey)
 
@@ -639,7 +602,56 @@ func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error)
 	return users, nil
 }
 
+// InsertUser inserts a user record into the database. The record must be a
+// complete user record and the user must not already exist. This function is
+// intended to be used for migrations between databases.
+//
+// InsertUser satisfies the Database interface.
+func (m *mysql) InsertUser(u user.User) error {
+	log.Tracef("UserInsert: %v", u.Username)
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	ub, err := user.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	eb, err := m.encrypt(user.VersionUser, ub)
+	if err != nil {
+		return err
+	}
+
+	// Insert new user into database.
+	ur := struct {
+		ID        string
+		Username  string
+		Blob      []byte
+		CreatedAt int64
+	}{
+		ID:        u.ID.String(),
+		Username:  u.Username,
+		Blob:      eb,
+		CreatedAt: time.Now().Unix(),
+	}
+	_, err = m.userDB.ExecContext(ctx,
+		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
+		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert user: %v", err)
+	}
+
+	return nil
+}
+
 // AllUsers iterate over all users and executes given callback.
+//
+// AllUsers satisfies the Database interface.
 func (m *mysql) AllUsers(callback func(u *user.User)) error {
 	log.Tracef("AllUsers")
 
@@ -766,8 +778,8 @@ func (m *mysql) SessionSave(us user.Session) error {
 	return nil
 }
 
-// Get a session by its ID. Returns a user.ErrorSessionNotFound if the given
-// session ID does not exist
+// SessionGetByID gets a session by its ID. Returns a user.ErrorSessionNotFound
+// if the given session ID does not exist.
 //
 // SessionGetByID satisfies the Database interface.
 func (m *mysql) SessionGetByID(sid string) (*user.Session, error) {
@@ -850,34 +862,6 @@ func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string)
 	return err
 }
 
-// RegisterPlugin registers a plugin.
-func (m *mysql) RegisterPlugin(p user.Plugin) error {
-	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
-
-	if m.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	// Setup plugin tables
-	var err error
-	switch p.ID {
-	case user.CMSPluginID:
-	default:
-		return user.ErrInvalidPlugin
-	}
-	if err != nil {
-		return err
-	}
-
-	// Save plugin settings.
-	m.Lock()
-	defer m.Unlock()
-
-	m.pluginSettings[p.ID] = p.Settings
-
-	return nil
-}
-
 // SetPaywallAddressIndex updates the paywall address index.
 //
 // SetPaywallAddressIndex satisfies the Database interface.
@@ -921,6 +905,8 @@ func (m *mysql) SetPaywallAddressIndex(index uint64) error {
 
 // RotateKeys rotates the existing database encryption key with the given new
 // key.
+//
+// RotateKeys satisfies the Database interface.
 func (m *mysql) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
 
@@ -978,7 +964,39 @@ func (m *mysql) RotateKeys(newKeyPath string) error {
 	return nil
 }
 
+// RegisterPlugin registers a plugin.
+//
+// RegisterPlugin satisfies the Database interface.
+func (m *mysql) RegisterPlugin(p user.Plugin) error {
+	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	// Setup plugin tables
+	var err error
+	switch p.ID {
+	case user.CMSPluginID:
+	default:
+		return user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return err
+	}
+
+	// Save plugin settings.
+	m.Lock()
+	defer m.Unlock()
+
+	m.pluginSettings[p.ID] = p.Settings
+
+	return nil
+}
+
 // PluginExec executes a plugin command.
+//
+// PluginExec satisfies the Database interface.
 func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
 	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
 
@@ -1046,9 +1064,10 @@ func (m *mysql) EmailHistoriesSave(histories map[string]user.EmailHistory) error
 	return nil
 }
 
-// emailHistoriesSave creates or updates the email histories.
+// emailHistoriesSave creates or updates the email histories for the given
+// user emails in the histories map.
 //
-// This function must be called using a transaction.
+// This function must be called using a sql transaction.
 func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories map[string]user.EmailHistory) error {
 	for email, history := range histories {
 		var (
@@ -1164,6 +1183,8 @@ func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory,
 
 // Close shuts down the database.  All interface functions must return with
 // errShutdown if the backend is shutting down.
+//
+// Close satisfies the Database interface.
 func (m *mysql) Close() error {
 	log.Tracef("Close")
 
