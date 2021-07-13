@@ -208,10 +208,12 @@ func TestUserUpdate(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Upsert user identities query
-	iq := `INSERT INTO`
+	iq := "INSERT INTO identities(publicKey, userID, activated, deactivated) " +
+		"VALUES ON DUPLICATE KEY UPDATE " +
+		"activated=VALUES(activated), deactivated=VALUES(deactivated)"
 
-	mock.ExpectPrepare(iq).
-		ExpectExec().
+	mock.
+		ExpectExec(regexp.QuoteMeta(iq)).
 		WithArgs().
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()

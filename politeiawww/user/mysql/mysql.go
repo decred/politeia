@@ -489,29 +489,32 @@ func (m *mysql) UserUpdate(u user.User) error {
 	return nil
 }
 
+// upsertIdentities upserts list of given user identities to db.
+// It inserts new identities and updates identities if they exist on db.
+//
+// This func should be called with a sql transaction.
 func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
-	q := "INSERT INTO identities(publicKey, userID, activated, deactivated) VALUES "
-	vals := []interface{}{}
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO " +
+		"identities(publicKey, userID, activated, deactivated) VALUES ")
 
-	for _, id := range ids {
-		q += "(?, ?, ?, ?),"
+	vals := make([]interface{}, 0, len(ids))
+	for i, id := range ids {
+		// Trim , for last item
+		switch i {
+		case len(ids) - 1:
+			sb.WriteString("(?, ?, ?, ?)")
+		default:
+			sb.WriteString("(?, ?, ?, ?),")
+		}
 		vals = append(vals, id.publicKey, id.userID, id.activated, id.deactivated)
 	}
-	// Trim the last ,
-	q = strings.TrimSuffix(q, ",")
 
 	// Update activated & deactivated columns when key already exists.
-	q += "ON DUPLICATE KEY UPDATE activated=VALUES(activated), " +
-		"deactivated=VALUES(deactivated)"
+	sb.WriteString("ON DUPLICATE KEY UPDATE activated=VALUES(activated), " +
+		"deactivated=VALUES(deactivated)")
 
-	// Prepare the statement
-	stmt, err := tx.PrepareContext(ctx, q)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.ExecContext(ctx, vals...)
+	_, err := tx.ExecContext(ctx, sb.String(), vals...)
 	if err != nil {
 		return err
 	}
