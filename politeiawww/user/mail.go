@@ -1,9 +1,5 @@
 package user
 
-import (
-	"encoding/json"
-)
-
 // MailerDB describes the interface used to interact with the email histories
 // table from the user database, used by the mail client.
 type MailerDB interface {
@@ -27,25 +23,3 @@ type EmailHistory struct {
 
 // VersionEmailHistory is the version of the EmailHistory struct.
 const VersionEmailHistory uint32 = 1
-
-// EncodeEmailHistory encodes EmailHistory into a JSON byte slice.
-func EncodeEmailHistory(h EmailHistory) ([]byte, error) {
-	b, err := json.Marshal(h)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// DecodeEmailHistory decodes a JSON byte slice into a EmailHistory.
-func DecodeEmailHistory(payload []byte) (*EmailHistory, error) {
-	var h EmailHistory
-
-	err := json.Unmarshal(payload, &h)
-	if err != nil {
-		return nil, err
-	}
-
-	return &h, nil
-}

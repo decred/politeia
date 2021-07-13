@@ -18,7 +18,8 @@ type TestMailerDB struct {
 	histories map[string]user.EmailHistory
 }
 
-// EmailHistoriesSave implements the save function for testing purposes.
+// EmailHistoriesSave implements the save function using a in memory cache
+// for testing purposes.
 //
 // This function satisfies the MailerDB interface.
 func (m *TestMailerDB) EmailHistoriesSave(histories map[string]user.EmailHistory) error {
@@ -32,7 +33,8 @@ func (m *TestMailerDB) EmailHistoriesSave(histories map[string]user.EmailHistory
 	return nil
 }
 
-// EmailHistoriesGet implements the get function for testing purposes.
+// EmailHistoriesGet implements the get function for the in memory cache used
+// for testing purposes.
 //
 // This function satisfies the MailerDB interface.
 func (m *TestMailerDB) EmailHistoriesGet(users []string) (map[string]user.EmailHistory, error) {
@@ -62,8 +64,8 @@ func newClientTest() *client {
 		smtp:        nil,
 		mailName:    "test",
 		mailAddress: "test@email.com",
-		limit:       3,
 		mailerDB:    testMailerDB,
+		limit:       3,
 		disabled:    false,
 	}
 }
@@ -80,17 +82,17 @@ func TestFilterRecipients(t *testing.T) {
 	histories[validEmail] = user.EmailHistory{
 		Timestamps: []int64{
 			nowUnix,
-			time.Now().Add(-(24 * time.Hour)).Unix(),
-			time.Now().Add(-(24 * time.Hour)).Unix(),
+			time.Now().Add(-(cooldown)).Unix(),
+			time.Now().Add(-(cooldown)).Unix(),
 		},
 		LimitWarningSent: false,
 	}
 	validEmail2 := "valid2@email.com"
 	histories[validEmail2] = user.EmailHistory{
 		Timestamps: []int64{
-			time.Now().Add(-(24 * time.Hour)).Unix(),
-			time.Now().Add(-(24 * time.Hour)).Unix(),
-			time.Now().Add(-(24 * time.Hour)).Unix(),
+			time.Now().Add(-(cooldown)).Unix(),
+			time.Now().Add(-(cooldown)).Unix(),
+			time.Now().Add(-(cooldown)).Unix(),
 		},
 		LimitWarningSent: false,
 	}

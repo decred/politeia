@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -1069,7 +1070,7 @@ func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories ma
 		}
 
 		// Make email history blob
-		ehb, err := user.EncodeEmailHistory(history)
+		ehb, err := json.Marshal(history)
 		if err != nil {
 			return fmt.Errorf("convert email history to DB: %w", err)
 		}
@@ -1128,7 +1129,7 @@ func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory,
 	}
 	defer rows.Close()
 
-	// Decrypt email history blob and compile the userid maps with their
+	// Decrypt email history blob and compile the user emails map with their
 	// respective email history.
 	type EmailHistory struct {
 		Email string
@@ -1146,12 +1147,13 @@ func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory,
 			return nil, err
 		}
 
-		eh, err := user.DecodeEmailHistory(b)
+		var h user.EmailHistory
+		err = json.Unmarshal(b, &h)
 		if err != nil {
 			return nil, err
 		}
 
-		histories[hist.Email] = *eh
+		histories[hist.Email] = h
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err

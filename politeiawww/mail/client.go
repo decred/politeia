@@ -25,10 +25,14 @@ type client struct {
 	smtp        *goemail.SMTP // SMTP server
 	mailName    string        // From name
 	mailAddress string        // From email address
-	limit       int           // Email rate limit
 	mailerDB    user.MailerDB // User mailer database in www
+	limit       int           // Email rate limit
 	disabled    bool          // Has email been disabled
 }
+
+// cooldown is the elapsed time used to reset a user's limited email
+// history.
+const cooldown = 24 * time.Hour
 
 // IsEnabled returns whether the mail server is enabled.
 //
@@ -130,8 +134,7 @@ func (c *client) filterRecipients(rs []string) ([]string, []string, map[string]u
 		}
 
 		// Filter timestamps for the past 24h.
-		history.Timestamps = filterTimestamps(history.Timestamps,
-			24*time.Hour)
+		history.Timestamps = filterTimestamps(history.Timestamps, cooldown)
 
 		if len(history.Timestamps) >= c.limit {
 			// Rate limit has been hit. If limit warning email has not yet
@@ -227,8 +230,8 @@ func newClient(host, user, password, emailAddress, certPath string, skipVerify b
 		smtp:        smtp,
 		mailName:    a.Name,
 		mailAddress: a.Address,
-		disabled:    false,
 		mailerDB:    db,
 		limit:       limit,
+		disabled:    false,
 	}, nil
 }

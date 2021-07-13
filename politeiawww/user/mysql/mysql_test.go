@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -634,7 +635,7 @@ func TestEmailHistoriesGet(t *testing.T) {
 		Timestamps:       []int64{ts},
 		LimitWarningSent: false,
 	}
-	hb, err := user.EncodeEmailHistory(history)
+	hb, err := json.Marshal(history)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

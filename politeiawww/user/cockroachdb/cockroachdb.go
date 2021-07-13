@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -828,7 +829,7 @@ func (c *cockroachdb) EmailHistoriesGet(users []string) (map[string]user.EmailHi
 }
 
 func (c *cockroachdb) convertEmailHistoryFromUser(email string, h user.EmailHistory) (*EmailHistory, error) {
-	eh, err := user.EncodeEmailHistory(h)
+	eh, err := json.Marshal(h)
 	if err != nil {
 		return nil, err
 	}
@@ -847,7 +848,12 @@ func (c *cockroachdb) convertEmailHistoryToUser(eh EmailHistory) (*user.EmailHis
 	if err != nil {
 		return nil, err
 	}
-	return user.DecodeEmailHistory(b)
+	var h user.EmailHistory
+	err = json.Unmarshal(b, &h)
+	if err != nil {
+		return nil, err
+	}
+	return &h, nil
 }
 
 // Close shuts down the database. All interface functions must return with
