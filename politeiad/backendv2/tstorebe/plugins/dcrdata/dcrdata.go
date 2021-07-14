@@ -249,6 +249,7 @@ func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
 	return nil
 }
 
+// New returns a new dcrdataPlugin.
 func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
 	// Plugin setting
 	var (

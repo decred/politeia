@@ -11,6 +11,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
@@ -70,12 +71,10 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case ddplugin.PluginID:
-		/* TODO
 		client, err = dcrdata.New(p.Settings, t.activeNetParams)
 		if err != nil {
 			return err
 		}
-		*/
 	case piplugin.PluginID:
 		client, err = pi.New(b, p.Settings)
 		if err != nil {

@@ -28,11 +28,6 @@ var (
 type piPlugin struct {
 	backend backend.Backend
 
-	// dataDir is the pi plugin data directory. The only data that is
-	// stored here is cached data that can be re-created at any time
-	// by walking the trillian trees.
-	// dataDir string
-
 	// Plugin settings
 	textFileCountMax           uint32
 	textFileSizeMax            uint32 // In bytes
