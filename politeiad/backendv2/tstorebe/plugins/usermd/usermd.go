@@ -5,8 +5,6 @@
 package usermd
 
 import (
-	"os"
-	"path/filepath"
 	"sync"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -24,7 +22,6 @@ var (
 // usermdPlugin satisfies the plugins PluginClient interface.
 type usermdPlugin struct {
 	sync.Mutex
-	tstore plugins.TstoreClient
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
@@ -60,7 +57,7 @@ func (p *usermdPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payl
 
 	switch cmd {
 	case usermd.CmdAuthor:
-		return p.cmdAuthor(token)
+		return p.cmdAuthor(tstore, token)
 	case usermd.CmdUserRecords:
 		return p.cmdUserRecords(payload)
 	}
@@ -111,16 +108,6 @@ func (p *usermdPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new usermdPlugin.
-func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string) (*usermdPlugin, error) {
-	// Create plugin data directory
-	dataDir = filepath.Join(dataDir, usermd.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
-	return &usermdPlugin{
-		tstore:  tstore,
-		dataDir: dataDir,
-	}, nil
+func New() *usermdPlugin {
+	return &usermdPlugin{}
 }

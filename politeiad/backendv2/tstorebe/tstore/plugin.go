@@ -90,10 +90,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		}
 		*/
 	case umplugin.PluginID:
-		client, err = usermd.New(t, p.Settings, dataDir)
-		if err != nil {
-			return err
-		}
+		client = usermd.New()
 	default:
 		return backend.ErrPluginIDInvalid
 	}

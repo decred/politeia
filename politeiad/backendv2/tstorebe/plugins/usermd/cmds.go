@@ -7,13 +7,14 @@ package usermd
 import (
 	"encoding/json"
 
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 // cmdAuthor returns the user ID of a record's author.
-func (p *usermdPlugin) cmdAuthor(token []byte) (string, error) {
+func (p *usermdPlugin) cmdAuthor(tstore plugins.TstoreClient, token []byte) (string, error) {
 	// Get user metadata
-	r, err := p.tstore.RecordPartial(token, 0, nil, true)
+	r, err := tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return "", err
 	}
