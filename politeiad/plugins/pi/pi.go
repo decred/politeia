@@ -144,37 +144,41 @@ const (
 	// status does not allow changes to be made to the proposal.
 	ErrorCodeVoteStatusInvalid ErrorCodeT = 7
 
-	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 8
-
 	// ErrorCodeProposalStartDateInvalid is returned when a proposal start date
 	// does not adhere to the proposal start date settings.
-	ErrorCodeProposalStartDateInvalid ErrorCodeT = 9
+	ErrorCodeProposalStartDateInvalid ErrorCodeT = 8
 
 	// ErrorCodeProposalEndDateInvalid is returned when a proposal end date
 	// does not adhere to the proposal end date settings.
-	ErrorCodeProposalEndDateInvalid ErrorCodeT = 10
+	ErrorCodeProposalEndDateInvalid ErrorCodeT = 9
 
 	// ErrorCodeProposalAmountInvalid is returned when a proposal amount
 	// is not in the range defined by the amount min/max plugin settings.
-	ErrorCodeProposalAmountInvalid ErrorCodeT = 11
+	ErrorCodeProposalAmountInvalid ErrorCodeT = 10
 
 	// ErrorCodeProposalDomainInvalid is returned when a proposal domain
 	// is not one of the supported domains.
-	ErrorCodeProposalDomainInvalid ErrorCodeT = 12
+	ErrorCodeProposalDomainInvalid ErrorCodeT = 11
+
+	// ErrorCodeLast unit test only.
+	ErrorCodeLast ErrorCodeT = 12
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:               "error code invalid",
-		ErrorCodeTextFileNameInvalid:   "text file name invalid",
-		ErrorCodeTextFileSizeInvalid:   "text file size invalid",
-		ErrorCodeTextFileMissing:       "text file is misisng",
-		ErrorCodeImageFileCountInvalid: "image file count invalid",
-		ErrorCodeImageFileSizeInvalid:  "image file size invalid",
-		ErrorCodeProposalNameInvalid:   "proposal name invalid",
-		ErrorCodeVoteStatusInvalid:     "vote status invalid",
+		ErrorCodeInvalid:                  "error code invalid",
+		ErrorCodeTextFileNameInvalid:      "text file name invalid",
+		ErrorCodeTextFileSizeInvalid:      "text file size invalid",
+		ErrorCodeTextFileMissing:          "text file is misisng",
+		ErrorCodeImageFileCountInvalid:    "image file count invalid",
+		ErrorCodeImageFileSizeInvalid:     "image file size invalid",
+		ErrorCodeProposalNameInvalid:      "proposal name invalid",
+		ErrorCodeVoteStatusInvalid:        "vote status invalid",
+		ErrorCodeProposalAmountInvalid:    "proposal amount invalid",
+		ErrorCodeProposalStartDateInvalid: "proposal start date invalid",
+		ErrorCodeProposalEndDateInvalid:   "proposal end date invalid",
+		ErrorCodeProposalDomainInvalid:    "proposal domain invalid",
 	}
 )
 
