@@ -75,18 +75,18 @@ func (p *usermdPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payloa
 	log.Tracef("usermd Hook: %v", plugins.Hooks[h])
 
 	switch h {
-	case plugins.HookTypeNewRecordPre:
-		return p.hookNewRecordPre(payload)
-	case plugins.HookTypeNewRecordPost:
-		return p.hookNewRecordPost(payload)
-	case plugins.HookTypeEditRecordPre:
-		return p.hookEditRecordPre(payload)
-	case plugins.HookTypeEditMetadataPre:
-		return p.hookEditMetadataPre(payload)
-	case plugins.HookTypeSetRecordStatusPre:
-		return p.hookSetRecordStatusPre(payload)
-	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
+	case plugins.HookRecordNewPre:
+		return p.hookRecordNewPre(payload)
+	case plugins.HookRecordNewPost:
+		return p.hookRecordNewPost(payload)
+	case plugins.HookRecordEditPre:
+		return p.hookRecordEditPre(payload)
+	case plugins.HookRecordEditMetadataPre:
+		return p.hookRecordEditMetadataPre(payload)
+	case plugins.HookRecordSetStatusPre:
+		return p.hookRecordSetStatusPre(payload)
+	case plugins.HookRecordSetStatusPost:
+		return p.hookRecordSetStatusPost(payload)
 	}
 
 	return nil

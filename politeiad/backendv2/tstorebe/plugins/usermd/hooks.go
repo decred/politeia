@@ -20,36 +20,36 @@ import (
 	"github.com/google/uuid"
 )
 
-// hookNewRecordPre adds plugin specific validation onto the tstore backend
+// hookRecordNewPre adds plugin specific validation onto the tstore backend
 // RecordNew method.
-func (p *usermdPlugin) hookNewRecordPre(payload string) error {
-	var nr plugins.HookNewRecordPre
-	err := json.Unmarshal([]byte(payload), &nr)
+func (p *usermdPlugin) hookRecordNewPre(payload string) error {
+	var rn plugins.RecordNew
+	err := json.Unmarshal([]byte(payload), &rn)
 	if err != nil {
 		return err
 	}
 
-	return userMetadataVerify(nr.Metadata, nr.Files)
+	return userMetadataVerify(rn.Metadata, rn.Files)
 }
 
-// hookNewRecordPre caches plugin data from the tstore backend RecordNew
+// hookRecordNewPre caches plugin data from the tstore backend RecordNew
 // method.
-func (p *usermdPlugin) hookNewRecordPost(payload string) error {
-	var nr plugins.HookNewRecordPost
-	err := json.Unmarshal([]byte(payload), &nr)
+func (p *usermdPlugin) hookRecordNewPost(payload string) error {
+	var rn plugins.RecordNew
+	err := json.Unmarshal([]byte(payload), &rn)
 	if err != nil {
 		return err
 	}
 
 	// Decode user metadata
-	um, err := userMetadataDecode(nr.Metadata)
+	um, err := userMetadataDecode(rn.Metadata)
 	if err != nil {
 		return err
 	}
 
 	// Add token to the user cache
-	err = p.userCacheAddToken(um.UserID, nr.RecordMetadata.State,
-		nr.RecordMetadata.Token)
+	err = p.userCacheAddToken(um.UserID, rn.RecordMetadata.State,
+		rn.RecordMetadata.Token)
 	if err != nil {
 		return err
 	}
@@ -57,27 +57,27 @@ func (p *usermdPlugin) hookNewRecordPost(payload string) error {
 	return nil
 }
 
-// hookEditRecordPre adds plugin specific validation onto the tstore backend
+// hookRecordEditPre adds plugin specific validation onto the tstore backend
 // RecordEdit method.
-func (p *usermdPlugin) hookEditRecordPre(payload string) error {
-	var er plugins.HookEditRecord
-	err := json.Unmarshal([]byte(payload), &er)
+func (p *usermdPlugin) hookRecordEditPre(payload string) error {
+	var re plugins.RecordEdit
+	err := json.Unmarshal([]byte(payload), &re)
 	if err != nil {
 		return err
 	}
 
 	// Verify user metadata
-	err = userMetadataVerify(er.Metadata, er.Files)
+	err = userMetadataVerify(re.Metadata, re.Files)
 	if err != nil {
 		return err
 	}
 
 	// Verify user ID has not changed
-	um, err := userMetadataDecode(er.Metadata)
+	um, err := userMetadataDecode(re.Metadata)
 	if err != nil {
 		return err
 	}
-	umCurr, err := userMetadataDecode(er.Record.Metadata)
+	umCurr, err := userMetadataDecode(re.Record.Metadata)
 	if err != nil {
 		return err
 	}
@@ -93,36 +93,36 @@ func (p *usermdPlugin) hookEditRecordPre(payload string) error {
 	return nil
 }
 
-// hookEditRecordPre adds plugin specific validation onto the tstore backend
-// RecordEdit method.
-func (p *usermdPlugin) hookEditMetadataPre(payload string) error {
-	var em plugins.HookEditMetadata
-	err := json.Unmarshal([]byte(payload), &em)
+// hookRecordEditMetadataPre adds plugin specific validation onto the tstore
+// backend RecordEditMetadata method.
+func (p *usermdPlugin) hookRecordEditMetadataPre(payload string) error {
+	var rem plugins.RecordEditMetadata
+	err := json.Unmarshal([]byte(payload), &rem)
 	if err != nil {
 		return err
 	}
 
 	// User metadata should not change on metadata updates
-	return userMetadataPreventUpdates(em.Record.Metadata, em.Metadata)
+	return userMetadataPreventUpdates(rem.Record.Metadata, rem.Metadata)
 }
 
-// hookSetStatusRecordPre adds plugin specific validation onto the tstore
+// hookRecordSetStatusPre adds plugin specific validation onto the tstore
 // backend RecordSetStatus method.
-func (p *usermdPlugin) hookSetRecordStatusPre(payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
+func (p *usermdPlugin) hookRecordSetStatusPre(payload string) error {
+	var rss plugins.RecordSetStatus
+	err := json.Unmarshal([]byte(payload), &rss)
 	if err != nil {
 		return err
 	}
 
 	// User metadata should not change on status changes
-	err = userMetadataPreventUpdates(srs.Record.Metadata, srs.Metadata)
+	err = userMetadataPreventUpdates(rss.Record.Metadata, rss.Metadata)
 	if err != nil {
 		return err
 	}
 
 	// Verify status change metadata
-	err = statusChangeMetadataVerify(srs.RecordMetadata, srs.Metadata)
+	err = statusChangeMetadataVerify(rss.RecordMetadata, rss.Metadata)
 	if err != nil {
 		return err
 	}
@@ -130,20 +130,20 @@ func (p *usermdPlugin) hookSetRecordStatusPre(payload string) error {
 	return nil
 }
 
-// hookNewRecordPre caches plugin data from the tstore backend RecordSetStatus
-// method.
-func (p *usermdPlugin) hookSetRecordStatusPost(payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
+// hookRecordSetStatusPost caches plugin data from the tstore backend
+// RecordSetStatus method.
+func (p *usermdPlugin) hookRecordSetStatusPost(payload string) error {
+	var rss plugins.RecordSetStatus
+	err := json.Unmarshal([]byte(payload), &rss)
 	if err != nil {
 		return err
 	}
-	rm := srs.RecordMetadata
+	rm := rss.RecordMetadata
 
 	// When a record is made public the token must be moved from the
 	// unvetted list to the vetted list in the user cache.
 	if rm.Status == backend.StatusPublic {
-		um, err := userMetadataDecode(srs.Metadata)
+		um, err := userMetadataDecode(rss.Metadata)
 		if err != nil {
 			return err
 		}

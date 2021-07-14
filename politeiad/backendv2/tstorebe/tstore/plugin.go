@@ -13,6 +13,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
@@ -89,12 +90,10 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		}
 		*/
 	case umplugin.PluginID:
-		/* TODO
 		client, err = usermd.New(t, p.Settings, dataDir)
 		if err != nil {
 			return err
 		}
-		*/
 	default:
 		return backend.ErrPluginIDInvalid
 	}
