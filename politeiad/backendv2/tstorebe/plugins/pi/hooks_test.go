@@ -257,6 +257,7 @@ func proposalFormatTests(t *testing.T) []proposalFormatTest {
 	tests = append(tests, proposalAmountTests(t)...)
 	tests = append(tests, proposalStartDateTests(t)...)
 	tests = append(tests, proposalEndDateTests(t)...)
+	tests = append(tests, proposalDomainTests(t)...)
 	return tests
 }
 
