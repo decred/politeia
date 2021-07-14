@@ -294,6 +294,31 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 	}
 	nameMaxLength = b.String()
 
+	// Setup files with an empty proposal name. This is done manually
+	// because the function that creates the proposal metadata uses
+	// a default value when the name is provided as an empty string.
+	filesEmptyName := filesWithProposalName(t, "")
+	for k, v := range filesEmptyName {
+		if v.Name == pi.FileNameProposalMetadata {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pm pi.ProposalMetadata
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pm.Name = ""
+			b, err = json.Marshal(pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v.Payload = base64.StdEncoding.EncodeToString(b)
+			filesEmptyName[k] = v
+		}
+	}
+
 	// errNameInvalid is returned when proposal name validation
 	// fails.
 	errNameInvalid := backend.PluginError{
@@ -304,7 +329,7 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 	return []proposalFormatTest{
 		{
 			"name is empty",
-			filesWithProposalName(t, ""),
+			filesEmptyName,
 			errNameInvalid,
 		},
 		{
@@ -394,68 +419,61 @@ func fileProposalIndex() backend.File {
 
 // fileProposalMetadata returns a backend file that contains a proposal
 // metadata file. The proposal metadata can optionally be provided as an
-// argument. If no proposal metadata is provided, one is created and filled
-// with test data.
+// argument. Any required proposal metadata fields that are not provided by
+// the caller will be filled in using valid defaults.
 func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	t.Helper()
 
-	defaultName := "Test Proposal Name"
-	monthInSeconds := int64(30 * 24 * 60 * 60)
-	defaultStartDate := time.Now().Unix() + monthInSeconds
-	fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
-	defaultEndDate := time.Now().Unix() + fourMonthsInSeconds
-	defaultDomain := "research" // XXX use pi plugin defaults
-	defaultAmount := uint64(2000000)
-
-	var md pi.ProposalMetadata
-	switch pm {
-	case nil:
-		md = pi.ProposalMetadata{
-			Name:      defaultName,
-			Amount:    defaultAmount,
-			StartDate: defaultStartDate,
-			EndDate:   defaultEndDate,
-			Domain:    defaultDomain,
-		}
-	default:
-		switch pm.Name {
-		case "":
-			md.Name = defaultName
-		default:
-			md.Name = pm.Name
-		}
-		switch pm.StartDate {
-		case 0:
-			md.StartDate = defaultStartDate
-		default:
-			md.StartDate = pm.StartDate
-		}
-		switch pm.EndDate {
-		case 0:
-			md.EndDate = defaultEndDate
-		default:
-			md.EndDate = pm.EndDate
-		}
-		switch pm.Domain {
-		case "":
-			md.Domain = defaultDomain
-		default:
-			md.Domain = pm.Domain
-		}
-		switch pm.Amount {
-		case 0:
-			md.Amount = defaultAmount
-		default:
-			md.Amount = pm.Amount
-		}
+	// Setup a default proposal metadata
+	pmd := &pi.ProposalMetadata{
+		Name:      "Test Proposal Name",
+		Amount:    2000000,                      // $20k in cents
+		StartDate: time.Now().Unix() + 60,       // 1 minute from now
+		EndDate:   time.Now().Unix() + 10368000, // 4 months from now
+		Domain:    "development",
 	}
 
-	pmb, err := json.Marshal(&md)
+	// Sanity check. Verify that the default domain we used is
+	// one of the default domains defined by the pi plugin API.
+	var found bool
+	for _, v := range pi.SettingProposalDomains {
+		if v == pmd.Domain {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("%v is not a default domain", pmd.Domain)
+	}
+
+	// Overwrite the default values with the caller provided
+	// values if they exist.
+	if pm == nil {
+		pm = &pi.ProposalMetadata{}
+	}
+	if pm.Name != "" {
+		pmd.Name = pm.Name
+	}
+	if pm.Amount != 0 {
+		pmd.Amount = pm.Amount
+	}
+	if pm.StartDate != 0 {
+		pmd.StartDate = pm.StartDate
+	}
+	if pm.EndDate != 0 {
+		pmd.EndDate = pm.EndDate
+	}
+	if pm.Domain != "" {
+		pmd.Domain = pm.Domain
+	}
+
+	// Setup and return the backend file
+	b, err := json.Marshal(&pmd)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return file(pi.FileNameProposalMetadata, pmb)
+	return file(pi.FileNameProposalMetadata, b)
 }
 
 // fileEmptyPNG returns a backend File that contains an empty PNG image. The
