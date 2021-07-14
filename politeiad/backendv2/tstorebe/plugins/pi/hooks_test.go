@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -398,12 +399,58 @@ func fileProposalIndex() backend.File {
 func fileProposalMetadata(t *testing.T, pm *pi.ProposalMetadata) backend.File {
 	t.Helper()
 
-	if pm == nil {
-		pm = &pi.ProposalMetadata{
-			Name: "Test Proposal Name",
+	defaultName := "Test Proposal Name"
+	monthInSeconds := int64(30 * 24 * 60 * 60)
+	defaultStartDate := time.Now().Unix() + monthInSeconds
+	fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
+	defaultEndDate := time.Now().Unix() + fourMonthsInSeconds
+	defaultDomain := "research" // XXX use pi plugin defaults
+	defaultAmount := uint64(2000000)
+
+	var md pi.ProposalMetadata
+	switch pm {
+	case nil:
+		md = pi.ProposalMetadata{
+			Name:      defaultName,
+			Amount:    defaultAmount,
+			StartDate: defaultStartDate,
+			EndDate:   defaultEndDate,
+			Domain:    defaultDomain,
+		}
+	default:
+		switch pm.Name {
+		case "":
+			md.Name = defaultName
+		default:
+			md.Name = pm.Name
+		}
+		switch pm.StartDate {
+		case 0:
+			md.StartDate = defaultStartDate
+		default:
+			md.StartDate = pm.StartDate
+		}
+		switch pm.EndDate {
+		case 0:
+			md.EndDate = defaultEndDate
+		default:
+			md.EndDate = pm.EndDate
+		}
+		switch pm.Domain {
+		case "":
+			md.Domain = defaultDomain
+		default:
+			md.Domain = pm.Domain
+		}
+		switch pm.Amount {
+		case 0:
+			md.Amount = defaultAmount
+		default:
+			md.Amount = pm.Amount
 		}
 	}
-	pmb, err := json.Marshal(pm)
+
+	pmb, err := json.Marshal(&md)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,10 +503,11 @@ func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
 func filesWithProposalName(t *testing.T, name string) []backend.File {
 	t.Helper()
 
+	pm := fileProposalMetadata(t, &pi.ProposalMetadata{
+		Name: name,
+	})
 	return []backend.File{
 		fileProposalIndex(),
-		fileProposalMetadata(t, &pi.ProposalMetadata{
-			Name: name,
-		}),
+		pm,
 	}
 }

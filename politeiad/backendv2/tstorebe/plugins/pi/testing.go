@@ -27,6 +27,10 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		nameSupportedChars = pi.SettingProposalNameSupportedChars
 		nameLengthMin      = pi.SettingProposalNameLengthMin
 		nameLengthMax      = pi.SettingProposalNameLengthMax
+		amountMin          = pi.SettingProposalAmountMin
+		amountMax          = pi.SettingProposalAmountMax
+		endDateMax         = pi.SettingProposalEndDateMax
+		domains            = pi.SettingProposalDomains
 	)
 	rexp, err := util.Regexp(nameSupportedChars, uint64(nameLengthMin),
 		uint64(nameLengthMax))
@@ -52,6 +56,10 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		proposalNameLengthMax:      nameLengthMax,
 		proposalNameSupportedChars: nameSupportedCharsString,
 		proposalNameRegexp:         rexp,
+		proposalAmountMin:          amountMin,
+		proposalAmountMax:          amountMax,
+		proposalEndDateMax:         endDateMax,
+		proposalDomains:            domains,
 	}
 
 	return &p, func() {
