@@ -36,11 +36,10 @@ type tstoreBackend struct {
 	dataDir string
 	tstore  *tstore.Tstore
 
-	// TODO rename to cache
-	// kv is a key-value store that is used to cache data. This is the
-	// same key-value store that tstore uses, allowing the backend to
-	// interact with cached data using a tstore transaction.
-	kv store.BlobKV
+	// cache is the key-value store cache. This is the same key-value
+	// store that tstore uses, allowing the backend to interact with
+	// cached data using a tstore transaction.
+	cache store.BlobKV
 
 	// inv provides a concurrency save API for tracking the record
 	// inventory. Only the record tokens and some additional filtering
@@ -883,7 +882,7 @@ func (t *tstoreBackend) Records(reqs []backend.RecordRequest) (map[string]backen
 func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, pageSize, pageNum uint32) (*backend.Inventory, error) {
 	log.Tracef("Inventory: %v %v %v %v", state, status, pageSize, pageNum)
 
-	inv, err := t.invByStatus(t.kv, state, status, pageSize, pageNum)
+	inv, err := t.invByStatus(t.cache, state, status, pageSize, pageNum)
 	if err != nil {
 		return nil, err
 	}
@@ -902,7 +901,7 @@ func (t *tstoreBackend) Inventory(state backend.StateT, status backend.StatusT, 
 func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNumber uint32) ([]string, error) {
 	log.Tracef("InventoryOrdered: %v %v %v", state, pageSize, pageNumber)
 
-	return t.invOrdered(t.kv, state, pageSize, pageNumber)
+	return t.invOrdered(t.cache, state, pageSize, pageNumber)
 }
 
 // PluginRegister registers a plugin.
@@ -1059,7 +1058,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 		appDir:  appDir,
 		dataDir: dataDir,
 		tstore:  ts,
-		kv:      kv,
+		cache:   kv,
 		inv:     newRecordInv(),
 	}
 
