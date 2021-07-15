@@ -13,6 +13,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
@@ -61,6 +62,8 @@ func (t *Tstore) pluginIDs() []string {
 func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	log.Tracef("PluginRegister: %v", p.ID)
 
+	// TODO we're going to have to register plugins differently than
+	// this.
 	var (
 		client plugins.PluginClient
 		err    error
@@ -82,13 +85,11 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case tkplugin.PluginID:
-		/* TODO
 		client, err = ticketvote.New(b, t, p.Settings, dataDir,
 			p.Identity, t.activeNetParams)
 		if err != nil {
 			return err
 		}
-		*/
 	case umplugin.PluginID:
 		client = usermd.New()
 	default:

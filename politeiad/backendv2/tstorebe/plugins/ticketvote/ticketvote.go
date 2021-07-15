@@ -208,14 +208,14 @@ func (p *ticketVotePlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, pa
 	log.Tracef("ticketvote Hook: %v", plugins.Hooks[h])
 
 	switch h {
-	case plugins.HookTypeNewRecordPre:
-		return p.hookNewRecordPre(payload)
-	case plugins.HookTypeEditRecordPre:
-		return p.hookEditRecordPre(payload)
-	case plugins.HookTypeSetRecordStatusPre:
-		return p.hookSetRecordStatusPre(payload)
-	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
+	case plugins.HookRecordNewPre:
+		return p.hookRecordNewPre(payload)
+	case plugins.HookRecordEditPre:
+		return p.hookRecordEditPre(payload)
+	case plugins.HookRecordSetStatusPre:
+		return p.hookRecordSetStatusPre(payload)
+	case plugins.HookRecordSetStatusPost:
+		return p.hookRecordSetStatusPost(payload)
 	}
 
 	return nil

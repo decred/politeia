@@ -15,23 +15,23 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
-// hookNewRecordPre adds plugin specific validation onto the tstore backend
+// hookRecordNewPre adds plugin specific validation onto the tstore backend
 // RecordNew method.
-func (p *ticketVotePlugin) hookNewRecordPre(payload string) error {
-	var nr plugins.HookNewRecordPre
-	err := json.Unmarshal([]byte(payload), &nr)
+func (p *ticketVotePlugin) hookRecordNewPre(payload string) error {
+	var rn plugins.RecordNew
+	err := json.Unmarshal([]byte(payload), &rn)
 	if err != nil {
 		return err
 	}
 
 	// Verify vote metadata
-	return p.voteMetadataVerify(nr.Files)
+	return p.voteMetadataVerify(rn.Files)
 }
 
-// hookEditRecordPre adds plugin specific validation onto the tstore backend
+// hookRecordEditPre adds plugin specific validation onto the tstore backend
 // RecordEdit method.
-func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
-	var er plugins.HookEditRecord
+func (p *ticketVotePlugin) hookRecordEditPre(payload string) error {
+	var er plugins.RecordEdit
 	err := json.Unmarshal([]byte(payload), &er)
 	if err != nil {
 		return err
@@ -41,49 +41,49 @@ func (p *ticketVotePlugin) hookEditRecordPre(payload string) error {
 	return p.voteMetadataVerifyOnEdits(er.Record, er.Files)
 }
 
-// hookSetStatusRecordPre adds plugin specific validation onto the tstore
+// hookRecordSetStatusPre adds plugin specific validation onto the tstore
 // backend RecordSetStatus method.
-func (p *ticketVotePlugin) hookSetRecordStatusPre(payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
+func (p *ticketVotePlugin) hookRecordSetStatusPre(payload string) error {
+	var rss plugins.RecordSetStatus
+	err := json.Unmarshal([]byte(payload), &rss)
 	if err != nil {
 		return err
 	}
 
 	// Verify vote metadata
-	return p.voteMetadataVerifyOnStatusChange(srs.RecordMetadata.Status,
-		srs.Record.Files)
+	return p.voteMetadataVerifyOnStatusChange(rss.RecordMetadata.Status,
+		rss.Record.Files)
 }
 
-// hookNewRecordPre caches plugin data from the tstore backend RecordSetStatus
-// method.
-func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
-	var srs plugins.HookSetRecordStatus
-	err := json.Unmarshal([]byte(payload), &srs)
+// hookRecordSetStatusPost caches plugin data from the tstore backend
+// RecordSetStatus method.
+func (p *ticketVotePlugin) hookRecordSetStatusPost(payload string) error {
+	var rss plugins.RecordSetStatus
+	err := json.Unmarshal([]byte(payload), &rss)
 	if err != nil {
 		return err
 	}
 
 	// Ticketvote caches only need to be updated for vetted records
-	if srs.RecordMetadata.State == backend.StateUnvetted {
+	if rss.RecordMetadata.State == backend.StateUnvetted {
 		return nil
 	}
 
 	// Update the inventory cache
-	switch srs.RecordMetadata.Status {
+	switch rss.RecordMetadata.Status {
 	case backend.StatusPublic:
 		// Add to inventory
-		p.inventoryAdd(srs.RecordMetadata.Token,
+		p.inventoryAdd(rss.RecordMetadata.Token,
 			ticketvote.VoteStatusUnauthorized)
 	case backend.StatusCensored, backend.StatusArchived:
 		// These statuses do not allow for a vote. Mark as ineligible.
-		p.inventoryUpdate(srs.RecordMetadata.Token,
+		p.inventoryUpdate(rss.RecordMetadata.Token,
 			ticketvote.VoteStatusIneligible)
 	}
 
 	// Update cached vote metadata
-	return p.voteMetadataCacheOnStatusChange(srs.RecordMetadata.Token,
-		srs.RecordMetadata.State, srs.RecordMetadata.Status, srs.Record.Files)
+	return p.voteMetadataCacheOnStatusChange(rss.RecordMetadata.Token,
+		rss.RecordMetadata.State, rss.RecordMetadata.Status, rss.Record.Files)
 }
 
 // linkByVerify verifies that the provided link by timestamp meets all
