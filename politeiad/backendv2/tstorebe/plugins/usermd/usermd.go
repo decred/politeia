@@ -14,8 +14,8 @@ var (
 	_ plugins.PluginClient = (*usermdPlugin)(nil)
 )
 
-// usermdPlugin is the tstore backend implementation of the usermd plugin. The
-// usermd plugin extends a record with user metadata.
+// usermdPlugin is the tstore backend implementation of the usermd plugin API.
+// The usermd plugin extends a record with user metadata.
 //
 // usermdPlugin satisfies the plugins PluginClient interface.
 type usermdPlugin struct{}
@@ -50,7 +50,7 @@ func (p *usermdPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payl
 	case usermd.CmdAuthor:
 		return p.cmdAuthor(tstore, token)
 	case usermd.CmdUserRecords:
-		return p.cmdUserRecords(payload)
+		return p.cmdUserRecords(tstore, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -66,7 +66,7 @@ func (p *usermdPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payloa
 	case plugins.HookRecordNewPre:
 		return p.hookRecordNewPre(payload)
 	case plugins.HookRecordNewPost:
-		return p.hookRecordNewPost(payload)
+		return p.hookRecordNewPost(tstore, payload)
 	case plugins.HookRecordEditPre:
 		return p.hookRecordEditPre(payload)
 	case plugins.HookRecordEditMetadataPre:
@@ -74,7 +74,7 @@ func (p *usermdPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payloa
 	case plugins.HookRecordSetStatusPre:
 		return p.hookRecordSetStatusPre(payload)
 	case plugins.HookRecordSetStatusPost:
-		return p.hookRecordSetStatusPost(payload)
+		return p.hookRecordSetStatusPost(tstore, payload)
 	}
 
 	return nil

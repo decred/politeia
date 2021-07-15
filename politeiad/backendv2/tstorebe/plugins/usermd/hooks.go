@@ -34,7 +34,7 @@ func (p *usermdPlugin) hookRecordNewPre(payload string) error {
 
 // hookRecordNewPre caches plugin data from the tstore backend RecordNew
 // method.
-func (p *usermdPlugin) hookRecordNewPost(payload string) error {
+func (p *usermdPlugin) hookRecordNewPost(tstore plugins.TstoreClient, payload string) error {
 	var rn plugins.RecordNew
 	err := json.Unmarshal([]byte(payload), &rn)
 	if err != nil {
@@ -48,8 +48,8 @@ func (p *usermdPlugin) hookRecordNewPost(payload string) error {
 	}
 
 	// Add token to the user cache
-	err = p.userCacheAddToken(um.UserID, rn.RecordMetadata.State,
-		rn.RecordMetadata.Token)
+	err = p.userCacheAddToken(tstore, um.UserID,
+		rn.RecordMetadata.State, rn.RecordMetadata.Token)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (p *usermdPlugin) hookRecordSetStatusPre(payload string) error {
 
 // hookRecordSetStatusPost caches plugin data from the tstore backend
 // RecordSetStatus method.
-func (p *usermdPlugin) hookRecordSetStatusPost(payload string) error {
+func (p *usermdPlugin) hookRecordSetStatusPost(tstore plugins.TstoreClient, payload string) error {
 	var rss plugins.RecordSetStatus
 	err := json.Unmarshal([]byte(payload), &rss)
 	if err != nil {
@@ -147,7 +147,7 @@ func (p *usermdPlugin) hookRecordSetStatusPost(payload string) error {
 		if err != nil {
 			return err
 		}
-		err = p.userCacheMoveTokenToVetted(um.UserID, rm.Token)
+		err = p.userCacheMoveTokenToVetted(tstore, um.UserID, rm.Token)
 		if err != nil {
 			return err
 		}
