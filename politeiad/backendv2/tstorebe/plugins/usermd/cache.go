@@ -10,40 +10,31 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 const (
-	// fnUserCache is the filename for the cached userCache data that
-	// is saved to the plugin data dir.
-	fnUserCache = "{userid}.json"
+	keyUserCache = usermd.PluginID + "-{userid}"
 )
 
-// userCache contains cached user metadata. The userCache JSON is saved to disk
-// in the user plugin data dir. The user ID is included in the filename.
+// userCache contains cached user metadata for an individual user. The data is
+// saved to the tstore key-value cache with the user ID encoded in the key.
 //
 // The Unvetted and Vetted fields contain the records that have been submitted
-// by the user. All record tokens are sorted by the timestamp of their most
-// recent status change from newest to oldest.
+// by the user. All record tokens are sorted by the timestamp of the state
+// change (unvetted/vetted) from newest to oldest.
 type userCache struct {
 	Unvetted []string `json:"unvetted"`
 	Vetted   []string `json:"vetted"`
 }
 
-// userCachePath returns the filepath to the userCache for the specified user.
-func (p *usermdPlugin) userCachePath(userID string) string {
-	fn := strings.Replace(fnUserCache, "{userid}", userID, 1)
-	return filepath.Join(p.dataDir, fn)
-}
-
-// userCacheLocked returns the userCache for the specified user.
-//
-// This function must be called WITH the lock held.
-func (p *usermdPlugin) userCacheLocked(userID string) (*userCache, error) {
-	fp := p.userCachePath(userID)
+// userCache returns the userCache for the specified user.
+func (p *usermdPlugin) userCache(inv plugins.InvClient, userID string) (*userCache, error) {
+	k := userCacheKey(userID)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
@@ -65,16 +56,6 @@ func (p *usermdPlugin) userCacheLocked(userID string) (*userCache, error) {
 	return &uc, nil
 }
 
-// userCacheLocked returns the userCache for the specified user.
-//
-// This function must be called WITHOUT the lock held.
-func (p *usermdPlugin) userCache(userID string) (*userCache, error) {
-	p.Lock()
-	defer p.Unlock()
-
-	return p.userCacheLocked(userID)
-}
-
 // userCacheSaveLocked saves the provided userCache to the plugin data dir.
 //
 // This function must be called WITH the lock held.
@@ -84,7 +65,7 @@ func (p *usermdPlugin) userCacheSaveLocked(userID string, uc userCache) error {
 		return err
 	}
 
-	fp := p.userCachePath(userID)
+	fp := p.userCacheKey(userID)
 	return ioutil.WriteFile(fp, b, 0664)
 }
 
@@ -220,4 +201,10 @@ func delToken(tokens []string, tokenToDel string) ([]string, error) {
 	tokens = tokens[:len(tokens)-1] // Truncate slice
 
 	return tokens, nil
+}
+
+// userCacheKey returns the cached user data key-value store key for the
+// provided user.
+func userCacheKey(userID string) string {
+	return strings.Replace(keyUserCache, "{userid}", userID, 1)
 }

@@ -36,6 +36,7 @@ type tstoreBackend struct {
 	dataDir string
 	tstore  *tstore.Tstore
 
+	// TODO rename to cache
 	// kv is a key-value store that is used to cache data. This is the
 	// same key-value store that tstore uses, allowing the backend to
 	// interact with cached data using a tstore transaction.

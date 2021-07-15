@@ -15,69 +15,6 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
-// entry represents an entry in the inventory.
-type entry struct {
-	Token     string `json:"token"`     // Unique token
-	Bits      uint64 `json:"bits"`      // Bitwise filtering bits
-	Timestamp int64  `json:"timestamp"` // Caller provided Unix timestamp
-}
-
-// newEntry returns a new inventory entry.
-func newEntry(token string, bits uint64, timestamp int64) entry {
-	return entry{
-		Token:     token,
-		Bits:      bits,
-		Timestamp: timestamp,
-	}
-}
-
-const (
-	// invVersion is the version of the inv struct.
-	invVersion uint32 = 1
-)
-
-// inv represents an inventory. This is the structure is saved to the key-value
-// store.
-type inv struct {
-	Version uint32  `json:"version"` // Struct version
-	Entries []entry `json:"entries"`
-}
-
-// save saves the inventory to the key-value store using the provided
-// transaction.
-func (i *inv) save(tx store.Tx, key string, encrypt bool) error {
-	b, err := json.Marshal(i)
-	if err != nil {
-		return err
-	}
-	return tx.Put(map[string][]byte{key: b}, encrypt)
-}
-
-// invGet retrieves the inventory from the key-value store using the provided
-// store getter. A new inventory object is returned if one does not exist yet.
-func invGet(sg store.Getter, key string) (*inv, error) {
-	blobs, err := sg.Get([]string{key})
-	if err != nil {
-		return nil, err
-	}
-	b, ok := blobs[key]
-	if !ok {
-		// Inventory does't exist. Return a new one.
-		return &inv{
-			Version: invVersion,
-			Entries: make([]entry, 0, 1024),
-		}, nil
-	}
-
-	var i inv
-	err = json.Unmarshal(b, &i)
-	if err != nil {
-		return nil, err
-	}
-
-	return &i, nil
-}
-
 // Inv provides an API for interacting with a specific inv object. The key
 // identities the key-value store key for the inv record.
 type Inv struct {
@@ -226,7 +163,7 @@ func (i *Inv) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, e
 	return tokens, nil
 }
 
-// GetAll returns all tokens in the inventory
+// GetAll returns all tokens in the inventory.
 func (i *Inv) GetAll(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
 	inv, err := invGet(sg, i.key)
 	if err != nil {
@@ -237,6 +174,69 @@ func (i *Inv) GetAll(sg store.Getter, pageSize, pageNum uint32) ([]string, error
 		tokens = append(tokens, v.Token)
 	}
 	return tokens, nil
+}
+
+// entry represents an entry in the inventory.
+type entry struct {
+	Token     string `json:"token"`     // Unique token
+	Bits      uint64 `json:"bits"`      // Bitwise filtering bits
+	Timestamp int64  `json:"timestamp"` // Caller provided Unix timestamp
+}
+
+// newEntry returns a new inventory entry.
+func newEntry(token string, bits uint64, timestamp int64) entry {
+	return entry{
+		Token:     token,
+		Bits:      bits,
+		Timestamp: timestamp,
+	}
+}
+
+const (
+	// invVersion is the version of the inv struct.
+	invVersion uint32 = 1
+)
+
+// inv represents an inventory. This is the structure is saved to the key-value
+// store.
+type inv struct {
+	Version uint32  `json:"version"` // Struct version
+	Entries []entry `json:"entries"`
+}
+
+// save saves the inventory to the key-value store using the provided
+// transaction.
+func (i *inv) save(tx store.Tx, key string, encrypt bool) error {
+	b, err := json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	return tx.Put(map[string][]byte{key: b}, encrypt)
+}
+
+// invGet retrieves the inventory from the key-value store using the provided
+// store getter. A new inventory object is returned if one does not exist yet.
+func invGet(sg store.Getter, key string) (*inv, error) {
+	blobs, err := sg.Get([]string{key})
+	if err != nil {
+		return nil, err
+	}
+	b, ok := blobs[key]
+	if !ok {
+		// Inventory does't exist. Return a new one.
+		return &inv{
+			Version: invVersion,
+			Entries: make([]entry, 0, 1024),
+		}, nil
+	}
+
+	var i inv
+	err = json.Unmarshal(b, &i)
+	if err != nil {
+		return nil, err
+	}
+
+	return &i, nil
 }
 
 // delEntry removes the entry for a token and returns the updated slice.

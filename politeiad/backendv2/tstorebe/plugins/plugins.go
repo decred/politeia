@@ -95,7 +95,8 @@ type RecordNew struct {
 
 // RecordEdit is the payload for the RecordEdit hooks.
 type RecordEdit struct {
-	Record backend.Record `json:"record"` // Record pre update
+	// Record pre update
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -105,7 +106,8 @@ type RecordEdit struct {
 
 // RecordEditMetadata is the payload for the RecordEditMetadata hooks.
 type RecordEditMetadata struct {
-	Record backend.Record `json:"record"` // Record pre update
+	// Record pre update
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	Metadata []backend.MetadataStream `json:"metadata"`
@@ -113,7 +115,8 @@ type RecordEditMetadata struct {
 
 // RecordSetStatus is the payload for the RecordSetStatus hooks.
 type RecordSetStatus struct {
-	Record backend.Record `json:"record"` // Record pre update
+	// Record pre update
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -158,9 +161,9 @@ type PluginClient interface {
 	Settings() []backend.PluginSetting
 }
 
-// TstoreClient provides an API for plugins to interact with a tstore instance.
-// Plugins are allowed to save, delete, and retrieve plugin data to/from the
-// tstore backend.
+// TstoreClient provides a concurrency safe API for plugins to interact with a
+// tstore instance.  Plugins are allowed to save, delete, and retrieve plugin
+// data to/from the tstore backend.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -194,18 +197,6 @@ type TstoreClient interface {
 	// will be returned.
 	Timestamp(token []byte, digest []byte) (*backend.Timestamp, error)
 
-	// CacheSave saves the provided key-value pairs to the tstore
-	// cache. Cached data is not timestamped onto the Decred
-	// blockchain. Only data that can be recreated by walking the
-	// tlog trees should be cached.
-	CacheSave(kv map[string][]byte) error
-
-	// CacheGet returns blobs from the cache for the provided keys. An
-	// entry will not exist in the returned map if for any blobs that
-	// are not found. It is the responsibility of the caller to ensure
-	// a blob was returned for all provided keys.
-	CacheGet(keys []string) (map[string][]byte, error)
-
 	// Record returns a version of a record.
 	Record(token []byte, version uint32) (*backend.Record, error)
 
@@ -232,4 +223,53 @@ type TstoreClient interface {
 
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
+
+	// CacheSave saves the provided key-value pairs to the tstore
+	// cache. Cached data is not timestamped onto the Decred
+	// blockchain. Only data that can be recreated by walking the
+	// tlog trees should be cached.
+	CacheSave(kv map[string][]byte) error
+
+	// CacheGet returns blobs from the cache for the provided keys. An
+	// entry will not exist in the returned map if for any blobs that
+	// are not found. It is the responsibility of the caller to ensure
+	// a blob was returned for all provided keys.
+	CacheGet(keys []string) (map[string][]byte, error)
+
+	// TODO implement InvClient
+	// InvClient returns a InvClient that can be used to interact with
+	// the inventory that corresponds to the provided key.
+	// InvClient(key string, encrypt bool) InvClient
+}
+
+// InvClient provides a concurrency safe API that plugins can use to manage an
+// inventory of tokens. Bit flags are used to encode relevant data into
+// inventory entries. The inventory can be queried by the bit flags or by the
+// entry timestamp.
+type InvClient interface {
+	// Add adds a new entry to the inventory.
+	Add(token []byte, bits uint64, timestamp int64) error
+
+	// Update updates an inventory entry.
+	Update(token []byte, bits uint64, timestamp int64) error
+
+	// Del deletes an entry from the inventory.
+	Del(token string) error
+
+	// Get returns a page of tokens that match the provided filtering
+	// criteria.
+	Get(bits uint64, pageSize, pageNum uint32) ([]string, error)
+
+	// GetMulti returns a page of tokens for each of the provided bits.
+	// The bits are used as filtering criteria. The returned map is a
+	// map[bits][]token.
+	GetMulti(bits []uint64, pageSize,
+		pageNum uint32) (map[uint64][]string, error)
+
+	// GetOrdered orders the entries from newest to oldest and returns
+	// the specified page.
+	GetOrdered(pageSize, pageNum uint32) ([]string, error)
+
+	// GetAll returns all tokens in the inventory.
+	GetAll(pageSize, pageNum uint32) ([]string, error)
 }

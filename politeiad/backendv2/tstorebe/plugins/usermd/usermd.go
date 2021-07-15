@@ -5,8 +5,6 @@
 package usermd
 
 import (
-	"sync"
-
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
@@ -20,14 +18,7 @@ var (
 // usermd plugin extends a record with user metadata.
 //
 // usermdPlugin satisfies the plugins PluginClient interface.
-type usermdPlugin struct {
-	sync.Mutex
-
-	// dataDir is the pi plugin data directory. The only data that is
-	// stored here is cached data that can be re-created at any time
-	// by walking the trillian trees.
-	dataDir string
-}
+type usermdPlugin struct{}
 
 // Setup performs any plugin setup that is required.
 //
