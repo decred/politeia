@@ -108,15 +108,15 @@ type filteredRecipients struct {
 
 // filterRecipients filters the users map[userid]email argument into the
 // filteredRecipients struct.
-func (c *client) filterRecipients(rs map[uuid.UUID]string) (*filteredRecipients, error) {
+func (c *client) filterRecipients(users map[uuid.UUID]string) (*filteredRecipients, error) {
 	// Sanity check.
-	if len(rs) == 0 {
+	if len(users) == 0 {
 		return &filteredRecipients{}, nil
 	}
 
 	// Compile user IDs from recipients and get their email histories.
-	ids := make([]uuid.UUID, 0, len(rs))
-	for id := range rs {
+	ids := make([]uuid.UUID, 0, len(users))
+	for id := range users {
 		ids = append(ids, id)
 	}
 	hs, err := c.mailerDB.EmailHistoriesGet(ids)
@@ -127,8 +127,8 @@ func (c *client) filterRecipients(rs map[uuid.UUID]string) (*filteredRecipients,
 	// Divide recipients into valid and invalid recipients, and parse their
 	// new email history.
 	var recipients filteredRecipients
-	recipients.histories = make(map[uuid.UUID]user.EmailHistory, len(rs))
-	for userID, email := range rs {
+	recipients.histories = make(map[uuid.UUID]user.EmailHistory, len(users))
+	for userID, email := range users {
 		history, ok := hs[userID]
 		if !ok {
 			// User does not have a mail history yet, add user to valid
