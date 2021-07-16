@@ -69,6 +69,10 @@ func (c *client) SendTo(subject, body string, recipients []string) error {
 //
 // This function satisfies the Mailer interface.
 func (c *client) SendToUsers(subjects, body string, recipients map[uuid.UUID]string) error {
+	if c.disabled || len(recipients) == 0 {
+		return nil
+	}
+
 	filtered, err := c.filterRecipients(recipients)
 	if err != nil {
 		return err
@@ -109,11 +113,6 @@ type filteredRecipients struct {
 // filterRecipients filters the users map[userid]email argument into the
 // filteredRecipients struct.
 func (c *client) filterRecipients(users map[uuid.UUID]string) (*filteredRecipients, error) {
-	// Sanity check.
-	if len(users) == 0 {
-		return &filteredRecipients{}, nil
-	}
-
 	// Compile user IDs from recipients and get their email histories.
 	ids := make([]uuid.UUID, 0, len(users))
 	for id := range users {
@@ -200,7 +199,6 @@ func NewClient(host, user, password, emailAddress, certPath string, skipVerify b
 		log.Infof("Mail: DISABLED")
 		return &client{
 			disabled: true,
-			mailerDB: db,
 		}, nil
 	}
 
