@@ -13,6 +13,7 @@ import (
 	"text/template"
 
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	"github.com/google/uuid"
 )
 
 const (
@@ -38,7 +39,7 @@ A new proposal has been submitted on Politeia by {{.Username}}:
 var proposalNewTmpl = template.Must(
 	template.New("proposalNew").Parse(proposalNewText))
 
-func (p *Pi) mailNtfnProposalNew(token, name, username string, emails []string) error {
+func (p *Pi) mailNtfnProposalNew(token, name, username string, recipients map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -57,7 +58,7 @@ func (p *Pi) mailNtfnProposalNew(token, name, username string, emails []string) 
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 type proposalEdit struct {
@@ -77,7 +78,7 @@ A proposal by {{.Username}} has just been edited:
 var proposalEditTmpl = template.Must(
 	template.New("proposalEdit").Parse(proposalEditText))
 
-func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username string, emails []string) error {
+func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username string, recipients map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -97,7 +98,7 @@ func (p *Pi) mailNtfnProposalEdit(token string, version uint32, name, username s
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 type proposalPublished struct {
@@ -115,7 +116,7 @@ A new proposal has just been published on Politeia.
 {{.Link}}
 `
 
-func (p *Pi) mailNtfnProposalSetStatus(token, name string, status rcv1.RecordStatusT, emails []string) error {
+func (p *Pi) mailNtfnProposalSetStatus(token, name string, status rcv1.RecordStatusT, recipients map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -142,7 +143,7 @@ func (p *Pi) mailNtfnProposalSetStatus(token, name string, status rcv1.RecordSta
 		return fmt.Errorf("no mail ntfn for status %v", status)
 	}
 
-	return p.mail.SendToUsers(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 type proposalPublishedToAuthor struct {
@@ -183,7 +184,7 @@ var proposalCensoredToAuthorTmpl = template.Must(
 	template.New("proposalCensoredToAuthor").
 		Parse(proposalCensoredToAuthorText))
 
-func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.RecordStatusT, reason, authorEmail string) error {
+func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.RecordStatusT, reason string, recipient map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -221,7 +222,7 @@ func (p *Pi) mailNtfnProposalSetStatusToAuthor(token, name string, status rcv1.R
 		return fmt.Errorf("no author notification for prop status %v", status)
 	}
 
-	return p.mail.SendToUsers(subject, body, []string{authorEmail})
+	return p.mail.SendToUsers(subject, body, recipient)
 }
 
 type commentNewToProposalAuthor struct {
@@ -240,7 +241,7 @@ var commentNewToProposalAuthorTmpl = template.Must(
 	template.New("commentNewToProposalAuthor").
 		Parse(commentNewToProposalAuthorText))
 
-func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, commentUsername, proposalName, proposalAuthorEmail string) error {
+func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, commentUsername, proposalName string, recipient map[uuid.UUID]string) error {
 	cid := strconv.FormatUint(uint64(commentID), 10)
 	route := strings.Replace(guiRouteRecordComment, "{token}", token, 1)
 	route = strings.Replace(route, "{id}", cid, 1)
@@ -261,7 +262,7 @@ func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, 
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, []string{proposalAuthorEmail})
+	return p.mail.SendToUsers(subject, body, recipient)
 }
 
 type commentReply struct {
@@ -279,7 +280,7 @@ var commentReplyText = `
 var commentReplyTmpl = template.Must(
 	template.New("commentReply").Parse(commentReplyText))
 
-func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsername, proposalName, parentAuthorEmail string) error {
+func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsername, proposalName string, recipient map[uuid.UUID]string) error {
 	cid := strconv.FormatUint(uint64(commentID), 10)
 	route := strings.Replace(guiRouteRecordComment, "{token}", token, 1)
 	route = strings.Replace(route, "{id}", cid, 1)
@@ -300,7 +301,7 @@ func (p *Pi) mailNtfnCommentReply(token string, commentID uint32, commentUsernam
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, []string{parentAuthorEmail})
+	return p.mail.SendToUsers(subject, body, recipient)
 }
 
 type voteAuthorized struct {
@@ -318,7 +319,7 @@ A proposal vote has been authorized.
 var voteAuthorizedTmpl = template.Must(
 	template.New("voteAuthorized").Parse(voteAuthorizedText))
 
-func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
+func (p *Pi) mailNtfnVoteAuthorized(token, name string, recipients map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -335,7 +336,7 @@ func (p *Pi) mailNtfnVoteAuthorized(token, name string, emails []string) error {
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 type voteStarted struct {
@@ -353,7 +354,7 @@ Voting has started on a Politeia proposal.
 var voteStartedTmpl = template.Must(
 	template.New("voteStarted").Parse(voteStartedText))
 
-func (p *Pi) mailNtfnVoteStarted(token, name string, emails []string) error {
+func (p *Pi) mailNtfnVoteStarted(token, name string, recipients map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -370,7 +371,7 @@ func (p *Pi) mailNtfnVoteStarted(token, name string, emails []string) error {
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, emails)
+	return p.mail.SendToUsers(subject, body, recipients)
 }
 
 type voteStartedToAuthor struct {
@@ -388,7 +389,7 @@ Voting has just started on your Politeia proposal.
 var voteStartedToAuthorTmpl = template.Must(
 	template.New("voteStartedToAuthor").Parse(voteStartedToAuthorText))
 
-func (p *Pi) mailNtfnVoteStartedToAuthor(token, name, email string) error {
+func (p *Pi) mailNtfnVoteStartedToAuthor(token, name string, recipient map[uuid.UUID]string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -405,7 +406,7 @@ func (p *Pi) mailNtfnVoteStartedToAuthor(token, name, email string) error {
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, []string{email})
+	return p.mail.SendToUsers(subject, body, recipient)
 }
 
 func populateTemplate(tmpl *template.Template, tmplData interface{}) (string, error) {

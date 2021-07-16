@@ -678,7 +678,7 @@ func _main() error {
 	}
 
 	// Setup mailer smtp client
-	mailer, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
+	mailer, err := mail.NewClient(loadedCfg.MailHost, loadedCfg.MailUser,
 		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
 		loadedCfg.MailSkipVerify, loadedCfg.MailRateLimit, mailerDB)
 	if err != nil {

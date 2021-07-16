@@ -1,13 +1,24 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package user
+
+import "github.com/google/uuid"
 
 // MailerDB describes the interface used to interact with the email histories
 // table from the user database, used by the mail client.
 type MailerDB interface {
-	// Create or update users email histories
-	EmailHistoriesSave(histories map[string]EmailHistory) error
+	// EmailHistoriesSave saves the provided email histories to the
+	// database. The histories map contains map[userid]EmailHistory.
+	EmailHistoriesSave(histories map[uuid.UUID]EmailHistory) error
 
-	// Return a map of user ids to its email history
-	EmailHistoriesGet(users []string) (map[string]EmailHistory, error)
+	// EmailHistoriesGet retrieves the email histories for the provided
+	// user IDs. The returned map[userid]EmailHistory will contain an
+	// entry for each of the provided user ID. If a provided user ID
+	// does not correspond to a user in the database then the entry will
+	// be skipped in the returned map. An error is not returned.
+	EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]EmailHistory, error)
 }
 
 // EmailHistory keeps track of the received emails by each user. This is

@@ -930,7 +930,9 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey
 	//
 	// This is conditional on the email server being setup.
 	token := hex.EncodeToString(tokenb)
-	err = p.emailUserKeyUpdate(usr.Username, usr.Email, uuk.PublicKey, token)
+	recipient := make(map[uuid.UUID]string, 1)
+	recipient[usr.ID] = usr.Email
+	err = p.emailUserKeyUpdate(usr.Username, uuk.PublicKey, token, recipient)
 	if err != nil {
 		return nil, err
 	}
@@ -1073,7 +1075,9 @@ func (p *politeiawww) login(l www.Login) loginResult {
 			// send them an email informing them their account is
 			// now locked.
 			if userIsLocked(u.FailedLoginAttempts) {
-				err := p.emailUserAccountLocked(u.Username, u.Email)
+				recipient := make(map[uuid.UUID]string, 1)
+				recipient[u.ID] = u.Email
+				err := p.emailUserAccountLocked(u.Username, recipient)
 				if err != nil {
 					return loginResult{
 						reply: nil,
@@ -1346,7 +1350,9 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 		return nil, err
 	}
 
-	err = p.emailUserPasswordChanged(u.Username, email)
+	recipient := make(map[uuid.UUID]string, 1)
+	recipient[u.ID] = u.Email
+	err = p.emailUserPasswordChanged(u.Username, recipient)
 	if err != nil {
 		return nil, err
 	}
@@ -1398,8 +1404,10 @@ func (p *politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 
 	// Try to email the verification link first. If it fails, the
 	// user record won't be updated in the database.
-	err = p.emailUserPasswordReset(rp.Email, rp.Username,
-		hex.EncodeToString(tokenb))
+	recipient := make(map[uuid.UUID]string, 1)
+	recipient[u.ID] = u.Email
+	err = p.emailUserPasswordReset(rp.Username, hex.EncodeToString(tokenb),
+		recipient)
 	if err != nil {
 		return resetPasswordResult{
 			err: err,

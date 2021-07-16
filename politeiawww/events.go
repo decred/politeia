@@ -6,6 +6,7 @@ package main
 
 import (
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 const (
@@ -51,7 +52,9 @@ func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 			continue
 		}
 
-		err := p.emailInvoiceNewComment(d.email)
+		recipient := make(map[uuid.UUID]string, 1)
+		recipient[p.userEmails[d.email]] = d.email
+		err := p.emailInvoiceNewComment(recipient)
 		if err != nil {
 			log.Errorf("emailInvoiceNewComment %v: %v", err)
 		}
@@ -73,7 +76,9 @@ func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 			continue
 		}
 
-		err := p.emailInvoiceStatusUpdate(d.token, d.email)
+		recipient := make(map[uuid.UUID]string, 1)
+		recipient[p.userEmails[d.email]] = d.email
+		err := p.emailInvoiceStatusUpdate(d.token, recipient)
 		if err != nil {
 			log.Errorf("emailInvoiceStatusUpdate %v: %v", err)
 		}
@@ -94,7 +99,7 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 			continue
 		}
 
-		emails := make([]string, 0, 256)
+		recipients := make(map[uuid.UUID]string)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circumstances where we don't notify
 			switch {
@@ -106,13 +111,13 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 				return
 			}
 
-			emails = append(emails, u.Email)
+			recipients[u.ID] = u.Email
 		})
 		if err != nil {
 			log.Errorf("handleEventDCCNew: AllUsers: %v", err)
 		}
 
-		err = p.emailDCCSubmitted(d.token, emails)
+		err = p.emailDCCSubmitted(d.token, recipients)
 		if err != nil {
 			log.Errorf("emailDCCSubmitted %v: %v", err)
 		}
@@ -133,7 +138,7 @@ func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 			continue
 		}
 
-		emails := make([]string, 0, 256)
+		recipients := make(map[uuid.UUID]string)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circumstances where we don't notify
 			switch {
@@ -145,13 +150,13 @@ func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 				return
 			}
 
-			emails = append(emails, u.Email)
+			recipients[u.ID] = u.Email
 		})
 		if err != nil {
 			log.Errorf("handleEventDCCSupportOppose: AllUsers: %v", err)
 		}
 
-		err = p.emailDCCSupportOppose(d.token, emails)
+		err = p.emailDCCSupportOppose(d.token, recipients)
 		if err != nil {
 			log.Errorf("emailDCCSupportOppose %v: %v", err)
 		}

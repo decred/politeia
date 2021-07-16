@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import (
 
 	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 // client provides an SMTP client for sending emails from a preset email
@@ -67,69 +68,76 @@ func (c *client) SendTo(subject, body string, recipients []string) error {
 // to avoid spamming from malicious users.
 //
 // This function satisfies the Mailer interface.
-func (c *client) SendToUsers(subjects, body string, recipients []string) error {
-	valid, invalid, histories, err := c.filterRecipients(recipients)
+func (c *client) SendToUsers(subjects, body string, recipients map[uuid.UUID]string) error {
+	filtered, err := c.filterRecipients(recipients)
 	if err != nil {
 		return err
 	}
 
 	// Handle valid recipients.
-	if len(valid) > 0 {
-		err := c.SendTo(subjects, body, valid)
-		if err != nil {
-			return err
-		}
+	err = c.SendTo(subjects, body, filtered.valid)
+	if err != nil {
+		return err
 	}
 
 	// Handle invalid recipients.
-	if len(invalid) > 0 {
-		err = c.SendTo(limitEmailSubject, limitEmailBody, invalid)
-		if err != nil {
-			return err
-		}
+	err = c.SendTo(limitEmailSubject, limitEmailBody, filtered.invalid)
+	if err != nil {
+		return err
 	}
 
 	// Update email histories on db.
-	if len(histories) > 0 {
-		c.mailerDB.EmailHistoriesSave(histories)
+	err = c.mailerDB.EmailHistoriesSave(filtered.histories)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// filterRecipients divides recipients into valid, those that are able to
-// receive emails, and invalid, those that have hit the email rate limit,
-// but have not yet received the warning email. It also returns an updated
-// email history for each user to be saved on the db.
-func (c *client) filterRecipients(rs []string) ([]string, []string, map[string]user.EmailHistory, error) {
-	// Sanity check
+// filteredRecipients contains the filtered recipients divided into valid,
+// those that are able to receive emails, and invalid, those that have hit
+// the email rate limit, but have not yet received the warning email. It will
+// also contains the updated email histories for each user email present on the
+// valid and invalid lists.
+type filteredRecipients struct {
+	valid     []string
+	invalid   []string
+	histories map[uuid.UUID]user.EmailHistory
+}
+
+// filterRecipients filters the users map[userid]email argument into the
+// filteredRecipients struct.
+func (c *client) filterRecipients(rs map[uuid.UUID]string) (*filteredRecipients, error) {
+	// Sanity check.
 	if len(rs) == 0 {
-		return nil, nil, nil, nil
+		return &filteredRecipients{}, nil
 	}
 
-	// Get email histories for recipients
-	hs, err := c.mailerDB.EmailHistoriesGet(rs)
+	// Compile user IDs from recipients and get their email histories.
+	ids := make([]uuid.UUID, 0, len(rs))
+	for id := range rs {
+		ids = append(ids, id)
+	}
+	hs, err := c.mailerDB.EmailHistoriesGet(ids)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// Divide recipients into valid and invalid recipients, and parse their
 	// new email history.
-	var (
-		valid     []string
-		invalid   []string
-		histories = make(map[string]user.EmailHistory, len(rs))
-	)
-	for _, email := range rs {
-		history, ok := hs[email]
+	var recipients filteredRecipients
+	recipients.histories = make(map[uuid.UUID]user.EmailHistory, len(rs))
+	for userID, email := range rs {
+		history, ok := hs[userID]
 		if !ok {
 			// User does not have a mail history yet, add user to valid
 			// recipients and create his email history.
-			histories[email] = user.EmailHistory{
+			recipients.histories[userID] = user.EmailHistory{
 				Timestamps:       []int64{time.Now().Unix()},
 				LimitWarningSent: false,
 			}
-			valid = append(valid, email)
+			recipients.valid = append(recipients.valid, email)
 			continue
 		}
 
@@ -141,22 +149,22 @@ func (c *client) filterRecipients(rs []string) ([]string, []string, map[string]u
 			// been sent, add user to invalid recipients and update email
 			// history.
 			if !history.LimitWarningSent {
-				invalid = append(invalid, email)
+				recipients.invalid = append(recipients.invalid, email)
 				history.LimitWarningSent = true
-				histories[email] = history
+				recipients.histories[userID] = history
 			}
 			continue
 		}
 
 		// Rate limit has not been hit, add user to valid recipients and
 		// update email history.
-		valid = append(valid, email)
+		recipients.valid = append(recipients.valid, email)
 		history.Timestamps = append(history.Timestamps, time.Now().Unix())
 		history.LimitWarningSent = false
-		histories[email] = history
+		recipients.histories[userID] = history
 	}
 
-	return valid, invalid, histories, nil
+	return &recipients, nil
 }
 
 // filterTimestamps filters out timestamps from the passed in slice that comes
@@ -184,8 +192,18 @@ Your email rate limit for the past 24h has been hit. This measure is used to avo
 We apologize for any inconvenience.
 `
 
-// newClient returns a new client.
-func newClient(host, user, password, emailAddress, certPath string, skipVerify bool, db user.MailerDB, limit int) (*client, error) {
+// NewClient returns a new client.
+func NewClient(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.MailerDB) (*client, error) {
+	// Email is considered disabled if any of the required user
+	// credentials are missing.
+	if host == "" || user == "" || password == "" {
+		log.Infof("Mail: DISABLED")
+		return &client{
+			disabled: true,
+			mailerDB: db,
+		}, nil
+	}
+
 	// Parse mail host
 	h := fmt.Sprintf("smtps://%v:%v@%v", user, password, host)
 	u, err := url.Parse(h)

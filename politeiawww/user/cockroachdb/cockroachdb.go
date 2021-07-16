@@ -770,19 +770,24 @@ func (c *cockroachdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandRepl
 	}, nil
 }
 
-// EmailHistoriesSave creates or updates the email histories.
+// EmailHistoriesSave creates or updates the email histories. The histories
+// map contains map[userid]EmailHistory.
 //
 // EmailHistoriesSave satisfies the user MailerDB interface.
-func (c *cockroachdb) EmailHistoriesSave(histories map[string]user.EmailHistory) error {
-	log.Tracef("EmailHistorySet: %v", histories)
+func (c *cockroachdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	log.Tracef("EmailHistorySave: %v", histories)
+
+	if len(histories) == 0 {
+		return nil
+	}
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
-	for email, history := range histories {
+	for userID, history := range histories {
 		h := EmailHistory{
-			Email: email,
+			UserID: userID,
 		}
 
 		var update bool
@@ -798,7 +803,7 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[string]user.EmailHistory)
 			return fmt.Errorf("find email history: %v", err)
 		}
 
-		historyDB, err := c.convertEmailHistoryFromUser(email, history)
+		historyDB, err := c.convertEmailHistoryFromUser(userID, history)
 		if err != nil {
 			return err
 		}
@@ -819,11 +824,15 @@ func (c *cockroachdb) EmailHistoriesSave(histories map[string]user.EmailHistory)
 	return nil
 }
 
-// EmailHistoriesGet returns the email histories for the specified users.
+// EmailHistoriesGet retrieves the email histories for the provided user IDs
+// The returned map[userid]EmailHistory will contain an entry for each of the
+// provided user ID. If a provided user ID does not correspond to a user in the
+// database, then the entry will be skipped in the returned map. An error is not
+// returned.
 //
 // EmailHistoriesGet satisfies the user MailerDB interface.
-func (c *cockroachdb) EmailHistoriesGet(users []string) (map[string]user.EmailHistory, error) {
-	log.Tracef("EmailHistorySet: %v", users)
+func (c *cockroachdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistoryGet: %v", users)
 
 	if c.isShutdown() {
 		return nil, user.ErrShutdown
@@ -831,26 +840,26 @@ func (c *cockroachdb) EmailHistoriesGet(users []string) (map[string]user.EmailHi
 
 	var result []EmailHistory
 	err := c.userDB.
-		Where("email IN (?)", users).
+		Where("user_id IN (?)", users).
 		Find(&result).
 		Error
 	if err != nil {
 		return nil, err
 	}
 
-	histories := make(map[string]user.EmailHistory, len(result))
+	histories := make(map[uuid.UUID]user.EmailHistory, len(result))
 	for _, row := range result {
 		hist, err := c.convertEmailHistoryToUser(row)
 		if err != nil {
 			return nil, err
 		}
-		histories[row.Email] = *hist
+		histories[row.UserID] = *hist
 	}
 
 	return histories, nil
 }
 
-func (c *cockroachdb) convertEmailHistoryFromUser(email string, h user.EmailHistory) (*EmailHistory, error) {
+func (c *cockroachdb) convertEmailHistoryFromUser(userID uuid.UUID, h user.EmailHistory) (*EmailHistory, error) {
 	eh, err := json.Marshal(h)
 	if err != nil {
 		return nil, err
@@ -860,8 +869,8 @@ func (c *cockroachdb) convertEmailHistoryFromUser(email string, h user.EmailHist
 		return nil, err
 	}
 	return &EmailHistory{
-		Email: email,
-		Blob:  eb,
+		UserID: userID,
+		Blob:   eb,
 	}, nil
 }
 

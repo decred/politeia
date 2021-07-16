@@ -731,7 +731,9 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	// the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailUserDCCApproved(nominatedUser.Email)
+	recipient := make(map[uuid.UUID]string, 1)
+	recipient[nominatedUser.ID] = nominatedUser.Email
+	err = p.emailUserDCCApproved(recipient)
 	if err != nil {
 		log.Errorf("processApproveDCC: verification email "+
 			"failed for '%v': %v", nominatedUser.Email, err)

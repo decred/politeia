@@ -563,25 +563,25 @@ func TestEmailHistoriesSave(t *testing.T) {
 	defer close()
 
 	// Arguments
-	email := "test@email.com"
-	histories := make(map[string]user.EmailHistory, 1)
-	histories[email] = user.EmailHistory{
+	userID := uuid.New()
+	histories := make(map[uuid.UUID]user.EmailHistory, 1)
+	histories[userID] = user.EmailHistory{
 		Timestamps:       []int64{time.Now().Unix()},
 		LimitWarningSent: false,
 	}
 
 	// Queries
-	sqlSelect := `SELECT email FROM email_histories WHERE email = ?`
+	sqlSelect := `SELECT user_id FROM email_histories WHERE user_id = ?`
 
-	sqlInsert := `INSERT INTO email_histories (email, h_blob) VALUES (?, ?)`
+	sqlInsert := `INSERT INTO email_histories (user_id, h_blob) VALUES (?, ?)`
 
 	// Success create expectations
 	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
-		WithArgs(email).
+		WithArgs(userID).
 		WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(regexp.QuoteMeta(sqlInsert)).
-		WithArgs(email, AnyBlob{}).
+		WithArgs(userID, AnyBlob{}).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -595,15 +595,15 @@ func TestEmailHistoriesSave(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"h_blob"}).AddRow([]byte{})
 
 	// Query
-	sqlUpdate := `UPDATE email_histories SET h_blob = ? WHERE email = ?`
+	sqlUpdate := `UPDATE email_histories SET h_blob = ? WHERE user_id = ?`
 
 	// Success update expectations
 	mock.ExpectBegin()
 	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
-		WithArgs(email).
+		WithArgs(userID).
 		WillReturnRows(rows)
 	mock.ExpectExec(regexp.QuoteMeta(sqlUpdate)).
-		WithArgs(AnyBlob{}, email).
+		WithArgs(AnyBlob{}, userID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -620,8 +620,8 @@ func TestEmailHistoriesSave(t *testing.T) {
 	mock.ExpectRollback()
 
 	// Execute method
-	badHistories := make(map[string]user.EmailHistory, 1)
-	badHistories["invalid@email.com"] = user.EmailHistory{}
+	badHistories := make(map[uuid.UUID]user.EmailHistory, 1)
+	badHistories[uuid.New()] = user.EmailHistory{}
 	err = mdb.EmailHistoriesSave(badHistories)
 	if err == nil {
 		t.Errorf("expected error but there was none")
@@ -640,7 +640,7 @@ func TestEmailHistoriesGet(t *testing.T) {
 	defer close()
 
 	// Arguments
-	email := "test@email.com"
+	userID := uuid.New()
 	ts := time.Now().Unix()
 	history := user.EmailHistory{
 		Timestamps:       []int64{ts},
@@ -656,38 +656,38 @@ func TestEmailHistoriesGet(t *testing.T) {
 	}
 
 	// Mock data
-	rows := sqlmock.NewRows([]string{"email", "h_blob"}).
-		AddRow(email, eb)
+	rows := sqlmock.NewRows([]string{"user_id", "h_blob"}).
+		AddRow(userID, eb)
 
 	// Query
-	sql := `SELECT email, h_blob FROM email_histories WHERE email IN (?)`
+	sql := `SELECT user_id, h_blob FROM email_histories WHERE user_id IN (?)`
 
 	// Success expectations
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
-		WithArgs(email).
+		WithArgs(userID).
 		WillReturnRows(rows)
 
 	// Execute method
-	eh, err := mdb.EmailHistoriesGet([]string{email})
+	eh, err := mdb.EmailHistoriesGet([]uuid.UUID{userID})
 	if err != nil {
 		t.Errorf("EmailHistoriesGet unwanted error: %s", err)
 	}
 
 	// Make sure correct history was returned
-	if ts != eh[email].Timestamps[0] {
+	if ts != eh[userID].Timestamps[0] {
 		t.Errorf("expecting timestamp %d but got %d",
-			ts, eh[email].Timestamps[0])
+			ts, eh[userID].Timestamps[0])
 	}
 
 	// Negative expectations
-	invalidEmail := "invalid@email.com"
+	randomUserID := uuid.New()
 	expectedError := errors.New("email history not found")
 	mock.ExpectQuery(regexp.QuoteMeta(sql)).
-		WithArgs(invalidEmail).
+		WithArgs(randomUserID).
 		WillReturnError(expectedError)
 
 	// Execute method
-	h, err := mdb.EmailHistoriesGet([]string{invalidEmail})
+	h, err := mdb.EmailHistoriesGet([]uuid.UUID{randomUserID})
 	if err == nil {
 		t.Errorf("expected error but there was none")
 	}

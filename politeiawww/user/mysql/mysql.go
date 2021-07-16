@@ -84,7 +84,7 @@ const tableSessions = `
 
 // tableEmailHistories defines the email_histories table.
 const tableEmailHistories = `
-  email VARCHAR(254) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL PRIMARY KEY,
   h_blob BLOB NOT NULL
 `
 
@@ -1100,11 +1100,16 @@ func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, err
 	}, nil
 }
 
-// EmailHistoriesSave creates or updates the email histories.
+// EmailHistoriesSave creates or updates the email histories to the database.
+// The histories map contains map[userid]EmailHistory.
 //
 // EmailHistoriesSave satisfies the user MailerDB interface.
-func (m *mysql) EmailHistoriesSave(histories map[string]user.EmailHistory) error {
+func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
 	log.Tracef("EmailHistoriesSave: %v", histories)
+
+	if len(histories) == 0 {
+		return nil
+	}
 
 	if m.isShutdown() {
 		return user.ErrShutdown
@@ -1143,17 +1148,17 @@ func (m *mysql) EmailHistoriesSave(histories map[string]user.EmailHistory) error
 }
 
 // emailHistoriesSave creates or updates the email histories for the given
-// user emails in the histories map.
+// users in the histories map[userid]EmailHistory.
 //
 // This function must be called using a sql transaction.
-func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories map[string]user.EmailHistory) error {
-	for email, history := range histories {
+func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories map[uuid.UUID]user.EmailHistory) error {
+	for userID, history := range histories {
 		var (
 			update bool
 			em     string
 		)
 		err := tx.QueryRowContext(ctx,
-			"SELECT email FROM email_histories WHERE email = ?", email).
+			"SELECT user_id FROM email_histories WHERE user_id = ?", userID).
 			Scan(&em)
 		switch err {
 		case nil:
@@ -1179,15 +1184,15 @@ func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories ma
 		// Save email history
 		if update {
 			_, err := tx.ExecContext(ctx,
-				`UPDATE email_histories SET h_blob = ? WHERE email = ?`,
-				eb, email)
+				`UPDATE email_histories SET h_blob = ? WHERE user_id = ?`,
+				eb, userID)
 			if err != nil {
 				return fmt.Errorf("update: %v", err)
 			}
 		} else {
 			_, err := tx.ExecContext(ctx,
-				`INSERT INTO email_histories (email, h_blob) VALUES (?, ?)`,
-				email, eb)
+				`INSERT INTO email_histories (user_id, h_blob) VALUES (?, ?)`,
+				userID, eb)
 			if err != nil {
 				return fmt.Errorf("create: %v", err)
 			}
@@ -1197,12 +1202,14 @@ func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories ma
 	return nil
 }
 
-// EmailHistoriesGet returns the email histories for the specified users.
-// If a history does not exist for a certain user, the returned map will not
-// contain any entries for his email.
+// EmailHistoriesGet retrieves the email histories for the provided user IDs
+// The returned map[userid]EmailHistory will contain an entry for each of the
+// provided user ID. If a provided user ID does not correspond to a user in the
+// database, then the entry will be skipped in the returned map. An error is not
+// returned.
 //
 // EmailHistoriesGet satisfies the user MailerDB interface.
-func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory, error) {
+func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
 	log.Tracef("EmailHistoriesGet: %v", users)
 
 	if m.isShutdown() {
@@ -1213,12 +1220,12 @@ func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory,
 	defer cancel()
 
 	// Lookup email histories by user ids.
-	q := `SELECT email, h_blob FROM email_histories WHERE email IN (?` +
+	q := `SELECT user_id, h_blob FROM email_histories WHERE user_id IN (?` +
 		strings.Repeat(",?", len(users)-1) + `)`
 
 	args := make([]interface{}, len(users))
-	for i, email := range users {
-		args[i] = email
+	for i, userID := range users {
+		args[i] = userID.String()
 	}
 	rows, err := m.userDB.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -1229,13 +1236,13 @@ func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory,
 	// Decrypt email history blob and compile the user emails map with their
 	// respective email history.
 	type EmailHistory struct {
-		Email string
-		Blob  []byte
+		UserID string
+		Blob   []byte
 	}
-	histories := make(map[string]user.EmailHistory, len(users))
+	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
 	for rows.Next() {
 		var hist EmailHistory
-		if err := rows.Scan(&hist.Email, &hist.Blob); err != nil {
+		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
 			return nil, err
 		}
 
@@ -1250,7 +1257,12 @@ func (m *mysql) EmailHistoriesGet(users []string) (map[string]user.EmailHistory,
 			return nil, err
 		}
 
-		histories[hist.Email] = h
+		uuid, err := uuid.Parse(hist.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		histories[uuid] = h
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
