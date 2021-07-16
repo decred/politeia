@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
@@ -250,6 +251,18 @@ type Inventory struct {
 	Vetted   map[StatusT][]string
 }
 
+// BackendSettings are the backend settings that are available to plugins.
+type BackendSettings struct {
+	// Identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	Identity identity.FullIdentity
+
+	// Net contains the Decred network and its parameters that the
+	// backend is running on.
+	Net chaincfg.Params
+}
+
 // PluginSetting represents a configurable plugin setting.
 //
 // The value can either contain a single value or multiple values. Multiple
@@ -263,11 +276,6 @@ type PluginSetting struct {
 type Plugin struct {
 	ID       string
 	Settings []PluginSetting
-
-	// Identity contains the full identity that the plugin uses to
-	// create receipts, i.e. signatures of user provided data that
-	// prove the backend received and processed a plugin command.
-	Identity *identity.FullIdentity
 }
 
 // PluginError represents an error that occurred during plugin execution that

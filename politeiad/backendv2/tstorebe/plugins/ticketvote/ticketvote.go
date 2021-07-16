@@ -6,8 +6,6 @@ package ticketvote
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -15,6 +13,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -27,13 +26,13 @@ var (
 //
 // ticketVotePlugin satisfies the plugins PluginClient interface.
 type ticketVotePlugin struct {
-	backend         backend.Backend
-	activeNetParams *chaincfg.Params
+	backend backend.Backend
+	net     chaincfg.Params // Decred network
 
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
-	identity *identity.FullIdentity
+	identity identity.FullIdentity
 
 	// Plugin settings
 	linkByPeriodMin int64  // In seconds
@@ -251,7 +250,7 @@ func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
 	}
 }
 
-func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
+func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*ticketVotePlugin, error) {
 	// Plugin settings
 	var (
 		linkByPeriodMin int64
@@ -262,7 +261,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 
 	// Set plugin settings to defaults. These will be overwritten if
 	// the setting was specified by the user.
-	switch activeNetParams.Name {
+	switch bs.Net.Name {
 	case chaincfg.MainNetParams().Name:
 		linkByPeriodMin = ticketvote.SettingMainNetLinkByPeriodMin
 		linkByPeriodMax = ticketvote.SettingMainNetLinkByPeriodMax
@@ -280,11 +279,11 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		voteDurationMin = ticketvote.SettingTestNetVoteDurationMin
 		voteDurationMax = ticketvote.SettingTestNetVoteDurationMax
 	default:
-		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
+		return nil, errors.Errorf("invalid network %v", bs.Net.Name)
 	}
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case ticketvote.SettingKeyLinkByPeriodMin:
 			i, err := strconv.ParseInt(v.Value, 10, 64)
@@ -331,17 +330,10 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		}
 	}
 
-	// Create the plugin data directory
-	dataDir = filepath.Join(dataDir, ticketvote.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ticketVotePlugin{
-		activeNetParams: activeNetParams,
 		backend:         backend,
-		identity:        id,
+		net:             bs.Net,
+		identity:        bs.Identity,
 		linkByPeriodMin: linkByPeriodMin,
 		linkByPeriodMax: linkByPeriodMax,
 		voteDurationMin: voteDurationMin,

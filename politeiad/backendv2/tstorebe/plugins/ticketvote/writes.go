@@ -158,7 +158,9 @@ func (p *ticketVotePlugin) cmdAuthorize(tstore plugins.TstoreClient, token []byt
 		// Action has already been validated. This should not happen.
 		return "", fmt.Errorf("invalid action %v", a.Action)
 	}
-	p.inventoryUpdate(a.Token, status)
+	_ = status
+	// TODO put back in
+	// p.inventoryUpdate(a.Token, status)
 
 	// Prepare reply
 	ar := ticketvote.AuthorizeReply{

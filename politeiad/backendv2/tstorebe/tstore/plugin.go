@@ -59,23 +59,21 @@ func (t *Tstore) pluginIDs() []string {
 
 // PluginRegister registers a plugin. Plugin commands and hooks can be executed
 // on the plugin once registered.
-func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
+func (t *Tstore) PluginRegister(b backend.Backend, bs backend.BackendSettings, p backend.Plugin) error {
 	log.Tracef("PluginRegister: %v", p.ID)
 
-	// TODO we're going to have to register plugins differently than
-	// this.
 	var (
 		client plugins.PluginClient
 		err    error
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		client, err = comments.New(p.Settings, p.Identity)
+		client, err = comments.New(bs, p.Settings)
 		if err != nil {
 			return err
 		}
 	case ddplugin.PluginID:
-		client, err = dcrdata.New(p.Settings, t.activeNetParams)
+		client, err = dcrdata.New(bs, p.Settings)
 		if err != nil {
 			return err
 		}
@@ -85,8 +83,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case tkplugin.PluginID:
-		client, err = ticketvote.New(b, t, p.Settings, dataDir,
-			p.Identity, t.activeNetParams)
+		client, err = ticketvote.New(b, bs, p.Settings)
 		if err != nil {
 			return err
 		}

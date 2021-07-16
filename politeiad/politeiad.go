@@ -296,10 +296,11 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 	}, nil
 }
 
-func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
-	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
+func (p *politeia) setupBackendTstore(net *chaincfg.Params) error {
+	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir,
 		p.cfg.TlogHost, p.cfg.TlogPass, p.cfg.DBType, p.cfg.DBHost,
-		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
+		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert,
+		*p.identity, *net)
 	if err != nil {
 		return fmt.Errorf("new tstorebe: %v", err)
 	}
@@ -374,7 +375,6 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 			plugin := backendv2.Plugin{
 				ID:       v,
 				Settings: ps,
-				Identity: p.identity,
 			}
 
 			// Register plugin

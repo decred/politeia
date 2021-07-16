@@ -40,13 +40,14 @@ import (
 // failed calls.
 type Tstore struct {
 	sync.RWMutex
-	dataDir         string
-	activeNetParams *chaincfg.Params
-	tlog            tlogClient
-	store           store.BlobKV
-	dcrtime         *dcrtimeClient
-	cron            *cron.Cron
-	plugins         map[string]plugin // [pluginID]plugin
+	// TODO remove dataDir
+	dataDir string
+	net     chaincfg.Params
+	tlog    tlogClient
+	store   store.BlobKV
+	dcrtime *dcrtimeClient
+	cron    *cron.Cron
+	plugins map[string]plugin // [pluginID]plugin
 
 	// TODO anchor dropping needs to be concurrency safe
 	// droppingAnchor indicates whether tstore is in the process of
@@ -193,7 +194,7 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
 	err := os.MkdirAll(dataDir, 0700)
@@ -227,14 +228,14 @@ func New(appDir, dataDir string, anp *chaincfg.Params, kvstore store.BlobKV, tlo
 
 	// Setup tstore
 	t := Tstore{
-		dataDir:         dataDir,
-		activeNetParams: anp,
-		tlog:            tlogClient,
-		store:           kvstore,
-		dcrtime:         dcrtimeClient,
-		cron:            cron.New(),
-		plugins:         make(map[string]plugin),
-		tokens:          make(map[string][]byte),
+		dataDir: dataDir,
+		net:     net,
+		tlog:    tlogClient,
+		store:   kvstore,
+		dcrtime: dcrtimeClient,
+		cron:    cron.New(),
+		plugins: make(map[string]plugin),
+		tokens:  make(map[string][]byte),
 	}
 
 	// Launch cron

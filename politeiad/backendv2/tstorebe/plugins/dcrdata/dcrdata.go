@@ -5,7 +5,6 @@
 package dcrdata
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -43,10 +43,11 @@ var (
 //
 // dcrdataPlugin satisfies the plugins PluginClient interface.
 type dcrdataPlugin struct {
+	// TODO remove dcrdata mutex
 	sync.Mutex
-	activeNetParams *chaincfg.Params
-	client          *http.Client
-	ws              *wsdcrdata.Client
+	net  *chaincfg.Params  // Decred network
+	http *http.Client      // Dcrdata http client
+	ws   *wsdcrdata.Client // Dcrdata websocket client
 
 	// Plugin settings
 	hostHTTP string // dcrdata HTTP host
@@ -250,7 +251,7 @@ func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new dcrdataPlugin.
-func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
+func New(bs backend.BackendSettings, ps []backend.PluginSetting) (*dcrdataPlugin, error) {
 	// Plugin setting
 	var (
 		hostHTTP string
@@ -259,7 +260,7 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 
 	// Set plugin settings to defaults. These will be overwritten if
 	// the setting was specified by the user.
-	switch activeNetParams.Name {
+	switch bs.Net.Name {
 	case chaincfg.MainNetParams().Name:
 		hostHTTP = dcrdata.SettingHostHTTPMainNet
 		hostWS = dcrdata.SettingHostWSMainNet
@@ -267,11 +268,11 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 		hostHTTP = dcrdata.SettingHostHTTPTestNet
 		hostWS = dcrdata.SettingHostWSTestNet
 	default:
-		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
+		return nil, errors.Errorf("invalid network: %v", bs.Net.Name)
 	}
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case dcrdata.SettingKeyHostHTTP:
 			hostHTTP = v.Value
@@ -284,19 +285,19 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 				dcrdata.SettingKeyHostWS, hostWS)
 
 		default:
-			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
+			return nil, errors.Errorf("invalid plugin setting '%v'", v.Key)
 		}
 	}
 
 	// Setup http client
 	log.Infof("Dcrdata HTTP host: %v", hostHTTP)
-	client, err := util.NewHTTPClient(false, "")
+	httpClient, err := util.NewHTTPClient(false, "")
 	if err != nil {
 		return nil, err
 	}
 
 	// Setup websocket client
-	ws, err := wsdcrdata.New(hostWS)
+	wsClient, err := wsdcrdata.New(hostWS)
 	if err != nil {
 		// Continue even if a websocket connection was not able to be
 		// made. Reconnection attempts will be made in the plugin setup.
@@ -304,10 +305,10 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 	}
 
 	return &dcrdataPlugin{
-		activeNetParams: activeNetParams,
-		client:          client,
-		ws:              ws,
-		hostHTTP:        hostHTTP,
-		hostWS:          hostWS,
+		net:      &bs.Net,
+		http:     httpClient,
+		ws:       wsClient,
+		hostHTTP: hostHTTP,
+		hostWS:   hostWS,
 	}, nil
 }

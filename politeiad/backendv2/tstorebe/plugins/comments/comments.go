@@ -26,7 +26,7 @@ type commentsPlugin struct {
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
-	identity *identity.FullIdentity
+	identity identity.FullIdentity
 
 	// Plugin settings
 	commentLengthMax uint32
@@ -128,7 +128,7 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new comments plugin.
-func New(settings []backend.PluginSetting, id *identity.FullIdentity) (*commentsPlugin, error) {
+func New(bs backend.BackendSettings, ps []backend.PluginSetting) (*commentsPlugin, error) {
 	// Default plugin settings
 	var (
 		commentLengthMax = comments.SettingCommentLengthMax
@@ -136,7 +136,7 @@ func New(settings []backend.PluginSetting, id *identity.FullIdentity) (*comments
 	)
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case comments.SettingKeyCommentLengthMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
@@ -158,7 +158,7 @@ func New(settings []backend.PluginSetting, id *identity.FullIdentity) (*comments
 	}
 
 	return &commentsPlugin{
-		identity:         id,
+		identity:         bs.Identity,
 		commentLengthMax: commentLengthMax,
 		voteChangesMax:   voteChangesMax,
 	}, nil

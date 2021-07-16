@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -32,9 +33,11 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
-	appDir  string
-	dataDir string
-	tstore  *tstore.Tstore
+	// TODO Remove datadir
+	appDir   string
+	dataDir  string
+	settings backend.BackendSettings
+	tstore   *tstore.Tstore
 
 	// cache is the key-value store cache. This is the same key-value
 	// store that tstore uses, allowing the backend to interact with
@@ -910,7 +913,7 @@ func (t *tstoreBackend) InventoryOrdered(state backend.StateT, pageSize, pageNum
 func (t *tstoreBackend) PluginRegister(p backend.Plugin) error {
 	log.Tracef("PluginRegister: %v %v", p.ID, p.Settings)
 
-	return t.tstore.PluginRegister(t, p)
+	return t.tstore.PluginRegister(t, t.settings, p)
 }
 
 // PluginSetup performs any required plugin setup.
@@ -1028,24 +1031,25 @@ func (t *tstoreBackend) Close() {
 }
 
 // New returns a new tstoreBackend.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
+func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string, fi identity.FullIdentity, net chaincfg.Params) (*tstoreBackend, error) {
 	// Setup cache key-value store
 	log.Infof("Database type: %v", dbType)
-	kv, err := newBlobKV(blobKVOpts{
-		Type:     dbType,
-		AppDir:   appDir,
-		DataDir:  dataDir,
-		Host:     dbHost,
-		Password: dbPass,
-		Net:      anp.Name,
-	})
+	kv, err := newBlobKV(
+		blobKVOpts{
+			Type:     dbType,
+			AppDir:   appDir,
+			DataDir:  dataDir,
+			Host:     dbHost,
+			Password: dbPass,
+			Net:      net.Name,
+		})
 	if err != nil {
 		return nil, err
 	}
 
 	// Setup tstore instances
-	ts, err := tstore.New(appDir, dataDir, anp, kv, tlogHost,
-		tlogPass, dcrtimeHost, dcrtimeCert)
+	ts, err := tstore.New(appDir, dataDir, net, kv,
+		tlogHost, tlogPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, err
 	}
@@ -1054,9 +1058,13 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 	t := tstoreBackend{
 		appDir:  appDir,
 		dataDir: dataDir,
-		tstore:  ts,
-		cache:   kv,
-		inv:     newRecordInv(),
+		settings: backend.BackendSettings{
+			Identity: fi,
+			Net:      net,
+		},
+		tstore: ts,
+		cache:  kv,
+		inv:    newRecordInv(),
 	}
 
 	// Perform any required setup

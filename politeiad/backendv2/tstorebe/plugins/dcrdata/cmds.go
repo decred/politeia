@@ -192,7 +192,7 @@ func (p *dcrdataPlugin) makeReq(method string, route string, headers map[string]
 	}
 
 	// Send request
-	r, err := p.client.Do(req)
+	r, err := p.http.Do(req)
 	if err != nil {
 		return nil, err
 	}

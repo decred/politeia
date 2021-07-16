@@ -134,7 +134,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new piPlugin.
-func New(backend backend.Backend, settings []backend.PluginSetting) (*piPlugin, error) {
+func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error) {
 	// Setup plugin setting default values
 	var (
 		textFileSizeMax    = pi.SettingTextFileSizeMax
@@ -146,7 +146,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting) (*piPlugin, 
 	)
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case pi.SettingKeyTextFileSizeMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
