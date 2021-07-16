@@ -40,8 +40,9 @@ func (p *politeiawww) setupEventListenersCMS() {
 }
 
 type dataInvoiceComment struct {
-	token string // Comment token
-	email string // User email
+	token  string    // Comment token
+	email  string    // User email
+	userID uuid.UUID // User ID
 }
 
 func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
@@ -53,7 +54,7 @@ func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 		}
 
 		recipient := make(map[uuid.UUID]string, 1)
-		recipient[p.userEmails[d.email]] = d.email
+		recipient[d.userID] = d.email
 		err := p.emailInvoiceNewComment(recipient)
 		if err != nil {
 			log.Errorf("emailInvoiceNewComment %v: %v", err)
@@ -64,8 +65,9 @@ func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 }
 
 type dataInvoiceStatusUpdate struct {
-	token string // Comment token
-	email string // User email
+	token  string    // Comment token
+	email  string    // User email
+	userID uuid.UUID // User ID
 }
 
 func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
@@ -77,7 +79,7 @@ func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 		}
 
 		recipient := make(map[uuid.UUID]string, 1)
-		recipient[p.userEmails[d.email]] = d.email
+		recipient[d.userID] = d.email
 		err := p.emailInvoiceStatusUpdate(d.token, recipient)
 		if err != nil {
 			log.Errorf("emailInvoiceStatusUpdate %v: %v", err)

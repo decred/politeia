@@ -1356,8 +1356,9 @@ func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetIn
 		// Emit event notification for invoice status update
 		p.events.Emit(eventInvoiceStatusUpdate,
 			dataInvoiceStatusUpdate{
-				token: dbInvoice.Token,
-				email: invoiceUser.Email,
+				token:  dbInvoice.Token,
+				email:  invoiceUser.Email,
+				userID: invoiceUser.ID,
 			})
 	}
 
@@ -2033,8 +2034,9 @@ func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewCo
 		// Emit event notification for a invoice comment
 		p.events.Emit(eventInvoiceComment,
 			dataInvoiceComment{
-				token: nc.Token,
-				email: invoiceUser.Email,
+				token:  nc.Token,
+				email:  invoiceUser.Email,
+				userID: invoiceUser.ID,
 			})
 	}
 	return &www.NewCommentReply{
