@@ -4,18 +4,7 @@
 
 package ticketvote
 
-import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
-
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-)
-
+/* TODO add inventory back in
 const (
 	// filenameInventory is the file name of the ticketvote inventory
 	// that is cached to the plugin data dir.
@@ -438,3 +427,4 @@ func tokensParse(entries []entry, s ticketvote.VoteStatusT, countPerPage, page u
 
 	return tokens
 }
+*/

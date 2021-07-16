@@ -4,17 +4,7 @@
 
 package ticketvote
 
-import (
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"time"
-
-	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-)
-
+/* TODO add hooks back in
 // hookRecordNewPre adds plugin specific validation onto the tstore backend
 // RecordNew method.
 func (p *ticketVotePlugin) hookRecordNewPre(payload string) error {
@@ -458,3 +448,4 @@ func voteMetadataDecode(files []backend.File) (*ticketvote.VoteMetadata, error) 
 	}
 	return voteMD, nil
 }
+*/

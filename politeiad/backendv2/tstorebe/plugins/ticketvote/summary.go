@@ -4,18 +4,7 @@
 
 package ticketvote
 
-import (
-	"encoding/json"
-	"errors"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/util"
-)
-
+/*
 const (
 	// filenameSummary is the file name of the vote summary for a
 	// record. These summaries are cached in the plugin data dir.
@@ -96,3 +85,4 @@ func (p *ticketVotePlugin) summaryCacheSave(token string, sr ticketvote.SummaryR
 
 	return nil
 }
+*/

@@ -4,17 +4,7 @@
 
 package ticketvote
 
-import (
-	"encoding/json"
-	"errors"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/decred/politeia/util"
-)
-
+/*
 const (
 	// fnSubmissions is the filename for the cached submissions data
 	// that is saved to the plugin data dir.
@@ -179,3 +169,4 @@ func (p *ticketVotePlugin) submissionsCacheDel(parentToken, childToken string) e
 
 	return nil
 }
+*/

@@ -4,13 +4,7 @@
 
 package ticketvote
 
-import (
-	"encoding/hex"
-	"sync"
-
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-)
-
+/*
 // activeVotes provides a memory cache for data that is required to validate
 // vote ballots in a time efficient manner. An active vote is added to the
 // cache when a vote is started and is removed from the cache lazily when a
@@ -315,3 +309,4 @@ func (p *ticketVotePlugin) activeVotesAdd(vd ticketvote.VoteDetails) {
 	// Fetch the commitment addresses asynchronously
 	go p.activeVotePopulateAddrs(vd)
 }
+*/

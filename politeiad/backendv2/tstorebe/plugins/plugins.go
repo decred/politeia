@@ -161,6 +161,10 @@ type PluginClient interface {
 	Settings() []backend.PluginSetting
 }
 
+// TODO remove the token argument. It will use the token that the command is
+// being executed on.  Executing commands on other records requires the use
+// of the Backend interace.
+//
 // TstoreClient provides a concurrency safe API for plugins to interact with a
 // tstore instance.  Plugins are allowed to save, delete, and retrieve plugin
 // data to/from the tstore backend.
