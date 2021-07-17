@@ -42,8 +42,10 @@ func (c *client) IsEnabled() bool {
 	return !c.disabled
 }
 
-// SendTo sends an email with the given subject and body to the provided list
-// of email addresses.
+// SendTo sends an email to a list of recipient email addresses.
+// This function does not rate limit emails and a recipient does
+// does not need to correspond to a politeiawww user. This function
+// can be used to send emails to sysadmins or similar cases.
 //
 // This function satisfies the Mailer interface.
 func (c *client) SendTo(subject, body string, recipients []string) error {
@@ -63,9 +65,13 @@ func (c *client) SendTo(subject, body string, recipients []string) error {
 	return c.smtp.Send(msg)
 }
 
-// SendToUsers sends an email with the given subject and body to the provided list
-// of email addresses. This adds an email rate limit functionality in order
-// to avoid spamming from malicious users.
+// SendToUsers sends an email to a list of recipient email
+// addresses. The recipient MUST correspond to a politeiawww user
+// in the database for the email to be sent. This function rate
+// limits the number of emails that can be sent to any individual
+// user over a 24 hour period. If a recipient is provided that does
+// not correspond to a politeiawww user, the email is simply
+// skipped. An error is not returned.
 //
 // This function satisfies the Mailer interface.
 func (c *client) SendToUsers(subjects, body string, recipients map[uuid.UUID]string) error {

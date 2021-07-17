@@ -75,7 +75,7 @@ func (p *Pi) handleEventRecordNew(ch chan interface{}) {
 
 		// Compile notification email list
 		var (
-			recipients = make(map[uuid.UUID]string)
+			recipients = make(map[uuid.UUID]string, 1024)
 			ntfnBit    = uint64(www.NotificationEmailAdminProposalNew)
 		)
 		err := p.userdb.AllUsers(func(u *user.User) {
@@ -128,7 +128,7 @@ func (p *Pi) handleEventRecordEdit(ch chan interface{}) {
 
 		// Compile notification email list
 		var (
-			recipients = make(map[uuid.UUID]string)
+			recipients = make(map[uuid.UUID]string, 1024)
 			authorID   = e.User.ID.String()
 			ntfnBit    = uint64(www.NotificationEmailRegularProposalEdited)
 		)
@@ -207,8 +207,9 @@ func (p *Pi) ntfnRecordSetStatusToAuthor(r rcv1.Record) error {
 	}
 
 	// Author has notification enabled
-	recipient := make(map[uuid.UUID]string, 1)
-	recipient[uid] = author.Email
+	recipient := map[uuid.UUID]string{
+		uid: author.Email,
+	}
 	err = p.mailNtfnProposalSetStatusToAuthor(token, name,
 		status, reason, recipient)
 	if err != nil {
@@ -231,7 +232,7 @@ func (p *Pi) ntfnRecordSetStatus(r rcv1.Record) error {
 
 	// Compile user notification email list
 	var (
-		recipients = make(map[uuid.UUID]string)
+		recipients = make(map[uuid.UUID]string, 1024)
 		ntfnBit    = uint64(www.NotificationEmailRegularProposalVetted)
 	)
 	err := p.userdb.AllUsers(func(u *user.User) {
@@ -341,8 +342,9 @@ func (p *Pi) ntfnCommentNewProposalAuthor(c cmv1.Comment, proposalAuthorID, prop
 	}
 
 	// Send notification email
-	recipient := make(map[uuid.UUID]string, 1)
-	recipient[pauthor.ID] = pauthor.Email
+	recipient := map[uuid.UUID]string{
+		pauthor.ID: pauthor.Email,
+	}
 	err = p.mailNtfnCommentNewToProposalAuthor(c.Token, c.CommentID,
 		c.Username, proposalName, recipient)
 	if err != nil {
@@ -397,8 +399,9 @@ func (p *Pi) ntfnCommentReply(c cmv1.Comment, proposalName string) error {
 	}
 
 	// Send notification email
-	recipient := make(map[uuid.UUID]string, 1)
-	recipient[pauthor.ID] = pauthor.Email
+	recipient := map[uuid.UUID]string{
+		pauthor.ID: pauthor.Email,
+	}
 	err = p.mailNtfnCommentReply(c.Token, c.CommentID,
 		c.Username, proposalName, recipient)
 	if err != nil {
@@ -479,7 +482,7 @@ func (p *Pi) handleEventVoteAuthorized(ch chan interface{}) {
 			token        = e.Auth.Token
 			proposalName string
 			r            rcv1.Record
-			recipients   = make(map[uuid.UUID]string)
+			recipients   = make(map[uuid.UUID]string, 1024)
 			ntfnBit      = uint64(www.NotificationEmailAdminProposalVoteAuthorized)
 			err          error
 		)
@@ -550,8 +553,9 @@ func (p *Pi) ntfnVoteStartedToAuthor(sd tkv1.StartDetails, authorID, proposalNam
 	}
 
 	// Send notification to author
-	recipient := make(map[uuid.UUID]string, 1)
-	recipient[author.ID] = author.Email
+	recipient := map[uuid.UUID]string{
+		author.ID: author.Email,
+	}
 	err = p.mailNtfnVoteStartedToAuthor(token, proposalName, recipient)
 	if err != nil {
 		return err
@@ -569,7 +573,7 @@ func (p *Pi) ntfnVoteStarted(sd tkv1.StartDetails, eventUser user.User, authorID
 	)
 
 	// Compile user notification list
-	recipients := make(map[uuid.UUID]string)
+	recipients := make(map[uuid.UUID]string, 1024)
 	err := p.userdb.AllUsers(func(u *user.User) {
 		switch {
 		case u.ID.String() == eventUser.ID.String():

@@ -1235,13 +1235,13 @@ func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHi
 
 	// Decrypt email history blob and compile the user emails map with their
 	// respective email history.
-	type EmailHistory struct {
+	type emailHistory struct {
 		UserID string
 		Blob   []byte
 	}
 	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
 	for rows.Next() {
-		var hist EmailHistory
+		var hist emailHistory
 		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
 			return nil, err
 		}

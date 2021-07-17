@@ -9,7 +9,6 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 )
 
 const (
@@ -99,28 +98,26 @@ func (p *politeiawww) invoiceNotification(emailCheckVersion int) {
 		log.Tracef("Checked user: %v sending email? %v", user.Username,
 			!invoiceFound)
 		if !invoiceFound {
-			recipient := make(map[uuid.UUID]string, 1)
-			recipient[user.ID] = user.Email
 			switch emailCheckVersion {
 			case firstEmailCheck:
-				err = p.emailInvoiceNotifications(user.Username,
+				err = p.emailInvoiceNotifications(user.Email, user.Username,
 					"Monthly Invoice Reminder",
-					recipient, invoiceFirstNotificationTmpl)
+					invoiceFirstNotificationTmpl)
 				if err != nil {
 					log.Errorf("Error sending first email: %v %v", err, user.Email)
 				}
 			case secondEmailCheck:
-				err = p.emailInvoiceNotifications(user.Username,
+				err = p.emailInvoiceNotifications(user.Email, user.Username,
 					"Awaiting Monthly Invoice",
-					recipient, invoiceSecondNotificationTmpl)
+					invoiceSecondNotificationTmpl)
 				if err != nil {
 					log.Errorf("Error sending second email: %v %v", err, user.Email)
 				}
 
 			case thirdEmailCheck:
-				err = p.emailInvoiceNotifications(user.Username,
+				err = p.emailInvoiceNotifications(user.Email, user.Username,
 					"Final Invoice Notice",
-					recipient, invoiceFinalNotificationTmpl)
+					invoiceFinalNotificationTmpl)
 				if err != nil {
 					log.Errorf("Error sending second email: %v %v", err, user.Email)
 				}

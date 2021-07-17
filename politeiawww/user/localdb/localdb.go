@@ -24,6 +24,9 @@ const (
 
 	// The key for a user session is sessionPrefix+sessionID
 	sessionPrefix = "session:"
+
+	// The key for a user email history is emailHistoryPrefix+userID
+	emailHistoryPrefix = "emailhistory:"
 )
 
 var (
@@ -54,7 +57,8 @@ func isUserRecord(key string) bool {
 		key != LastPaywallAddressIndex &&
 		!strings.HasPrefix(key, sessionPrefix) &&
 		!strings.HasPrefix(key, cmsUserPrefix) &&
-		!strings.HasPrefix(key, cmsCodeStatsPrefix)
+		!strings.HasPrefix(key, cmsCodeStatsPrefix) &&
+		!strings.HasPrefix(key, emailHistoryPrefix)
 }
 
 // Store new user.
@@ -489,7 +493,8 @@ func (l *localdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) 
 		if err != nil {
 			return err
 		}
-		err = l.userdb.Put([]byte(id.String()), payload, nil)
+		key := []byte(emailHistoryPrefix + id.String())
+		err = l.userdb.Put(key, payload, nil)
 		if err != nil {
 			return err
 		}
@@ -517,7 +522,8 @@ func (l *localdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.Email
 
 	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
 	for _, id := range users {
-		payload, err := l.userdb.Get([]byte(id.String()), nil)
+		key := []byte(emailHistoryPrefix + id.String())
+		payload, err := l.userdb.Get(key, nil)
 		if errors.Is(err, leveldb.ErrNotFound) {
 			continue
 		} else if err != nil {

@@ -6,7 +6,6 @@ package main
 
 import (
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 )
 
 const (
@@ -40,9 +39,8 @@ func (p *politeiawww) setupEventListenersCMS() {
 }
 
 type dataInvoiceComment struct {
-	token  string    // Comment token
-	email  string    // User email
-	userID uuid.UUID // User ID
+	token string // Comment token
+	email string // User email
 }
 
 func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
@@ -53,9 +51,7 @@ func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 			continue
 		}
 
-		recipient := make(map[uuid.UUID]string, 1)
-		recipient[d.userID] = d.email
-		err := p.emailInvoiceNewComment(recipient)
+		err := p.emailInvoiceNewComment(d.email)
 		if err != nil {
 			log.Errorf("emailInvoiceNewComment %v: %v", err)
 		}
@@ -65,9 +61,8 @@ func (p *politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 }
 
 type dataInvoiceStatusUpdate struct {
-	token  string    // Comment token
-	email  string    // User email
-	userID uuid.UUID // User ID
+	token string // Comment token
+	email string // User email
 }
 
 func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
@@ -78,9 +73,7 @@ func (p *politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 			continue
 		}
 
-		recipient := make(map[uuid.UUID]string, 1)
-		recipient[d.userID] = d.email
-		err := p.emailInvoiceStatusUpdate(d.token, recipient)
+		err := p.emailInvoiceStatusUpdate(d.token, d.email)
 		if err != nil {
 			log.Errorf("emailInvoiceStatusUpdate %v: %v", err)
 		}
@@ -101,7 +94,7 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 			continue
 		}
 
-		recipients := make(map[uuid.UUID]string)
+		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circumstances where we don't notify
 			switch {
@@ -113,13 +106,13 @@ func (p *politeiawww) handleEventDCCNew(ch chan interface{}) {
 				return
 			}
 
-			recipients[u.ID] = u.Email
+			emails = append(emails, u.Email)
 		})
 		if err != nil {
 			log.Errorf("handleEventDCCNew: AllUsers: %v", err)
 		}
 
-		err = p.emailDCCSubmitted(d.token, recipients)
+		err = p.emailDCCSubmitted(d.token, emails)
 		if err != nil {
 			log.Errorf("emailDCCSubmitted %v: %v", err)
 		}
@@ -140,7 +133,7 @@ func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 			continue
 		}
 
-		recipients := make(map[uuid.UUID]string)
+		emails := make([]string, 0, 256)
 		err := p.db.AllUsers(func(u *user.User) {
 			// Check circumstances where we don't notify
 			switch {
@@ -152,13 +145,13 @@ func (p *politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 				return
 			}
 
-			recipients[u.ID] = u.Email
+			emails = append(emails, u.Email)
 		})
 		if err != nil {
 			log.Errorf("handleEventDCCSupportOppose: AllUsers: %v", err)
 		}
 
-		err = p.emailDCCSupportOppose(d.token, recipients)
+		err = p.emailDCCSupportOppose(d.token, emails)
 		if err != nil {
 			log.Errorf("emailDCCSupportOppose %v: %v", err)
 		}

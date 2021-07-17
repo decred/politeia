@@ -54,3 +54,10 @@ func (m *TestMailerDB) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]Email
 	}
 	return histories, nil
 }
+
+// NewTestMailerDB returns a new TestMailerDB instance.
+func NewTestMailerDB() *TestMailerDB {
+	return &TestMailerDB{
+		Histories: make(map[uuid.UUID]EmailHistory, 5),
+	}
+}

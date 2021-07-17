@@ -174,13 +174,13 @@ func (p *politeiawww) emailUserPasswordChanged(username string, recipient map[uu
 }
 
 // emailUserCMSInvite emails the invitation link for the Contractor Management
-// System to the provided user email address. This function is not rate limited
-// by the smtp client because it is only sent by cms admins.
+// System to the provided user email address.
 func (p *politeiawww) emailUserCMSInvite(email, token string) error {
 	link, err := p.createEmailLink(guiRouteRegisterNewUser, "", token, "")
 	if err != nil {
 		return err
 	}
+
 	tplData := userCMSInvite{
 		Email: email,
 		Link:  link,
@@ -191,17 +191,14 @@ func (p *politeiawww) emailUserCMSInvite(email, token string) error {
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.mail.SendTo(subject, body, []string{email})
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailUserDCCApproved emails the link to invite a user that has been approved
 // by the other contractors from a DCC proposal.
-func (p *politeiawww) emailUserDCCApproved(recipient map[uuid.UUID]string) error {
-	var email string
-	for _, e := range recipient {
-		email = e
-	}
+func (p *politeiawww) emailUserDCCApproved(email string) error {
 	tplData := userDCCApproved{
 		Email: email,
 	}
@@ -211,13 +208,14 @@ func (p *politeiawww) emailUserDCCApproved(recipient map[uuid.UUID]string) error
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.mail.SendToUsers(subject, body, recipient)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailDCCSubmitted sends email regarding the DCC New event. Sends email
 // to the provided email addresses.
-func (p *politeiawww) emailDCCSubmitted(token string, recipients map[uuid.UUID]string) error {
+func (p *politeiawww) emailDCCSubmitted(token string, emails []string) error {
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -234,12 +232,12 @@ func (p *politeiawww) emailDCCSubmitted(token string, recipients map[uuid.UUID]s
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, recipients)
+	return p.mail.SendTo(subject, body, emails)
 }
 
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
 // Sends emails to the provided email addresses.
-func (p *politeiawww) emailDCCSupportOppose(token string, recipients map[uuid.UUID]string) error {
+func (p *politeiawww) emailDCCSupportOppose(token string, emails []string) error {
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -256,12 +254,12 @@ func (p *politeiawww) emailDCCSupportOppose(token string, recipients map[uuid.UU
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, recipients)
+	return p.mail.SendTo(subject, body, emails)
 }
 
 // emailInvoiceStatusUpdate sends email for the invoice status update event.
 // Send email for the provided user email address.
-func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken string, recipient map[uuid.UUID]string) error {
+func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
 	tplData := invoiceStatusUpdate{
 		Token: invoiceToken,
 	}
@@ -271,13 +269,14 @@ func (p *politeiawww) emailInvoiceStatusUpdate(invoiceToken string, recipient ma
 	if err != nil {
 		return err
 	}
+	recipients := []string{userEmail}
 
-	return p.mail.SendToUsers(subject, body, recipient)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailInvoiceNotifications emails users that have not yet submitted an
 // invoice for the given month/year
-func (p *politeiawww) emailInvoiceNotifications(username, subject string, recipient map[uuid.UUID]string, tmpl *template.Template) error {
+func (p *politeiawww) emailInvoiceNotifications(email, username, subject string, tmpl *template.Template) error {
 	// Set the date to the first day of the previous month.
 	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
 	tplData := invoiceNotification{
@@ -289,13 +288,14 @@ func (p *politeiawww) emailInvoiceNotifications(username, subject string, recipi
 	if err != nil {
 		return err
 	}
+	recipients := []string{email}
 
-	return p.mail.SendToUsers(subject, body, recipient)
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 // emailInvoiceNewComment sends email for the invoice new comment event. Send
 // email to the provided user email address.
-func (p *politeiawww) emailInvoiceNewComment(recipient map[uuid.UUID]string) error {
+func (p *politeiawww) emailInvoiceNewComment(userEmail string) error {
 	var tplData interface{}
 	subject := "New Invoice Comment"
 
@@ -303,6 +303,7 @@ func (p *politeiawww) emailInvoiceNewComment(recipient map[uuid.UUID]string) err
 	if err != nil {
 		return err
 	}
+	recipients := []string{userEmail}
 
-	return p.mail.SendToUsers(subject, body, recipient)
+	return p.mail.SendTo(subject, body, recipients)
 }

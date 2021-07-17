@@ -16,9 +16,7 @@ import (
 
 // newClientTest returns a client used for testing purposes.
 func newClientTest() *client {
-	testMailerDB := &user.TestMailerDB{
-		Histories: make(map[uuid.UUID]user.EmailHistory, 5),
-	}
+	testMailerDB := user.NewTestMailerDB()
 
 	return &client{
 		smtp:        nil,
@@ -102,9 +100,10 @@ func TestFilterRecipients(t *testing.T) {
 		Timestamps:       histories[invalidUserID2].Timestamps,
 		LimitWarningSent: true,
 	}
-	iRecipients := make(map[uuid.UUID]string, 2)
-	iRecipients[invalidUserID] = invalidUserEmail
-	iRecipients[invalidUserID2] = invalidUserEmail2
+	iRecipients := map[uuid.UUID]string{
+		invalidUserID:  invalidUserEmail,
+		invalidUserID2: invalidUserEmail2,
+	}
 	iResult := filteredRecipients{
 		valid:     nil,
 		invalid:   []string{invalidUserEmail, invalidUserEmail2},
@@ -112,13 +111,13 @@ func TestFilterRecipients(t *testing.T) {
 	}
 
 	// Test case: only invalid recipients that have received limit warning
-	wantHistories = make(map[uuid.UUID]user.EmailHistory, 1)
-	ilRecipients := make(map[uuid.UUID]string, 2)
-	ilRecipients[invalidUserID3] = invalidUserEmail3
+	ilRecipients := map[uuid.UUID]string{
+		invalidUserID3: invalidUserEmail3,
+	}
 	ilResult := filteredRecipients{
 		valid:     nil,
 		invalid:   nil,
-		histories: wantHistories,
+		histories: map[uuid.UUID]user.EmailHistory{},
 	}
 
 	// Test case: only valid recipients
@@ -131,9 +130,10 @@ func TestFilterRecipients(t *testing.T) {
 		Timestamps:       []int64{nowUnix},
 		LimitWarningSent: false,
 	}
-	vRecipients := make(map[uuid.UUID]string, 2)
-	vRecipients[validUserID] = validUserEmail
-	vRecipients[validUserID2] = validUserEmail2
+	vRecipients := map[uuid.UUID]string{
+		validUserID:  validUserEmail,
+		validUserID2: validUserEmail2,
+	}
 	vResult := filteredRecipients{
 		valid:     []string{validUserEmail, validUserEmail2},
 		invalid:   nil,
@@ -158,11 +158,12 @@ func TestFilterRecipients(t *testing.T) {
 		Timestamps:       histories[invalidUserID2].Timestamps,
 		LimitWarningSent: true,
 	}
-	viRecipients := make(map[uuid.UUID]string, 4)
-	viRecipients[validUserID] = validUserEmail
-	viRecipients[validUserID2] = validUserEmail2
-	viRecipients[invalidUserID] = invalidUserEmail
-	viRecipients[invalidUserID2] = invalidUserEmail2
+	viRecipients := map[uuid.UUID]string{
+		validUserID:    validUserEmail,
+		validUserID2:   validUserEmail2,
+		invalidUserID:  invalidUserEmail,
+		invalidUserID2: invalidUserEmail2,
+	}
 	viResult := filteredRecipients{
 		valid:     []string{validUserEmail, validUserEmail2},
 		invalid:   []string{invalidUserEmail, invalidUserEmail2},
@@ -183,9 +184,10 @@ func TestFilterRecipients(t *testing.T) {
 		Timestamps:       []int64{nowUnix},
 		LimitWarningSent: false,
 	}
-	rRecipients := make(map[uuid.UUID]string, 2)
-	rRecipients[randomID] = randomEmail
-	rRecipients[randomID2] = randomEmail2
+	rRecipients := map[uuid.UUID]string{
+		randomID:  randomEmail,
+		randomID2: randomEmail2,
+	}
 	rResult := filteredRecipients{
 		valid:     []string{randomEmail, randomEmail2},
 		invalid:   nil,
