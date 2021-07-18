@@ -115,21 +115,25 @@ func TestFilterRecipients(t *testing.T) {
 		t.Errorf("user with no email history was not found in the "+
 			"valid emails list: %v", fr.valid)
 	}
+
 	_, ok = valid[emailUnderLimit]
 	if !ok {
 		t.Errorf("user with email history under the rate limit was "+
 			"not found in the valid emails list: %v", fr.valid)
 	}
+
 	_, ok = valid[emailNearLimit]
 	if !ok {
 		t.Errorf("user with email history under the rate limit by 1 "+
 			"was not found in the valid emails list: %v", fr.valid)
 	}
+
 	_, ok = valid[emailAtLimitExpired]
 	if !ok {
 		t.Errorf("user with email history at the rate limit but expired "+
 			"was not found in the valid emails list: %v", fr.valid)
 	}
+
 	if len(fr.valid) != 4 {
 		t.Errorf("valid emails list length want 4, got %v: %v",
 			len(fr.valid), fr.valid)
