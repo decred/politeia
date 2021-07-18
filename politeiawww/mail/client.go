@@ -18,6 +18,13 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	// defaultRateLimitPeriod is the default rate limit period that is
+	// used when initializing a new client. This value is configurable
+	// so that it can be updated during tests.
+	defaultRateLimitPeriod = 24 * time.Hour
+)
+
 // client provides an SMTP client for sending emails from a preset email
 // address.
 //
@@ -27,13 +34,16 @@ type client struct {
 	mailName    string        // From name
 	mailAddress string        // From email address
 	mailerDB    user.MailerDB // User mailer database in www
-	limit       int           // Email rate limit
 	disabled    bool          // Has email been disabled
-}
 
-// cooldown is the elapsed time used to reset a user's limited email
-// history.
-const cooldown = 24 * time.Hour
+	// rateLimit is the maximum number of emails that can be sent to
+	// any individual user during a single rateLimitPeriod. Once the
+	// rate limit is hit the user must wait one rateLimitPeriod before
+	// the will be sent any additional emails. The rate limit is only
+	// applied to certain client methods.
+	rateLimit       int
+	rateLimitPeriod time.Duration
+}
 
 // IsEnabled returns whether the mail server is enabled.
 //
@@ -90,13 +100,13 @@ func (c *client) SendToUsers(subjects, body string, recipients map[uuid.UUID]str
 		return err
 	}
 
-	// Handle invalid recipients.
-	err = c.SendTo(limitEmailSubject, limitEmailBody, filtered.invalid)
+	// Handle warning email recipients.
+	err = c.SendTo(limitEmailSubject, limitEmailBody, filtered.warning)
 	if err != nil {
 		return err
 	}
 
-	// Update email histories on db.
+	// Update email histories in the db.
 	err = c.mailerDB.EmailHistoriesSave(filtered.histories)
 	if err != nil {
 		return err
@@ -105,14 +115,22 @@ func (c *client) SendToUsers(subjects, body string, recipients map[uuid.UUID]str
 	return nil
 }
 
-// filteredRecipients contains the filtered recipients divided into valid,
-// those that are able to receive emails, and invalid, those that have hit
-// the email rate limit, but have not yet received the warning email. It will
-// also contains the updated email histories for each user email present on the
-// valid and invalid lists.
+// filteredRecipients is returned by the filteredRecipients function and
+// contains the recipients that should receive some sort of email notification.
+// Users that have already hit the email rate limit are not included in this
+// reply.
 type filteredRecipients struct {
-	valid     []string
-	invalid   []string
+	// valid contains the email addresses of the users that have not
+	// hit the email rate limit and are eligible to receive an email.
+	valid []string
+
+	// warning contains the email addresses of the users that have hit
+	// the email rate limit during this invocation and should be sent
+	// the rate limit warning email.
+	warning []string
+
+	// histories contains the updated email histories of the users in
+	// the valid and warning lists.
 	histories map[uuid.UUID]user.EmailHistory
 }
 
@@ -129,7 +147,7 @@ func (c *client) filterRecipients(users map[uuid.UUID]string) (*filteredRecipien
 		return nil, err
 	}
 
-	// Divide recipients into valid and invalid recipients, and parse their
+	// Divide recipients into valid and warning recipients, and parse their
 	// new email history.
 	var recipients filteredRecipients
 	recipients.histories = make(map[uuid.UUID]user.EmailHistory, len(users))
@@ -147,14 +165,15 @@ func (c *client) filterRecipients(users map[uuid.UUID]string) (*filteredRecipien
 		}
 
 		// Filter timestamps for the past 24h.
-		history.Timestamps = filterTimestamps(history.Timestamps, cooldown)
+		history.Timestamps = filterTimestamps(history.Timestamps,
+			c.rateLimitPeriod)
 
-		if len(history.Timestamps) >= c.limit {
+		if len(history.Timestamps) >= c.rateLimit {
 			// Rate limit has been hit. If limit warning email has not yet
-			// been sent, add user to invalid recipients and update email
+			// been sent, add user to warning recipients and update email
 			// history.
 			if !history.LimitWarningSent {
-				recipients.invalid = append(recipients.invalid, email)
+				recipients.warning = append(recipients.warning, email)
 				history.LimitWarningSent = true
 				recipients.histories[userID] = history
 			}
@@ -189,16 +208,17 @@ func filterTimestamps(in []int64, delta time.Duration) []int64 {
 	return out
 }
 
-// Limit warning email texts that are sent to invalid users.
+// The limit email is sent to users as a warning when they hit the email rate
+// limit.
 const limitEmailSubject = "Email Rate Limit Hit"
 const limitEmailBody = `
-Your email rate limit for the past 24h has been hit. This measure is used to avoid malicious users spamming Politeia's email server. 
-	
+Your email rate limit for the past 24 hours has been hit. This measure is used to avoid malicious users from spamming Politeia's email server. You will not receive any notification emails for 24 hours.
+
 We apologize for any inconvenience.
 `
 
 // NewClient returns a new client.
-func NewClient(host, user, password, emailAddress, certPath string, skipVerify bool, limit int, db user.MailerDB) (*client, error) {
+func NewClient(host, user, password, emailAddress, certPath string, skipVerify bool, rateLimit int, db user.MailerDB) (*client, error) {
 	// Email is considered disabled if any of the required user
 	// credentials are missing.
 	if host == "" || user == "" || password == "" {
@@ -249,11 +269,12 @@ func NewClient(host, user, password, emailAddress, certPath string, skipVerify b
 	}
 
 	return &client{
-		smtp:        smtp,
-		mailName:    a.Name,
-		mailAddress: a.Address,
-		mailerDB:    db,
-		limit:       limit,
-		disabled:    false,
+		smtp:            smtp,
+		mailName:        a.Name,
+		mailAddress:     a.Address,
+		mailerDB:        db,
+		disabled:        false,
+		rateLimit:       rateLimit,
+		rateLimitPeriod: defaultRateLimitPeriod,
 	}, nil
 }

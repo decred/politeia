@@ -10,250 +10,214 @@ import (
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 )
 
-// newClientTest returns a client used for testing purposes.
-func newClientTest() *client {
-	testMailerDB := user.NewTestMailerDB()
-
-	return &client{
-		smtp:        nil,
-		mailName:    "test",
-		mailAddress: "test@email.com",
-		mailerDB:    testMailerDB,
-		limit:       3,
-		disabled:    false,
-	}
-}
-
 func TestFilterRecipients(t *testing.T) {
-	c := newClientTest()
+	// Setup test params
+	var (
+		rateLimit       = 3
+		rateLimitPeriod = 100 * time.Second
 
-	// Mock initial data
-	histories := make(map[uuid.UUID]user.EmailHistory, 5)
+		userNoHistory  = uuid.New() // No email history yet
+		userUnderLimit = uuid.New() // Under rate limit by more than 1
+		userNearLimit  = uuid.New() // Under rate limit by 1
+		userAtLimit    = uuid.New() // At rate limit
 
-	// Valid recipients mock
-	nowUnix := time.Now().Unix()
-	validUserID := uuid.New()
-	validUserEmail := "valid@email.com"
-	histories[validUserID] = user.EmailHistory{
-		Timestamps: []int64{
-			nowUnix,
-			time.Now().Add(-(cooldown)).Unix(),
-			time.Now().Add(-(cooldown)).Unix(),
-		},
-		LimitWarningSent: false,
-	}
-	validUserID2 := uuid.New()
-	validUserEmail2 := "valid2@email.com"
-	histories[validUserID2] = user.EmailHistory{
-		Timestamps: []int64{
-			time.Now().Add(-(cooldown)).Unix(),
-			time.Now().Add(-(cooldown)).Unix(),
-			time.Now().Add(-(cooldown)).Unix(),
-		},
-		LimitWarningSent: false,
-	}
+		// userAtLimitExpired is a user that is at the email rate limit
+		// but the emails were sent in a previous rate limit period,
+		// meaning the user's email history should be reset and they
+		// should continue to receive emails.
+		userAtLimitExpired = uuid.New()
 
-	// Invalid recipients mock
-	invalidUserID := uuid.New()
-	invalidUserEmail := "invalid@email.com"
-	histories[invalidUserID] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix, nowUnix, nowUnix},
-		LimitWarningSent: false,
-	}
-	invalidUserID2 := uuid.New()
-	invalidUserEmail2 := "invalid2@email.com"
-	histories[invalidUserID2] = user.EmailHistory{
-		Timestamps: []int64{
-			time.Now().Add(-(12 * time.Hour)).Unix(),
-			time.Now().Add(-(12 * time.Hour)).Unix(),
-			time.Now().Add(-(12 * time.Hour)).Unix(),
-		},
-		LimitWarningSent: false,
-	}
+		emailNoHistory      = "no_history@email.com"
+		emailUnderLimit     = "under_limit@email.com"
+		emailNearLimit      = "near_limit@email.com"
+		emailAtLimit        = "at_limit@email.com"
+		emailAtLimitExpired = "at_limit_expired@example.com"
 
-	invalidUserID3 := uuid.New()
-	invalidUserEmail3 := "invalid3@email.com"
-	histories[invalidUserID3] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix, nowUnix, nowUnix},
-		LimitWarningSent: true,
-	}
+		// The following timestamps are within the current rate limit
+		// period.
+		now   = time.Now()
+		time1 = now.Unix() - 1 // 1 second in the past
+		time2 = now.Unix() - 2 // 2 seconds in the past
+		time3 = now.Unix() - 3 // 3 seconds in the past
 
-	// Save mocked data
-	err := c.mailerDB.EmailHistoriesSave(histories)
+		// The following timestamps are expired, meaning they occured in
+		// a previous rate limit period and should not be counted as part
+		// of the current rate limit period.
+		expired  = now.Add(-rateLimitPeriod)
+		expired1 = expired.Unix() - 1 // 1 second expired
+		expired2 = expired.Unix() - 2 // 2 seconds expired
+		expired3 = expired.Unix() - 3 // 3 seconds expired
+
+		// histories contains the emails histories that will be seeded
+		// in the MailerDB for the test.
+		histories = map[uuid.UUID]user.EmailHistory{
+			userUnderLimit: user.EmailHistory{
+				Timestamps:       []int64{time1},
+				LimitWarningSent: false,
+			},
+
+			userNearLimit: user.EmailHistory{
+				Timestamps:       []int64{time2, time1},
+				LimitWarningSent: false,
+			},
+
+			userAtLimit: user.EmailHistory{
+				Timestamps:       []int64{time3, time2, time1},
+				LimitWarningSent: true,
+			},
+
+			userAtLimitExpired: user.EmailHistory{
+				Timestamps:       []int64{expired3, expired2, expired1},
+				LimitWarningSent: true,
+			},
+		}
+
+		// emails contains the email list that will be provided to the
+		// filterRecipients function for the test.
+		emails = map[uuid.UUID]string{
+			userNoHistory:      emailNoHistory,
+			userUnderLimit:     emailUnderLimit,
+			userNearLimit:      emailNearLimit,
+			userAtLimit:        emailAtLimit,
+			userAtLimitExpired: emailAtLimitExpired,
+		}
+	)
+
+	// Setup test mail client
+	c := newTestClient(rateLimit, rateLimitPeriod, histories)
+
+	// Run test
+	fr, err := c.filterRecipients(emails)
 	if err != nil {
-		t.Fatalf("EmailHistoriesSave: %v", err)
+		t.Error(err)
 	}
 
-	// Test cases helper variables
-
-	// Test case: only invalid recipients
-	wantHistories := make(map[uuid.UUID]user.EmailHistory, 2)
-	wantHistories[invalidUserID] = user.EmailHistory{
-		Timestamps:       histories[invalidUserID].Timestamps,
-		LimitWarningSent: true,
+	// Put the valid and warning lists into maps for easy verification
+	// that a value has been included.
+	var (
+		valid   = make(map[string]struct{}, len(fr.valid))
+		warning = make(map[string]struct{}, len(fr.warning))
+	)
+	for _, v := range fr.valid {
+		valid[v] = struct{}{}
 	}
-	wantHistories[invalidUserID2] = user.EmailHistory{
-		Timestamps:       histories[invalidUserID2].Timestamps,
-		LimitWarningSent: true,
-	}
-	iRecipients := map[uuid.UUID]string{
-		invalidUserID:  invalidUserEmail,
-		invalidUserID2: invalidUserEmail2,
-	}
-	iResult := filteredRecipients{
-		valid:     nil,
-		invalid:   []string{invalidUserEmail, invalidUserEmail2},
-		histories: wantHistories,
+	for _, v := range fr.warning {
+		warning[v] = struct{}{}
 	}
 
-	// Test case: only invalid recipients that have received limit warning
-	ilRecipients := map[uuid.UUID]string{
-		invalidUserID3: invalidUserEmail3,
+	// Verify valid emails list. This should contain the users:
+	// noHistory, underLimit, nearLimit, atLimitExpired.
+	_, ok := valid[emailNoHistory]
+	if !ok {
+		t.Errorf("user with no email history was not found in the "+
+			"valid emails list: %v", fr.valid)
 	}
-	ilResult := filteredRecipients{
-		valid:     nil,
-		invalid:   nil,
-		histories: map[uuid.UUID]user.EmailHistory{},
+	_, ok = valid[emailUnderLimit]
+	if !ok {
+		t.Errorf("user with email history under the rate limit was "+
+			"not found in the valid emails list: %v", fr.valid)
 	}
-
-	// Test case: only valid recipients
-	wantHistories = make(map[uuid.UUID]user.EmailHistory, 2)
-	wantHistories[validUserID] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix, nowUnix},
-		LimitWarningSent: false,
+	_, ok = valid[emailNearLimit]
+	if !ok {
+		t.Errorf("user with email history under the rate limit by 1 "+
+			"was not found in the valid emails list: %v", fr.valid)
 	}
-	wantHistories[validUserID2] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix},
-		LimitWarningSent: false,
+	_, ok = valid[emailAtLimitExpired]
+	if !ok {
+		t.Errorf("user with email history at the rate limit but expired "+
+			"was not found in the valid emails list: %v", fr.valid)
 	}
-	vRecipients := map[uuid.UUID]string{
-		validUserID:  validUserEmail,
-		validUserID2: validUserEmail2,
-	}
-	vResult := filteredRecipients{
-		valid:     []string{validUserEmail, validUserEmail2},
-		invalid:   nil,
-		histories: wantHistories,
+	if len(fr.valid) != 4 {
+		t.Errorf("valid emails list length want 4, got %v: %v",
+			len(fr.valid), fr.valid)
 	}
 
-	// Test case: valid and invalid recipients
-	wantHistories = make(map[uuid.UUID]user.EmailHistory, 4)
-	wantHistories[validUserID] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix, nowUnix},
-		LimitWarningSent: false,
-	}
-	wantHistories[validUserID2] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix},
-		LimitWarningSent: false,
-	}
-	wantHistories[invalidUserID] = user.EmailHistory{
-		Timestamps:       histories[invalidUserID].Timestamps,
-		LimitWarningSent: true,
-	}
-	wantHistories[invalidUserID2] = user.EmailHistory{
-		Timestamps:       histories[invalidUserID2].Timestamps,
-		LimitWarningSent: true,
-	}
-	viRecipients := map[uuid.UUID]string{
-		validUserID:    validUserEmail,
-		validUserID2:   validUserEmail2,
-		invalidUserID:  invalidUserEmail,
-		invalidUserID2: invalidUserEmail2,
-	}
-	viResult := filteredRecipients{
-		valid:     []string{validUserEmail, validUserEmail2},
-		invalid:   []string{invalidUserEmail, invalidUserEmail2},
-		histories: wantHistories,
+	// Verify warning emails. The only user that hit the rate limit
+	// this invocation and thus should be in the warning emails list
+	// is the nearLimit user.
+	_, ok = warning[emailNearLimit]
+	switch {
+	case !ok:
+		t.Errorf("user that hit the rate limit was not found in the "+
+			"warning emails list: %v", fr.warning)
+
+	case len(fr.valid) != 1:
+		t.Errorf("warning emails list length want 1, got %v: %v",
+			len(fr.valid), fr.warning)
 	}
 
-	// Test case: recipients without an email history
-	randomEmail := "random@email.com"
-	randomEmail2 := "random2@email.com"
-	randomID := uuid.New()
-	randomID2 := uuid.New()
-	wantHistories = make(map[uuid.UUID]user.EmailHistory, 2)
-	wantHistories[randomID] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix},
-		LimitWarningSent: false,
-	}
-	wantHistories[randomID2] = user.EmailHistory{
-		Timestamps:       []int64{nowUnix},
-		LimitWarningSent: false,
-	}
-	rRecipients := map[uuid.UUID]string{
-		randomID:  randomEmail,
-		randomID2: randomEmail2,
-	}
-	rResult := filteredRecipients{
-		valid:     []string{randomEmail, randomEmail2},
-		invalid:   nil,
-		histories: wantHistories,
+	// Verify returned email history for noHistory user
+	eh, ok := fr.histories[userNoHistory]
+	switch {
+	case !ok:
+		t.Errorf("user with no email history was not found in the " +
+			"histories list")
+
+	case len(eh.Timestamps) != 1:
+		t.Errorf("histories length for user with no email history: "+
+			"want 1, got %v", len(eh.Timestamps))
+
+	case eh.LimitWarningSent:
+		t.Errorf("limit warning sent for user with no email history: " +
+			"want false, got true")
 	}
 
-	// Setup test cases
-	var tests = []struct {
-		name       string
-		recipients map[uuid.UUID]string
-		wantResult *filteredRecipients
-	}{
-		{
-			"only invalid recipients",
-			iRecipients,
-			&iResult,
-		},
-		{
-			"only invalid recipients that have received limit warning",
-			ilRecipients,
-			&ilResult,
-		},
-		{
-			"only valid recipients",
-			vRecipients,
-			&vResult,
-		},
-		{
-			"valid and invalid recipients",
-			viRecipients,
-			&viResult,
-		},
-		{
-			"recipients without an email history",
-			rRecipients,
-			&rResult,
-		},
+	// Verify returned email history for underLimit user
+	eh, ok = fr.histories[userUnderLimit]
+	switch {
+	case !ok:
+		t.Errorf("user with email history under the rate limit was " +
+			"not found in the histories list")
+
+	case len(eh.Timestamps) != 2:
+		t.Errorf("histories length for user under the rate limit: "+
+			"want 2, got %v", len(eh.Timestamps))
+
+	case eh.LimitWarningSent:
+		t.Errorf("limit warning sent for user with email history " +
+			"under the rate limit: want false, got true")
 	}
 
-	for _, v := range tests {
-		t.Run(v.name, func(t *testing.T) {
-			filtered, err := c.filterRecipients(v.recipients)
-			if err != nil {
-				t.Fatalf("filterRecipients: %v", err)
-			}
+	// Verify returned email history for nearLimit user
+	eh, ok = fr.histories[userNearLimit]
+	switch {
+	case !ok:
+		t.Errorf("user with email history under the rate limit " +
+			"by one was not found in the histories list")
 
-			// Sort slices with cmpopts before comparing the diffs.
-			less := func(a, b string) bool { return a < b }
+	case len(eh.Timestamps) != 3:
+		t.Errorf("histories length for user under the rate limit "+
+			"by one: want 3, got %v", len(eh.Timestamps))
 
-			// Compare results with desired ones from test case.
-			diff := cmp.Diff(filtered.valid, v.wantResult.valid,
-				cmpopts.SortSlices(less))
-			if diff != "" {
-				t.Errorf("got/want diff: \n%v", diff)
-			}
-			diff = cmp.Diff(filtered.invalid, v.wantResult.invalid,
-				cmpopts.SortSlices(less))
-			if diff != "" {
-				t.Errorf("got/want diff: \n%v", diff)
-			}
-			diff = cmp.Diff(filtered.histories, v.wantResult.histories,
-				cmpopts.SortSlices(less))
-			if diff != "" {
-				t.Errorf("got/want diff: \n%v", diff)
-			}
-		})
+	case !eh.LimitWarningSent:
+		t.Errorf("limit warning sent for user with email history " +
+			"under the rate limit by one: want true, got false")
+	}
+
+	// Verify returned email history for atLimitExpired user
+	eh, ok = fr.histories[userAtLimitExpired]
+	switch {
+	case !ok:
+		t.Errorf("user with email history at the rate limit but " +
+			"expired was not found in the histories list")
+
+	case len(eh.Timestamps) != 1:
+		t.Errorf("histories length for user under the rate limit: "+
+			"want 1, got %v", len(eh.Timestamps))
+
+	case eh.LimitWarningSent:
+		t.Errorf("limit warning sent for user with email history " +
+			"at the rate limit but expired: want false, got true")
+	}
+
+	// Verify the filtered histories does not contain unexpected
+	// histories.
+	if len(fr.histories) != 4 {
+		t.Errorf("filtered histories length: want 4, got %v",
+			len(fr.histories))
 	}
 }
 
@@ -310,5 +274,20 @@ func TestFilterTimestamps(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+// newTestClient returns a new client that is setup for testing. The caller can
+// optionally provide a list of email histories to seed the testMailerDB with
+// on intialization.
+func newTestClient(rateLimit int, rateLimitPeriod time.Duration, histories map[uuid.UUID]user.EmailHistory) *client {
+	return &client{
+		smtp:            nil,
+		mailName:        "test",
+		mailAddress:     "test@email.com",
+		mailerDB:        user.NewTestMailerDB(histories),
+		disabled:        false,
+		rateLimit:       rateLimit,
+		rateLimitPeriod: rateLimitPeriod,
 	}
 }

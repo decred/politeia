@@ -28,8 +28,12 @@ type MailerDB interface {
 // transactions, and email notifications run in a separate goroutine. This
 // workaround won't be necessary once the user layer gets rewritten.
 type EmailHistory struct {
-	Timestamps       []int64 `json:"timestamps"` // Received email UNIX ts
-	LimitWarningSent bool    `json:"limitwarningsent"`
+	Timestamps []int64 `json:"timestamps"` // Received email UNIX ts
+
+	// LimitWarningSent is used to track users that have hit the rate
+	// limit and have already been sent a notification email letting
+	// them know that they hit the rate limit.
+	LimitWarningSent bool `json:"limitwarningsent"`
 }
 
 // VersionEmailHistory is the version of the EmailHistory struct.
