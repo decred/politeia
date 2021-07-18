@@ -122,8 +122,8 @@ func (c *client) SendToUsers(subjects, body string, recipients map[uuid.UUID]str
 // reply.
 //
 // If a user has previously hit the rate limit, but a full rate limit period
-// has passed since then, their email history is reset and they will be
-// included in the reply.
+// has passed, their email history is reset and they will be included in the
+// reply.
 type filteredRecipients struct {
 	// valid contains the email addresses of the users that have not
 	// hit the email rate limit and are eligible to receive an email.
