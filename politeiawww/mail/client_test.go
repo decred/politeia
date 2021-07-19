@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 )
 
@@ -33,7 +34,7 @@ func TestFilterRecipients(t *testing.T) {
 		emailUnderLimit     = "under_limit@email.com"
 		emailNearLimit      = "near_limit@email.com"
 		emailAtLimit        = "at_limit@email.com"
-		emailAtLimitExpired = "at_limit_expired@example.com"
+		emailAtLimitExpired = "at_limit_expired@email.com"
 
 		// The following timestamps are within the current rate limit
 		// period.
@@ -224,6 +225,20 @@ func TestFilterRecipients(t *testing.T) {
 }
 
 func TestFilterTimestamps(t *testing.T) {
+	// Timestamps that are expired based on the default rate limit period,
+	// and that must not be contained on the output if passed as input.
+	minus24h := time.Now().Add(-(24 * time.Hour)).Unix()
+	minus26h := time.Now().Add(-(26 * time.Hour)).Unix()
+	minus28h := time.Now().Add(-(28 * time.Hour)).Unix()
+	minus36h := time.Now().Add(-(36 * time.Hour)).Unix()
+	minus42h := time.Now().Add(-(42 * time.Hour)).Unix()
+
+	// Timestamps that are still valid and within the default rate limit period,
+	// and that must be contained on the output if passed as input.
+	minus12h := time.Now().Add(-(12 * time.Hour)).Unix()
+	minus14h := time.Now().Add(-(14 * time.Hour)).Unix()
+	minus16h := time.Now().Add(-(16 * time.Hour)).Unix()
+
 	// Setup test cases
 	var tests = []struct {
 		name    string
@@ -232,48 +247,29 @@ func TestFilterTimestamps(t *testing.T) {
 	}{
 		{
 			"remove all timestamps",
-			[]int64{
-				time.Now().Add(-(24 * time.Hour)).Unix(),
-				time.Now().Add(-(36 * time.Hour)).Unix(),
-				time.Now().Add(-(42 * time.Hour)).Unix(),
-			},
+			[]int64{minus24h, minus36h, minus42h},
 			[]int64{},
 		},
 		{
 			"remove stale timestamps",
-			[]int64{
-				time.Now().Add(-(12 * time.Hour)).Unix(),
-				time.Now().Add(-(26 * time.Hour)).Unix(),
-				time.Now().Add(-(28 * time.Hour)).Unix(),
-			},
-			[]int64{
-				time.Now().Add(-(12 * time.Hour)).Unix(),
-			},
+			[]int64{minus12h, minus26h, minus28h},
+			[]int64{minus12h},
 		},
 		{
 			"no timestamps to remove",
-			[]int64{
-				time.Now().Add(-(12 * time.Hour)).Unix(),
-				time.Now().Add(-(14 * time.Hour)).Unix(),
-				time.Now().Add(-(16 * time.Hour)).Unix(),
-			},
-			[]int64{
-				time.Now().Add(-(12 * time.Hour)).Unix(),
-				time.Now().Add(-(14 * time.Hour)).Unix(),
-				time.Now().Add(-(16 * time.Hour)).Unix(),
-			},
+			[]int64{minus12h, minus14h, minus16h},
+			[]int64{minus12h, minus14h, minus16h},
 		},
 	}
 
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			out := filterTimestamps(v.in, 24*time.Hour)
+			out := filterTimestamps(v.in, defaultRateLimitPeriod)
 
-			// Verify if the length of the function output matches the
-			// expected output.
-			if len(out) != len(v.wantOut) {
-				t.Errorf("got %v timestamp outputs, want %v",
-					len(out), len(v.wantOut))
+			// Verify if the function output matches the expected output.
+			diff := cmp.Diff(out, v.wantOut)
+			if diff != "" {
+				t.Errorf("got/want diff: \n%v", diff)
 			}
 		})
 	}
