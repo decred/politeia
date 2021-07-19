@@ -154,46 +154,54 @@ func (c *client) filterRecipients(users map[uuid.UUID]string) (*filteredRecipien
 
 	// Divide recipients into valid and warning recipients, and parse their
 	// new email history.
-	var recipients filteredRecipients
-	recipients.histories = make(map[uuid.UUID]user.EmailHistory, len(users))
+	var (
+		valid     = make([]string, 0, len(users))
+		warning   = make([]string, 0, len(users))
+		histories = make(map[uuid.UUID]user.EmailHistory, len(users))
+	)
 	for userID, email := range users {
 		history, ok := hs[userID]
 		if !ok {
 			// User does not have a mail history yet, add user to valid
 			// recipients and create his email history.
-			recipients.histories[userID] = user.EmailHistory{
+			histories[userID] = user.EmailHistory{
 				Timestamps:       []int64{time.Now().Unix()},
 				LimitWarningSent: false,
 			}
-			recipients.valid = append(recipients.valid, email)
+			valid = append(valid, email)
 			continue
 		}
 
-		// Filter timestamps for the past 24h.
+		// Filter timestamps for the past rate limit period.
 		history.Timestamps = filterTimestamps(history.Timestamps,
 			c.rateLimitPeriod)
 
-		if len(history.Timestamps) >= c.rateLimit {
-			// Rate limit has been hit. If limit warning email has not yet
-			// been sent, add user to warning recipients and update email
-			// history.
-			if !history.LimitWarningSent {
-				recipients.warning = append(recipients.warning, email)
-				history.LimitWarningSent = true
-				recipients.histories[userID] = history
-			}
-			continue
+		// Check if user can receive the email notification.
+		if len(history.Timestamps) < c.rateLimit {
+			// Rate limit has not been hit, add user to valid recipients and
+			// update email history.
+			valid = append(valid, email)
+			history.Timestamps = append(history.Timestamps, time.Now().Unix())
+			history.LimitWarningSent = false
+			histories[userID] = history
 		}
 
-		// Rate limit has not been hit, add user to valid recipients and
-		// update email history.
-		recipients.valid = append(recipients.valid, email)
-		history.Timestamps = append(history.Timestamps, time.Now().Unix())
-		history.LimitWarningSent = false
-		recipients.histories[userID] = history
+		// Check if user has hit the email rate limit and needs to be warned.
+		if len(history.Timestamps) == c.rateLimit && !history.LimitWarningSent {
+			// Rate limit has been hit with the last email notification above.
+			// If limit warning email has not yet been sent, add user to
+			// warning recipients and update email history.
+			warning = append(warning, email)
+			history.LimitWarningSent = true
+			histories[userID] = history
+		}
 	}
 
-	return &recipients, nil
+	return &filteredRecipients{
+		valid:     valid,
+		warning:   warning,
+		histories: histories,
+	}, nil
 }
 
 // filterTimestamps filters out timestamps from the passed in slice that comes

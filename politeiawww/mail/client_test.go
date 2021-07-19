@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 )
 
@@ -43,7 +42,7 @@ func TestFilterRecipients(t *testing.T) {
 		time2 = now.Unix() - 2 // 2 seconds in the past
 		time3 = now.Unix() - 3 // 3 seconds in the past
 
-		// The following timestamps are expired, meaning they occured in
+		// The following timestamps are expired, meaning they occurred in
 		// a previous rate limit period and should not be counted as part
 		// of the current rate limit period.
 		expired  = now.Add(-rateLimitPeriod)
@@ -54,22 +53,22 @@ func TestFilterRecipients(t *testing.T) {
 		// histories contains the emails histories that will be seeded
 		// in the MailerDB for the test.
 		histories = map[uuid.UUID]user.EmailHistory{
-			userUnderLimit: user.EmailHistory{
+			userUnderLimit: {
 				Timestamps:       []int64{time1},
 				LimitWarningSent: false,
 			},
 
-			userNearLimit: user.EmailHistory{
+			userNearLimit: {
 				Timestamps:       []int64{time2, time1},
 				LimitWarningSent: false,
 			},
 
-			userAtLimit: user.EmailHistory{
+			userAtLimit: {
 				Timestamps:       []int64{time3, time2, time1},
 				LimitWarningSent: true,
 			},
 
-			userAtLimitExpired: user.EmailHistory{
+			userAtLimitExpired: {
 				Timestamps:       []int64{expired3, expired2, expired1},
 				LimitWarningSent: true,
 			},
@@ -148,12 +147,11 @@ func TestFilterRecipients(t *testing.T) {
 		t.Errorf("user that hit the rate limit was not found in the "+
 			"warning emails list: %v", fr.warning)
 
-	case len(fr.valid) != 1:
+	case len(fr.warning) != 1:
 		t.Errorf("warning emails list length want 1, got %v: %v",
-			len(fr.valid), fr.warning)
+			len(fr.warning), fr.warning)
 	}
 
-	// Verify returned email history for noHistory user
 	eh, ok := fr.histories[userNoHistory]
 	switch {
 	case !ok:
@@ -271,12 +269,12 @@ func TestFilterTimestamps(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			out := filterTimestamps(v.in, 24*time.Hour)
 
-			// Compare result with desired one from test case
-			diff := cmp.Diff(out, v.wantOut)
-			if diff != "" {
-				t.Errorf("got/want diff: \n%v", diff)
+			// Verify if the length of the function output matches the
+			// expected output.
+			if len(out) != len(v.wantOut) {
+				t.Errorf("got %v timestamp outputs, want %v",
+					len(out), len(v.wantOut))
 			}
-
 		})
 	}
 }

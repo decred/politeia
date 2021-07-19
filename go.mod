@@ -28,7 +28,6 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/go-test/deep v1.0.1
 	github.com/golang/protobuf v1.4.3
-	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/trillian v1.3.13
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/csrf v1.6.2
