@@ -5,7 +5,7 @@
 # - MYSQL_PORT: The port the MySQL server is listening on (default: 3306).
 # - MYSQL_ROOT_USER: A user with sufficient rights to create new users and
 #   create/drop the politeiad database (default: root).
-# - MYSQL_ROOT_PASSWORD: The password for the user defined by MYSQL_ROOT_USER
+# - MYSQL_ROOT_PASSWORD: The password for the user defined by MYSQL_ROOT_USER 
 #   (requed, default: none).
 # - MYSQL_USER_HOST: The host that the politeiad and trillian users will
 #   connect from; use '%' as a wildcard (default: localhost).
