@@ -284,6 +284,8 @@ func convertVoteStatusToPlugin(s v1.VoteStatusT) ticketvote.VoteStatusT {
 		return ticketvote.VoteStatusApproved
 	case v1.VoteStatusRejected:
 		return ticketvote.VoteStatusRejected
+	case v1.VoteStatusIneligible:
+		return ticketvote.VoteStatusIneligible
 	default:
 		return ticketvote.VoteStatusInvalid
 	}
