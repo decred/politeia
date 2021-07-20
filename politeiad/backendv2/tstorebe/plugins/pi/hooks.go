@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -140,6 +141,43 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 	return p.proposalNameRegexp.MatchString(name)
 }
 
+// proposalStartDateIsValid returns whether the provided start date is valid.
+//
+// A valid start date of a proposal must be in the future.
+func (p *piPlugin) proposalStartDateIsValid(sd int64) bool {
+	return sd > time.Now().Unix()
+}
+
+// proposalEndDateIsValid returns whether the provided end date is valid.
+//
+// A valid end date must be after the start date and before the end of the
+// time interval set by the proposalEndDateMax plugin setting.
+func (p *piPlugin) proposalEndDateIsValid(sd int64, ed int64) bool {
+	return ed > sd &&
+		time.Now().Unix()+p.proposalEndDateMax > ed
+}
+
+// proposalAmountIsValid returns whether the provided amount is in the range
+// defined by the proposalAmountMin & proposalAmountMax plugin settings.
+func (p *piPlugin) proposalAmountIsValid(amount uint64) bool {
+	return p.proposalAmountMin <= amount &&
+		p.proposalAmountMax >= amount
+}
+
+// proposalDomainIsValid returns whether the provided domain is
+// is a valid proposal domain.
+func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
+	var found bool
+	for _, d := range p.proposalDomains {
+		if d == domain {
+			found = true
+			break
+		}
+	}
+
+	return found, nil
+}
+
 // proposalFilesVerify verifies the files adhere to all pi plugin setting
 // requirements. If this hook is being executed then the files have already
 // passed politeiad validation so we can assume that the file has a unique
@@ -255,6 +293,53 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeProposalNameInvalid),
 			ErrorContext: p.proposalNameRegexp.String(),
+		}
+	}
+
+	// Validate proposal start date.
+	if !p.proposalStartDateIsValid(pm.StartDate) {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeProposalStartDateInvalid),
+			ErrorContext: fmt.Sprintf("got %v start date, min is %v",
+				pm.StartDate, time.Now().Unix()),
+		}
+	}
+
+	// Validate proposal end date.
+	if !p.proposalEndDateIsValid(pm.StartDate, pm.EndDate) {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeProposalEndDateInvalid),
+			ErrorContext: fmt.Sprintf("got %v end date, min is start date %v, "+
+				"max is %v",
+				pm.EndDate,
+				pm.StartDate,
+				time.Now().Unix()+pi.SettingProposalEndDateMax),
+		}
+	}
+
+	// Validate proposal amount.
+	if !p.proposalAmountIsValid(pm.Amount) {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeProposalAmountInvalid),
+			ErrorContext: fmt.Sprintf("got %v amount, min is %v, "+
+				"max is %v", pm.Amount, p.proposalAmountMin, p.proposalAmountMax),
+		}
+	}
+
+	// Validate proposal domain.
+	validDomain, err := p.proposalDomainIsValid(pm.Domain)
+	if err != nil {
+		return err
+	}
+	if !validDomain {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeProposalDomainInvalid),
+			ErrorContext: fmt.Sprintf("got %v domain, "+
+				"supported domains are: %v", pm.Domain, p.proposalDomains),
 		}
 	}
 

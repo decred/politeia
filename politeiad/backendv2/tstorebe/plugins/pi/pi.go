@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -44,6 +45,10 @@ type piPlugin struct {
 	proposalNameLengthMin      uint32 // In characters
 	proposalNameLengthMax      uint32 // In characters
 	proposalNameRegexp         *regexp.Regexp
+	proposalAmountMin          uint64 // In cents
+	proposalAmountMax          uint64 // In cents
+	proposalEndDateMax         int64  // Seconds for current time
+	proposalDomains            []string
 }
 
 // Setup performs any plugin setup that is required.
@@ -126,6 +131,22 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Key:   pi.SettingKeyProposalNameSupportedChars,
 			Value: p.proposalNameSupportedChars,
 		},
+		{
+			Key:   pi.SettingKeyProposalAmountMin,
+			Value: strconv.FormatUint(p.proposalAmountMin, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalAmountMax,
+			Value: strconv.FormatUint(p.proposalAmountMax, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalEndDateMax,
+			Value: strconv.FormatInt(p.proposalEndDateMax, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalDomains,
+			Value: strings.Join(p.proposalDomains, ","),
+		},
 	}
 }
 
@@ -146,6 +167,10 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		nameLengthMin      = pi.SettingProposalNameLengthMin
 		nameLengthMax      = pi.SettingProposalNameLengthMax
 		nameSupportedChars = pi.SettingProposalNameSupportedChars
+		amountMin          = pi.SettingProposalAmountMin
+		amountMax          = pi.SettingProposalAmountMax
+		endDateMax         = pi.SettingProposalEndDateMax
+		domains            = pi.SettingProposalDomains
 	)
 
 	// Override defaults with any passed in settings
@@ -194,6 +219,41 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 					v.Key, v.Value, err)
 			}
 			nameSupportedChars = sc
+		case pi.SettingKeyProposalAmountMin:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			amountMin = u
+		case pi.SettingKeyProposalAmountMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			amountMax = u
+		case pi.SettingKeyProposalEndDateMax:
+			u, err := strconv.ParseInt(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			// Ensure provided max end date is not in the past
+			if u < 0 {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': "+
+					"must be in the future", v.Key, v.Value)
+			}
+			endDateMax = u
+		case pi.SettingKeyProposalDomains:
+			var ds []string
+			err := json.Unmarshal([]byte(v.Value), &ds)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			domains = ds
+
 		default:
 			return nil, fmt.Errorf("invalid plugin setting: %v", v.Key)
 		}
@@ -224,5 +284,9 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		proposalNameLengthMax:      nameLengthMax,
 		proposalNameSupportedChars: nameSupportedCharsString,
 		proposalNameRegexp:         rexp,
+		proposalAmountMin:          amountMin,
+		proposalAmountMax:          amountMax,
+		proposalEndDateMax:         endDateMax,
+		proposalDomains:            domains,
 	}, nil
 }
