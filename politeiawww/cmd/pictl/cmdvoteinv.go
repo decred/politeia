@@ -92,11 +92,13 @@ func parseVoteStatus(status string) (tkv1.VoteStatusT, error) {
 			"started":      tkv1.VoteStatusStarted,
 			"approved":     tkv1.VoteStatusApproved,
 			"rejected":     tkv1.VoteStatusRejected,
+			"ineligible":   tkv1.VoteStatusIneligible,
 			"1":            tkv1.VoteStatusUnauthorized,
 			"2":            tkv1.VoteStatusAuthorized,
 			"3":            tkv1.VoteStatusStarted,
 			"5":            tkv1.VoteStatusApproved,
 			"6":            tkv1.VoteStatusRejected,
+			"7":            tkv1.VoteStatusIneligible,
 		}
 	)
 	u, err := strconv.ParseUint(status, 10, 32)
@@ -131,6 +133,7 @@ Valid statuses:
   ("3") "started"
   ("5") "approved"
   ("6") "rejected"
+  ("7") "ineligible"
 
 Arguments:
 1. status (string, optional) Status of tokens being requested.
