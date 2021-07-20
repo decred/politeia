@@ -260,7 +260,7 @@ func NewClient(host, user, password, emailAddress, certPath string, skipVerify b
 
 	// Setup tls config
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: skipVerify,
 	}
 	if !skipVerify && certPath != "" {
 		cert, err := ioutil.ReadFile(certPath)
