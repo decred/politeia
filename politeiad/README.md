@@ -337,3 +337,33 @@ array must be a valid JSON encoded []string.
 ## Tools and reference clients
 
 * [politeia](cmd/politeia) - Reference client for politeiad.
+
+## Development
+
+### Reset databases
+
+You can remove all records from politeiad using the following commands.
+
+These commands will not delete any politeiawww user data. This lets you reset
+the politeiad data to clear out all existing records while still keeping all of
+your politeiawww user accounts intact so that you can have a fresh development
+enviroment without needing to re-setup the user accounts.
+
+  ```
+  # Reset politeiad database
+  $ cd ${HOME}/go/src/github.com/decred/politeia/
+  $ env MYSQL_ROOT_PASSWORD="rootpass" \
+    .politeiad/scripts/tstore-mysql-reset.sh
+
+  # Reset trillian database
+  $ cd ${HOME}/go/src/github.com/google/trillian/
+  $ export MYSQL_USER=trillian && \
+    export MYSQL_PASSWORD=trillianpass && \
+    export MYSQL_DATABASE=testnet3_trillian && \
+    export MYSQL_ROOT_PASSWORD=rootpass && \
+    ./scripts/resetdb.sh
+
+  # Reset cached data. The location of this directory will depend on your
+  # operating system.
+  rm -rf ~/.politeiad/data/testnet3
+  ```
