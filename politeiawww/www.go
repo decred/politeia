@@ -602,6 +602,7 @@ func _main() error {
 	log.Infof("User database: %v", loadedCfg.UserDB)
 
 	var userDB user.Database
+	var mailerDB user.MailerDB
 	switch loadedCfg.UserDB {
 	case userDBLevel:
 		db, err := localdb.New(loadedCfg.DataDir)
@@ -623,18 +624,24 @@ func _main() error {
 
 		// Open db connection.
 		network := filepath.Base(loadedCfg.DataDir)
-		var err error
 		switch loadedCfg.UserDB {
 		case userDBMySQL:
-			userDB, err = mysql.New(loadedCfg.DBHost, loadedCfg.DBPass, network,
-				encryptionKey)
+			mysql, err := mysql.New(loadedCfg.DBHost,
+				loadedCfg.DBPass, network, encryptionKey)
+			if err != nil {
+				return fmt.Errorf("new mysql db: %v", err)
+			}
+			userDB = mysql
+			mailerDB = mysql
 		case userDBCockroach:
-			userDB, err = cockroachdb.New(loadedCfg.DBHost, network,
+			cdb, err := cockroachdb.New(loadedCfg.DBHost, network,
 				loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
 				encryptionKey)
-		}
-		if err != nil {
-			return fmt.Errorf("new %v db: %v", loadedCfg.UserDB, err)
+			if err != nil {
+				return fmt.Errorf("new cdb db: %v", err)
+			}
+			userDB = cdb
+			mailerDB = cdb
 		}
 
 		// Rotate keys.
@@ -664,18 +671,18 @@ func _main() error {
 		log.Infof("Cookie key generated")
 	}
 
-	// Setup smtp client
-	mailClient, err := mail.New(loadedCfg.MailHost, loadedCfg.MailUser,
-		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
-		loadedCfg.MailSkipVerify)
-	if err != nil {
-		return fmt.Errorf("new mail client: %v", err)
-	}
-
 	// Setup politeiad client
 	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
 	if err != nil {
 		return err
+	}
+
+	// Setup mailer smtp client
+	mailer, err := mail.NewClient(loadedCfg.MailHost, loadedCfg.MailUser,
+		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
+		loadedCfg.MailSkipVerify, loadedCfg.MailRateLimit, mailerDB)
+	if err != nil {
+		return fmt.Errorf("new mail client: %v", err)
 	}
 
 	// Setup application context
@@ -686,8 +693,8 @@ func _main() error {
 		auth:       auth,
 		politeiad:  pdc,
 		http:       httpClient,
-		mail:       mailClient,
 		db:         userDB,
+		mail:       mailer,
 		sessions:   sessions.New(userDB, cookieKey),
 		events:     events.NewManager(),
 		ws:         make(map[string]map[string]*wsContext),

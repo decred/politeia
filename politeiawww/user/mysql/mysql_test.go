@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -542,6 +543,158 @@ func TestAllUsers(t *testing.T) {
 	// Make sure no users were returned
 	if len(us) != 0 {
 		t.Errorf("expected no users but returned %v users", len(us))
+	}
+
+	// Make sure we got the expected error
+	if !errors.Is(err, expectedError) {
+		t.Errorf("expecting error %s but got %s", expectedError, err)
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestEmailHistoriesSave(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	userID := uuid.New()
+	histories := make(map[uuid.UUID]user.EmailHistory, 1)
+	histories[userID] = user.EmailHistory{
+		Timestamps:       []int64{time.Now().Unix()},
+		LimitWarningSent: false,
+	}
+
+	// Queries
+	sqlSelect := `SELECT user_id FROM email_histories WHERE user_id = ?`
+
+	sqlInsert := `INSERT INTO email_histories (user_id, h_blob) VALUES (?, ?)`
+
+	// Success create expectations
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WithArgs(userID).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(regexp.QuoteMeta(sqlInsert)).
+		WithArgs(userID, AnyBlob{}).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	// Execute method
+	err := mdb.EmailHistoriesSave(histories)
+	if err != nil {
+		t.Errorf("EmailHistoriesSave unwanted error: %s", err)
+	}
+
+	// Mock data for updating an email history
+	rows := sqlmock.NewRows([]string{"h_blob"}).AddRow([]byte{})
+
+	// Query
+	sqlUpdate := `UPDATE email_histories SET h_blob = ? WHERE user_id = ?`
+
+	// Success update expectations
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WithArgs(userID).
+		WillReturnRows(rows)
+	mock.ExpectExec(regexp.QuoteMeta(sqlUpdate)).
+		WithArgs(AnyBlob{}, userID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	// Execute method
+	err = mdb.EmailHistoriesSave(histories)
+	if err != nil {
+		t.Errorf("EmailHistoriesSave unwanted error: %s", err)
+	}
+
+	// Negative expectations
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(sqlSelect)).
+		WillReturnError(errSelect)
+	mock.ExpectRollback()
+
+	// Execute method
+	badHistories := make(map[uuid.UUID]user.EmailHistory, 1)
+	badHistories[uuid.New()] = user.EmailHistory{}
+	err = mdb.EmailHistoriesSave(badHistories)
+	if err == nil {
+		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure expectations were met for both success and failure
+	// conditions
+	err = mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}
+
+func TestEmailHistoriesGet(t *testing.T) {
+	mdb, mock, close := setupTestDB(t)
+	defer close()
+
+	// Arguments
+	userID := uuid.New()
+	ts := time.Now().Unix()
+	history := user.EmailHistory{
+		Timestamps:       []int64{ts},
+		LimitWarningSent: false,
+	}
+	hb, err := json.Marshal(history)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	eb, err := mdb.encrypt(user.VersionEmailHistory, hb)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	// Mock data
+	rows := sqlmock.NewRows([]string{"user_id", "h_blob"}).
+		AddRow(userID, eb)
+
+	// Query
+	sql := `SELECT user_id, h_blob FROM email_histories WHERE user_id IN (?)`
+
+	// Success expectations
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(userID).
+		WillReturnRows(rows)
+
+	// Execute method
+	eh, err := mdb.EmailHistoriesGet([]uuid.UUID{userID})
+	if err != nil {
+		t.Errorf("EmailHistoriesGet unwanted error: %s", err)
+	}
+
+	// Make sure correct history was returned
+	if ts != eh[userID].Timestamps[0] {
+		t.Errorf("expecting timestamp %d but got %d",
+			ts, eh[userID].Timestamps[0])
+	}
+
+	// Negative expectations
+	randomUserID := uuid.New()
+	expectedError := errors.New("email history not found")
+	mock.ExpectQuery(regexp.QuoteMeta(sql)).
+		WithArgs(randomUserID).
+		WillReturnError(expectedError)
+
+	// Execute method
+	h, err := mdb.EmailHistoriesGet([]uuid.UUID{randomUserID})
+	if err == nil {
+		t.Errorf("expected error but there was none")
+	}
+
+	// Make sure no sessions were returned
+	if h != nil {
+		t.Errorf("expected no email history but got %v", h)
 	}
 
 	// Make sure we got the expected error
