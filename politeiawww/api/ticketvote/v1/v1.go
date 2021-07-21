@@ -570,7 +570,7 @@ type Inventory struct {
 // status defined by the VoteStatuses array in this package.
 //
 // Sorted by timestamp newest to oldest:
-// Unauthorized, Authorized
+// Unauthorized, Authorized, Ineligible
 //
 // Sorted by vote start block height in descending order:
 // Started

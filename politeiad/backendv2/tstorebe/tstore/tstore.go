@@ -14,32 +14,9 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/robfig/cron"
-)
-
-const (
-	// DBTypeLevelDB is a config option that sets the backing key-value
-	// store to a leveldb instance.
-	DBTypeLevelDB = "leveldb"
-
-	// DBTypeMySQL is a config option that sets the backing key-value
-	// store to a MySQL instance.
-	DBTypeMySQL = "mysql"
-
-	// LevelDB settings
-	storeDirname = "store"
-
-	// MySQL settings
-	dbUser = "politeiad"
-)
-
-var (
-	_ plugins.TstoreClient = (*Tstore)(nil)
 )
 
 // Tstore is a data store that automatically timestamps all data saved to it
@@ -63,19 +40,22 @@ var (
 // failed calls.
 type Tstore struct {
 	sync.RWMutex
-	dataDir         string
-	activeNetParams *chaincfg.Params
-	tlog            tlogClient
-	store           store.BlobKV
-	dcrtime         *dcrtimeClient
-	cron            *cron.Cron
-	plugins         map[string]plugin // [pluginID]plugin
+	// TODO remove dataDir
+	dataDir string
+	net     chaincfg.Params
+	tlog    tlogClient
+	store   store.BlobKV
+	dcrtime *dcrtimeClient
+	cron    *cron.Cron
+	plugins map[string]plugin // [pluginID]plugin
 
+	// TODO anchor dropping needs to be concurrency safe
 	// droppingAnchor indicates whether tstore is in the process of
 	// dropping an anchor, i.e. timestamping unanchored tlog trees
 	// using dcrtime. An anchor is dropped periodically using cron.
 	droppingAnchor bool
 
+	// TODO remove
 	// tokens contains the short token to full token mappings. The
 	// short token is the first n characters of the hex encoded record
 	// token, where n is defined by the short token length politeiad
@@ -167,8 +147,20 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 	return fullToken, nil
 }
 
+// Tx returns a key-value store transaction. This method does not lock a record
+// and should not be used for record updates. See the RecordTx() method for
+// more details.
+func (t *Tstore) Tx() (store.Tx, func(), error) {
+	log.Tracef("Tx")
+
+	return t.store.Tx()
+}
+
+// TODO implement all fsck's
 // Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck() {
+	log.Tracef("Fsck")
+
 	// Set tree status to frozen for any trees that are frozen and have
 	// been anchored one last time.
 	// Verify all file blobs have been deleted for censored records.
@@ -189,7 +181,7 @@ func (t *Tstore) Setup() error {
 
 	tokens, err := t.Inventory()
 	if err != nil {
-		return fmt.Errorf("Inventory: %v", err)
+		return err
 	}
 
 	log.Infof("%v records in the tstore", len(tokens))
@@ -202,37 +194,12 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
 	err := os.MkdirAll(dataDir, 0700)
 	if err != nil {
 		return nil, err
-	}
-
-	// Setup key-value store
-	log.Infof("Database type: %v", dbType)
-	var kvstore store.BlobKV
-	switch dbType {
-	case DBTypeLevelDB:
-		fp := filepath.Join(dataDir, storeDirname)
-		err = os.MkdirAll(fp, 0700)
-		if err != nil {
-			return nil, err
-		}
-		kvstore, err = localdb.New(appDir, fp)
-		if err != nil {
-			return nil, err
-		}
-	case DBTypeMySQL:
-		// Example db name: testnet3_unvetted_kv
-		dbName := fmt.Sprintf("%v_kv", anp.Name)
-		kvstore, err = mysql.New(dbHost, dbUser, dbPass, dbName)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid db type: %v", dbType)
 	}
 
 	// Setup trillian client
@@ -261,14 +228,14 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 
 	// Setup tstore
 	t := Tstore{
-		dataDir:         dataDir,
-		activeNetParams: anp,
-		tlog:            tlogClient,
-		store:           kvstore,
-		dcrtime:         dcrtimeClient,
-		cron:            cron.New(),
-		plugins:         make(map[string]plugin),
-		tokens:          make(map[string][]byte),
+		dataDir: dataDir,
+		net:     net,
+		tlog:    tlogClient,
+		store:   kvstore,
+		dcrtime: dcrtimeClient,
+		cron:    cron.New(),
+		plugins: make(map[string]plugin),
+		tokens:  make(map[string][]byte),
 	}
 
 	// Launch cron

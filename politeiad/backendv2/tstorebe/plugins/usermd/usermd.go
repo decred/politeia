@@ -5,10 +5,6 @@
 package usermd
 
 import (
-	"os"
-	"path/filepath"
-	"sync"
-
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
@@ -18,19 +14,11 @@ var (
 	_ plugins.PluginClient = (*usermdPlugin)(nil)
 )
 
-// usermdPlugin is the tstore backend implementation of the usermd plugin. The
-// usermd plugin extends a record with user metadata.
+// usermdPlugin is the tstore backend implementation of the usermd plugin API.
+// The usermd plugin extends a record with user metadata.
 //
 // usermdPlugin satisfies the plugins PluginClient interface.
-type usermdPlugin struct {
-	sync.Mutex
-	tstore plugins.TstoreClient
-
-	// dataDir is the pi plugin data directory. The only data that is
-	// stored here is cached data that can be re-created at any time
-	// by walking the trillian trees.
-	dataDir string
-}
+type usermdPlugin struct{}
 
 // Setup performs any plugin setup that is required.
 //
@@ -41,17 +29,28 @@ func (p *usermdPlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. All operations are executed
+// atomically by tstore when using this method. The plugin does not need to
+// worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("usermd Cmd: %x %v %v", token, cmd, payload)
+func (p *usermdPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("usermd Write: %x %v %v", token, cmd, payload)
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a read-only plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *usermdPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("usermd Read: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case usermd.CmdAuthor:
-		return p.cmdAuthor(token)
+		return p.cmdAuthor(tstore, token)
 	case usermd.CmdUserRecords:
-		return p.cmdUserRecords(payload)
+		return p.cmdUserRecords(tstore, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
@@ -60,22 +59,22 @@ func (p *usermdPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *usermdPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("usermd Hook: %v", plugins.Hooks[h])
 
 	switch h {
-	case plugins.HookTypeNewRecordPre:
-		return p.hookNewRecordPre(payload)
-	case plugins.HookTypeNewRecordPost:
-		return p.hookNewRecordPost(payload)
-	case plugins.HookTypeEditRecordPre:
-		return p.hookEditRecordPre(payload)
-	case plugins.HookTypeEditMetadataPre:
-		return p.hookEditMetadataPre(payload)
-	case plugins.HookTypeSetRecordStatusPre:
-		return p.hookSetRecordStatusPre(payload)
-	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
+	case plugins.HookRecordNewPre:
+		return p.hookRecordNewPre(payload)
+	case plugins.HookRecordNewPost:
+		return p.hookRecordNewPost(tstore, payload)
+	case plugins.HookRecordEditPre:
+		return p.hookRecordEditPre(payload)
+	case plugins.HookRecordEditMetadataPre:
+		return p.hookRecordEditMetadataPre(payload)
+	case plugins.HookRecordSetStatusPre:
+		return p.hookRecordSetStatusPre(payload)
+	case plugins.HookRecordSetStatusPost:
+		return p.hookRecordSetStatusPost(tstore, payload)
 	}
 
 	return nil
@@ -100,16 +99,6 @@ func (p *usermdPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new usermdPlugin.
-func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string) (*usermdPlugin, error) {
-	// Create plugin data directory
-	dataDir = filepath.Join(dataDir, usermd.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
-	return &usermdPlugin{
-		tstore:  tstore,
-		dataDir: dataDir,
-	}, nil
+func New() *usermdPlugin {
+	return &usermdPlugin{}
 }

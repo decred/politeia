@@ -18,22 +18,50 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry will be
-// encrypted prior to being written to disk if the record is unvetted. The
-// digest of the data, i.e. BlobEntry.Digest, can be thought of as the blob ID
-// and can be used to get/del the blob from tstore.
+// Client provides an API for plugins to interact with a tstore instance.
+// Plugins are allowed to save, delete, and retrieve plugin data to/from the
+// tstore instance.
+//
+// Client satisfies the plugins TstoreClient interface.
+type Client struct {
+	id     string // Caller ID used for logging
+	tstore *Tstore
+
+	// Client write methods use the tx for all read/write operations.
+	tx store.Tx
+
+	// Client read methods use the getter for all operations. This
+	// allows the caller to decide whether the operations should be
+	// part of a store Tx or executed on the store BlobKV directly.
+	getter store.Getter
+}
+
+// newClient returns a new tstore Client.
+func newClient(id string, tstore *Tstore, tx store.Tx, getter store.Getter) *Client {
+	return &Client{
+		id:     id,
+		tstore: tstore,
+		tx:     tx,
+		getter: getter,
+	}
+}
+
+// BlobSave saves a BlobEntry to tstore. If the record is unvetted the
+// BlobEntry will be encrypted prior to being written to disk. The digest of
+// the data, i.e. BlobEntry.Digest, can be thought of as the blob ID and can be
+// used to get/del the blob from tstore.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
-	log.Tracef("BlobSave: %x", token)
+func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
+	log.Tracef("%v BlobSave: %x", c.id, token)
 
 	// Verify tree is not frozen
 	treeID := treeIDFromToken(token)
-	leaves, err := t.leavesAll(treeID)
+	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
-	idx, err := t.recordIndexLatest(leaves)
+	idx, err := c.tstore.recordIndexLatest(c.tx, leaves)
 	if err != nil {
 		return err
 	}
@@ -53,13 +81,13 @@ func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
 		return err
 	}
 
-	// Only vetted data should be saved plain text
+	// Only vetted data should be saved plaintext
 	var encrypt bool
 	switch idx.State {
 	case backend.StateUnvetted:
 		encrypt = true
 	case backend.StateVetted:
-		// Save plain text
+		// Save plaintext
 		encrypt = false
 	default:
 		// Something is wrong
@@ -81,7 +109,7 @@ func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
 	log.Debugf("Saving plugin data blob %v", dd.Descriptor)
 
 	// Save blob to store
-	err = t.store.Put(kv, encrypt)
+	err = c.tx.Put(kv, encrypt)
 	if err != nil {
 		return fmt.Errorf("store Put: %v", err)
 	}
@@ -96,7 +124,7 @@ func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
 	}
 
 	// Append log leaf to trillian tree
-	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
+	queued, _, err := c.tstore.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
 		return fmt.Errorf("LeavesAppend: %v", err)
 	}
@@ -104,14 +132,14 @@ func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
 		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
 			len(queued))
 	}
-	c := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
-	switch c {
+	code := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
+	switch code {
 	case codes.OK:
 		// This is ok; continue
 	case codes.AlreadyExists:
 		return plugins.ErrDuplicateBlob
 	default:
-		return fmt.Errorf("queued leaf error: %v", c)
+		return fmt.Errorf("queued leaf error: %v", code)
 	}
 
 	return nil
@@ -121,12 +149,12 @@ func (t *Tstore) BlobSave(token []byte, be store.BlobEntry) error {
 // can be deleted from both frozen and non-frozen records.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobsDel(token []byte, digests [][]byte) error {
-	log.Tracef("BlobsDel: %x %x", token, digests)
+func (c *Client) BlobsDel(token []byte, digests [][]byte) error {
+	log.Tracef("%v BlobsDel: %x %x", c.id, token, digests)
 
 	// Get all tree leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.leavesAll(treeID)
+	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -155,7 +183,7 @@ func (t *Tstore) BlobsDel(token []byte, digests [][]byte) error {
 	}
 
 	// Delete file blobs from the store
-	err = t.store.Del(keys)
+	err = c.tx.Del(keys)
 	if err != nil {
 		return fmt.Errorf("store Del: %v", err)
 	}
@@ -164,12 +192,12 @@ func (t *Tstore) BlobsDel(token []byte, digests [][]byte) error {
 }
 
 // Blobs returns the blobs that correspond to the provided digests. If a blob
-// does not exist it will not be included in the returned map. If a record
-// is vetted, only vetted blobs will be returned.
+// does not exist it will not be included in the returned map. If a record is
+// vetted, only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEntry, error) {
-	log.Tracef("Blobs: %x %x", token, digests)
+func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEntry, error) {
+	log.Tracef("%v Blobs: %x %x", c.id, token, digests)
 
 	if len(digests) == 0 {
 		return map[string]store.BlobEntry{}, nil
@@ -177,7 +205,7 @@ func (t *Tstore) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 
 	// Get leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.leavesAll(treeID)
+	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +248,7 @@ func (t *Tstore) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 	}
 
 	// Pull the blobs from the store
-	blobs, err := t.store.Get(matchedKeys)
+	blobs, err := c.getter.Get(matchedKeys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
@@ -252,12 +280,12 @@ func (t *Tstore) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 // only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobEntry, error) {
-	log.Tracef("BlobsByDataDesc: %x %v", token, dataDesc)
+func (c *Client) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobEntry, error) {
+	log.Tracef("%v BlobsByDataDesc: %x %v", c.id, token, dataDesc)
 
 	// Get leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.leavesAll(treeID)
+	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +307,7 @@ func (t *Tstore) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 	}
 
 	// Pull the blobs from the store
-	blobs, err := t.store.Get(keys)
+	blobs, err := c.getter.Get(keys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
@@ -318,12 +346,12 @@ func (t *Tstore) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error) {
-	log.Tracef("DigestsByDataDesc: %x %v", token, dataDesc)
+func (c *Client) DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error) {
+	log.Tracef("%v DigestsByDataDesc: %x %v", c.id, token, dataDesc)
 
 	// Get leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.leavesAll(treeID)
+	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -345,12 +373,12 @@ func (t *Tstore) DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, e
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) Timestamp(token []byte, digest []byte) (*backend.Timestamp, error) {
-	log.Tracef("Timestamp: %x %x", token, digest)
+func (c *Client) Timestamp(token []byte, digest []byte) (*backend.Timestamp, error) {
+	log.Tracef("%v Timestamp: %x %x", c.id, token, digest)
 
 	// Get tree leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.leavesAll(treeID)
+	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +414,105 @@ func (t *Tstore) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 	m := merkleLeafHash(digest)
 
 	// Get timestamp
-	return t.timestamp(treeID, m, leaves)
+	return c.tstore.timestamp(treeID, m, leaves)
+}
+
+// CacheSave saves the provided key-value pairs to the tstore cache. Cached
+// data is not timestamped onto the Decred blockchain. Only data that can be
+// recreated by walking the tlog trees should be cached.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) CacheSave(kv map[string][]byte) error {
+	log.Tracef("%v CacheSave: %v blobs", c.id, len(kv))
+
+	return c.tx.Put(kv, true)
+}
+
+// CacheGet returns blobs from the cache for the provided keys. An entry will
+// not exist in the returned map if for any blobs that are not found. It is the
+// responsibility of the caller to ensure a blob was returned for all provided
+// keys.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) CacheGet(keys []string) (map[string][]byte, error) {
+	log.Tracef("%v CacheGet: %v", c.id, keys)
+
+	return c.getter.Get(keys)
+}
+
+// Record returns a version of a record.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) Record(token []byte, version uint32) (*backend.Record, error) {
+	log.Tracef("%v Record: %x %v", c.id, token, version)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
+	var err error
+	token, err = c.tstore.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	treeID := treeIDFromToken(token)
+	return c.tstore.record(c.getter, treeID, version, []string{}, false)
+}
+
+// RecordLatest returns the most recent version of a record.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) RecordLatest(token []byte) (*backend.Record, error) {
+	log.Tracef("%v RecordLatest: %x", c.id, token)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
+	var err error
+	token, err = c.tstore.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	treeID := treeIDFromToken(token)
+	return c.tstore.record(c.getter, treeID, 0, []string{}, false)
+}
+
+// RecordPartial returns a partial record. This method gives the caller fine
+// grained control over what version and what files are returned. The only
+// required field is the token. All other fields are optional.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files that are returned.
+//
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+	log.Tracef("%v RecordPartial: %x %v %v %v",
+		c.id, token, version, filenames, omitAllFiles)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
+	var err error
+	token, err = c.tstore.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	treeID := treeIDFromToken(token)
+	return c.tstore.record(c.getter, treeID, version, filenames, omitAllFiles)
+}
+
+// RecordState returns the record state.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) RecordState(token []byte) (backend.StateT, error) {
+	log.Tracef("%v RecordState: %x", c.id, token)
+
+	return c.tstore.RecordState(token)
 }
 
 // leavesForDescriptor returns all leaves that have and extra data descriptor

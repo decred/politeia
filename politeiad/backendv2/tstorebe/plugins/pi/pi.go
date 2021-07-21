@@ -7,8 +7,6 @@ package pi
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 
@@ -30,11 +28,6 @@ var (
 type piPlugin struct {
 	backend backend.Backend
 
-	// dataDir is the pi plugin data directory. The only data that is
-	// stored here is cached data that can be re-created at any time
-	// by walking the trillian trees.
-	dataDir string
-
 	// Plugin settings
 	textFileCountMax           uint32
 	textFileSizeMax            uint32 // In bytes
@@ -55,11 +48,22 @@ func (p *piPlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. All operations are executed
+// atomically by tstore when using this method. The plugin does not need to
+// worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("pi Cmd: %x %v %v", token, cmd, payload)
+func (p *piPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("pi Write: %x %v %v", token, cmd, payload)
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a read-only plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *piPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("pi Read: %x %v %v", token, cmd, payload)
 
 	return "", backend.ErrPluginCmdInvalid
 }
@@ -67,16 +71,16 @@ func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *piPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("pi Hook: %v", plugins.Hooks[h])
 
 	switch h {
-	case plugins.HookTypeNewRecordPre:
-		return p.hookNewRecordPre(payload)
-	case plugins.HookTypeEditRecordPre:
-		return p.hookEditRecordPre(payload)
-	case plugins.HookTypePluginPre:
-		return p.hookPluginPre(payload)
+	case plugins.HookRecordNewPre:
+		return p.hookRecordNewPre(payload)
+	case plugins.HookRecordEditPre:
+		return p.hookRecordEditPre(payload)
+	case plugins.HookPluginWritePre:
+		return p.hookPluginWritePre(payload)
 	}
 
 	return nil
@@ -130,14 +134,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new piPlugin.
-func New(backend backend.Backend, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
-	// Create plugin data directory
-	dataDir = filepath.Join(dataDir, pi.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
+func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error) {
 	// Setup plugin setting default values
 	var (
 		textFileSizeMax    = pi.SettingTextFileSizeMax
@@ -149,7 +146,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	)
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case pi.SettingKeyTextFileSizeMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
@@ -215,7 +212,6 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	nameSupportedCharsString := string(b)
 
 	return &piPlugin{
-		dataDir:                    dataDir,
 		backend:                    backend,
 		textFileSizeMax:            textFileSizeMax,
 		imageFileCountMax:          imageFileCountMax,

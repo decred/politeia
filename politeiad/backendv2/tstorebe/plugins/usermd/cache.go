@@ -6,56 +6,50 @@ package usermd
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
+	"github.com/pkg/errors"
 )
 
 const (
-	// fnUserCache is the filename for the cached userCache data that
-	// is saved to the plugin data dir.
-	fnUserCache = "{userid}.json"
+	// keyUserCache is the format that the key-value store key uses
+	// for the userCache data. The "{userid}" is replaced by the real
+	// user ID.
+	keyUserCache = usermd.PluginID + "-{userid}"
 )
 
-// userCache contains cached user metadata. The userCache JSON is saved to disk
-// in the user plugin data dir. The user ID is included in the filename.
+// userCache contains cached user metadata for an individual user. The data is
+// saved to the tstore key-value cache with the user ID encoded in the key.
 //
 // The Unvetted and Vetted fields contain the records that have been submitted
-// by the user. All record tokens are sorted by the timestamp of their most
-// recent status change from newest to oldest.
+// by the user. All record tokens are sorted by the timestamp of the state
+// change (unvetted/vetted) from oldest to newest.
 type userCache struct {
 	Unvetted []string `json:"unvetted"`
 	Vetted   []string `json:"vetted"`
 }
 
-// userCachePath returns the filepath to the userCache for the specified user.
-func (p *usermdPlugin) userCachePath(userID string) string {
-	fn := strings.Replace(fnUserCache, "{userid}", userID, 1)
-	return filepath.Join(p.dataDir, fn)
-}
-
-// userCacheLocked returns the userCache for the specified user.
-//
-// This function must be called WITH the lock held.
-func (p *usermdPlugin) userCacheLocked(userID string) (*userCache, error) {
-	fp := p.userCachePath(userID)
-	b, err := ioutil.ReadFile(fp)
+// userCache returns the userCache for the specified user.
+func (p *usermdPlugin) userCache(tstore plugins.TstoreClient, userID string) (*userCache, error) {
+	// Get cached data
+	key := userCacheKey(userID)
+	blobs, err := tstore.CacheGet([]string{key})
 	if err != nil {
-		var e *os.PathError
-		if errors.As(err, &e) && !os.IsExist(err) {
-			// File does't exist. Return an empty userCache.
-			return &userCache{
-				Unvetted: []string{},
-				Vetted:   []string{},
-			}, nil
-		}
+		return nil, err
+	}
+	b, ok := blobs[key]
+	if !ok {
+		// Cache entry does't exist. Return an empty one.
+		return &userCache{
+			Unvetted: []string{},
+			Vetted:   []string{},
+		}, nil
 	}
 
+	// Decode cached blob
 	var uc userCache
 	err = json.Unmarshal(b, &uc)
 	if err != nil {
@@ -65,38 +59,22 @@ func (p *usermdPlugin) userCacheLocked(userID string) (*userCache, error) {
 	return &uc, nil
 }
 
-// userCacheLocked returns the userCache for the specified user.
-//
-// This function must be called WITHOUT the lock held.
-func (p *usermdPlugin) userCache(userID string) (*userCache, error) {
-	p.Lock()
-	defer p.Unlock()
-
-	return p.userCacheLocked(userID)
-}
-
-// userCacheSaveLocked saves the provided userCache to the plugin data dir.
-//
-// This function must be called WITH the lock held.
-func (p *usermdPlugin) userCacheSaveLocked(userID string, uc userCache) error {
+// userCacheSave saves the provided userCache object to the tstore cache.
+func (p *usermdPlugin) userCacheSave(tstore plugins.TstoreClient, userID string, uc userCache) error {
 	b, err := json.Marshal(uc)
 	if err != nil {
 		return err
 	}
 
-	fp := p.userCachePath(userID)
-	return ioutil.WriteFile(fp, b, 0664)
+	return tstore.CacheSave(map[string][]byte{
+		userCacheKey(userID): b,
+	})
 }
 
 // userCacheAddToken adds a token to a user cache.
-//
-// This function must be called WITHOUT the lock held.
-func (p *usermdPlugin) userCacheAddToken(userID string, state backend.StateT, token string) error {
-	p.Lock()
-	defer p.Unlock()
-
+func (p *usermdPlugin) userCacheAddToken(tstore plugins.TstoreClient, userID string, state backend.StateT, token string) error {
 	// Get current user data
-	uc, err := p.userCacheLocked(userID)
+	uc, err := p.userCache(tstore, userID)
 	if err != nil {
 		return err
 	}
@@ -108,11 +86,11 @@ func (p *usermdPlugin) userCacheAddToken(userID string, state backend.StateT, to
 	case backend.StateVetted:
 		uc.Vetted = append(uc.Vetted, token)
 	default:
-		return fmt.Errorf("invalid state %v", state)
+		return errors.Errorf("invalid state %v", state)
 	}
 
 	// Save changes
-	err = p.userCacheSaveLocked(userID, *uc)
+	err = p.userCacheSave(tstore, userID, *uc)
 	if err != nil {
 		return err
 	}
@@ -123,14 +101,9 @@ func (p *usermdPlugin) userCacheAddToken(userID string, state backend.StateT, to
 }
 
 // userCacheDelToken deletes a token from a user cache.
-//
-// This function must be called WITHOUT the lock held.
-func (p *usermdPlugin) userCacheDelToken(userID string, state backend.StateT, token string) error {
-	p.Lock()
-	defer p.Unlock()
-
+func (p *usermdPlugin) userCacheDelToken(tstore plugins.TstoreClient, userID string, state backend.StateT, token string) error {
 	// Get current user data
-	uc, err := p.userCacheLocked(userID)
+	uc, err := p.userCache(tstore, userID)
 	if err != nil {
 		return err
 	}
@@ -139,23 +112,21 @@ func (p *usermdPlugin) userCacheDelToken(userID string, state backend.StateT, to
 	case backend.StateUnvetted:
 		tokens, err := delToken(uc.Vetted, token)
 		if err != nil {
-			return fmt.Errorf("delToken %v %v: %v",
-				userID, state, err)
+			return err
 		}
 		uc.Unvetted = tokens
 	case backend.StateVetted:
 		tokens, err := delToken(uc.Vetted, token)
 		if err != nil {
-			return fmt.Errorf("delToken %v %v: %v",
-				userID, state, err)
+			return err
 		}
 		uc.Vetted = tokens
 	default:
-		return fmt.Errorf("invalid state %v", state)
+		return errors.Errorf("invalid state %v", state)
 	}
 
 	// Save changes
-	err = p.userCacheSaveLocked(userID, *uc)
+	err = p.userCacheSave(tstore, userID, *uc)
 	if err != nil {
 		return err
 	}
@@ -167,12 +138,9 @@ func (p *usermdPlugin) userCacheDelToken(userID string, state backend.StateT, to
 
 // userCacheMoveTokenToVetted moves a record token from the unvetted to vetted
 // list in the userCache.
-func (p *usermdPlugin) userCacheMoveTokenToVetted(userID string, token string) error {
-	p.Lock()
-	defer p.Unlock()
-
+func (p *usermdPlugin) userCacheMoveTokenToVetted(tstore plugins.TstoreClient, userID string, token string) error {
 	// Get current user data
-	uc, err := p.userCacheLocked(userID)
+	uc, err := p.userCache(tstore, userID)
 	if err != nil {
 		return err
 	}
@@ -180,14 +148,14 @@ func (p *usermdPlugin) userCacheMoveTokenToVetted(userID string, token string) e
 	// Del token from unvetted
 	uc.Unvetted, err = delToken(uc.Unvetted, token)
 	if err != nil {
-		return fmt.Errorf("delToken %v: %v", userID, err)
+		return err
 	}
 
 	// Add token to vetted
 	uc.Vetted = append(uc.Vetted, token)
 
 	// Save changes
-	err = p.userCacheSaveLocked(userID, *uc)
+	err = p.userCacheSave(tstore, userID, *uc)
 	if err != nil {
 		return err
 	}
@@ -211,7 +179,7 @@ func delToken(tokens []string, tokenToDel string) ([]string, error) {
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("user token not found %v", tokenToDel)
+		return nil, errors.Errorf("user token not found %v", tokenToDel)
 	}
 
 	// Del token (linear time)
@@ -220,4 +188,9 @@ func delToken(tokens []string, tokenToDel string) ([]string, error) {
 	tokens = tokens[:len(tokens)-1] // Truncate slice
 
 	return tokens, nil
+}
+
+// userCacheKey returns the key-value store key for a userCache object.
+func userCacheKey(userID string) string {
+	return strings.Replace(keyUserCache, "{userid}", userID, 1)
 }

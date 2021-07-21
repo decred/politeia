@@ -8,8 +8,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
@@ -18,6 +19,10 @@ import (
 )
 
 const (
+	// storeDirname contains the directory name that the leveldb
+	// database will be saved to.
+	storeDirname = "store"
+
 	// encryptionKeyFilename is the filename of the encryption key that
 	// is created in the store data directory.
 	encryptionKeyFilename = "leveldb-sbox.key"
@@ -29,39 +34,42 @@ var (
 
 // localdb implements the store BlobKV interface using leveldb.
 //
+// This implementation takes a very simple approach to implementing the store
+// BlobKV interface and the store Tx interface. All exported calls are locked
+// against concurrent access. While this may not be the most performant
+// approach, it is the simpliest way to implement a database transaction using
+// leveldb.
+//
 // NOTE: this implementation was created for testing. The encryption techniques
 // used may not be suitable for a production environment. A random secretbox
 // encryption key is created on startup and saved to the politeiad application
 // dir. Blobs are encrypted using random 24 byte nonces.
 type localdb struct {
-	shutdown uint64
+	sync.Mutex
 	db       *leveldb.DB
-	key      [32]byte
+	key      *[32]byte
+	shutdown bool
 }
 
-func (l *localdb) isShutdown() bool {
-	return atomic.LoadUint64(&l.shutdown) != 0
-}
-
+// encrypt encrypts and returns the provided data blob.
 func (l *localdb) encrypt(data []byte) ([]byte, error) {
-	return sbox.Encrypt(0, &l.key, data)
+	return sbox.Encrypt(0, l.key, data)
 }
 
+// decrypt decrypts the provided data blob. It unpacks the sbox header and
+// returns the version and unencrypted data if successful.
 func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
-	return sbox.Decrypt(&l.key, data)
+	return sbox.Decrypt(l.key, data)
 }
 
-// Put saves the provided key-value pairs to the store. This operation is
-// performed atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
-	log.Tracef("Put: %v blobs", len(blobs))
+// isEncrypted returns whether the provided blob has been prefixed with an sbox
+// header, indicating that it is an encrypted blob.
+func isEncrypted(b []byte) bool {
+	return bytes.HasPrefix(b, []byte("sbox"))
+}
 
-	if l.isShutdown() {
-		return store.ErrShutdown
-	}
-
+// put saves the provided key-value pairs to the store.
+func (l *localdb) put(blobs map[string][]byte, encrypt bool, batch *leveldb.Batch) error {
 	// Encrypt blobs
 	if encrypt {
 		for k, v := range blobs {
@@ -73,67 +81,27 @@ func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 		}
 	}
 
-	// Setup batch
-	batch := new(leveldb.Batch)
+	// Save blobs to batch
 	for k, v := range blobs {
 		batch.Put([]byte(k), v)
 	}
 
-	// Write batch
-	err := l.db.Write(batch, nil)
-	if err != nil {
-		return fmt.Errorf("write batch: %v", err)
-	}
-
-	log.Debugf("Saved blobs (%v) to store", len(blobs))
-
 	return nil
 }
 
-// Del deletes the provided blobs from the store. This operation is performed
-// atomically.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Del(keys []string) error {
-	log.Tracef("Del: %v", keys)
-
-	if l.isShutdown() {
-		return store.ErrShutdown
-	}
-
-	batch := new(leveldb.Batch)
+// del deletes the provided blobs from the store.
+func (l *localdb) del(keys []string, batch *leveldb.Batch) error {
 	for _, v := range keys {
 		batch.Delete([]byte(v))
 	}
-	err := l.db.Write(batch, nil)
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Deleted blobs (%v) from store", len(keys))
-
 	return nil
 }
 
-// isEncrypted returns whether the provided blob has been prefixed with an sbox
-// header, indicating that it is an encrypted blob.
-func isEncrypted(b []byte) bool {
-	return bytes.HasPrefix(b, []byte("sbox"))
-}
-
-// Get returns blobs from the store for the provided keys. An entry will not
+// get returns blobs from the store for the provided keys. An entry will not
 // exist in the returned map if for any blobs that are not found. It is the
 // responsibility of the caller to ensure a blob was returned for all provided
 // keys.
-//
-// This function satisfies the store BlobKV interface.
-func (l *localdb) Get(keys []string) (map[string][]byte, error) {
-	log.Tracef("Get: %v", keys)
-
-	if l.isShutdown() {
-		return nil, store.ErrShutdown
-	}
-
+func (l *localdb) get(keys []string) (map[string][]byte, error) {
 	// Lookup blobs
 	blobs := make(map[string][]byte, len(keys))
 	for _, v := range keys {
@@ -165,13 +133,104 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	return blobs, nil
 }
 
+// Put saves the provided key-value pairs to the store. This operation is
+// performed atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("Put: %v blobs", len(blobs))
+
+	l.Lock()
+	defer l.Unlock()
+	if l.shutdown {
+		return store.ErrShutdown
+	}
+
+	// Save blobs to a batch
+	batch := new(leveldb.Batch)
+	err := l.put(blobs, encrypt, batch)
+	if err != nil {
+		return err
+	}
+
+	// Write batch
+	err = l.db.Write(batch, nil)
+	if err != nil {
+		return fmt.Errorf("write batch: %v", err)
+	}
+
+	log.Debugf("Saved blobs (%v) to store", len(blobs))
+
+	return nil
+}
+
+// Del deletes the provided blobs from the store. This operation is performed
+// atomically.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Del(keys []string) error {
+	log.Tracef("Del: %v", keys)
+
+	l.Lock()
+	defer l.Unlock()
+	if l.shutdown {
+		return store.ErrShutdown
+	}
+
+	batch := new(leveldb.Batch)
+	err := l.del(keys, batch)
+	if err != nil {
+		return err
+	}
+
+	err = l.db.Write(batch, nil)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Deleted blobs (%v) from store", len(keys))
+
+	return nil
+}
+
+// Get returns blobs from the store for the provided keys. An entry will not
+// exist in the returned map if for any blobs that are not found. It is the
+// responsibility of the caller to ensure a blob was returned for all provided
+// keys.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Get(keys []string) (map[string][]byte, error) {
+	log.Tracef("Get: %v", keys)
+
+	l.Lock()
+	defer l.Unlock()
+	if l.shutdown {
+		return nil, store.ErrShutdown
+	}
+
+	return l.get(keys)
+}
+
+// Tx returns a new database transaction as well as the cancel function that
+// releases all resources associated with it.
+//
+// This function satisfies the store BlobKV interface.
+func (l *localdb) Tx() (store.Tx, func(), error) {
+	tx, cancel := newTx(l)
+	return tx, cancel, nil
+}
+
 // Closes closes the store connection.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Close() {
 	log.Tracef("Close")
 
-	atomic.AddUint64(&l.shutdown, 1)
+	l.Lock()
+	defer l.Unlock()
+
+	// Prevent any more localdb calls
+	l.shutdown = true
 
 	// Zero the encryption key
 	util.Zero(l.key[:])
@@ -182,25 +241,36 @@ func (l *localdb) Close() {
 
 // New returns a new localdb.
 func New(appDir, dataDir string) (*localdb, error) {
-	// Load encryption key.
+	// Verify config options
+	switch {
+	case appDir == "":
+		return nil, fmt.Errorf("app dir not provided")
+	case dataDir == "":
+		return nil, fmt.Errorf("data dir not provided")
+	}
+
+	// Setup leveldb data dir
+	fp := filepath.Join(dataDir, storeDirname)
+	err := os.MkdirAll(fp, 0700)
+	if err != nil {
+		return nil, err
+	}
+
+	// Open database
+	db, err := leveldb.OpenFile(fp, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load encryption key
 	keyFile := filepath.Join(appDir, encryptionKeyFilename)
 	key, err := util.LoadEncryptionKey(log, keyFile)
 	if err != nil {
 		return nil, err
 	}
 
-	// Open database
-	db, err := leveldb.OpenFile(dataDir, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create context
-	ldb := localdb{
-		db: db,
-	}
-	copy(ldb.key[:], key[:])
-	util.Zero(key[:])
-
-	return &ldb, nil
+	return &localdb{
+		db:  db,
+		key: key,
+	}, nil
 }

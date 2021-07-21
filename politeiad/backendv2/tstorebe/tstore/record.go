@@ -27,10 +27,69 @@ const (
 	dataDescriptorAnchor         = "pd-anchor-v1"
 )
 
+// recordLock locks a tstore record by retrieving the record lock entry in the
+// key-value store using a transaction.
+func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
+	// Use a digest of the token so unvetted tokens are not
+	// exposed.
+	key := "lock-" + hex.EncodeToString(util.Digest(token))
+
+	// Get record lock entry
+	blobs, err := tx.Get([]string{key})
+	if err != nil {
+		return err
+	}
+	_, ok := blobs[key]
+	if ok {
+		// Lock entry found. We're done.
+		return nil
+	}
+
+	// A lock entry does not exist yet for this record.
+	// Create one.
+	return tx.Put(map[string][]byte{key: {}}, false)
+}
+
+// RecordTx returns a new tstore transaction for a record.
+//
+// Tlog does not give us the ability to lock a tree while a key-value store
+// transaction is in progress. We get around this by creating a lock entry in
+// the key-value store for each tstore record and "locking" the record by
+// retreiving the lock entry using a key-value store transaction. This prevents
+// concurrency issues for record writes as long the writes are performed using
+// a transaction returned by this function.
+func (t *Tstore) RecordTx(token []byte) (store.Tx, func(), error) {
+	log.Tracef("RecordTx: %x", token)
+
+	// Setup store transaction
+	tx, cancel, err := t.store.Tx()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Lock the record
+	err = t.recordLock(tx, token)
+	if err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: err:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return nil, nil, fmt.Errorf("recordLock %x: %v", token, err)
+	}
+
+	return tx, cancel, nil
+}
+
 // RecordNew creates a new record in the tstore and returns the record token
 // that serves as the unique identifier for the record. Creating a new record
 // means creating a tlog tree for the record. Nothing is saved to the tree yet.
-func (t *Tstore) RecordNew() ([]byte, error) {
+// Once the record has been created, it is locked using the provided
+// transaction.
+func (t *Tstore) RecordNew(tx store.Tx) ([]byte, error) {
+	log.Tracef("RecordNew")
+
+	// Create a new tlog tree
 	var token []byte
 	for retries := 0; retries < 10; retries++ {
 		tree, _, err := t.tlog.TreeNew()
@@ -53,19 +112,23 @@ func (t *Tstore) RecordNew() ([]byte, error) {
 		break
 	}
 
+	// Lock the record
+	err := t.recordLock(tx, token)
+	if err != nil {
+		return nil, err
+	}
+
 	return token, nil
 }
 
 // recordSave saves the provided record content to the kv store, appends a leaf
-// to the trillian tree for each piece of content, then returns a record
-// index for the newly saved record. If the record state is unvetted the record
+// to the trillian tree for each piece of content, then returns a record index
+// for the newly saved record. If the record state is unvetted the record
 // content will be saved to the key-value store encrypted.
 //
-// If the record is being made public the record version and iteration are both
-// reset back to 1. This function detects when a record is being made public
-// and re-saves any encrypted content that is part of the public record as
-// clear text in the key-value store.
-func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
+// If the record is being made public, any encrypted content that is part of
+// the public record is re-saved to the key-value store as clear text.
+func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
 	// Get tree leaves
 	leavesAll, err := t.leavesAll(treeID)
 	if err != nil {
@@ -73,7 +136,7 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 	}
 
 	// Get the existing record index
-	currIdx, err := t.recordIndexLatest(leavesAll)
+	currIdx, err := t.recordIndexLatest(tx, leavesAll)
 	if err == backend.ErrRecordNotFound {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
@@ -131,13 +194,9 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 		// [filename]BlobEntry
 		beFiles = make(map[string]store.BlobEntry, len(files))
 
-		idx = recordIndex{
-			State:     recordMD.State,
-			Version:   recordMD.Version,
-			Iteration: recordMD.Iteration,
-			Metadata:  make(map[string]map[uint32][]byte, len(metadata)),
-			Files:     make(map[string][]byte, len(files)),
-		}
+		// idx is the recordIndex that will be saved for this version
+		// and iteration of the record.
+		idx = newRecordIndex(recordMD.State, recordMD.Version, recordMD.Iteration)
 
 		// digests is used to aggregate the digests from all record
 		// content. This is used later on to see if any of the content
@@ -217,8 +276,8 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 		d := hex.EncodeToString(v.LeafValue)
 		_, ok := digests[d]
 		if ok {
-			// A piece of the new record content already exsits in the
-			// tstore. Save the digest as a duplcate.
+			// A piece of the new record content already exsits
+			// in the tstore. Save the digest as a duplcate.
 			dups[d] = struct{}{}
 		}
 	}
@@ -271,8 +330,8 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 		}
 		leaves = append(leaves, newLogLeaf(digest, extraData))
 	} else {
-		// This is a duplicate. Stash is for now. We may need to save
-		// it as plain text later.
+		// This is a duplicate. Stash is for now. We may need
+		// to save it as plain text later.
 		dupBlobs[beRecordMD.Digest] = *beRecordMD
 	}
 
@@ -281,8 +340,8 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 		for _, be := range v {
 			_, ok := dups[be.Digest]
 			if ok {
-				// This is a duplicate. Stash is for now. We may need to save
-				// it as plain text later.
+				// This is a duplicate. Stash is for now. We may
+				// need to save it as plain text later.
 				dupBlobs[be.Digest] = be
 				continue
 			}
@@ -314,8 +373,8 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 	for _, be := range beFiles {
 		_, ok := dups[be.Digest]
 		if ok {
-			// This is a duplicate. Stash is for now. We may need to save
-			// it as plain text later.
+			// This is a duplicate. Stash is for now. We may need
+			// to save it as plain text later.
 			dupBlobs[be.Digest] = be
 			continue
 		}
@@ -349,9 +408,9 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 	log.Debugf("Saving %v record content blobs", len(blobs))
 
 	// Save blobs to the kv store
-	err = t.store.Put(blobs, encrypt)
+	err = tx.Put(blobs, encrypt)
 	if err != nil {
-		return nil, fmt.Errorf("store Put: %v", err)
+		return nil, fmt.Errorf("tx Put: %v", err)
 	}
 
 	// Append leaves onto the trillian tree
@@ -384,9 +443,9 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 		return &idx, nil
 	}
 
-	// Resave all of the duplicate blobs as plain text. A duplicate
-	// blob means the record content existed prior to the status
-	// change.
+	// Resave all of the duplicate blobs as plain text. A
+	// duplicate blob means the record content existed prior
+	// to the status change.
 	blobs = make(map[string][]byte, len(dupBlobs))
 	for _, v := range leavesAll {
 		d := hex.EncodeToString(v.LeafValue)
@@ -396,8 +455,8 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 			continue
 		}
 
-		// This is a duplicate. If its unvetted it will need to be
-		// resaved as plain text.
+		// This is a duplicate. If its unvetted it will need to
+		// be resaved as plain text.
 		ed, err := extraDataDecode(v.ExtraData)
 		if err != nil {
 			return nil, err
@@ -426,9 +485,9 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 
 	log.Debugf("Resaving %v encrypted blobs as plain text", len(blobs))
 
-	err = t.store.Put(blobs, false)
+	err = tx.Put(blobs, false)
 	if err != nil {
-		return nil, fmt.Errorf("store Put: %v", err)
+		return nil, fmt.Errorf("tx Put: %v", err)
 	}
 
 	return &idx, nil
@@ -436,30 +495,69 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 
 // RecordSave saves the provided record to tstore. Once the record contents
 // have been successfully saved to tstore, a recordIndex is created for this
-// version of the record and saved to tstore as well. The record update is not
-// considered to be valid until the record index has been successfully saved.
-// If the record content makes it in but the record index does not, the record
-// content blobs are orphaned and ignored.
-func (t *Tstore) RecordSave(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+// version/iteration of the record and saved to tstore as well. The record
+// update is not considered to be valid until the record index has been
+// successfully saved. If the record content makes it in but the record index
+// does not, the record content blobs are orphaned and ignored.
+func (t *Tstore) RecordSave(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("RecordSave: %x", token)
 
-	// Verify token is valid. The full length token must be used when
-	// writing data.
+	// Verify token is valid. The full length token must be
+	// used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
 
 	// Save the record
 	treeID := treeIDFromToken(token)
-	idx, err := t.recordSave(treeID, rm, metadata, files)
+	idx, err := t.recordSave(tx, treeID, rm, metadata, files)
 	if err != nil {
 		return err
 	}
 
 	// Save the record index
-	err = t.recordIndexSave(treeID, *idx)
+	err = t.recordIndexSave(tx, treeID, *idx)
 	if err != nil {
 		return fmt.Errorf("recordIndexSave: %v", err)
+	}
+
+	return nil
+}
+
+// RecordSaveMetadata saved the provided record metadata and metadata streams
+// to tstore. Once the record contents have been successfully saved to tstore,
+// a recordIndex is created for this version/iteration of the record and saved
+// to tstore as well. The record update is not considered to be valid until the
+// record index has been successfully saved. If the record content makes it in
+// but the record index does not, the record content blobs are orphaned and
+// ignored.
+func (t *Tstore) RecordSaveMetadata(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
+	log.Tracef("RecordSaveMetadata: %x", token)
+
+	// Verify token is valid. The full length token must be
+	// used when writing data.
+	if !tokenIsFullLength(token) {
+		return backend.ErrTokenInvalid
+	}
+
+	// Lookup the record files. These need to be included when we save
+	// the updated metadata.
+	treeID := treeIDFromToken(token)
+	r, err := t.record(tx, treeID, 0, []string{}, false)
+	if err != nil {
+		return err
+	}
+
+	// Save the record
+	idx, err := t.recordSave(tx, treeID, rm, metadata, r.Files)
+	if err != nil {
+		return err
+	}
+
+	// Save the record index
+	err = t.recordIndexSave(tx, treeID, *idx)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -468,11 +566,11 @@ func (t *Tstore) RecordSave(token []byte, rm backend.RecordMetadata, metadata []
 // RecordDel walks the provided tree and deletes all blobs in the store that
 // correspond to record files. This is done for all versions and all iterations
 // of the record. Record metadata and metadata stream blobs are not deleted.
-func (t *Tstore) RecordDel(token []byte) error {
+func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 	log.Tracef("RecordDel: %x", token)
 
-	// Verify token is valid. The full length token must be used when
-	// writing data.
+	// Verify token is valid. The full length token must be
+	// used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
@@ -484,18 +582,8 @@ func (t *Tstore) RecordDel(token []byte) error {
 		return err
 	}
 
-	// Ensure tree is frozen. Deleting files from the store is only
-	// allowed on frozen trees.
-	currIdx, err := t.recordIndexLatest(leavesAll)
-	if err != nil {
-		return err
-	}
-	if !currIdx.Frozen {
-		return fmt.Errorf("tree is not frozen")
-	}
-
-	// Retrieve all record indexes
-	indexes, err := t.recordIndexes(leavesAll)
+	// Get all record indexes
+	indexes, err := t.recordIndexes(tx, leavesAll)
 	if err != nil {
 		return err
 	}
@@ -532,16 +620,17 @@ func (t *Tstore) RecordDel(token []byte) error {
 	}
 
 	// Delete file blobs from the store
-	err = t.store.Del(keys)
+	err = tx.Del(keys)
 	if err != nil {
-		return fmt.Errorf("store Del: %v", err)
+		return fmt.Errorf("tx Del: %v", err)
 	}
 
 	return nil
 }
 
-// RecordFreeze updates the status of a record then freezes the trillian tree
-// to prevent any additional updates.
+// RecordFreeze updates the metadata of a record, this will include a status
+// update but other metadata may be updates as well, then freezes the trillian
+// tree to prevent any additional updates.
 //
 // A tree is considered to be frozen once the record index has been saved with
 // its Frozen field set to true. The only thing that can be appended onto a
@@ -549,18 +638,25 @@ func (t *Tstore) RecordDel(token []byte) error {
 // anchored, the tstore fsck function will update the status of the tree to
 // frozen in trillian, at which point trillian will prevent any changes to the
 // tree.
-func (t *Tstore) RecordFreeze(token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
+func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	log.Tracef("RecordFreeze: %x", token)
 
-	// Verify token is valid. The full length token must be used when
-	// writing data.
+	// Verify token is valid. The full length token must be
+	// used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
 
-	// Save updated record
+	// Lookup the record files. These need to be included when we save
+	// the updated metadata.
 	treeID := treeIDFromToken(token)
-	idx, err := t.recordSave(treeID, rm, metadata, files)
+	r, err := t.record(tx, treeID, 0, []string{}, false)
+	if err != nil {
+		return err
+	}
+
+	// Save the record
+	idx, err := t.recordSave(tx, treeID, rm, metadata, r.Files)
 	if err != nil {
 		return err
 	}
@@ -569,7 +665,7 @@ func (t *Tstore) RecordFreeze(token []byte, rm backend.RecordMetadata, metadata 
 	idx.Frozen = true
 
 	// Save the record index
-	return t.recordIndexSave(treeID, *idx)
+	return t.recordIndexSave(tx, treeID, *idx)
 }
 
 // RecordExists returns whether a record exists.
@@ -592,8 +688,10 @@ func (t *Tstore) RecordFreeze(token []byte, rm backend.RecordMetadata, metadata 
 // light weight. Its for this reason that we rely on the tree exists call
 // despite the edge case.
 func (t *Tstore) RecordExists(token []byte) bool {
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
+	log.Tracef("RecordExists: %x", token)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -614,7 +712,7 @@ func (t *Tstore) RecordExists(token []byte) bool {
 //
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
-func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	// Get tree leaves
 	leaves, err := t.leavesAll(treeID)
 	if err != nil {
@@ -624,7 +722,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	// Use the record index to pull the record content from the store.
 	// The keys for the record content first need to be extracted from
 	// their log leaf.
-	idx, err := t.recordIndex(leaves, version)
+	idx, err := t.recordIndex(g, leaves, version)
 	if err != nil {
 		return nil, err
 	}
@@ -676,9 +774,9 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 		var key string
 		switch idx.State {
 		case backend.StateVetted:
-			// If the record is vetted the content may exist in the store
-			// as both an encrypted blob and a plain text blob. Always pull
-			// the plaintext blob.
+			// If the record is vetted the content may exist in
+			// the store as both an encrypted blob and a plain
+			// text blob. Always pull the plaintext blob.
 			key = ed.storeKeyNoPrefix()
 		default:
 			// Pull the encrypted blob
@@ -688,7 +786,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	}
 
 	// Get record content from store
-	blobs, err := t.store.Get(keys)
+	blobs, err := g.Get(keys)
 	if err != nil {
 		return nil, fmt.Errorf("store Get: %v", err)
 	}
@@ -783,8 +881,8 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 	log.Tracef("Record: %x %v", token, version)
 
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -792,15 +890,15 @@ func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 	}
 
 	treeID := treeIDFromToken(token)
-	return t.record(treeID, version, []string{}, false)
+	return t.record(t.store, treeID, version, []string{}, false)
 }
 
 // RecordLatest returns the latest version of a record.
 func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
 	log.Tracef("RecordLatest: %x", token)
 
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -808,7 +906,7 @@ func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
 	}
 
 	treeID := treeIDFromToken(token)
-	return t.record(treeID, 0, []string{}, false)
+	return t.record(t.store, treeID, 0, []string{}, false)
 }
 
 // RecordPartial returns a partial record. This method gives the caller fine
@@ -827,8 +925,8 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 	log.Tracef("RecordPartial: %x %v %v %v",
 		token, version, omitAllFiles, filenames)
 
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -836,7 +934,7 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 	}
 
 	treeID := treeIDFromToken(token)
-	return t.record(treeID, version, filenames, omitAllFiles)
+	return t.record(t.store, treeID, version, filenames, omitAllFiles)
 }
 
 // RecordState returns the state of a record. This call does not require
@@ -845,8 +943,8 @@ func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string,
 func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 	log.Tracef("RecordState: %x", token)
 
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -863,6 +961,67 @@ func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 	}
 
 	return backend.StateUnvetted, nil
+}
+
+// TxRecord uses a transaction to return a specific version of a record.
+func (t *Tstore) TxRecord(tx store.Tx, token []byte, version uint32) (*backend.Record, error) {
+	log.Tracef("TxRecord: %x %v", token, version)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	treeID := treeIDFromToken(token)
+	return t.record(tx, treeID, version, []string{}, false)
+}
+
+// TxRecordLatest uses a transaction to return the latest version of a record.
+func (t *Tstore) TxRecordLatest(tx store.Tx, token []byte) (*backend.Record, error) {
+	log.Tracef("TxRecordLatest: %x", token)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	treeID := treeIDFromToken(token)
+	return t.record(tx, treeID, 0, []string{}, false)
+}
+
+// TxRecordPartial uses a transaction to return a partial record. This method
+// gives the caller fine grained control over what version and what files are
+// returned. The only required field is the token. All other fields are
+// optional.
+//
+// Version is used to request a specific version of a record. If no version is
+// provided then the most recent version of the record will be returned.
+//
+// Filenames can be used to request specific files. If filenames is not empty
+// then the specified files will be the only files returned.
+//
+// OmitAllFiles can be used to retrieve a record without any of the record
+// files. This supersedes the filenames argument.
+func (t *Tstore) TxRecordPartial(tx store.Tx, token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+	log.Tracef("TxRecordPartial: %x %v %v %v",
+		token, version, omitAllFiles, filenames)
+
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
+	var err error
+	token, err = t.fullLengthToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	treeID := treeIDFromToken(token)
+	return t.record(tx, treeID, version, filenames, omitAllFiles)
 }
 
 // timestamp returns the timestamp given a tlog tree merkle leaf hash.
@@ -1010,8 +1169,8 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.RecordTimestamps, error) {
 	log.Tracef("RecordTimestamps: %x %v", token, version)
 
-	// Read methods are allowed to use short tokens. Lookup the full
-	// length token.
+	// Read methods are allow to provide shortened tokens.
+	// Verify that we have the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
@@ -1024,7 +1183,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 	if err != nil {
 		return nil, err
 	}
-	idx, err := t.recordIndex(leaves, version)
+	idx, err := t.recordIndex(t.store, leaves, version)
 	if err != nil {
 		return nil, err
 	}
@@ -1070,9 +1229,9 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 	}, nil
 }
 
-// Inventory returns all record tokens that are in the tstore. Its possible for
-// a token to be returned that does not correspond to an actual record. For
-// example, if the tlog tree was created but saving the record to the tree
+// Inventory returns all record tokens that are in the tstore. Its possible
+// for a token to be returned that does not correspond to an actual record.
+// For example, if the tlog tree was created but saving the record to the tree
 // failed due to an unexpected error then a empty tree with exist. This
 // function does not filter those tokens out.
 func (t *Tstore) Inventory() ([][]byte, error) {

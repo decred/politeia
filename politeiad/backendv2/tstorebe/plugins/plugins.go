@@ -21,84 +21,82 @@ var (
 type HookT int
 
 const (
-	// HookTypeInvalid is an invalid plugin hook.
-	HookTypeInvalid HookT = 0
+	// HookInvalid is an invalid plugin hook.
+	HookInvalid HookT = 0
 
-	// HootTypeNewRecordPre is called before a new record is saved to
+	// HookRecordNewPre is called before a new record is saved to disk.
+	HookRecordNewPre HookT = 1
+
+	// HookRecordNewPost is called after a new record is saved to disk.
+	HookRecordNewPost HookT = 2
+
+	// HookRecordEditPre is called before a record edit is saved to
 	// disk.
-	HookTypeNewRecordPre HookT = 1
+	HookRecordEditPre HookT = 3
 
-	// HootTypeNewRecordPost is called after a new record is saved to
+	// HookRecordEditPost is called after a record edit is saved to
 	// disk.
-	HookTypeNewRecordPost HookT = 2
+	HookRecordEditPost HookT = 4
 
-	// HookTypeEditRecordPre is called before a record update is saved
-	// to disk.
-	HookTypeEditRecordPre HookT = 3
+	// HookRecordEditMetadataPre is called before a record metadata
+	// edit is saved to disk.
+	HookRecordEditMetadataPre HookT = 5
 
-	// HookTypeEditRecordPost is called after a record update is saved
-	// to disk.
-	HookTypeEditRecordPost HookT = 4
+	// HookRecordEditMetadataPost is called after a record metadata
+	// edit is saved to disk.
+	HookRecordEditMetadataPost HookT = 6
 
-	// HookTypeEditMetadataPre is called before a metadata update is
-	// saved to disk.
-	HookTypeEditMetadataPre HookT = 5
+	// HookRecordSetStatusPre is called before a record status change
+	// is saved to disk.
+	HookRecordSetStatusPre HookT = 7
 
-	// HookTypeEditMetadataPost is called after a metadata update is
-	// saved to disk.
-	HookTypeEditMetadataPost HookT = 6
+	// HookRecordSetStatusPost is called after a record status change
+	// is saved to disk.
+	HookRecordSetStatusPost HookT = 8
 
-	// HookTypeSetRecordStatusPre is called before a record status
-	// change is saved to disk.
-	HookTypeSetRecordStatusPre HookT = 7
+	// HookPluginWritePre is called before a write plugin command is
+	// executed.
+	HookPluginWritePre HookT = 9
 
-	// HookTypeSetRecordStatusPost is called after a record status
-	// change is saved to disk.
-	HookTypeSetRecordStatusPost HookT = 8
+	// HookPluginWritePost is called after a write plugin command is
+	// executed.
+	HookPluginWritePost HookT = 10
 
-	// HookTypePluginPre is called before a plugin command is executed.
-	HookTypePluginPre HookT = 9
-
-	// HookTypePluginPost is called after a plugin command is executed.
-	HookTypePluginPost HookT = 10
-
-	// HookTypeLast unit test only
-	HookTypeLast HookT = 11
+	// HookLast is used by unit tests to verify that all hooks have
+	// an entry in the Hooks map. This hook will never be used.
+	HookLast HookT = 11
 )
 
 var (
-	// Hooks contains human readable descriptions of the plugin hooks.
+	// Hooks contains human readable descriptions for the plugin hooks.
 	Hooks = map[HookT]string{
-		HookTypeInvalid:             "invalid hook",
-		HookTypeNewRecordPre:        "new record pre",
-		HookTypeNewRecordPost:       "new record post",
-		HookTypeEditRecordPre:       "edit record pre",
-		HookTypeEditRecordPost:      "edit record post",
-		HookTypeEditMetadataPre:     "edit metadata pre",
-		HookTypeEditMetadataPost:    "edit metadata post",
-		HookTypeSetRecordStatusPre:  "set record status pre",
-		HookTypeSetRecordStatusPost: "set record status post",
-		HookTypePluginPre:           "plugin pre",
-		HookTypePluginPost:          "plugin post",
+		HookInvalid:                "invalid hook",
+		HookRecordNewPre:           "record new pre",
+		HookRecordNewPost:          "record new post",
+		HookRecordEditPre:          "record edit pre",
+		HookRecordEditPost:         "record edit post",
+		HookRecordEditMetadataPre:  "record edit metadata pre",
+		HookRecordEditMetadataPost: "record edit metadata post",
+		HookRecordSetStatusPre:     "record set status pre",
+		HookRecordSetStatusPost:    "record set status post",
+		HookPluginWritePre:         "plugin write pre",
+		HookPluginWritePost:        "plugin write post",
 	}
 )
 
-// HookNewRecordPre is the payload for the pre new record hook.
-type HookNewRecordPre struct {
+// RecordNew is the payload for the RecordNew hooks.
+type RecordNew struct {
 	Metadata []backend.MetadataStream `json:"metadata"`
 	Files    []backend.File           `json:"files"`
+
+	// RecordMetadata will only be populated on the post hook.
+	RecordMetadata *backend.RecordMetadata `json:"recordmetadata,omitempty"`
 }
 
-// HookNewRecordPost is the payload for the post new record hook.
-type HookNewRecordPost struct {
-	Metadata       []backend.MetadataStream `json:"metadata"`
-	Files          []backend.File           `json:"files"`
-	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
-}
-
-// HookEditRecord is the payload for the pre and post edit record hooks.
-type HookEditRecord struct {
-	Record backend.Record `json:"record"` // Record pre update
+// RecordEdit is the payload for the RecordEdit hooks.
+type RecordEdit struct {
+	// Record pre update
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
@@ -106,39 +104,35 @@ type HookEditRecord struct {
 	Files          []backend.File           `json:"files"`
 }
 
-// HookEditMetadata is the payload for the pre and post edit metadata hooks.
-type HookEditMetadata struct {
-	Record backend.Record `json:"record"` // Record pre update
+// RecordEditMetadata is the payload for the RecordEditMetadata hooks.
+type RecordEditMetadata struct {
+	// Record pre update
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	Metadata []backend.MetadataStream `json:"metadata"`
 }
 
-// HookSetRecordStatus is the payload for the pre and post set record status
-// hooks.
-type HookSetRecordStatus struct {
-	Record backend.Record `json:"record"` // Record pre update
+// RecordSetStatus is the payload for the RecordSetStatus hooks.
+type RecordSetStatus struct {
+	// Record pre update
+	Record backend.Record `json:"record"`
 
 	// Updated fields
 	RecordMetadata backend.RecordMetadata   `json:"recordmetadata"`
 	Metadata       []backend.MetadataStream `json:"metadata"`
 }
 
-// HookPluginPre is the payload for the pre plugin hook.
-type HookPluginPre struct {
+// PluginWrite is the payload for the PluginWrite hooks.
+type PluginWrite struct {
 	Token    []byte `json:"token"`
 	PluginID string `json:"pluginid"`
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"`
-}
 
-// HookPluginPost is the payload for the post plugin hook. The post plugin hook
-// includes the plugin reply.
-type HookPluginPost struct {
-	PluginID string `json:"pluginid"`
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"`
-	Reply    string `json:"reply"`
+	// Reply contains the plugin command reply payload and will only
+	// be populated on the post hook.
+	Reply string `json:"reply,omitempty"`
 }
 
 // PluginClient provides an API for a tstore instance to use when interacting
@@ -147,11 +141,18 @@ type PluginClient interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 
-	// Cmd executes a plugin command.
-	Cmd(token []byte, cmd, payload string) (string, error)
+	// Write executes a read/write plugin command. All operations are
+	// executed atomically by tstore when using this method. The plugin
+	// does not need to worry about concurrency issues.
+	Write(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Hook executes a plugin hook.
-	Hook(h HookT, payload string) error
+	// Read executes a read-only plugin command.
+	Read(t TstoreClient, token []byte, cmd, payload string) (string, error)
+
+	// Hook executes a plugin hook. All operations are executed
+	// atomically by tstore when using this method. The plugin does not
+	// need to worry about concurrency issues.
+	Hook(t TstoreClient, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
 	Fsck() error
@@ -160,9 +161,13 @@ type PluginClient interface {
 	Settings() []backend.PluginSetting
 }
 
-// TstoreClient provides an API for plugins to interact with a tstore instance.
-// Plugins are allowed to save, delete, and get plugin data to/from the tstore
-// backend. Editing plugin data is not allowed.
+// TODO remove the token argument. It will use the token that the command is
+// being executed on.  Executing commands on other records requires the use
+// of the Backend interace.
+//
+// TstoreClient provides a concurrency safe API for plugins to interact with a
+// tstore instance.  Plugins are allowed to save, delete, and retrieve plugin
+// data to/from the tstore backend.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -220,6 +225,55 @@ type TstoreClient interface {
 	RecordPartial(token []byte, version uint32, filenames []string,
 		omitAllFiles bool) (*backend.Record, error)
 
-	// RecordState returns whether the record is unvetted or vetted.
+	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
+
+	// CacheSave saves the provided key-value pairs to the tstore
+	// cache. Cached data is not timestamped onto the Decred
+	// blockchain. Only data that can be recreated by walking the
+	// tlog trees should be cached.
+	CacheSave(kv map[string][]byte) error
+
+	// CacheGet returns blobs from the cache for the provided keys. An
+	// entry will not exist in the returned map if for any blobs that
+	// are not found. It is the responsibility of the caller to ensure
+	// a blob was returned for all provided keys.
+	CacheGet(keys []string) (map[string][]byte, error)
+
+	// TODO implement InvClient
+	// InvClient returns a InvClient that can be used to interact with
+	// the inventory that corresponds to the provided key.
+	// InvClient(key string, encrypt bool) InvClient
+}
+
+// InvClient provides a concurrency safe API that plugins can use to manage an
+// inventory of tokens. Bit flags are used to encode relevant data into
+// inventory entries. The inventory can be queried by the bit flags or by the
+// entry timestamp.
+type InvClient interface {
+	// Add adds a new entry to the inventory.
+	Add(token []byte, bits uint64, timestamp int64) error
+
+	// Update updates an inventory entry.
+	Update(token []byte, bits uint64, timestamp int64) error
+
+	// Del deletes an entry from the inventory.
+	Del(token string) error
+
+	// Get returns a page of tokens that match the provided filtering
+	// criteria.
+	Get(bits uint64, pageSize, pageNum uint32) ([]string, error)
+
+	// GetMulti returns a page of tokens for each of the provided bits.
+	// The bits are used as filtering criteria. The returned map is a
+	// map[bits][]token.
+	GetMulti(bits []uint64, pageSize,
+		pageNum uint32) (map[uint64][]string, error)
+
+	// GetOrdered orders the entries from newest to oldest and returns
+	// the specified page.
+	GetOrdered(pageSize, pageNum uint32) ([]string, error)
+
+	// GetAll returns all tokens in the inventory.
+	GetAll(pageSize, pageNum uint32) ([]string, error)
 }

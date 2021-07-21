@@ -23,68 +23,94 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+const (
+	// The following constants are used to indicate what hook and
+	// payload should be used when running a set of composable tests.
+	testHookRecordNewPre  = "hookrecordnewpre"
+	testHookRecordEditPre = "hookrecordeditpre"
+)
+
 func TestHookNewRecordPre(t *testing.T) {
 	// Setup pi plugin
-	p, cleanup := newTestPiPlugin(t)
-	defer cleanup()
+	p := newTestPiPlugin(t)
 
 	// Run tests
-	runProposalFormatTests(t, p.hookNewRecordPre)
+	runProposalFormatTests(t, p, testHookRecordNewPre)
 }
 
 func TestHookEditRecordPre(t *testing.T) {
 	// Setup pi plugin
-	p, cleanup := newTestPiPlugin(t)
-	defer cleanup()
+	p := newTestPiPlugin(t)
 
 	// Run tests
-	runProposalFormatTests(t, p.hookEditRecordPre)
+	runProposalFormatTests(t, p, testHookRecordEditPre)
 }
 
-// runProposalFormatTests runs the proposal format tests using the provided
-// hook function as the test function. This allows us to run the same set of
-// formatting tests of multiple hooks without needing to duplicate the setup
-// and error handling code.
-func runProposalFormatTests(t *testing.T, hookFn func(string) error) {
-	for _, v := range proposalFormatTests(t) {
-		t.Run(v.name, func(t *testing.T) {
+// runProposalFormatTests runs the proposal format tests for the provided test
+// type. This function makes the proposal format test composable and allows us
+// to run the same set of formatting tests of multiple hooks without needing to
+// duplicate any of the test code.
+func runProposalFormatTests(t *testing.T, p *piPlugin, testType string) {
+	for _, tc := range proposalFormatTests(t) {
+		t.Run(tc.name, func(t *testing.T) {
 			// Decode the expected error into a PluginError. If
 			// an error is being returned it should always be a
 			// PluginError.
 			var wantErrorCode pi.ErrorCodeT
-			if v.err != nil {
+			if tc.err != nil {
 				var pe backend.PluginError
-				if !errors.As(v.err, &pe) {
-					t.Fatalf("error is not a plugin error '%v'", v.err)
+				if !errors.As(tc.err, &pe) {
+					t.Fatalf("error is not a plugin error '%v'", tc.err)
 				}
 				wantErrorCode = pi.ErrorCodeT(pe.ErrorCode)
 			}
 
-			// Setup payload
-			hnrp := plugins.HookNewRecordPre{
-				Files: v.files,
+			// Setup the hook function and payload
+			var (
+				hookFn  func(string) error
+				payload string
+			)
+			switch testType {
+			case testHookRecordNewPre:
+				rn := plugins.RecordNew{
+					Files: tc.files,
+				}
+				b, err := json.Marshal(rn)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				hookFn = p.hookRecordNewPre
+				payload = string(b)
+
+			case testHookRecordEditPre:
+				re := plugins.RecordEdit{
+					Files: tc.files,
+				}
+				b, err := json.Marshal(re)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				hookFn = p.hookRecordEditPre
+				payload = string(b)
 			}
-			b, err := json.Marshal(hnrp)
-			if err != nil {
-				t.Fatal(err)
-			}
-			payload := string(b)
 
 			// Run test
-			err = hookFn(payload)
+			err := hookFn(payload)
 			switch {
-			case v.err != nil && err == nil:
+			case tc.err != nil && err == nil:
 				// Wanted an error but didn't get one
 				t.Errorf("want error '%v', got nil",
 					pi.ErrorCodes[wantErrorCode])
 				return
 
-			case v.err == nil && err != nil:
+			case tc.err == nil && err != nil:
 				// Wanted success but got an error
 				t.Errorf("want error nil, got '%v'", err)
 				return
 
-			case v.err != nil && err != nil:
+			case tc.err != nil && err != nil:
 				// Wanted an error and got an error. Verify that it's
 				// the correct error. All errors should be backend
 				// plugin errors.
@@ -109,7 +135,7 @@ func runProposalFormatTests(t *testing.T, hookFn func(string) error) {
 				// Success; continue to next test
 				return
 
-			case v.err == nil && err == nil:
+			case tc.err == nil && err == nil:
 				// Success; continue to next test
 				return
 			}

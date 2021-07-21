@@ -9,425 +9,31 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
+	pkgerrors "github.com/pkg/errors"
 )
 
 const (
 	pluginID = comments.PluginID
 
 	// Blob entry data descriptors
+	// TODO the tstore client should prefix pluginID
 	dataDescriptorCommentAdd  = pluginID + "-add-v1"
 	dataDescriptorCommentDel  = pluginID + "-del-v1"
 	dataDescriptorCommentVote = pluginID + "-vote-v1"
 )
 
-// commentAddSave saves a CommentAdd to the backend.
-func (p *commentsPlugin) commentAddSave(token []byte, ca comments.CommentAdd) ([]byte, error) {
-	be, err := convertBlobEntryFromCommentAdd(ca)
-	if err != nil {
-		return nil, err
-	}
-	d, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, err
-	}
-	err = p.tstore.BlobSave(token, *be)
-	if err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-// commentAdds returns a commentAdd for each of the provided digests. A digest
-// refers to the blob entry digest, which can be used to retrieve the blob
-// entry from the backend.
-func (p *commentsPlugin) commentAdds(token []byte, digests [][]byte) ([]comments.CommentAdd, error) {
-	// Retrieve blobs
-	blobs, err := p.tstore.Blobs(token, digests)
-	if err != nil {
-		return nil, err
-	}
-	if len(blobs) != len(digests) {
-		notFound := make([]string, 0, len(blobs))
-		for _, v := range digests {
-			m := hex.EncodeToString(v)
-			_, ok := blobs[m]
-			if !ok {
-				notFound = append(notFound, m)
-			}
-		}
-		return nil, fmt.Errorf("blobs not found: %v", notFound)
-	}
-
-	// Decode blobs
-	adds := make([]comments.CommentAdd, 0, len(blobs))
-	for _, v := range blobs {
-		c, err := convertCommentAddFromBlobEntry(v)
-		if err != nil {
-			return nil, err
-		}
-		adds = append(adds, *c)
-	}
-
-	return adds, nil
-}
-
-// commentDelSave saves a CommentDel to the backend.
-func (p *commentsPlugin) commentDelSave(token []byte, cd comments.CommentDel) ([]byte, error) {
-	be, err := convertBlobEntryFromCommentDel(cd)
-	if err != nil {
-		return nil, err
-	}
-	d, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, err
-	}
-	err = p.tstore.BlobSave(token, *be)
-	if err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-// commentDels returns a commentDel for each of the provided digests. A digest
-// refers to the blob entry digest, which can be used to retrieve the blob
-// entry from the backend.
-func (p *commentsPlugin) commentDels(token []byte, digests [][]byte) ([]comments.CommentDel, error) {
-	// Retrieve blobs
-	blobs, err := p.tstore.Blobs(token, digests)
-	if err != nil {
-		return nil, err
-	}
-	if len(blobs) != len(digests) {
-		notFound := make([]string, 0, len(blobs))
-		for _, v := range digests {
-			m := hex.EncodeToString(v)
-			_, ok := blobs[m]
-			if !ok {
-				notFound = append(notFound, m)
-			}
-		}
-		return nil, fmt.Errorf("blobs not found: %v", notFound)
-	}
-
-	// Decode blobs
-	dels := make([]comments.CommentDel, 0, len(blobs))
-	for _, v := range blobs {
-		d, err := convertCommentDelFromBlobEntry(v)
-		if err != nil {
-			return nil, err
-		}
-		dels = append(dels, *d)
-	}
-
-	return dels, nil
-}
-
-// commentVoteSave saves a CommentVote to the backend.
-func (p *commentsPlugin) commentVoteSave(token []byte, cv comments.CommentVote) ([]byte, error) {
-	be, err := convertBlobEntryFromCommentVote(cv)
-	if err != nil {
-		return nil, err
-	}
-	d, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, err
-	}
-	err = p.tstore.BlobSave(token, *be)
-	if err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-// commentVotes returns a CommentVote for each of the provided digests. A
-// digest refers to the blob entry digest, which can be used to retrieve the
-// blob entry from the backend.
-func (p *commentsPlugin) commentVotes(token []byte, digests [][]byte) ([]comments.CommentVote, error) {
-	// Retrieve blobs
-	blobs, err := p.tstore.Blobs(token, digests)
-	if err != nil {
-		return nil, err
-	}
-	if len(blobs) != len(digests) {
-		notFound := make([]string, 0, len(blobs))
-		for _, v := range digests {
-			m := hex.EncodeToString(v)
-			_, ok := blobs[m]
-			if !ok {
-				notFound = append(notFound, m)
-			}
-		}
-		return nil, fmt.Errorf("blobs not found: %v", notFound)
-	}
-
-	// Decode blobs
-	votes := make([]comments.CommentVote, 0, len(blobs))
-	for _, v := range blobs {
-		c, err := convertCommentVoteFromBlobEntry(v)
-		if err != nil {
-			return nil, err
-		}
-		votes = append(votes, *c)
-	}
-
-	return votes, nil
-}
-
-// comments returns the most recent version of the specified comments. Deleted
-// comments are returned with limited data. If a comment is not found for a
-// provided comment IDs, the comment ID is excluded from the returned map. An
-// error will not be returned. It is the responsibility of the caller to ensure
-// a comment is returned for each of the provided comment IDs.
-func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []uint32) (map[uint32]comments.Comment, error) {
-	// Aggregate the digests for all records that need to be looked up.
-	// If a comment has been deleted then the only record that will
-	// still exist is the comment del record. If the comment has not
-	// been deleted then the comment add record will need to be
-	// retrieved for the latest version of the comment.
-	var (
-		digestAdds = make([][]byte, 0, len(commentIDs))
-		digestDels = make([][]byte, 0, len(commentIDs))
-	)
-	for _, v := range commentIDs {
-		cidx, ok := ridx.Comments[v]
-		if !ok {
-			// Comment does not exist
-			continue
-		}
-
-		// Comment del record
-		if cidx.Del != nil {
-			digestDels = append(digestDels, cidx.Del)
-			continue
-		}
-
-		// Comment add record
-		version := commentVersionLatest(cidx)
-		digestAdds = append(digestAdds, cidx.Adds[version])
-	}
-
-	// Get comment add records
-	adds, err := p.commentAdds(token, digestAdds)
-	if err != nil {
-		return nil, fmt.Errorf("commentAdds: %v", err)
-	}
-	if len(adds) != len(digestAdds) {
-		return nil, fmt.Errorf("wrong comment adds count; got %v, want %v",
-			len(adds), len(digestAdds))
-	}
-
-	// Get comment del records
-	dels, err := p.commentDels(token, digestDels)
-	if err != nil {
-		return nil, fmt.Errorf("commentDels: %v", err)
-	}
-	if len(dels) != len(digestDels) {
-		return nil, fmt.Errorf("wrong comment dels count; got %v, want %v",
-			len(dels), len(digestDels))
-	}
-
-	// Prepare comments
-	cs := make(map[uint32]comments.Comment, len(commentIDs))
-	for _, v := range adds {
-		c := convertCommentFromCommentAdd(v)
-		cidx, ok := ridx.Comments[c.CommentID]
-		if !ok {
-			return nil, fmt.Errorf("comment index not found %v", c.CommentID)
-		}
-		c.Downvotes, c.Upvotes = voteScore(cidx)
-		cs[v.CommentID] = c
-	}
-	for _, v := range dels {
-		c := convertCommentFromCommentDel(v)
-		cs[v.CommentID] = c
-	}
-
-	return cs, nil
-}
-
-// comment returns the latest version of a comment.
-func (p *commentsPlugin) comment(token []byte, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
-	cs, err := p.comments(token, ridx, []uint32{commentID})
-	if err != nil {
-		return nil, fmt.Errorf("comments: %v", err)
-	}
-	c, ok := cs[commentID]
-	if !ok {
-		return nil, fmt.Errorf("comment not found")
-	}
-	return &c, nil
-}
-
-// timestamp returns the timestamp for a blob entry digest.
-func (p *commentsPlugin) timestamp(token []byte, digest []byte) (*comments.Timestamp, error) {
-	// Get timestamp
-	t, err := p.tstore.Timestamp(token, digest)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert response
-	proofs := make([]comments.Proof, 0, len(t.Proofs))
-	for _, v := range t.Proofs {
-		proofs = append(proofs, comments.Proof{
-			Type:       v.Type,
-			Digest:     v.Digest,
-			MerkleRoot: v.MerkleRoot,
-			MerklePath: v.MerklePath,
-			ExtraData:  v.ExtraData,
-		})
-	}
-	return &comments.Timestamp{
-		Data:       t.Data,
-		Digest:     t.Digest,
-		TxID:       t.TxID,
-		MerkleRoot: t.MerkleRoot,
-		Proofs:     proofs,
-	}, nil
-}
-
-// commentTimestamps returns the CommentTimestamp for each of the provided
-// comment IDs.
-func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, includeVotes bool) (*comments.TimestampsReply, error) {
-	// Verify there is work to do
-	if len(commentIDs) == 0 {
-		return &comments.TimestampsReply{
-			Comments: map[uint32]comments.CommentTimestamp{},
-		}, nil
-	}
-
-	// Get record state
-	state, err := p.tstore.RecordState(token)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get record index
-	ridx, err := p.recordIndex(token, state)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get timestamps for each comment ID
-	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
-	for _, cid := range commentIDs {
-		cidx, ok := ridx.Comments[cid]
-		if !ok {
-			// Comment ID does not exist. Skip it.
-			continue
-		}
-
-		// Get comment add timestamps
-		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
-		for _, v := range cidx.Adds {
-			ts, err := p.timestamp(token, v)
-			if err != nil {
-				return nil, err
-			}
-			adds = append(adds, *ts)
-		}
-
-		// Get comment del timestamps. This will only exist if the
-		// comment has been deleted.
-		var del *comments.Timestamp
-		if cidx.Del != nil {
-			ts, err := p.timestamp(token, cidx.Del)
-			if err != nil {
-				return nil, err
-			}
-			del = ts
-		}
-
-		// Get comment vote timestamps
-		var votes []comments.Timestamp
-		if includeVotes {
-			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
-			for _, voteIdxs := range cidx.Votes {
-				for _, v := range voteIdxs {
-					ts, err := p.timestamp(token, v.Digest)
-					if err != nil {
-						return nil, err
-					}
-					votes = append(votes, *ts)
-				}
-			}
-		}
-
-		// Save timestamp
-		cts[cid] = comments.CommentTimestamp{
-			Adds:  adds,
-			Del:   del,
-			Votes: votes,
-		}
-	}
-
-	return &comments.TimestampsReply{
-		Comments: cts,
-	}, nil
-}
-
-// voteScore returns the total number of downvotes and upvotes, respectively,
-// for a comment.
-func voteScore(cidx commentIndex) (uint64, uint64) {
-	// Find the vote score by replaying all existing votes from all
-	// users. The net effect of a new vote on a comment score depends
-	// on the previous vote from that uuid. Example, a user upvotes a
-	// comment that they have already upvoted, the resulting vote score
-	// is 0 due to the second upvote removing the original upvote.
-	var upvotes uint64
-	var downvotes uint64
-	for _, votes := range cidx.Votes {
-		// Calculate the vote score that this user is contributing. This
-		// can only ever be -1, 0, or 1.
-		var score int64
-		for _, v := range votes {
-			vote := int64(v.Vote)
-			switch {
-			case score == 0:
-				// No previous vote. New vote becomes the score.
-				score = vote
-
-			case score == vote:
-				// New vote is the same as the previous vote. The vote gets
-				// removed from the score, making the score 0.
-				score = 0
-
-			case score != vote:
-				// New vote is different than the previous vote. New vote
-				// becomes the score.
-				score = vote
-			}
-		}
-
-		// Add the net result of all votes from this user to the totals.
-		switch score {
-		case 0:
-			// Nothing to do
-		case -1:
-			downvotes++
-		case 1:
-			upvotes++
-		default:
-			// Should not be possible
-			panic(fmt.Errorf("unexpected vote score %v", score))
-		}
-	}
-
-	return downvotes, upvotes
-}
-
 // cmdNew creates a new comment.
-func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var n comments.New
 	err := json.Unmarshal([]byte(payload), &n)
@@ -449,7 +55,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 		return "", convertSignatureError(err)
 	}
 
-	// Verify comment
+	// Verify comment length
 	if len(n.Comment) > int(p.commentLengthMax) {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
@@ -460,7 +66,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -473,14 +79,14 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
 	// Verify parent comment exists if set. A parent ID of 0 means that
 	// this is a base level comment, not a reply to another comment.
-	if n.ParentID > 0 && !commentExists(*ridx, n.ParentID) {
+	if n.ParentID > 0 && !ridx.commentExists(n.ParentID) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
 			ErrorCode:    uint32(comments.ErrorCodeParentIDInvalid),
@@ -498,7 +104,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 		Comment:       n.Comment,
 		PublicKey:     n.PublicKey,
 		Signature:     n.Signature,
-		CommentID:     commentIDLatest(*ridx) + 1,
+		CommentID:     ridx.commentIDLatest() + 1,
 		Version:       1,
 		Timestamp:     time.Now().Unix(),
 		Receipt:       hex.EncodeToString(receipt[:]),
@@ -507,30 +113,27 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Save comment
-	digest, err := p.commentAddSave(token, ca)
+	digest, err := commentAddSave(tstore, token, ca)
 	if err != nil {
-		return "", fmt.Errorf("commentAddSave: %v", err)
+		return "", err
 	}
 
 	// Update the index
-	ridx.Comments[ca.CommentID] = commentIndex{
-		Adds: map[uint32][]byte{
-			1: digest,
-		},
-		Del:   nil,
-		Votes: make(map[string][]voteIndex),
-	}
+	ridx.Comments[ca.CommentID] = newCommentIndex(digest)
 
 	// Save the updated index
-	p.recordIndexSave(token, state, *ridx)
+	err = recordIndexSave(tstore, state, *ridx)
+	if err != nil {
+		return "", err
+	}
 
 	log.Debugf("Comment saved to record %v comment ID %v",
 		ca.Token, ca.CommentID)
 
 	// Return new comment
-	c, err := p.comment(token, *ridx, ca.CommentID)
+	c, err := ridx.comment(tstore, ca.CommentID)
 	if err != nil {
-		return "", fmt.Errorf("comment %x %v: %v", token, ca.CommentID, err)
+		return "", err
 	}
 
 	// Prepare reply
@@ -545,8 +148,9 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	return string(reply), nil
 }
 
-// cmdEdit edits an existing comment.
-func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
+// cmdEdit edits an existing comment. Editing a comment creates a new version
+// of the comment.
+func (p *commentsPlugin) cmdEdit(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var e comments.Edit
 	err := json.Unmarshal([]byte(payload), &e)
@@ -579,7 +183,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -592,15 +196,15 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
 	// Get the existing comment
-	cs, err := p.comments(token, *ridx, []uint32{e.CommentID})
+	cs, err := ridx.comments(tstore, []uint32{e.CommentID})
 	if err != nil {
-		return "", fmt.Errorf("comments %v: %v", e.CommentID, err)
+		return "", err
 	}
 	existing, ok := cs[e.CommentID]
 	if !ok {
@@ -655,24 +259,27 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Save comment
-	digest, err := p.commentAddSave(token, ca)
+	digest, err := commentAddSave(tstore, token, ca)
 	if err != nil {
-		return "", fmt.Errorf("commentAddSave: %v", err)
+		return "", err
 	}
 
 	// Update the index
 	ridx.Comments[ca.CommentID].Adds[ca.Version] = digest
 
 	// Save the updated index
-	p.recordIndexSave(token, state, *ridx)
+	err = recordIndexSave(tstore, state, *ridx)
+	if err != nil {
+		return "", err
+	}
 
 	log.Debugf("Comment edited on record %v comment ID %v",
 		ca.Token, ca.CommentID)
 
 	// Return updated comment
-	c, err := p.comment(token, *ridx, e.CommentID)
+	c, err := ridx.comment(tstore, e.CommentID)
 	if err != nil {
-		return "", fmt.Errorf("comment %x %v: %v", token, e.CommentID, err)
+		return "", err
 	}
 
 	// Prepare reply
@@ -687,8 +294,9 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	return string(reply), nil
 }
 
-// cmdDel deletes a comment.
-func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
+// cmdDel deletes a comment. This function permanently deletes the comment
+// blobs from tstore.
+func (p *commentsPlugin) cmdDel(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var d comments.Del
 	err := json.Unmarshal([]byte(payload), &d)
@@ -711,7 +319,7 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -724,15 +332,15 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
 	// Get the existing comment
-	cs, err := p.comments(token, *ridx, []uint32{d.CommentID})
+	cs, err := ridx.comments(tstore, []uint32{d.CommentID})
 	if err != nil {
-		return "", fmt.Errorf("comments %v: %v", d.CommentID, err)
+		return "", err
 	}
 	existing, ok := cs[d.CommentID]
 	if !ok {
@@ -758,9 +366,9 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	}
 
 	// Save comment del
-	digest, err := p.commentDelSave(token, cd)
+	digest, err := commentDelSave(tstore, token, cd)
 	if err != nil {
-		return "", fmt.Errorf("commentDelSave: %v", err)
+		return "", err
 	}
 
 	// Update the index
@@ -773,7 +381,10 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	ridx.Comments[d.CommentID] = cidx
 
 	// Svae the updated index
-	p.recordIndexSave(token, state, *ridx)
+	err = recordIndexSave(tstore, state, *ridx)
+	if err != nil {
+		return "", err
+	}
 
 	// Delete all comment versions. A comment is considered deleted
 	// once the CommenDel record has been saved. If attempts to
@@ -784,16 +395,16 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	for _, v := range cidx.Adds {
 		digests = append(digests, v)
 	}
-	err = p.tstore.BlobsDel(token, digests)
+	err = tstore.BlobsDel(token, digests)
 	if err != nil {
 		log.Errorf("comments cmdDel %x: BlobsDel %x: %v ",
 			token, digests, err)
 	}
 
 	// Return updated comment
-	c, err := p.comment(token, *ridx, d.CommentID)
+	c, err := ridx.comment(tstore, d.CommentID)
 	if err != nil {
-		return "", fmt.Errorf("comment %v: %v", d.CommentID, err)
+		return "", err
 	}
 
 	// Prepare reply
@@ -808,8 +419,8 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	return string(reply), nil
 }
 
-// cmdVote casts a upvote/downvote for a comment.
-func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
+// cmdVote casts an upvote/downvote on a comment.
+func (p *commentsPlugin) cmdVote(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var v comments.Vote
 	err := json.Unmarshal([]byte(payload), &v)
@@ -844,7 +455,7 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	}
 
 	// Verify record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
@@ -857,7 +468,7 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -880,13 +491,13 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	}
 
 	// Verify user is not voting on their own comment
-	cs, err := p.comments(token, *ridx, []uint32{v.CommentID})
+	cs, err := ridx.comments(tstore, []uint32{v.CommentID})
 	if err != nil {
-		return "", fmt.Errorf("comments %v: %v", v.CommentID, err)
+		return "", err
 	}
 	c, ok := cs[v.CommentID]
 	if !ok {
-		return "", fmt.Errorf("comment not found %v", v.CommentID)
+		return "", pkgerrors.Errorf("comment not found %v", v.CommentID)
 	}
 	if v.UserID == c.UserID {
 		return "", backend.PluginError{
@@ -911,9 +522,9 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	}
 
 	// Save comment vote
-	digest, err := p.commentVoteSave(token, cv)
+	digest, err := commentVoteSave(tstore, token, cv)
 	if err != nil {
-		return "", fmt.Errorf("commentVoteSave: %v", err)
+		return "", err
 	}
 
 	// Add vote to the comment index
@@ -929,10 +540,13 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	ridx.Comments[cv.CommentID] = cidx
 
 	// Save the updated index
-	p.recordIndexSave(token, state, *ridx)
+	err = recordIndexSave(tstore, state, *ridx)
+	if err != nil {
+		return "", err
+	}
 
 	// Calculate the new vote scores
-	downvotes, upvotes := voteScore(cidx)
+	downvotes, upvotes := cidx.voteScore()
 
 	// Prepare reply
 	vr := comments.VoteReply{
@@ -949,9 +563,9 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	return string(reply), nil
 }
 
-// cmdGet retrieves a batch of specified comments. The most recent version of
-// each comment is returned.
-func (p *commentsPlugin) cmdGet(token []byte, payload string) (string, error) {
+// cmdGet retrieves a batch of comments. The most recent version of each
+// comment is returned.
+func (p *commentsPlugin) cmdGet(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var g comments.Get
 	err := json.Unmarshal([]byte(payload), &g)
@@ -960,21 +574,21 @@ func (p *commentsPlugin) cmdGet(token []byte, payload string) (string, error) {
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
 	// Get comments
-	cs, err := p.comments(token, *ridx, g.CommentIDs)
+	cs, err := ridx.comments(tstore, g.CommentIDs)
 	if err != nil {
-		return "", fmt.Errorf("comments: %v", err)
+		return "", err
 	}
 
 	// Prepare reply
@@ -991,15 +605,15 @@ func (p *commentsPlugin) cmdGet(token []byte, payload string) (string, error) {
 
 // cmdGetAll retrieves all comments for a record. The latest version of each
 // comment is returned.
-func (p *commentsPlugin) cmdGetAll(token []byte) (string, error) {
+func (p *commentsPlugin) cmdGetAll(tstore plugins.TstoreClient, token []byte) (string, error) {
 	// Get record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Compile comment IDs
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1009,9 +623,9 @@ func (p *commentsPlugin) cmdGetAll(token []byte) (string, error) {
 	}
 
 	// Get comments
-	c, err := p.comments(token, *ridx, commentIDs)
+	c, err := ridx.comments(tstore, commentIDs)
 	if err != nil {
-		return "", fmt.Errorf("comments: %v", err)
+		return "", err
 	}
 
 	// Convert comments from a map to a slice
@@ -1038,7 +652,7 @@ func (p *commentsPlugin) cmdGetAll(token []byte) (string, error) {
 }
 
 // cmdGetVersion retrieves the specified version of a comment.
-func (p *commentsPlugin) cmdGetVersion(token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdGetVersion(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var gv comments.GetVersion
 	err := json.Unmarshal([]byte(payload), &gv)
@@ -1047,13 +661,13 @@ func (p *commentsPlugin) cmdGetVersion(token []byte, payload string) (string, er
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1084,18 +698,14 @@ func (p *commentsPlugin) cmdGetVersion(token []byte, payload string) (string, er
 	}
 
 	// Get comment add record
-	adds, err := p.commentAdds(token, [][]byte{digest})
+	adds, err := commentAdds(tstore, token, [][]byte{digest})
 	if err != nil {
-		return "", fmt.Errorf("commentAdds: %v", err)
-	}
-	if len(adds) != 1 {
-		return "", fmt.Errorf("wrong comment adds count; got %v, want 1",
-			len(adds))
+		return "", err
 	}
 
 	// Convert to a comment
-	c := convertCommentFromCommentAdd(adds[0])
-	c.Downvotes, c.Upvotes = voteScore(cidx)
+	c := commentAddConvert(adds[0])
+	c.Downvotes, c.Upvotes = cidx.voteScore()
 
 	// Prepare reply
 	gvr := comments.GetVersionReply{
@@ -1111,15 +721,15 @@ func (p *commentsPlugin) cmdGetVersion(token []byte, payload string) (string, er
 
 // cmdCount retrieves the comments count for a record. The comments count is
 // the number of comments that have been made on a record.
-func (p *commentsPlugin) cmdCount(token []byte) (string, error) {
+func (p *commentsPlugin) cmdCount(tstore plugins.TstoreClient, token []byte) (string, error) {
 	// Get record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1138,7 +748,7 @@ func (p *commentsPlugin) cmdCount(token []byte) (string, error) {
 
 // cmdVotes retrieves the comment votes that meet the provided filtering
 // criteria.
-func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdVotes(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var v comments.Votes
 	err := json.Unmarshal([]byte(payload), &v)
@@ -1147,13 +757,13 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	}
 
 	// Get record state
-	state, err := p.tstore.RecordState(token)
+	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
 
 	// Get record index
-	ridx, err := p.recordIndex(token, state)
+	ridx, err := recordIndexGet(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -1175,9 +785,9 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	}
 
 	// Lookup votes
-	votes, err := p.commentVotes(token, digests)
+	votes, err := commentVotes(tstore, token, digests)
 	if err != nil {
-		return "", fmt.Errorf("commentVotes: %v", err)
+		return "", err
 	}
 
 	// Prepare reply
@@ -1193,7 +803,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 }
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.
-func (p *commentsPlugin) cmdTimestamps(token []byte, payload string) (string, error) {
+func (p *commentsPlugin) cmdTimestamps(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var t comments.Timestamps
 	err := json.Unmarshal([]byte(payload), &t)
@@ -1202,7 +812,8 @@ func (p *commentsPlugin) cmdTimestamps(token []byte, payload string) (string, er
 	}
 
 	// Get timestamps
-	ctr, err := p.commentTimestamps(token, t.CommentIDs, t.IncludeVotes)
+	ctr, err := commentTimestamps(tstore, token,
+		t.CommentIDs, t.IncludeVotes)
 	if err != nil {
 		return "", err
 	}
@@ -1216,7 +827,8 @@ func (p *commentsPlugin) cmdTimestamps(token []byte, payload string) (string, er
 	return string(reply), nil
 }
 
-// tokenDecode decodes a tstore token. It only accepts full length tokens.
+// tokenDecode decodes a tstore token string into a byte slice. This function
+// will error if the token is not a full length token.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTstore, token)
 }
@@ -1247,35 +859,67 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 	return nil
 }
 
-// commentVersionLatest returns the latest comment version.
-func commentVersionLatest(cidx commentIndex) uint32 {
-	var maxVersion uint32
-	for version := range cidx.Adds {
-		if version > maxVersion {
-			maxVersion = version
-		}
+// commentAddEncode encodes a CommentAdd into a BlobEntry.
+func commentAddEncode(c comments.CommentAdd) (*store.BlobEntry, error) {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
 	}
-	return maxVersion
-}
-
-// commentExists returns whether the provided comment ID exists.
-func commentExists(ridx recordIndex, commentID uint32) bool {
-	_, ok := ridx.Comments[commentID]
-	return ok
-}
-
-// commentIDLatest returns the latest comment ID.
-func commentIDLatest(idx recordIndex) uint32 {
-	var maxID uint32
-	for id := range idx.Comments {
-		if id > maxID {
-			maxID = id
-		}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCommentAdd,
+		})
+	if err != nil {
+		return nil, err
 	}
-	return maxID
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
 }
 
-func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
+// commentAddDecode decodes a BlobEntry into a CommentAdd.
+func commentAddDecode(be store.BlobEntry) (*comments.CommentAdd, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, pkgerrors.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, pkgerrors.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorCommentAdd {
+		return nil, pkgerrors.Errorf("unexpected data descriptor: "+
+			"got %v, want %v", dd.Descriptor, dataDescriptorCommentAdd)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, pkgerrors.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, pkgerrors.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, pkgerrors.Errorf("data is not coherent; "+
+			"got %x, want %x", util.Digest(b), digest)
+	}
+	var c comments.CommentAdd
+	err = json.Unmarshal(b, &c)
+	if err != nil {
+		return nil, pkgerrors.Errorf("unmarshal CommentAdd: %v", err)
+	}
+
+	return &c, nil
+}
+
+// commentAddConvert converts a CommentAdd to a Comment. Not all fields of the
+// Comment will be populated. The Upvotes and Downvotes must be filled in
+// separately.
+func commentAddConvert(ca comments.CommentAdd) comments.Comment {
 	return comments.Comment{
 		UserID:        ca.UserID,
 		State:         ca.State,
@@ -1297,8 +941,118 @@ func convertCommentFromCommentAdd(ca comments.CommentAdd) comments.Comment {
 	}
 }
 
-func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
-	// Score needs to be filled in separately
+// commentAddSave saves a CommentAdd to the backend.
+func commentAddSave(tstore plugins.TstoreClient, token []byte, ca comments.CommentAdd) ([]byte, error) {
+	be, err := commentAddEncode(ca)
+	if err != nil {
+		return nil, err
+	}
+	d, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, err
+	}
+	err = tstore.BlobSave(token, *be)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// commentAdds returns a commentAdd for each of the provided digests. A digest
+// refers to the blob entry digest, which can be used to retrieve the blob
+// entry from the backend. An error is returned if a blob entry is not found
+// for any of the provided digests.
+func commentAdds(tstore plugins.TstoreClient, token []byte, digests [][]byte) ([]comments.CommentAdd, error) {
+	// Retrieve blobs
+	blobs, err := tstore.Blobs(token, digests)
+	if err != nil {
+		return nil, err
+	}
+	if len(blobs) != len(digests) {
+		notFound := make([]string, 0, len(blobs))
+		for _, v := range digests {
+			m := hex.EncodeToString(v)
+			_, ok := blobs[m]
+			if !ok {
+				notFound = append(notFound, m)
+			}
+		}
+		return nil, pkgerrors.Errorf("blobs not found: %v", notFound)
+	}
+
+	// Decode blobs
+	adds := make([]comments.CommentAdd, 0, len(blobs))
+	for _, v := range blobs {
+		c, err := commentAddDecode(v)
+		if err != nil {
+			return nil, err
+		}
+		adds = append(adds, *c)
+	}
+
+	return adds, nil
+}
+
+// commentDelEncode encodes a CommentDel into a BlobEntry.
+func commentDelEncode(c comments.CommentDel) (*store.BlobEntry, error) {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCommentDel,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return &be, nil
+}
+
+// commentDelDecode decodes a BlobEntry into a CommentDel.
+func commentDelDecode(be store.BlobEntry) (*comments.CommentDel, error) {
+	// Decode and validate data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, pkgerrors.Errorf("decode DataHint: %v", err)
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, pkgerrors.Errorf("unmarshal DataHint: %v", err)
+	}
+	if dd.Descriptor != dataDescriptorCommentDel {
+		return nil, pkgerrors.Errorf("unexpected data descriptor: "+
+			"got %v, want %v", dd.Descriptor, dataDescriptorCommentDel)
+	}
+
+	// Decode data
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, pkgerrors.Errorf("decode Data: %v", err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, pkgerrors.Errorf("decode digest: %v", err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, pkgerrors.Errorf("data is not coherent; "+
+			"got %x, want %x", util.Digest(b), digest)
+	}
+	var c comments.CommentDel
+	err = json.Unmarshal(b, &c)
+	if err != nil {
+		return nil, pkgerrors.Errorf("unmarshal CommentDel: %v", err)
+	}
+
+	return &c, nil
+}
+
+// commentDelConvert converts a commentDel into a Comment. Not all fields will
+// be populated. The Upvotes and Downvotes must be filled in separately.
+func commentDelConvert(cd comments.CommentDel) comments.Comment {
 	return comments.Comment{
 		UserID:    cd.UserID,
 		State:     cd.State,
@@ -1318,59 +1072,60 @@ func convertCommentFromCommentDel(cd comments.CommentDel) comments.Comment {
 	}
 }
 
-func convertSignatureError(err error) backend.PluginError {
-	var e util.SignatureError
-	var s comments.ErrorCodeT
-	if errors.As(err, &e) {
-		switch e.ErrorCode {
-		case util.ErrorStatusPublicKeyInvalid:
-			s = comments.ErrorCodePublicKeyInvalid
-		case util.ErrorStatusSignatureInvalid:
-			s = comments.ErrorCodeSignatureInvalid
+// commentDelSave saves a CommentDel to the backend.
+func commentDelSave(tstore plugins.TstoreClient, token []byte, cd comments.CommentDel) ([]byte, error) {
+	be, err := commentDelEncode(cd)
+	if err != nil {
+		return nil, err
+	}
+	d, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, err
+	}
+	err = tstore.BlobSave(token, *be)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// commentDels returns a CommentDel for each of the provided digests. A digest
+// refers to the blob entry digest, which can be used to retrieve the blob
+// entry from the backend. An error is returned if a blob entry is not found
+// for any of the provided digests.
+func commentDels(tstore plugins.TstoreClient, token []byte, digests [][]byte) ([]comments.CommentDel, error) {
+	// Retrieve blobs
+	blobs, err := tstore.Blobs(token, digests)
+	if err != nil {
+		return nil, err
+	}
+	if len(blobs) != len(digests) {
+		notFound := make([]string, 0, len(blobs))
+		for _, v := range digests {
+			m := hex.EncodeToString(v)
+			_, ok := blobs[m]
+			if !ok {
+				notFound = append(notFound, m)
+			}
 		}
+		return nil, pkgerrors.Errorf("blobs not found: %v", notFound)
 	}
-	return backend.PluginError{
-		PluginID:     comments.PluginID,
-		ErrorCode:    uint32(s),
-		ErrorContext: e.ErrorContext,
+
+	// Decode blobs
+	dels := make([]comments.CommentDel, 0, len(blobs))
+	for _, v := range blobs {
+		d, err := commentDelDecode(v)
+		if err != nil {
+			return nil, err
+		}
+		dels = append(dels, *d)
 	}
+
+	return dels, nil
 }
 
-func convertBlobEntryFromCommentAdd(c comments.CommentAdd) (*store.BlobEntry, error) {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorCommentAdd,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
-func convertBlobEntryFromCommentDel(c comments.CommentDel) (*store.BlobEntry, error) {
-	data, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorCommentDel,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
-func convertBlobEntryFromCommentVote(c comments.CommentVote) (*store.BlobEntry, error) {
+// commentVoteEncode encodes a CommentVote into a BlobEntry.
+func commentVoteEncode(c comments.CommentVote) (*store.BlobEntry, error) {
 	data, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
@@ -1387,116 +1142,224 @@ func convertBlobEntryFromCommentVote(c comments.CommentVote) (*store.BlobEntry, 
 	return &be, nil
 }
 
-func convertCommentAddFromBlobEntry(be store.BlobEntry) (*comments.CommentAdd, error) {
+// commentVoteDecode decodes a BlobEntry into a CommentVote.
+func commentVoteDecode(be store.BlobEntry) (*comments.CommentVote, error) {
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
+		return nil, pkgerrors.Errorf("decode DataHint: %v", err)
 	}
 	var dd store.DataDescriptor
 	err = json.Unmarshal(b, &dd)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorCommentAdd {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorCommentAdd)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var c comments.CommentAdd
-	err = json.Unmarshal(b, &c)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentAdd: %v", err)
-	}
-
-	return &c, nil
-}
-
-func convertCommentDelFromBlobEntry(be store.BlobEntry) (*comments.CommentDel, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorCommentDel {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorCommentDel)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var c comments.CommentDel
-	err = json.Unmarshal(b, &c)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentDel: %v", err)
-	}
-
-	return &c, nil
-}
-
-func convertCommentVoteFromBlobEntry(be store.BlobEntry) (*comments.CommentVote, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+		return nil, pkgerrors.Errorf("unmarshal DataHint: %v", err)
 	}
 	if dd.Descriptor != dataDescriptorCommentVote {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
-			dd.Descriptor, dataDescriptorCommentVote)
+		return nil, pkgerrors.Errorf("unexpected data descriptor: "+
+			"got %v, want %v", dd.Descriptor, dataDescriptorCommentVote)
 	}
 
 	// Decode data
 	b, err = base64.StdEncoding.DecodeString(be.Data)
 	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
+		return nil, pkgerrors.Errorf("decode Data: %v", err)
 	}
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
+		return nil, pkgerrors.Errorf("decode digest: %v", err)
 	}
 	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
+		return nil, pkgerrors.Errorf("data is not coherent; "+
+			"got %x, want %x", util.Digest(b), digest)
 	}
 	var cv comments.CommentVote
 	err = json.Unmarshal(b, &cv)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal CommentVote: %v", err)
+		return nil, pkgerrors.Errorf("unmarshal CommentVote: %v", err)
 	}
 
 	return &cv, nil
+}
+
+// commentVoteSave saves a CommentVote to the backend.
+func commentVoteSave(tstore plugins.TstoreClient, token []byte, cv comments.CommentVote) ([]byte, error) {
+	be, err := commentVoteEncode(cv)
+	if err != nil {
+		return nil, err
+	}
+	d, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, err
+	}
+	err = tstore.BlobSave(token, *be)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// commentVotes returns a CommentVote for each of the provided digests. A
+// digest refers to the blob entry digest, which can be used to retrieve the
+// blob entry from the backend. An error is returned if a blob entry is not
+// found for any of the provided digests.
+func commentVotes(tstore plugins.TstoreClient, token []byte, digests [][]byte) ([]comments.CommentVote, error) {
+	// Retrieve blobs
+	blobs, err := tstore.Blobs(token, digests)
+	if err != nil {
+		return nil, err
+	}
+	if len(blobs) != len(digests) {
+		notFound := make([]string, 0, len(blobs))
+		for _, v := range digests {
+			m := hex.EncodeToString(v)
+			_, ok := blobs[m]
+			if !ok {
+				notFound = append(notFound, m)
+			}
+		}
+		return nil, pkgerrors.Errorf("blobs not found: %v", notFound)
+	}
+
+	// Decode blobs
+	votes := make([]comments.CommentVote, 0, len(blobs))
+	for _, v := range blobs {
+		c, err := commentVoteDecode(v)
+		if err != nil {
+			return nil, err
+		}
+		votes = append(votes, *c)
+	}
+
+	return votes, nil
+}
+
+// commentTimestamps returns the CommentTimestamp for each of the provided
+// comment IDs. If a timestamp is not found for a comment ID, the comment ID
+// will not be included in the reply. An error is not returned. It is the
+// responsibility of the caller to verify that a timestamp is returned for each
+// of the provided comment IDs.
+func commentTimestamps(tstore plugins.TstoreClient, token []byte, commentIDs []uint32, includeVotes bool) (*comments.TimestampsReply, error) {
+	// Verify there is work to do
+	if len(commentIDs) == 0 {
+		return &comments.TimestampsReply{
+			Comments: map[uint32]comments.CommentTimestamp{},
+		}, nil
+	}
+
+	// Get record state
+	state, err := tstore.RecordState(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get record index
+	ridx, err := recordIndexGet(tstore, token, state)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get timestamps for each comment ID
+	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
+	for _, cid := range commentIDs {
+		cidx, ok := ridx.Comments[cid]
+		if !ok {
+			// Comment ID does not exist. Skip it.
+			continue
+		}
+
+		// Get comment add timestamps
+		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
+		for _, v := range cidx.Adds {
+			ts, err := timestamp(tstore, token, v)
+			if err != nil {
+				return nil, err
+			}
+			adds = append(adds, *ts)
+		}
+
+		// Get comment del timestamps. This will only exist if the
+		// comment has been deleted.
+		var del *comments.Timestamp
+		if cidx.Del != nil {
+			ts, err := timestamp(tstore, token, cidx.Del)
+			if err != nil {
+				return nil, err
+			}
+			del = ts
+		}
+
+		// Get comment vote timestamps
+		var votes []comments.Timestamp
+		if includeVotes {
+			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
+			for _, voteIdxs := range cidx.Votes {
+				for _, v := range voteIdxs {
+					ts, err := timestamp(tstore, token, v.Digest)
+					if err != nil {
+						return nil, err
+					}
+					votes = append(votes, *ts)
+				}
+			}
+		}
+
+		// Save timestamp
+		cts[cid] = comments.CommentTimestamp{
+			Adds:  adds,
+			Del:   del,
+			Votes: votes,
+		}
+	}
+
+	return &comments.TimestampsReply{
+		Comments: cts,
+	}, nil
+}
+
+// timestamp returns the timestamp for a blob entry digest.
+func timestamp(tstore plugins.TstoreClient, token []byte, digest []byte) (*comments.Timestamp, error) {
+	// Get timestamp
+	t, err := tstore.Timestamp(token, digest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert response
+	proofs := make([]comments.Proof, 0, len(t.Proofs))
+	for _, v := range t.Proofs {
+		proofs = append(proofs, comments.Proof{
+			Type:       v.Type,
+			Digest:     v.Digest,
+			MerkleRoot: v.MerkleRoot,
+			MerklePath: v.MerklePath,
+			ExtraData:  v.ExtraData,
+		})
+	}
+	return &comments.Timestamp{
+		Data:       t.Data,
+		Digest:     t.Digest,
+		TxID:       t.TxID,
+		MerkleRoot: t.MerkleRoot,
+		Proofs:     proofs,
+	}, nil
+}
+
+// convertSignatureError converts a util SignatureError into a backend
+// PluginError.
+func convertSignatureError(err error) backend.PluginError {
+	var e util.SignatureError
+	var s comments.ErrorCodeT
+	if pkgerrors.As(err, &e) {
+		switch e.ErrorCode {
+		case util.ErrorStatusPublicKeyInvalid:
+			s = comments.ErrorCodePublicKeyInvalid
+		case util.ErrorStatusSignatureInvalid:
+			s = comments.ErrorCodeSignatureInvalid
+		}
+	}
+	return backend.PluginError{
+		PluginID:     comments.PluginID,
+		ErrorCode:    uint32(s),
+		ErrorContext: e.ErrorContext,
+	}
 }

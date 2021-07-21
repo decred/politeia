@@ -5,7 +5,6 @@
 package dcrdata
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -43,10 +43,11 @@ var (
 //
 // dcrdataPlugin satisfies the plugins PluginClient interface.
 type dcrdataPlugin struct {
+	// TODO remove dcrdata mutex
 	sync.Mutex
-	activeNetParams *chaincfg.Params
-	client          *http.Client
-	ws              *wsdcrdata.Client
+	net  *chaincfg.Params  // Decred network
+	http *http.Client      // Dcrdata http client
+	ws   *wsdcrdata.Client // Dcrdata websocket client
 
 	// Plugin settings
 	hostHTTP string // dcrdata HTTP host
@@ -191,11 +192,22 @@ func (p *dcrdataPlugin) Setup() error {
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. All operations are executed
+// atomically by tstore when using this method. The plugin does not need to
+// worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("dcrdata Cmd: %x %v %v", token, cmd, payload)
+func (p *dcrdataPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("dcrdata Write: %x %v %v", token, cmd, payload)
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a read-only plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *dcrdataPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("dcrdata Read: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case dcrdata.CmdBestBlock:
@@ -214,7 +226,7 @@ func (p *dcrdataPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
+func (p *dcrdataPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("dcrdata Hook: %v", plugins.Hooks[h])
 
 	return nil
@@ -238,7 +250,8 @@ func (p *dcrdataPlugin) Settings() []backend.PluginSetting {
 	return nil
 }
 
-func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*dcrdataPlugin, error) {
+// New returns a new dcrdataPlugin.
+func New(bs backend.BackendSettings, ps []backend.PluginSetting) (*dcrdataPlugin, error) {
 	// Plugin setting
 	var (
 		hostHTTP string
@@ -247,7 +260,7 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 
 	// Set plugin settings to defaults. These will be overwritten if
 	// the setting was specified by the user.
-	switch activeNetParams.Name {
+	switch bs.Net.Name {
 	case chaincfg.MainNetParams().Name:
 		hostHTTP = dcrdata.SettingHostHTTPMainNet
 		hostWS = dcrdata.SettingHostWSMainNet
@@ -255,11 +268,11 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 		hostHTTP = dcrdata.SettingHostHTTPTestNet
 		hostWS = dcrdata.SettingHostWSTestNet
 	default:
-		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
+		return nil, errors.Errorf("invalid network: %v", bs.Net.Name)
 	}
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case dcrdata.SettingKeyHostHTTP:
 			hostHTTP = v.Value
@@ -272,19 +285,19 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 				dcrdata.SettingKeyHostWS, hostWS)
 
 		default:
-			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
+			return nil, errors.Errorf("invalid plugin setting '%v'", v.Key)
 		}
 	}
 
 	// Setup http client
 	log.Infof("Dcrdata HTTP host: %v", hostHTTP)
-	client, err := util.NewHTTPClient(false, "")
+	httpClient, err := util.NewHTTPClient(false, "")
 	if err != nil {
 		return nil, err
 	}
 
 	// Setup websocket client
-	ws, err := wsdcrdata.New(hostWS)
+	wsClient, err := wsdcrdata.New(hostWS)
 	if err != nil {
 		// Continue even if a websocket connection was not able to be
 		// made. Reconnection attempts will be made in the plugin setup.
@@ -292,10 +305,10 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 	}
 
 	return &dcrdataPlugin{
-		activeNetParams: activeNetParams,
-		client:          client,
-		ws:              ws,
-		hostHTTP:        hostHTTP,
-		hostWS:          hostWS,
+		net:      &bs.Net,
+		http:     httpClient,
+		ws:       wsClient,
+		hostHTTP: hostHTTP,
+		hostWS:   hostWS,
 	}, nil
 }

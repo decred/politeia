@@ -6,8 +6,6 @@ package pi
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -15,13 +13,7 @@ import (
 )
 
 // newTestPiPlugin returns a piPlugin that has been setup for testing.
-func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
-	// Create plugin data directory
-	dataDir, err := ioutil.TempDir("", pi.PluginID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func newTestPiPlugin(t *testing.T) *piPlugin {
 	// Setup proposal name regex
 	var (
 		nameSupportedChars = pi.SettingProposalNameSupportedChars
@@ -44,7 +36,6 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 
 	// Setup plugin context
 	p := piPlugin{
-		dataDir:                    dataDir,
 		textFileSizeMax:            pi.SettingTextFileSizeMax,
 		imageFileCountMax:          pi.SettingImageFileCountMax,
 		imageFileSizeMax:           pi.SettingImageFileSizeMax,
@@ -54,10 +45,5 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		proposalNameRegexp:         rexp,
 	}
 
-	return &p, func() {
-		err = os.RemoveAll(dataDir)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	return &p
 }

@@ -7,20 +7,20 @@ package util
 import (
 	"fmt"
 
-	errs "github.com/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 )
 
 // stackTracer represents the stack trace functionality for an error from
 // pkg/errors.
 type stackTracer interface {
-	StackTrace() errs.StackTrace
+	StackTrace() pkgerrors.StackTrace
 }
 
 // StackTrace returns the stack trace for a pkg/errors error. The returned bool
 // indicates whether the provided error is a pkg/errors error. Stack traces are
 // not available for stdlib errors.
 func StackTrace(err error) (string, bool) {
-	e, ok := errs.Cause(err).(stackTracer)
+	e, ok := pkgerrors.Cause(err).(stackTracer)
 	if !ok {
 		return "", false
 	}

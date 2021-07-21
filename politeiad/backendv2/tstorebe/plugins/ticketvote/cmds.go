@@ -4,182 +4,7 @@
 
 package ticketvote
 
-import (
-	"bytes"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/decred/dcrd/chaincfg/v3"
-	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/politeiad/plugins/dcrdata"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/util"
-)
-
-const (
-	pluginID = ticketvote.PluginID
-
-	// Blob entry data descriptors
-	dataDescriptorAuthDetails     = pluginID + "-auth-v1"
-	dataDescriptorVoteDetails     = pluginID + "-vote-v1"
-	dataDescriptorCastVoteDetails = pluginID + "-castvote-v1"
-	dataDescriptorVoteCollider    = pluginID + "-vcollider-v1"
-	dataDescriptorStartRunoff     = pluginID + "-startrunoff-v1"
-)
-
-// cmdAuthorize authorizes a ticket vote or revokes a previous authorization.
-func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, error) {
-	// Decode payload
-	var a ticketvote.Authorize
-	err := json.Unmarshal([]byte(payload), &a)
-	if err != nil {
-		return "", err
-	}
-
-	// Verify token
-	err = tokenVerify(token, a.Token)
-	if err != nil {
-		return "", err
-	}
-
-	// Verify signature
-	version := strconv.FormatUint(uint64(a.Version), 10)
-	msg := a.Token + version + string(a.Action)
-	err = util.VerifySignature(a.Signature, a.PublicKey, msg)
-	if err != nil {
-		return "", convertSignatureError(err)
-	}
-
-	// Verify action
-	switch a.Action {
-	case ticketvote.AuthActionAuthorize:
-		// This is allowed
-	case ticketvote.AuthActionRevoke:
-		// This is allowed
-	default:
-		return "", backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeAuthorizationInvalid),
-			ErrorContext: fmt.Sprintf("%v not a valid action",
-				a.Action),
-		}
-	}
-
-	// Verify record status and version
-	r, err := p.tstore.RecordPartial(token, 0, nil, true)
-	if err != nil {
-		return "", fmt.Errorf("RecordPartial: %v", err)
-	}
-	if r.RecordMetadata.Status != backend.StatusPublic {
-		return "", backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeRecordStatusInvalid),
-			ErrorContext: "record is not public",
-		}
-	}
-	if a.Version != r.RecordMetadata.Version {
-		return "", backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
-			ErrorContext: fmt.Sprintf("version is not latest: "+
-				"got %v, want %v", a.Version,
-				r.RecordMetadata.Version),
-		}
-	}
-
-	// Get any previous authorizations to verify that the new action
-	// is allowed based on the previous action.
-	auths, err := p.auths(token)
-	if err != nil {
-		return "", err
-	}
-	var prevAction ticketvote.AuthActionT
-	if len(auths) > 0 {
-		prevAction = ticketvote.AuthActionT(auths[len(auths)-1].Action)
-	}
-	switch {
-	case len(auths) == 0:
-		// No previous actions. New action must be an authorize.
-		if a.Action != ticketvote.AuthActionAuthorize {
-			return "", backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeAuthorizationInvalid),
-				ErrorContext: "no prev action; action must " +
-					"be authorize",
-			}
-		}
-	case prevAction == ticketvote.AuthActionAuthorize &&
-		a.Action != ticketvote.AuthActionRevoke:
-		// Previous action was a authorize. This action must be revoke.
-		return "", backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
-			ErrorContext: "prev action was authorize",
-		}
-	case prevAction == ticketvote.AuthActionRevoke &&
-		a.Action != ticketvote.AuthActionAuthorize:
-		// Previous action was a revoke. This action must be authorize.
-		return "", backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
-			ErrorContext: "prev action was revoke",
-		}
-	}
-
-	// Prepare authorize vote
-	receipt := p.identity.SignMessage([]byte(a.Signature))
-	auth := ticketvote.AuthDetails{
-		Token:     a.Token,
-		Version:   a.Version,
-		Action:    string(a.Action),
-		PublicKey: a.PublicKey,
-		Signature: a.Signature,
-		Timestamp: time.Now().Unix(),
-		Receipt:   hex.EncodeToString(receipt[:]),
-	}
-
-	// Save authorize vote
-	err = p.authSave(token, auth)
-	if err != nil {
-		return "", err
-	}
-
-	// Update inventory
-	var status ticketvote.VoteStatusT
-	switch a.Action {
-	case ticketvote.AuthActionAuthorize:
-		status = ticketvote.VoteStatusAuthorized
-	case ticketvote.AuthActionRevoke:
-		status = ticketvote.VoteStatusUnauthorized
-	default:
-		// Action has already been validated. This should not happen.
-		return "", fmt.Errorf("invalid action %v", a.Action)
-	}
-	p.inventoryUpdate(a.Token, status)
-
-	// Prepare reply
-	ar := ticketvote.AuthorizeReply{
-		Timestamp: auth.Timestamp,
-		Receipt:   auth.Receipt,
-	}
-	reply, err := json.Marshal(ar)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
+/*
 // voteBitVerify verifies that the vote bit corresponds to a valid vote option.
 func voteBitVerify(options []ticketvote.VoteOption, mask, bit uint64) error {
 	if len(options) == 0 {
@@ -465,7 +290,7 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 	}
 
 	// Verify record status and version
-	r, err := p.tstore.RecordPartial(token, 0, nil, true)
+	r, err := tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("RecordPartial: %v", err)
 	}
@@ -568,7 +393,7 @@ func (p *ticketVotePlugin) startRunoffRecordSave(token []byte, srr startRunoffRe
 	if err != nil {
 		return err
 	}
-	err = p.tstore.BlobSave(token, *be)
+	err = tstore.BlobSave(token, *be)
 	if err != nil {
 		return err
 	}
@@ -578,7 +403,7 @@ func (p *ticketVotePlugin) startRunoffRecordSave(token []byte, srr startRunoffRe
 // startRunoffRecord returns the startRunoff record if one exists. Nil is
 // returned if a startRunoff record is not found.
 func (p *ticketVotePlugin) startRunoffRecord(token []byte) (*startRunoffRecord, error) {
-	blobs, err := p.tstore.BlobsByDataDesc(token,
+	blobs, err := tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorStartRunoff})
 	if err != nil {
 		return nil, err
@@ -656,7 +481,7 @@ func (p *ticketVotePlugin) startRunoffForSub(token []byte, srs startRunoffSubmis
 	}
 
 	// Verify record version
-	r, err := p.tstore.RecordPartial(token, 0, nil, true)
+	r, err := tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return fmt.Errorf("RecordPartial: %v", err)
 	}
@@ -736,7 +561,7 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 	files := []string{
 		ticketvote.FileNameVoteMetadata,
 	}
-	r, err := p.tstore.RecordPartial(token, 0, files, false)
+	r, err := tstore.RecordPartial(token, 0, files, false)
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			return nil, backend.PluginError{
@@ -1095,74 +920,6 @@ func (p *ticketVotePlugin) cmdStart(token []byte, payload string) (string, error
 	return string(reply), nil
 }
 
-// commitmentAddr represents the largest commitment address for a dcr ticket.
-type commitmentAddr struct {
-	addr string // Commitment address
-	err  error  // Error if one occurred
-}
-
-// largestCommitmentAddrs retrieves the largest commitment addresses for each
-// of the provided tickets from dcrdata. A map[ticket]commitmentAddr is
-// returned. If an error is encountered while retrieving a commitment address,
-// the error will be included in the commitmentAddr struct in the returned
-// map.
-func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) (map[string]commitmentAddr, error) {
-	// Get tx details
-	tt := dcrdata.TxsTrimmed{
-		TxIDs: tickets,
-	}
-	payload, err := json.Marshal(tt)
-	if err != nil {
-		return nil, err
-	}
-	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
-		dcrdata.CmdTxsTrimmed, string(payload))
-	if err != nil {
-		return nil, fmt.Errorf("PluginRead %v %v: %v",
-			dcrdata.PluginID, dcrdata.CmdTxsTrimmed, err)
-	}
-	var ttr dcrdata.TxsTrimmedReply
-	err = json.Unmarshal([]byte(reply), &ttr)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the largest commitment address for each tx
-	addrs := make(map[string]commitmentAddr, len(ttr.Txs))
-	for _, tx := range ttr.Txs {
-		var (
-			bestAddr string  // Addr with largest commitment amount
-			bestAmt  float64 // Largest commitment amount
-			addrErr  error   // Error if one is encountered
-		)
-		for _, vout := range tx.Vout {
-			scriptPubKey := vout.ScriptPubKeyDecoded
-			switch {
-			case scriptPubKey.CommitAmt == nil:
-				// No commitment amount; continue
-			case len(scriptPubKey.Addresses) == 0:
-				// No commitment address; continue
-			case *scriptPubKey.CommitAmt > bestAmt:
-				// New largest commitment address found
-				bestAddr = scriptPubKey.Addresses[0]
-				bestAmt = *scriptPubKey.CommitAmt
-			}
-		}
-		if bestAddr == "" || bestAmt == 0.0 {
-			addrErr = fmt.Errorf("no largest commitment address " +
-				"found")
-		}
-
-		// Store result
-		addrs[tx.TxID] = commitmentAddr{
-			addr: bestAddr,
-			err:  addrErr,
-		}
-	}
-
-	return addrs, nil
-}
-
 // voteCollider is used to prevent duplicate votes at the tlog level. The
 // backend saves a digest of the data to the trillian log (tlog). Tlog does not
 // allow leaves with duplicate values, so once a vote colider is saved to the
@@ -1185,7 +942,7 @@ func (p *ticketVotePlugin) voteColliderSave(token []byte, vc voteCollider) error
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(token, *be)
+	return tstore.BlobSave(token, *be)
 }
 
 // ballotResults is used to aggregate data for votes that are cast
@@ -1255,7 +1012,7 @@ func (p *ticketVotePlugin) castVoteDetailsSave(token []byte, cv ticketvote.CastV
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(token, *be)
+	return tstore.BlobSave(token, *be)
 }
 
 // castVoteVerifySignature verifies the signature of a CastVote. The signature
@@ -1284,10 +1041,12 @@ func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.
 	return nil
 }
 
-// ballot casts the provided votes concurrently. The vote results are passed
-// back through the results channel to the calling function. This function
-// waits until all provided votes have been cast before returning.
-func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br *ballotResults) {
+// castBallot casts a ballot of votes. The ballot is split up into individual
+// votes and cast concurrently. We do it this way because tstore only allows
+// one blob to be saved at a time. The vote results are passed back to the
+// calling function using the ballotResults pointer.  This function waits until
+// all provided votes have been cast before returning.
+func (p *ticketVotePlugin) castBallot(token []byte, votes []ticketvote.CastVote, br *ballotResults) {
 	// Cast the votes concurrently
 	var wg sync.WaitGroup
 	for _, v := range votes {
@@ -1403,7 +1162,8 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 
 	// Verify there is work to do
 	if len(votes) == 0 {
-		// Nothing to do
+		log.Infof("No votes found")
+
 		cbr := ticketvote.CastBallotReply{
 			Receipts: []ticketvote.CastVoteReply{},
 		}
@@ -1411,6 +1171,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if err != nil {
 			return "", err
 		}
+
 		return string(reply), nil
 	}
 
@@ -1529,6 +1290,22 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		}
 		tickets = append(tickets, v.Ticket)
 	}
+	if len(tickets) == 0 {
+		log.Infof("No valid votes found in ballot of %v votes", len(votes))
+
+		// There are no valid votes. All attempted
+		// votes have an error. Nothing else to do.
+		cbr := ticketvote.CastBallotReply{
+			Receipts: receipts,
+		}
+		reply, err := json.Marshal(cbr)
+		if err != nil {
+			return "", err
+		}
+
+		return string(reply), nil
+	}
+
 	addrs := p.activeVotes.CommitmentAddrs(token, tickets)
 	notInCache := make([]string, 0, len(tickets))
 	for _, v := range tickets {
@@ -1664,15 +1441,15 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		queue = append(queue, batch)
 	}
 
-	log.Debugf("Casting %v votes in %v batches of size %v",
-		ballotCount, len(queue), batchSize)
+	log.Infof("Casting %v/%v votes in %v batches of size %v",
+		ballotCount, len(votes), len(queue), batchSize)
 
 	// Cast ballot in batches
 	for i, batch := range queue {
 		log.Debugf("Casting %v votes in batch %v/%v", len(batch), i+1,
 			len(queue))
 
-		p.ballot(token, batch, &br)
+		p.castBallot(token, batch, &br)
 	}
 	if br.repliesLen() != ballotCount {
 		log.Errorf("Missing results: got %v, want %v",
@@ -1866,7 +1643,7 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 	switch {
 	case t.VotesPage > 0:
 		// Return a page of vote timestamps
-		digests, err := p.tstore.DigestsByDataDesc(token,
+		digests, err := tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorCastVoteDetails})
 		if err != nil {
 			return "", fmt.Errorf("digestsByKeyPrefix %x %v: %v",
@@ -1895,7 +1672,7 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		// timestamp.
 
 		// Auth timestamps
-		digests, err := p.tstore.DigestsByDataDesc(token,
+		digests, err := tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorAuthDetails})
 		if err != nil {
 			return "", fmt.Errorf("DigestByDataDesc %x %v: %v",
@@ -1912,7 +1689,7 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		}
 
 		// Vote details timestamp
-		digests, err = p.tstore.DigestsByDataDesc(token,
+		digests, err = tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorVoteDetails})
 		if err != nil {
 			return "", fmt.Errorf("DigestsByDataDesc %x %v: %v",
@@ -1974,46 +1751,6 @@ func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
 	return string(reply), nil
 }
 
-// authSave saves a AuthDetails to the backend.
-func (p *ticketVotePlugin) authSave(token []byte, ad ticketvote.AuthDetails) error {
-	// Prepare blob
-	be, err := convertBlobEntryFromAuthDetails(ad)
-	if err != nil {
-		return err
-	}
-
-	// Save blob
-	return p.tstore.BlobSave(token, *be)
-}
-
-// auths returns all AuthDetails for a record.
-func (p *ticketVotePlugin) auths(token []byte) ([]ticketvote.AuthDetails, error) {
-	// Retrieve blobs
-	blobs, err := p.tstore.BlobsByDataDesc(token,
-		[]string{dataDescriptorAuthDetails})
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode blobs
-	auths := make([]ticketvote.AuthDetails, 0, len(blobs))
-	for _, v := range blobs {
-		a, err := convertAuthDetailsFromBlobEntry(v)
-		if err != nil {
-			return nil, err
-		}
-		auths = append(auths, *a)
-	}
-
-	// Sanity check. They should already be sorted from oldest to
-	// newest.
-	sort.SliceStable(auths, func(i, j int) bool {
-		return auths[i].Timestamp < auths[j].Timestamp
-	})
-
-	return auths, nil
-}
-
 // voteDetailsSave saves a VoteDetails to the backend.
 func (p *ticketVotePlugin) voteDetailsSave(token []byte, vd ticketvote.VoteDetails) error {
 	// Prepare blob
@@ -2023,14 +1760,14 @@ func (p *ticketVotePlugin) voteDetailsSave(token []byte, vd ticketvote.VoteDetai
 	}
 
 	// Save blob
-	return p.tstore.BlobSave(token, *be)
+	return tstore.BlobSave(token, *be)
 }
 
 // voteDetails returns the VoteDetails for a record. Nil is returned if a vote
 // details is not found.
 func (p *ticketVotePlugin) voteDetails(token []byte) (*ticketvote.VoteDetails, error) {
 	// Retrieve blobs
-	blobs, err := p.tstore.BlobsByDataDesc(token,
+	blobs, err := tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorVoteDetails})
 	if err != nil {
 		return nil, err
@@ -2080,7 +1817,7 @@ func (p *ticketVotePlugin) voteResults(token []byte) ([]ticketvote.CastVoteDetai
 		dataDescriptorCastVoteDetails,
 		dataDescriptorVoteCollider,
 	}
-	blobs, err := p.tstore.BlobsByDataDesc(token, desc)
+	blobs, err := tstore.BlobsByDataDesc(token, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -2544,7 +2281,7 @@ func (p *ticketVotePlugin) summaryByToken(token []byte) (*ticketvote.SummaryRepl
 
 // timestamp returns the timestamp for a specific piece of data.
 func (p *ticketVotePlugin) timestamp(token []byte, digest []byte) (*ticketvote.Timestamp, error) {
-	t, err := p.tstore.Timestamp(token, digest)
+	t, err := tstore.Timestamp(token, digest)
 	if err != nil {
 		return nil, fmt.Errorf("timestamp %x %x: %v",
 			token, digest, err)
@@ -2706,114 +2443,25 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 		// Quorum not met
 		approved = false
 
-		log.Debugf("Quorum not met on %v: votes cast %v, quorum %v",
+		log.Infof("Quorum not met %v: votes cast %v, quorum required %v",
 			vd.Params.Token, total, quorum)
 
 	case approvedVotes < pass:
 		// Pass percentage not met
 		approved = false
 
-		log.Debugf("Pass threshold not met on %v: approved %v, "+
-			"required %v", vd.Params.Token, total, quorum)
+		log.Infof("Vote rejected %v: required %v approval votes, received %v/%v",
+			vd.Params.Token, pass, approvedVotes, total)
 
 	default:
 		// Vote was approved
 		approved = true
 
-		log.Debugf("Vote %v approved: quorum %v, pass %v, total %v, "+
-			"approved %v", vd.Params.Token, quorum, pass, total,
-			approvedVotes)
+		log.Infof("Vote approved %v: required %v approval votes, received %v/%v",
+			vd.Params.Token, pass, approvedVotes, total)
 	}
 
 	return approved
-}
-
-// tokenDecode decodes a record token and only accepts full length tokens.
-func tokenDecode(token string) ([]byte, error) {
-	return util.TokenDecode(util.TokenTypeTstore, token)
-}
-
-// tokenVerify verifies that a token that is part of a plugin command payload
-// is valid. This is applicable when a plugin command payload contains a
-// signature that includes the record token. The token included in payload must
-// be a valid, full length record token and it must match the token that was
-// passed into the politeiad API for this plugin command, i.e. the token for
-// the record that this plugin command is being executed on.
-func tokenVerify(cmdToken []byte, payloadToken string) error {
-	pt, err := tokenDecode(payloadToken)
-	if err != nil {
-		return backend.PluginError{
-			PluginID:     ticketvote.PluginID,
-			ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
-			ErrorContext: util.TokenRegexp(),
-		}
-	}
-	if !bytes.Equal(cmdToken, pt) {
-		return backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
-			ErrorContext: fmt.Sprintf("payload token does not "+
-				"match command token: got %x, want %x", pt,
-				cmdToken),
-		}
-	}
-	return nil
-}
-
-func convertSignatureError(err error) backend.PluginError {
-	var e util.SignatureError
-	var s ticketvote.ErrorCodeT
-	if errors.As(err, &e) {
-		switch e.ErrorCode {
-		case util.ErrorStatusPublicKeyInvalid:
-			s = ticketvote.ErrorCodePublicKeyInvalid
-		case util.ErrorStatusSignatureInvalid:
-			s = ticketvote.ErrorCodeSignatureInvalid
-		}
-	}
-	return backend.PluginError{
-		PluginID:     ticketvote.PluginID,
-		ErrorCode:    uint32(s),
-		ErrorContext: e.ErrorContext,
-	}
-}
-
-func convertAuthDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.AuthDetails, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorAuthDetails {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
-			"want %v", dd.Descriptor, dataDescriptorAuthDetails)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var ad ticketvote.AuthDetails
-	err = json.Unmarshal(b, &ad)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal AuthDetails: %v", err)
-	}
-
-	return &ad, nil
 }
 
 func convertVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.VoteDetails, error) {
@@ -2968,23 +2616,6 @@ func convertStartRunoffFromBlobEntry(be store.BlobEntry) (*startRunoffRecord, er
 	return &srr, nil
 }
 
-func convertBlobEntryFromAuthDetails(ad ticketvote.AuthDetails) (*store.BlobEntry, error) {
-	data, err := json.Marshal(ad)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorAuthDetails,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
 func convertBlobEntryFromVoteDetails(vd ticketvote.VoteDetails) (*store.BlobEntry, error) {
 	data, err := json.Marshal(vd)
 	if err != nil {
@@ -3052,3 +2683,4 @@ func convertBlobEntryFromStartRunoff(srr startRunoffRecord) (*store.BlobEntry, e
 	be := store.NewBlobEntry(hint, data)
 	return &be, nil
 }
+*/

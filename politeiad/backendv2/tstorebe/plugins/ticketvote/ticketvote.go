@@ -5,19 +5,15 @@
 package ticketvote
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -30,29 +26,13 @@ var (
 //
 // ticketVotePlugin satisfies the plugins PluginClient interface.
 type ticketVotePlugin struct {
-	backend         backend.Backend
-	tstore          plugins.TstoreClient
-	activeNetParams *chaincfg.Params
-
-	// dataDir is the ticket vote plugin data directory. The only data
-	// that is stored here is cached data that can be re-created at any
-	// time by walking the trillian trees. Ex, the vote summary once a
-	// record vote has ended.
-	dataDir string
+	backend backend.Backend
+	net     chaincfg.Params // Decred network
 
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
-	identity *identity.FullIdentity
-
-	// activeVotes is a memeory cache that contains data required to
-	// validate vote ballots in a time efficient manner.
-	activeVotes *activeVotes
-
-	// Mutexes for on-disk caches
-	mtxInv     sync.RWMutex // Vote inventory cache
-	mtxSummary sync.Mutex   // Vote summaries cache
-	mtxSubs    sync.Mutex   // Runoff vote submission cache
+	identity identity.FullIdentity
 
 	// Plugin settings
 	linkByPeriodMin int64  // In seconds
@@ -67,6 +47,7 @@ type ticketVotePlugin struct {
 func (p *ticketVotePlugin) Setup() error {
 	log.Tracef("ticketvote Setup")
 
+	/* TODO add setup back in
 	// Verify plugin dependencies
 	var dcrdataFound bool
 	for _, v := range p.backend.PluginInventory() {
@@ -145,42 +126,63 @@ func (p *ticketVotePlugin) Setup() error {
 			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
 		}
 	}
+	*/
 
 	return nil
 }
 
-// Cmd executes a plugin command.
+// Write executes a read/write plugin command. All operations are executed
+// atomically by tstore when using this method. The plugin does not need to
+// worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error) {
-	log.Tracef("ticketvote Cmd: %x %v %v", token, cmd, payload)
+func (p *ticketVotePlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("ticketvote Write: %x %v %v", token, cmd, payload)
 
 	switch cmd {
 	case ticketvote.CmdAuthorize:
-		return p.cmdAuthorize(token, payload)
-	case ticketvote.CmdStart:
-		return p.cmdStart(token, payload)
-	case ticketvote.CmdCastBallot:
-		return p.cmdCastBallot(token, payload)
-	case ticketvote.CmdDetails:
-		return p.cmdDetails(token)
-	case ticketvote.CmdResults:
-		return p.cmdResults(token)
-	case ticketvote.CmdSummary:
-		return p.cmdSummary(token)
-	case ticketvote.CmdSubmissions:
-		return p.cmdSubmissions(token)
-	case ticketvote.CmdInventory:
-		return p.cmdInventory(payload)
-	case ticketvote.CmdTimestamps:
-		return p.cmdTimestamps(token, payload)
+		return p.cmdAuthorize(tstore, token, payload)
+		/*
+			case ticketvote.CmdStart:
+				return p.cmdStart(tstore, token, payload)
+			case ticketvote.CmdCastBallot:
+				return p.cmdCastBallot(tstore, token, payload)
 
-		// Internal plugin commands
-	case cmdStartRunoffSubmission:
-		return p.cmdStartRunoffSubmission(token, payload)
-	case cmdRunoffDetails:
-		return p.cmdRunoffDetails(token)
+				// Internal plugin commands
+			case cmdStartRunoffSubmission:
+				return p.cmdStartRunoffSubmission(token, payload)
+		*/
 	}
+
+	return "", backend.ErrPluginCmdInvalid
+}
+
+// Read executes a plugin command.
+//
+// This function satisfies the plugins PluginClient interface.
+func (p *ticketVotePlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+	log.Tracef("ticketvote Read: %x %v %v", token, cmd, payload)
+
+	/*
+		switch cmd {
+		case ticketvote.CmdDetails:
+			return p.cmdDetails(token)
+		case ticketvote.CmdResults:
+			return p.cmdResults(token)
+		case ticketvote.CmdSummary:
+			return p.cmdSummary(token)
+		case ticketvote.CmdSubmissions:
+			return p.cmdSubmissions(token)
+		case ticketvote.CmdInventory:
+			return p.cmdInventory(payload)
+		case ticketvote.CmdTimestamps:
+			return p.cmdTimestamps(token, payload)
+
+			// Internal plugin commands
+		case cmdRunoffDetails:
+			return p.cmdRunoffDetails(token)
+		}
+	*/
 
 	return "", backend.ErrPluginCmdInvalid
 }
@@ -188,19 +190,21 @@ func (p *ticketVotePlugin) Cmd(token []byte, cmd, payload string) (string, error
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
+func (p *ticketVotePlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("ticketvote Hook: %v", plugins.Hooks[h])
 
+	/* TODO Add hooks back in
 	switch h {
-	case plugins.HookTypeNewRecordPre:
-		return p.hookNewRecordPre(payload)
-	case plugins.HookTypeEditRecordPre:
-		return p.hookEditRecordPre(payload)
-	case plugins.HookTypeSetRecordStatusPre:
-		return p.hookSetRecordStatusPre(payload)
-	case plugins.HookTypeSetRecordStatusPost:
-		return p.hookSetRecordStatusPost(payload)
+	case plugins.HookRecordNewPre:
+		return p.hookRecordNewPre(payload)
+	case plugins.HookRecordEditPre:
+		return p.hookRecordEditPre(payload)
+	case plugins.HookRecordSetStatusPre:
+		return p.hookRecordSetStatusPre(payload)
+	case plugins.HookRecordSetStatusPost:
+		return p.hookRecordSetStatusPost(payload)
 	}
+	*/
 
 	return nil
 }
@@ -246,7 +250,7 @@ func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
 	}
 }
 
-func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
+func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*ticketVotePlugin, error) {
 	// Plugin settings
 	var (
 		linkByPeriodMin int64
@@ -257,7 +261,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 
 	// Set plugin settings to defaults. These will be overwritten if
 	// the setting was specified by the user.
-	switch activeNetParams.Name {
+	switch bs.Net.Name {
 	case chaincfg.MainNetParams().Name:
 		linkByPeriodMin = ticketvote.SettingMainNetLinkByPeriodMin
 		linkByPeriodMax = ticketvote.SettingMainNetLinkByPeriodMax
@@ -275,11 +279,11 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		voteDurationMin = ticketvote.SettingTestNetVoteDurationMin
 		voteDurationMax = ticketvote.SettingTestNetVoteDurationMax
 	default:
-		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
+		return nil, errors.Errorf("invalid network %v", bs.Net.Name)
 	}
 
 	// Override defaults with any passed in settings
-	for _, v := range settings {
+	for _, v := range ps {
 		switch v.Key {
 		case ticketvote.SettingKeyLinkByPeriodMin:
 			i, err := strconv.ParseInt(v.Value, 10, 64)
@@ -326,20 +330,10 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		}
 	}
 
-	// Create the plugin data directory
-	dataDir = filepath.Join(dataDir, ticketvote.PluginID)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ticketVotePlugin{
-		activeNetParams: activeNetParams,
 		backend:         backend,
-		tstore:          tstore,
-		dataDir:         dataDir,
-		identity:        id,
-		activeVotes:     newActiveVotes(),
+		net:             bs.Net,
+		identity:        bs.Identity,
 		linkByPeriodMin: linkByPeriodMin,
 		linkByPeriodMax: linkByPeriodMax,
 		voteDurationMin: voteDurationMin,

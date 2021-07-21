@@ -7,13 +7,14 @@ package usermd
 import (
 	"encoding/json"
 
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 // cmdAuthor returns the user ID of a record's author.
-func (p *usermdPlugin) cmdAuthor(token []byte) (string, error) {
+func (p *usermdPlugin) cmdAuthor(tstore plugins.TstoreClient, token []byte) (string, error) {
 	// Get user metadata
-	r, err := p.tstore.RecordPartial(token, 0, nil, true)
+	r, err := tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
 		return "", err
 	}
@@ -36,7 +37,7 @@ func (p *usermdPlugin) cmdAuthor(token []byte) (string, error) {
 
 // cmdUserRecords retrieves the tokens of all records that were submitted by
 // the provided user ID. The returned tokens are sorted from newest to oldest.
-func (p *usermdPlugin) cmdUserRecords(payload string) (string, error) {
+func (p *usermdPlugin) cmdUserRecords(tstore plugins.TstoreClient, payload string) (string, error) {
 	// Decode payload
 	var ur usermd.UserRecords
 	err := json.Unmarshal([]byte(payload), &ur)
@@ -45,7 +46,7 @@ func (p *usermdPlugin) cmdUserRecords(payload string) (string, error) {
 	}
 
 	// Get user records
-	uc, err := p.userCache(ur.UserID)
+	uc, err := p.userCache(tstore, ur.UserID)
 	if err != nil {
 		return "", err
 	}

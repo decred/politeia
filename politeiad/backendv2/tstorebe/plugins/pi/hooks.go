@@ -36,29 +36,29 @@ var (
 	}
 )
 
-// hookNewRecordPre adds plugin specific validation onto the tstore backend
+// hookRecordNewPre adds plugin specific validation onto the tstore backend
 // RecordNew method.
-func (p *piPlugin) hookNewRecordPre(payload string) error {
-	var nr plugins.HookNewRecordPre
-	err := json.Unmarshal([]byte(payload), &nr)
+func (p *piPlugin) hookRecordNewPre(payload string) error {
+	var rn plugins.RecordNew
+	err := json.Unmarshal([]byte(payload), &rn)
 	if err != nil {
 		return err
 	}
 
-	return p.proposalFilesVerify(nr.Files)
+	return p.proposalFilesVerify(rn.Files)
 }
 
-// hookEditRecordPre adds plugin specific validation onto the tstore backend
+// hookRecordEditPre adds plugin specific validation onto the tstore backend
 // RecordEdit method.
-func (p *piPlugin) hookEditRecordPre(payload string) error {
-	var er plugins.HookEditRecord
-	err := json.Unmarshal([]byte(payload), &er)
+func (p *piPlugin) hookRecordEditPre(payload string) error {
+	var re plugins.RecordEdit
+	err := json.Unmarshal([]byte(payload), &re)
 	if err != nil {
 		return err
 	}
 
 	// Verify proposal files
-	err = p.proposalFilesVerify(er.Files)
+	err = p.proposalFilesVerify(re.Files)
 	if err != nil {
 		return err
 	}
@@ -67,8 +67,8 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 	// has been authorized. This only needs to be checked for vetted
 	// records since you cannot authorize or start a ticket vote on an
 	// unvetted record.
-	if er.RecordMetadata.State == backend.StateVetted {
-		t, err := tokenDecode(er.RecordMetadata.Token)
+	if re.RecordMetadata.State == backend.StateVetted {
+		t, err := tokenDecode(re.RecordMetadata.Token)
 		if err != nil {
 			return err
 		}
@@ -108,26 +108,26 @@ func (p *piPlugin) hookCommentVote(token []byte) error {
 	return p.commentWritesAllowed(token)
 }
 
-// hookPluginPre extends plugin write commands from other plugins with pi
+// hookPluginWritePre extends plugin write commands from other plugins with pi
 // specific validation.
-func (p *piPlugin) hookPluginPre(payload string) error {
+func (p *piPlugin) hookPluginWritePre(payload string) error {
 	// Decode payload
-	var hpp plugins.HookPluginPre
-	err := json.Unmarshal([]byte(payload), &hpp)
+	var pw plugins.PluginWrite
+	err := json.Unmarshal([]byte(payload), &pw)
 	if err != nil {
 		return err
 	}
 
 	// Call plugin hook
-	switch hpp.PluginID {
+	switch pw.PluginID {
 	case comments.PluginID:
-		switch hpp.Cmd {
+		switch pw.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(hpp.Token)
+			return p.hookCommentNew(pw.Token)
 		case comments.CmdDel:
-			return p.hookCommentDel(hpp.Token)
+			return p.hookCommentDel(pw.Token)
 		case comments.CmdVote:
-			return p.hookCommentVote(hpp.Token)
+			return p.hookCommentVote(pw.Token)
 		}
 	}
 

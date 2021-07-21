@@ -5,9 +5,7 @@
 package tstore
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -17,18 +15,12 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
-)
-
-const (
-	// pluginDataDirname is the plugin data directory name. It is
-	// located in the tstore backend data directory and is provided
-	// to the plugins for storing plugin data.
-	pluginDataDirname = "plugins"
 )
 
 // plugin represents a tstore plugin.
@@ -67,42 +59,36 @@ func (t *Tstore) pluginIDs() []string {
 
 // PluginRegister registers a plugin. Plugin commands and hooks can be executed
 // on the plugin once registered.
-func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
+func (t *Tstore) PluginRegister(b backend.Backend, bs backend.BackendSettings, p backend.Plugin) error {
 	log.Tracef("PluginRegister: %v", p.ID)
 
 	var (
 		client plugins.PluginClient
 		err    error
-
-		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		client, err = comments.New(t, p.Settings, dataDir, p.Identity)
+		client, err = comments.New(bs, p.Settings)
 		if err != nil {
 			return err
 		}
 	case ddplugin.PluginID:
-		client, err = dcrdata.New(p.Settings, t.activeNetParams)
+		client, err = dcrdata.New(bs, p.Settings)
 		if err != nil {
 			return err
 		}
 	case piplugin.PluginID:
-		client, err = pi.New(b, p.Settings, dataDir)
+		client, err = pi.New(b, p.Settings)
 		if err != nil {
 			return err
 		}
 	case tkplugin.PluginID:
-		client, err = ticketvote.New(b, t, p.Settings, dataDir,
-			p.Identity, t.activeNetParams)
+		client, err = ticketvote.New(b, bs, p.Settings)
 		if err != nil {
 			return err
 		}
 	case umplugin.PluginID:
-		client, err = usermd.New(t, p.Settings, dataDir)
-		if err != nil {
-			return err
-		}
+		client = usermd.New()
 	default:
 		return backend.ErrPluginIDInvalid
 	}
@@ -130,52 +116,53 @@ func (t *Tstore) PluginSetup(pluginID string) error {
 	return p.client.Setup()
 }
 
-// PluginHookPre executes a tstore backend pre hook. Pre hooks are hooks that
-// are executed prior to the tstore backend writing data to disk. These hooks
-// give plugins the opportunity to add plugin specific validation to record
-// methods or plugin commands that write data.
-func (t *Tstore) PluginHookPre(h plugins.HookT, payload string) error {
-	log.Tracef("PluginHookPre: %v", plugins.Hooks[h])
+// PluginHookPre executes a plugin hook.
+//
+// Pre hooks are hooks that are executed prior to the backend writing data to
+// disk. These hooks give plugins the opportunity to add plugin specific
+// validation to record methods or plugin commands that write data.
+//
+// Post hooks are hooks that are executed after the backend successfully writes
+// data to disk. These hooks give plugins the opportunity to cache data from
+// the write.
+func (t *Tstore) PluginHook(tx store.Tx, h plugins.HookT, payload string) error {
+	log.Tracef("PluginHook: %v", plugins.Hooks[h])
 
-	// Pass hook event and payload to each plugin
-	for _, v := range t.pluginIDs() {
-		p, _ := t.plugin(v)
-		err := p.client.Hook(h, payload)
+	// Pass the hook event and payload to each plugin
+	for _, pid := range t.pluginIDs() {
+		// Setup the tstore client
+		clientID := fmt.Sprintf("%v hook: %v:", pid, plugins.Hooks[h])
+		c := newClient(clientID, t, tx, nil)
+
+		// Get the plugin
+		p, _ := t.plugin(pid)
+
+		// Execute the hook
+		err := p.client.Hook(c, h, payload)
 		if err != nil {
-			var e backend.PluginError
-			if errors.As(err, &e) {
-				return err
-			}
-			return fmt.Errorf("hook %v: %v", v, err)
+			return err
 		}
 	}
 
 	return nil
 }
 
-// PluginHookPre executes a tstore backend post hook. Post hooks are hooks that
-// are executed after the tstore backend successfully writes data to disk.
-// These hooks give plugins the opportunity to cache data from the write.
-func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {
-	log.Tracef("PluginHookPost: %v", plugins.Hooks[h])
+// PluginWrite executes a read/write plugin command.
+func (t *Tstore) PluginWrite(tx store.Tx, token []byte, pluginID, cmd, payload string) (string, error) {
+	log.Tracef("PluginWrite: %x %v %v", token, pluginID, cmd)
 
-	// Pass hook event and payload to each plugin
-	for _, v := range t.pluginIDs() {
-		p, ok := t.plugin(v)
-		if !ok {
-			log.Errorf("%v PluginHookPost: plugin not found %v", v)
-			continue
-		}
-		err := p.client.Hook(h, payload)
-		if err != nil {
-			// This is the post plugin hook so the data has already been
-			// saved to tstore. We do not have the ability to unwind. Log
-			// the error and continue.
-			log.Criticalf("%v PluginHookPost %v %v: %v: %v",
-				v, h, err, payload)
-			continue
-		}
+	// Get plugin
+	p, ok := t.plugin(pluginID)
+	if !ok {
+		return "", backend.ErrPluginIDInvalid
 	}
+
+	// Setup tstore client
+	clientID := fmt.Sprintf("%v read: %v:", pluginID, cmd)
+	c := newClient(clientID, t, tx, nil)
+
+	// Execute plugin command
+	return p.client.Write(c, token, cmd, payload)
 }
 
 // PluginRead executes a read-only plugin command.
@@ -199,22 +186,12 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 		return "", backend.ErrPluginIDInvalid
 	}
 
-	// Execute plugin command
-	return p.client.Cmd(token, cmd, payload)
-}
-
-// PluginWrite executes a plugin command that writes data.
-func (t *Tstore) PluginWrite(token []byte, pluginID, cmd, payload string) (string, error) {
-	log.Tracef("PluginWrite: %x %v %v", token, pluginID, cmd)
-
-	// Get plugin
-	p, ok := t.plugin(pluginID)
-	if !ok {
-		return "", backend.ErrPluginIDInvalid
-	}
+	// Setup tstore client
+	clientID := fmt.Sprintf("%v read: %v:", pluginID, cmd)
+	c := newClient(clientID, t, nil, t.store)
 
 	// Execute plugin command
-	return p.client.Cmd(token, cmd, payload)
+	return p.client.Read(c, token, cmd, payload)
 }
 
 // Plugins returns all registered plugins for the tstore instance.

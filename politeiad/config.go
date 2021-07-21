@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	v1 "github.com/decred/dcrtime/api/v1"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -46,7 +46,7 @@ const (
 	defaultBackend = backendTstore
 
 	// Tstore default settings
-	defaultDBType   = tstore.DBTypeLevelDB
+	defaultDBType   = tstorebe.DBTypeLevelDB
 	defaultDBHost   = "localhost:3306" // MySQL default host
 	defaultTlogHost = "localhost:8090"
 
@@ -81,8 +81,6 @@ type config struct {
 	TestNet     bool     `long:"testnet" description:"Use the test network"`
 	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
 	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
 	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
 	Version     string
@@ -565,9 +563,9 @@ func loadConfig() (*config, []string, error) {
 func verifyTstoreSettings(cfg *config) error {
 	// Verify tstore backend database choice
 	switch cfg.DBType {
-	case tstore.DBTypeLevelDB:
+	case tstorebe.DBTypeLevelDB:
 		// Allowed; continue
-	case tstore.DBTypeMySQL:
+	case tstorebe.DBTypeMySQL:
 		// The database password is provided in an env variable
 		cfg.DBPass = os.Getenv(envDBPass)
 		if cfg.DBPass == "" {

@@ -56,7 +56,11 @@ func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 // testNonce is used to verify that nonce races do not occur. This function is
 // meant to be run against an actual MySQL/MariaDB instance, not as a unit
 // test.
-func (s *mysql) testNonce(ctx context.Context, tx *sql.Tx) error {
+func (s *mysql) testNonce(tx *sql.Tx) error {
+	// Setup context
+	ctx, cancel := ctxForOp()
+	defer cancel()
+
 	// Get nonce
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
@@ -95,21 +99,16 @@ func (s *mysql) testNonceIsUnique() {
 			// Decrement wait group counter on exit
 			defer wg.Done()
 
-			ctx, cancel := ctxWithTimeout()
-			defer cancel()
-
 			// Start transaction
-			opts := &sql.TxOptions{
-				Isolation: sql.LevelDefault,
-			}
-			tx, err := s.db.BeginTx(ctx, opts)
+			tx, cancel, err := s.beginTx()
 			if err != nil {
 				log.Errorf("begin tx: %v", err)
 				return
 			}
+			defer cancel()
 
 			// Run nonce test
-			err = s.testNonce(ctx, tx)
+			err = s.testNonce(tx)
 			if err != nil {
 				// Attempt to roll back the transaction
 				if err2 := tx.Rollback(); err2 != nil {
