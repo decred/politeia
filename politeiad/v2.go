@@ -14,6 +14,7 @@ import (
 
 	v2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/util"
 )
 
@@ -506,9 +507,18 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 	payload, err := p.backendv2.PluginWrite(token, pw.Cmd.ID,
 		pw.Cmd.Command, pw.Cmd.Payload)
 	if err != nil {
-		respondWithErrorV2(w, r,
-			"handlePluginWrite: PluginWrite: %v", err)
-		return
+		switch {
+		case errors.Is(err, plugins.ErrDuplicateBlob):
+			respondWithErrorV2(w, r, "handlePluginWrite: PluginWrite: %v",
+				v2.UserErrorReply{
+					ErrorCode: v2.ErrorCodeDuplicateBlob,
+				})
+			return
+		default:
+			respondWithErrorV2(w, r,
+				"handlePluginWrite: PluginWrite: %v", err)
+			return
+		}
 	}
 
 	// Prepare reply

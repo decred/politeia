@@ -36,6 +36,7 @@ const (
 	ErrorCodeTokenInvalid     ErrorCodeT = 6
 	ErrorCodePageSizeExceeded ErrorCodeT = 7
 	ErrorCodeLast             ErrorCodeT = 8
+	ErrorCodeDuplicateBlob    ErrorCodeT = 9
 )
 
 var (
@@ -49,6 +50,7 @@ var (
 		ErrorCodeRecordLocked:     "record locked",
 		ErrorCodeTokenInvalid:     "token is invalid",
 		ErrorCodePageSizeExceeded: "page size exceeded",
+		ErrorCodeDuplicateBlob:    "duplicate blob payload",
 	}
 )
 

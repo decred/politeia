@@ -146,6 +146,8 @@ func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 		return v1.ErrorCodeTokenInvalid
 	case pdv2.ErrorCodeRecordLocked:
 		return v1.ErrorCodeRecordLocked
+	case pdv2.ErrorCodeDuplicateBlob:
+		return v1.ErrorCodeDuplicateBlob
 	}
 	return v1.ErrorCodeInvalid
 }

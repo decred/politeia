@@ -543,7 +543,7 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 	// Save vote details
 	err = p.voteDetailsSave(token, vd)
 	if err != nil {
-		return nil, fmt.Errorf("voteDetailsSave: %v", err)
+		return nil, err
 	}
 
 	// Update inventory
@@ -854,8 +854,7 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 	// Save start runoff record
 	err = p.startRunoffRecordSave(token, *srr)
 	if err != nil {
-		return nil, fmt.Errorf("startRunoffRecordSave %x: %v",
-			token, err)
+		return nil, err
 	}
 
 	return srr, nil
