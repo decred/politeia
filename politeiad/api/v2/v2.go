@@ -53,8 +53,8 @@ const (
 	ErrorCodePageSizeExceeded        ErrorCodeT = 19
 	ErrorCodeRecordStateInvalid      ErrorCodeT = 20
 	ErrorCodeRecordStatusInvalid     ErrorCodeT = 21
-	ErrorCodeLast                    ErrorCodeT = 22
-	ErrorCodeDuplicateBlob           ErrorCodeT = 23
+	ErrorCodeDuplicateBlob           ErrorCodeT = 22
+	ErrorCodeLast                    ErrorCodeT = 23
 )
 
 var (
