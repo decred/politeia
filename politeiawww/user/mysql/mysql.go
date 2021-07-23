@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -37,17 +38,18 @@ const (
 	databaseID = "users"
 
 	// Database table names.
-	tableNameKeyValue   = "key_value"
-	tableNameUsers      = "users"
-	tableNameIdentities = "identities"
-	tableNameSessions   = "sessions"
+	tableNameKeyValue       = "key_value"
+	tableNameUsers          = "users"
+	tableNameIdentities     = "identities"
+	tableNameSessions       = "sessions"
+	tableNameEmailHistories = "email_histories"
 
 	// Key-value store keys.
 	keyVersion             = "version"
 	keyPaywallAddressIndex = "paywalladdressindex"
 )
 
-// tableKeyValue defines the key-value table.
+// tableKeyValue defines the key_value table.
 const tableKeyValue = `
   k VARCHAR(255) NOT NULL PRIMARY KEY,
   v LONGBLOB NOT NULL
@@ -80,8 +82,15 @@ const tableSessions = `
   s_blob BLOB NOT NULL
 `
 
+// tableEmailHistories defines the email_histories table.
+const tableEmailHistories = `
+  user_id VARCHAR(36) NOT NULL PRIMARY KEY,
+  h_blob BLOB NOT NULL
+`
+
 var (
 	_ user.Database = (*mysql)(nil)
+	_ user.MailerDB = (*mysql)(nil)
 )
 
 // mysql implements the user.Database interface.
@@ -326,54 +335,9 @@ func rotateKeys(ctx context.Context, tx *sql.Tx, oldKey *[32]byte, newKey *[32]b
 	return nil
 }
 
-// InsertUser inserts a user record into the database. The record must be a
-// complete user record and the user must not already exist. This function is
-// intended to be used for migrations between databases.
-//
-// InsertUser satisfies the Database interface.
-func (m *mysql) InsertUser(u user.User) error {
-	log.Tracef("UserInsert: %v", u.Username)
-
-	if m.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
-	ub, err := user.EncodeUser(u)
-	if err != nil {
-		return err
-	}
-
-	eb, err := m.encrypt(user.VersionUser, ub)
-	if err != nil {
-		return err
-	}
-
-	// Insert new user into database.
-	ur := struct {
-		ID        string
-		Username  string
-		Blob      []byte
-		CreatedAt int64
-	}{
-		ID:        u.ID.String(),
-		Username:  u.Username,
-		Blob:      eb,
-		CreatedAt: time.Now().Unix(),
-	}
-	_, err = m.userDB.ExecContext(ctx,
-		"INSERT INTO users (id, username, u_blob, created_at) VALUES (?, ?, ?, ?)",
-		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
-	if err != nil {
-		return fmt.Errorf("insert user: %v", err)
-	}
-
-	return nil
-}
-
 // UserNew creates a new user record in the database.
+//
+// UserNew satisfies the Database interface.
 func (m *mysql) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
 
@@ -413,6 +377,8 @@ func (m *mysql) UserNew(u user.User) error {
 }
 
 // UserUpdate updates an existing user.
+//
+// UserUpdate satisfies the Database interface.
 func (m *mysql) UserUpdate(u user.User) error {
 	log.Tracef("UserUpdate: %v", u.Username)
 
@@ -524,6 +490,8 @@ func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) erro
 
 // UserGetByUsername returns a user record given its username, if found in the
 // database. returns user.ErrUserNotFound user not found.
+//
+// UserGetByUsername satisfies the Database interface.
 func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 	log.Tracef("UserGetByUsername: %v", username)
 
@@ -559,6 +527,8 @@ func (m *mysql) UserGetByUsername(username string) (*user.User, error) {
 
 // UserGetById returns a user record given its UUID, if found in the
 // database.
+//
+// UserGetById satisfies the Database interface.
 func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 	log.Tracef("UserGetById: %v", id)
 
@@ -594,6 +564,8 @@ func (m *mysql) UserGetById(id uuid.UUID) (*user.User, error) {
 
 // UserGetByPubKey returns a user record given its public key. The public key
 // can be any of the public keys in the user's identity history.
+//
+// UserGetByPubKey satisfies the Database interface.
 func (m *mysql) UserGetByPubKey(pubKey string) (*user.User, error) {
 	log.Tracef("UserGetByPubKey: %v", pubKey)
 
@@ -705,7 +677,56 @@ func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error)
 	return users, nil
 }
 
+// InsertUser inserts a user record into the database. The record must be a
+// complete user record and the user must not already exist. This function is
+// intended to be used for migrations between databases.
+//
+// InsertUser satisfies the Database interface.
+func (m *mysql) InsertUser(u user.User) error {
+	log.Tracef("UserInsert: %v", u.Username)
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	ub, err := user.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	eb, err := m.encrypt(user.VersionUser, ub)
+	if err != nil {
+		return err
+	}
+
+	// Insert new user into database.
+	ur := struct {
+		ID        string
+		Username  string
+		Blob      []byte
+		CreatedAt int64
+	}{
+		ID:        u.ID.String(),
+		Username:  u.Username,
+		Blob:      eb,
+		CreatedAt: time.Now().Unix(),
+	}
+	_, err = m.userDB.ExecContext(ctx,
+		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
+		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert user: %v", err)
+	}
+
+	return nil
+}
+
 // AllUsers iterate over all users and executes given callback.
+//
+// AllUsers satisfies the Database interface.
 func (m *mysql) AllUsers(callback func(u *user.User)) error {
 	log.Tracef("AllUsers")
 
@@ -819,7 +840,7 @@ func (m *mysql) SessionSave(us user.Session) error {
 			WHERE k = ?`,
 			session.UserID, session.CreatedAt, session.Blob, session.Key)
 		if err != nil {
-			return fmt.Errorf("upate: %v", err)
+			return fmt.Errorf("update: %v", err)
 		}
 	} else {
 		_, err := m.userDB.ExecContext(ctx,
@@ -835,8 +856,8 @@ func (m *mysql) SessionSave(us user.Session) error {
 	return nil
 }
 
-// Get a session by its ID. Returns a user.ErrorSessionNotFound if the given
-// session ID does not exist
+// SessionGetByID gets a session by its ID. Returns a user.ErrorSessionNotFound
+// if the given session ID does not exist.
 //
 // SessionGetByID satisfies the Database interface.
 func (m *mysql) SessionGetByID(sid string) (*user.Session, error) {
@@ -919,34 +940,6 @@ func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string)
 	return err
 }
 
-// RegisterPlugin registers a plugin.
-func (m *mysql) RegisterPlugin(p user.Plugin) error {
-	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
-
-	if m.isShutdown() {
-		return user.ErrShutdown
-	}
-
-	// Setup plugin tables
-	var err error
-	switch p.ID {
-	case user.CMSPluginID:
-	default:
-		return user.ErrInvalidPlugin
-	}
-	if err != nil {
-		return err
-	}
-
-	// Save plugin settings.
-	m.Lock()
-	defer m.Unlock()
-
-	m.pluginSettings[p.ID] = p.Settings
-
-	return nil
-}
-
 // SetPaywallAddressIndex updates the paywall address index.
 //
 // SetPaywallAddressIndex satisfies the Database interface.
@@ -990,6 +983,8 @@ func (m *mysql) SetPaywallAddressIndex(index uint64) error {
 
 // RotateKeys rotates the existing database encryption key with the given new
 // key.
+//
+// RotateKeys satisfies the Database interface.
 func (m *mysql) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
 
@@ -1047,7 +1042,39 @@ func (m *mysql) RotateKeys(newKeyPath string) error {
 	return nil
 }
 
+// RegisterPlugin registers a plugin.
+//
+// RegisterPlugin satisfies the Database interface.
+func (m *mysql) RegisterPlugin(p user.Plugin) error {
+	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	// Setup plugin tables
+	var err error
+	switch p.ID {
+	case user.CMSPluginID:
+	default:
+		return user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return err
+	}
+
+	// Save plugin settings.
+	m.Lock()
+	defer m.Unlock()
+
+	m.pluginSettings[p.ID] = p.Settings
+
+	return nil
+}
+
 // PluginExec executes a plugin command.
+//
+// PluginExec satisfies the Database interface.
 func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
 	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
 
@@ -1073,8 +1100,181 @@ func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, err
 	}, nil
 }
 
+// EmailHistoriesSave creates or updates the email histories to the database.
+// The histories map contains map[userid]EmailHistory.
+//
+// EmailHistoriesSave satisfies the user MailerDB interface.
+func (m *mysql) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	log.Tracef("EmailHistoriesSave: %v", histories)
+
+	if len(histories) == 0 {
+		return nil
+	}
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Execute statements
+	err = m.emailHistoriesSave(ctx, tx, histories)
+	if err != nil {
+		return err
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// emailHistoriesSave creates or updates the email histories for the given
+// users in the histories map[userid]EmailHistory.
+//
+// This function must be called using a sql transaction.
+func (m *mysql) emailHistoriesSave(ctx context.Context, tx *sql.Tx, histories map[uuid.UUID]user.EmailHistory) error {
+	for userID, history := range histories {
+		var (
+			update bool
+			em     string
+		)
+		err := tx.QueryRowContext(ctx,
+			"SELECT user_id FROM email_histories WHERE user_id = ?", userID).
+			Scan(&em)
+		switch err {
+		case nil:
+			// Email history already exists for this user, update it.
+			update = true
+		case sql.ErrNoRows:
+			// Email history doesn't exist for this user, create new one.
+		default:
+			// All other errors
+			return fmt.Errorf("lookup: %v", err)
+		}
+
+		// Make email history blob
+		ehb, err := json.Marshal(history)
+		if err != nil {
+			return fmt.Errorf("convert email history to DB: %w", err)
+		}
+		eb, err := m.encrypt(user.VersionEmailHistory, ehb)
+		if err != nil {
+			return err
+		}
+
+		// Save email history
+		if update {
+			_, err := tx.ExecContext(ctx,
+				`UPDATE email_histories SET h_blob = ? WHERE user_id = ?`,
+				eb, userID)
+			if err != nil {
+				return fmt.Errorf("update: %v", err)
+			}
+		} else {
+			_, err := tx.ExecContext(ctx,
+				`INSERT INTO email_histories (user_id, h_blob) VALUES (?, ?)`,
+				userID, eb)
+			if err != nil {
+				return fmt.Errorf("create: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// EmailHistoriesGet retrieves the email histories for the provided user IDs
+// The returned map[userid]EmailHistory will contain an entry for each of the
+// provided user ID. If a provided user ID does not correspond to a user in the
+// database, then the entry will be skipped in the returned map. An error is not
+// returned.
+//
+// EmailHistoriesGet satisfies the user MailerDB interface.
+func (m *mysql) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	log.Tracef("EmailHistoriesGet: %v", users)
+
+	if m.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup email histories by user ids.
+	q := `SELECT user_id, h_blob FROM email_histories WHERE user_id IN (?` +
+		strings.Repeat(",?", len(users)-1) + `)`
+
+	args := make([]interface{}, len(users))
+	for i, userID := range users {
+		args[i] = userID.String()
+	}
+	rows, err := m.userDB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Decrypt email history blob and compile the user emails map with their
+	// respective email history.
+	type emailHistory struct {
+		UserID string
+		Blob   []byte
+	}
+	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
+	for rows.Next() {
+		var hist emailHistory
+		if err := rows.Scan(&hist.UserID, &hist.Blob); err != nil {
+			return nil, err
+		}
+
+		b, _, err := m.decrypt(hist.Blob)
+		if err != nil {
+			return nil, err
+		}
+
+		var h user.EmailHistory
+		err = json.Unmarshal(b, &h)
+		if err != nil {
+			return nil, err
+		}
+
+		uuid, err := uuid.Parse(hist.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		histories[uuid] = h
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return histories, nil
+}
+
 // Close shuts down the database.  All interface functions must return with
 // errShutdown if the backend is shutting down.
+//
+// Close satisfies the Database interface.
 func (m *mysql) Close() error {
 	log.Tracef("Close")
 
@@ -1117,7 +1317,7 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 	db.SetMaxOpenConns(maxOpenConns)
 	db.SetMaxIdleConns(maxIdleConns)
 
-	// Setup key-value table.
+	// Setup key_value table.
 	q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`,
 		tableNameKeyValue, tableKeyValue)
 	_, err = db.Exec(q)
@@ -1147,6 +1347,15 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 	_, err = db.Exec(q)
 	if err != nil {
 		return nil, fmt.Errorf("create %v table: %v", tableNameSessions, err)
+	}
+
+	// Setup email_histories table.
+	q = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`,
+		tableNameEmailHistories, tableEmailHistories)
+	_, err = db.Exec(q)
+	if err != nil {
+		return nil, fmt.Errorf("create %v table: %v",
+			tableNameEmailHistories, err)
 	}
 
 	// Load encryption key.

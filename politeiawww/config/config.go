@@ -86,6 +86,7 @@ type Config struct {
 	MailAddress      string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 	MailCert         string `long:"mailcert" description:"Email server certificate file"`
 	MailSkipVerify   bool   `long:"mailskipverify" description:"Skip TLS verification when connecting to the mail server"`
+	MailRateLimit    int    `long:"mailratelimit" description:"Limits the amount of emails a user can receive in 24h"`
 	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
 
 	// XXX These should all be plugin settings

@@ -2,6 +2,7 @@ package localdb
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -23,6 +24,9 @@ const (
 
 	// The key for a user session is sessionPrefix+sessionID
 	sessionPrefix = "session:"
+
+	// The key for a user email history is emailHistoryPrefix+userID
+	emailHistoryPrefix = "emailhistory:"
 )
 
 var (
@@ -53,7 +57,8 @@ func isUserRecord(key string) bool {
 		key != LastPaywallAddressIndex &&
 		!strings.HasPrefix(key, sessionPrefix) &&
 		!strings.HasPrefix(key, cmsUserPrefix) &&
-		!strings.HasPrefix(key, cmsCodeStatsPrefix)
+		!strings.HasPrefix(key, cmsCodeStatsPrefix) &&
+		!strings.HasPrefix(key, emailHistoryPrefix)
 }
 
 // Store new user.
@@ -412,7 +417,7 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	return iter.Error()
 }
 
-// RotateKeys is an empty stub to satisfy the user.Database insterface.
+// RotateKeys is an empty stub to satisfy the user.Database interface.
 // Localdb implementation does not use encryption.
 func (l *localdb) RotateKeys(_ string) error {
 	return nil
@@ -463,6 +468,78 @@ func (l *localdb) RegisterPlugin(p user.Plugin) error {
 	l.pluginSettings[p.ID] = p.Settings
 
 	return nil
+}
+
+// EmailHistoriesSave saves an email history for each user passed in the map.
+// The histories map contains map[userid]EmailHistory.
+//
+// EmailHistoriesSave satisfies the user MailerDB interface.
+func (l *localdb) EmailHistoriesSave(histories map[uuid.UUID]user.EmailHistory) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	if len(histories) == 0 {
+		return nil
+	}
+
+	log.Debugf("EmailHistoriesSave: %v", histories)
+
+	for id, history := range histories {
+		payload, err := json.Marshal(history)
+		if err != nil {
+			return err
+		}
+		key := []byte(emailHistoryPrefix + id.String())
+		err = l.userdb.Put(key, payload, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// EmailHistoriesGet retrieves the email histories for the provided user IDs
+// The returned map[userid]EmailHistory will contain an entry for each of the
+// provided user ID. If a provided user ID does not correspond to a user in the
+// database, then the entry will be skipped in the returned map. An error is not
+// returned.
+//
+// EmailHistoriesGet satisfies the user MailerDB interface.
+func (l *localdb) EmailHistoriesGet(users []uuid.UUID) (map[uuid.UUID]user.EmailHistory, error) {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+
+	log.Debugf("EmailHistoriesGet: %v", users)
+
+	histories := make(map[uuid.UUID]user.EmailHistory, len(users))
+	for _, id := range users {
+		key := []byte(emailHistoryPrefix + id.String())
+		payload, err := l.userdb.Get(key, nil)
+		if errors.Is(err, leveldb.ErrNotFound) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+
+		var h user.EmailHistory
+		err = json.Unmarshal(payload, &h)
+		if err != nil {
+			return nil, err
+		}
+
+		histories[id] = h
+	}
+
+	return histories, nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with
