@@ -301,7 +301,9 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 	// Setup files with an empty proposal name. This is done manually
 	// because the function that creates the proposal metadata uses
 	// a default value when the name is provided as an empty string.
-	filesEmptyName := filesWithProposalName(t, "")
+	filesEmptyName := filesForProposal(t, &pi.ProposalMetadata{
+		Name: "",
+	})
 	for k, v := range filesEmptyName {
 		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -338,73 +340,100 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 		},
 		{
 			"name is too short",
-			filesWithProposalName(t, nameTooShort),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: nameTooShort,
+			}),
 			errNameInvalid,
 		},
 		{
 			"name is too long",
-			filesWithProposalName(t, nameTooLong),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: nameTooLong,
+			}),
 			errNameInvalid,
 		},
 		{
 			"name is the min length",
-			filesWithProposalName(t, nameMinLength),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: nameMinLength,
+			}),
 			nil,
 		},
 		{
 			"name is the max length",
-			filesWithProposalName(t, nameMaxLength),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: nameMaxLength,
+			}),
 			nil,
 		},
 		{
 			"name contains A to Z",
-			filesWithProposalName(t, "ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+			}),
 			nil,
 		},
 		{
 			"name contains a to z",
-			filesWithProposalName(t, "abcdefghijklmnopqrstuvwxyz"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "abcdefghijklmnopqrstuvwxyz",
+			}),
 			nil,
 		},
 		{
 			"name contains 0 to 9",
-			filesWithProposalName(t, "0123456789"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "0123456789",
+			}),
 			nil,
 		},
 		{
 			"name contains supported chars",
-			filesWithProposalName(t, "&.,:;- @+#/()!?\"'"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "&.,:;- @+#/()!?\"'",
+			}),
 			nil,
 		},
 		{
 			"name contains newline",
-			filesWithProposalName(t, "proposal name\n"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "proposal name\n",
+			}),
 			errNameInvalid,
 		},
 		{
 			"name contains tab",
-			filesWithProposalName(t, "proposal name\t"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "proposal name\t",
+			}),
 			errNameInvalid,
 		},
 		{
 			"name contains brackets",
-			filesWithProposalName(t, "{proposal name}"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "{proposal name}",
+			}),
 			errNameInvalid,
 		},
 		{
 			"name is valid lowercase",
-			filesWithProposalName(t, "proposal name"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "proposal name",
+			}),
 			nil,
 		},
 		{
 			"name is valid mixed case",
-			filesWithProposalName(t, "Proposal Name"),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Name: "Proposal Name",
+			}),
 			nil,
 		},
 	}
 }
 
-// proposalAmountTests returns a list of tests that verify
+// proposalAmountTests returns a list of tests that verify the proposal
+// amount requirements.
 func proposalAmountTests(t *testing.T) []proposalFormatTest {
 	t.Helper()
 
@@ -419,7 +448,9 @@ func proposalAmountTests(t *testing.T) []proposalFormatTest {
 	// Setup files with a zero amount. This is done manually
 	// because the function that creates the proposal metadata uses
 	// a default value when the amount is provided as zero.
-	filesZeroAmount := filesWithProposalAmount(t, 0)
+	filesZeroAmount := filesForProposal(t, &pi.ProposalMetadata{
+		Amount: 0,
+	})
 	for k, v := range filesZeroAmount {
 		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -456,22 +487,30 @@ func proposalAmountTests(t *testing.T) []proposalFormatTest {
 		},
 		{
 			"amount too small",
-			filesWithProposalAmount(t, amountTooSmall),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Amount: amountTooSmall,
+			}),
 			errAmountInvalid,
 		},
 		{
 			"amount too big",
-			filesWithProposalAmount(t, amountTooBig),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Amount: amountTooBig,
+			}),
 			errAmountInvalid,
 		},
 		{
 			"min amount",
-			filesWithProposalAmount(t, amountMin),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Amount: amountMin,
+			}),
 			nil,
 		},
 		{
 			"max amount",
-			filesWithProposalAmount(t, amountMax),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Amount: amountMax,
+			}),
 			nil,
 		},
 	}
@@ -491,7 +530,9 @@ func proposalStartDateTests(t *testing.T) []proposalFormatTest {
 	// Setup files with a zero start date. This is done manually
 	// because the function that creates the proposal metadata uses
 	// a default value when the start date is provided as zero.
-	filesZeroStartDate := filesWithProposalStartDate(t, 0)
+	filesZeroStartDate := filesForProposal(t, &pi.ProposalMetadata{
+		StartDate: 0,
+	})
 	for k, v := range filesZeroStartDate {
 		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -523,7 +564,9 @@ func proposalStartDateTests(t *testing.T) []proposalFormatTest {
 	return []proposalFormatTest{
 		{
 			"start date in the past",
-			filesWithProposalStartDate(t, sDateInPast),
+			filesForProposal(t, &pi.ProposalMetadata{
+				StartDate: sDateInPast,
+			}),
 			errStartDateInvalid,
 		},
 		{
@@ -533,7 +576,9 @@ func proposalStartDateTests(t *testing.T) []proposalFormatTest {
 		},
 		{
 			"start date in two months",
-			filesWithProposalStartDate(t, sDateInTwoMonths),
+			filesForProposal(t, &pi.ProposalMetadata{
+				StartDate: sDateInTwoMonths,
+			}),
 			nil,
 		},
 	}
@@ -557,7 +602,9 @@ func proposalEndDateTests(t *testing.T) []proposalFormatTest {
 	// Setup files with a zero end date. This is done manually
 	// because the function that creates the proposal metadata uses
 	// a default value when the end date is provided as zero.
-	filesZeroEndDate := filesWithProposalEndDate(t, 0)
+	filesZeroEndDate := filesForProposal(t, &pi.ProposalMetadata{
+		EndDate: 0,
+	})
 	for k, v := range filesZeroEndDate {
 		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -589,7 +636,9 @@ func proposalEndDateTests(t *testing.T) []proposalFormatTest {
 	return []proposalFormatTest{
 		{
 			"end date in the past",
-			filesWithProposalEndDate(t, eDateInPast),
+			filesForProposal(t, &pi.ProposalMetadata{
+				EndDate: eDateInPast,
+			}),
 			errEndDateInvalid,
 		},
 		{
@@ -599,17 +648,23 @@ func proposalEndDateTests(t *testing.T) []proposalFormatTest {
 		},
 		{
 			"end date is before default start date",
-			filesWithProposalEndDate(t, eDateBeforeStartDate),
+			filesForProposal(t, &pi.ProposalMetadata{
+				EndDate: eDateBeforeStartDate,
+			}),
 			errEndDateInvalid,
 		},
 		{
 			"end date is after max",
-			filesWithProposalEndDate(t, eDateAfterMax),
+			filesForProposal(t, &pi.ProposalMetadata{
+				EndDate: eDateAfterMax,
+			}),
 			errEndDateInvalid,
 		},
 		{
 			"end date is in 8 months",
-			filesWithProposalEndDate(t, eDateInEightMonths),
+			filesForProposal(t, &pi.ProposalMetadata{
+				EndDate: eDateInEightMonths,
+			}),
 			nil,
 		},
 	}
@@ -629,7 +684,9 @@ func proposalDomainTests(t *testing.T) []proposalFormatTest {
 	// Setup files with an empty domain. This is done manually
 	// because the function that creates the proposal metadata uses
 	// a default value when the domain is provided as empty string.
-	filesEmptyDomain := filesWithProposalDomain(t, "")
+	filesEmptyDomain := filesForProposal(t, &pi.ProposalMetadata{
+		Domain: "",
+	})
 	for k, v := range filesEmptyDomain {
 		if v.Name == pi.FileNameProposalMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -661,7 +718,9 @@ func proposalDomainTests(t *testing.T) []proposalFormatTest {
 	return []proposalFormatTest{
 		{
 			"invalid domain",
-			filesWithProposalDomain(t, invalidDomain),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Domain: invalidDomain,
+			}),
 			errDomainInvalid,
 		},
 		{
@@ -671,7 +730,9 @@ func proposalDomainTests(t *testing.T) []proposalFormatTest {
 		},
 		{
 			"valid domain",
-			filesWithProposalDomain(t, validDomain),
+			filesForProposal(t, &pi.ProposalMetadata{
+				Domain: validDomain,
+			}),
 			nil,
 		},
 	}
@@ -779,94 +840,14 @@ func fileEmptyPNG(t *testing.T) backend.File {
 // returned files only include the files required by the pi plugin API. No
 // attachment files are included. The caller can pass in additional files that
 // will be included in the returned list.
-func filesForProposal(t *testing.T, files ...backend.File) []backend.File {
+func filesForProposal(t *testing.T, pm *pi.ProposalMetadata, files ...backend.File) []backend.File {
 	t.Helper()
 
 	fs := []backend.File{
 		fileProposalIndex(),
-		fileProposalMetadata(t, nil),
+		fileProposalMetadata(t, pm),
 	}
 	fs = append(fs, files...)
 
 	return fs
-}
-
-// filesWithProposalName returns the backend files for a valid proposal,
-// using the provided name as the proposal name. The returned files only
-// include the files required by the pi plugin API. No attachment files are
-// included.
-func filesWithProposalName(t *testing.T, name string) []backend.File {
-	t.Helper()
-
-	pm := fileProposalMetadata(t, &pi.ProposalMetadata{
-		Name: name,
-	})
-	return []backend.File{
-		fileProposalIndex(),
-		pm,
-	}
-}
-
-// filesWithProposalAmount returns the backend files for a valid proposal,
-// using the provided amount as the amount. The returned files only
-// include the files required by the pi plugin API. No attachment files are
-// included.
-func filesWithProposalAmount(t *testing.T, amount uint64) []backend.File {
-	t.Helper()
-
-	pm := fileProposalMetadata(t, &pi.ProposalMetadata{
-		Amount: amount,
-	})
-	return []backend.File{
-		fileProposalIndex(),
-		pm,
-	}
-}
-
-// filesWithProposalStartDate returns the backend files for a valid proposal,
-// using the provided start date as the start date. The returned files only
-// include the files required by the pi plugin API. No attachment files are
-// included.
-func filesWithProposalStartDate(t *testing.T, sd int64) []backend.File {
-	t.Helper()
-
-	pm := fileProposalMetadata(t, &pi.ProposalMetadata{
-		StartDate: sd,
-	})
-	return []backend.File{
-		fileProposalIndex(),
-		pm,
-	}
-}
-
-// filesWithProposalEndDate returns the backend files for a valid proposal,
-// using the provided end date as the end date. The returned files only
-// include the files required by the pi plugin API. No attachment files are
-// included.
-func filesWithProposalEndDate(t *testing.T, ed int64) []backend.File {
-	t.Helper()
-
-	pm := fileProposalMetadata(t, &pi.ProposalMetadata{
-		EndDate: ed,
-	})
-	return []backend.File{
-		fileProposalIndex(),
-		pm,
-	}
-}
-
-// filesWithProposalDomain returns the backend files for a valid proposal,
-// using the provided domain as the domain. The returned files only
-// include the files required by the pi plugin API. No attachment files are
-// included.
-func filesWithProposalDomain(t *testing.T, d string) []backend.File {
-	t.Helper()
-
-	pm := fileProposalMetadata(t, &pi.ProposalMetadata{
-		Domain: d,
-	})
-	return []backend.File{
-		fileProposalIndex(),
-		pm,
-	}
 }
