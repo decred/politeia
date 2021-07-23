@@ -41,11 +41,11 @@ func printProposalFiles(files []rcv1.File) error {
 	pm, err := pclient.ProposalMetadataDecode(files)
 	if err == nil {
 		printf("%v\n", piv1.FileNameProposalMetadata)
-		printf("  Name: %v\n", pm.Name)
-		printf("  Amount: $%v\n", pm.Amount*100) // Display amount in USD.
+		printf("  Name      : %v\n", pm.Name)
+		printf("  Amount    : $%v\n", pm.Amount*100) // Display amount in USD.
 		printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
-		printf("  End Date: %v\n", timestampFromUnix(pm.EndDate))
-		printf("  Domain: %v\n", pm.Domain)
+		printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
+		printf("  Domain    : %v\n", pm.Domain)
 	}
 
 	// A vote metadata file is optional

@@ -101,7 +101,7 @@ var (
 	}
 
 	// SettingProposalDomains contains the default proposal domains.
-	SettingProposalDomains []string = []string{
+	SettingProposalDomains = []string{
 		"development",
 		"marketing",
 		"research",

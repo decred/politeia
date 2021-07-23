@@ -167,8 +167,15 @@ func (p *piPlugin) proposalAmountIsValid(amount uint64) bool {
 // proposalDomainIsValid returns whether the provided domain is
 // is a valid proposal domain.
 func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
-	var found bool
-	for _, d := range p.proposalDomains {
+	var (
+		found   bool
+		domains []string
+	)
+	err := json.Unmarshal([]byte(p.proposalDomains), &domains)
+	if err != nil {
+		return false, err
+	}
+	for _, d := range domains {
 		if d == domain {
 			found = true
 			break
