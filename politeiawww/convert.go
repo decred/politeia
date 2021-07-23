@@ -1338,13 +1338,17 @@ func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	supportUserIDs := strings.Split(dbDCC.SupportUserIDs, ",")
 	cleanedSupport := make([]string, 0, len(supportUserIDs))
 	for _, support := range supportUserIDs {
-		cleanedSupport = append(cleanedSupport, strings.TrimSpace(support))
+		if len(support) > 0 {
+			cleanedSupport = append(cleanedSupport, strings.TrimSpace(support))
+		}
 	}
 	dccRecord.SupportUserIDs = cleanedSupport
 	oppositionUserIDs := strings.Split(dbDCC.OppositionUserIDs, ",")
 	cleanedOpposed := make([]string, 0, len(oppositionUserIDs))
 	for _, oppose := range oppositionUserIDs {
-		cleanedOpposed = append(cleanedOpposed, strings.TrimSpace(oppose))
+		if len(oppose) > 0 {
+			cleanedOpposed = append(cleanedOpposed, strings.TrimSpace(oppose))
+		}
 	}
 	dccRecord.OppositionUserIDs = cleanedOpposed
 

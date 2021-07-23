@@ -29,6 +29,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 const (
@@ -445,10 +446,14 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	opposeUsernames := make([]string, 0, len(i.OppositionUserIDs))
 	for _, v := range i.SupportUserIDs {
 		// Fill in userID and username fields
-		u, err := p.db.UserGetByPubKey(v)
+		vid, err := uuid.Parse(v)
 		if err != nil {
-			log.Errorf("getDCC: getUserByPubKey: token:%v "+
-				"pubKey:%v err:%v", token, v, err)
+			continue
+		}
+		u, err := p.db.UserGetById(vid)
+		if err != nil {
+			log.Errorf("getDCC support: UserGetById: token: %v "+
+				"id: %v err: %v", token, v, err)
 		} else {
 			supportUserIDs = append(supportUserIDs, u.ID.String())
 			supportUsernames = append(supportUsernames, u.Username)
@@ -456,10 +461,14 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	}
 	for _, v := range i.OppositionUserIDs {
 		// Fill in userID and username fields
-		u, err := p.db.UserGetByPubKey(v)
+		vid, err := uuid.Parse(v)
 		if err != nil {
-			log.Errorf("getDCC: getUserByPubKey: token:%v "+
-				"pubKey:%v err:%v", token, v, err)
+			continue
+		}
+		u, err := p.db.UserGetById(vid)
+		if err != nil {
+			log.Errorf("getDCC oppose: UserGetById: token: %v "+
+				"id: %v err: %v", token, v, err)
 		} else {
 			opposeUserIDs = append(opposeUserIDs, u.ID.String())
 			opposeUsernames = append(opposeUsernames, u.Username)
@@ -677,9 +686,9 @@ func (p *politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.Suppor
 	}
 
 	if sd.Vote == supportString {
-		dcc.SupportUserIDs = append(dcc.SupportUserIDs, sd.PublicKey)
+		dcc.SupportUserIDs = append(dcc.SupportUserIDs, u.ID.String())
 	} else if sd.Vote == opposeString {
-		dcc.OppositionUserIDs = append(dcc.OppositionUserIDs, sd.PublicKey)
+		dcc.OppositionUserIDs = append(dcc.OppositionUserIDs, u.ID.String())
 	}
 	dbDcc := convertDCCDatabaseFromDCCRecord(*dcc)
 	if err != nil {
