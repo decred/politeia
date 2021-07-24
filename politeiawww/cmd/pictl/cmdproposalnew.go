@@ -142,42 +142,48 @@ func proposalNew(c *cmdProposalNew) (*rcv1.Record, error) {
 			}
 			c.Name = fmt.Sprintf("A Proposal Name %x", r)
 		}
-		// Set start date one month from now if not provided
-		if c.StartDate == "" {
-			monthInSeconds := int64(30 * 24 * 60 * 60)
-			c.StartDate = dateFromUnix(time.Now().Unix() + monthInSeconds)
-		}
-		// Set end date 4 months from now if not provided
-		if c.EndDate == "" {
-			fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
-			c.EndDate = dateFromUnix(time.Now().Unix() + fourMonthsInSeconds)
-		}
 		// Set proposal domain if not provided
 		if c.Domain == "" {
 			c.Domain = "research"
 		}
-		if c.Amount == 0 {
-			c.Amount = 2000000 // 20k usd in cents.
+		// In case of RFP no need to populate startdate, enddate &
+		// amount metadata fields.
+		if !c.RFP && c.LinkBy == "" {
+			// Set start date one month from now if not provided
+			if c.StartDate == "" {
+				monthInSeconds := int64(30 * 24 * 60 * 60)
+				c.StartDate = dateFromUnix(time.Now().Unix() + monthInSeconds)
+			}
+			// Set end date 4 months from now if not provided
+			if c.EndDate == "" {
+				fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
+				c.EndDate = dateFromUnix(time.Now().Unix() + fourMonthsInSeconds)
+			}
+			if c.Amount == 0 {
+				c.Amount = 2000000 // 20k usd in cents.
+			}
 		}
 	}
 
-	// Parse start & end dates string timestamps.
-	sd, err := unixFromTimestamp(c.StartDate)
-	if err != nil {
-		return nil, err
+	pm := piv1.ProposalMetadata{
+		Name:   c.Name,
+		Amount: c.Amount,
+		Domain: c.Domain,
 	}
-	ed, err := unixFromTimestamp(c.EndDate)
-	if err != nil {
-		return nil, err
+	// Parse start & end dates string timestamps.
+	if c.StartDate != "" {
+		pm.StartDate, err = unixFromTimestamp(c.StartDate)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.EndDate != "" {
+		pm.EndDate, err = unixFromTimestamp(c.EndDate)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	pm := piv1.ProposalMetadata{
-		Name:      c.Name,
-		StartDate: sd,
-		EndDate:   ed,
-		Amount:    c.Amount,
-		Domain:    c.Domain,
-	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
 		return nil, err

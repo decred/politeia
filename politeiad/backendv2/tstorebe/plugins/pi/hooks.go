@@ -294,45 +294,31 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 		}
 	}
 
+	// Validate vote & proposal metadata requirements
+	vm, err := voteMetadataDecode(files)
+	if err != nil {
+		return err
+	}
+	// In case of a RFP ensure irrelevant proposal metadata are not provided.
+	isRFP := vm != nil && vm.LinkBy != 0
+	if isRFP {
+		switch {
+		case pm.Amount != 0, pm.StartDate != 0, pm.EndDate != 0:
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeRFPMetadataInvalid),
+				ErrorContext: fmt.Sprintf("RFP should not have any of the following " +
+					"metadata fields: amount, startdate, enddate."),
+			}
+		}
+	}
+
 	// Verify proposal name
 	if !p.proposalNameIsValid(pm.Name) {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeProposalNameInvalid),
 			ErrorContext: p.proposalNameRegexp.String(),
-		}
-	}
-
-	// Validate proposal start date.
-	if !p.proposalStartDateIsValid(pm.StartDate) {
-		return backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeProposalStartDateInvalid),
-			ErrorContext: fmt.Sprintf("got %v start date, min is %v",
-				pm.StartDate, time.Now().Unix()),
-		}
-	}
-
-	// Validate proposal end date.
-	if !p.proposalEndDateIsValid(pm.StartDate, pm.EndDate) {
-		return backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeProposalEndDateInvalid),
-			ErrorContext: fmt.Sprintf("got %v end date, min is start date %v, "+
-				"max is %v",
-				pm.EndDate,
-				pm.StartDate,
-				time.Now().Unix()+pi.SettingProposalEndDateMax),
-		}
-	}
-
-	// Validate proposal amount.
-	if !p.proposalAmountIsValid(pm.Amount) {
-		return backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeProposalAmountInvalid),
-			ErrorContext: fmt.Sprintf("got %v amount, min is %v, "+
-				"max is %v", pm.Amount, p.proposalAmountMin, p.proposalAmountMax),
 		}
 	}
 
@@ -347,6 +333,42 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			ErrorCode: uint32(pi.ErrorCodeProposalDomainInvalid),
 			ErrorContext: fmt.Sprintf("got %v domain, "+
 				"supported domains are: %v", pm.Domain, p.proposalDomains),
+		}
+	}
+
+	// If not RFP validate rest of proposal metadata fields
+	if !isRFP {
+		// Validate proposal start date.
+		if !p.proposalStartDateIsValid(pm.StartDate) {
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeProposalStartDateInvalid),
+				ErrorContext: fmt.Sprintf("got %v start date, min is %v",
+					pm.StartDate, time.Now().Unix()),
+			}
+		}
+
+		// Validate proposal end date.
+		if !p.proposalEndDateIsValid(pm.StartDate, pm.EndDate) {
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeProposalEndDateInvalid),
+				ErrorContext: fmt.Sprintf("got %v end date, min is start date %v, "+
+					"max is %v",
+					pm.EndDate,
+					pm.StartDate,
+					time.Now().Unix()+pi.SettingProposalEndDateMax),
+			}
+		}
+
+		// Validate proposal amount.
+		if !p.proposalAmountIsValid(pm.Amount) {
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeProposalAmountInvalid),
+				ErrorContext: fmt.Sprintf("got %v amount, min is %v, "+
+					"max is %v", pm.Amount, p.proposalAmountMin, p.proposalAmountMax),
+			}
 		}
 	}
 
@@ -420,4 +442,27 @@ func proposalMetadataDecode(files []backend.File) (*pi.ProposalMetadata, error) 
 		break
 	}
 	return propMD, nil
+}
+
+// voteMetadataDecode decodes and returns the VoteMetadata from the
+// provided backend files. If a VoteMetadata is not found, nil is returned.
+func voteMetadataDecode(files []backend.File) (*ticketvote.VoteMetadata, error) {
+	var voteMD *ticketvote.VoteMetadata
+	for _, v := range files {
+		if v.Name != ticketvote.FileNameVoteMetadata {
+			continue
+		}
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return nil, err
+		}
+		var m ticketvote.VoteMetadata
+		err = json.Unmarshal(b, &m)
+		if err != nil {
+			return nil, err
+		}
+		voteMD = &m
+		break
+	}
+	return voteMD, nil
 }

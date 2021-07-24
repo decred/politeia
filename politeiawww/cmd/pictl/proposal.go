@@ -36,23 +36,36 @@ func printProposalFiles(files []rcv1.File) error {
 		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
 	}
 
+	// A vote metadata file is optional
+	var isRFP bool
+	vm, err := pclient.VoteMetadataDecode(files)
+	if err != nil {
+		return err
+	}
+	if vm != nil {
+		if vm.LinkBy != 0 {
+			isRFP = true
+		}
+	}
+
 	// Its possible for a proposal metadata to not exist if the
 	// proposal has been censored.
 	pm, err := pclient.ProposalMetadataDecode(files)
 	if err == nil {
 		printf("%v\n", piv1.FileNameProposalMetadata)
-		printf("  Name      : %v\n", pm.Name)
-		printf("  Amount    : $%v\n", pm.Amount*100) // Display amount in USD.
-		printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
-		printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
-		printf("  Domain    : %v\n", pm.Domain)
+		if !isRFP {
+			printf("  Name      : %v\n", pm.Name)
+			printf("  Domain    : %v\n", pm.Domain)
+			printf("  Amount    : $%v\n", pm.Amount*100) // Display amount in USD.
+			printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
+			printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
+		} else {
+			printf("  Name  : %v\n", pm.Name)
+			printf("  Domain: %v\n", pm.Domain)
+		}
 	}
 
-	// A vote metadata file is optional
-	vm, err := pclient.VoteMetadataDecode(files)
-	if err != nil {
-		return err
-	}
+	// Print vote metadata if exists.
 	if vm != nil {
 		printf("%v\n", piv1.FileNameVoteMetadata)
 		if vm.LinkTo != "" {

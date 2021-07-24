@@ -160,8 +160,12 @@ const (
 	// is not one of the supported domains.
 	ErrorCodeProposalDomainInvalid ErrorCodeT = 11
 
+	// ErrorCodeRFPMetadataInvalid is returned when a RFP has invalid proposal
+	// metadata fields.
+	ErrorCodeRFPMetadataInvalid ErrorCodeT = 12
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 12
+	ErrorCodeLast ErrorCodeT = 13
 )
 
 var (
@@ -179,6 +183,7 @@ var (
 		ErrorCodeProposalStartDateInvalid: "proposal start date invalid",
 		ErrorCodeProposalEndDateInvalid:   "proposal end date invalid",
 		ErrorCodeProposalDomainInvalid:    "proposal domain invalid",
+		ErrorCodeRFPMetadataInvalid:       "RFP metadata invalid",
 	}
 )
 
