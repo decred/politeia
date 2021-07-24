@@ -53,13 +53,14 @@ func printProposalFiles(files []rcv1.File) error {
 	pm, err := pclient.ProposalMetadataDecode(files)
 	if err == nil {
 		printf("%v\n", piv1.FileNameProposalMetadata)
-		if !isRFP {
+		switch {
+		case !isRFP:
 			printf("  Name      : %v\n", pm.Name)
 			printf("  Domain    : %v\n", pm.Domain)
 			printf("  Amount    : $%v\n", pm.Amount*100) // Display amount in USD.
 			printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
 			printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
-		} else {
+		case isRFP:
 			printf("  Name  : %v\n", pm.Name)
 			printf("  Domain: %v\n", pm.Domain)
 		}
