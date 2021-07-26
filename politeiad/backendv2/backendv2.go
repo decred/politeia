@@ -35,6 +35,10 @@ var (
 	// ErrPluginCmdInvalid is returned when a invalid plugin command is
 	// used.
 	ErrPluginCmdInvalid = errors.New("plugin command invalid")
+
+	// ErrDuplicatePayload is returned when a duplicate payload is sent to
+	// a plugin, where it tries to write data that already exists.
+	ErrDuplicatePayload = errors.New("duplicate payload")
 )
 
 // StateT represents the state of a record.

@@ -53,7 +53,7 @@ const (
 	ErrorCodePageSizeExceeded        ErrorCodeT = 19
 	ErrorCodeRecordStateInvalid      ErrorCodeT = 20
 	ErrorCodeRecordStatusInvalid     ErrorCodeT = 21
-	ErrorCodeDuplicateBlob           ErrorCodeT = 22
+	ErrorCodeDuplicatePayload        ErrorCodeT = 22
 	ErrorCodeLast                    ErrorCodeT = 23
 )
 
@@ -82,7 +82,7 @@ var (
 		ErrorCodePageSizeExceeded:        "page size exceeded",
 		ErrorCodeRecordStateInvalid:      "record state invalid",
 		ErrorCodeRecordStatusInvalid:     "record status invalid",
-		ErrorCodeDuplicateBlob:           "duplicate blob payload",
+		ErrorCodeDuplicatePayload:        "duplicate payload",
 	}
 )
 

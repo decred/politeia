@@ -35,7 +35,7 @@ const (
 	ErrorCodeRecordNotFound     ErrorCodeT = 7
 	ErrorCodeRecordLocked       ErrorCodeT = 8
 	ErrorCodePageSizeExceeded   ErrorCodeT = 9
-	ErrorCodeDuplicateBlob      ErrorCodeT = 10
+	ErrorCodeDuplicatePayload   ErrorCodeT = 10
 	ErrorCodeLast               ErrorCodeT = 11
 )
 
@@ -52,7 +52,7 @@ var (
 		ErrorCodeRecordNotFound:     "record not found",
 		ErrorCodeRecordLocked:       "record is locked",
 		ErrorCodePageSizeExceeded:   "page size exceeded",
-		ErrorCodeDuplicateBlob:      "duplicate blob payload",
+		ErrorCodeDuplicatePayload:   "duplicate payload",
 	}
 )
 

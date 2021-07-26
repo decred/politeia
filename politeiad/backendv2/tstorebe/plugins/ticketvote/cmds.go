@@ -19,7 +19,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -1335,7 +1334,7 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br 
 
 			// Save cast vote details
 			err = p.castVoteDetailsSave(token, cvd)
-			if err == plugins.ErrDuplicateBlob {
+			if errors.Is(err, backend.ErrDuplicatePayload) {
 				// This cast vote has already been saved. Its
 				// possible that a previous attempt to vote
 				// with this ticket failed before the vote
