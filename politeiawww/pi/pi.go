@@ -50,8 +50,8 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		nameLengthMin      uint32
 		nameLengthMax      uint32
 		nameSupportedChars []string
-		amountMin          uint32
-		amountMax          uint32
+		amountMin          uint64
+		amountMax          uint64
 		endDateMax         uint64
 		domains            []string
 	)
@@ -104,13 +104,13 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				if err != nil {
 					return nil, err
 				}
-				amountMin = uint32(u)
+				amountMin = u
 			case pi.SettingKeyProposalAmountMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
-				amountMax = uint32(u)
+				amountMax = u
 			case pi.SettingKeyProposalEndDateMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {

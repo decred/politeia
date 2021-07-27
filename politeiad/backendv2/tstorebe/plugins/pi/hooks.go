@@ -144,17 +144,17 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 // proposalStartDateIsValid returns whether the provided start date is valid.
 //
 // A valid start date of a proposal must be in the future.
-func (p *piPlugin) proposalStartDateIsValid(sd int64) bool {
-	return sd > time.Now().Unix()
+func (p *piPlugin) proposalStartDateIsValid(start int64) bool {
+	return start > time.Now().Unix()
 }
 
 // proposalEndDateIsValid returns whether the provided end date is valid.
 //
 // A valid end date must be after the start date and before the end of the
 // time interval set by the proposalEndDateMax plugin setting.
-func (p *piPlugin) proposalEndDateIsValid(sd int64, ed int64) bool {
-	return ed > sd &&
-		time.Now().Unix()+p.proposalEndDateMax > ed
+func (p *piPlugin) proposalEndDateIsValid(start int64, end int64) bool {
+	return end > start &&
+		time.Now().Unix()+p.proposalEndDateMax > end
 }
 
 // proposalAmountIsValid returns whether the provided amount is in the range
@@ -183,6 +183,12 @@ func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
 	}
 
 	return found, nil
+}
+
+// isRFP returns true if the giving proposal metadata is not nil and includes
+// a linkby value.
+func isRFP(vm *ticketvote.VoteMetadata) bool {
+	return vm != nil && vm.LinkBy != 0
 }
 
 // proposalFilesVerify verifies the files adhere to all pi plugin setting
@@ -300,15 +306,25 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 		return err
 	}
 	// In case of a RFP ensure irrelevant proposal metadata are not provided.
-	isRFP := vm != nil && vm.LinkBy != 0
-	if isRFP {
+	if isRFP(vm) {
 		switch {
-		case pm.Amount != 0, pm.StartDate != 0, pm.EndDate != 0:
+		case pm.Amount != 0:
 			return backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeRFPMetadataInvalid),
-				ErrorContext: fmt.Sprintf("RFP should not have any of the following " +
-					"metadata fields: amount, startdate, enddate."),
+				PluginID:     pi.PluginID,
+				ErrorCode:    uint32(pi.ErrorCodeProposalAmountInvalid),
+				ErrorContext: "RFP metadata should not include an amount",
+			}
+		case pm.StartDate != 0:
+			return backend.PluginError{
+				PluginID:     pi.PluginID,
+				ErrorCode:    uint32(pi.ErrorCodeProposalStartDateInvalid),
+				ErrorContext: "RFP metadata should not include a start date",
+			}
+		case pm.EndDate != 0:
+			return backend.PluginError{
+				PluginID:     pi.PluginID,
+				ErrorCode:    uint32(pi.ErrorCodeProposalEndDateInvalid),
+				ErrorContext: "RFP metadata should not include an end date",
 			}
 		}
 	}
@@ -337,7 +353,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	}
 
 	// If not RFP validate rest of proposal metadata fields
-	if !isRFP {
+	if !isRFP(vm) {
 		// Validate proposal start date.
 		if !p.proposalStartDateIsValid(pm.StartDate) {
 			return backend.PluginError{
