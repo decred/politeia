@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -144,7 +145,9 @@ func proposalNew(c *cmdProposalNew) (*rcv1.Record, error) {
 		}
 		// Set proposal domain if not provided
 		if c.Domain == "" {
-			c.Domain = "research"
+			// Pick random domain from the pi policy domains.
+			randomIndex := rand.Intn(len(pr.Domains))
+			c.Domain = pr.Domains[randomIndex]
 		}
 		// In case of RFP no need to populate startdate, enddate &
 		// amount metadata fields.

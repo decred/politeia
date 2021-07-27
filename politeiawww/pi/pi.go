@@ -6,7 +6,6 @@ package pi
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 // Pi is the context for the pi API.
@@ -123,7 +123,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				// Ensure no empty strings.
 				for _, d := range domains {
 					if d == "" {
-						return nil, fmt.Errorf("proposal domain can not be an empty " +
+						return nil, errors.Errorf("proposal domain can not be an empty " +
 							"string")
 					}
 				}
@@ -137,34 +137,34 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	// Verify all plugin settings have been provided
 	switch {
 	case textFileSizeMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyTextFileSizeMax)
 	case imageFileCountMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyImageFileCountMax)
 	case imageFileSizeMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyImageFileSizeMax)
 	case nameLengthMin == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalNameLengthMin)
 	case nameLengthMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalNameLengthMax)
 	case len(nameSupportedChars) == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalNameSupportedChars)
 	case amountMin == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalAmountMin)
 	case amountMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalAmountMax)
 	case endDateMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalEndDateMax)
 	case len(domains) == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
 	}
 

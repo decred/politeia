@@ -178,8 +178,8 @@ func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
 	return found, nil
 }
 
-// isRFP returns true if the giving proposal metadata is not nil and includes
-// a linkby value.
+// isRFP returns true if the giving vote metadata contains the metadata for
+// an RFP.
 func isRFP(vm *ticketvote.VoteMetadata) bool {
 	return vm != nil && vm.LinkBy != 0
 }
@@ -298,7 +298,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if err != nil {
 		return err
 	}
-	// In case of a RFP ensure irrelevant proposal metadata are not provided.
+	// In case of an RFP ensure irrelevant proposal metadata are not provided.
 	if isRFP(vm) {
 		switch {
 		case pm.Amount != 0:
