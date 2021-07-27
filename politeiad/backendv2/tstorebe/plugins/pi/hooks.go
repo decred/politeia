@@ -166,7 +166,7 @@ func (p *piPlugin) proposalAmountIsValid(amount uint64) bool {
 
 // proposalDomainIsValid returns whether the provided domain is
 // is a valid proposal domain.
-func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
+func (p *piPlugin) proposalDomainIsValid(domain string) bool {
 	var found bool
 	for _, d := range p.proposalDomains {
 		if d == domain {
@@ -175,7 +175,7 @@ func (p *piPlugin) proposalDomainIsValid(domain string) (bool, error) {
 		}
 	}
 
-	return found, nil
+	return found
 }
 
 // isRFP returns true if the giving vote metadata contains the metadata for
@@ -332,11 +332,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	}
 
 	// Validate proposal domain.
-	validDomain, err := p.proposalDomainIsValid(pm.Domain)
-	if err != nil {
-		return err
-	}
-	if !validDomain {
+	if !p.proposalDomainIsValid(pm.Domain) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeProposalDomainInvalid),
