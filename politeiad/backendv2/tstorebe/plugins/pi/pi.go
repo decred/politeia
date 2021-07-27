@@ -47,7 +47,8 @@ type piPlugin struct {
 	proposalAmountMin          uint64 // In cents
 	proposalAmountMax          uint64 // In cents
 	proposalEndDateMax         int64  // Seconds for current time
-	proposalDomains            string // JSON encoded []string
+	proposalDomainsEncoded     string // JSON encoded []string
+	proposalDomains            []string
 }
 
 // Setup performs any plugin setup that is required.
@@ -144,7 +145,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 		},
 		{
 			Key:   pi.SettingKeyProposalDomains,
-			Value: p.proposalDomains,
+			Value: p.proposalDomainsEncoded,
 		},
 	}
 }
@@ -294,6 +295,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		proposalAmountMin:          amountMin,
 		proposalAmountMax:          amountMax,
 		proposalEndDateMax:         endDateMax,
-		proposalDomains:            domainsString,
+		proposalDomainsEncoded:     domainsString,
+		proposalDomains:            domains,
 	}, nil
 }

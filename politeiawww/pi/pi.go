@@ -93,12 +93,10 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				}
 				nameLengthMax = uint32(u)
 			case pi.SettingKeyProposalNameSupportedChars:
-				var sc []string
-				err := json.Unmarshal([]byte(v.Value), &sc)
+				err := json.Unmarshal([]byte(v.Value), &nameSupportedChars)
 				if err != nil {
 					return nil, err
 				}
-				nameSupportedChars = sc
 			case pi.SettingKeyProposalAmountMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
@@ -118,19 +116,17 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				}
 				endDateMax = u
 			case pi.SettingKeyProposalDomains:
-				var ds []string
-				err := json.Unmarshal([]byte(v.Value), &ds)
+				err := json.Unmarshal([]byte(v.Value), &domains)
 				if err != nil {
 					return nil, err
 				}
 				// Ensure no empty strings.
-				for _, d := range ds {
+				for _, d := range domains {
 					if d == "" {
 						return nil, fmt.Errorf("proposal domain can not be an empty " +
 							"string")
 					}
 				}
-				domains = ds
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)

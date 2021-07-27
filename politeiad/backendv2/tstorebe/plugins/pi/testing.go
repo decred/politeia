@@ -63,7 +63,8 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		proposalAmountMin:          pi.SettingProposalAmountMin,
 		proposalAmountMax:          pi.SettingProposalAmountMax,
 		proposalEndDateMax:         pi.SettingProposalEndDateMax,
-		proposalDomains:            domainsString,
+		proposalDomainsEncoded:     domainsString,
+		proposalDomains:            pi.SettingProposalDomains,
 	}
 
 	return &p, func() {
