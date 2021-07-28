@@ -178,7 +178,7 @@ func (p *piPlugin) proposalDomainIsValid(domain string) bool {
 	return found
 }
 
-// isRFP returns true if the giving vote metadata contains the metadata for
+// isRFP returns true if the given vote metadata contains the metadata for
 // an RFP.
 func isRFP(vm *ticketvote.VoteMetadata) bool {
 	return vm != nil && vm.LinkBy != 0
