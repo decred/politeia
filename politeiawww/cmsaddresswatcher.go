@@ -224,9 +224,18 @@ func (p *politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
 	for i, tx := range txs {
 		// Check to see if running mainnet, if so, only accept transactions
-		// that originate from the Treasury Subsidy.
+		// that originate from a treasury spend OR from the subsidy.
+		validTreasurySpends := true
 		if !p.cfg.TestNet && !p.cfg.SimNet {
-			if !tx.TreasuryGen {
+			for _, address := range tx.InputAddresses {
+				if address != mainnetSubsidyAddr {
+					// All input addresses should be from the subsidy address
+					validTreasurySpends = false
+					break
+				}
+			}
+			// Skip all transactions that are not a valid treasury spend
+			if !validTreasurySpends && !tx.TreasuryGen {
 				continue
 			}
 		}
@@ -292,10 +301,19 @@ func (p *politeiawww) checkPayments(ctx context.Context, payment *database.Payme
 	amountReceived := dcrutil.Amount(0)
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
 
-	// Check to see if running mainnet, if so, only accept transactions that
-	// are determined to be Treasury Spends.
+	// Check to see if running mainnet, if so, only accept transactions
+	// that originate from a treasury spend OR from the subsidy.
+	validTreasurySpends := true
 	if !p.cfg.TestNet && !p.cfg.SimNet {
-		if !tx.TreasuryGen {
+		for _, address := range tx.InputAddresses {
+			if address != mainnetSubsidyAddr {
+				// All input addresses should be from the subsidy address
+				validTreasurySpends = false
+				break
+			}
+		}
+		// Skip all transactions that are not a valid treasury spend
+		if !validTreasurySpends && !tx.TreasuryGen {
 			return false
 		}
 	}
