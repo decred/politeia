@@ -24,9 +24,10 @@ type PolicyReply struct {
 	NameLengthMin      uint32   `json:"namelengthmin"`    // In characters
 	NameLengthMax      uint32   `json:"namelengthmax"`    // In characters
 	NameSupportedChars []string `json:"namesupportedchars"`
-	AmountMin          uint64   `json:"amountmin"`  // In cents
-	AmountMax          uint64   `json:"amountmax"`  // In cents
-	EndDateMax         int64    `json:"enddatemax"` // Seconds from current time
+	AmountMin          uint64   `json:"amountmin"`    // In cents
+	AmountMax          uint64   `json:"amountmax"`    // In cents
+	StartDateMin       int64    `json:"startdatemin"` // Seconds from current time
+	EndDateMax         int64    `json:"enddatemax"`   // Seconds from current time
 	Domains            []string `json:"domains"`
 }
 

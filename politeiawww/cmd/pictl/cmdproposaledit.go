@@ -155,8 +155,8 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 
 	// Setup proposal metadata
 	switch {
+	// Use existing proposal metadata.
 	case c.UseMD:
-		// Use the existing proposal name
 		pm, err := pclient.ProposalMetadataDecode(curr.Files)
 		if err != nil {
 			return nil, err
@@ -166,9 +166,10 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		c.StartDate = timestampFromUnix(pm.StartDate)
 		c.EndDate = timestampFromUnix(pm.EndDate)
 		c.Domain = pm.Domain
+	// Set random metadata values in case no specific value is provided.
 	case c.Random:
+		// Set a random proposal name if not provided.
 		if c.Name == "" {
-			// Create a random proposal name
 			r, err := util.Random(int(pr.NameLengthMin))
 			if err != nil {
 				return nil, err
@@ -186,16 +187,14 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		if !c.RFP && c.LinkBy == "" {
 			// Set start date one month from now if not provided
 			if c.StartDate == "" {
-				monthInSeconds := int64(30 * 24 * 60 * 60)
-				c.StartDate = dateFromUnix(time.Now().Unix() + monthInSeconds)
+				c.StartDate = dateFromUnix(defaultStartDate)
 			}
 			// Set end date 4 months from now if not provided
 			if c.EndDate == "" {
-				fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
-				c.EndDate = dateFromUnix(time.Now().Unix() + fourMonthsInSeconds)
+				c.EndDate = dateFromUnix(defaultEndDate)
 			}
 			if c.Amount == 0 {
-				c.Amount = 2000000 // 20k usd in cents.
+				c.Amount = defaultAmount
 			}
 		}
 	}

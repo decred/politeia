@@ -154,16 +154,14 @@ func proposalNew(c *cmdProposalNew) (*rcv1.Record, error) {
 		if !c.RFP && c.LinkBy == "" {
 			// Set start date one month from now if not provided
 			if c.StartDate == "" {
-				monthInSeconds := int64(30 * 24 * 60 * 60)
-				c.StartDate = dateFromUnix(time.Now().Unix() + monthInSeconds)
+				c.StartDate = dateFromUnix(defaultStartDate)
 			}
 			// Set end date 4 months from now if not provided
 			if c.EndDate == "" {
-				fourMonthsInSeconds := int64(4 * 30 * 24 * 60 * 60)
-				c.EndDate = dateFromUnix(time.Now().Unix() + fourMonthsInSeconds)
+				c.EndDate = dateFromUnix(defaultEndDate)
 			}
 			if c.Amount == 0 {
-				c.Amount = 2000000 // 20k usd in cents.
+				c.Amount = defaultAmount
 			}
 		}
 	}

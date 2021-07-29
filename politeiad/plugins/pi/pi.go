@@ -47,6 +47,10 @@ const (
 	// the SettingProposalAmountMax plugin setting.
 	SettingKeyProposalAmountMax = "proposalamountmax"
 
+	// SettingKeyProposalStartDateMin is the plugin settings key for
+	// the SettingProposalStartDateMin plugin setting.
+	SettingKeyProposalStartDateMin = "proposalstartdatemin"
+
 	// SettingKeyProposalEndDateMax is the plugin settings key for
 	// the SettingProposalEndDateMax plugin setting.
 	SettingKeyProposalEndDateMax = "proposalenddatemax"
@@ -90,6 +94,10 @@ const (
 	// SettingProposalEndDateMax is the default maximum possible proposal
 	// end date - seconds from current time.
 	SettingProposalEndDateMax int64 = 31557600 // 365.25 days in seconds.
+
+	// SettingProposalStartDateMin is the default minimum possible proposal
+	// start date - seconds from current time.
+	SettingProposalStartDateMin int64 = 604800
 )
 
 var (

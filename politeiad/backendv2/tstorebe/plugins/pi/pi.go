@@ -46,9 +46,10 @@ type piPlugin struct {
 	proposalNameRegexp         *regexp.Regexp
 	proposalAmountMin          uint64 // In cents
 	proposalAmountMax          uint64 // In cents
+	proposalStartDateMin       int64  // Seconds from current time
 	proposalEndDateMax         int64  // Seconds from current time
 	proposalDomainsEncoded     string // JSON encoded []string
-	proposalDomains            []string
+	proposalDomains            map[string]struct{}
 }
 
 // Setup performs any plugin setup that is required.
@@ -140,6 +141,10 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Value: strconv.FormatUint(p.proposalAmountMax, 10),
 		},
 		{
+			Key:   pi.SettingKeyProposalStartDateMin,
+			Value: strconv.FormatInt(p.proposalStartDateMin, 10),
+		},
+		{
 			Key:   pi.SettingKeyProposalEndDateMax,
 			Value: strconv.FormatInt(p.proposalEndDateMax, 10),
 		},
@@ -169,6 +174,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		nameSupportedChars = pi.SettingProposalNameSupportedChars
 		amountMin          = pi.SettingProposalAmountMin
 		amountMax          = pi.SettingProposalAmountMax
+		startDateMin       = pi.SettingProposalStartDateMin
 		endDateMax         = pi.SettingProposalEndDateMax
 		domains            = pi.SettingProposalDomains
 	)
@@ -278,6 +284,12 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 	}
 	domainsString := string(b)
 
+	// Translate domains slice to a Map[string]string.
+	domainsMap := make(map[string]struct{}, len(domains))
+	for _, d := range domains {
+		domainsMap[d] = struct{}{}
+	}
+
 	return &piPlugin{
 		dataDir:                    dataDir,
 		backend:                    backend,
@@ -290,8 +302,9 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		proposalNameRegexp:         rexp,
 		proposalAmountMin:          amountMin,
 		proposalAmountMax:          amountMax,
+		proposalStartDateMin:       startDateMin,
 		proposalEndDateMax:         endDateMax,
 		proposalDomainsEncoded:     domainsString,
-		proposalDomains:            domains,
+		proposalDomains:            domainsMap,
 	}, nil
 }

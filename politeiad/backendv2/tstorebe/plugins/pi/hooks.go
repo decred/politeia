@@ -143,9 +143,10 @@ func (p *piPlugin) proposalNameIsValid(name string) bool {
 
 // proposalStartDateIsValid returns whether the provided start date is valid.
 //
-// A valid start date of a proposal must be in the future.
+// A valid start date of a proposal must be after the minimum start date
+// set by the proposalStartDateMin plugin setting.
 func (p *piPlugin) proposalStartDateIsValid(start int64) bool {
-	return start > time.Now().Unix()
+	return start > time.Now().Unix()+p.proposalStartDateMin
 }
 
 // proposalEndDateIsValid returns whether the provided end date is valid.
@@ -167,14 +168,7 @@ func (p *piPlugin) proposalAmountIsValid(amount uint64) bool {
 // proposalDomainIsValid returns whether the provided domain is
 // is a valid proposal domain.
 func (p *piPlugin) proposalDomainIsValid(domain string) bool {
-	var found bool
-	for _, d := range p.proposalDomains {
-		if d == domain {
-			found = true
-			break
-		}
-	}
-
+	_, found := p.proposalDomains[domain]
 	return found
 }
 

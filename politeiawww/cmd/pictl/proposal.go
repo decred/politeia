@@ -16,6 +16,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -24,6 +25,23 @@ import (
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
+)
+
+const (
+	monthInSeconds      int64 = 30 * 24 * 60 * 60
+	fourMonthsInSeconds int64 = 4 * monthInSeconds
+)
+
+var (
+	// defaultStartDate is the default proposal metadata start date in
+	// Unix time. It defaults to one month from now.
+	defaultStartDate = time.Now().Unix() + monthInSeconds
+
+	// defaultEndDate is the default proposal metadata end date in
+	// Unix time. It defaults to four months from now.
+	defaultEndDate = time.Now().Unix() + fourMonthsInSeconds
+
+	defaultAmount uint64 = 2000000 // $20k is cents.
 )
 
 func printProposalFiles(files []rcv1.File) error {
