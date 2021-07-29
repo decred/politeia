@@ -35,7 +35,15 @@ const (
 	ErrorCodeRecordNotFound     ErrorCodeT = 7
 	ErrorCodeRecordLocked       ErrorCodeT = 8
 	ErrorCodePageSizeExceeded   ErrorCodeT = 9
-	ErrorCodeLast               ErrorCodeT = 10
+
+	// ErrorCodeDuplicatePayload is returned when a user tries to submit a
+	// duplicate payload for the comments plugin, where it tries to write
+	// data that already exists. Timestamp data relies on the hash of the
+	// payload, therefore duplicate payloads are not allowed since they will
+	// cause collisions.
+	ErrorCodeDuplicatePayload ErrorCodeT = 10
+
+	ErrorCodeLast ErrorCodeT = 11
 )
 
 var (
@@ -51,6 +59,7 @@ var (
 		ErrorCodeRecordNotFound:     "record not found",
 		ErrorCodeRecordLocked:       "record is locked",
 		ErrorCodePageSizeExceeded:   "page size exceeded",
+		ErrorCodeDuplicatePayload:   "duplicate payload",
 	}
 )
 

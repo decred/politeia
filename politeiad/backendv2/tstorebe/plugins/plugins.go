@@ -5,16 +5,8 @@
 package plugins
 
 import (
-	"errors"
-
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-)
-
-var (
-	// ErrDuplicateBlob is returned when a plugin attempts to save a
-	// blob whose contents are an exact duplicate of an existing blob.
-	ErrDuplicateBlob = errors.New("duplicate blob")
 )
 
 // HookT represents a plugin hook.

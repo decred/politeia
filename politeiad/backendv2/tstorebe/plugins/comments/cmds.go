@@ -509,7 +509,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	// Save comment
 	digest, err := p.commentAddSave(token, ca)
 	if err != nil {
-		return "", fmt.Errorf("commentAddSave: %v", err)
+		return "", err
 	}
 
 	// Update the index
@@ -657,7 +657,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	// Save comment
 	digest, err := p.commentAddSave(token, ca)
 	if err != nil {
-		return "", fmt.Errorf("commentAddSave: %v", err)
+		return "", err
 	}
 
 	// Update the index
@@ -760,7 +760,7 @@ func (p *commentsPlugin) cmdDel(token []byte, payload string) (string, error) {
 	// Save comment del
 	digest, err := p.commentDelSave(token, cd)
 	if err != nil {
-		return "", fmt.Errorf("commentDelSave: %v", err)
+		return "", err
 	}
 
 	// Update the index
@@ -913,7 +913,7 @@ func (p *commentsPlugin) cmdVote(token []byte, payload string) (string, error) {
 	// Save comment vote
 	digest, err := p.commentVoteSave(token, cv)
 	if err != nil {
-		return "", fmt.Errorf("commentVoteSave: %v", err)
+		return "", err
 	}
 
 	// Add vote to the comment index

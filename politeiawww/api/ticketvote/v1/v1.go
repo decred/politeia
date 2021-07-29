@@ -35,7 +35,15 @@ const (
 	ErrorCodeRecordLocked     ErrorCodeT = 5
 	ErrorCodeTokenInvalid     ErrorCodeT = 6
 	ErrorCodePageSizeExceeded ErrorCodeT = 7
-	ErrorCodeLast             ErrorCodeT = 8
+
+	// ErrorCodeDuplicatePayload is returned when a user tries to submit a
+	// duplicate payload for the ticketvote plugin, where it tries to write
+	// data that already exists. Timestamp data relies on the hash of the
+	// payload, therefore duplicate payloads are not allowed since they will
+	// cause collisions.
+	ErrorCodeDuplicatePayload ErrorCodeT = 8
+
+	ErrorCodeLast ErrorCodeT = 9
 )
 
 var (
@@ -49,6 +57,7 @@ var (
 		ErrorCodeRecordLocked:     "record locked",
 		ErrorCodeTokenInvalid:     "token is invalid",
 		ErrorCodePageSizeExceeded: "page size exceeded",
+		ErrorCodeDuplicatePayload: "duplicate payload",
 	}
 )
 
