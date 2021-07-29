@@ -25,7 +25,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
-	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
+	dcrdataapi "github.com/decred/dcrdata/v6/api/types"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"

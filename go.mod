@@ -18,8 +18,6 @@ require (
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.3.0
 	github.com/decred/dcrd/wire v1.4.0
-	github.com/decred/dcrdata/api/types/v4 v4.0.4
-	github.com/decred/dcrdata/db/dbtypes/v2 v2.2.1 // indirect
 	github.com/decred/dcrdata/v6 v6.0.0-20210510222533-6a2ca18d4382
 	github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e
 	github.com/decred/dcrtime/api/v2 v2.0.0-20200912200806-b1e4dbc46be9
