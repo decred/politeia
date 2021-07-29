@@ -509,7 +509,6 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 		respondWithErrorV2(w, r,
 			"handlePluginWrite: PluginWrite: %v", err)
 		return
-
 	}
 
 	// Prepare reply

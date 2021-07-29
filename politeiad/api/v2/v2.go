@@ -56,8 +56,8 @@ const (
 
 	// ErrorCodeDuplicatePayload is returned when a duplicate payload is sent
 	// to a plugin, where it tries to write data that already exists. Timestamp
-	// data relies on the hash of the payload, therefore duplicate payloads
-	// are not allowed since they will cause collisions.
+	// data relies on the hash of the payload, therefore duplicate payloads are
+	// not allowed since they will cause collisions.
 	ErrorCodeDuplicatePayload ErrorCodeT = 22
 
 	ErrorCodeLast ErrorCodeT = 23
