@@ -52,7 +52,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		nameSupportedChars []string
 		amountMin          uint64
 		amountMax          uint64
-		endDateMax         uint64
+		endDateMax         int64
 		domains            []string
 	)
 	for _, p := range plugins {
@@ -110,7 +110,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				}
 				amountMax = u
 			case pi.SettingKeyProposalEndDateMax:
-				u, err := strconv.ParseUint(v.Value, 10, 64)
+				u, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
