@@ -506,18 +506,10 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 	payload, err := p.backendv2.PluginWrite(token, pw.Cmd.ID,
 		pw.Cmd.Command, pw.Cmd.Payload)
 	if err != nil {
-		switch {
-		case errors.Is(err, backendv2.ErrDuplicatePayload):
-			respondWithErrorV2(w, r, "handlePluginWrite: PluginWrite: %v",
-				v2.UserErrorReply{
-					ErrorCode: v2.ErrorCodeDuplicatePayload,
-				})
-			return
-		default:
-			respondWithErrorV2(w, r,
-				"handlePluginWrite: PluginWrite: %v", err)
-			return
-		}
+		respondWithErrorV2(w, r,
+			"handlePluginWrite: PluginWrite: %v", err)
+		return
+
 	}
 
 	// Prepare reply
@@ -971,6 +963,8 @@ func convertErrorToV2(e error) v2.ErrorCodeT {
 		return v2.ErrorCodePluginIDInvalid
 	case backendv2.ErrPluginCmdInvalid:
 		return v2.ErrorCodePluginCmdInvalid
+	case backendv2.ErrDuplicatePayload:
+		return v2.ErrorCodeDuplicatePayload
 	}
 	return v2.ErrorCodeInvalid
 }
