@@ -37,7 +37,9 @@ var (
 	ErrPluginCmdInvalid = errors.New("plugin command invalid")
 
 	// ErrDuplicatePayload is returned when a duplicate payload is sent to
-	// a plugin, where it tries to write data that already exists.
+	// a plugin, where it tries to write data that already exists. Timestamp
+	// data relies on the hash of the payload, therefore duplicate payloads
+	// are not allowed since they will cause collisions.
 	ErrDuplicatePayload = errors.New("duplicate payload")
 )
 
