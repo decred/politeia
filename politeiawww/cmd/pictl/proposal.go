@@ -35,11 +35,11 @@ const (
 var (
 	// defaultStartDate is the default proposal metadata start date in
 	// Unix time. It defaults to one month from now.
-	defaultStartDate = time.Now().Unix() + monthInSeconds
+	defaultStartDate = time.Now().Unix() + monthInSeconds // One month from now.
 
 	// defaultEndDate is the default proposal metadata end date in
 	// Unix time. It defaults to four months from now.
-	defaultEndDate = time.Now().Unix() + fourMonthsInSeconds
+	defaultEndDate = time.Now().Unix() + fourMonthsInSeconds // Four months from now.
 
 	defaultAmount uint64 = 2000000 // $20k is cents.
 )

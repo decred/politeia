@@ -97,7 +97,7 @@ const (
 
 	// SettingProposalStartDateMin is the default minimum possible proposal
 	// start date - seconds from current time.
-	SettingProposalStartDateMin int64 = 604800
+	SettingProposalStartDateMin int64 = 604800 // One week in seconds.
 )
 
 var (
