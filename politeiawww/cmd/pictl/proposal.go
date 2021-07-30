@@ -35,13 +35,15 @@ const (
 var (
 	// defaultStartDate is the default proposal metadata start date in
 	// Unix time. It defaults to one month from now.
-	defaultStartDate = time.Now().Unix() + monthInSeconds // One month from now.
+	defaultStartDate = time.Now().Unix() + monthInSeconds
 
 	// defaultEndDate is the default proposal metadata end date in
 	// Unix time. It defaults to four months from now.
-	defaultEndDate = time.Now().Unix() + fourMonthsInSeconds // Four months from now.
+	defaultEndDate = time.Now().Unix() + fourMonthsInSeconds
 
-	defaultAmount uint64 = 2000000 // $20k is cents.
+	// defaultAmount is the default proposal metadata amount in cents.
+	// It defaults to $20k in cents.
+	defaultAmount uint64 = 2000000
 )
 
 func printProposalFiles(files []rcv1.File) error {
