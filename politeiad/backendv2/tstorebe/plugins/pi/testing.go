@@ -42,6 +42,21 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 	}
 	nameSupportedCharsString := string(b)
 
+	// Encode the proposal domains. This is done so that they can be
+	// returned as a plugin setting string.
+	domains := pi.SettingProposalDomains
+	b, err = json.Marshal(domains)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainsString := string(b)
+
+	// Translate domains slice to a Map[string]string.
+	domainsMap := make(map[string]struct{}, len(domains))
+	for _, d := range domains {
+		domainsMap[d] = struct{}{}
+	}
+
 	// Setup plugin context
 	p := piPlugin{
 		dataDir:                    dataDir,
@@ -52,6 +67,12 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		proposalNameLengthMax:      nameLengthMax,
 		proposalNameSupportedChars: nameSupportedCharsString,
 		proposalNameRegexp:         rexp,
+		proposalAmountMin:          pi.SettingProposalAmountMin,
+		proposalAmountMax:          pi.SettingProposalAmountMax,
+		proposalStartDateMin:       pi.SettingProposalStartDateMin,
+		proposalEndDateMax:         pi.SettingProposalEndDateMax,
+		proposalDomainsEncoded:     domainsString,
+		proposalDomains:            domainsMap,
 	}
 
 	return &p, func() {

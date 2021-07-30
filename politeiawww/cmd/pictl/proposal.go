@@ -16,6 +16,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -24,6 +25,25 @@ import (
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
+)
+
+const (
+	monthInSeconds      int64 = 30 * 24 * 60 * 60
+	fourMonthsInSeconds int64 = 4 * monthInSeconds
+)
+
+var (
+	// defaultStartDate is the default proposal metadata start date in
+	// Unix time. It defaults to one month from now.
+	defaultStartDate = time.Now().Unix() + monthInSeconds
+
+	// defaultEndDate is the default proposal metadata end date in
+	// Unix time. It defaults to four months from now.
+	defaultEndDate = time.Now().Unix() + fourMonthsInSeconds
+
+	// defaultAmount is the default proposal metadata amount in cents.
+	// It defaults to $20k in cents.
+	defaultAmount uint64 = 2000000
 )
 
 func printProposalFiles(files []rcv1.File) error {
@@ -36,19 +56,37 @@ func printProposalFiles(files []rcv1.File) error {
 		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
 	}
 
+	// A vote metadata file is optional
+	var isRFP bool
+	vm, err := pclient.VoteMetadataDecode(files)
+	if err != nil {
+		return err
+	}
+	if vm != nil {
+		if vm.LinkBy != 0 {
+			isRFP = true
+		}
+	}
+
 	// Its possible for a proposal metadata to not exist if the
 	// proposal has been censored.
 	pm, err := pclient.ProposalMetadataDecode(files)
 	if err == nil {
 		printf("%v\n", piv1.FileNameProposalMetadata)
-		printf("  Name: %v\n", pm.Name)
+		switch {
+		case !isRFP:
+			printf("  Name      : %v\n", pm.Name)
+			printf("  Domain    : %v\n", pm.Domain)
+			printf("  Amount    : $%v\n", pm.Amount*100) // Display amount in USD.
+			printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
+			printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
+		case isRFP:
+			printf("  Name  : %v\n", pm.Name)
+			printf("  Domain: %v\n", pm.Domain)
+		}
 	}
 
-	// A vote metadata file is optional
-	vm, err := pclient.VoteMetadataDecode(files)
-	if err != nil {
-		return err
-	}
+	// Print vote metadata if exists.
 	if vm != nil {
 		printf("%v\n", piv1.FileNameVoteMetadata)
 		if vm.LinkTo != "" {

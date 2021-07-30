@@ -24,6 +24,11 @@ type PolicyReply struct {
 	NameLengthMin      uint32   `json:"namelengthmin"`    // In characters
 	NameLengthMax      uint32   `json:"namelengthmax"`    // In characters
 	NameSupportedChars []string `json:"namesupportedchars"`
+	AmountMin          uint64   `json:"amountmin"`    // In cents
+	AmountMax          uint64   `json:"amountmax"`    // In cents
+	StartDateMin       int64    `json:"startdatemin"` // Seconds from current time
+	EndDateMax         int64    `json:"enddatemax"`   // Seconds from current time
+	Domains            []string `json:"domains"`
 }
 
 const (
@@ -46,7 +51,11 @@ const (
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission.
 type ProposalMetadata struct {
-	Name string `json:"name"` // Proposal name
+	Name      string `json:"name"`      // Proposal name
+	Amount    uint64 `json:"amount"`    // Funding amount in cents
+	StartDate int64  `json:"startdate"` // Start date, Unix time
+	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
+	Domain    string `json:"domain"`    // Proposal domain
 }
 
 // VoteMetadata is metadata that is specified by the user on proposal

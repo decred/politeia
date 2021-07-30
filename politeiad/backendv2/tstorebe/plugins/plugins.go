@@ -16,11 +16,11 @@ const (
 	// HookTypeInvalid is an invalid plugin hook.
 	HookTypeInvalid HookT = 0
 
-	// HootTypeNewRecordPre is called before a new record is saved to
+	// HookTypeNewRecordPre is called before a new record is saved to
 	// disk.
 	HookTypeNewRecordPre HookT = 1
 
-	// HootTypeNewRecordPost is called after a new record is saved to
+	// HookTypeNewRecordPost is called after a new record is saved to
 	// disk.
 	HookTypeNewRecordPost HookT = 2
 

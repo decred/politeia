@@ -6,7 +6,6 @@ package pi
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 // Pi is the context for the pi API.
@@ -50,6 +50,11 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 		nameLengthMin      uint32
 		nameLengthMax      uint32
 		nameSupportedChars []string
+		amountMin          uint64
+		amountMax          uint64
+		startDateMin       int64
+		endDateMax         int64
+		domains            []string
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -89,12 +94,46 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 				}
 				nameLengthMax = uint32(u)
 			case pi.SettingKeyProposalNameSupportedChars:
-				var sc []string
-				err := json.Unmarshal([]byte(v.Value), &sc)
+				err := json.Unmarshal([]byte(v.Value), &nameSupportedChars)
 				if err != nil {
 					return nil, err
 				}
-				nameSupportedChars = sc
+			case pi.SettingKeyProposalAmountMin:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				amountMin = u
+			case pi.SettingKeyProposalAmountMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				amountMax = u
+			case pi.SettingKeyProposalStartDateMin:
+				u, err := strconv.ParseInt(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				startDateMin = u
+			case pi.SettingKeyProposalEndDateMax:
+				u, err := strconv.ParseInt(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				endDateMax = u
+			case pi.SettingKeyProposalDomains:
+				err := json.Unmarshal([]byte(v.Value), &domains)
+				if err != nil {
+					return nil, err
+				}
+				// Ensure no empty strings.
+				for _, d := range domains {
+					if d == "" {
+						return nil, errors.Errorf("proposal domain can not be an empty " +
+							"string")
+					}
+				}
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -105,20 +144,35 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	// Verify all plugin settings have been provided
 	switch {
 	case textFileSizeMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyTextFileSizeMax)
 	case imageFileCountMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyImageFileCountMax)
 	case imageFileSizeMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyImageFileSizeMax)
 	case nameLengthMin == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalNameLengthMin)
 	case nameLengthMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalNameLengthMax)
+	case len(nameSupportedChars) == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalNameSupportedChars)
+	case amountMin == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalAmountMin)
+	case amountMax == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalAmountMax)
+	case endDateMax == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalEndDateMax)
+	case len(domains) == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyProposalDomains)
 	}
 
 	// Setup pi context
@@ -136,6 +190,11 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 			NameLengthMin:      nameLengthMin,
 			NameLengthMax:      nameLengthMax,
 			NameSupportedChars: nameSupportedChars,
+			AmountMin:          amountMin,
+			AmountMax:          amountMax,
+			StartDateMin:       startDateMin,
+			EndDateMax:         endDateMax,
+			Domains:            domains,
 		},
 	}
 
