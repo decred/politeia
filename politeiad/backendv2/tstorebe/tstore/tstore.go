@@ -49,7 +49,7 @@ var (
 // trillian log (tlog) and a key-value store. When data is saved to a tstore
 // instance it is first saved to the key-value store then a digest of the data
 // is appended onto the tlog tree. Tlog trees are episodically timestamped onto
-// the decred blockchain. An inlcusion proof, i.e. the cryptographic proof that
+// the decred blockchain. An inclusion proof, i.e. the cryptographic proof that
 // the data was included in the decred timestamp, can be retrieved for any
 // individual piece of data saved to the tstore.
 //
