@@ -37,6 +37,12 @@ type piPlugin struct {
 	proposalNameLengthMin      uint32 // In characters
 	proposalNameLengthMax      uint32 // In characters
 	proposalNameRegexp         *regexp.Regexp
+	proposalAmountMin          uint64 // In cents
+	proposalAmountMax          uint64 // In cents
+	proposalStartDateMin       int64  // Seconds from current time
+	proposalEndDateMax         int64  // Seconds from current time
+	proposalDomainsEncoded     string // JSON encoded []string
+	proposalDomains            map[string]struct{}
 }
 
 // Setup performs any plugin setup that is required.
@@ -130,6 +136,26 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Key:   pi.SettingKeyProposalNameSupportedChars,
 			Value: p.proposalNameSupportedChars,
 		},
+		{
+			Key:   pi.SettingKeyProposalAmountMin,
+			Value: strconv.FormatUint(p.proposalAmountMin, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalAmountMax,
+			Value: strconv.FormatUint(p.proposalAmountMax, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalStartDateMin,
+			Value: strconv.FormatInt(p.proposalStartDateMin, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalEndDateMax,
+			Value: strconv.FormatInt(p.proposalEndDateMax, 10),
+		},
+		{
+			Key:   pi.SettingKeyProposalDomains,
+			Value: p.proposalDomainsEncoded,
+		},
 	}
 }
 
@@ -143,6 +169,11 @@ func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error)
 		nameLengthMin      = pi.SettingProposalNameLengthMin
 		nameLengthMax      = pi.SettingProposalNameLengthMax
 		nameSupportedChars = pi.SettingProposalNameSupportedChars
+		amountMin          = pi.SettingProposalAmountMin
+		amountMax          = pi.SettingProposalAmountMax
+		startDateMin       = pi.SettingProposalStartDateMin
+		endDateMax         = pi.SettingProposalEndDateMax
+		domains            = pi.SettingProposalDomains
 	)
 
 	// Override defaults with any passed in settings
@@ -184,13 +215,44 @@ func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error)
 			}
 			nameLengthMax = uint32(u)
 		case pi.SettingKeyProposalNameSupportedChars:
-			var sc []string
-			err := json.Unmarshal([]byte(v.Value), &sc)
+			err := json.Unmarshal([]byte(v.Value), &nameSupportedChars)
 			if err != nil {
 				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
-			nameSupportedChars = sc
+		case pi.SettingKeyProposalAmountMin:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			amountMin = u
+		case pi.SettingKeyProposalAmountMax:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			amountMax = u
+		case pi.SettingKeyProposalEndDateMax:
+			u, err := strconv.ParseInt(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			// Ensure provided max end date is not in the past
+			if u < 0 {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': "+
+					"must be in the future", v.Key, v.Value)
+			}
+			endDateMax = u
+		case pi.SettingKeyProposalDomains:
+			err := json.Unmarshal([]byte(v.Value), &domains)
+			if err != nil {
+				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+
 		default:
 			return nil, fmt.Errorf("invalid plugin setting: %v", v.Key)
 		}
@@ -211,6 +273,20 @@ func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error)
 	}
 	nameSupportedCharsString := string(b)
 
+	// Encode the proposal domains so that they can be returned as a
+	// plugin setting string.
+	b, err = json.Marshal(domains)
+	if err != nil {
+		return nil, err
+	}
+	domainsString := string(b)
+
+	// Translate domains slice to a Map[string]string.
+	domainsMap := make(map[string]struct{}, len(domains))
+	for _, d := range domains {
+		domainsMap[d] = struct{}{}
+	}
+
 	return &piPlugin{
 		backend:                    backend,
 		textFileSizeMax:            textFileSizeMax,
@@ -220,5 +296,11 @@ func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error)
 		proposalNameLengthMax:      nameLengthMax,
 		proposalNameSupportedChars: nameSupportedCharsString,
 		proposalNameRegexp:         rexp,
+		proposalAmountMin:          amountMin,
+		proposalAmountMax:          amountMax,
+		proposalStartDateMin:       startDateMin,
+		proposalEndDateMax:         endDateMax,
+		proposalDomainsEncoded:     domainsString,
+		proposalDomains:            domainsMap,
 	}, nil
 }

@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -33,9 +34,13 @@ type cmdProposalEdit struct {
 	UseMD bool `long:"usemd" optional:"true"`
 
 	// Metadata fields that can be set by the user
-	Name   string `long:"name" optional:"true"`
-	LinkTo string `long:"linkto" optional:"true"`
-	LinkBy string `long:"linkby" optional:"true"`
+	Name      string `long:"name" optional:"true"`
+	LinkTo    string `long:"linkto" optional:"true"`
+	LinkBy    string `long:"linkby" optional:"true"`
+	Amount    uint64 `long:"amount" optional:"true"`
+	StartDate string `long:"startdate" optional:"true"`
+	EndDate   string `long:"enddate" optional:"true"`
+	Domain    string `long:"domain" optional:"true"`
 
 	// RFP is a flag that is intended to make submitting an RFP easier
 	// by calculating and inserting a linkby timestamp automatically
@@ -150,24 +155,69 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 
 	// Setup proposal metadata
 	switch {
+	// Use existing proposal metadata.
 	case c.UseMD:
-		// Use the existing proposal name
 		pm, err := pclient.ProposalMetadataDecode(curr.Files)
 		if err != nil {
 			return nil, err
 		}
 		c.Name = pm.Name
-	case c.Random && c.Name == "":
-		// Create a random proposal name
-		r, err := util.Random(int(pr.NameLengthMin))
+		c.Amount = pm.Amount
+		c.StartDate = timestampFromUnix(pm.StartDate)
+		c.EndDate = timestampFromUnix(pm.EndDate)
+		c.Domain = pm.Domain
+	// Set random metadata values in case no specific value is provided.
+	case c.Random:
+		// Set a random proposal name if not provided.
+		if c.Name == "" {
+			r, err := util.Random(int(pr.NameLengthMin))
+			if err != nil {
+				return nil, err
+			}
+			c.Name = hex.EncodeToString(r)
+		}
+		// Set proposal domain if not provided
+		if c.Domain == "" {
+			// Pick random domain from the pi policy domains.
+			randomIndex := rand.Intn(len(pr.Domains))
+			c.Domain = pr.Domains[randomIndex]
+		}
+		// In case of RFP no need to populate startdate, enddate &
+		// amount metadata fields.
+		if !c.RFP && c.LinkBy == "" {
+			// Set start date one month from now if not provided
+			if c.StartDate == "" {
+				c.StartDate = dateFromUnix(defaultStartDate)
+			}
+			// Set end date 4 months from now if not provided
+			if c.EndDate == "" {
+				c.EndDate = dateFromUnix(defaultEndDate)
+			}
+			if c.Amount == 0 {
+				c.Amount = defaultAmount
+			}
+		}
+	}
+
+	pm := piv1.ProposalMetadata{
+		Name:   c.Name,
+		Amount: c.Amount,
+		Domain: c.Domain,
+	}
+	if c.StartDate != "" {
+		// Parse start & end dates string timestamps.
+		pm.StartDate, err = unixFromTimestamp(c.StartDate)
 		if err != nil {
 			return nil, err
 		}
-		c.Name = hex.EncodeToString(r)
 	}
-	pm := piv1.ProposalMetadata{
-		Name: c.Name,
+	if c.EndDate != "" {
+		pm.EndDate, err = unixFromTimestamp(c.EndDate)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	pmb, err := json.Marshal(pm)
 	if err != nil {
 		return nil, err
@@ -275,6 +325,15 @@ Flags:
  --usemd        (bool)   Use the existing proposal metadata.
 
  --name         (string) Name of the proposal.
+
+ --amount       (int)    Funding amount in cents.
+ 
+ --startdate    (string) Start Date, Format: "01/02/2006"
+
+ --enddate      (string) End Date, Format: "01/02/2006"
+
+ --domain       (string) Default supported domains: ["development", 
+                         "research", "design", "marketing"]
 
  --linkto       (string) Token of an existing public proposal to link to.
 
