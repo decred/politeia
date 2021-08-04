@@ -107,7 +107,7 @@ type StatusChangeMetadata struct {
 	Token     string `json:"token"`
 	Version   uint32 `json:"version"`
 	Status    uint32 `json:"status"`
-	Reason    string `json:"message,omitempty"`
+	Reason    string `json:"reason,omitempty"`
 	PublicKey string `json:"publickey"`
 	Signature string `json:"signature"`
 	Timestamp int64  `json:"timestamp"`
