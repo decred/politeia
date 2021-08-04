@@ -4,7 +4,12 @@
 
 // Package inv implements a concurrency safe API for managing an inventory of
 // tokens. Bit flags are used to encode relevant data into inventory entries.
-// The inventory can be queried by the bit flags or by the entry timestamp.
+// An extra data field is also provided that the caller can use freely. The
+// inventory can be queried by bit flags, by entry timestamp, or by providing a
+// callback function that is invoked on each entry.
+//
+// This is an internal politeiad package that does not validate input. If the
+// developer wants to shoot themselves in the foot, this package allows it.
 package inv
 
 import (
@@ -13,10 +18,18 @@ import (
 	"sort"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/pkg/errors"
 )
 
-// Inv provides an API for interacting with a specific inv object. The key
-// identities the key-value store key for the inv record.
+var (
+	// ErrEntryNotFound is returned when an inventory entry is not
+	// found.
+	ErrEntryNotFound = errors.New("entry not found")
+)
+
+// Inv provides an API for interacting with a inv object that has been saved to
+// the tstore key-value store. The key identities the key-value store key for
+// the inv object.
 type Inv struct {
 	key     string // Key-value store key
 	encrypt bool   // Save encrypted
@@ -30,25 +43,37 @@ func New(key string, encrypt bool) *Inv {
 	}
 }
 
+// Entry represents an entry in the inventory.
+type Entry struct {
+	Token     string `json:"token"`     // Unique token
+	Bits      uint64 `json:"bits"`      // Bit flag filtering bits
+	Timestamp int64  `json:"timestamp"` // Caller provided Unix timestamp
+
+	// ExtraData is an optional field to be used freely by the caller.
+	ExtraData string `json:"extradata,omitempty"`
+}
+
 // Add adds a new entry to the inventory. If an inv object does not exist yet
 // in the key-value store a new one will be created.
-func (i *Inv) Add(tx store.Tx, token string, bits uint64, timestamp int64) error {
+func (i *Inv) Add(tx store.Tx, e Entry) error {
 	// Get existing inventory
 	inv, err := invGet(tx, i.key)
 	if err != nil {
 		return err
 	}
 
-	// Prepend a new entry
-	e := newEntry(token, bits, timestamp)
-	inv.Entries = append([]entry{e}, inv.Entries...)
+	// Prepend the new entry
+	inv.Entries = append([]Entry{e}, inv.Entries...)
 
 	// Save the updated inventory
 	return inv.save(tx, i.key, i.encrypt)
 }
 
 // Update updates an inventory entry.
-func (i *Inv) Update(tx store.Tx, token string, bits uint64, timestamp int64) error {
+//
+// An ErrEntryNotFound error is returned if the provided inventory entry token
+// does not match an existing inventory entry token.
+func (i *Inv) Update(tx store.Tx, e Entry) error {
 	// Get existing inventory
 	inv, err := invGet(tx, i.key)
 	if err != nil {
@@ -56,15 +81,20 @@ func (i *Inv) Update(tx store.Tx, token string, bits uint64, timestamp int64) er
 	}
 
 	// Find the specified entry
+	var found bool
 	for i, v := range inv.Entries {
-		if v.Token != token {
+		if v.Token != e.Token {
 			// The the entry we're looking for
 			continue
 		}
 
 		// We have a match. Update it.
-		inv.Entries[i] = newEntry(token, bits, timestamp)
+		inv.Entries[i] = e
+		found = true
 		break
+	}
+	if !found {
+		return ErrEntryNotFound
 	}
 
 	// Sort the inventory by timestamp from newest to oldest
@@ -94,7 +124,8 @@ func (i *Inv) Del(tx store.Tx, token string) error {
 	return inv.save(tx, i.key, i.encrypt)
 }
 
-// Get returns a page of tokens that match the provided filtering criteria.
+// Get returns a page of tokens that match the provided bit flags filtering
+// criteria.
 func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]string, error) {
 	// Get existing inventory
 	inv, err := invGet(sg, i.key)
@@ -114,8 +145,10 @@ func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]str
 	return tokens, nil
 }
 
-// GetMulti returns a page of tokens for each of the provided bits. The bits
-// are used as filtering criteria. The returned map is a map[bits][]token.
+// GetMulti returns a page of tokens for each of the provided bit flags. The
+// bit flags are used as filtering criteria.
+//
+// The returned map is a map[bits][]token.
 func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint32) (map[uint64][]string, error) {
 	// Get existing inventory
 	inv, err := invGet(sg, i.key)
@@ -176,20 +209,24 @@ func (i *Inv) GetAll(sg store.Getter, pageSize, pageNum uint32) ([]string, error
 	return tokens, nil
 }
 
-// entry represents an entry in the inventory.
-type entry struct {
-	Token     string `json:"token"`     // Unique token
-	Bits      uint64 `json:"bits"`      // Bitwise filtering bits
-	Timestamp int64  `json:"timestamp"` // Caller provided Unix timestamp
-}
-
-// newEntry returns a new inventory entry.
-func newEntry(token string, bits uint64, timestamp int64) entry {
-	return entry{
-		Token:     token,
-		Bits:      bits,
-		Timestamp: timestamp,
+// Iter iterates through the inventory and invokes the provided callback on
+// each inventory entry.
+func (i *Inv) Iter(sg store.Getter, callback func(Entry) error) error {
+	// Get inventory
+	inv, err := invGet(sg, i.key)
+	if err != nil {
+		return err
 	}
+
+	// Invoke callback on each inventory entry
+	for _, v := range inv.Entries {
+		err := callback(v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 const (
@@ -201,7 +238,7 @@ const (
 // store.
 type inv struct {
 	Version uint32  `json:"version"` // Struct version
-	Entries []entry `json:"entries"`
+	Entries []Entry `json:"entries"`
 }
 
 // save saves the inventory to the key-value store using the provided
@@ -226,7 +263,7 @@ func invGet(sg store.Getter, key string) (*inv, error) {
 		// Inventory does't exist. Return a new one.
 		return &inv{
 			Version: invVersion,
-			Entries: make([]entry, 0, 1024),
+			Entries: make([]Entry, 0, 1024),
 		}, nil
 	}
 
@@ -240,7 +277,7 @@ func invGet(sg store.Getter, key string) (*inv, error) {
 }
 
 // delEntry removes the entry for a token and returns the updated slice.
-func delEntry(entries []entry, token string) ([]entry, error) {
+func delEntry(entries []Entry, token string) ([]Entry, error) {
 	// Find token in entries
 	var i int
 	var found bool
@@ -257,7 +294,7 @@ func delEntry(entries []entry, token string) ([]entry, error) {
 
 	// Del token from entries (linear time)
 	copy(entries[i:], entries[i+1:])   // Shift entries[i+1:] left one index
-	entries[len(entries)-1] = entry{}  // Del last element (write zero value)
+	entries[len(entries)-1] = Entry{}  // Del last element (write zero value)
 	entries = entries[:len(entries)-1] // Truncate slice
 
 	return entries, nil
@@ -266,8 +303,8 @@ func delEntry(entries []entry, token string) ([]entry, error) {
 // filterEntriesi returns a page of entries that meet the provided filtering
 // criteria. The bits are bit flags that indicate what entries should be
 // returned.
-func filterEntries(entries []entry, bits uint64, pageSize, pageNum uint32) []entry {
-	filtered := make([]entry, 0, pageSize)
+func filterEntries(entries []Entry, bits uint64, pageSize, pageNum uint32) []Entry {
+	filtered := make([]Entry, 0, pageSize)
 	if pageSize == 0 || pageNum == 0 {
 		return filtered
 	}
