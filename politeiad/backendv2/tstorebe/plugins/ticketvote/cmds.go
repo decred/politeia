@@ -5,6 +5,181 @@
 package ticketvote
 
 /*
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/decred/dcrd/chaincfg/v3"
+	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/politeiad/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/util"
+)
+
+const (
+	pluginID = ticketvote.PluginID
+
+	// Blob entry data descriptors
+	dataDescriptorAuthDetails     = pluginID + "-auth-v1"
+	dataDescriptorVoteDetails     = pluginID + "-vote-v1"
+	dataDescriptorCastVoteDetails = pluginID + "-castvote-v1"
+	dataDescriptorVoteCollider    = pluginID + "-vcollider-v1"
+	dataDescriptorStartRunoff     = pluginID + "-startrunoff-v1"
+)
+
+// cmdAuthorize authorizes a ticket vote or revokes a previous authorization.
+func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, error) {
+	// Decode payload
+	var a ticketvote.Authorize
+	err := json.Unmarshal([]byte(payload), &a)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify token
+	err = tokenVerify(token, a.Token)
+	if err != nil {
+		return "", err
+	}
+
+	// Verify signature
+	version := strconv.FormatUint(uint64(a.Version), 10)
+	msg := a.Token + version + string(a.Action)
+	err = util.VerifySignature(a.Signature, a.PublicKey, msg)
+	if err != nil {
+		return "", convertSignatureError(err)
+	}
+
+	// Verify action
+	switch a.Action {
+	case ticketvote.AuthActionAuthorize:
+		// This is allowed
+	case ticketvote.AuthActionRevoke:
+		// This is allowed
+	default:
+		return "", backend.PluginError{
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeAuthorizationInvalid),
+			ErrorContext: fmt.Sprintf("%v not a valid action",
+				a.Action),
+		}
+	}
+
+	// Verify record status and version
+	r, err := p.tstore.RecordPartial(token, 0, nil, true)
+	if err != nil {
+		return "", fmt.Errorf("RecordPartial: %v", err)
+	}
+	if r.RecordMetadata.Status != backend.StatusPublic {
+		return "", backend.PluginError{
+			PluginID:     ticketvote.PluginID,
+			ErrorCode:    uint32(ticketvote.ErrorCodeRecordStatusInvalid),
+			ErrorContext: "record is not public",
+		}
+	}
+	if a.Version != r.RecordMetadata.Version {
+		return "", backend.PluginError{
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorContext: fmt.Sprintf("version is not latest: "+
+				"got %v, want %v", a.Version,
+				r.RecordMetadata.Version),
+		}
+	}
+
+	// Get any previous authorizations to verify that the new action
+	// is allowed based on the previous action.
+	auths, err := p.auths(token)
+	if err != nil {
+		return "", err
+	}
+	var prevAction ticketvote.AuthActionT
+	if len(auths) > 0 {
+		prevAction = ticketvote.AuthActionT(auths[len(auths)-1].Action)
+	}
+	switch {
+	case len(auths) == 0:
+		// No previous actions. New action must be an authorize.
+		if a.Action != ticketvote.AuthActionAuthorize {
+			return "", backend.PluginError{
+				PluginID:  ticketvote.PluginID,
+				ErrorCode: uint32(ticketvote.ErrorCodeAuthorizationInvalid),
+				ErrorContext: "no prev action; action must " +
+					"be authorize",
+			}
+		}
+	case prevAction == ticketvote.AuthActionAuthorize &&
+		a.Action != ticketvote.AuthActionRevoke:
+		// Previous action was a authorize. This action must be revoke.
+		return "", backend.PluginError{
+			PluginID:     ticketvote.PluginID,
+			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
+			ErrorContext: "prev action was authorize",
+		}
+	case prevAction == ticketvote.AuthActionRevoke &&
+		a.Action != ticketvote.AuthActionAuthorize:
+		// Previous action was a revoke. This action must be authorize.
+		return "", backend.PluginError{
+			PluginID:     ticketvote.PluginID,
+			ErrorCode:    uint32(ticketvote.ErrorCodeAuthorizationInvalid),
+			ErrorContext: "prev action was revoke",
+		}
+	}
+
+	// Prepare authorize vote
+	receipt := p.identity.SignMessage([]byte(a.Signature))
+	auth := ticketvote.AuthDetails{
+		Token:     a.Token,
+		Version:   a.Version,
+		Action:    string(a.Action),
+		PublicKey: a.PublicKey,
+		Signature: a.Signature,
+		Timestamp: time.Now().Unix(),
+		Receipt:   hex.EncodeToString(receipt[:]),
+	}
+
+	// Save authorize vote
+	err = p.authSave(token, auth)
+	if err != nil {
+		return "", err
+	}
+
+	// Update inventory
+	var status ticketvote.VoteStatusT
+	switch a.Action {
+	case ticketvote.AuthActionAuthorize:
+		status = ticketvote.VoteStatusAuthorized
+	case ticketvote.AuthActionRevoke:
+		status = ticketvote.VoteStatusUnauthorized
+	default:
+		// Action has already been validated. This should not happen.
+		return "", fmt.Errorf("invalid action %v", a.Action)
+	}
+	p.inventoryUpdate(a.Token, status)
+
+	// Prepare reply
+	ar := ticketvote.AuthorizeReply{
+		Timestamp: auth.Timestamp,
+		Receipt:   auth.Receipt,
+	}
+	reply, err := json.Marshal(ar)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // voteBitVerify verifies that the vote bit corresponds to a valid vote option.
 func voteBitVerify(options []ticketvote.VoteOption, mask, bit uint64) error {
 	if len(options) == 0 {
@@ -368,7 +543,7 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 	// Save vote details
 	err = p.voteDetailsSave(token, vd)
 	if err != nil {
-		return nil, fmt.Errorf("voteDetailsSave: %v", err)
+		return nil, err
 	}
 
 	// Update inventory
@@ -679,8 +854,7 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 	// Save start runoff record
 	err = p.startRunoffRecordSave(token, *srr)
 	if err != nil {
-		return nil, fmt.Errorf("startRunoffRecordSave %x: %v",
-			token, err)
+		return nil, err
 	}
 
 	return srr, nil
@@ -1095,7 +1269,7 @@ func (p *ticketVotePlugin) castBallot(token []byte, votes []ticketvote.CastVote,
 
 			// Save cast vote details
 			err = p.castVoteDetailsSave(token, cvd)
-			if err == plugins.ErrDuplicateBlob {
+			if errors.Is(err, backend.ErrDuplicatePayload) {
 				// This cast vote has already been saved. Its
 				// possible that a previous attempt to vote
 				// with this ticket failed before the vote

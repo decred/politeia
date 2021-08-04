@@ -971,6 +971,8 @@ func convertErrorToV2(e error) v2.ErrorCodeT {
 		return v2.ErrorCodePluginIDInvalid
 	case backendv2.ErrPluginCmdInvalid:
 		return v2.ErrorCodePluginCmdInvalid
+	case backendv2.ErrDuplicatePayload:
+		return v2.ErrorCodeDuplicatePayload
 	}
 	return v2.ErrorCodeInvalid
 }

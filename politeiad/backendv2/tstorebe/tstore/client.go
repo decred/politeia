@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
@@ -137,7 +136,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	case codes.OK:
 		// This is ok; continue
 	case codes.AlreadyExists:
-		return plugins.ErrDuplicateBlob
+		return backend.ErrDuplicatePayload
 	default:
 		return fmt.Errorf("queued leaf error: %v", code)
 	}

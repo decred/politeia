@@ -53,7 +53,14 @@ const (
 	ErrorCodePageSizeExceeded        ErrorCodeT = 19
 	ErrorCodeRecordStateInvalid      ErrorCodeT = 20
 	ErrorCodeRecordStatusInvalid     ErrorCodeT = 21
-	ErrorCodeLast                    ErrorCodeT = 22
+
+	// ErrorCodeDuplicatePayload is returned when a duplicate payload is sent
+	// to a plugin, where it tries to write data that already exists. Timestamp
+	// data relies on the hash of the payload, therefore duplicate payloads are
+	// not allowed since they will cause collisions.
+	ErrorCodeDuplicatePayload ErrorCodeT = 22
+
+	ErrorCodeLast ErrorCodeT = 23
 )
 
 var (
@@ -81,6 +88,7 @@ var (
 		ErrorCodePageSizeExceeded:        "page size exceeded",
 		ErrorCodeRecordStateInvalid:      "record state invalid",
 		ErrorCodeRecordStatusInvalid:     "record status invalid",
+		ErrorCodeDuplicatePayload:        "duplicate payload",
 	}
 )
 
