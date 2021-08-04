@@ -164,7 +164,7 @@ func (p *politeiawww) emailUserPasswordChanged(username string, recipient map[uu
 		Username: username,
 	}
 
-	subject := "Password Changed - Security Verification"
+	subject := "Password Changed - Security Notification"
 	body, err := createBody(userPasswordChangedTmpl, tplData)
 	if err != nil {
 		return err
