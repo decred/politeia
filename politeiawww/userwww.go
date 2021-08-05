@@ -798,9 +798,6 @@ func (p *politeiawww) setUserWWWRoutes() {
 		www.RouteResendVerification, p.handleResendVerification,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogin, p.handleLogin,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLogout, p.handleLogout,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
@@ -815,6 +812,10 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUsers, p.handleUsers,
 		permissionPublic)
+
+	// Setup the login route.
+	p.addLoginRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogin, p.handleLogin)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
@@ -870,9 +871,6 @@ func (p *politeiawww) setUserWWWRoutes() {
 func (p *politeiawww) setCMSUserWWWRoutes() {
 	// Public routes
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogin, p.handleLogin,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLogout, p.handleLogout,
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
@@ -884,6 +882,10 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteRegisterUser, p.handleRegisterUser,
 		permissionPublic)
+
+	// Setup the login route.
+	p.addLoginRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogin, p.handleLogin)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
