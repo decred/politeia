@@ -40,6 +40,38 @@ func (p *Pi) HandlePolicy(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, p.policy)
 }
 
+// HandleBillingStatus is the request handler for the pi v1 BillingStatus
+// route.
+func (p *Pi) HandleBillingStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleBillingStatus")
+
+	var sbs v1.SetBillingStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sbs); err != nil {
+		respondWithError(w, r, "HandleStart: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	u, err := p.sessions.GetSessionUser(w, r)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleStart: GetSessionUser: %v", err)
+		return
+	}
+
+	bsr, err := p.processBillingStatus(r.Context(), sbs, *u)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleBillingStatus: processBillingStatus: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, bsr)
+}
+
 // New returns a new Pi context.
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings

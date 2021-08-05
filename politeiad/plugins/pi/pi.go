@@ -9,6 +9,9 @@ package pi
 const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "pi"
+
+	// CmdBillingStatus command sets the billing status
+	CmdBillingStatus = "billingstatus"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default
@@ -168,8 +171,27 @@ const (
 	// is not one of the supported domains.
 	ErrorCodeProposalDomainInvalid ErrorCodeT = 11
 
+	// ErrorCodeTokenInvalid is returned when a record token is
+	// provided as part of a plugin command payload and is not a valid
+	// token or the payload token does not match the token that was
+	// used in the API request.
+	ErrorCodeTokenInvalid ErrorCodeT = 12
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is not
+	// a valid hex encoded, Ed25519 public key.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 13
+
+	// ErrorCodeSignatureInvalid is returned when a signature is not
+	// a valid hex encoded, Ed25519 signature or when the signature is
+	// wrong.
+	ErrorCodeSignatureInvalid ErrorCodeT = 14
+
+	// ErrorCodeBillingStatusAlreadySet is returned when a billing status
+	// was already set.
+	ErrorCodeBillingStatusAlreadySet = 15
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 12
+	ErrorCodeLast ErrorCodeT = 16
 )
 
 var (
@@ -187,6 +209,10 @@ var (
 		ErrorCodeProposalStartDateInvalid: "proposal start date invalid",
 		ErrorCodeProposalEndDateInvalid:   "proposal end date invalid",
 		ErrorCodeProposalDomainInvalid:    "proposal domain invalid",
+		ErrorCodeTokenInvalid:             "token invalid",
+		ErrorCodePublicKeyInvalid:         "public key invalid",
+		ErrorCodeSignatureInvalid:         "signature invalid",
+		ErrorCodeBillingStatusAlreadySet:  "billing status already set",
 	}
 )
 
@@ -215,4 +241,58 @@ type ProposalMetadata struct {
 	StartDate int64  `json:"startdate"` // Start date, Unix time
 	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
 	Domain    string `json:"domain"`    // Proposal domain
+}
+
+// BillingStatusT represents the billing status of a proposal that has been
+// approved by the Decrd stakeholders.
+type BillingStatusT uint32
+
+const (
+	// BillingStatusInvalid is an invalid billing status.
+	BillingStatusInvalid BillingStatusT = 0
+
+	// BillingStatusClosed represents a proposal that was approved by
+	// the Decred stakeholders, but has been closed by an admin prior
+	// to the proposal being completed. The most common reason for this
+	// is because a proposal author failed to deliver on the work that
+	// was funded in the proposal. A closed proposal can no longer be
+	// billed against.
+	BillingStatusClosed BillingStatusT = 1
+
+	// BillingStatusCompleted represents a proposal that was approved
+	// by the Decred stakeholders and has been successfully completed.
+	// A completed proposal can no longer be billed against. A proposal
+	// is marked as completed by an admin.
+	BillingStatusCompleted BillingStatusT = 2
+)
+
+// BillingStatusChange represents the structure that is saved to disk when
+// a proposal has its billing status updated. Some billing status changes
+// require a reason to be given.
+//
+// Signature is the admin signature of the Token+Status+Reason.
+type BillingStatusChange struct {
+	Token     string         `json:"token"`
+	Status    BillingStatusT `json:"status"`
+	Reason    string         `json:"reason,omitempty"`
+	PublicKey string         `json:"publickey"`
+	Signature string         `json:"signature"`
+	Timestamp int64          `json:"timestamp"`
+}
+
+// SetBillingStatus sets the billing status of a proposal. Some billing status
+// changes require a reason to be given.
+//
+// Signature is the admin signature of the Token+Status+Reason.
+type SetBillingStatus struct {
+	Token     string         `json:"token"`
+	Status    BillingStatusT `json:"status"`
+	Reason    string         `json:"reason,omitempty"`
+	PublicKey string         `json:"publickey"`
+	Signature string         `json:"signature"`
+}
+
+// SetBillingStatusReply is the reply to the SetBillingStatus command.
+type SetBillingStatusReply struct {
+	Timestamp int64 `json:"timestamp"`
 }

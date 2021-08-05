@@ -29,6 +29,7 @@ var (
 // piPlugin satisfies the plugins PluginClient interface.
 type piPlugin struct {
 	backend backend.Backend
+	tstore  plugins.TstoreClient
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
@@ -66,6 +67,11 @@ func (p *piPlugin) Setup() error {
 // This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Cmd: %x %v %v", token, cmd, payload)
+
+	switch cmd {
+	case pi.CmdBillingStatus:
+		return p.cmdBillingStatus(token, payload)
+	}
 
 	return "", backend.ErrPluginCmdInvalid
 }
@@ -156,7 +162,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new piPlugin.
-func New(backend backend.Backend, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
+func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, pi.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
@@ -294,6 +300,7 @@ func New(backend backend.Backend, settings []backend.PluginSetting, dataDir stri
 		dataDir:                    dataDir,
 		backend:                    backend,
 		textFileSizeMax:            textFileSizeMax,
+		tstore:                     tstore,
 		imageFileCountMax:          imageFileCountMax,
 		imageFileSizeMax:           imageFileSizeMax,
 		proposalNameLengthMin:      nameLengthMin,
