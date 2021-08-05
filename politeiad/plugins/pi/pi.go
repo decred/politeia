@@ -124,7 +124,7 @@ var (
 type ErrorCodeT uint32
 
 const (
-	// ErrorCodeInvalid represents and invalid error code.
+	// ErrorCodeInvalid represents an invalid error code.
 	ErrorCodeInvalid ErrorCodeT = 0
 
 	// ErrorCodeTextFileNameInvalid is returned when a text file has
@@ -186,9 +186,9 @@ const (
 	// wrong.
 	ErrorCodeSignatureInvalid ErrorCodeT = 14
 
-	// ErrorCodeBillingStatusAlreadySet is returned when a billing status
-	// was already set.
-	ErrorCodeBillingStatusAlreadySet = 15
+	// BillingStatusChangeNotAllowed is returned when a billing status
+	// change is not allowed.
+	BillingStatusChangeNotAllowed = 15
 
 	// ErrorCodeLast unit test only.
 	ErrorCodeLast ErrorCodeT = 16
@@ -212,7 +212,7 @@ var (
 		ErrorCodeTokenInvalid:             "token invalid",
 		ErrorCodePublicKeyInvalid:         "public key invalid",
 		ErrorCodeSignatureInvalid:         "signature invalid",
-		ErrorCodeBillingStatusAlreadySet:  "billing status already set",
+		BillingStatusChangeNotAllowed:     "billing status change is not allowed",
 	}
 )
 

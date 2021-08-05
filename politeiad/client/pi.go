@@ -12,9 +12,9 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 )
 
-// PiBillingStatus sends the pi plugin BillingStatus command to the
+// PiSetBillingStatus sends the pi plugin BillingStatus command to the
 // politeiad v2 API.
-func (c *Client) PiBillingStatus(ctx context.Context, sbs pi.SetBillingStatus) (*pi.SetBillingStatusReply, error) {
+func (c *Client) PiSetBillingStatus(ctx context.Context, sbs pi.SetBillingStatus) (*pi.SetBillingStatusReply, error) {
 	// Setup request
 	b, err := json.Marshal(sbs)
 	if err != nil {

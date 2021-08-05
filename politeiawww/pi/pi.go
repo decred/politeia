@@ -40,15 +40,15 @@ func (p *Pi) HandlePolicy(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, p.policy)
 }
 
-// HandleBillingStatus is the request handler for the pi v1 BillingStatus
+// HandleSetBillingStatus is the request handler for the pi v1 BillingStatus
 // route.
-func (p *Pi) HandleBillingStatus(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleBillingStatus")
+func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleSetBillingStatus")
 
 	var sbs v1.SetBillingStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sbs); err != nil {
-		respondWithError(w, r, "HandleStart: unmarshal",
+		respondWithError(w, r, "HandleSetBillingStatus: unmarshal",
 			v1.UserErrorReply{
 				ErrorCode: v1.ErrorCodeInputInvalid,
 			})
@@ -58,14 +58,14 @@ func (p *Pi) HandleBillingStatus(w http.ResponseWriter, r *http.Request) {
 	u, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		respondWithError(w, r,
-			"HandleStart: GetSessionUser: %v", err)
+			"HandleSetBillingStatus: GetSessionUser: %v", err)
 		return
 	}
 
-	bsr, err := p.processBillingStatus(r.Context(), sbs, *u)
+	bsr, err := p.processSetBillingStatus(r.Context(), sbs, *u)
 	if err != nil {
 		respondWithError(w, r,
-			"HandleBillingStatus: processBillingStatus: %v", err)
+			"HandleSetBillingStatus: processSetBillingStatus: %v", err)
 		return
 	}
 

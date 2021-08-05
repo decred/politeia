@@ -12,8 +12,8 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-func (p *Pi) processBillingStatus(ctx context.Context, sbs v1.SetBillingStatus, u user.User) (*v1.SetBillingStatusReply, error) {
-	log.Tracef("processBillingStatus: %v", sbs.Token)
+func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatus, u user.User) (*v1.SetBillingStatusReply, error) {
+	log.Tracef("processSetBillingStatus: %v", sbs.Token)
 
 	// Verify user signed with their active identity
 	if u.PublicKey() != sbs.PublicKey {
@@ -25,7 +25,7 @@ func (p *Pi) processBillingStatus(ctx context.Context, sbs v1.SetBillingStatus, 
 
 	// Send plugin command
 	psbs := convertSetBillingStatusToPlugin(sbs)
-	psbsr, err := p.politeiad.PiBillingStatus(ctx, psbs)
+	psbsr, err := p.politeiad.PiSetBillingStatus(ctx, psbs)
 	if err != nil {
 		return nil, err
 	}

@@ -38,7 +38,7 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 	}
 
 	// Verify token
-	err = tokenVerify(token, sbs.Token)
+	err = tokenMatches(token, sbs.Token)
 	if err != nil {
 		return "", err
 	}
@@ -58,7 +58,7 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 	if len(statuses) > 0 {
 		return "", backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeBillingStatusAlreadySet),
+			ErrorCode:    uint32(pi.BillingStatusChangeNotAllowed),
 			ErrorContext: "can not set billing status more than once",
 		}
 	}
@@ -92,7 +92,7 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 // billingStatusSave saves a BillingStatusChange to the backend.
 func (p *piPlugin) billingStatusSave(token []byte, bsc pi.BillingStatusChange) error {
 	// Prepare blob
-	be, err := convertBlobEntryFromBillingStatus(bsc)
+	be, err := billingStatusEncode(bsc)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, erro
 	// Decode blobs
 	statuses := make([]pi.BillingStatusChange, 0, len(blobs))
 	for _, v := range blobs {
-		a, err := convertBillingStatusFromBlobEntry(v)
+		a, err := billingStatusDecode(v)
 		if err != nil {
 			return nil, err
 		}
@@ -129,13 +129,11 @@ func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, erro
 	return statuses, nil
 }
 
-// tokenVerify verifies that a token that is part of a plugin command payload
-// is valid. This is applicable when a plugin command payload contains a
-// signature that includes the record token. The token included in payload must
-// be a valid, full length record token and it must match the token that was
-// passed into the politeiad API for this plugin command, i.e. the token for
-// the record that this plugin command is being executed on.
-func tokenVerify(cmdToken []byte, payloadToken string) error {
+// tokenMatches verifies that the command token (the token for the record that
+// this plugin command is being executed on) matches the payload token (the
+// token that the plugin command payload contains that is typically used in the
+// payload signature). The payload token must be the full length token.
+func tokenMatches(cmdToken []byte, payloadToken string) error {
 	pt, err := tokenDecode(payloadToken)
 	if err != nil {
 		return backend.PluginError{
@@ -149,13 +147,15 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeTokenInvalid),
 			ErrorContext: fmt.Sprintf("payload token does not "+
-				"match command token: got %x, want %x", pt,
-				cmdToken),
+				"match command token: got %x, want %x",
+				pt, cmdToken),
 		}
 	}
 	return nil
 }
 
+// convertSignatureError converts a util SignatureError to a backend
+// PluginError that contains a pi plugin error code.
 func convertSignatureError(err error) backend.PluginError {
 	var e util.SignatureError
 	var s pi.ErrorCodeT
@@ -174,7 +174,7 @@ func convertSignatureError(err error) backend.PluginError {
 	}
 }
 
-func convertBlobEntryFromBillingStatus(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
+func billingStatusEncode(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
 	data, err := json.Marshal(bsc)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func convertBlobEntryFromBillingStatus(bsc pi.BillingStatusChange) (*store.BlobE
 	return &be, nil
 }
 
-func convertBillingStatusFromBlobEntry(be store.BlobEntry) (*pi.BillingStatusChange, error) {
+func billingStatusDecode(be store.BlobEntry) (*pi.BillingStatusChange, error) {
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {

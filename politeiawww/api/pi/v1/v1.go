@@ -14,18 +14,28 @@ const (
 	RoutePolicy = "/policy"
 
 	// RouteBillingStatus sets the record's billing status.
-	RouteBillingStatus = "/billingstatus"
+	RouteBillingStatus = "/setbillingstatus"
 )
+
+// Error codes
 
 // ErrorCodeT represents a user error code.
 type ErrorCodeT uint32
 
 const (
-	// Error codes
-	ErrorCodeInvalid          ErrorCodeT = 0
-	ErrorCodeInputInvalid     ErrorCodeT = 1
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeInputInvalid is returned when there is an error
+	// while prasing a command payload.
+	ErrorCodeInputInvalid ErrorCodeT = 1
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is
+	// invalid.
 	ErrorCodePublicKeyInvalid ErrorCodeT = 2
-	ErrorCodeLast             ErrorCodeT = 3
+
+	// ErrorCodeLast unit test only
+	ErrorCodeLast ErrorCodeT = 3
 )
 
 var (

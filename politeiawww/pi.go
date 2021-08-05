@@ -164,7 +164,7 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 		piv1.RoutePolicy, pic.HandlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodPost, piv1.APIRoute,
-		piv1.RouteBillingStatus, pic.HandleBillingStatus,
+		piv1.RouteBillingStatus, pic.HandleSetBillingStatus,
 		permissionAdmin)
 }
 
