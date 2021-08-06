@@ -187,8 +187,13 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 // specified it adds a websocket. The routeVersion should be in the format
 // "/v1".
 func (p *politeiawww) addRoute(method string, routeVersion string, route string, handler http.HandlerFunc, perm permission) {
-	fullRoute := routeVersion + route
+	// Sanity check. The login route is special. It must be registered
+	// using the addLoginRoute() function.
+	if strings.Contains(route, "login") {
+		panic("you cannot use this function to register the login route")
+	}
 
+	fullRoute := routeVersion + route
 	switch perm {
 	case permissionAdmin:
 		handler = p.isLoggedInAsAdmin(handler)
@@ -211,6 +216,20 @@ func (p *politeiawww) addRoute(method string, routeVersion string, route string,
 		// Add route to public router
 		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 	}
+}
+
+// addLoginRoute sets up a handler for the login route. The login route is
+// special. It is the only public route that requires CSRF protection, so we
+// use a separate function to register it.
+func (p *politeiawww) addLoginRoute(method string, routeVersion string, route string, handler http.HandlerFunc) {
+	// Sanity check
+	if !strings.Contains(route, "login") {
+		panic("you cannot use this function to register non login routes")
+	}
+
+	// Add login route to the auth router
+	fullRoute := routeVersion + route
+	p.auth.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 }
 
 // makeRequest makes an http request to the method and route provided,
