@@ -198,5 +198,6 @@ type SetBillingStatus struct {
 
 // SetBillingStatusReply is the reply to the SetBillingStatus command.
 type SetBillingStatusReply struct {
-	Timestamp int64 `json:"timestamp"`
+	Timestamp int64  `json:"timestamp"`
+	Receipt   string `json:"receipt"`
 }

@@ -50,6 +50,16 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 		return "", convertSignatureError(err)
 	}
 
+	// Ensure reason is provided when status is set to closed.
+	if sbs.Status == pi.BillingStatusClosed && sbs.Reason == "" {
+		return "", backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.BillingStatusChangeNotAllowed),
+			ErrorContext: "must provide a reason when setting " +
+				"billing status to closed",
+		}
+	}
+
 	// Ensure no billing status already exists
 	statuses, err := p.billingStatuses(token)
 	if err != nil {
@@ -64,6 +74,7 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 	}
 
 	// Save billing status change
+	receipt := p.identity.SignMessage([]byte(sbs.Signature))
 	bsc := pi.BillingStatusChange{
 		Token:     sbs.Token,
 		Status:    sbs.Status,
@@ -71,15 +82,17 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 		PublicKey: sbs.PublicKey,
 		Signature: sbs.Signature,
 		Timestamp: time.Now().Unix(),
+		Receipt:   hex.EncodeToString(receipt[:]),
 	}
 	err = p.billingStatusSave(token, bsc)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	// Prepare reply
 	sbsr := pi.SetBillingStatusReply{
 		Timestamp: bsc.Timestamp,
+		Receipt:   bsc.Receipt,
 	}
 	reply, err := json.Marshal(sbsr)
 	if err != nil {

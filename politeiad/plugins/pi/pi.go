@@ -278,6 +278,7 @@ type BillingStatusChange struct {
 	PublicKey string         `json:"publickey"`
 	Signature string         `json:"signature"`
 	Timestamp int64          `json:"timestamp"`
+	Receipt   string         `json:"receipt"`
 }
 
 // SetBillingStatus sets the billing status of a proposal. Some billing status
@@ -294,5 +295,6 @@ type SetBillingStatus struct {
 
 // SetBillingStatusReply is the reply to the SetBillingStatus command.
 type SetBillingStatusReply struct {
-	Timestamp int64 `json:"timestamp"`
+	Timestamp int64  `json:"timestamp"`
+	Receipt   string `json:"receipt"`
 }

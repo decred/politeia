@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -35,6 +36,11 @@ type piPlugin struct {
 	// stored here is cached data that can be re-created at any time
 	// by walking the trillian trees.
 	dataDir string
+
+	// identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	identity *identity.FullIdentity
 
 	// Plugin settings
 	textFileCountMax           uint32
@@ -162,7 +168,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new piPlugin.
-func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string) (*piPlugin, error) {
+func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity) (*piPlugin, error) {
 	// Create plugin data directory
 	dataDir = filepath.Join(dataDir, pi.PluginID)
 	err := os.MkdirAll(dataDir, 0700)
@@ -298,6 +304,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 
 	return &piPlugin{
 		dataDir:                    dataDir,
+		identity:                   id,
 		backend:                    backend,
 		textFileSizeMax:            textFileSizeMax,
 		tstore:                     tstore,

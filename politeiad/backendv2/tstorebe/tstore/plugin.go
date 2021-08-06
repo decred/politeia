@@ -88,7 +88,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case piplugin.PluginID:
-		client, err = pi.New(b, t, p.Settings, dataDir)
+		client, err = pi.New(b, t, p.Settings, dataDir, p.Identity)
 		if err != nil {
 			return err
 		}

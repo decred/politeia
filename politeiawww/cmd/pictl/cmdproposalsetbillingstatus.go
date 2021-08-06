@@ -65,14 +65,16 @@ func (c *cmdProposalSetBillingStatus) Execute(args []string) error {
 	}
 
 	// Send request
-	_, err = pc.RecordSetBillingStatus(sbs)
+	sbsr, err := pc.RecordSetBillingStatus(sbs)
 	if err != nil {
 		return err
 	}
 
-	// XXX fetch & print proposal ? will need to add BillingStatus to
-	// records api Record struct.
-
+	// Print receipt
+	printf("Token    : %v\n", sbs.Token)
+	printf("Status   : %v\n", sbs.Status)
+	printf("Timestamp: %v\n", timestampFromUnix(sbsr.Timestamp))
+	printf("Receipt  : %v\n", sbsr.Receipt)
 	return nil
 }
 
