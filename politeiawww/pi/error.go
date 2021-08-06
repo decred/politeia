@@ -179,9 +179,9 @@ func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 	case pdv2.ErrorCodeFileMIMETypeUnsupported:
 		// Intentionally omitted
 	case pdv2.ErrorCodeTokenInvalid:
-		// Intentionally omitted
+		return v1.ErrorCodeRecordTokenInvalid
 	case pdv2.ErrorCodeRecordNotFound:
-		// Intentionally omitted
+		return v1.ErrorCodeRecordNotFound
 	case pdv2.ErrorCodeRecordLocked:
 		// Intentionally omitted
 	case pdv2.ErrorCodeNoRecordChanges:

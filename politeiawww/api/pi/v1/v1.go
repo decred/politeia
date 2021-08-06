@@ -34,16 +34,25 @@ const (
 	// invalid.
 	ErrorCodePublicKeyInvalid ErrorCodeT = 2
 
+	// ErrorCodeRecordTokenInvalid is returned when a record token is
+	// invalid.
+	ErrorCodeRecordTokenInvalid ErrorCodeT = 3
+
+	// ErrorCodeRecordNotFound is returned when no record found.
+	ErrorCodeRecordNotFound ErrorCodeT = 4
+
 	// ErrorCodeLast unit test only
-	ErrorCodeLast ErrorCodeT = 3
+	ErrorCodeLast ErrorCodeT = 5
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:          "error invalid",
-		ErrorCodeInputInvalid:     "input invalid",
-		ErrorCodePublicKeyInvalid: "public key invalid",
+		ErrorCodeInvalid:            "error invalid",
+		ErrorCodeInputInvalid:       "input invalid",
+		ErrorCodePublicKeyInvalid:   "public key invalid",
+		ErrorCodeRecordTokenInvalid: "record token invalid",
+		ErrorCodeRecordNotFound:     "record not found",
 	}
 )
 
