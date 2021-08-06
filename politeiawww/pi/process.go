@@ -32,6 +32,7 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatu
 
 	return &v1.SetBillingStatusReply{
 		Timestamp: psbsr.Timestamp,
+		Receipt:   psbsr.Receipt,
 	}, nil
 }
 

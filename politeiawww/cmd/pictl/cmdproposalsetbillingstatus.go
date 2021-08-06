@@ -20,7 +20,7 @@ type cmdProposalSetBillingStatus struct {
 		Token  string `positional-arg-name:"token" required:"true"`
 		Status string `positional-arg-name:"status" required:"true"`
 		Reason string `positional-arg-name:"reason"`
-	}
+	} `positional-args:"true"`
 }
 
 // Execute executes the cmdProposalSetBillingStatus command.
@@ -120,5 +120,5 @@ The following statuses require a billing status change reason to be included:
 Arguments:
 1. token   (string, required)   Proposal censorship token
 2. status  (string, required)   New billing status
-3. reason  (string, optional)   Billing Status change reason
+3. reason  (string, optional)   Billing status change reason
 `
