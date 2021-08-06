@@ -64,16 +64,17 @@ type pictl struct {
 	Users                   shared.UsersCmd              `command:"users"`
 
 	// Proposal commands
-	ProposalPolicy     cmdProposalPolicy     `command:"proposalpolicy"`
-	ProposalNew        cmdProposalNew        `command:"proposalnew"`
-	ProposalEdit       cmdProposalEdit       `command:"proposaledit"`
-	ProposalSetStatus  cmdProposalSetStatus  `command:"proposalsetstatus"`
-	ProposalDetails    cmdProposalDetails    `command:"proposaldetails"`
-	ProposalTimestamps cmdProposalTimestamps `command:"proposaltimestamps"`
-	Proposals          cmdProposals          `command:"proposals"`
-	ProposalInv        cmdProposalInv        `command:"proposalinv"`
-	ProposalInvOrdered cmdProposalInvOrdered `command:"proposalinvordered"`
-	UserProposals      cmdUserProposals      `command:"userproposals"`
+	ProposalPolicy           cmdProposalPolicy           `command:"proposalpolicy"`
+	ProposalNew              cmdProposalNew              `command:"proposalnew"`
+	ProposalEdit             cmdProposalEdit             `command:"proposaledit"`
+	ProposalSetStatus        cmdProposalSetStatus        `command:"proposalsetstatus"`
+	ProposalSetBillingStatus cmdProposalSetBillingStatus `command:"proposalsetbillingstatus"`
+	ProposalDetails          cmdProposalDetails          `command:"proposaldetails"`
+	ProposalTimestamps       cmdProposalTimestamps       `command:"proposaltimestamps"`
+	Proposals                cmdProposals                `command:"proposals"`
+	ProposalInv              cmdProposalInv              `command:"proposalinv"`
+	ProposalInvOrdered       cmdProposalInvOrdered       `command:"proposalinvordered"`
+	UserProposals            cmdUserProposals            `command:"userproposals"`
 
 	// Comments commands
 	CommentsPolicy    cmdCommentPolicy     `command:"commentpolicy"`

@@ -13,8 +13,8 @@ const (
 	// RoutePolicy returns the policy for the pi API.
 	RoutePolicy = "/policy"
 
-	// RouteBillingStatus sets the record's billing status.
-	RouteBillingStatus = "/setbillingstatus"
+	// RouteSetBillingStatus sets the record's billing status.
+	RouteSetBillingStatus = "/setbillingstatus"
 )
 
 // Error codes
