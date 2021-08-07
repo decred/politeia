@@ -31,8 +31,8 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs piv1.SetBillingSta
 	if voteStatus != tvv1.VoteStatusApproved {
 		return nil, piv1.UserErrorReply{
 			ErrorCode: piv1.ErrorCodeRecordNotApproved,
-			ErrorContext: "setting billing status is allowed only on " +
-				"approved records",
+			ErrorContext: "setting billing status is allowed only if " +
+				"record was approved",
 		}
 	}
 
