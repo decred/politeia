@@ -72,7 +72,7 @@ func (c *cmdProposalSetBillingStatus) Execute(args []string) error {
 
 	// Print receipt
 	printf("Token    : %v\n", sbs.Token)
-	printf("Status   : %v\n", sbs.Status)
+	printf("Status   : %v\n", piv1.BillingStatuses[sbs.Status])
 	printf("Timestamp: %v\n", timestampFromUnix(sbsr.Timestamp))
 	printf("Receipt  : %v\n", sbsr.Receipt)
 	return nil

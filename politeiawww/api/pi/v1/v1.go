@@ -156,6 +156,15 @@ type VoteMetadata struct {
 	LinkTo string `json:"linkto,omitempty"`
 }
 
+var (
+	// BillingStatuses contains the human readable billing statuses.
+	BillingStatuses = map[BillingStatusT]string{
+		BillingStatusInvalid:   "invalid",
+		BillingStatusClosed:    "closed",
+		BillingStatusCompleted: "completed",
+	}
+)
+
 // BillingStatusT represents the billing status of a proposal that has been
 // approved by the Decrd stakeholders.
 type BillingStatusT uint32
