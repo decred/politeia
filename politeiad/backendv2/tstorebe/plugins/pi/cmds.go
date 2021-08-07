@@ -76,6 +76,9 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 
 	// Ensure record's vote ended and it was approved
 	vsr, err := p.voteSummary(token)
+	if err != nil {
+		return "", err
+	}
 	if vsr.Status != ticketvote.VoteStatusApproved {
 		return "", backend.PluginError{
 			PluginID:  pi.PluginID,
