@@ -29,7 +29,7 @@ const (
 	dataDescriptorBillingStatus = pluginID + "-billingstatus-v1"
 )
 
-// cmdBillingStatus sets record's billing status.
+// cmdBillingStatus sets proposal's billing status.
 func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error) {
 	// Decode payload
 	var sbs pi.SetBillingStatus
@@ -117,46 +117,6 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 	return string(reply), nil
 }
 
-// billingStatusSave saves a BillingStatusChange to the backend.
-func (p *piPlugin) billingStatusSave(token []byte, bsc pi.BillingStatusChange) error {
-	// Prepare blob
-	be, err := billingStatusEncode(bsc)
-	if err != nil {
-		return err
-	}
-
-	// Save blob
-	return p.tstore.BlobSave(token, *be)
-}
-
-// billingStatuses returns all BillingStatusChange for a record.
-func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, error) {
-	// Retrieve blobs
-	blobs, err := p.tstore.BlobsByDataDesc(token,
-		[]string{dataDescriptorBillingStatus})
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode blobs
-	statuses := make([]pi.BillingStatusChange, 0, len(blobs))
-	for _, v := range blobs {
-		a, err := billingStatusDecode(v)
-		if err != nil {
-			return nil, err
-		}
-		statuses = append(statuses, *a)
-	}
-
-	// Sanity check. They should already be sorted from oldest to
-	// newest.
-	sort.SliceStable(statuses, func(i, j int) bool {
-		return statuses[i].Timestamp < statuses[j].Timestamp
-	})
-
-	return statuses, nil
-}
-
 // tokenMatches verifies that the command token (the token for the record that
 // this plugin command is being executed on) matches the payload token (the
 // token that the plugin command payload contains that is typically used in the
@@ -202,6 +162,47 @@ func convertSignatureError(err error) backend.PluginError {
 	}
 }
 
+// billingStatusSave saves a BillingStatusChange to the backend.
+func (p *piPlugin) billingStatusSave(token []byte, bsc pi.BillingStatusChange) error {
+	// Prepare blob
+	be, err := billingStatusEncode(bsc)
+	if err != nil {
+		return err
+	}
+
+	// Save blob
+	return p.tstore.BlobSave(token, *be)
+}
+
+// billingStatuses returns all BillingStatusChange for a record.
+func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, error) {
+	// Retrieve blobs
+	blobs, err := p.tstore.BlobsByDataDesc(token,
+		[]string{dataDescriptorBillingStatus})
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode blobs
+	statuses := make([]pi.BillingStatusChange, 0, len(blobs))
+	for _, v := range blobs {
+		a, err := billingStatusDecode(v)
+		if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, *a)
+	}
+
+	// Sanity check. They should already be sorted from oldest to
+	// newest.
+	sort.SliceStable(statuses, func(i, j int) bool {
+		return statuses[i].Timestamp < statuses[j].Timestamp
+	})
+
+	return statuses, nil
+}
+
+// billingStatusEncode encodes pi plugin BillingStatusChange to BlobEntry.
 func billingStatusEncode(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
 	data, err := json.Marshal(bsc)
 	if err != nil {
@@ -219,6 +220,7 @@ func billingStatusEncode(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
 	return &be, nil
 }
 
+// billingStatusDecode decodes pi plugin BillingStatusChange from BlobEntry.
 func billingStatusDecode(be store.BlobEntry) (*pi.BillingStatusChange, error) {
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)

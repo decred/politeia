@@ -65,7 +65,7 @@ func (c *cmdProposalSetBillingStatus) Execute(args []string) error {
 	}
 
 	// Send request
-	sbsr, err := pc.RecordSetBillingStatus(sbs)
+	sbsr, err := pc.PiSetBillingStatus(sbs)
 	if err != nil {
 		return err
 	}
@@ -111,8 +111,8 @@ const proposalSetBillingStatusHelpMsg = `proposalsetbillingstatus "token" "statu
 Set the billing status of a proposal.
 
 Valid statuses:
-  close
-  complete
+  (1) close
+  (2) complete
 
 The following statuses require a billing status change reason to be included:
   close

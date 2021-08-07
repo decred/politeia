@@ -96,6 +96,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	}
 }
 
+// handlePDError handles errors from politeiad.
 func handlePDError(w http.ResponseWriter, r *http.Request, format string, pde pdclient.RespError) {
 	var (
 		pluginID   = pde.ErrorReply.PluginID
@@ -152,10 +153,15 @@ func handlePDError(w http.ResponseWriter, r *http.Request, format string, pde pd
 	}
 }
 
+// convertPDErrorCode converts user errors from politeiad into pi user errors.
 func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 	// Any error statuses that are intentionally omitted means that
 	// politeiawww should 500.
 	switch pdv2.ErrorCodeT(errCode) {
+	case pdv2.ErrorCodeTokenInvalid:
+		return v1.ErrorCodeRecordTokenInvalid
+	case pdv2.ErrorCodeRecordNotFound:
+		return v1.ErrorCodeRecordNotFound
 	case pdv2.ErrorCodeRequestPayloadInvalid:
 		// Intentionally omitted
 	case pdv2.ErrorCodeChallengeInvalid:
@@ -178,10 +184,6 @@ func convertPDErrorCode(errCode uint32) v1.ErrorCodeT {
 		// Intentionally omitted
 	case pdv2.ErrorCodeFileMIMETypeUnsupported:
 		// Intentionally omitted
-	case pdv2.ErrorCodeTokenInvalid:
-		return v1.ErrorCodeRecordTokenInvalid
-	case pdv2.ErrorCodeRecordNotFound:
-		return v1.ErrorCodeRecordNotFound
 	case pdv2.ErrorCodeRecordLocked:
 		// Intentionally omitted
 	case pdv2.ErrorCodeNoRecordChanges:

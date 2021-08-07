@@ -18,7 +18,6 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
@@ -74,24 +73,6 @@ func (c *Client) RecordSetStatus(ss rcv1.SetStatus) (*rcv1.SetStatusReply, error
 	}
 
 	return &ssr, nil
-}
-
-// RecordSetBillingStatus sends a records v1 SetBillingStatus request
-// to politeiawww.
-func (c *Client) RecordSetBillingStatus(sbs piv1.SetBillingStatus) (*piv1.SetBillingStatusReply, error) {
-	resBody, err := c.makeReq(http.MethodPost,
-		piv1.APIRoute, piv1.RouteSetBillingStatus, sbs)
-	if err != nil {
-		return nil, err
-	}
-
-	var sbsr piv1.SetBillingStatusReply
-	err = json.Unmarshal(resBody, &sbsr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sbsr, nil
 }
 
 // RecordDetails sends a records v1 Details request to politeiawww.

@@ -10,7 +10,7 @@ const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "pi"
 
-	// CmdBillingStatus command sets the billing status
+	// CmdBillingStatus command sets the billing status.
 	CmdBillingStatus = "billingstatus"
 )
 
@@ -244,7 +244,7 @@ type ProposalMetadata struct {
 }
 
 // BillingStatusT represents the billing status of a proposal that has been
-// approved by the Decrd stakeholders.
+// approved by the Decred stakeholders.
 type BillingStatusT uint32
 
 const (
@@ -268,23 +268,37 @@ const (
 
 // BillingStatusChange represents the structure that is saved to disk when
 // a proposal has its billing status updated. Some billing status changes
-// require a reason to be given.
+// require a reason to be given. Only admins can update the billing status
+// of a proposal.
+//
+// PublicKey is the admin public key that can be used to verify the signature.
 //
 // Signature is the admin signature of the Token+Status+Reason.
+//
+// Receipt is the server signature of the admin signature.
+//
+// The PublicKey, Signature, and Receipt are all hex encoded and use the
+// ed25519 signature scheme.
 type BillingStatusChange struct {
 	Token     string         `json:"token"`
 	Status    BillingStatusT `json:"status"`
 	Reason    string         `json:"reason,omitempty"`
 	PublicKey string         `json:"publickey"`
 	Signature string         `json:"signature"`
-	Timestamp int64          `json:"timestamp"`
 	Receipt   string         `json:"receipt"`
+	Timestamp int64          `json:"timestamp"` // Unix timestamp
 }
 
 // SetBillingStatus sets the billing status of a proposal. Some billing status
-// changes require a reason to be given.
+// changes require a reason to be given. Only admins can update the billing
+// status of a proposal.
+//
+// PublicKey is the admin public key that can be used to verify the signature.
 //
 // Signature is the admin signature of the Token+Status+Reason.
+//
+// The PublicKey and Signature are hex encoded and use the ed25519 signature
+// scheme.
 type SetBillingStatus struct {
 	Token     string         `json:"token"`
 	Status    BillingStatusT `json:"status"`
@@ -294,7 +308,10 @@ type SetBillingStatus struct {
 }
 
 // SetBillingStatusReply is the reply to the SetBillingStatus command.
+//
+// Receipt is the server signature of the client signature. It is hex encoded
+// and uses the ed25519 signature scheme.
 type SetBillingStatusReply struct {
-	Timestamp int64  `json:"timestamp"`
 	Receipt   string `json:"receipt"`
+	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
