@@ -186,33 +186,33 @@ const (
 	// wrong.
 	ErrorCodeSignatureInvalid ErrorCodeT = 14
 
-	// BillingStatusChangeNotAllowed is returned when a billing status
+	// ErrorCodeBillingStatusChangeNotAllowed is returned when a billing status
 	// change is not allowed.
-	BillingStatusChangeNotAllowed = 15
+	ErrorCodeBillingStatusChangeNotAllowed = 15
 
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 16
+	ErrorCodeLast ErrorCodeT = 17
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:                  "error code invalid",
-		ErrorCodeTextFileNameInvalid:      "text file name invalid",
-		ErrorCodeTextFileSizeInvalid:      "text file size invalid",
-		ErrorCodeTextFileMissing:          "text file is misisng",
-		ErrorCodeImageFileCountInvalid:    "image file count invalid",
-		ErrorCodeImageFileSizeInvalid:     "image file size invalid",
-		ErrorCodeProposalNameInvalid:      "proposal name invalid",
-		ErrorCodeVoteStatusInvalid:        "vote status invalid",
-		ErrorCodeProposalAmountInvalid:    "proposal amount invalid",
-		ErrorCodeProposalStartDateInvalid: "proposal start date invalid",
-		ErrorCodeProposalEndDateInvalid:   "proposal end date invalid",
-		ErrorCodeProposalDomainInvalid:    "proposal domain invalid",
-		ErrorCodeTokenInvalid:             "token invalid",
-		ErrorCodePublicKeyInvalid:         "public key invalid",
-		ErrorCodeSignatureInvalid:         "signature invalid",
-		BillingStatusChangeNotAllowed:     "billing status change is not allowed",
+		ErrorCodeInvalid:                       "error code invalid",
+		ErrorCodeTextFileNameInvalid:           "text file name invalid",
+		ErrorCodeTextFileSizeInvalid:           "text file size invalid",
+		ErrorCodeTextFileMissing:               "text file is misisng",
+		ErrorCodeImageFileCountInvalid:         "image file count invalid",
+		ErrorCodeImageFileSizeInvalid:          "image file size invalid",
+		ErrorCodeProposalNameInvalid:           "proposal name invalid",
+		ErrorCodeVoteStatusInvalid:             "vote status invalid",
+		ErrorCodeProposalAmountInvalid:         "proposal amount invalid",
+		ErrorCodeProposalStartDateInvalid:      "proposal start date invalid",
+		ErrorCodeProposalEndDateInvalid:        "proposal end date invalid",
+		ErrorCodeProposalDomainInvalid:         "proposal domain invalid",
+		ErrorCodeTokenInvalid:                  "token invalid",
+		ErrorCodePublicKeyInvalid:              "public key invalid",
+		ErrorCodeSignatureInvalid:              "signature invalid",
+		ErrorCodeBillingStatusChangeNotAllowed: "billing status change is not allowed",
 	}
 )
 

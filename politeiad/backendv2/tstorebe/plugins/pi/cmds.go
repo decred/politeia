@@ -18,6 +18,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 )
 
@@ -54,7 +55,7 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 	if sbs.Status == pi.BillingStatusClosed && sbs.Reason == "" {
 		return "", backend.PluginError{
 			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.BillingStatusChangeNotAllowed),
+			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
 			ErrorContext: "must provide a reason when setting " +
 				"billing status to closed",
 		}
@@ -68,8 +69,19 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 	if len(statuses) > 0 {
 		return "", backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.BillingStatusChangeNotAllowed),
+			ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
 			ErrorContext: "can not set billing status more than once",
+		}
+	}
+
+	// Ensure record's vote ended and it was approved
+	vsr, err := p.voteSummary(token)
+	if vsr.Status != ticketvote.VoteStatusApproved {
+		return "", backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "setting billing status is allowed only if " +
+				"record was approved",
 		}
 	}
 

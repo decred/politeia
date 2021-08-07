@@ -41,13 +41,8 @@ const (
 	// ErrorCodeRecordNotFound is returned when no record found.
 	ErrorCodeRecordNotFound ErrorCodeT = 4
 
-	// ErrorCodeRecordNotApproved is returned when an user preforms
-	// an action on a record which requires the record to be approved
-	// while it's not.
-	ErrorCodeRecordNotApproved = 5
-
 	// ErrorCodeLast unit test only
-	ErrorCodeLast ErrorCodeT = 6
+	ErrorCodeLast ErrorCodeT = 5
 )
 
 var (
@@ -58,7 +53,6 @@ var (
 		ErrorCodePublicKeyInvalid:   "public key invalid",
 		ErrorCodeRecordTokenInvalid: "record token invalid",
 		ErrorCodeRecordNotFound:     "record not found",
-		ErrorCodeRecordNotApproved:  "record not approved",
 	}
 )
 

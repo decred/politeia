@@ -8,31 +8,18 @@ import (
 	"context"
 
 	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
-	tvv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
-func (p *Pi) processSetBillingStatus(ctx context.Context, sbs piv1.SetBillingStatus, u user.User) (*piv1.SetBillingStatusReply, error) {
+func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatus, u user.User) (*v1.SetBillingStatusReply, error) {
 	log.Tracef("processSetBillingStatus: %v", sbs.Token)
 
 	// Verify user signed with their active identity
 	if u.PublicKey() != sbs.PublicKey {
-		return nil, piv1.UserErrorReply{
-			ErrorCode:    piv1.ErrorCodePublicKeyInvalid,
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
 			ErrorContext: "not active identity",
-		}
-	}
-
-	// Ensure record's vote ended and it was approved
-	tvsr, err := p.politeiad.TicketVoteSummary(ctx, sbs.Token)
-	voteStatus := convertVoteStatusToV1(tvsr.Status)
-	if voteStatus != tvv1.VoteStatusApproved {
-		return nil, piv1.UserErrorReply{
-			ErrorCode: piv1.ErrorCodeRecordNotApproved,
-			ErrorContext: "setting billing status is allowed only if " +
-				"record was approved",
 		}
 	}
 
@@ -43,34 +30,13 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs piv1.SetBillingSta
 		return nil, err
 	}
 
-	return &piv1.SetBillingStatusReply{
+	return &v1.SetBillingStatusReply{
 		Timestamp: psbsr.Timestamp,
 		Receipt:   psbsr.Receipt,
 	}, nil
 }
 
-func convertVoteStatusToV1(s ticketvote.VoteStatusT) tvv1.VoteStatusT {
-	switch s {
-	case ticketvote.VoteStatusInvalid:
-		return tvv1.VoteStatusInvalid
-	case ticketvote.VoteStatusUnauthorized:
-		return tvv1.VoteStatusUnauthorized
-	case ticketvote.VoteStatusAuthorized:
-		return tvv1.VoteStatusAuthorized
-	case ticketvote.VoteStatusStarted:
-		return tvv1.VoteStatusStarted
-	case ticketvote.VoteStatusFinished:
-		return tvv1.VoteStatusFinished
-	case ticketvote.VoteStatusApproved:
-		return tvv1.VoteStatusApproved
-	case ticketvote.VoteStatusRejected:
-		return tvv1.VoteStatusRejected
-	default:
-		return tvv1.VoteStatusInvalid
-	}
-}
-
-func convertSetBillingStatusToPlugin(sbs piv1.SetBillingStatus) pi.SetBillingStatus {
+func convertSetBillingStatusToPlugin(sbs v1.SetBillingStatus) pi.SetBillingStatus {
 	return pi.SetBillingStatus{
 		Token:     sbs.Token,
 		Status:    convertBillingStatusToPlugin(sbs.Status),
@@ -80,11 +46,11 @@ func convertSetBillingStatusToPlugin(sbs piv1.SetBillingStatus) pi.SetBillingSta
 	}
 }
 
-func convertBillingStatusToPlugin(bs piv1.BillingStatusT) pi.BillingStatusT {
+func convertBillingStatusToPlugin(bs v1.BillingStatusT) pi.BillingStatusT {
 	switch bs {
-	case piv1.BillingStatusClosed:
+	case v1.BillingStatusClosed:
 		return pi.BillingStatusClosed
-	case piv1.BillingStatusCompleted:
+	case v1.BillingStatusCompleted:
 		return pi.BillingStatusCompleted
 	}
 	return pi.BillingStatusInvalid
