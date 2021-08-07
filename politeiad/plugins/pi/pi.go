@@ -191,7 +191,7 @@ const (
 	ErrorCodeBillingStatusChangeNotAllowed = 15
 
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 17
+	ErrorCodeLast ErrorCodeT = 16
 )
 
 var (
