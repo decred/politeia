@@ -175,6 +175,9 @@ const (
 	// A completed proposal can no longer be billed against. A proposal
 	// is marked as completed by an admin.
 	BillingStatusCompleted BillingStatusT = 2
+
+	// BillingStatusLast unit test only.
+	BillingStatusLast BillingStatusT = 3
 )
 
 var (
