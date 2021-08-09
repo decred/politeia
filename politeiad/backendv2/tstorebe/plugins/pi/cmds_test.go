@@ -205,7 +205,7 @@ func TestCmdBillingStatus(t *testing.T) {
 			}
 
 			// Run test
-			_, err = p.cmdBillingStatus(tc.token, payload)
+			_, err = p.cmdSetBillingStatus(tc.token, payload)
 			switch {
 			case tc.err != nil && err == nil:
 				// Wanted an error but didn't get one

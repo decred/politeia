@@ -10,8 +10,8 @@ const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "pi"
 
-	// CmdBillingStatus command sets the billing status.
-	CmdBillingStatus = "billingstatus"
+	// CmdSetBillingStatus command sets the billing status.
+	CmdSetBillingStatus = "billingstatus"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default

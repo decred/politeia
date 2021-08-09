@@ -36,7 +36,7 @@ const (
 	// invalid.
 	ErrorCodeRecordTokenInvalid ErrorCodeT = 3
 
-	// ErrorCodeRecordNotFound is returned when no record found.
+	// ErrorCodeRecordNotFound is returned when no record was found.
 	ErrorCodeRecordNotFound ErrorCodeT = 4
 
 	// ErrorCodeLast unit test only

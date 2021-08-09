@@ -75,8 +75,8 @@ func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Cmd: %x %v %v", token, cmd, payload)
 
 	switch cmd {
-	case pi.CmdBillingStatus:
-		return p.cmdBillingStatus(token, payload)
+	case pi.CmdSetBillingStatus:
+		return p.cmdSetBillingStatus(token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid

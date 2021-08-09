@@ -191,12 +191,12 @@ Websocket commands
   subscribe                (public) Subscribe/unsubscribe to websocket event
 
 Dev commands
-  sendfaucettx            Send a dcr faucet tx
-  testrun                 Execute a test run of the pi routes
-  seedproposals           Seed the backend with proposals
-  votetestsetup           Setup a vote test
-  votetest                Execute a vote test
-  legacytest              Test legacy routes that do not have a command
+  sendfaucettx             Send a dcr faucet tx
+  testrun                  Execute a test run of the pi routes
+  seedproposals            Seed the backend with proposals
+  votetestsetup            Setup a vote test
+  votetest                 Execute a vote test
+  legacytest               Test legacy routes that do not have a command
 `
 
 func _main() error {

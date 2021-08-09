@@ -29,8 +29,8 @@ const (
 	dataDescriptorBillingStatus = pluginID + "-billingstatus-v1"
 )
 
-// cmdBillingStatus sets proposal's billing status.
-func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error) {
+// cmdSetBillingStatus sets proposal's billing status.
+func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, error) {
 	// Decode payload
 	var sbs pi.SetBillingStatus
 	err := json.Unmarshal([]byte(payload), &sbs)
@@ -107,7 +107,7 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
 			ErrorContext: "setting billing status is allowed only if " +
-				"record was approved",
+				"proposal vote was approved",
 		}
 	}
 

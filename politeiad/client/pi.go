@@ -23,7 +23,7 @@ func (c *Client) PiSetBillingStatus(ctx context.Context, sbs pi.SetBillingStatus
 	cmd := pdv2.PluginCmd{
 		Token:   sbs.Token,
 		ID:      pi.PluginID,
-		Command: pi.CmdBillingStatus,
+		Command: pi.CmdSetBillingStatus,
 		Payload: string(b),
 	}
 

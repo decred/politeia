@@ -54,6 +54,8 @@ func convertSetBillingStatusToPlugin(sbs v1.SetBillingStatus) pi.SetBillingStatu
 
 func convertBillingStatusToPlugin(bs v1.BillingStatusT) pi.BillingStatusT {
 	switch bs {
+	case v1.BillingStatusActive:
+		return pi.BillingStatusActive
 	case v1.BillingStatusClosed:
 		return pi.BillingStatusClosed
 	case v1.BillingStatusCompleted:
