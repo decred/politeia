@@ -34,149 +34,176 @@ func TestCmdBillingStatus(t *testing.T) {
 	p, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
-	// Prepare list of tests with all user error paths.
-	tests := []billingStatusTest{}
-	var testToken = "45154fb45664714b"
-	token, err := tokenDecode(testToken)
+	// Setup an identity that will be used to create the payload
+	// signatures.
+	fid, err := identity.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Set invalid payload token
-	sbs := pi.SetBillingStatus{
-		Status: pi.BillingStatusCompleted,
-		Token:  "",
-	}
-	b, err := json.Marshal(sbs)
+	// Setup test data
+	var (
+		// Valid input
+		token     = "45154fb45664714b"
+		status    = pi.BillingStatusCompleted
+		publicKey = fid.Public.String()
+
+		msg        = token + strconv.Itoa(int(status))
+		signatureb = fid.SignMessage([]byte(msg))
+		signature  = hex.EncodeToString(signatureb[:])
+
+		// signatureIsWrong is a valid hex encoded, ed25519 signature,
+		// but that does not correspond to the valid input parameters
+		// listed above.
+		signatureIsWrong = "b387f678e1236ca1784c4bc77912c754c6b122dd8b" +
+			"3e499617706dd0bd09167a113e59339d2ce4b3570af37a092ba88f39e7f" +
+			"c93a5ac7513e52dca3e5e13f705"
+	)
+	tokenb, err := hex.DecodeString(token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	invalidPayloadTokenTest := billingStatusTest{
-		name: "invalid payload token",
-		input: testInput{
-			token:   token,
-			payload: string(b),
-		},
-		err: backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeTokenInvalid),
-		},
-	}
-	tests = append(tests, invalidPayloadTokenTest)
 
-	// Set valid token on SetBillingStatus struct
-	sbs.Token = testToken
-	b, err = json.Marshal(sbs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	invalidCmdTokenTest := billingStatusTest{
-		name: "invalid cmd token",
-		input: testInput{
-			token:   []byte(""), // cmd token as empty string
-			payload: string(b),
+	// Setup tests
+	var tests = []struct {
+		name  string // Test name
+		token []byte
+		sbs   pi.SetBillingStatus
+		err   error // Expected error output
+	}{
+		{
+			"payload token invalid",
+			tokenb,
+			setBillingStatus(t, fid,
+				pi.SetBillingStatus{
+					Token:  "zzz",
+					Status: status,
+					Reason: "",
+				}),
+			pluginError(pi.ErrorCodeTokenInvalid),
 		},
-		err: backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeTokenInvalid),
+		{
+			"payload token does not match cmd token",
+			tokenb,
+			setBillingStatus(t, fid,
+				pi.SetBillingStatus{
+					Token:  "da70d0766348340c",
+					Status: status,
+					Reason: "",
+				}),
+			pluginError(pi.ErrorCodeTokenInvalid),
+		},
+		{
+			"signature is not hex",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    status,
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: "zzz",
+			},
+			pluginError(pi.ErrorCodeSignatureInvalid),
+		},
+		{
+			"signature is the wrong size",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    status,
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: "123456",
+			},
+			pluginError(pi.ErrorCodeSignatureInvalid),
+		},
+		{
+			"signature is wrong",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    status,
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: signatureIsWrong,
+			},
+			pluginError(pi.ErrorCodeSignatureInvalid),
+		},
+		{
+			"public key is not a hex",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    status,
+				Reason:    "",
+				PublicKey: "",
+				Signature: signature,
+			},
+			pluginError(pi.ErrorCodePublicKeyInvalid),
+		},
+		{
+			"set billing status to active",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    pi.BillingStatusActive,
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: signature,
+			},
+			pluginError(pi.ErrorCodeBillingStatusChangeNotAllowed),
+		},
+		{
+			"invalid billing status",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    pi.BillingStatusT(9),
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: signature,
+			},
+			pluginError(pi.ErrorCodeBillingStatusInvalid),
 		},
 	}
-	tests = append(tests, invalidCmdTokenTest)
 
-	// Invalid signature test
-	invalidSignatureTest := billingStatusTest{
-		name: "invalid signature",
-		input: testInput{
-			token:   token,
-			payload: string(b),
-		},
-		err: backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeSignatureInvalid),
-		},
-	}
-	tests = append(tests, invalidSignatureTest)
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup command payload
+			b, err := json.Marshal(tc.sbs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := string(b)
 
-	// Invalid public key test
-	//
-	// Generate new indentity
-	id, err := identity.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	msg := sbs.Token + strconv.Itoa(int(sbs.Status)) + sbs.Reason
-	signature := id.SignMessage([]byte(msg))
-	sbs.Signature = hex.EncodeToString(signature[:])
-	b, err = json.Marshal(sbs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	invalidPublicKeyTest := billingStatusTest{
-		name: "invalid publick key",
-		input: testInput{
-			token:   token,
-			payload: string(b),
-		},
-		err: backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodePublicKeyInvalid),
-		},
-	}
-	tests = append(tests, invalidPublicKeyTest)
-
-	// Test setting billing status to closed without
-	// providing a reason.
-	sbs.Status = pi.BillingStatusClosed
-	msg = sbs.Token + strconv.Itoa(int(sbs.Status)) + sbs.Reason
-	signature = id.SignMessage([]byte(msg))
-	sbs.Signature = hex.EncodeToString(signature[:])
-	sbs.PublicKey = id.Public.String()
-	b, err = json.Marshal(sbs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	closeWithoutReasonTest := billingStatusTest{
-		name: "close without reason",
-		input: testInput{
-			token:   token,
-			payload: string(b),
-		},
-		err: backend.PluginError{
-			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-		},
-	}
-	tests = append(tests, closeWithoutReasonTest)
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
 			// Decode the expected error into a PluginError. If
 			// an error is being returned it should always be a
 			// PluginError.
 			var wantErrorCode pi.ErrorCodeT
-			if test.err != nil {
+			if tc.err != nil {
 				var pe backend.PluginError
-				if !errors.As(test.err, &pe) {
-					t.Fatalf("error is not a plugin error '%v'", test.err)
+				if !errors.As(tc.err, &pe) {
+					t.Fatalf("error is not a plugin error '%v'", tc.err)
 				}
 				wantErrorCode = pi.ErrorCodeT(pe.ErrorCode)
 			}
 
 			// Run test
-			_, err := p.cmdBillingStatus(test.input.token, test.input.payload)
+			_, err = p.cmdBillingStatus(tc.token, payload)
 			switch {
-			case test.err != nil && err == nil:
+			case tc.err != nil && err == nil:
 				// Wanted an error but didn't get one
 				t.Errorf("want error '%v', got nil",
 					pi.ErrorCodes[wantErrorCode])
 				return
 
-			case test.err == nil && err != nil:
+			case tc.err == nil && err != nil:
 				// Wanted success but got an error
 				t.Errorf("want error nil, got '%v'", err)
 				return
 
-			case test.err != nil && err != nil:
+			case tc.err != nil && err != nil:
 				// Wanted an error and got an error. Verify that it's
 				// the correct error. All errors should be backend
 				// plugin errors.
@@ -201,11 +228,35 @@ func TestCmdBillingStatus(t *testing.T) {
 				// Success; continue to next test
 				return
 
-			case test.err == nil && err == nil:
+			case tc.err == nil && err == nil:
 				// Success; continue to next test
 				return
 			}
 		})
 	}
+}
 
+// setBillingStatus uses the provided arguments to return a SetBillingStatus
+// with a valid PublicKey and Signature.
+func setBillingStatus(t *testing.T, fid *identity.FullIdentity, sbs pi.SetBillingStatus) pi.SetBillingStatus {
+	t.Helper()
+
+	msg := sbs.Token + strconv.Itoa(int(sbs.Status)) + sbs.Reason
+	sig := fid.SignMessage([]byte(msg))
+
+	return pi.SetBillingStatus{
+		Token:     sbs.Token,
+		Status:    sbs.Status,
+		Reason:    sbs.Reason,
+		PublicKey: fid.Public.String(),
+		Signature: hex.EncodeToString(sig[:]),
+	}
+}
+
+// pluginError returns a backend PluginError for the provided pi ErrorCodeT.
+func pluginError(e pi.ErrorCodeT) error {
+	return backend.PluginError{
+		PluginID:  pi.PluginID,
+		ErrorCode: uint32(e),
+	}
 }
