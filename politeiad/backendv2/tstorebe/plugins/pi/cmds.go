@@ -44,6 +44,29 @@ func (p *piPlugin) cmdBillingStatus(token []byte, payload string) (string, error
 		return "", err
 	}
 
+	// Verify billing status
+	switch sbs.Status {
+	case pi.BillingStatusClosed, pi.BillingStatusCompleted:
+		// These are allowed; continue
+
+	case pi.BillingStatusActive:
+		// We don't currently allow the status to be manually set to
+		// active.
+		return "", backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "cannot set to active",
+		}
+
+	default:
+		// Billing status is invalid
+		return "", backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeBillingStatusInvalid),
+			ErrorContext: "invalid billing status",
+		}
+	}
+
 	// Verify signature
 	msg := sbs.Token + strconv.FormatUint(uint64(sbs.Status), 10) + sbs.Reason
 	err = util.VerifySignature(sbs.Signature, sbs.PublicKey, msg)
@@ -202,7 +225,7 @@ func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, erro
 	return statuses, nil
 }
 
-// billingStatusEncode encodes pi plugin BillingStatusChange to BlobEntry.
+// billingStatusEncode encodes a BillingStatusChange into a BlobEntry.
 func billingStatusEncode(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
 	data, err := json.Marshal(bsc)
 	if err != nil {
@@ -220,7 +243,7 @@ func billingStatusEncode(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
 	return &be, nil
 }
 
-// billingStatusDecode decodes pi plugin BillingStatusChange from BlobEntry.
+// billingStatusDecode decodes a BlobEntry into a BillingStatusChange.
 func billingStatusDecode(be store.BlobEntry) (*pi.BillingStatusChange, error) {
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)

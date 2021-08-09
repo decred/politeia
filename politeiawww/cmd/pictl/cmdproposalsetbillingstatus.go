@@ -111,8 +111,8 @@ const proposalSetBillingStatusHelpMsg = `proposalsetbillingstatus "token" "statu
 Set the billing status of a proposal.
 
 Valid statuses:
-  (1) close
-  (2) complete
+  (2) close
+  (3) complete
 
 The following statuses require a billing status change reason to be included:
   close

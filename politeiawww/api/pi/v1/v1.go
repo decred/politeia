@@ -162,28 +162,33 @@ const (
 	// BillingStatusInvalid is an invalid billing status.
 	BillingStatusInvalid BillingStatusT = 0
 
+	// BillingStatusActive represents a proposal that was approved by
+	// the Decred stakeholders and is being actively billed against.
+	BillingStatusActive BillingStatusT = 1
+
 	// BillingStatusClosed represents a proposal that was approved by
 	// the Decred stakeholders, but has been closed by an admin prior
 	// to the proposal being completed. The most common reason for this
 	// is because a proposal author failed to deliver on the work that
 	// was funded in the proposal. A closed proposal can no longer be
 	// billed against.
-	BillingStatusClosed BillingStatusT = 1
+	BillingStatusClosed BillingStatusT = 2
 
 	// BillingStatusCompleted represents a proposal that was approved
 	// by the Decred stakeholders and has been successfully completed.
 	// A completed proposal can no longer be billed against. A proposal
 	// is marked as completed by an admin.
-	BillingStatusCompleted BillingStatusT = 2
+	BillingStatusCompleted BillingStatusT = 3
 
 	// BillingStatusLast unit test only.
-	BillingStatusLast BillingStatusT = 3
+	BillingStatusLast BillingStatusT = 4
 )
 
 var (
 	// BillingStatuses contains the human readable billing statuses.
 	BillingStatuses = map[BillingStatusT]string{
 		BillingStatusInvalid:   "invalid",
+		BillingStatusActive:    "active",
 		BillingStatusClosed:    "closed",
 		BillingStatusCompleted: "completed",
 	}

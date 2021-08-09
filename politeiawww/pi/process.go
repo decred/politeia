@@ -18,8 +18,7 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatu
 
 	// Sanity check
 	if !u.Admin {
-		return nil, errors.Errorf("processSetBillingStatus: user is " +
-			"not an admin")
+		return nil, errors.Errorf("user is not an admin")
 	}
 
 	// Verify user signed with their active identity
