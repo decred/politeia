@@ -148,25 +148,6 @@ func TestCmdBillingStatus(t *testing.T) {
 	}
 	tests = append(tests, closeWithoutReasonTest)
 
-	// Test success.
-	sbs.Reason = "<insert a reason>"
-	msg = sbs.Token + strconv.Itoa(int(sbs.Status)) + sbs.Reason
-	signature = id.SignMessage([]byte(msg))
-	sbs.Signature = hex.EncodeToString(signature[:])
-	sbs.PublicKey = id.Public.String()
-	b, err = json.Marshal(sbs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	successTest := billingStatusTest{
-		name: "success test",
-		input: testInput{
-			token:   token,
-			payload: string(b),
-		},
-	}
-	tests = append(tests, successTest)
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Decode the expected error into a PluginError. If
