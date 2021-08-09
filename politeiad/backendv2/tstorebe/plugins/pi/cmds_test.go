@@ -16,19 +16,6 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 )
 
-// billingStatusTest contains the input and output for a test that tests
-// the cmdBillingStatus func.
-type billingStatusTest struct {
-	name  string    // Test name
-	input testInput // Input
-	err   error     // Expected output
-}
-
-type testInput struct {
-	token   []byte
-	payload string
-}
-
 func TestCmdBillingStatus(t *testing.T) {
 	// Setup pi plugin
 	p, cleanup := newTestPiPlugin(t)
@@ -51,6 +38,10 @@ func TestCmdBillingStatus(t *testing.T) {
 		msg        = token + strconv.Itoa(int(status))
 		signatureb = fid.SignMessage([]byte(msg))
 		signature  = hex.EncodeToString(signatureb[:])
+
+		msgWithClosed        = token + strconv.Itoa(int(pi.BillingStatusClosed))
+		signaturebWithClosed = fid.SignMessage([]byte(msgWithClosed))
+		signatureWithClosed  = hex.EncodeToString(signaturebWithClosed[:])
 
 		// signatureIsWrong is a valid hex encoded, ed25519 signature,
 		// but that does not correspond to the valid input parameters
@@ -92,6 +83,30 @@ func TestCmdBillingStatus(t *testing.T) {
 					Reason: "",
 				}),
 			pluginError(pi.ErrorCodeTokenInvalid),
+		},
+		{
+			"set billing status to active",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    pi.BillingStatusActive,
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: signature,
+			},
+			pluginError(pi.ErrorCodeBillingStatusChangeNotAllowed),
+		},
+		{
+			"invalid billing status",
+			tokenb,
+			pi.SetBillingStatus{
+				Token:     token,
+				Status:    pi.BillingStatusT(9),
+				Reason:    "",
+				PublicKey: publicKey,
+				Signature: signature,
+			},
+			pluginError(pi.ErrorCodeBillingStatusInvalid),
 		},
 		{
 			"signature is not hex",
@@ -142,28 +157,28 @@ func TestCmdBillingStatus(t *testing.T) {
 			pluginError(pi.ErrorCodePublicKeyInvalid),
 		},
 		{
-			"set billing status to active",
+			"public key is the wrong length",
 			tokenb,
 			pi.SetBillingStatus{
 				Token:     token,
-				Status:    pi.BillingStatusActive,
+				Status:    status,
 				Reason:    "",
-				PublicKey: publicKey,
+				PublicKey: "123456",
 				Signature: signature,
 			},
-			pluginError(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			pluginError(pi.ErrorCodePublicKeyInvalid),
 		},
 		{
-			"invalid billing status",
+			"set billing status to close without a reason",
 			tokenb,
 			pi.SetBillingStatus{
 				Token:     token,
-				Status:    pi.BillingStatusT(9),
+				Status:    pi.BillingStatusClosed,
 				Reason:    "",
 				PublicKey: publicKey,
-				Signature: signature,
+				Signature: signatureWithClosed,
 			},
-			pluginError(pi.ErrorCodeBillingStatusInvalid),
+			pluginError(pi.ErrorCodeBillingStatusChangeNotAllowed),
 		},
 	}
 
