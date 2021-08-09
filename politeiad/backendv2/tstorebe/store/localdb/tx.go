@@ -9,6 +9,12 @@ import (
 )
 
 // tx implements the store Tx interface using leveldb.
+//
+// leveldb does not support transactions, but we are able to implement our own
+// transaction by locking against concurrent access on transaction
+// initialization then using leveldb's atomic batch writes to put/del data when
+// the caller commits the transaction. The lock is not released until the
+// transaction is committed, rolled back, or canceled.
 type tx struct {
 	localdb *localdb
 	batch   *leveldb.Batch
