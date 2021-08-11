@@ -441,9 +441,21 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 		return "", err
 	}
 
+	// Ensure no extra data provided if not allowed
+	if !p.allowExtraData && (n.ExtraData != "" || n.ExtraDataHint != "") {
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeExtraDataNotAllowed),
+			ErrorContext: fmt.Sprintf("comment extra data is not allowed"),
+		}
+	}
+
 	// Verify signature
 	msg := strconv.FormatUint(uint64(n.State), 10) + n.Token +
 		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
+	if p.allowExtraData {
+		msg += n.ExtraData + n.ExtraDataHint
+	}
 	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -560,9 +572,21 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		return "", err
 	}
 
+	// Ensure no extra data provided if not allowed
+	if !p.allowExtraData && (e.ExtraData != "" || e.ExtraDataHint != "") {
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeExtraDataNotAllowed),
+			ErrorContext: fmt.Sprintf("comment extra data is not allowed"),
+		}
+	}
+
 	// Verify signature
 	msg := strconv.FormatUint(uint64(e.State), 10) + e.Token +
 		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
+	if p.allowExtraData {
+		msg += e.ExtraData + e.ExtraDataHint
+	}
 	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)

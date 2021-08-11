@@ -34,6 +34,10 @@ const (
 	// SettingKeyVoteChangesMax is the plugin setting key for the
 	// SettingVoteChangesMax plugin setting.
 	SettingKeyVoteChangesMax = "votechangesmax"
+
+	// SettingKeyAllowExtraData is the plugin setting key for the
+	// SettingAllowExtraData plugin setting.
+	SettingKeyAllowExtraData = "allowextradata"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -47,6 +51,10 @@ const (
 	// user can change their vote on a comment. This prevents a
 	// malicious user from being able to spam comment votes.
 	SettingVoteChangesMax uint32 = 5
+
+	// SettingAllowExtraData is the default value of the bool flag which
+	// determines whether posting extra data along with the comment is allowed.
+	SettingAllowExtraData = false
 )
 
 // ErrorCodeT represents a error that was caused by the user.
@@ -99,8 +107,12 @@ const (
 	// does not match the record state.
 	ErrorCodeRecordStateInvalid ErrorCodeT = 11
 
+	// ErrorCodeExtraDataNotAllowed is returned when comment extra data
+	// is found while comment plugin setting does not allow it.
+	ErrorCodeExtraDataNotAllowed = 12
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 12
+	ErrorCodeLast ErrorCodeT = 13
 )
 
 var (
@@ -118,6 +130,7 @@ var (
 		ErrorCodeVoteInvalid:            "vote invalid",
 		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
 		ErrorCodeRecordStateInvalid:     "record state invalid",
+		ErrorCodeExtraDataNotAllowed:    "comment extra data not allowed",
 	}
 )
 
