@@ -446,7 +446,7 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
 			ErrorCode:    uint32(comments.ErrorCodeExtraDataNotAllowed),
-			ErrorContext: fmt.Sprintf("comment extra data is not allowed"),
+			ErrorContext: "comment extra data is not allowed",
 		}
 	}
 
