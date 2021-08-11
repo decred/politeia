@@ -141,7 +141,15 @@ const (
 // information for the deleted comment. Everything else from the original
 // comment is permanently deleted.
 //
-// Signature is the client signature of State+Token+ParentID+Comment.
+// PublicKey is the user's public key that is used to verify the signature.
+//
+// Signature is the user signature of the:
+// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+//
+// Receipt is the server signature of the user signature.
+//
+// The PublicKey, Signature, and Receipt are all hex encoded and use the
+// ed25519 signature scheme.
 type Comment struct {
 	UserID    string       `json:"userid"`    // Unique user ID
 	Username  string       `json:"username"`  // Username
@@ -167,7 +175,13 @@ type Comment struct {
 
 // CommentVote represents a comment vote (upvote/downvote).
 //
-// Signature is the client signature of the State+Token+CommentID+Vote.
+// PublicKey is the user's public key that is used to verify the signature.
+//
+// Signature is the user signature of the:
+// State + Token + CommentID + Vote
+//
+// The PublicKey and Signature are hex encoded and use the
+// ed25519 signature scheme.
 type CommentVote struct {
 	UserID    string       `json:"userid"`    // Unique user ID
 	Username  string       `json:"username"`  // Username
@@ -186,7 +200,13 @@ type CommentVote struct {
 // The parent ID is used to reply to an existing comment. A parent ID of 0
 // indicates that the comment is a base level comment and not a reply commment.
 //
-// Signature is the client signature of State+Token+ParentID+Comment.
+// PublicKey is the user's public key that is used to verify the signature.
+//
+// Signature is the user signature of the:
+// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+//
+// The PublicKey and Signature are hex encoded and use the
+// ed25519 signature scheme.
 type New struct {
 	State     RecordStateT `json:"state"`
 	Token     string       `json:"token"`
@@ -227,7 +247,13 @@ const (
 // upvoted, the resulting vote score is 0 due to the second upvote removing the
 // original upvote.
 //
-// Signature is the client signature of the State+Token+CommentID+Vote.
+// PublicKey is the user's public key that is used to verify the signature.
+//
+// Signature is the user signature of the:
+// State + Token + CommentID + Vote
+//
+// The PublicKey and Signature are hex encoded and use the
+// ed25519 signature scheme.
 type Vote struct {
 	State     RecordStateT `json:"state"`
 	Token     string       `json:"token"`
@@ -248,7 +274,13 @@ type VoteReply struct {
 // Del permanently deletes the provided comment. Only admins can delete
 // comments. A reason must be given for the deletion.
 //
-// Signature is the client signature of the State+Token+CommentID+Reason
+// PublicKey is the user's public key that is used to verify the signature.
+//
+// Signature is the user signature of the:
+// State + Token + CommentID + Reason
+//
+// The PublicKey and Signature are hex encoded and use the
+// ed25519 signature scheme.
 type Del struct {
 	State     RecordStateT `json:"state"`
 	Token     string       `json:"token"`
