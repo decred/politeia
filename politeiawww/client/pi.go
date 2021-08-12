@@ -31,6 +31,24 @@ func (c *Client) PiPolicy() (*piv1.PolicyReply, error) {
 	return &pr, nil
 }
 
+// PiSetBillingStatus sends a pi v1 SetBillingStatus request
+// to politeiawww.
+func (c *Client) PiSetBillingStatus(sbs piv1.SetBillingStatus) (*piv1.SetBillingStatusReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		piv1.APIRoute, piv1.RouteSetBillingStatus, sbs)
+	if err != nil {
+		return nil, err
+	}
+
+	var sbsr piv1.SetBillingStatusReply
+	err = json.Unmarshal(resBody, &sbsr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sbsr, nil
+}
+
 // ProposalMetadataDecode decodes and returns the ProposalMetadata from the
 // Provided record files. An error returned if a ProposalMetadata is not found.
 func ProposalMetadataDecode(files []rcv1.File) (*piv1.ProposalMetadata, error) {

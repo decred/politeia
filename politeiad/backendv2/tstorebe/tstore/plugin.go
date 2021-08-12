@@ -88,7 +88,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case piplugin.PluginID:
-		client, err = pi.New(b, p.Settings, dataDir)
+		client, err = pi.New(b, t, p.Settings, dataDir, p.Identity)
 		if err != nil {
 			return err
 		}
@@ -153,7 +153,7 @@ func (t *Tstore) PluginHookPre(h plugins.HookT, payload string) error {
 	return nil
 }
 
-// PluginHookPre executes a tstore backend post hook. Post hooks are hooks that
+// PluginHookPost executes a tstore backend post hook. Post hooks are hooks that
 // are executed after the tstore backend successfully writes data to disk.
 // These hooks give plugins the opportunity to cache data from the write.
 func (t *Tstore) PluginHookPost(h plugins.HookT, payload string) {

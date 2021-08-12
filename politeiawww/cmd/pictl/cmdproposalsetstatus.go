@@ -128,8 +128,6 @@ func parseRecordState(state string) (rcv1.RecordStateT, error) {
 		states = map[string]rcv1.RecordStateT{
 			"unvetted": rcv1.RecordStateUnvetted,
 			"vetted":   rcv1.RecordStateVetted,
-			"1":        rcv1.RecordStateUnvetted,
-			"2":        rcv1.RecordStateVetted,
 		}
 	)
 	u, err := strconv.ParseUint(state, 10, 32)
@@ -160,9 +158,6 @@ func parseRecordStatus(status string) (rcv1.RecordStatusT, error) {
 			"abandoned": rcv1.RecordStatusArchived,
 			"archive":   rcv1.RecordStatusArchived,
 			"archived":  rcv1.RecordStatusArchived,
-			"2":         rcv1.RecordStatusPublic,
-			"3":         rcv1.RecordStatusCensored,
-			"4":         rcv1.RecordStatusArchived,
 		}
 	)
 	u, err := strconv.ParseUint(status, 10, 32)
@@ -180,7 +175,7 @@ func parseRecordStatus(status string) (rcv1.RecordStatusT, error) {
 }
 
 // proposalSetStatusHelpMsg is printed to stdout by the help command.
-const proposalSetStatusHelpMsg = `proposalstatusset "token" "status" "reason"
+const proposalSetStatusHelpMsg = `proposalsetstatus "token" "status" "reason"
 
 Set the status of a proposal. This command assumes the proposal is a vetted
 record. If the proposal is unvetted, the --unvetted flag must be used. Requires
@@ -198,7 +193,7 @@ The following statuses require a status change reason to be included:
 Arguments:
 1. token   (string, required)  Proposal censorship token
 2. status  (string, required)  New status
-3. message (string, optional)  Status change message
+3. reason  (string, optional)  Status change reason
 4. version (string, optional)  Proposal version. This will be retrieved from
                                the backend if one is not provided.
 `
