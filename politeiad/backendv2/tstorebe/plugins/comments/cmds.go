@@ -444,9 +444,8 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	// Ensure no extra data provided if not allowed
 	if !p.allowExtraData && (n.ExtraData != "" || n.ExtraDataHint != "") {
 		return "", backend.PluginError{
-			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeExtraDataNotAllowed),
-			ErrorContext: "comment extra data is not allowed",
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeExtraDataNotAllowed),
 		}
 	}
 
