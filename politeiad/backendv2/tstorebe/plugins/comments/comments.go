@@ -5,7 +5,6 @@
 package comments
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/comments"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -147,26 +147,26 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		case comments.SettingKeyCommentLengthMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			commentLengthMax = uint32(u)
 		case comments.SettingKeyVoteChangesMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			voteChangesMax = uint32(u)
 		case comments.SettingKeyAllowExtraData:
 			b, err := strconv.ParseBool(v.Value)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			allowExtraData = b
 		default:
-			return nil, fmt.Errorf("invalid comments plugin setting '%v'", v.Key)
+			return nil, errors.Errorf("invalid comments plugin setting '%v'", v.Key)
 		}
 	}
 
