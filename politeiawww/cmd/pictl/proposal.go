@@ -77,7 +77,7 @@ func printProposalFiles(files []rcv1.File) error {
 		case !isRFP:
 			printf("  Name      : %v\n", pm.Name)
 			printf("  Domain    : %v\n", pm.Domain)
-			printf("  Amount    : $%v\n", pm.Amount*100) // Display amount in USD.
+			printf("  Amount    : %v\n", dollars(int64(pm.Amount)))
 			printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
 			printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
 		case isRFP:

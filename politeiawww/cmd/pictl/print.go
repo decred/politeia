@@ -5,7 +5,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/decred/politeia/util"
 )
@@ -51,4 +54,54 @@ func byteCountSI(b int64) string {
 // subsequent call will overwrite the existing text that was printed to stdout.
 func printInPlace(s string) {
 	fmt.Printf("\033[2K\r%s", s)
+}
+
+// dollars converts an int64 price in cents into a human readable dollar
+// string.
+//
+// | Input     | Output          |
+// |-----------------------------|
+// | 13000     | "$130.00"       |
+// | 130000    | "$1,300.00"     |
+// | 13000000  | "$130,000.00"   |
+// | 130000000 | "$1,300,000.00" |
+// | 78        | "$0.78"         |
+// | -78       | "-$0.78"        |
+func dollars(cents int64) string {
+	// get the value in dollars
+	dollarsValue := float64(cents) / 100
+
+	// initial the buffer and check the duality of the value
+	buf := &bytes.Buffer{}
+	if dollarsValue < 0 {
+		buf.Write([]byte{'-'})
+		dollarsValue = 0 - dollarsValue
+	}
+	buf.Write([]byte{'$'})
+	comma := []byte{','}
+
+	// split the value into integers and decimals
+	parts := strings.Split(strconv.FormatFloat(dollarsValue, 'f', -1, 64), ".")
+
+	// process the integers part
+	pos := 0
+	if len(parts[0])%3 != 0 {
+		pos += len(parts[0]) % 3
+		buf.WriteString(parts[0][:pos])
+		buf.Write(comma)
+	}
+	for ; pos < len(parts[0]); pos += 3 {
+		buf.WriteString(parts[0][pos : pos+3])
+		buf.Write(comma)
+	}
+	buf.Truncate(buf.Len() - 1)
+
+	// process the decimals part
+	buf.Write([]byte{'.'})
+	if len(parts) > 1 {
+		buf.WriteString(parts[1])
+	} else {
+		buf.WriteString("00")
+	}
+	return buf.String()
 }
