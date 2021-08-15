@@ -68,10 +68,10 @@ func printInPlace(s string) {
 // | 78        | "$0.78"         |
 // | -78       | "-$0.78"        |
 func dollars(cents int64) string {
-	// get the value in dollars
+	// Get the value in dollars
 	dollarsValue := float64(cents) / 100
 
-	// initial the buffer and check the duality of the value
+	// Initial the buffer and check the duality of the value
 	buf := &bytes.Buffer{}
 	if dollarsValue < 0 {
 		buf.Write([]byte{'-'})
@@ -80,10 +80,10 @@ func dollars(cents int64) string {
 	buf.Write([]byte{'$'})
 	comma := []byte{','}
 
-	// split the value into integers and decimals
+	// Split the value into integers and decimals
 	parts := strings.Split(strconv.FormatFloat(dollarsValue, 'f', -1, 64), ".")
 
-	// process the integers part
+	// Process the integers part
 	pos := 0
 	if len(parts[0])%3 != 0 {
 		pos += len(parts[0]) % 3
@@ -96,7 +96,7 @@ func dollars(cents int64) string {
 	}
 	buf.Truncate(buf.Len() - 1)
 
-	// process the decimals part
+	// Process the decimals part
 	buf.Write([]byte{'.'})
 	if len(parts) > 1 {
 		buf.WriteString(parts[1])
