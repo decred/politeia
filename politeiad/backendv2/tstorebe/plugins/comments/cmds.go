@@ -442,11 +442,8 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Ensure no extra data provided if not allowed
-	if !p.allowExtraData && (n.ExtraData != "" || n.ExtraDataHint != "") {
-		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeExtraDataNotAllowed),
-		}
+	if err = p.validateExtraData(n.ExtraData, n.ExtraDataHint); err != nil {
+		return "", err
 	}
 
 	// Verify signature
@@ -570,11 +567,8 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Ensure no extra data provided if not allowed
-	if !p.allowExtraData && (e.ExtraData != "" || e.ExtraDataHint != "") {
-		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeExtraDataNotAllowed),
-		}
+	if err = p.validateExtraData(e.ExtraData, e.ExtraDataHint); err != nil {
+		return "", err
 	}
 
 	// Verify signature
@@ -703,6 +697,17 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+// validateExtraData ensures no extra data provided if it's not allowed.
+func (p *commentsPlugin) validateExtraData(extraData, extraDataHint string) error {
+	if !p.allowExtraData && (extraData != "" || extraDataHint != "") {
+		return backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeExtraDataNotAllowed),
+		}
+	}
+	return nil
 }
 
 // cmdDel deletes a comment.
