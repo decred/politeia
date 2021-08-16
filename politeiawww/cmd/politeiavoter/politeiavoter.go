@@ -861,6 +861,20 @@ exit:
 }
 
 func (c *ctx) _vote(token, voteID string) error {
+	passphrase, err := c.walletPassphrase()
+	if err != nil {
+		return err
+	}
+	// This assumes the account is an HD account.
+	_, err = c.wallet.GetAccountExtendedPrivKey(c.wctx,
+		&pb.GetAccountExtendedPrivKeyRequest{
+			AccountNumber: 0, // TODO: make a config flag
+			Passphrase:    passphrase,
+		})
+	if err != nil {
+		return err
+	}
+
 	seed, err := generateSeed()
 	if err != nil {
 		return err
@@ -953,11 +967,6 @@ func (c *ctx) _vote(token, voteID string) error {
 		eligible[i], eligible[j] = eligible[j], eligible[i]
 	}
 	ctres.TicketAddresses = eligible
-
-	passphrase, err := c.walletPassphrase()
-	if err != nil {
-		return err
-	}
 
 	// Sign all tickets
 	sm := &pb.SignMessagesRequest{
