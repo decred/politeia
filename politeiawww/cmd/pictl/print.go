@@ -64,40 +64,51 @@ func printInPlace(s string) {
 // | 13000     | "$130.00"       |
 // | 130000    | "$1,300.00"     |
 // | 13000000  | "$130,000.00"   |
+// | -13000000 | "-$130,000.00"  |
 // | 130000000 | "$1,300,000.00" |
 // | 78        | "$0.78"         |
 // | -78       | "-$0.78"        |
+// | 78        | "$0.78"         |
+// | 9         | "$0.09"         |
+// | -9        | "-$0.09"        |
+
 func dollars(cents int64) string {
 	// Get the value in dollars
 	dollarsValue := float64(cents) / 100
 
-	// Initial the buffer and check the duality of the value
-	buf := &bytes.Buffer{}
+	// Initialize the buffer to store the string result .
+	// Check for a negative value
+	var buf bytes.Buffer
 	if dollarsValue < 0 {
-		buf.Write([]byte{'-'})
+		buf.WriteString("-")
+		// Convert the negative value to a positive value. The code
+		// below can only handle positive values.
 		dollarsValue = 0 - dollarsValue
 	}
-	buf.Write([]byte{'$'})
-	comma := []byte{','}
+	buf.WriteString("$")
 
-	// Split the value into integers and decimals
+	// Split the value into integer and decimal
 	parts := strings.Split(strconv.FormatFloat(dollarsValue, 'f', -1, 64), ".")
 
-	// Process the integers part
-	pos := 0
-	if len(parts[0])%3 != 0 {
-		pos += len(parts[0]) % 3
-		buf.WriteString(parts[0][:pos])
-		buf.Write(comma)
+	// Process the integer part
+	var position int
+	var integerPart = parts[0]
+
+	// If the integerPart is not divisible by 3. Write to the buffer the surplus
+	if len(integerPart)%3 != 0 {
+		position += len(integerPart) % 3
+		buf.WriteString(integerPart[:position])
+		buf.WriteString(",")
 	}
-	for ; pos < len(parts[0]); pos += 3 {
-		buf.WriteString(parts[0][pos : pos+3])
-		buf.Write(comma)
+	// Write to the buffer the divisible by 3 number part
+	for ; position < len(integerPart); position += 3 {
+		buf.WriteString(integerPart[position : position+3])
+		buf.WriteString(",")
 	}
 	buf.Truncate(buf.Len() - 1)
 
 	// Process the decimals part
-	buf.Write([]byte{'.'})
+	buf.WriteString(".")
 	if len(parts) > 1 {
 		buf.WriteString(parts[1])
 	} else {
