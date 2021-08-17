@@ -441,9 +441,16 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 		return "", err
 	}
 
+	// Ensure no extra data provided if not allowed
+	err = p.verifyExtraData(n.ExtraData, n.ExtraDataHint)
+	if err != nil {
+		return "", err
+	}
+
 	// Verify signature
 	msg := strconv.FormatUint(uint64(n.State), 10) + n.Token +
-		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
+		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment +
+		n.ExtraData + n.ExtraDataHint
 	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -560,9 +567,16 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		return "", err
 	}
 
+	// Ensure no extra data provided if not allowed
+	err = p.verifyExtraData(e.ExtraData, e.ExtraDataHint)
+	if err != nil {
+		return "", err
+	}
+
 	// Verify signature
 	msg := strconv.FormatUint(uint64(e.State), 10) + e.Token +
-		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
+		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment +
+		e.ExtraData + e.ExtraDataHint
 	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -685,6 +699,17 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+// verifyExtraData ensures no extra data provided if it's not allowed.
+func (p *commentsPlugin) verifyExtraData(extraData, extraDataHint string) error {
+	if !p.allowExtraData && (extraData != "" || extraDataHint != "") {
+		return backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeExtraDataNotAllowed),
+		}
+	}
+	return nil
 }
 
 // cmdDel deletes a comment.
