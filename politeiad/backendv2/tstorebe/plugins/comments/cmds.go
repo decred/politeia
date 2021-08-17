@@ -442,7 +442,8 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Ensure no extra data provided if not allowed
-	if err = p.validateExtraData(n.ExtraData, n.ExtraDataHint); err != nil {
+	err = p.verifyExtraData(n.ExtraData, n.ExtraDataHint)
+	if err != nil {
 		return "", err
 	}
 
@@ -567,7 +568,8 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Ensure no extra data provided if not allowed
-	if err = p.validateExtraData(e.ExtraData, e.ExtraDataHint); err != nil {
+	err = p.verifyExtraData(e.ExtraData, e.ExtraDataHint)
+	if err != nil {
 		return "", err
 	}
 
@@ -699,8 +701,8 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	return string(reply), nil
 }
 
-// validateExtraData ensures no extra data provided if it's not allowed.
-func (p *commentsPlugin) validateExtraData(extraData, extraDataHint string) error {
+// verifyExtraData ensures no extra data provided if it's not allowed.
+func (p *commentsPlugin) verifyExtraData(extraData, extraDataHint string) error {
 	if !p.allowExtraData && (extraData != "" || extraDataHint != "") {
 		return backend.PluginError{
 			PluginID:  comments.PluginID,
