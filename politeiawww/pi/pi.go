@@ -76,17 +76,18 @@ func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
-		textFileSizeMax    uint32
-		imageFileCountMax  uint32
-		imageFileSizeMax   uint32
-		nameLengthMin      uint32
-		nameLengthMax      uint32
-		nameSupportedChars []string
-		amountMin          uint64
-		amountMax          uint64
-		startDateMin       int64
-		endDateMax         int64
-		domains            []string
+		textFileSizeMax           uint32
+		imageFileCountMax         uint32
+		imageFileSizeMax          uint32
+		nameLengthMin             uint32
+		nameLengthMax             uint32
+		nameSupportedChars        []string
+		amountMin                 uint64
+		amountMax                 uint64
+		startDateMin              int64
+		endDateMax                int64
+		domains                   []string
+		updateTitleSupportedChars []string
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -166,6 +167,11 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
+			case pi.SettingKeyUpdateTitleSupportedChars:
+				err := json.Unmarshal([]byte(v.Value), &updateTitleSupportedChars)
+				if err != nil {
+					return nil, err
+				}
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -205,6 +211,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case len(domains) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
+	case len(updateTitleSupportedChars) == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyUpdateTitleSupportedChars)
 	}
 
 	// Setup pi context
@@ -216,17 +225,18 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 		events:    e,
 		mail:      m,
 		policy: &v1.PolicyReply{
-			TextFileSizeMax:    textFileSizeMax,
-			ImageFileCountMax:  imageFileCountMax,
-			ImageFileSizeMax:   imageFileSizeMax,
-			NameLengthMin:      nameLengthMin,
-			NameLengthMax:      nameLengthMax,
-			NameSupportedChars: nameSupportedChars,
-			AmountMin:          amountMin,
-			AmountMax:          amountMax,
-			StartDateMin:       startDateMin,
-			EndDateMax:         endDateMax,
-			Domains:            domains,
+			TextFileSizeMax:           textFileSizeMax,
+			ImageFileCountMax:         imageFileCountMax,
+			ImageFileSizeMax:          imageFileSizeMax,
+			NameLengthMin:             nameLengthMin,
+			NameLengthMax:             nameLengthMax,
+			NameSupportedChars:        nameSupportedChars,
+			AmountMin:                 amountMin,
+			AmountMax:                 amountMax,
+			StartDateMin:              startDateMin,
+			EndDateMax:                endDateMax,
+			Domains:                   domains,
+			UpdateTitleSupportedChars: updateTitleSupportedChars,
 		},
 	}
 
