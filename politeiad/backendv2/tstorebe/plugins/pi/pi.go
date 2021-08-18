@@ -57,6 +57,7 @@ type piPlugin struct {
 	proposalEndDateMax         int64  // Seconds from current time
 	proposalDomainsEncoded     string // JSON encoded []string
 	proposalDomains            map[string]struct{}
+	updateTitleSupportedChars  string // Json encoded []string
 }
 
 // Setup performs any plugin setup that is required.
@@ -164,6 +165,10 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Key:   pi.SettingKeyProposalDomains,
 			Value: p.proposalDomainsEncoded,
 		},
+		{
+			Key:   pi.SettingKeyUpdateTitleSupportedChars,
+			Value: p.updateTitleSupportedChars,
+		},
 	}
 }
 
@@ -178,17 +183,18 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 
 	// Setup plugin setting default values
 	var (
-		textFileSizeMax    = pi.SettingTextFileSizeMax
-		imageFileCountMax  = pi.SettingImageFileCountMax
-		imageFileSizeMax   = pi.SettingImageFileSizeMax
-		nameLengthMin      = pi.SettingProposalNameLengthMin
-		nameLengthMax      = pi.SettingProposalNameLengthMax
-		nameSupportedChars = pi.SettingProposalNameSupportedChars
-		amountMin          = pi.SettingProposalAmountMin
-		amountMax          = pi.SettingProposalAmountMax
-		startDateMin       = pi.SettingProposalStartDateMin
-		endDateMax         = pi.SettingProposalEndDateMax
-		domains            = pi.SettingProposalDomains
+		textFileSizeMax           = pi.SettingTextFileSizeMax
+		imageFileCountMax         = pi.SettingImageFileCountMax
+		imageFileSizeMax          = pi.SettingImageFileSizeMax
+		nameLengthMin             = pi.SettingProposalNameLengthMin
+		nameLengthMax             = pi.SettingProposalNameLengthMax
+		nameSupportedChars        = pi.SettingProposalNameSupportedChars
+		amountMin                 = pi.SettingProposalAmountMin
+		amountMax                 = pi.SettingProposalAmountMax
+		startDateMin              = pi.SettingProposalStartDateMin
+		endDateMax                = pi.SettingProposalEndDateMax
+		domains                   = pi.SettingProposalDomains
+		updateTitleSupportedChars = pi.SettingUpdateTitleSupportedChars
 	)
 
 	// Override defaults with any passed in settings
@@ -280,8 +286,8 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		return nil, fmt.Errorf("proposal name regexp: %v", err)
 	}
 
-	// Encode the supported chars so that they can be returned as a
-	// plugin setting string.
+	// Encode the proposal name supported chars so that they
+	// can be returned as a plugin setting string.
 	b, err := json.Marshal(nameSupportedChars)
 	if err != nil {
 		return nil, err
@@ -302,6 +308,14 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		domainsMap[d] = struct{}{}
 	}
 
+	// Encode the proposal update title supported chars so that
+	// they can be returned as a plugin setting string.
+	b, err = json.Marshal(updateTitleSupportedChars)
+	if err != nil {
+		return nil, err
+	}
+	updateTitleSupportedCharsStr := string(b)
+
 	return &piPlugin{
 		dataDir:                    dataDir,
 		identity:                   id,
@@ -320,5 +334,6 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		proposalEndDateMax:         endDateMax,
 		proposalDomainsEncoded:     domainsString,
 		proposalDomains:            domainsMap,
+		updateTitleSupportedChars:  updateTitleSupportedCharsStr,
 	}, nil
 }

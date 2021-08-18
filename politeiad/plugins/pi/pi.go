@@ -61,6 +61,10 @@ const (
 	// SettingKeyProposalDomains is the plugin setting key for the
 	// SettingProposalDomains plugin setting.
 	SettingKeyProposalDomains = "proposaldomains"
+
+	// SettingKeyUpdateTitleSupportedChars is the plugin setting key
+	// for the SettingUpdateTitleSupportedChars plugin setting.
+	SettingKeyUpdateTitleSupportedChars = "updatetitlesupportedchars"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -117,6 +121,12 @@ var (
 		"marketing",
 		"research",
 		"design",
+	}
+
+	// SettingUpdateTitleSupportedChars contains the supported
+	// characters in a proposal update title.
+	SettingUpdateTitleSupportedChars = []string{
+		"A-z", "0-9",
 	}
 )
 
@@ -323,4 +333,18 @@ type SetBillingStatus struct {
 type SetBillingStatusReply struct {
 	Receipt   string `json:"receipt"`
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
+}
+
+const (
+	// ProposalUpdateHint is the hint that is included in a comment's
+	// ExtraDataHint field to indicate that the comment is an update
+	// from the proposal author.
+	ProposalUpdateHint = "proposalupdate"
+)
+
+// ProposalUpdateMetadata contains the metadata that is attached to a comment
+// in the comment's ExtraData field to indicate that the comment is an update
+// from the proposal author.
+type ProposalUpdateMetadata struct {
+	Title string `json:"title"`
 }

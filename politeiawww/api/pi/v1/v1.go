@@ -243,3 +243,17 @@ type SetBillingStatusReply struct {
 	Receipt   string `json:"receipt"`
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
+
+const (
+	// ProposalUpdateHint is the hint that is included in a comment's
+	// ExtraDataHint field to indicate that the comment is an update
+	// from the proposal author.
+	ProposalUpdateHint = "proposalupdate"
+)
+
+// ProposalUpdateMetadata contains the metadata that is attached to a comment
+// in the comment's ExtraData field to indicate that the comment is an update
+// from the proposal author.
+type ProposalUpdateMetadata struct {
+	Title string `json:"title"`
+}
