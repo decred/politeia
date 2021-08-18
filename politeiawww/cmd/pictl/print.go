@@ -61,24 +61,24 @@ func printInPlace(s string) {
 //
 // | Input     | Output          |
 // |-----------------------------|
-// | 13000     | "$130.00"       |
-// | 130000    | "$1,300.00"     |
-// | 13000000  | "$130,000.00"   |
-// | -13000000 | "-$130,000.00"  |
 // | 130000000 | "$1,300,000.00" |
-// | 78        | "$0.78"         |
-// | -78       | "-$0.78"        |
+// | 13000000  | "$130,000.00"   |
+// | 130000    | "$1,300.00"     |
+// | 13000     | "$130.00"       |
 // | 78        | "$0.78"         |
 // | 9         | "$0.09"         |
+// | 0         | "$0.00"         |
 // | -9        | "-$0.09"        |
-
+// | -78       | "-$0.78"        |
+// | -13000000 | "-$130,000.00"  |
 func dollars(cents int64) string {
-	// Get the value in dollars
+	// Get the value in dollars.
 	dollarsValue := float64(cents) / 100
 
-	// Initialize the buffer to store the string result .
-	// Check for a negative value
+	// Initialize the buffer to store the string result.
 	var buf bytes.Buffer
+
+	// Check for a negative value.
 	if dollarsValue < 0 {
 		buf.WriteString("-")
 		// Convert the negative value to a positive value. The code
@@ -87,27 +87,29 @@ func dollars(cents int64) string {
 	}
 	buf.WriteString("$")
 
-	// Split the value into integer and decimal
+	// Split the value into integer and decimal.
 	parts := strings.Split(strconv.FormatFloat(dollarsValue, 'f', -1, 64), ".")
 
-	// Process the integer part
+	// Process the integer part.
 	var position int
 	var integerPart = parts[0]
 
-	// If the integerPart is not divisible by 3. Write to the buffer the surplus
+	// Because the number of integer is divided per thousand(3 letters).
+	// Check if the integerPart is not divisible by 3, write the surplus to the buffer.
 	if len(integerPart)%3 != 0 {
 		position += len(integerPart) % 3
 		buf.WriteString(integerPart[:position])
 		buf.WriteString(",")
 	}
-	// Write to the buffer the divisible by 3 number part
+
+	// Do a loop to write the remaining letters of integer part to the buffer.
 	for ; position < len(integerPart); position += 3 {
 		buf.WriteString(integerPart[position : position+3])
 		buf.WriteString(",")
 	}
 	buf.Truncate(buf.Len() - 1)
 
-	// Process the decimals part
+	// Process the decimals part.
 	buf.WriteString(".")
 	if len(parts) > 1 {
 		buf.WriteString(parts[1])
