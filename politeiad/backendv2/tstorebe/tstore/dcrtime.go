@@ -8,13 +8,12 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 
 	dcrtime "github.com/decred/dcrtime/api/v2"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 // dcrtimeClient is a client for interacting with the dcrtime API.
@@ -62,9 +61,9 @@ func (c *dcrtimeClient) makeReq(method string, route string, v interface{}) ([]b
 	if r.StatusCode != http.StatusOK {
 		e, err := util.GetErrorFromJSON(r.Body)
 		if err != nil {
-			return nil, fmt.Errorf("%v", r.Status)
+			return nil, errors.Errorf("%v", r.Status)
 		}
-		return nil, fmt.Errorf("%v: %v", r.Status, e)
+		return nil, errors.Errorf("%v: %v", r.Status, e)
 	}
 
 	return util.RespBody(r), nil
@@ -77,7 +76,7 @@ func (c *dcrtimeClient) timestampBatch(id string, digests []string) (*dcrtime.Ti
 	// Setup request
 	for _, v := range digests {
 		if !isDigestSHA256(v) {
-			return nil, fmt.Errorf("invalid digest: %v", v)
+			return nil, errors.Errorf("invalid digest: %v", v)
 		}
 	}
 	tb := dcrtime.TimestampBatch{
@@ -117,7 +116,7 @@ func (c *dcrtimeClient) verifyBatch(id string, digests []string) (*dcrtime.Verif
 	// Setup request
 	for _, v := range digests {
 		if !isDigestSHA256(v) {
-			return nil, fmt.Errorf("invalid digest: %v", v)
+			return nil, errors.Errorf("invalid digest: %v", v)
 		}
 	}
 	vb := dcrtime.VerifyBatch{
@@ -155,16 +154,16 @@ func (c *dcrtimeClient) verifyBatch(id string, digests []string) (*dcrtime.Verif
 				// nothing to verify.
 				continue
 			}
-			return nil, fmt.Errorf("VerifyAuthPath %v: %v", v.Digest, err)
+			return nil, errors.Errorf("VerifyAuthPath %v: %v", v.Digest, err)
 		}
 
 		// Verify merkle root
 		merkleRoot, err := hex.DecodeString(v.ChainInformation.MerkleRoot)
 		if err != nil {
-			return nil, fmt.Errorf("invalid merkle root: %v", err)
+			return nil, errors.Errorf("invalid merkle root: %v", err)
 		}
 		if !bytes.Equal(merkleRoot, root[:]) {
-			return nil, fmt.Errorf("invalid merkle root %v: got %x, want %x",
+			return nil, errors.Errorf("invalid merkle root %v: got %x, want %x",
 				v.Digest, merkleRoot, root[:])
 		}
 	}

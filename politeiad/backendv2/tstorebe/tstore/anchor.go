@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/types"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 )
 
@@ -81,14 +81,14 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 			l = v
 			// Sanity check
 			if l.LeafIndex != int64(i) {
-				return nil, fmt.Errorf("unexpected leaf index: got %v, want %v",
+				return nil, errors.Errorf("unexpected leaf index: got %v, want %v",
 					l.LeafIndex, i)
 			}
 			break
 		}
 	}
 	if l == nil {
-		return nil, fmt.Errorf("leaf not found")
+		return nil, errors.Errorf("leaf not found")
 	}
 
 	// Find the first two anchor that occurs after the leaf. If the
@@ -117,10 +117,10 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 	// Get the anchor records
 	blobs, err := t.store.Get(keys)
 	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
+		return nil, err
 	}
 	if len(blobs) != len(keys) {
-		return nil, fmt.Errorf("unexpected blobs count: got %v, want %v",
+		return nil, errors.Errorf("unexpected blobs count: got %v, want %v",
 			len(blobs), len(keys))
 	}
 
@@ -129,13 +129,13 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 	for _, v := range keys {
 		b, ok := blobs[v]
 		if !ok {
-			return nil, fmt.Errorf("blob not found %v", v)
+			return nil, errors.Errorf("blob not found %v", v)
 		}
 		be, err := store.Deblob(b)
 		if err != nil {
 			return nil, err
 		}
-		a, err := convertAnchorFromBlobEntry(*be)
+		a, err := anchorDecode(*be)
 		if err != nil {
 			return nil, err
 		}
@@ -181,21 +181,21 @@ func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	// Pull blob from key-value store
 	blobs, err := t.store.Get([]string{key})
 	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
+		return nil, err
 	}
 	if len(blobs) != 1 {
-		return nil, fmt.Errorf("unexpected blobs count: got %v, want 1",
+		return nil, errors.Errorf("unexpected blobs count: got %v, want 1",
 			len(blobs))
 	}
 	b, ok := blobs[key]
 	if !ok {
-		return nil, fmt.Errorf("blob not found %v", key)
+		return nil, errors.Errorf("blob not found %v", key)
 	}
 	be, err := store.Deblob(b)
 	if err != nil {
 		return nil, err
 	}
-	a, err := convertAnchorFromBlobEntry(*be)
+	a, err := anchorDecode(*be)
 	if err != nil {
 		return nil, err
 	}
@@ -209,15 +209,15 @@ func (t *Tstore) anchorSave(a anchor) error {
 	// Sanity checks
 	switch {
 	case a.TreeID == 0:
-		return fmt.Errorf("invalid tree id of 0")
+		return errors.Errorf("invalid tree id of 0")
 	case a.LogRoot == nil:
-		return fmt.Errorf("log root not found")
+		return errors.Errorf("log root not found")
 	case a.VerifyDigest == nil:
-		return fmt.Errorf("verify digest not found")
+		return errors.Errorf("verify digest not found")
 	}
 
 	// Save anchor record to the kv store
-	be, err := convertBlobEntryFromAnchor(a)
+	be, err := anchorEncode(a)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 	kv := map[string][]byte{key: b}
 	err = t.store.Put(kv, false)
 	if err != nil {
-		return fmt.Errorf("store Put: %v", err)
+		return err
 	}
 
 	// Append anchor leaf to tlog
@@ -246,10 +246,10 @@ func (t *Tstore) anchorSave(a anchor) error {
 	}
 	queued, _, err := t.tlog.LeavesAppend(a.TreeID, leaves)
 	if err != nil {
-		return fmt.Errorf("LeavesAppend: %v", err)
+		return err
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong number of queud leaves: got %v, want 1",
+		return errors.Errorf("wrong number of queud leaves: got %v, want 1",
 			len(queued))
 	}
 	failed := make([]string, 0, len(queued))
@@ -260,7 +260,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 		}
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("append leaves failed: %v", failed)
+		return errors.Errorf("append leaves failed: %v", failed)
 	}
 
 	log.Debugf("Anchor saved for tree %v at height %v",
@@ -320,7 +320,7 @@ func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
 
 		vbr, err := t.dcrtime.verifyBatch(anchorID, digests)
 		if err != nil {
-			exitErr = fmt.Errorf("verifyBatch: %v", err)
+			exitErr = err
 			return
 		}
 
@@ -460,7 +460,7 @@ func (t *Tstore) anchorTrees() error {
 
 	trees, err := t.tlog.TreesAll()
 	if err != nil {
-		return fmt.Errorf("TreesAll: %v", err)
+		return err
 	}
 
 	// digests contains the SHA256 digests of the LogRootV1.RootHash
@@ -488,7 +488,7 @@ func (t *Tstore) anchorTrees() error {
 			// leaves. A tree with no leaves does not need to be anchored.
 			leavesAll, err := t.tlog.LeavesAll(v.TreeId)
 			if err != nil {
-				return fmt.Errorf("LeavesAll: %v", err)
+				return err
 			}
 			if len(leavesAll) == 0 {
 				// Tree does not have any leaves. Nothing to do.
@@ -497,14 +497,14 @@ func (t *Tstore) anchorTrees() error {
 
 		case err != nil:
 			// All other errors
-			return fmt.Errorf("anchorLatest %v: %v", v.TreeId, err)
+			return err
 
 		default:
 			// Anchor record found. If the anchor height differs from the
 			// current height then the tree needs to be anchored.
 			_, lr, err := t.tlog.SignedLogRoot(v)
 			if err != nil {
-				return fmt.Errorf("SignedLogRoot %v: %v", v.TreeId, err)
+				return err
 			}
 			// Subtract one from the current height to account for the
 			// anchor leaf.
@@ -519,7 +519,7 @@ func (t *Tstore) anchorTrees() error {
 		// list of anchors.
 		_, lr, err := t.tlog.SignedLogRoot(v)
 		if err != nil {
-			return fmt.Errorf("SignedLogRoot %v: %v", v.TreeId, err)
+			return err
 		}
 		anchors = append(anchors, anchor{
 			TreeID:  v.TreeId,
@@ -543,7 +543,7 @@ func (t *Tstore) anchorTrees() error {
 
 	tbr, err := t.dcrtime.timestampBatch(anchorID, digests)
 	if err != nil {
-		return fmt.Errorf("timestampBatch: %v", err)
+		return err
 	}
 	var failed bool
 	for i, v := range tbr.Results {
@@ -564,7 +564,7 @@ func (t *Tstore) anchorTrees() error {
 		}
 	}
 	if failed {
-		return fmt.Errorf("dcrtime failed to timestamp digests")
+		return errors.Errorf("dcrtime failed to timestamp digests")
 	}
 
 	// Launch go routine that polls dcrtime for the anchor tx
@@ -573,7 +573,8 @@ func (t *Tstore) anchorTrees() error {
 	return nil
 }
 
-func convertBlobEntryFromAnchor(a anchor) (*store.BlobEntry, error) {
+// anchorEncode encodes an anchor record into a blob entry.
+func anchorEncode(a anchor) (*store.BlobEntry, error) {
 	data, err := json.Marshal(a)
 	if err != nil {
 		return nil, err
@@ -590,39 +591,40 @@ func convertBlobEntryFromAnchor(a anchor) (*store.BlobEntry, error) {
 	return &be, nil
 }
 
-func convertAnchorFromBlobEntry(be store.BlobEntry) (*anchor, error) {
+// anchorDecode decodes a blob entry into a anchor record.
+func anchorDecode(be store.BlobEntry) (*anchor, error) {
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
+		return nil, errors.Errorf("decode DataHint: %v", err)
 	}
 	var dd store.DataDescriptor
 	err = json.Unmarshal(b, &dd)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+		return nil, errors.Errorf("unmarshal DataHint: %v", err)
 	}
 	if dd.Descriptor != dataDescriptorAnchor {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, want %v",
+		return nil, errors.Errorf("unexpected data descriptor: got %v, want %v",
 			dd.Descriptor, dataDescriptorAnchor)
 	}
 
 	// Decode data
 	b, err = base64.StdEncoding.DecodeString(be.Data)
 	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
+		return nil, errors.Errorf("decode Data: %v", err)
 	}
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
+		return nil, errors.Errorf("decode digest: %v", err)
 	}
 	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+		return nil, errors.Errorf("data is not coherent; got %x, want %x",
 			util.Digest(b), digest)
 	}
 	var a anchor
 	err = json.Unmarshal(b, &a)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal anchor: %v", err)
+		return nil, errors.Errorf("unmarshal anchor: %v", err)
 	}
 
 	return &a, nil
