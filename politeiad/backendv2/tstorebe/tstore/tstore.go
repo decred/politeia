@@ -8,8 +8,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -40,8 +38,6 @@ import (
 // failed calls.
 type Tstore struct {
 	sync.RWMutex
-	// TODO remove dataDir
-	dataDir string
 	net     chaincfg.Params
 	tlog    tlogClient
 	store   store.BlobKV
@@ -194,14 +190,7 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
-	// Setup datadir for this tstore instance
-	dataDir = filepath.Join(dataDir)
-	err := os.MkdirAll(dataDir, 0700)
-	if err != nil {
-		return nil, err
-	}
-
+func New(net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup trillian client
 	log.Infof("Tlog host: %v", tlogHost)
 	tlogKey, err := deriveTlogKey(kvstore, tlogPass)
@@ -228,7 +217,6 @@ func New(appDir, dataDir string, net chaincfg.Params, kvstore store.BlobKV, tlog
 
 	// Setup tstore
 	t := Tstore{
-		dataDir: dataDir,
 		net:     net,
 		tlog:    tlogClient,
 		store:   kvstore,

@@ -1048,8 +1048,8 @@ func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcr
 	}
 
 	// Setup tstore instances
-	ts, err := tstore.New(appDir, dataDir, net, kv,
-		tlogHost, tlogPass, dcrtimeHost, dcrtimeCert)
+	ts, err := tstore.New(net, kv, tlogHost, tlogPass,
+		dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, err
 	}
