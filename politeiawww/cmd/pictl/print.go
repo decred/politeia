@@ -95,7 +95,8 @@ func dollars(cents int64) string {
 	var integerPart = parts[0]
 
 	// Because the number of integer is divided per thousand(3 letters).
-	// Check if the integerPart is not divisible by 3, write the surplus to the buffer.
+	// Check if the integerPart is not divisible by 3,
+	// write the surplus to the buffer.
 	if len(integerPart)%3 != 0 {
 		position += len(integerPart) % 3
 		buf.WriteString(integerPart[:position])
