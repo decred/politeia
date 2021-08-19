@@ -84,6 +84,9 @@ func printProposalFiles(files []rcv1.File) error {
 			printf("  Name  : %v\n", pm.Name)
 			printf("  Domain: %v\n", pm.Domain)
 		}
+		if pm.LegacyToken != "" {
+			printf("  LegacyToken: %v\n", pm.LegacyToken)
+		}
 	}
 
 	// Print vote metadata if exists.

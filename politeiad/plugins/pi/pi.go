@@ -284,6 +284,7 @@ type ProposalMetadata struct {
 	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
 	Domain    string `json:"domain"`    // Proposal domain
 
+	// TODO: comment
 	LegacyToken string `json:"legacytoken"`
 }
 

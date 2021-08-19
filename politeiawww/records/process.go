@@ -259,6 +259,9 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 		return nil, err
 	}
 
+	// TODO: found bug. r.record returning "user not found" error
+	// and not keying error correctly.
+
 	// Only admins and the record author are allowed to retrieve
 	// unvetted record files. Remove files if the user is not an admin
 	// or the author. This is a public route so a user may not exist.
