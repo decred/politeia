@@ -6,11 +6,11 @@ package tstorebe
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/inv"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -57,8 +57,12 @@ func newRecordInv() *recordInv {
 func (t *tstoreBackend) invAdd(tx store.Tx, token []byte, timestamp int64) error {
 	log.Debugf("Inv add to unvetted %x", token)
 
-	err := t.inv.unvetted.Add(tx, hex.EncodeToString(token),
-		uint64(bitsStatusUnreviewed), timestamp)
+	e := inv.Entry{
+		Token:     hex.EncodeToString(token),
+		Bits:      uint64(bitsStatusUnreviewed),
+		Timestamp: timestamp,
+	}
+	err := t.inv.unvetted.Add(tx, e)
 	if err != nil {
 		return err
 	}
@@ -72,21 +76,24 @@ func (t *tstoreBackend) invUpdate(tx store.Tx, state backend.StateT, token []byt
 	log.Debugf("Inv update %v %x to %v",
 		backend.States[state], token, backend.Statuses[status])
 
+	e := inv.Entry{
+		Token:     hex.EncodeToString(token),
+		Bits:      uint64(invBitsForStatus(status)),
+		Timestamp: timestamp,
+	}
 	switch state {
 	case backend.StateUnvetted:
-		err := t.inv.unvetted.Update(tx, hex.EncodeToString(token),
-			uint64(invBitsForStatus(status)), timestamp)
+		err := t.inv.unvetted.Update(tx, e)
 		if err != nil {
 			return err
 		}
 	case backend.StateVetted:
-		err := t.inv.vetted.Update(tx, hex.EncodeToString(token),
-			uint64(invBitsForStatus(status)), timestamp)
+		err := t.inv.vetted.Update(tx, e)
 		if err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("invalid record state: %v", state)
+		return errors.Errorf("invalid record state: %v", state)
 	}
 
 	return nil
@@ -98,8 +105,8 @@ func (t *tstoreBackend) invMoveToVetted(tx store.Tx, token []byte, timestamp int
 	log.Debugf("Inv del from unvetted %x", token)
 
 	// Del entry from unvetted inv
-	tkn := hex.EncodeToString(token)
-	err := t.inv.unvetted.Del(tx, tkn)
+	hexToken := hex.EncodeToString(token)
+	err := t.inv.unvetted.Del(tx, hexToken)
 	if err != nil {
 		return err
 	}
@@ -107,9 +114,14 @@ func (t *tstoreBackend) invMoveToVetted(tx store.Tx, token []byte, timestamp int
 	log.Debugf("Inv add to vetted %x", token)
 
 	// Add entry to vetted inv
-	err = t.inv.vetted.Add(tx, tkn, uint64(bitsStatusPublic), timestamp)
+	e := inv.Entry{
+		Token:     hexToken,
+		Bits:      uint64(bitsStatusPublic),
+		Timestamp: timestamp,
+	}
+	err = t.inv.vetted.Add(tx, e)
 	if err != nil {
-		return fmt.Errorf("vetted add: %v", err)
+		return err
 	}
 
 	return nil
@@ -228,7 +240,7 @@ func (t *tstoreBackend) invByStatus(sg store.Getter, state backend.StateT, statu
 		}
 		vetted[status] = tokens
 	default:
-		return nil, fmt.Errorf("invalid record state %v", state)
+		return nil, errors.Errorf("invalid record state %v", state)
 	}
 
 	return &invByStatus{
@@ -257,7 +269,7 @@ func (t *tstoreBackend) invOrdered(sg store.Getter, state backend.StateT, pageSi
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("invalid record state %v", state)
+		return nil, errors.Errorf("invalid record state %v", state)
 	}
 
 	return tokens, nil
