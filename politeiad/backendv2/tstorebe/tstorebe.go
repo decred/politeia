@@ -33,9 +33,6 @@ var (
 // tstoreBackend implements the backendv2 Backend interface using a tstore as
 // the backing data store.
 type tstoreBackend struct {
-	// TODO Remove datadir
-	appDir   string
-	dataDir  string
 	settings backend.BackendSettings
 	tstore   *tstore.Tstore
 
@@ -1034,15 +1031,15 @@ func (t *tstoreBackend) Close() {
 func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string, fi identity.FullIdentity, net chaincfg.Params) (*tstoreBackend, error) {
 	// Setup cache key-value store
 	log.Infof("Database type: %v", dbType)
-	kv, err := newBlobKV(
-		blobKVOpts{
-			Type:     dbType,
-			AppDir:   appDir,
-			DataDir:  dataDir,
-			Host:     dbHost,
-			Password: dbPass,
-			Net:      net.Name,
-		})
+	opts := blobKVOpts{
+		Type:     dbType,
+		AppDir:   appDir,
+		DataDir:  dataDir,
+		Host:     dbHost,
+		Password: dbPass,
+		Net:      net.Name,
+	}
+	kv, err := newBlobKV(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1056,8 +1053,6 @@ func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcr
 
 	// Setup backend
 	t := tstoreBackend{
-		appDir:  appDir,
-		dataDir: dataDir,
 		settings: backend.BackendSettings{
 			Identity: fi,
 			Net:      net,
