@@ -172,6 +172,10 @@ func (p *piPlugin) proposalDomainIsValid(domain string) bool {
 	return found
 }
 
+func (p *piPlugin) updateTitleIsValid(title string) bool {
+	return p.titleRegexp.MatchString(title)
+}
+
 // isRFP returns true if the given vote metadata contains the metadata for
 // an RFP.
 func isRFP(vm *ticketvote.VoteMetadata) bool {
@@ -438,7 +442,7 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 			if err != nil {
 				return err
 			}
-			// Check if that's a new author update
+			// Option 1: the new comment is a new author update
 			if n.ExtraData != "" && n.ExtraDataHint != "" {
 				switch n.ExtraDataHint {
 				case pi.ProposalUpdateHint:
@@ -448,11 +452,26 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 					if err != nil {
 						return err
 					}
-					// XXX Verify update title
+					// Verify update title
+					if !p.updateTitleIsValid(pum.Title) {
+						return backend.PluginError{
+							PluginID:     pi.PluginID,
+							ErrorCode:    uint32(pi.ErrorCodeUpdateTitleInvalid),
+							ErrorContext: p.titleRegexp.String(),
+						}
+					}
+					// New valid author update
+					return nil
 				default:
-					// XXX reuturn invalid extra data hint error
+					return backend.PluginError{
+						PluginID:  pi.PluginID,
+						ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
+					}
 				}
 			}
+			// Option 2: the new comment is a reply on one of the comments
+			// of the latest author update or on the update itself.
+
 		// If that's a comment vote then it must be on one of the latest
 		// author update thread comments.
 		case comments.CmdVote:

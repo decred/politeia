@@ -194,8 +194,16 @@ const (
 	// is provided.
 	ErrorCodeBillingStatusInvalid = 16
 
+	// ErrorCodeUpdateTitleInvalid is returned when an update title
+	// does not adhere to the title setting.
+	ErrorCodeUpdateTitleInvalid = 17
+
+	// ErrorCodeExtraDataHintInvalid is returned when the extra data hint
+	// is invalid
+	ErrorCodeExtraDataHintInvalid = 18
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 17
+	ErrorCodeLast ErrorCodeT = 19
 )
 
 var (
@@ -218,6 +226,8 @@ var (
 		ErrorCodeSignatureInvalid:              "signature invalid",
 		ErrorCodeBillingStatusChangeNotAllowed: "billing status change is not allowed",
 		ErrorCodeBillingStatusInvalid:          "billing status invalid",
+		ErrorCodeUpdateTitleInvalid:            "update title invalid",
+		ErrorCodeExtraDataHintInvalid:          "extra data hint invalid",
 	}
 )
 
