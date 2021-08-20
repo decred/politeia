@@ -434,7 +434,6 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 		switch cmd {
 		// If that's a new comment then it must be either a new author
 		// update or a comment on the latest author update thread.
-		//
 		case comments.CmdNew:
 			// Decode payload
 			var n comments.New

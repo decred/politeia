@@ -79,11 +79,11 @@ const (
 	SettingImageFileSizeMax uint32 = 512 * 1024
 
 	// SettingTitleLengthMin is the default minimum number of
-	// characters that a proposal name can be.
+	// characters that a proposal name or a proposal update title can be.
 	SettingTitleLengthMin uint32 = 8
 
 	// SettingTitleLengthMax is the default maximum number of
-	// characters that a proposal name can be.
+	// characters that a proposal name or a proposal update title can be.
 	SettingTitleLengthMax uint32 = 80
 
 	// SettingProposalAmountMin is the default minimum funding amount
@@ -105,7 +105,7 @@ const (
 
 var (
 	// SettingTitleSupportedChars contains the supported
-	// characters in a proposal name.
+	// characters in a proposal name or a proposal update title.
 	SettingTitleSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#",
 		"/", "(", ")", "!", "?", "\"", "'",
