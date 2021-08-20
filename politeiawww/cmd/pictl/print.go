@@ -73,49 +73,59 @@ func printInPlace(s string) {
 // | -13000000 | "-$130,000.00"  |
 func dollars(cents int64) string {
 	// Get the value in dollars.
-	dollarsValue := float64(cents) / 100
+	dollars := float64(cents) / 100
 
 	// Initialize the buffer to store the string result.
 	var buf bytes.Buffer
 
 	// Check for a negative value.
-	if dollarsValue < 0 {
+	if dollars < 0 {
 		buf.WriteString("-")
-		// Convert the negative value to a positive value. The code
-		// below can only handle positive values.
-		dollarsValue = 0 - dollarsValue
+		// Convert the negative value to a positive value.
+		// The code below can only handle positive values.
+		dollars = 0 - dollars
 	}
 	buf.WriteString("$")
 
-	// Split the value into integer and decimal.
-	parts := strings.Split(strconv.FormatFloat(dollarsValue, 'f', -1, 64), ".")
+	// Convert the dollar value into a string and split it into a
+	// integer and decimal. This is done so that commas can be added
+	// to the integer.
+	var (
+		f       = strconv.FormatFloat(dollars, 'f', -1, 64)
+		s       = strings.Split(f, ".")
+		integer = s[0]
 
-	// Process the integer part.
-	var position int
-	var integerPart = parts[0]
-
-	// Because the number of integer is divided per thousand(3 letters).
-	// Check if the integerPart is not divisible by 3,
-	// write the surplus to the buffer.
-	if len(integerPart)%3 != 0 {
-		position += len(integerPart) % 3
-		buf.WriteString(integerPart[:position])
-		buf.WriteString(",")
+		// The value may or may not have a decimal. Default to 0.
+		decimal = ".00"
+	)
+	if len(s) > 1 {
+		// The value includes a decimal. Overwrite the default.
+		decimal = "." + s[1]
 	}
 
-	// Do a loop to write the remaining letters of integer part to the buffer.
-	for ; position < len(integerPart); position += 3 {
-		buf.WriteString(integerPart[position : position+3])
-		buf.WriteString(",")
-	}
-	buf.Truncate(buf.Len() - 1)
+	// Write the integer to the buffer one character at a time. Commas
+	// are inserted in their appropriate places.
+	//
+	// Examples
+	// "100000" to "100,000"
+	// "1000000" to "1,000,000"
+	for i, c := range integer {
+		// A comma should be inserted if the character index is divisible
+		// by 3 when counting from the right side of the string.
+		divByThree := (len(integer)-i)%3 == 0
 
-	// Process the decimals part.
-	buf.WriteString(".")
-	if len(parts) > 1 {
-		buf.WriteString(parts[1])
-	} else {
-		buf.WriteString("00")
+		// A comma should never be inserted for the first character.
+		// Ex: "100000" should not be ",100,000"
+		if divByThree && i > 0 {
+			buf.WriteString(",")
+		}
+
+		// Write the character to the buffer.
+		buf.WriteRune(c)
 	}
+
+	// Write the decimal to the buffer.
+	buf.WriteString(decimal)
+
 	return buf.String()
 }
