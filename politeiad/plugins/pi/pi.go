@@ -30,17 +30,17 @@ const (
 	// SettingImageFileSizeMax plugin setting.
 	SettingKeyImageFileSizeMax = "imagefilesizemax"
 
-	// SettingKeyProposalNameLengthMin is the plugin setting key for
-	// the SettingProposalNameLengthMin plugin setting.
-	SettingKeyProposalNameLengthMin = "proposalnamelengthmin"
+	// SettingKeyTitleLengthMin is the plugin setting key for
+	// the SettingTitleLengthMin plugin setting.
+	SettingKeyTitleLengthMin = "titlelengthmin"
 
-	// SettingKeyProposalNameLengthMax is the plugin setting key for
-	// the SettingProposalNameLengthMax plugin setting.
-	SettingKeyProposalNameLengthMax = "proposalnamelengthmax"
+	// SettingKeyTitleLengthMax is the plugin setting key for
+	// the SettingTitleLengthMax plugin setting.
+	SettingKeyTitleLengthMax = "titlelengthmax"
 
-	// SettingKeyProposalNameSupportedChars is the plugin setting key
-	// for the SettingProposalNameSupportedChars plugin setting.
-	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
+	// SettingKeyTitleSupportedChars is the plugin setting key
+	// for the SettingTitleSupportedChars plugin setting.
+	SettingKeyTitleSupportedChars = "titlesupportedchars"
 
 	// SettingKeyProposalAmountMin is the plugin setting key for
 	// the SettingProposalAmountMin plugin setting.
@@ -61,10 +61,6 @@ const (
 	// SettingKeyProposalDomains is the plugin setting key for the
 	// SettingProposalDomains plugin setting.
 	SettingKeyProposalDomains = "proposaldomains"
-
-	// SettingKeyUpdateTitleSupportedChars is the plugin setting key
-	// for the SettingUpdateTitleSupportedChars plugin setting.
-	SettingKeyUpdateTitleSupportedChars = "updatetitlesupportedchars"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -82,13 +78,13 @@ const (
 	// an image file in bytes.
 	SettingImageFileSizeMax uint32 = 512 * 1024
 
-	// SettingProposalNameLengthMin is the default minimum number of
+	// SettingTitleLengthMin is the default minimum number of
 	// characters that a proposal name can be.
-	SettingProposalNameLengthMin uint32 = 8
+	SettingTitleLengthMin uint32 = 8
 
-	// SettingProposalNameLengthMax is the default maximum number of
+	// SettingTitleLengthMax is the default maximum number of
 	// characters that a proposal name can be.
-	SettingProposalNameLengthMax uint32 = 80
+	SettingTitleLengthMax uint32 = 80
 
 	// SettingProposalAmountMin is the default minimum funding amount
 	// in cents a proposal can have.
@@ -108,9 +104,9 @@ const (
 )
 
 var (
-	// SettingProposalNameSupportedChars contains the supported
+	// SettingTitleSupportedChars contains the supported
 	// characters in a proposal name.
-	SettingProposalNameSupportedChars = []string{
+	SettingTitleSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#",
 		"/", "(", ")", "!", "?", "\"", "'",
 	}
@@ -121,12 +117,6 @@ var (
 		"marketing",
 		"research",
 		"design",
-	}
-
-	// SettingUpdateTitleSupportedChars contains the supported
-	// characters in a proposal update title.
-	SettingUpdateTitleSupportedChars = []string{
-		"A-z", "0-9",
 	}
 )
 

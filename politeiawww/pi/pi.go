@@ -76,18 +76,17 @@ func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
-		textFileSizeMax           uint32
-		imageFileCountMax         uint32
-		imageFileSizeMax          uint32
-		nameLengthMin             uint32
-		nameLengthMax             uint32
-		nameSupportedChars        []string
-		amountMin                 uint64
-		amountMax                 uint64
-		startDateMin              int64
-		endDateMax                int64
-		domains                   []string
-		updateTitleSupportedChars []string
+		textFileSizeMax     uint32
+		imageFileCountMax   uint32
+		imageFileSizeMax    uint32
+		titleLengthMin      uint32
+		titleLengthMax      uint32
+		titleSupportedChars []string
+		amountMin           uint64
+		amountMax           uint64
+		startDateMin        int64
+		endDateMax          int64
+		domains             []string
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -114,20 +113,20 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 					return nil, err
 				}
 				imageFileSizeMax = uint32(u)
-			case pi.SettingKeyProposalNameLengthMin:
+			case pi.SettingKeyTitleLengthMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
-				nameLengthMin = uint32(u)
-			case pi.SettingKeyProposalNameLengthMax:
+				titleLengthMin = uint32(u)
+			case pi.SettingKeyTitleLengthMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
-				nameLengthMax = uint32(u)
-			case pi.SettingKeyProposalNameSupportedChars:
-				err := json.Unmarshal([]byte(v.Value), &nameSupportedChars)
+				titleLengthMax = uint32(u)
+			case pi.SettingKeyTitleSupportedChars:
+				err := json.Unmarshal([]byte(v.Value), &titleSupportedChars)
 				if err != nil {
 					return nil, err
 				}
@@ -167,11 +166,6 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
-			case pi.SettingKeyUpdateTitleSupportedChars:
-				err := json.Unmarshal([]byte(v.Value), &updateTitleSupportedChars)
-				if err != nil {
-					return nil, err
-				}
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -190,15 +184,15 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case imageFileSizeMax == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyImageFileSizeMax)
-	case nameLengthMin == 0:
+	case titleLengthMin == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
-			pi.SettingKeyProposalNameLengthMin)
-	case nameLengthMax == 0:
+			pi.SettingKeyTitleLengthMin)
+	case titleLengthMax == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
-			pi.SettingKeyProposalNameLengthMax)
-	case len(nameSupportedChars) == 0:
+			pi.SettingKeyTitleLengthMax)
+	case len(titleSupportedChars) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
-			pi.SettingKeyProposalNameSupportedChars)
+			pi.SettingKeyTitleSupportedChars)
 	case amountMin == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalAmountMin)
@@ -211,9 +205,6 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case len(domains) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
-	case len(updateTitleSupportedChars) == 0:
-		return nil, errors.Errorf("plugin setting not found: %v",
-			pi.SettingKeyUpdateTitleSupportedChars)
 	}
 
 	// Setup pi context
@@ -225,18 +216,17 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 		events:    e,
 		mail:      m,
 		policy: &v1.PolicyReply{
-			TextFileSizeMax:           textFileSizeMax,
-			ImageFileCountMax:         imageFileCountMax,
-			ImageFileSizeMax:          imageFileSizeMax,
-			NameLengthMin:             nameLengthMin,
-			NameLengthMax:             nameLengthMax,
-			NameSupportedChars:        nameSupportedChars,
-			AmountMin:                 amountMin,
-			AmountMax:                 amountMax,
-			StartDateMin:              startDateMin,
-			EndDateMax:                endDateMax,
-			Domains:                   domains,
-			UpdateTitleSupportedChars: updateTitleSupportedChars,
+			TextFileSizeMax:    textFileSizeMax,
+			ImageFileCountMax:  imageFileCountMax,
+			ImageFileSizeMax:   imageFileSizeMax,
+			NameLengthMin:      titleLengthMin,
+			NameLengthMax:      titleLengthMax,
+			NameSupportedChars: titleSupportedChars,
+			AmountMin:          amountMin,
+			AmountMax:          amountMax,
+			StartDateMin:       startDateMin,
+			EndDateMax:         endDateMax,
+			Domains:            domains,
 		},
 	}
 

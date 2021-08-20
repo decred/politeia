@@ -275,25 +275,25 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 
 		b strings.Builder
 	)
-	for i := 0; i < int(pi.SettingProposalNameLengthMin)-1; i++ {
+	for i := 0; i < int(pi.SettingTitleLengthMin)-1; i++ {
 		b.WriteString("a")
 	}
 	nameTooShort = b.String()
 	b.Reset()
 
-	for i := 0; i < int(pi.SettingProposalNameLengthMax)+1; i++ {
+	for i := 0; i < int(pi.SettingTitleLengthMax)+1; i++ {
 		b.WriteString("a")
 	}
 	nameTooLong = b.String()
 	b.Reset()
 
-	for i := 0; i < int(pi.SettingProposalNameLengthMin); i++ {
+	for i := 0; i < int(pi.SettingTitleLengthMin); i++ {
 		b.WriteString("a")
 	}
 	nameMinLength = b.String()
 	b.Reset()
 
-	for i := 0; i < int(pi.SettingProposalNameLengthMax); i++ {
+	for i := 0; i < int(pi.SettingTitleLengthMax); i++ {
 		b.WriteString("a")
 	}
 	nameMaxLength = b.String()

@@ -93,20 +93,20 @@ func (p *piPlugin) hookEditRecordPre(payload string) error {
 
 // hookCommentNew adds pi specific validation onto the comments plugin New
 // command.
-func (p *piPlugin) hookCommentNew(token []byte) error {
-	return p.commentWritesAllowed(token)
+func (p *piPlugin) hookCommentNew(token []byte, cmd, payload string) error {
+	return p.commentWritesAllowed(token, cmd, payload)
 }
 
 // hookCommentDel adds pi specific validation onto the comments plugin Del
 // command.
-func (p *piPlugin) hookCommentDel(token []byte) error {
-	return p.commentWritesAllowed(token)
+func (p *piPlugin) hookCommentDel(token []byte, cmd, payload string) error {
+	return p.commentWritesAllowed(token, cmd, payload)
 }
 
 // hookCommentVote adds pi specific validation onto the comments plugin Vote
 // command.
-func (p *piPlugin) hookCommentVote(token []byte) error {
-	return p.commentWritesAllowed(token)
+func (p *piPlugin) hookCommentVote(token []byte, cmd, payload string) error {
+	return p.commentWritesAllowed(token, cmd, payload)
 }
 
 // hookPluginPre extends plugin write commands from other plugins with pi
@@ -124,11 +124,11 @@ func (p *piPlugin) hookPluginPre(payload string) error {
 	case comments.PluginID:
 		switch hpp.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(hpp.Token)
+			return p.hookCommentNew(hpp.Token, hpp.Cmd, hpp.Payload)
 		case comments.CmdDel:
-			return p.hookCommentDel(hpp.Token)
+			return p.hookCommentDel(hpp.Token, hpp.Cmd, hpp.Payload)
 		case comments.CmdVote:
-			return p.hookCommentVote(hpp.Token)
+			return p.hookCommentVote(hpp.Token, hpp.Cmd, hpp.Payload)
 		}
 	}
 
@@ -138,7 +138,7 @@ func (p *piPlugin) hookPluginPre(payload string) error {
 // proposalNameIsValid returns whether the provided name is a valid proposal
 // name.
 func (p *piPlugin) proposalNameIsValid(name string) bool {
-	return p.proposalNameRegexp.MatchString(name)
+	return p.titleRegexp.MatchString(name)
 }
 
 // proposalStartDateIsValid returns whether the provided start date is valid.
@@ -321,7 +321,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeProposalNameInvalid),
-			ErrorContext: p.proposalNameRegexp.String(),
+			ErrorContext: p.titleRegexp.String(),
 		}
 	}
 
@@ -392,9 +392,9 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 
 // commentWritesAllowed verifies that a proposal has a vote status that allows
 // comment writes to be made to the proposal. This includes both comments and
-// comment votes. Comment writes are allowed up until the proposal has finished
-// voting.
-func (p *piPlugin) commentWritesAllowed(token []byte) error {
+// comment votes. Comment writes are allowed up until the proposal has
+// finished voting.
+func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error {
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
@@ -404,6 +404,61 @@ func (p *piPlugin) commentWritesAllowed(token []byte) error {
 		ticketvote.VoteStatusStarted:
 		// Comment writes are allowed on these vote statuses
 		return nil
+	case ticketvote.VoteStatusApproved:
+		// Get billing status to determine whether to allow author updates
+		// or not.
+		var bsc pi.BillingStatusChange
+		billingStatuses, err := p.billingStatuses(token)
+		if err != nil {
+			return err
+		}
+		// We assume here that admins can set a billing status only once
+		if len(billingStatuses) > 0 {
+			bsc = billingStatuses[0]
+			if bsc.Status == pi.BillingStatusClosed ||
+				bsc.Status == pi.BillingStatusCompleted {
+				// If billing status is set to closed or completed comment writes
+				// are not allowed.
+				return backend.PluginError{
+					PluginID:  pi.PluginID,
+					ErrorCode: uint32(pi.ErrorCodeBillingStatusInvalid),
+					ErrorContext: "billing status is set to closed/completed;" +
+						" proposal is locked",
+				}
+			}
+		}
+		switch cmd {
+		// If that's a new comment then it must be either a new author
+		// update or a comment on the latest author update thread.
+		//
+		case comments.CmdNew:
+			// Decode payload
+			var n comments.New
+			err := json.Unmarshal([]byte(payload), &n)
+			if err != nil {
+				return err
+			}
+			// Check if that's a new author update
+			if n.ExtraData != "" && n.ExtraDataHint != "" {
+				switch n.ExtraDataHint {
+				case pi.ProposalUpdateHint:
+					// Decode comment extra data
+					var pum pi.ProposalUpdateMetadata
+					err = json.Unmarshal([]byte(n.ExtraData), &pum)
+					if err != nil {
+						return err
+					}
+					// XXX Verify update title
+				default:
+					// XXX reuturn invalid extra data hint error
+				}
+			}
+		// If that's a comment vote then it must be on one of the latest
+		// author update thread comments.
+		case comments.CmdVote:
+			// XXX
+			return nil
+		}
 	default:
 		// Vote status does not allow writes
 		return backend.PluginError{
@@ -412,6 +467,7 @@ func (p *piPlugin) commentWritesAllowed(token []byte) error {
 			ErrorContext: "vote has ended; proposal is locked",
 		}
 	}
+	return nil
 }
 
 // tokenDecode returns the decoded censorship token. An error will be returned
