@@ -16,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 )
@@ -394,10 +395,95 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 	return &sr, nil
 }
 
+// comments requests all comments on a record from the comments plugin.
+func (p *piPlugin) comments(token []byte) (*comments.GetAllReply, error) {
+	reply, err := p.backend.PluginRead(token, comments.PluginID,
+		comments.CmdGetAll, "")
+	if err != nil {
+		return nil, err
+	}
+	var gar comments.GetAllReply
+	err = json.Unmarshal([]byte(reply), &gar)
+	if err != nil {
+		return nil, err
+	}
+	return &gar, nil
+}
+
+// isAncestorOf returns whether the given parentID is an ancestor of the given
+// childID comment, by traveling the comment tree defined by
+// the ParentID of the child comment.
+func (p *piPlugin) isAncestorOf(ancestorID, childID uint32, cs []comments.Comment) bool {
+	if ancestorID == childID {
+		return true
+	}
+	// Convert comments slice to a map
+	var commentsMap map[uint32]comments.Comment
+	for _, c := range cs {
+		commentsMap[c.CommentID] = c
+	}
+	// Travel the comment tree to search for an ancestor
+	for {
+		current, _ := commentsMap[childID]
+		// If we reach the tree haed without visiting the provided
+		// ancestorID then it is not an ancestor.
+		if current.ParentID == 0 {
+			break
+		}
+		// Check if next parent in the tree is the ancestor
+		if current.ParentID == ancestorID {
+			return true
+		}
+		childID = current.ParentID
+	}
+	return false
+}
+
+// latestAuthorUpdate gets the latest author update on a record, if
+// the record has no author update it returns nil.
+func (p *piPlugin) latestAuthorUpdate(token []byte, cs []comments.Comment) (*comments.Comment, error) {
+	var latestAuthorUpdate comments.Comment
+	for _, c := range cs {
+		if c.ExtraDataHint != "" {
+			switch c.ExtraDataHint {
+			case pi.ProposalUpdateHint:
+				if c.Timestamp > latestAuthorUpdate.Timestamp {
+					latestAuthorUpdate = c
+				}
+			}
+		}
+	}
+	return &latestAuthorUpdate, nil
+}
+
+// recordAuthor returns the author's userID of the record associated with
+// the provided token.
+func (p *piPlugin) recordAuthor(token []byte) (string, error) {
+	reply, err := p.backend.PluginRead(token, usermd.PluginID,
+		usermd.CmdAuthor, "")
+	if err != nil {
+		return "", err
+	}
+	var ar usermd.AuthorReply
+	err = json.Unmarshal([]byte(reply), &ar)
+	if err != nil {
+		return "", err
+	}
+	return ar.UserID, nil
+}
+
 // commentWritesAllowed verifies that a proposal has a vote status that allows
 // comment writes to be made to the proposal. This includes both comments and
-// comment votes. Comment writes are allowed up until the proposal has
-// finished voting.
+// comment votes.
+// Once a proposal vote has finished, all existing comment threads are locked.
+// When a proposal author wants to give an update they will start a new comment
+// thread. The author is the only user that will have the ability to start a new
+// comment thread once the voting period has finished. Each update will have an
+// author provided title.
+// Anyone can reply to any comments in the thread and can cast
+// upvotes/downvotes for any comments in the thread.
+// The comment thread will remain open until either the author starts a new
+// update thread or an admin marks the proposal as closed/completed.
 func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error {
 	vs, err := p.voteSummary(token)
 	if err != nil {
@@ -431,6 +517,15 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 				}
 			}
 		}
+		// Get latest proposal author update
+		gar, err := p.comments(token)
+		if err != nil {
+			return err
+		}
+		latestAuthorUpdate, err := p.latestAuthorUpdate(token, gar.Comments)
+		if err != nil {
+			return err
+		}
 		switch cmd {
 		// If that's a new comment then it must be either a new author
 		// update or a comment on the latest author update thread.
@@ -442,7 +537,16 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 				return err
 			}
 			// Option 1: the new comment is a new author update
-			if n.ExtraData != "" && n.ExtraDataHint != "" {
+			//
+			// Get proposal authour to ensure comment's author is
+			// the proposal's author.
+			recordAuthorID, err := p.recordAuthor(token)
+			if err != nil {
+				return err
+			}
+			if n.UserID == recordAuthorID &&
+				n.ExtraData != "" && n.ExtraDataHint != "" &&
+				n.ParentID == 0 {
 				switch n.ExtraDataHint {
 				case pi.ProposalUpdateHint:
 					// Decode comment extra data
@@ -468,21 +572,53 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 					}
 				}
 			}
-			// Option 2: the new comment is a reply on one of the comments
-			// of the latest author update or on the update itself.
-
+			// Option 2: the new comment is a reply on one of the replies
+			// on the latest author update or on the update itself.
+			//
+			// New comment is a new thread but not a valid author update
+			if n.ParentID == 0 {
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
+					ErrorContext: "vote has ended; comments are locked",
+				}
+			}
+			// New comment is a reply, ensure it's on the latest
+			// author update thread.
+			if !p.isAncestorOf(latestAuthorUpdate.CommentID, n.ParentID,
+				gar.Comments) {
+				return backend.PluginError{
+					PluginID:  pi.PluginID,
+					ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
+					ErrorContext: "vote has ended; replies are allowed only on " +
+						"the latest author update thread",
+				}
+			}
 		// If that's a comment vote then it must be on one of the latest
 		// author update thread comments.
 		case comments.CmdVote:
-			// XXX
-			return nil
+			// Decode payload
+			var v comments.Vote
+			err := json.Unmarshal([]byte(payload), &v)
+			if err != nil {
+				return err
+			}
+			if !p.isAncestorOf(latestAuthorUpdate.CommentID, v.CommentID,
+				gar.Comments) {
+				return backend.PluginError{
+					PluginID:  pi.PluginID,
+					ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
+					ErrorContext: "vote has ended; comment votes are allowed only on " +
+						"the latest author update thread",
+				}
+			}
 		}
 	default:
 		// Vote status does not allow writes
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
-			ErrorContext: "vote has ended; proposal is locked",
+			ErrorContext: "vote has ended; comments are locked",
 		}
 	}
 	return nil
