@@ -424,7 +424,7 @@ func (p *piPlugin) isAncestorOf(ancestorID, childID uint32, cs []comments.Commen
 	}
 	// Travel the comment tree to search for an ancestor
 	for {
-		current, _ := commentsMap[childID]
+		current := commentsMap[childID]
 		// If we reach the tree haed without visiting the provided
 		// ancestorID then it is not an ancestor.
 		if current.ParentID == 0 {
