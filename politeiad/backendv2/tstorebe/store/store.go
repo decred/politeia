@@ -10,9 +10,10 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
-	"errors"
+	"encoding/json"
 
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -71,15 +72,52 @@ func Blobify(be BlobEntry) ([]byte, error) {
 func Deblob(blob []byte) (*BlobEntry, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(blob))
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	r := gob.NewDecoder(zr)
 	var be BlobEntry
 	err = r.Decode(&be)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return &be, nil
+}
+
+// TODO refactor existing blob entry decode functions to use this function.
+//
+// Decode decodes the BlobEntry base64 data payload and returns it as a byte
+// slice. The coherency of the data is verified during this process.
+func Decode(be BlobEntry, dataDescriptor string) ([]byte, error) {
+	// Decode and verify data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var dd DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if dd.Descriptor != dataDescriptor {
+		return nil, errors.Errorf("unexpected data descriptor: "+
+			"got %v, want %v", dd.Descriptor, dataDescriptor)
+	}
+
+	// Decode verify data payload
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, errors.Errorf("data is not coherent: "+
+			"got %x, want %x", util.Digest(b), digest)
+	}
+
+	return b, nil
 }
 
 // Tx represents an in-progess database transaction. All actions performed
