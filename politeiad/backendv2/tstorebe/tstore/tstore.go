@@ -37,6 +37,7 @@ import (
 // they are considered to be orphaned and are simply ignored. We do not unwind
 // failed calls.
 type Tstore struct {
+	// TODO get rid of mutex
 	sync.RWMutex
 	net     chaincfg.Params
 	tlog    tlogClient
@@ -44,12 +45,6 @@ type Tstore struct {
 	dcrtime *dcrtimeClient
 	cron    *cron.Cron
 	plugins map[string]plugin // [pluginID]plugin
-
-	// TODO anchor dropping needs to be concurrency safe
-	// droppingAnchor indicates whether tstore is in the process of
-	// dropping an anchor, i.e. timestamping unanchored tlog trees
-	// using dcrtime. An anchor is dropped periodically using cron.
-	droppingAnchor bool
 
 	// TODO remove
 	// tokens contains the short token to full token mappings. The
@@ -225,19 +220,10 @@ func New(net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeH
 		plugins: make(map[string]plugin),
 		tokens:  make(map[string][]byte),
 	}
-
-	// Launch cron
-	log.Infof("Launch cron anchor job")
-	err = t.cron.AddFunc(anchorSchedule, func() {
-		err := t.anchorTrees()
-		if err != nil {
-			log.Errorf("anchorTrees: %v", err)
-		}
-	})
+	err = t.setupAnchorProcess()
 	if err != nil {
 		return nil, err
 	}
-	t.cron.Start()
 
 	return &t, nil
 }

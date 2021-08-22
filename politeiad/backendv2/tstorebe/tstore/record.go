@@ -25,6 +25,7 @@ const (
 	dataDescriptorFile           = "pd-file-v1"
 	dataDescriptorRecordIndex    = "pd-rindex-v1"
 	dataDescriptorAnchor         = "pd-anchor-v1"
+	dataDescriptorDroppingAnchor = "pd-droppinganchor-v1"
 )
 
 // recordLock locks a tstore record by retrieving the record lock entry in the
@@ -1081,7 +1082,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	// Get the anchor record for this leaf
 	a, err := t.anchorForLeaf(treeID, merkleLeafHash, leaves)
 	if err != nil {
-		if err == errAnchorNotFound {
+		if err == errNotFound {
 			// This data has not been anchored yet
 			return &ts, nil
 		}
