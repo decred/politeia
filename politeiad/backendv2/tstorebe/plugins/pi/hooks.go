@@ -475,13 +475,17 @@ func (p *piPlugin) recordAuthor(token []byte) (string, error) {
 // commentWritesAllowed verifies that a proposal has a vote status that allows
 // comment writes to be made to the proposal. This includes both comments and
 // comment votes.
+//
 // Once a proposal vote has finished, all existing comment threads are locked.
-// When a proposal author wants to give an update they will start a new comment
-// thread. The author is the only user that will have the ability to start a new
-// comment thread once the voting period has finished. Each update will have an
-// author provided title.
+// When a proposal author wants to give an update they will start a new
+// comment thread. The author is the only user that will have the ability to
+// start a new comment thread once the voting period has finished.
+//
+// Each update must have an author provided title.
+//
 // Anyone can reply to any comments in the thread and can cast
 // upvotes/downvotes for any comments in the thread.
+//
 // The comment thread will remain open until either the author starts a new
 // update thread or an admin marks the proposal as closed/completed.
 func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error {
