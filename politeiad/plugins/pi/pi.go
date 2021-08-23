@@ -199,11 +199,15 @@ const (
 	ErrorCodeUpdateTitleInvalid = 17
 
 	// ErrorCodeExtraDataHintInvalid is returned when the extra data hint
-	// is invalid
+	// is invalid.
 	ErrorCodeExtraDataHintInvalid = 18
 
+	// ErrorCodeWritesAllowedOnlyOnUpdates is returned when the vote
+	// status allows writes only on author updates.
+	ErrorCodeWritesAllowedOnlyOnUpdates = 19
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 19
+	ErrorCodeLast ErrorCodeT = 20
 )
 
 var (
@@ -228,6 +232,7 @@ var (
 		ErrorCodeBillingStatusInvalid:          "billing status invalid",
 		ErrorCodeUpdateTitleInvalid:            "update title invalid",
 		ErrorCodeExtraDataHintInvalid:          "extra data hint invalid",
+		ErrorCodeWritesAllowedOnlyOnUpdates:    "comment writes are allowed only on author updates",
 	}
 )
 
