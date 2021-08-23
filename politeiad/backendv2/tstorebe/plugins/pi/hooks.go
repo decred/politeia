@@ -444,13 +444,11 @@ func (p *piPlugin) isAncestorOf(ancestorID, childID uint32, cs []comments.Commen
 func (p *piPlugin) latestAuthorUpdate(token []byte, cs []comments.Comment) (*comments.Comment, error) {
 	var latestAuthorUpdate comments.Comment
 	for _, c := range cs {
-		if c.ExtraDataHint != "" {
-			switch c.ExtraDataHint {
-			case pi.ProposalUpdateHint:
-				if c.Timestamp > latestAuthorUpdate.Timestamp {
-					latestAuthorUpdate = c
-				}
-			}
+		if c.ExtraDataHint != pi.ProposalUpdateHint {
+			continue
+		}
+		if c.Timestamp > latestAuthorUpdate.Timestamp {
+			latestAuthorUpdate = c
 		}
 	}
 	return &latestAuthorUpdate, nil
@@ -472,13 +470,161 @@ func (p *piPlugin) recordAuthor(token []byte) (string, error) {
 	return ar.UserID, nil
 }
 
+// commentVoteAllowedOnApprovedProposal verifies that the given comment
+// vote is allowed on the approved proposal associated with the provided
+// token.
+func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload string, latestAuthorUpdate comments.Comment, cs []comments.Comment) error {
+	// Decode payload
+	var v comments.Vote
+	err := json.Unmarshal([]byte(payload), &v)
+	if err != nil {
+		return err
+	}
+	if !p.isAncestorOf(latestAuthorUpdate.CommentID, v.CommentID,
+		cs) {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
+			ErrorContext: "vote has ended; comment votes are allowed only on " +
+				"the latest author update thread",
+		}
+	}
+	return nil
+}
+
+// commentNewAllowedOnApprovedProposal verifies that the given new comment
+// is allowed on the approved proposal associated with the provided
+// token.
+func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload string, latestAuthorUpdate comments.Comment, cs []comments.Comment) error {
+	// Decode payload
+	var n comments.New
+	err := json.Unmarshal([]byte(payload), &n)
+	if err != nil {
+		return err
+	}
+	// Option 1: the new comment is a new author update
+	//
+	// Get proposal authour to ensure comment's author is
+	// the proposal's author.
+	recordAuthorID, err := p.recordAuthor(token)
+	if err != nil {
+		return err
+	}
+	if n.UserID == recordAuthorID &&
+		n.ExtraData != "" && n.ExtraDataHint != "" &&
+		n.ParentID == 0 {
+		switch n.ExtraDataHint {
+		case pi.ProposalUpdateHint:
+			// Decode comment extra data
+			var pum pi.ProposalUpdateMetadata
+			err = json.Unmarshal([]byte(n.ExtraData), &pum)
+			if err != nil {
+				return err
+			}
+			// Verify update title
+			if !p.updateTitleIsValid(pum.Title) {
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    uint32(pi.ErrorCodeUpdateTitleInvalid),
+					ErrorContext: p.titleRegexp.String(),
+				}
+			}
+			// New valid author update
+			return nil
+		default:
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
+			}
+		}
+	}
+	// Option 2: the new comment is a reply on one of the replies
+	// on the latest author update or on the update itself.
+	//
+	// New comment is a new thread but not a valid author update
+	if n.ParentID == 0 {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
+			ErrorContext: "vote has ended; comments are locked",
+		}
+	}
+	// New comment is a reply, ensure it's on the latest
+	// author update thread.
+	if !p.isAncestorOf(latestAuthorUpdate.CommentID, n.ParentID,
+		cs) {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
+			ErrorContext: "vote has ended; replies are allowed only on " +
+				"the latest author update thread",
+		}
+	}
+	return nil
+}
+
+// writesAllowedOnApprovedPropsoal verifies that the given comment write
+// is allowed on the approved proposal associated with the provided token.
+// This includes both comments and comment votes.
+func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload string) error {
+	// Get billing status to determine whether to allow author updates
+	// or not.
+	var bsc pi.BillingStatusChange
+	billingStatuses, err := p.billingStatuses(token)
+	if err != nil {
+		return err
+	}
+	// We assume here that admins can set a billing status only once
+	if len(billingStatuses) > 0 {
+		bsc = billingStatuses[0]
+		if bsc.Status == pi.BillingStatusClosed ||
+			bsc.Status == pi.BillingStatusCompleted {
+			// If billing status is set to closed or completed comment writes
+			// are not allowed.
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeBillingStatusInvalid),
+				ErrorContext: "billing status is set to closed/completed;" +
+					" proposal is locked",
+			}
+		}
+	}
+	// Get latest proposal author update
+	gar, err := p.comments(token)
+	if err != nil {
+		return err
+	}
+	latestAuthorUpdate, err := p.latestAuthorUpdate(token, gar.Comments)
+	if err != nil {
+		return err
+	}
+	switch cmd {
+	// If that's a new comment then it must be either a new author
+	// update or a comment on the latest author update thread.
+	case comments.CmdNew:
+		return p.commentNewAllowedOnApprovedProposal(token, payload,
+			*latestAuthorUpdate, gar.Comments)
+
+	// If that's a comment vote then it must be on one of the latest
+	// author update thread comments.
+	case comments.CmdVote:
+		return p.commentVoteAllowedOnApprovedProposal(token, payload,
+			*latestAuthorUpdate, gar.Comments)
+
+	}
+	return nil
+}
+
 // commentWritesAllowed verifies that a proposal has a vote status that allows
 // comment writes to be made to the proposal. This includes both comments and
 // comment votes.
 //
 // Once a proposal vote has finished, all existing comment threads are locked.
-// When a proposal author wants to give an update they will start a new
-// comment thread. The author is the only user that will have the ability to
+//
+// When a proposal author wants to give an update on their **approved**
+// proposal they can start a new comment thread.
+//
+// The author is the only user that will have the ability to
 // start a new comment thread once the voting period has finished.
 //
 // Each update must have an author provided title.
@@ -499,124 +645,7 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 		// Comment writes are allowed on these vote statuses
 		return nil
 	case ticketvote.VoteStatusApproved:
-		// Get billing status to determine whether to allow author updates
-		// or not.
-		var bsc pi.BillingStatusChange
-		billingStatuses, err := p.billingStatuses(token)
-		if err != nil {
-			return err
-		}
-		// We assume here that admins can set a billing status only once
-		if len(billingStatuses) > 0 {
-			bsc = billingStatuses[0]
-			if bsc.Status == pi.BillingStatusClosed ||
-				bsc.Status == pi.BillingStatusCompleted {
-				// If billing status is set to closed or completed comment writes
-				// are not allowed.
-				return backend.PluginError{
-					PluginID:  pi.PluginID,
-					ErrorCode: uint32(pi.ErrorCodeBillingStatusInvalid),
-					ErrorContext: "billing status is set to closed/completed;" +
-						" proposal is locked",
-				}
-			}
-		}
-		// Get latest proposal author update
-		gar, err := p.comments(token)
-		if err != nil {
-			return err
-		}
-		latestAuthorUpdate, err := p.latestAuthorUpdate(token, gar.Comments)
-		if err != nil {
-			return err
-		}
-		switch cmd {
-		// If that's a new comment then it must be either a new author
-		// update or a comment on the latest author update thread.
-		case comments.CmdNew:
-			// Decode payload
-			var n comments.New
-			err := json.Unmarshal([]byte(payload), &n)
-			if err != nil {
-				return err
-			}
-			// Option 1: the new comment is a new author update
-			//
-			// Get proposal authour to ensure comment's author is
-			// the proposal's author.
-			recordAuthorID, err := p.recordAuthor(token)
-			if err != nil {
-				return err
-			}
-			if n.UserID == recordAuthorID &&
-				n.ExtraData != "" && n.ExtraDataHint != "" &&
-				n.ParentID == 0 {
-				switch n.ExtraDataHint {
-				case pi.ProposalUpdateHint:
-					// Decode comment extra data
-					var pum pi.ProposalUpdateMetadata
-					err = json.Unmarshal([]byte(n.ExtraData), &pum)
-					if err != nil {
-						return err
-					}
-					// Verify update title
-					if !p.updateTitleIsValid(pum.Title) {
-						return backend.PluginError{
-							PluginID:     pi.PluginID,
-							ErrorCode:    uint32(pi.ErrorCodeUpdateTitleInvalid),
-							ErrorContext: p.titleRegexp.String(),
-						}
-					}
-					// New valid author update
-					return nil
-				default:
-					return backend.PluginError{
-						PluginID:  pi.PluginID,
-						ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
-					}
-				}
-			}
-			// Option 2: the new comment is a reply on one of the replies
-			// on the latest author update or on the update itself.
-			//
-			// New comment is a new thread but not a valid author update
-			if n.ParentID == 0 {
-				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
-					ErrorContext: "vote has ended; comments are locked",
-				}
-			}
-			// New comment is a reply, ensure it's on the latest
-			// author update thread.
-			if !p.isAncestorOf(latestAuthorUpdate.CommentID, n.ParentID,
-				gar.Comments) {
-				return backend.PluginError{
-					PluginID:  pi.PluginID,
-					ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
-					ErrorContext: "vote has ended; replies are allowed only on " +
-						"the latest author update thread",
-				}
-			}
-		// If that's a comment vote then it must be on one of the latest
-		// author update thread comments.
-		case comments.CmdVote:
-			// Decode payload
-			var v comments.Vote
-			err := json.Unmarshal([]byte(payload), &v)
-			if err != nil {
-				return err
-			}
-			if !p.isAncestorOf(latestAuthorUpdate.CommentID, v.CommentID,
-				gar.Comments) {
-				return backend.PluginError{
-					PluginID:  pi.PluginID,
-					ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
-					ErrorContext: "vote has ended; comment votes are allowed only on " +
-						"the latest author update thread",
-				}
-			}
-		}
+		return p.writesAllowedOnApprovedProposal(token, cmd, payload)
 	default:
 		// Vote status does not allow writes
 		return backend.PluginError{
@@ -625,7 +654,6 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 			ErrorContext: "vote has ended; comments are locked",
 		}
 	}
-	return nil
 }
 
 // tokenDecode returns the decoded censorship token. An error will be returned

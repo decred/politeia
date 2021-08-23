@@ -98,6 +98,13 @@ func (e ServerErrorReply) Error() string {
 type Policy struct{}
 
 // PolicyReply is the reply to the Policy command.
+//
+// NOTE: NameLengthMin, NameLengthMax, NameSupportedChars are not consistent
+// with the field names in the pi plugin where they defined as titleLengthMin,
+// titleLengthMax & titleSupportedChars as they are now used to verify both
+// the proposal name and the proposal author update title.
+// We have not updated the field names here to avoid introducing breaking
+// changes.
 type PolicyReply struct {
 	TextFileSizeMax    uint32   `json:"textfilesizemax"` // In bytes
 	ImageFileCountMax  uint32   `json:"imagefilecountmax"`
