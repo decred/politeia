@@ -410,11 +410,11 @@ func (p *piPlugin) comments(token []byte) (*comments.GetAllReply, error) {
 	return &gar, nil
 }
 
-// isAncestorOf returns whether the given parentID is an ancestor of the given
-// childID comment, by traveling the comment tree defined by
-// the ParentID of the child comment.
-func (p *piPlugin) isAncestorOf(ancestorID, childID uint32, cs []comments.Comment) bool {
-	if ancestorID == childID {
+// isInCommentTree returns whether the leafID is part of the provided comment
+// tree. A leaf is considered to be part of the tree if the leaf is a child of
+// the root or the leaf references the root itself.
+func isInCommentTree(rootID, leafID uint32, cs []comments.Comment) bool {
+	if leafID == rootID {
 		return true
 	}
 	// Convert comments slice to a map
@@ -422,26 +422,25 @@ func (p *piPlugin) isAncestorOf(ancestorID, childID uint32, cs []comments.Commen
 	for _, c := range cs {
 		commentsMap[c.CommentID] = c
 	}
-	// Travel the comment tree to search for an ancestor
-	for {
-		current := commentsMap[childID]
-		// If we reach the tree haed without visiting the provided
-		// ancestorID then it is not an ancestor.
-		if current.ParentID == 0 {
-			break
-		}
-		// Check if next parent in the tree is the ancestor
-		if current.ParentID == ancestorID {
+
+	// Travel the comment tree searching for rootID.
+	// If we reach the tree haed without visiting the provided
+	// rootID then it is not the root.
+	current := commentsMap[leafID]
+	for current.ParentID != 0 {
+		// Check if next parent in the tree is the rootID.
+		if current.ParentID == rootID {
 			return true
 		}
-		childID = current.ParentID
+		leafID = current.ParentID
+		current = commentsMap[leafID]
 	}
 	return false
 }
 
 // latestAuthorUpdate gets the latest author update on a record, if
 // the record has no author update it returns nil.
-func (p *piPlugin) latestAuthorUpdate(token []byte, cs []comments.Comment) (*comments.Comment, error) {
+func latestAuthorUpdate(token []byte, cs []comments.Comment) (*comments.Comment, error) {
 	var latestAuthorUpdate comments.Comment
 	for _, c := range cs {
 		if c.ExtraDataHint != pi.ProposalUpdateHint {
@@ -480,8 +479,8 @@ func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload st
 	if err != nil {
 		return err
 	}
-	if !p.isAncestorOf(latestAuthorUpdate.CommentID, v.CommentID,
-		cs) {
+
+	if !isAncestorOf(latestAuthorUpdate.CommentID, v.CommentID, cs) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
@@ -489,6 +488,7 @@ func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload st
 				"the latest author update thread",
 		}
 	}
+
 	return nil
 }
 
@@ -502,9 +502,10 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 	if err != nil {
 		return err
 	}
+
 	// Option 1: the new comment is a new author update
 	//
-	// Get proposal authour to ensure comment's author is
+	// Get proposal author to ensure comment's author is
 	// the proposal's author.
 	recordAuthorID, err := p.recordAuthor(token)
 	if err != nil {
@@ -531,13 +532,16 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 			}
 			// New valid author update
 			return nil
+
 		default:
 			return backend.PluginError{
 				PluginID:  pi.PluginID,
 				ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
 			}
+
 		}
 	}
+
 	// Option 2: the new comment is a reply on one of the replies
 	// on the latest author update or on the update itself.
 	//
@@ -549,10 +553,10 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 			ErrorContext: "vote has ended; comments are locked",
 		}
 	}
+
 	// New comment is a reply, ensure it's on the latest
 	// author update thread.
-	if !p.isAncestorOf(latestAuthorUpdate.CommentID, n.ParentID,
-		cs) {
+	if !isAncestorOf(latestAuthorUpdate.CommentID, n.ParentID, cs) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
@@ -560,6 +564,7 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 				"the latest author update thread",
 		}
 	}
+
 	return nil
 }
 
@@ -579,7 +584,7 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 		bsc = billingStatuses[0]
 		if bsc.Status == pi.BillingStatusClosed ||
 			bsc.Status == pi.BillingStatusCompleted {
-			// If billing status is set to closed or completed comment writes
+			// If billing status is set to closed or completed, comment writes
 			// are not allowed.
 			return backend.PluginError{
 				PluginID:  pi.PluginID,
@@ -589,15 +594,17 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 			}
 		}
 	}
+
 	// Get latest proposal author update
 	gar, err := p.comments(token)
 	if err != nil {
 		return err
 	}
-	latestAuthorUpdate, err := p.latestAuthorUpdate(token, gar.Comments)
+	latestAuthorUpdate, err := latestAuthorUpdate(token, gar.Comments)
 	if err != nil {
 		return err
 	}
+
 	switch cmd {
 	// If that's a new comment then it must be either a new author
 	// update or a comment on the latest author update thread.
@@ -612,6 +619,7 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 			*latestAuthorUpdate, gar.Comments)
 
 	}
+
 	return nil
 }
 
@@ -644,8 +652,10 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 		ticketvote.VoteStatusStarted:
 		// Comment writes are allowed on these vote statuses
 		return nil
+
 	case ticketvote.VoteStatusApproved:
 		return p.writesAllowedOnApprovedProposal(token, cmd, payload)
+
 	default:
 		// Vote status does not allow writes
 		return backend.PluginError{
@@ -653,6 +663,7 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote has ended; comments are locked",
 		}
+
 	}
 }
 

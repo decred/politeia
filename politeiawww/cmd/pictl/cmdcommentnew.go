@@ -27,7 +27,7 @@ type cmdCommentNew struct {
 	// is not used the command assumes the record is vetted.
 	Unvetted bool `long:"unvetted" optional:"true"`
 
-	// UpdateTitle is used to post a new authour update.
+	// UpdateTitle is used to post a new author update.
 	UpdateTitle string `long:"updatetitle" optional:"true"`
 }
 
