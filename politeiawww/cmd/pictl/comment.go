@@ -15,23 +15,29 @@ func printComment(c cmv1.Comment) {
 	downvotes := int64(c.Downvotes) * -1
 
 	printf("Comment %v\n", c.CommentID)
-	printf("  Score    : %v %v\n", downvotes, c.Upvotes)
-	printf("  Username : %v\n", c.Username)
-	printf("  Parent ID: %v\n", c.ParentID)
-	printf("  Timestamp: %v\n", timestampFromUnix(c.Timestamp))
+	printf("  Score        : %v %v\n", downvotes, c.Upvotes)
+	printf("  Username     : %v\n", c.Username)
+	printf("  Parent ID    : %v\n", c.ParentID)
+	printf("  Timestamp    : %v\n", timestampFromUnix(c.Timestamp))
+
+	// If the comment is an author update print extra data info
+	if c.ExtraDataHint != "" {
+		printf("  ExtraDataHint: %v\n", c.ExtraDataHint)
+		printf("  ExtraData    : %v\n", c.ExtraData)
+	}
 
 	// If the comment has been deleted the comment text will not be
 	// present. Print the reason for deletion instead and exit.
 	if c.Deleted {
-		printf("  Deleted  : %v\n", c.Deleted)
-		printf("  Reason   : %v\n", c.Reason)
+		printf("  Deleted      : %v\n", c.Deleted)
+		printf("  Reason       : %v\n", c.Reason)
 		return
 	}
 
 	// Print the fist line as is if its less than the 80 character
 	// limit (including the leading comment label).
 	if len(c.Comment) < 66 {
-		printf("  Comment  : %v\n", c.Comment)
+		printf("  Comment      : %v\n", c.Comment)
 		return
 	}
 
