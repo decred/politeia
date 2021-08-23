@@ -515,7 +515,6 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 		if n.UserID == recordAuthorID &&
 			n.ExtraData != "" && n.ExtraDataHint != "" {
 			switch n.ExtraDataHint {
-
 			case pi.ProposalUpdateHint:
 				// Decode comment extra data
 				var pum pi.ProposalUpdateMetadata
