@@ -480,7 +480,7 @@ func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload st
 		return err
 	}
 
-	if !isAncestorOf(latestAuthorUpdate.CommentID, v.CommentID, cs) {
+	if !isInCommentTree(latestAuthorUpdate.CommentID, v.CommentID, cs) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
@@ -556,7 +556,7 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 
 	// New comment is a reply, ensure it's on the latest
 	// author update thread.
-	if !isAncestorOf(latestAuthorUpdate.CommentID, n.ParentID, cs) {
+	if !isInCommentTree(latestAuthorUpdate.CommentID, n.ParentID, cs) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeVoteStatusInvalid),
