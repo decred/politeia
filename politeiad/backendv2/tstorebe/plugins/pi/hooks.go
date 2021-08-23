@@ -418,7 +418,7 @@ func (p *piPlugin) isAncestorOf(ancestorID, childID uint32, cs []comments.Commen
 		return true
 	}
 	// Convert comments slice to a map
-	var commentsMap map[uint32]comments.Comment
+	commentsMap := make(map[uint32]comments.Comment, len(cs))
 	for _, c := range cs {
 		commentsMap[c.CommentID] = c
 	}

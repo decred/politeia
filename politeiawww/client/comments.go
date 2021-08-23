@@ -188,9 +188,10 @@ func CommentVerify(c cmv1.Comment, serverPublicKey string) error {
 	}
 
 	// Verify comment. The signature is the client signature of the
-	// State+Token+ParentID+Comment.
+	// State + Token + ParentID + Comment + ExtraData + ExtraDataHint.
 	msg := strconv.FormatUint(uint64(c.State), 10) + c.Token +
-		strconv.FormatUint(uint64(c.ParentID), 10) + c.Comment
+		strconv.FormatUint(uint64(c.ParentID), 10) + c.Comment +
+		c.ExtraData + c.ExtraDataHint
 	err := util.VerifySignature(c.Signature, c.PublicKey, msg)
 	if err != nil {
 		return fmt.Errorf("unable to verify comment %v signature: %v",
