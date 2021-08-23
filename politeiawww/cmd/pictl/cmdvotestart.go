@@ -64,8 +64,8 @@ func (c *cmdVoteStart) Execute(args []string) error {
 	var (
 		// Default values
 		duration uint32 = 2016
-		quorum   uint32 = 0
-		pass     uint32 = 0
+		quorum   uint32 = 20
+		pass     uint32 = 60
 	)
 	if c.Args.Duration != 0 {
 		duration = c.Args.Duration
