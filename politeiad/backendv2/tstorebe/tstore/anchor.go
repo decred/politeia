@@ -56,8 +56,14 @@ func (t *Tstore) setupAnchorProcess() error {
 	// Verify that a dropping anchor record exists
 	_, err = t.droppingAnchor(tx)
 	if err == errNotFound {
-		// A dropping anchor record has not been created yet. Create one.
-
+		// A dropping anchor record has not been created yet.
+		// Create one and save it to the key-value store.
+		da := newDroppingAnchor(false, time.Now().Unix())
+		err = t.droppingAnchorSave(tx, da)
+		if err != nil {
+			return err
+		}
+		log.Infof("Dropping anchor record initialized")
 	} else if err != nil {
 		return err
 	}
@@ -763,18 +769,18 @@ func (t *Tstore) droppingAnchorStart() error {
 	da.Timestamp = time.Now().Unix()
 
 	// Save the updated record
+	return t.droppingAnchorSave(tx, *da)
+}
+
+// droppingAnchorSave saves the droppingAnchor record to the key-value store.
+func (t *Tstore) droppingAnchorSave(tx store.Tx, da droppingAnchor) error {
 	b, err := da.encode()
 	if err != nil {
 		return err
 	}
-	err = tx.Put(map[string][]byte{
+	return tx.Put(map[string][]byte{
 		droppingAnchorKey: b,
 	}, false)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // droppingAnchor retrieves the droppingAnchor record from the key-value store.
