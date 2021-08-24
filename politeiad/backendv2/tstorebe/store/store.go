@@ -176,7 +176,7 @@ type BlobKV interface {
 }
 
 // Getter describes the get method that is present on both the BlobKV interface
-// and the Tx interface. This allows us to use the same code for executing
+// and the Tx interface. This allows the same code to be used for executing
 // individual get requests and get requests that are part of a transaction.
 type Getter interface {
 	Get(keys []string) (map[string][]byte, error)

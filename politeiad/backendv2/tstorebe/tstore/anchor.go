@@ -592,7 +592,7 @@ func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*tr
 }
 
 // anchorLatest returns the most recent anchor for the provided tree. A
-// errAnchorNotFound is returned if no anchor is found.
+// errNotFound is returned if no anchor is found.
 func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	// Get tree leaves
 	leavesAll, err := t.tlog.LeavesAll(treeID)
@@ -638,13 +638,14 @@ func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 }
 
 const (
-	// droppingAnchorKey is the droppingAnchor key-value store key.
+	// droppingAnchorKey is the key-value store key for the dropping
+	// anchor record.
 	droppingAnchorKey = "tstore-dropping-anchor"
 
 	// droppingAnchorTimeout is used to manually timeout the previous
 	// anchor drop. The anchor dropping process is too long to use a
-	// database transaction for so we must manually timeout and reset
-	// the droppingAnchor record if an unexpected error occurs (ex. the
+	// database transaction so we must manually timeout and reset the
+	// droppingAnchor record if an unexpected error occurs (ex. the
 	// politeiad instance that is dropping the anchor crashes while
 	// waiting for dcrtime to include the anchor in a DCR transaction).
 	//
@@ -664,7 +665,7 @@ const (
 // The anchor drop is timed out and the droppingAnchor record is reset if the
 // droppingAnchorTimeout limit is reached.
 type droppingAnchor struct {
-	InProgress bool  `json:"inprogress"` // Is an anchor being dropped
+	InProgress bool  `json:"inprogress"` // Anchor drop is in progress
 	Timestamp  int64 `json:"timestamp"`  // Unix timestamp of last update
 }
 
@@ -736,7 +737,42 @@ func (t *Tstore) droppingAnchorStart() error {
 		return err
 	}
 	defer cancel()
-	_ = tx
+
+	// Get the dropping anchor record
+	da, err := t.droppingAnchor(tx)
+	if err != nil {
+		return err
+	}
+	if da.InProgress {
+		// Anchor drop is already in progress. Verify that the timeout
+		// has not been reached.
+		if time.Now().Unix() < (da.Timestamp + droppingAnchorTimeout) {
+			// Timeout has not been reached yet
+			return errDroppingAnchorInProgress
+		}
+
+		// Something went wrong and the timeout has been reached.
+		// Continue to the code below so that the dropping anchor
+		// record is reset.
+		log.Errorf("Anchor drop has timed out after %v seconds; "+
+			"resetting the anchor drop record", droppingAnchorTimeout)
+	}
+
+	// Update the dropping anchor record
+	da.InProgress = true
+	da.Timestamp = time.Now().Unix()
+
+	// Save the updated record
+	b, err := da.encode()
+	if err != nil {
+		return err
+	}
+	err = tx.Put(map[string][]byte{
+		droppingAnchorKey: b,
+	}, false)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
