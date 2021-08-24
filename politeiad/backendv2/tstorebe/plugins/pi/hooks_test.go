@@ -20,9 +20,164 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/util"
 )
+
+func TestIsInCommentTree(t *testing.T) {
+	// Setup test data
+	oneNodeTree := []comments.Comment{
+		{
+			CommentID: 1,
+			ParentID:  0,
+		},
+	}
+
+	twoLeafsTree := []comments.Comment{
+		{
+			CommentID: 1,
+			ParentID:  0,
+		},
+		{
+			CommentID: 2,
+			ParentID:  0,
+		},
+	}
+
+	threeLevelsTree := []comments.Comment{
+		{
+			CommentID: 1,
+			ParentID:  0,
+		},
+		{
+			CommentID: 2,
+			ParentID:  1,
+		},
+		{
+			CommentID: 3,
+			ParentID:  2,
+		},
+		{
+			CommentID: 4,
+			ParentID:  0,
+		},
+	}
+
+	sixLevelsTree := []comments.Comment{
+		{
+			CommentID: 1,
+			ParentID:  0,
+		},
+		{
+			CommentID: 2,
+			ParentID:  1,
+		},
+		{
+			CommentID: 3,
+			ParentID:  1,
+		},
+		{
+			CommentID: 4,
+			ParentID:  2,
+		},
+		{
+			CommentID: 5,
+			ParentID:  2,
+		},
+		{
+			CommentID: 6,
+			ParentID:  3,
+		},
+		{
+			CommentID: 7,
+			ParentID:  5,
+		},
+		{
+			CommentID: 8,
+			ParentID:  5,
+		},
+		{
+			CommentID: 9,
+			ParentID:  8,
+		},
+		{
+			CommentID: 10,
+			ParentID:  9,
+		},
+	}
+
+	// Setup tests
+	var tests = []struct {
+		name string // Test name
+		rootID,
+		childID uint32
+		comments []comments.Comment
+		res      bool // Expected result
+	}{
+		{
+			name:     "one node tree true case",
+			rootID:   1,
+			childID:  1,
+			comments: oneNodeTree,
+			res:      true,
+		},
+		{
+			name:     "one node tree false case",
+			rootID:   0,
+			childID:  1,
+			comments: oneNodeTree,
+			res:      false,
+		},
+		{
+			name:     "two leafs tree false case",
+			rootID:   1,
+			childID:  2,
+			comments: twoLeafsTree,
+			res:      false,
+		},
+		{
+			name:     "three levels tree true case",
+			rootID:   1,
+			childID:  3,
+			comments: threeLevelsTree,
+			res:      true,
+		},
+		{
+			name:     "three levels tree false case",
+			rootID:   1,
+			childID:  4,
+			comments: threeLevelsTree,
+			res:      false,
+		},
+		{
+			name:     "six levels tree true case",
+			rootID:   1,
+			childID:  10,
+			comments: sixLevelsTree,
+			res:      true,
+		},
+		{
+			name:     "six levels tree false case",
+			rootID:   6,
+			childID:  10,
+			comments: sixLevelsTree,
+			res:      false,
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res := isInCommentTree(tc.rootID, tc.childID, tc.comments)
+			if res != tc.res {
+				// Unexpected result
+				t.Errorf("unexpected result; wanted '%v', got '%v'", tc.res, res)
+				return
+			}
+		})
+	}
+}
 
 func TestHookNewRecordPre(t *testing.T) {
 	// Setup pi plugin
