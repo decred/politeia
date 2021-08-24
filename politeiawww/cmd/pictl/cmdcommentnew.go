@@ -135,6 +135,12 @@ This command assumes the record is a vetted record.
 If the record is unvetted, the --unvetted flag must be used. Commenting on
 unvetted records requires admin priviledges.
 
+Proposal's author may post author update using the --updatetitle flag. Posting
+author updates are allowed only on a proposal which finished voting and it's
+vote was approved. User can reply only on the latest author update. When a 
+proposal billing status is set to closed or completed it's not possible to 
+post author updates or to reply on them.
+
 Arguments:
 1. token     (string, required)  Proposal censorship token.
 2. comment   (string, required)  Comment text.

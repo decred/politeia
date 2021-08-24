@@ -203,7 +203,7 @@ const (
 	ErrorCodeExtraDataHintInvalid = 18
 
 	// ErrorCodeWritesAllowedOnlyOnUpdates is returned when the vote
-	// status allows writes only on author updates.
+	// status allows comment writes only on author updates.
 	ErrorCodeWritesAllowedOnlyOnUpdates = 19
 
 	// ErrorCodeLast unit test only.

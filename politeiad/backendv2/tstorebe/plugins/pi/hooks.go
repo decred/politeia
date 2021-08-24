@@ -420,9 +420,9 @@ func isInCommentTree(rootID, leafID uint32, cs []comments.Comment) bool {
 		commentsMap[c.CommentID] = c
 	}
 
-	// Travel the comment tree searching for rootID.
-	// If we reach the tree haed without visiting the provided
-	// rootID then it is not the root.
+	// Start with the provided comment leaf and traverse the comment tree up
+	// until either the provided root ID is found or we reach the tree head. The
+	// tree head will have a comment ID of 0.
 	current := commentsMap[leafID]
 	for current.ParentID != 0 {
 		// Check if next parent in the tree is the rootID.
@@ -467,8 +467,8 @@ func (p *piPlugin) recordAuthor(token []byte) (string, error) {
 }
 
 // commentVoteAllowedOnApprovedProposal verifies that the given comment
-// vote is allowed on the proposal which finished voting, it's vote was
-// approved and is associated with the provided token.
+// vote is allowed on a proposal which finished voting and it's vote was
+// approved.
 func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload string, latestAuthorUpdate comments.Comment, cs []comments.Comment) error {
 	// Decode payload
 	var v comments.Vote
@@ -487,9 +487,58 @@ func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload st
 	return nil
 }
 
+// isValidAuthorUpdate returns whether the given new comment is a valid
+// author update.
+// Comment must include proper proposal update metadata and it's author
+// must be the proposal's author for it to be considered as a valid
+// author update.
+func (p *piPlugin) isValidAuthorUpdate(token []byte, n comments.New) error {
+	// Get proposal author to ensure new comment's author is
+	// the proposal's author.
+	recordAuthorID, err := p.recordAuthor(token)
+	if err != nil {
+		return err
+	}
+
+	if n.UserID == recordAuthorID &&
+		n.ExtraData != "" && n.ExtraDataHint != "" {
+		switch n.ExtraDataHint {
+		case pi.ProposalUpdateHint:
+			// Decode comment extra data
+			var pum pi.ProposalUpdateMetadata
+			err = json.Unmarshal([]byte(n.ExtraData), &pum)
+			if err != nil {
+				return err
+			}
+			// Verify update title
+			if !p.titleIsValid(pum.Title) {
+				return backend.PluginError{
+					PluginID:     pi.PluginID,
+					ErrorCode:    uint32(pi.ErrorCodeUpdateTitleInvalid),
+					ErrorContext: p.titleRegexp.String(),
+				}
+			}
+			// New valid author update
+			return nil
+
+		default:
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
+			}
+
+		}
+	}
+	// New comment is a new thread but not a valid author update.
+	return backend.PluginError{
+		PluginID:     pi.PluginID,
+		ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
+		ErrorContext: "vote has ended; comments are locked",
+	}
+}
+
 // commentNewAllowedOnApprovedProposal verifies that the given new comment
-// is allowed on the proposal which finished voting, it's vote was approved
-// and is associated with the provided token.
+// is allowed on a proposal which finished voting and it's vote was approved.
 func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload string, latestAuthorUpdate comments.Comment, cs []comments.Comment) error {
 	// Decode payload
 	var n comments.New
@@ -501,52 +550,12 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 	// A new comment on an approved proposal must either be an update
 	// from the author (parent ID will be 0) or a reply to the latest
 	// author update.
-	isUpdateReply := isInCommentTree(latestAuthorUpdate.CommentID, n.ParentID, cs)
+	isUpdateReply := isInCommentTree(latestAuthorUpdate.CommentID,
+		n.ParentID, cs)
 	switch {
 	case n.ParentID == 0:
 		// This might be an update from the author.
-		// Get proposal author to ensure new comment's author is
-		// the proposal's author.
-		recordAuthorID, err := p.recordAuthor(token)
-		if err != nil {
-			return err
-		}
-
-		if n.UserID == recordAuthorID &&
-			n.ExtraData != "" && n.ExtraDataHint != "" {
-			switch n.ExtraDataHint {
-			case pi.ProposalUpdateHint:
-				// Decode comment extra data
-				var pum pi.ProposalUpdateMetadata
-				err = json.Unmarshal([]byte(n.ExtraData), &pum)
-				if err != nil {
-					return err
-				}
-				// Verify update title
-				if !p.titleIsValid(pum.Title) {
-					return backend.PluginError{
-						PluginID:     pi.PluginID,
-						ErrorCode:    uint32(pi.ErrorCodeUpdateTitleInvalid),
-						ErrorContext: p.titleRegexp.String(),
-					}
-				}
-				// New valid author update
-				return nil
-
-			default:
-				return backend.PluginError{
-					PluginID:  pi.PluginID,
-					ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
-				}
-
-			}
-		}
-		// New comment is a new thread but not a valid author update.
-		return backend.PluginError{
-			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
-			ErrorContext: "vote has ended; comments are locked",
-		}
+		return p.isValidAuthorUpdate(token, n)
 
 	case isUpdateReply:
 		// This is a reply to the latest update. This is allowed.
@@ -566,10 +575,9 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 	}
 }
 
-// writesAllowedOnApprovedProposal verifies that the given comment write
-// is allowed on the proposal which finished voting, it's vote was approved
-// and is associated with the provided token.
-// This includes both comments and comment votes.
+// writesAllowedOnApprovedProposal verifies that the given comment write is
+// allowed on a proposal which finished voting and it's vote was approved. This
+// includes both comments and comment votes.
 func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload string) error {
 	// Get billing status to determine whether to allow author updates
 	// or not.
@@ -605,8 +613,8 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 	}
 
 	switch cmd {
-	// If that's a new comment then it must be either a new author
-	// update or a comment on the latest author update thread.
+	// If the user is submitting a new comment then it must be either a new
+	// author update or a comment on the latest author update thread.
 	case comments.CmdNew:
 		return p.commentNewAllowedOnApprovedProposal(token, payload,
 			*latestAuthorUpdate, gar.Comments)
