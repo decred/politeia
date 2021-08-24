@@ -125,9 +125,9 @@ func (l *legacyImport) convertBallotJournal(path string, newToken []byte) error 
 
 	s := bufio.NewScanner(fh)
 
-	fmt.Println("about to read ballot journal")
+	fmt.Printf("  ticketvote: Parsing ballot journal for %v ...\n", hex.EncodeToString(newToken))
+
 	for i := 0; s.Scan(); i++ {
-		// json text from reading each journal line
 		ss := bytes.NewReader([]byte(s.Text()))
 		d := json.NewDecoder(ss)
 
@@ -167,7 +167,7 @@ func (l *legacyImport) convertBallotJournal(path string, newToken []byte) error 
 
 		// fmt.Println(s.Text())
 	}
-	fmt.Println("done reading ballot journal")
+	fmt.Printf("  ticketvote: Done for %v!\n", hex.EncodeToString(newToken))
 
 	return nil
 }
@@ -190,17 +190,19 @@ func (l *legacyImport) blobSaveCastVoteDetails(castVoteDetails tv.CastVoteDetail
 	be := store.NewBlobEntry(hint, data)
 
 	err = l.tstore.BlobSave(newToken, be)
+	if err != nil && err.Error() == "duplicate blob" {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-
 	// fmt.Println(" ticketvote: Saved!")
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken []byte) error {
-	fmt.Println(" ticketvote: Saving AuthDetails blob ...")
+	// fmt.Println(" ticketvote: Saving AuthDetails blob ...")
 
 	// Update metadata with new token instead of legacy one.
 	authDetails.Token = hex.EncodeToString(newToken)
@@ -224,13 +226,13 @@ func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken 
 		return err
 	}
 
-	fmt.Println(" ticketvote: Saved!")
+	// fmt.Println(" ticketvote: Saved!")
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveVoteDetails(voteDetails tv.VoteDetails, newToken []byte) error {
-	fmt.Println(" ticketvote: Saving VoteDetails blob ...")
+	// fmt.Println(" ticketvote: Saving VoteDetails blob ...")
 
 	data, err := json.Marshal(voteDetails)
 	if err != nil {
@@ -251,7 +253,7 @@ func (l *legacyImport) blobSaveVoteDetails(voteDetails tv.VoteDetails, newToken 
 		return err
 	}
 
-	fmt.Println(" ticketvote: Saved!")
+	// fmt.Println(" ticketvote: Saved!")
 
 	return nil
 }

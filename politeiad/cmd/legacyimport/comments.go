@@ -30,6 +30,8 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 	l.comments[hex.EncodeToString(newToken)] = make(map[string]decredplugin.Comment)
 	l.Unlock()
 
+	fmt.Printf("  comments: Parsing comments journal for %v ...\n", hex.EncodeToString(newToken))
+
 	for i := 0; s.Scan(); i++ {
 		// json text from reading each journal line
 		// fmt.Println(s.Text())
@@ -82,9 +84,6 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 			if err != nil {
 				return fmt.Errorf("comment journal addlike: %v", err)
 			}
-			fmt.Println("\n\n like comment payload from journal")
-			fmt.Println(lc)
-			fmt.Println("")
 
 			err = l.blobSaveCommentLike(lc, newToken)
 			if err != nil {
@@ -96,12 +95,13 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 				action.Action)
 		}
 	}
+	fmt.Printf("  comments: Done for %v!\n", hex.EncodeToString(newToken))
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byte) error {
-	fmt.Println("\n comments: Saving CommentAdd blob ...")
+	// fmt.Println("\n comments: Saving CommentAdd blob ...")
 
 	// Get user id from pubkey
 	usr, err := l.fetchUserByPubKey(c.PublicKey)
@@ -152,13 +152,13 @@ func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byt
 		return err
 	}
 
-	fmt.Println(" comments: Saved!")
+	// fmt.Println(" comments: Saved!")
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToken []byte, parentID string) error {
-	fmt.Println("\n comments: Saving CommentDel blob ...")
+	// fmt.Println("\n comments: Saving CommentDel blob ...")
 
 	// Get user ID from pubkey
 	usr, err := l.fetchUserByPubKey(cc.PublicKey)
@@ -210,13 +210,13 @@ func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToke
 		return err
 	}
 
-	fmt.Println(" comments: Saved!")
+	// fmt.Println(" comments: Saved!")
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveCommentLike(lc likeCommentV1, newToken []byte) error {
-	fmt.Println("\n comments: Saving CommentLike blob ...")
+	// fmt.Println("\n comments: Saving CommentLike blob ...")
 
 	// Get user ID from pubkey
 	usr, err := l.fetchUserByPubKey(lc.PublicKey)
@@ -269,13 +269,12 @@ func (l *legacyImport) blobSaveCommentLike(lc likeCommentV1, newToken []byte) er
 	be := store.NewBlobEntry(hint, data)
 	err = l.tstore.BlobSave(newToken, be)
 	if err != nil && err.Error() == "duplicate blob" {
-		fmt.Println(" comments: Duplicate blob, skip entry!")
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	fmt.Println(" comments: Saved!")
+	// fmt.Println(" comments: Saved!")
 
 	return nil
 }

@@ -21,6 +21,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/util"
 	"github.com/subosito/gozaru"
 )
@@ -269,11 +270,25 @@ func filesVerify(files []backend.File, filesDel []string) error {
 				ErrorContext: e,
 			}
 		}
-
 		if !mime.MimeValid(files[i].MIME) {
 			return backend.ContentError{
 				ErrorCode:    backend.ContentErrorFileMIMETypeUnsupported,
 				ErrorContext: files[i].Name,
+			}
+		}
+
+		// Verify that legacy token is not set
+		if files[i].Name == pi.FileNameProposalMetadata {
+			var pm pi.ProposalMetadata
+			err := json.Unmarshal([]byte(files[i].Payload), &pm)
+			if err != nil {
+				return err
+			}
+			if pm.LegacyToken != "" {
+				return backend.ContentError{
+					ErrorCode:    backend.ContentErrorFileLegacyTokenInvalid,
+					ErrorContext: pm.LegacyToken,
+				}
 			}
 		}
 	}
