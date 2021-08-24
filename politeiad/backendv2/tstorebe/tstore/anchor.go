@@ -22,6 +22,9 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// TODO verify anchor process works and can handle edge cases like politeiad
+// exiting in the middle of an anchor drop.
+
 var (
 	// errNotFound is returned when a record is not found in the
 	// key-value store.
@@ -43,9 +46,11 @@ const (
 	anchorID = "tstorebe"
 )
 
-// setupAnchorProcess performs all required setup for the tstore anchoring
-// process.
-func (t *Tstore) setupAnchorProcess() error {
+// startAnchorProcess performs all required setup for the tstore anchoring
+// process and starts the anchoring cron job.
+func (t *Tstore) startAnchorProcess() error {
+	log.Infof("Starting anchor process")
+
 	// Setup a database transaction
 	tx, cancel, err := t.Tx()
 	if err != nil {
@@ -58,8 +63,7 @@ func (t *Tstore) setupAnchorProcess() error {
 	if err == errNotFound {
 		// A dropping anchor record has not been created yet.
 		// Create one and save it to the key-value store.
-		da := newDroppingAnchor(false, time.Now().Unix())
-		err = t.droppingAnchorSave(tx, da)
+		err = t.droppingAnchorSave(tx, newDroppingAnchor(false))
 		if err != nil {
 			return err
 		}
@@ -68,29 +72,227 @@ func (t *Tstore) setupAnchorProcess() error {
 		return err
 	}
 
+	// Commit the database transaction
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	// Launch anchor cron job
-	log.Infof("Launch cron anchor job")
-	err = t.cron.AddFunc(anchorSchedule, func() {
+	return t.cron.AddFunc(anchorSchedule, func() {
 		err := t.anchorTrees()
 		if err != nil {
 			log.Errorf("anchorTrees: %v", err)
 		}
 	})
+}
+
+const (
+	// droppingAnchorKey is the key-value store key for the dropping
+	// anchor record.
+	droppingAnchorKey = "tstore-dropping-anchor"
+
+	// droppingAnchorTimeout is used to manually timeout the previous
+	// anchor drop. The anchor dropping process is too long to use a
+	// database transaction so we must manually timeout and reset the
+	// droppingAnchor record if an unexpected error occurs (ex. the
+	// politeiad instance that is dropping the anchor crashes while
+	// waiting for dcrtime to include the anchor in a DCR transaction).
+	//
+	// A DCR mainnet block has a 99.75% chance of being found within
+	// 30 minutes. dcrtime does not return the timestamp transaction
+	// information until the transaction has 6 confirmations. We can
+	// safely assume that something went wrong with the anchor drop
+	// and it needs to be timed out if 3 hours (30 minutes x 6 confs)
+	// has passed.
+	droppingAnchorTimeout int64 = 60 * 60 * 3 // 3 hours in seconds
+)
+
+// droppingAnchor is the record that is saved to the key-value store to make
+// the anchor dropping process concurrency safe when multiple politeiad
+// instances are being run. The first politeiad instance to pull this record
+// from the key-value store is responsible for dropping the anchor for that
+// specific anchor period.
+//
+// If the dropping anchor timeout is reached, any politeiad instance can reset
+// the dropping anchor record and start a new anchor drop. This is used as a
+// fail safe against unexpected errors and concurrency edge cases.
+type droppingAnchor struct {
+	InProgress bool  `json:"inprogress"` // Anchor drop is in progress
+	Timestamp  int64 `json:"timestamp"`  // Unix timestamp of last update
+}
+
+// newDroppingAnchor returns a new droppingAnchor.
+func newDroppingAnchor(inProgress bool) droppingAnchor {
+	return droppingAnchor{
+		InProgress: inProgress,
+		Timestamp:  time.Now().Unix(),
+	}
+}
+
+// encode encodes the droppingAnchor into a BlobEntry then encodes the BlobEnty
+// into a gzipped byte slice.
+func (d *droppingAnchor) encode() ([]byte, error) {
+	data, err := json.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorDroppingAnchor,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	b, err := store.Blobify(be)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
+// BlobEntry into a droppingAnchor.
+func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
+	be, err := store.Deblob(gb)
+	if err != nil {
+		return nil, err
+	}
+	b, err := store.Decode(*be, dataDescriptorDroppingAnchor)
+	if err != nil {
+		return nil, err
+	}
+	var da droppingAnchor
+	err = json.Unmarshal(b, &da)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &da, nil
+}
+
+var (
+	// errAlreadyInProgress is returned when a thread attempts to
+	// update the dropping anchor record to in-progress while it's
+	// already in-progress.
+	errAlreadyInProgress = errors.New("dropping anchor in progress")
+)
+
+// droppingAnchorInProgress updates the droppingAnchor record in the key-value
+// store to reflect that an anchor drop is in-progress.
+//
+// An errAlreadyInProgress error is returned if this function is called while
+// an anchor drop is already in-progress.
+func (t *Tstore) droppingAnchorInProgress() error {
+	// Setup a database transaction
+	tx, cancel, err := t.Tx()
 	if err != nil {
 		return err
 	}
-	t.cron.Start()
+	defer cancel()
+
+	// Get the dropping anchor record
+	da, err := t.droppingAnchor(tx)
+	if err != nil {
+		return err
+	}
+	if da.InProgress {
+		// Anchor drop is already in progress. Verify that the timeout
+		// has not been reached.
+		if time.Now().Unix() < (da.Timestamp + droppingAnchorTimeout) {
+			// Timeout has not been reached yet
+			return errAlreadyInProgress
+		}
+
+		// Something went wrong and the timeout has been reached.
+		// Continue to the code below so that the dropping anchor
+		// record is reset.
+		log.Errorf("Anchor drop has timed out after %v seconds; "+
+			"resetting the anchor drop record", droppingAnchorTimeout)
+	}
+
+	// Update the dropping anchor record
+	err = t.droppingAnchorSave(tx, newDroppingAnchor(true))
+	if err != nil {
+		return err
+	}
+
+	// Commit database transaction
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Dropping anchor record set to in-progress")
 
 	return nil
 }
 
+// droppingAnchorReset resets the dropping anchor record by setting the
+// in-progress field to false and saving the updated record to the key-value
+// store.
+func (t *Tstore) droppingAnchorReset() error {
+	// Setup a database transaction
+	tx, cancel, err := t.Tx()
+	if err != nil {
+		return err
+	}
+	defer cancel()
+
+	// Reset the dropping anchor record
+	err = t.droppingAnchorSave(tx, newDroppingAnchor(false))
+	if err != nil {
+		return err
+	}
+
+	// Commit the database transaction
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Dropping anchor record reset")
+
+	return nil
+}
+
+// droppingAnchorSave saves the droppingAnchor record to the key-value store
+// using the provided database transaction.
+//
+// The transaction must be committed by the caller.
+func (t *Tstore) droppingAnchorSave(tx store.Tx, da droppingAnchor) error {
+	b, err := da.encode()
+	if err != nil {
+		return err
+	}
+	return tx.Put(map[string][]byte{
+		droppingAnchorKey: b,
+	}, false)
+}
+
+// droppingAnchor retrieves the droppingAnchor record from the key-value store.
+func (t *Tstore) droppingAnchor(s store.Getter) (*droppingAnchor, error) {
+	blobs, err := s.Get([]string{droppingAnchorKey})
+	if err != nil {
+		return nil, err
+	}
+	b, ok := blobs[droppingAnchorKey]
+	if !ok {
+		return nil, errNotFound
+	}
+	return decodeDroppingAnchor(b)
+}
+
 // anchor represents an anchor, i.e. timestamp, of a trillian tree at a
-// specific tree size. The LogRootV1.RootHash is the merkle root hash of a
-// trillian tree. This root hash is submitted to dcrtime to be anchored and is
-// the digest that is returned in the VerifyDigest. Only the root hash is
-// anchored, but the full LogRootV1 struct is saved as part of an anchor record
-// so that it can be used to retrieve inclusion proofs for any leaves that are
-// included in the root hash.
+// specific tree size.
+//
+// The LogRootV1.RootHash is the merkle root hash of a trillian tree. This root
+// hash is submitted to dcrtime to be anchored and will be the digest that is
+// returned in the VerifyDigest. Only the root hash is anchored, but the full
+// LogRootV1 struct is saved as part of an anchor record so that it can be used
+// to retrieve inclusion proofs for any leaves that are included in the root
+// hash.
 type anchor struct {
 	TreeID       int64                 `json:"treeid"`
 	LogRoot      *types.LogRootV1      `json:"logroot"`
@@ -154,25 +356,47 @@ func decodeAnchor(gb []byte) (*anchor, error) {
 // The anchor data is saved to the key-value store and the tlog tree is updated
 // with an anchor leaf.
 func (t *Tstore) anchorTrees() error {
-	log.Debugf("Start anchor process")
+	log.Infof("Checking for unanchored trees")
 
-	// Ensure we are not reentrant
-	// TODO
-	// if t.droppingAnchorGet() {
-	if true {
-		// An anchor is not considered dropped until dcrtime returns the
-		// ChainTimestamp in the VerifyReply. dcrtime does not do this
-		// until the anchor tx has 6 confirmations, therefor, this code
-		// path can be hit if 6 blocks are not mined within the period
-		// specified by the anchor schedule. Though rare, the probability
-		// of this happening is not zero and should not be considered an
-		// error. We simply exit and will drop a new anchor at the next
-		// anchor period.
-		log.Infof("Attempting to drop an anchor while previous anchor " +
-			"has not finished dropping; skipping current anchor period")
+	// Update the dropping anchor record to in-progress. This prevents
+	// concurrent anchor drops.
+	err := t.droppingAnchorInProgress()
+	if errors.Is(err, errAlreadyInProgress) {
+		// An anchor drop is already in progress. There are two scenerios
+		// where this can happen.
+		//
+		// 1. A different politeiad instance already started the anchor
+		//    drop for this anchor period.
+		//
+		// 2. The previous anchor period has not completed yet. An anchor
+		//    is not considered dropped until dcrtime returns the
+		//    ChainTimestamp in the VerifyReply. dcrtime does not do this
+		//    until the anchor tx has 6 confirmations, therefor, this
+		//    code path can be hit if 6 blocks are not mined within the
+		//    period specified by the anchor schedule. Though rare, the
+		//    probability of this happening is not zero and should not be
+		//    considered an error. We simply exit and will drop a new
+		//    anchor at the next anchor period.
+		//
+		// The appropriate behavior is to exit gracefully.
+		log.Infof("Anchor drop is already in progress; waiting for next drop")
 		return nil
+
+	} else if err != nil {
+		// All other errors
+		return err
 	}
 
+	// No matter what happens in this function we must reset the
+	// dropping anchor record on exit.
+	defer func() {
+		err := t.droppingAnchorReset()
+		if err != nil {
+			log.Errorf("droppingAnchorReset: %v", err)
+		}
+	}()
+
+	// Get all trees from tlog
 	trees, err := t.tlog.TreesAll()
 	if err != nil {
 		return err
@@ -282,50 +506,16 @@ func (t *Tstore) anchorTrees() error {
 		return errors.Errorf("dcrtime failed to timestamp digests")
 	}
 
-	// Launch go routine that polls dcrtime for the anchor tx
-	go t.anchorWait(anchors, digests)
-
-	return nil
-}
-
-// anchorWait waits for the anchor to drop. The anchor is not considered
-// dropped until dcrtime returns the ChainTimestamp in the reply. dcrtime does
-// not return the ChainTimestamp until the timestamp transaction has 6
-// confirmations. Once the timestamp has been dropped, the anchor record is
-// saved to the tstore, which means that an anchor leaf will be appended onto
-// all trees that were anchored and the anchor records saved to the kv store.
-func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
-	// Verify we are not reentrant
-	// TODO
-	// if t.droppingAnchorGet() {
-	if true {
-		log.Errorf("waitForAchor: called reentrantly")
-		return
-	}
-
-	// We are now condsidered to be dropping an anchor
-	// TODO
-	// t.droppingAnchorSet(true)
-
-	// Whatever happens in this function we must clear droppingAnchor
-	var exitErr error
-	defer func() {
-		// TODO
-		// t.droppingAnchorSet(false)
-
-		if exitErr != nil {
-			log.Errorf("anchorWait: %v", exitErr)
-		}
-	}()
-
-	// Wait for anchor to drop
+	// Now we wait for the anchor to drop. The anchor is not considered
+	// dropped until dcrtime returns the ChainTimestamp in the reply.
+	// dcrtime does not return the ChainTimestamp until the timestamp
+	// transaction has 6 confirmations. Once the timestamp has been
+	// dropped, the anchor record is saved to the tstore, which means
+	// that an anchor leaf will be appended onto all trees that were
+	// anchored and the anchor records saved to the kv store.
 	log.Infof("Waiting for anchor to drop")
 
 	// Continually check with dcrtime if the anchor has been dropped.
-	// The anchor is not considered dropped until the ChainTimestamp
-	// field of the dcrtime reply has been populated. dcrtime only
-	// populates the ChainTimestamp field once the dcr transaction has
-	// 6 confirmations.
 	var (
 		// The max retry period is set to 180 minutes to ensure that
 		// enough time is given for the anchor transaction to receive 6
@@ -343,8 +533,8 @@ func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
 
 		vbr, err := t.dcrtime.verifyBatch(anchorID, digests)
 		if err != nil {
-			exitErr = err
-			return
+			log.Errorf("dcrtime verify batch: %v", err)
+			continue
 		}
 
 		// We must wait until all digests have been anchored. Under
@@ -451,10 +641,10 @@ func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
 		}
 
 		log.Infof("Anchor dropped for %v records", len(vbr.Digests))
-		return
+		return nil
 	}
 
-	log.Errorf("Anchor drop timeout, waited for: %v",
+	return errors.Errorf("anchor drop timeout; waited for %v minutes",
 		int(period.Minutes())*retries)
 }
 
@@ -641,157 +831,4 @@ func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
 	}
 
 	return a, nil
-}
-
-const (
-	// droppingAnchorKey is the key-value store key for the dropping
-	// anchor record.
-	droppingAnchorKey = "tstore-dropping-anchor"
-
-	// droppingAnchorTimeout is used to manually timeout the previous
-	// anchor drop. The anchor dropping process is too long to use a
-	// database transaction so we must manually timeout and reset the
-	// droppingAnchor record if an unexpected error occurs (ex. the
-	// politeiad instance that is dropping the anchor crashes while
-	// waiting for dcrtime to include the anchor in a DCR transaction).
-	//
-	// A DCR mainnet block has a 99.75% chance of being found within
-	// 30 minutes. dcrtime does not return the timestamp transaction
-	// information until the transaction has 6 confirmations. We can
-	// safely assume that something went wrong with the anchor drop
-	// and it needs to be timed out if 3 hours (30 minutes x 6 confs)
-	// has passed.
-	droppingAnchorTimeout int64 = 60 * 60 * 3 // 3 hours in seconds
-)
-
-// droppingAnchor is the record that is saved to the key-value store to make
-// the anchor dropping process concurrency safe. The first thread to pull this
-// record from the key-value store is responsible for dropping the anchor.
-//
-// The anchor drop is timed out and the droppingAnchor record is reset if the
-// droppingAnchorTimeout limit is reached.
-type droppingAnchor struct {
-	InProgress bool  `json:"inprogress"` // Anchor drop is in progress
-	Timestamp  int64 `json:"timestamp"`  // Unix timestamp of last update
-}
-
-// newDroppingAnchor returns a new droppingAnchor.
-func newDroppingAnchor(inProgress bool, timestamp int64) droppingAnchor {
-	return droppingAnchor{
-		InProgress: inProgress,
-		Timestamp:  timestamp,
-	}
-}
-
-// encode encodes the droppingAnchor into a BlobEntry then encodes the BlobEnty
-// into a gzipped byte slice.
-func (d *droppingAnchor) encode() ([]byte, error) {
-	data, err := json.Marshal(d)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorDroppingAnchor,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	b, err := store.Blobify(be)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
-// BlobEntry into a droppingAnchor.
-func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
-	be, err := store.Deblob(gb)
-	if err != nil {
-		return nil, err
-	}
-	b, err := store.Decode(*be, dataDescriptorDroppingAnchor)
-	if err != nil {
-		return nil, err
-	}
-	var da droppingAnchor
-	err = json.Unmarshal(b, &da)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return &da, nil
-}
-
-var (
-	// errDroppingAnchorInProgress is returned when a thread attempts
-	// to start an anchor drop while one is already in-progress.
-	errDroppingAnchorInProgress = errors.New("dropping anchor in progress")
-)
-
-// droppingAnchorStart updates the droppingAnchor record in the key-value store
-// to reflect that the anchor drop is in-progress.
-//
-// An errDroppingAnchorInProgress error is returned if this function is called
-// while an anchor drop is already in-progress.
-func (t *Tstore) droppingAnchorStart() error {
-	// Setup a database transaction
-	tx, cancel, err := t.Tx()
-	if err != nil {
-		return err
-	}
-	defer cancel()
-
-	// Get the dropping anchor record
-	da, err := t.droppingAnchor(tx)
-	if err != nil {
-		return err
-	}
-	if da.InProgress {
-		// Anchor drop is already in progress. Verify that the timeout
-		// has not been reached.
-		if time.Now().Unix() < (da.Timestamp + droppingAnchorTimeout) {
-			// Timeout has not been reached yet
-			return errDroppingAnchorInProgress
-		}
-
-		// Something went wrong and the timeout has been reached.
-		// Continue to the code below so that the dropping anchor
-		// record is reset.
-		log.Errorf("Anchor drop has timed out after %v seconds; "+
-			"resetting the anchor drop record", droppingAnchorTimeout)
-	}
-
-	// Update the dropping anchor record
-	da.InProgress = true
-	da.Timestamp = time.Now().Unix()
-
-	// Save the updated record
-	return t.droppingAnchorSave(tx, *da)
-}
-
-// droppingAnchorSave saves the droppingAnchor record to the key-value store.
-func (t *Tstore) droppingAnchorSave(tx store.Tx, da droppingAnchor) error {
-	b, err := da.encode()
-	if err != nil {
-		return err
-	}
-	return tx.Put(map[string][]byte{
-		droppingAnchorKey: b,
-	}, false)
-}
-
-// droppingAnchor retrieves the droppingAnchor record from the key-value store.
-func (t *Tstore) droppingAnchor(s store.Getter) (*droppingAnchor, error) {
-	blobs, err := s.Get([]string{droppingAnchorKey})
-	if err != nil {
-		return nil, err
-	}
-	b, ok := blobs[droppingAnchorKey]
-	if !ok {
-		return nil, errNotFound
-	}
-	return decodeDroppingAnchor(b)
 }

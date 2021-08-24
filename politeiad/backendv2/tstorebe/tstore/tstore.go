@@ -161,6 +161,9 @@ func (t *Tstore) Fsck() {
 func (t *Tstore) Close() {
 	log.Tracef("Close")
 
+	// Stop all cron jobs
+	t.cron.Stop()
+
 	// Close connections
 	t.tlog.Close()
 	t.store.Close()
@@ -168,6 +171,14 @@ func (t *Tstore) Close() {
 
 // Setup performs any required work to setup the tstore instance.
 func (t *Tstore) Setup() error {
+	log.Tracef("Setup")
+
+	err := t.startAnchorProcess()
+	if err != nil {
+		return err
+	}
+
+	// Setup token prefix cache
 	log.Infof("Building backend token prefix cache")
 
 	tokens, err := t.Inventory()
@@ -210,20 +221,17 @@ func New(net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeH
 		return nil, err
 	}
 
-	// Setup tstore
-	t := Tstore{
+	// Start cron
+	c := cron.New()
+	c.Start()
+
+	return &Tstore{
 		net:     net,
 		tlog:    tlogClient,
 		store:   kvstore,
 		dcrtime: dcrtimeClient,
-		cron:    cron.New(),
+		cron:    c,
 		plugins: make(map[string]plugin),
 		tokens:  make(map[string][]byte),
-	}
-	err = t.setupAnchorProcess()
-	if err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	}, nil
 }
