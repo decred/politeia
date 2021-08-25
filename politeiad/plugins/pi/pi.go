@@ -147,9 +147,9 @@ const (
 	// size exceedes the ImageFileSizeMax setting.
 	ErrorCodeImageFileSizeInvalid ErrorCodeT = 5
 
-	// ErrorCodeProposalNameInvalid is returned when a proposal name
-	// does not adhere to the proposal name settings.
-	ErrorCodeProposalNameInvalid ErrorCodeT = 6
+	// ErrorCodeTitleInvalid is returned when a title, proposal title or proposal
+	// update title, does not adhere to the title regexp requirements.
+	ErrorCodeTitleInvalid ErrorCodeT = 6
 
 	// ErrorCodeVoteStatusInvalid is returned when a proposal vote
 	// status does not allow changes to be made to the proposal.
@@ -194,17 +194,22 @@ const (
 	// is provided.
 	ErrorCodeBillingStatusInvalid = 16
 
-	// ErrorCodeUpdateTitleInvalid is returned when an update title
-	// does not adhere to the title setting.
-	ErrorCodeUpdateTitleInvalid = 17
+	// ErrorCodeCommentWriteNotAllowed is returned when a user attempts to submit
+	// a new comment or a comment vote, but does not have permission to. This
+	// could be because the proposal's vote status does not allow for any
+	// additional changes or because the user is trying to write to a thread that
+	// is not allowed. Example, once a proposal vote is approved the only comment
+	// writes that are allowed are replies and votes to the author's most recent
+	// update thread.
+	ErrorCodeCommentWriteNotAllowed = 17
 
-	// ErrorCodeExtraDataHintInvalid is returned when the extra data hint
-	// is invalid.
+	// ErrorCodeExtraDataHintInvalid is returned when the extra data hint is
+	// invalid.
 	ErrorCodeExtraDataHintInvalid = 18
 
-	// ErrorCodeWritesAllowedOnlyOnUpdates is returned when the vote
-	// status allows comment writes only on author updates.
-	ErrorCodeWritesAllowedOnlyOnUpdates = 19
+	// ErrorCodeExtraDataInvalid is returned when the extra data payload is
+	// invalid.
+	ErrorCodeExtraDataInvalid = 19
 
 	// ErrorCodeLast unit test only.
 	ErrorCodeLast ErrorCodeT = 20
@@ -219,7 +224,7 @@ var (
 		ErrorCodeTextFileMissing:               "text file is misisng",
 		ErrorCodeImageFileCountInvalid:         "image file count invalid",
 		ErrorCodeImageFileSizeInvalid:          "image file size invalid",
-		ErrorCodeProposalNameInvalid:           "proposal name invalid",
+		ErrorCodeTitleInvalid:                  "title invalid",
 		ErrorCodeVoteStatusInvalid:             "vote status invalid",
 		ErrorCodeProposalAmountInvalid:         "proposal amount invalid",
 		ErrorCodeProposalStartDateInvalid:      "proposal start date invalid",
@@ -230,9 +235,9 @@ var (
 		ErrorCodeSignatureInvalid:              "signature invalid",
 		ErrorCodeBillingStatusChangeNotAllowed: "billing status change is not allowed",
 		ErrorCodeBillingStatusInvalid:          "billing status invalid",
-		ErrorCodeUpdateTitleInvalid:            "update title invalid",
+		ErrorCodeCommentWriteNotAllowed:        "comment write not allowed",
 		ErrorCodeExtraDataHintInvalid:          "extra data hint invalid",
-		ErrorCodeWritesAllowedOnlyOnUpdates:    "comment writes are allowed only on author updates",
+		ErrorCodeExtraDataInvalid:              "extra data payload invalid",
 	}
 )
 

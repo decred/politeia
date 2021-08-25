@@ -136,9 +136,8 @@ func (p *piPlugin) hookPluginPre(payload string) error {
 	return nil
 }
 
-// titleIsValid returns whether the provided title, which can be
-// either a proposal name or an author update title, matches the pi plugin
-// title regex.
+// titleIsValid returns whether the provided title, which can be either a
+// proposal name or an author update title, matches the pi plugin title regex.
 func (p *piPlugin) titleIsValid(title string) bool {
 	return p.titleRegexp.MatchString(title)
 }
@@ -322,7 +321,7 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	if !p.titleIsValid(pm.Name) {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeProposalNameInvalid),
+			ErrorCode:    uint32(pi.ErrorCodeTitleInvalid),
 			ErrorContext: p.titleRegexp.String(),
 		}
 	}
@@ -480,61 +479,65 @@ func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload st
 	if !isInCommentTree(latestAuthorUpdate.CommentID, v.CommentID, cs) {
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeWritesAllowedOnlyOnUpdates),
+			ErrorCode: uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "votes are only allowed on the author's " +
+				"most recent update thread",
 		}
 	}
 
 	return nil
 }
 
-// isValidAuthorUpdate returns whether the given new comment is a valid
-// author update.
-// Comment must include proper proposal update metadata and it's author
-// must be the proposal's author for it to be considered as a valid
+// isValidAuthorUpdate returns whether the given new comment is a valid author
+// update.
+//
+// The comment must include proper proposal update metadata and the comment
+// must be submitted by the proposal author for it to be considered a valid
 // author update.
 func (p *piPlugin) isValidAuthorUpdate(token []byte, n comments.New) error {
-	// Get proposal author to ensure new comment's author is
-	// the proposal's author.
+	// Get the proposal author. The proposal author
+	// and the comment author must be the same user.
 	recordAuthorID, err := p.recordAuthor(token)
 	if err != nil {
 		return err
 	}
-
-	if n.UserID == recordAuthorID &&
-		n.ExtraData != "" && n.ExtraDataHint != "" {
-		switch n.ExtraDataHint {
-		case pi.ProposalUpdateHint:
-			// Decode comment extra data
-			var pum pi.ProposalUpdateMetadata
-			err = json.Unmarshal([]byte(n.ExtraData), &pum)
-			if err != nil {
-				return err
-			}
-			// Verify update title
-			if !p.titleIsValid(pum.Title) {
-				return backend.PluginError{
-					PluginID:     pi.PluginID,
-					ErrorCode:    uint32(pi.ErrorCodeUpdateTitleInvalid),
-					ErrorContext: p.titleRegexp.String(),
-				}
-			}
-			// New valid author update
-			return nil
-
-		default:
-			return backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
-			}
-
+	if recordAuthorID != n.UserID {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "user is not the proposal author",
 		}
 	}
-	// New comment is a new thread but not a valid author update.
-	return backend.PluginError{
-		PluginID:     pi.PluginID,
-		ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
-		ErrorContext: "vote has ended; comments are locked",
+
+	// Verify extra data fields
+	if n.ExtraDataHint != pi.ProposalUpdateHint {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
+			ErrorContext: fmt.Sprintf("got %v, want %v",
+				n.ExtraDataHint, pi.ProposalUpdateHint),
+		}
 	}
+	var pum pi.ProposalUpdateMetadata
+	err = json.Unmarshal([]byte(n.ExtraData), &pum)
+	if err != nil {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeExtraDataInvalid),
+		}
+	}
+
+	// Verify update title
+	if !p.titleIsValid(pum.Title) {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeTitleInvalid),
+			ErrorContext: p.titleRegexp.String(),
+		}
+	}
+
+	// The comment is a valid author update.
+	return nil
 }
 
 // commentNewAllowedOnApprovedProposal verifies that the given new comment
@@ -566,7 +569,9 @@ func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload str
 		// is not allowed.
 		return backend.PluginError{
 			PluginID:  pi.PluginID,
-			ErrorCode: uint32(pi.ErrorCodeWritesAllowedOnlyOnUpdates),
+			ErrorCode: uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "comment replies are only allowed on " +
+				"the author's most recent update thread",
 		}
 
 	default:
@@ -664,7 +669,7 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 		// Vote status does not allow writes
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
+			ErrorCode:    uint32(pi.ErrorCodeCommentWriteNotAllowed),
 			ErrorContext: "vote has ended; comments are locked",
 		}
 	}

@@ -484,7 +484,7 @@ func proposalNameTests(t *testing.T) []proposalFormatTest {
 	// fails.
 	errNameInvalid := backend.PluginError{
 		PluginID:  pi.PluginID,
-		ErrorCode: uint32(pi.ErrorCodeProposalNameInvalid),
+		ErrorCode: uint32(pi.ErrorCodeTitleInvalid),
 	}
 
 	return []proposalFormatTest{
