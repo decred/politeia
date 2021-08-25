@@ -136,8 +136,8 @@ func (p *piPlugin) hookPluginPre(payload string) error {
 	return nil
 }
 
-// proposalNameIsValid returns whether the provided title which can be
-// either a proposal name or an author update title matches the pi plugin
+// titleIsValid returns whether the provided title, which can be
+// either a proposal name or an author update title, matches the pi plugin
 // title regex.
 func (p *piPlugin) titleIsValid(title string) bool {
 	return p.titleRegexp.MatchString(title)
@@ -437,7 +437,7 @@ func isInCommentTree(rootID, leafID uint32, cs []comments.Comment) bool {
 
 // latestAuthorUpdate gets the latest author update on a record, if
 // the record has no author update it returns nil.
-func latestAuthorUpdate(token []byte, cs []comments.Comment) (*comments.Comment, error) {
+func latestAuthorUpdate(token []byte, cs []comments.Comment) *comments.Comment {
 	var latestAuthorUpdate comments.Comment
 	for _, c := range cs {
 		if c.ExtraDataHint != pi.ProposalUpdateHint {
@@ -447,7 +447,7 @@ func latestAuthorUpdate(token []byte, cs []comments.Comment) (*comments.Comment,
 			latestAuthorUpdate = c
 		}
 	}
-	return &latestAuthorUpdate, nil
+	return &latestAuthorUpdate
 }
 
 // recordAuthor returns the author's userID of the record associated with
@@ -607,10 +607,7 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 	if err != nil {
 		return err
 	}
-	latestAuthorUpdate, err := latestAuthorUpdate(token, gar.Comments)
-	if err != nil {
-		return err
-	}
+	latestAuthorUpdate := latestAuthorUpdate(token, gar.Comments)
 
 	switch cmd {
 	// If the user is submitting a new comment then it must be either a new
@@ -619,7 +616,7 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 		return p.commentNewAllowedOnApprovedProposal(token, payload,
 			*latestAuthorUpdate, gar.Comments)
 
-	// If that's a comment vote then it must be on one of the latest
+	// If the user is voting on a comment then it must be on one of the latest
 	// author update thread comments.
 	case comments.CmdVote:
 		return p.commentVoteAllowedOnApprovedProposal(token, payload,
@@ -670,7 +667,6 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
 			ErrorContext: "vote has ended; comments are locked",
 		}
-
 	}
 }
 
