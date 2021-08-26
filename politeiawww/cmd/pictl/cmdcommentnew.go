@@ -149,5 +149,5 @@ Arguments:
 
 Flags:
   --unvetted    (bool, optional)   Record is unvetted.
-	--updatetitle (string, optional) Authour update title.
+  --updatetitle (string, optional) Authour update title.
 `
