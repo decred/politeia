@@ -34,7 +34,7 @@ const (
 	// ErrorCodeInvalid is an invalid error code.
 	ErrorCodeInvalid ErrorCodeT = 0
 
-	// ErrorCodeuserMetadataNotFound is returned when a record does
+	// ErrorCodeUserMetadataNotFound is returned when a record does
 	// not contain a metdata stream for user metadata.
 	ErrorCodeUserMetadataNotFound ErrorCodeT = 1
 
@@ -42,7 +42,7 @@ const (
 	// between versions of a record.
 	ErrorCodeUserIDInvalid ErrorCodeT = 2
 
-	// ErrorCodePlublicKeyInvalid is returned when a public key used
+	// ErrorCodePublicKeyInvalid is returned when a public key used
 	// in a signature is not valid.
 	ErrorCodePublicKeyInvalid ErrorCodeT = 3
 

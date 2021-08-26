@@ -65,13 +65,15 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 
 	// Send plugin command
 	cn := comments.New{
-		UserID:    u.ID.String(),
-		State:     state,
-		Token:     n.Token,
-		ParentID:  n.ParentID,
-		Comment:   n.Comment,
-		PublicKey: n.PublicKey,
-		Signature: n.Signature,
+		UserID:        u.ID.String(),
+		State:         state,
+		Token:         n.Token,
+		ParentID:      n.ParentID,
+		Comment:       n.Comment,
+		PublicKey:     n.PublicKey,
+		Signature:     n.Signature,
+		ExtraData:     n.ExtraData,
+		ExtraDataHint: n.ExtraDataHint,
 	}
 	pdc, err := c.politeiad.CommentNew(ctx, cn)
 	if err != nil {

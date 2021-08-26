@@ -98,6 +98,13 @@ func (e ServerErrorReply) Error() string {
 type Policy struct{}
 
 // PolicyReply is the reply to the Policy command.
+//
+// NOTE: NameLengthMin, NameLengthMax, NameSupportedChars are not consistent
+// with the field names in the pi plugin where they defined as titleLengthMin,
+// titleLengthMax & titleSupportedChars as they are now used to verify both
+// the proposal name and the proposal author update title.
+// We have not updated the field names here to avoid introducing breaking
+// changes.
 type PolicyReply struct {
 	TextFileSizeMax    uint32   `json:"textfilesizemax"` // In bytes
 	ImageFileCountMax  uint32   `json:"imagefilecountmax"`
@@ -242,4 +249,18 @@ type SetBillingStatus struct {
 type SetBillingStatusReply struct {
 	Receipt   string `json:"receipt"`
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
+}
+
+const (
+	// ProposalUpdateHint is the hint that is included in a comment's
+	// ExtraDataHint field to indicate that the comment is an update
+	// from the proposal author.
+	ProposalUpdateHint = "proposalupdate"
+)
+
+// ProposalUpdateMetadata contains the metadata that is attached to a comment
+// in the comment's ExtraData field to indicate that the comment is an update
+// from the proposal author.
+type ProposalUpdateMetadata struct {
+	Title string `json:"title"`
 }

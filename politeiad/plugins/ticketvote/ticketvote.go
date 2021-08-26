@@ -697,7 +697,7 @@ type Timestamp struct {
 }
 
 const (
-	// VoteTimetsampsPageSize is the maximum number of vote timestamps
+	// VoteTimestampsPageSize is the maximum number of vote timestamps
 	// that will be returned for any single request. A vote timestamp
 	// is ~2000 bytes so a page of 100 votes will only be 0.2MB, but
 	// the bottleneck on this call is performance, not size. Its

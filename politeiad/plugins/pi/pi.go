@@ -30,17 +30,17 @@ const (
 	// SettingImageFileSizeMax plugin setting.
 	SettingKeyImageFileSizeMax = "imagefilesizemax"
 
-	// SettingKeyProposalNameLengthMin is the plugin setting key for
-	// the SettingProposalNameLengthMin plugin setting.
-	SettingKeyProposalNameLengthMin = "proposalnamelengthmin"
+	// SettingKeyTitleLengthMin is the plugin setting key for
+	// the SettingTitleLengthMin plugin setting.
+	SettingKeyTitleLengthMin = "titlelengthmin"
 
-	// SettingKeyProposalNameLengthMax is the plugin setting key for
-	// the SettingProposalNameLengthMax plugin setting.
-	SettingKeyProposalNameLengthMax = "proposalnamelengthmax"
+	// SettingKeyTitleLengthMax is the plugin setting key for
+	// the SettingTitleLengthMax plugin setting.
+	SettingKeyTitleLengthMax = "titlelengthmax"
 
-	// SettingKeyProposalNameSupportedChars is the plugin setting key
-	// for the SettingProposalNameSupportedChars plugin setting.
-	SettingKeyProposalNameSupportedChars = "proposalnamesupportedchars"
+	// SettingKeyTitleSupportedChars is the plugin setting key
+	// for the SettingTitleSupportedChars plugin setting.
+	SettingKeyTitleSupportedChars = "titlesupportedchars"
 
 	// SettingKeyProposalAmountMin is the plugin setting key for
 	// the SettingProposalAmountMin plugin setting.
@@ -78,13 +78,13 @@ const (
 	// an image file in bytes.
 	SettingImageFileSizeMax uint32 = 512 * 1024
 
-	// SettingProposalNameLengthMin is the default minimum number of
-	// characters that a proposal name can be.
-	SettingProposalNameLengthMin uint32 = 8
+	// SettingTitleLengthMin is the default minimum number of
+	// characters that a proposal name or a proposal update title can be.
+	SettingTitleLengthMin uint32 = 8
 
-	// SettingProposalNameLengthMax is the default maximum number of
-	// characters that a proposal name can be.
-	SettingProposalNameLengthMax uint32 = 80
+	// SettingTitleLengthMax is the default maximum number of
+	// characters that a proposal name or a proposal update title can be.
+	SettingTitleLengthMax uint32 = 80
 
 	// SettingProposalAmountMin is the default minimum funding amount
 	// in cents a proposal can have.
@@ -104,9 +104,9 @@ const (
 )
 
 var (
-	// SettingProposalNameSupportedChars contains the supported
-	// characters in a proposal name.
-	SettingProposalNameSupportedChars = []string{
+	// SettingTitleSupportedChars contains the supported
+	// characters in a proposal name or a proposal update title.
+	SettingTitleSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#",
 		"/", "(", ")", "!", "?", "\"", "'",
 	}
@@ -147,9 +147,9 @@ const (
 	// size exceedes the ImageFileSizeMax setting.
 	ErrorCodeImageFileSizeInvalid ErrorCodeT = 5
 
-	// ErrorCodeProposalNameInvalid is returned when a proposal name
-	// does not adhere to the proposal name settings.
-	ErrorCodeProposalNameInvalid ErrorCodeT = 6
+	// ErrorCodeTitleInvalid is returned when a title, proposal title or proposal
+	// update title, does not adhere to the title regexp requirements.
+	ErrorCodeTitleInvalid ErrorCodeT = 6
 
 	// ErrorCodeVoteStatusInvalid is returned when a proposal vote
 	// status does not allow changes to be made to the proposal.
@@ -194,8 +194,25 @@ const (
 	// is provided.
 	ErrorCodeBillingStatusInvalid = 16
 
+	// ErrorCodeCommentWriteNotAllowed is returned when a user attempts to submit
+	// a new comment or a comment vote, but does not have permission to. This
+	// could be because the proposal's vote status does not allow for any
+	// additional changes or because the user is trying to write to a thread that
+	// is not allowed. Example, once a proposal vote is approved the only comment
+	// writes that are allowed are replies and votes to the author's most recent
+	// update thread.
+	ErrorCodeCommentWriteNotAllowed = 17
+
+	// ErrorCodeExtraDataHintInvalid is returned when the extra data hint is
+	// invalid.
+	ErrorCodeExtraDataHintInvalid = 18
+
+	// ErrorCodeExtraDataInvalid is returned when the extra data payload is
+	// invalid.
+	ErrorCodeExtraDataInvalid = 19
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 17
+	ErrorCodeLast ErrorCodeT = 20
 )
 
 var (
@@ -207,7 +224,7 @@ var (
 		ErrorCodeTextFileMissing:               "text file is misisng",
 		ErrorCodeImageFileCountInvalid:         "image file count invalid",
 		ErrorCodeImageFileSizeInvalid:          "image file size invalid",
-		ErrorCodeProposalNameInvalid:           "proposal name invalid",
+		ErrorCodeTitleInvalid:                  "title invalid",
 		ErrorCodeVoteStatusInvalid:             "vote status invalid",
 		ErrorCodeProposalAmountInvalid:         "proposal amount invalid",
 		ErrorCodeProposalStartDateInvalid:      "proposal start date invalid",
@@ -218,6 +235,9 @@ var (
 		ErrorCodeSignatureInvalid:              "signature invalid",
 		ErrorCodeBillingStatusChangeNotAllowed: "billing status change is not allowed",
 		ErrorCodeBillingStatusInvalid:          "billing status invalid",
+		ErrorCodeCommentWriteNotAllowed:        "comment write not allowed",
+		ErrorCodeExtraDataHintInvalid:          "extra data hint invalid",
+		ErrorCodeExtraDataInvalid:              "extra data payload invalid",
 	}
 )
 
@@ -323,4 +343,18 @@ type SetBillingStatus struct {
 type SetBillingStatusReply struct {
 	Receipt   string `json:"receipt"`
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
+}
+
+const (
+	// ProposalUpdateHint is the hint that is included in a comment's
+	// ExtraDataHint field to indicate that the comment is an update
+	// from the proposal author.
+	ProposalUpdateHint = "proposalupdate"
+)
+
+// ProposalUpdateMetadata contains the metadata that is attached to a comment
+// in the comment's ExtraData field to indicate that the comment is an update
+// from the proposal author.
+type ProposalUpdateMetadata struct {
+	Title string `json:"title"`
 }

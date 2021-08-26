@@ -6,9 +6,11 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"strconv"
 
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -24,6 +26,9 @@ type cmdCommentNew struct {
 	// Unvetted is used to comment on an unvetted record. If this flag
 	// is not used the command assumes the record is vetted.
 	Unvetted bool `long:"unvetted" optional:"true"`
+
+	// UpdateTitle is used to post a new author update.
+	UpdateTitle string `long:"updatetitle" optional:"true"`
 }
 
 // Execute executes the cmdCommentNew command.
@@ -65,17 +70,37 @@ func (c *cmdCommentNew) Execute(args []string) error {
 		state = cmv1.RecordStateVetted
 	}
 
+	// Prepare extra data if it's a new author update
+	var (
+		extraData,
+		extraDataHint string
+	)
+	if c.UpdateTitle != "" {
+		extraDataHint = piv1.ProposalUpdateHint
+		pum := piv1.ProposalUpdateMetadata{
+			Title: c.UpdateTitle,
+		}
+		b, err := json.Marshal(pum)
+		if err != nil {
+			return err
+		}
+		extraData = string(b)
+	}
+
 	// Setup request
 	msg := strconv.FormatUint(uint64(state), 10) + token +
-		strconv.FormatUint(uint64(parentID), 10) + comment
+		strconv.FormatUint(uint64(parentID), 10) + comment +
+		extraData + extraDataHint
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	n := cmv1.New{
-		State:     state,
-		Token:     token,
-		ParentID:  parentID,
-		Comment:   comment,
-		Signature: hex.EncodeToString(sig[:]),
-		PublicKey: cfg.Identity.Public.String(),
+		State:         state,
+		Token:         token,
+		ParentID:      parentID,
+		Comment:       comment,
+		Signature:     hex.EncodeToString(sig[:]),
+		PublicKey:     cfg.Identity.Public.String(),
+		ExtraDataHint: extraDataHint,
+		ExtraData:     extraData,
 	}
 
 	// Send request
@@ -110,6 +135,12 @@ This command assumes the record is a vetted record.
 If the record is unvetted, the --unvetted flag must be used. Commenting on
 unvetted records requires admin priviledges.
 
+Proposal's author may post author update using the --updatetitle flag. Author 
+updates are allowed only on a proposal which finished voting and it's
+vote was approved. User can reply only on the latest author update. When a 
+proposal billing status is set to closed or completed it's not possible to 
+post author updates or to reply on them.
+
 Arguments:
 1. token     (string, required)  Proposal censorship token.
 2. comment   (string, required)  Comment text.
@@ -117,5 +148,6 @@ Arguments:
                                  indicates that the comment is a reply.
 
 Flags:
-  --unvetted   (bool, optional)  Record is unvetted.
+  --unvetted    (bool, optional)   Record is unvetted.
+  --updatetitle (string, optional) Authour update title.
 `
