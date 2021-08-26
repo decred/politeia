@@ -90,7 +90,12 @@ func (t *Tstore) RecordTx(token []byte) (store.Tx, func(), error) {
 func (t *Tstore) RecordNew(tx store.Tx) ([]byte, error) {
 	log.Tracef("RecordNew")
 
-	// Create a new tlog tree
+	// Create a new tlog tree. If a tree is successfully created, but
+	// one of the subsequent calls fails before the shortened token is
+	// cached, the tree will simply be ignored. It doesn't matter if a
+	// future tree creates a collision with the failed tree's short
+	// token because there is nothing saved to the failed tree. A short
+	// token cache entry should never exist for the failed tree.
 	var token []byte
 	for retries := 0; retries < 10; retries++ {
 		tree, _, err := t.tlog.TreeNew()
@@ -100,16 +105,22 @@ func (t *Tstore) RecordNew(tx store.Tx) ([]byte, error) {
 		token = tokenFromTreeID(tree.TreeId)
 
 		// Check for shortened token collisions
-		if t.tokenCollision(token) {
+		isUnique, err := t.shortTokenIsUnique(token)
+		if err != nil {
+			return nil, err
+		}
+		if !isUnique {
 			// This is a collision. We cannot use this tree. Try again.
 			log.Infof("Token collision %x, creating new token", token)
 			continue
 		}
 
-		// We've found a valid token. Update the tokens cache. This must
-		// be done even if the record creation fails since the tree will
-		// still exist.
-		t.tokenAdd(token)
+		// The token is valid. Cache the shortened version of the token.
+		err = t.cacheShortToken(token)
+		if err != nil {
+			return nil, err
+		}
+
 		break
 	}
 

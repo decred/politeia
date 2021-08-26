@@ -32,18 +32,12 @@ type plugin struct {
 // plugin returns the specified plugin. Only plugins that have been registered
 // will be returned.
 func (t *Tstore) plugin(pluginID string) (plugin, bool) {
-	t.Lock()
-	defer t.Unlock()
-
 	plugin, ok := t.plugins[pluginID]
 	return plugin, ok
 }
 
 // pluginIDs returns the plugin ID of all registered plugins.
 func (t *Tstore) pluginIDs() []string {
-	t.Lock()
-	defer t.Unlock()
-
 	ids := make([]string, 0, len(t.plugins))
 	for k := range t.plugins {
 		ids = append(ids, k)
@@ -92,9 +86,6 @@ func (t *Tstore) PluginRegister(b backend.Backend, bs backend.BackendSettings, p
 	default:
 		return backend.ErrPluginIDInvalid
 	}
-
-	t.Lock()
-	defer t.Unlock()
 
 	t.plugins[p.ID] = plugin{
 		id:     p.ID,
@@ -197,9 +188,6 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 // Plugins returns all registered plugins for the tstore instance.
 func (t *Tstore) Plugins() []backend.Plugin {
 	log.Tracef("Plugins")
-
-	t.Lock()
-	defer t.Unlock()
 
 	plugins := make([]backend.Plugin, 0, len(t.plugins))
 	for _, v := range t.plugins {
