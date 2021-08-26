@@ -59,11 +59,12 @@ func (t *Tstore) startAnchorProcess() error {
 	defer cancel()
 
 	// Verify that a dropping anchor record exists
-	_, err = t.droppingAnchor(tx)
+	_, err = droppingAnchorGet(tx)
 	if err == errNotFound {
 		// A dropping anchor record has not been created yet.
 		// Create one and save it to the key-value store.
-		err = t.droppingAnchorSave(tx, newDroppingAnchor(false))
+		d := droppingAnchorNew(false)
+		err = d.save(tx)
 		if err != nil {
 			return err
 		}
@@ -122,9 +123,9 @@ type droppingAnchor struct {
 	Timestamp  int64 `json:"timestamp"`  // Unix timestamp of last update
 }
 
-// newDroppingAnchor returns a new droppingAnchor.
-func newDroppingAnchor(inProgress bool) droppingAnchor {
-	return droppingAnchor{
+// droppingAnchorNew returns a new droppingAnchor.
+func droppingAnchorNew(inProgress bool) *droppingAnchor {
+	return &droppingAnchor{
 		InProgress: inProgress,
 		Timestamp:  time.Now().Unix(),
 	}
@@ -153,9 +154,23 @@ func (d *droppingAnchor) encode() ([]byte, error) {
 	return b, nil
 }
 
-// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
+// save saves the droppingAnchor record to the key-value store using the
+// provided database transaction.
+//
+// The transaction must be committed by the caller.
+func (d *droppingAnchor) save(tx store.Tx) error {
+	b, err := d.encode()
+	if err != nil {
+		return err
+	}
+	return tx.Put(map[string][]byte{
+		droppingAnchorKey: b,
+	}, false)
+}
+
+// anchorDecode decodes a gzipped byte slice into a BlobEntry then decodes the
 // BlobEntry into a droppingAnchor.
-func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
+func droppingAnchorDecode(gb []byte) (*droppingAnchor, error) {
 	be, err := store.Deblob(gb)
 	if err != nil {
 		return nil, err
@@ -170,6 +185,20 @@ func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
 		return nil, errors.WithStack(err)
 	}
 	return &da, nil
+}
+
+// droppingAnchorGet retrieves the droppingAnchor record from the key-value
+// store.
+func droppingAnchorGet(s store.Getter) (*droppingAnchor, error) {
+	blobs, err := s.Get([]string{droppingAnchorKey})
+	if err != nil {
+		return nil, err
+	}
+	b, ok := blobs[droppingAnchorKey]
+	if !ok {
+		return nil, errNotFound
+	}
+	return droppingAnchorDecode(b)
 }
 
 var (
@@ -193,14 +222,14 @@ func (t *Tstore) droppingAnchorInProgress() error {
 	defer cancel()
 
 	// Get the dropping anchor record
-	da, err := t.droppingAnchor(tx)
+	d, err := droppingAnchorGet(tx)
 	if err != nil {
 		return err
 	}
-	if da.InProgress {
+	if d.InProgress {
 		// Anchor drop is already in progress. Verify that the timeout
 		// has not been reached.
-		if time.Now().Unix() < (da.Timestamp + droppingAnchorTimeout) {
+		if time.Now().Unix() < (d.Timestamp + droppingAnchorTimeout) {
 			// Timeout has not been reached yet
 			return errAlreadyInProgress
 		}
@@ -212,13 +241,12 @@ func (t *Tstore) droppingAnchorInProgress() error {
 			"resetting the anchor drop record", droppingAnchorTimeout)
 	}
 
-	// Update the dropping anchor record
-	err = t.droppingAnchorSave(tx, newDroppingAnchor(true))
+	// Set the dropping anchor record to in-progress
+	d = droppingAnchorNew(true)
+	err = d.save(tx)
 	if err != nil {
 		return err
 	}
-
-	// Commit database transaction
 	err = tx.Commit()
 	if err != nil {
 		return err
@@ -241,7 +269,8 @@ func (t *Tstore) droppingAnchorReset() error {
 	defer cancel()
 
 	// Reset the dropping anchor record
-	err = t.droppingAnchorSave(tx, newDroppingAnchor(false))
+	d := droppingAnchorNew(false)
+	err = d.save(tx)
 	if err != nil {
 		return err
 	}
@@ -257,33 +286,6 @@ func (t *Tstore) droppingAnchorReset() error {
 	return nil
 }
 
-// droppingAnchorSave saves the droppingAnchor record to the key-value store
-// using the provided database transaction.
-//
-// The transaction must be committed by the caller.
-func (t *Tstore) droppingAnchorSave(tx store.Tx, da droppingAnchor) error {
-	b, err := da.encode()
-	if err != nil {
-		return err
-	}
-	return tx.Put(map[string][]byte{
-		droppingAnchorKey: b,
-	}, false)
-}
-
-// droppingAnchor retrieves the droppingAnchor record from the key-value store.
-func (t *Tstore) droppingAnchor(s store.Getter) (*droppingAnchor, error) {
-	blobs, err := s.Get([]string{droppingAnchorKey})
-	if err != nil {
-		return nil, err
-	}
-	b, ok := blobs[droppingAnchorKey]
-	if !ok {
-		return nil, errNotFound
-	}
-	return decodeDroppingAnchor(b)
-}
-
 // anchor represents an anchor, i.e. timestamp, of a trillian tree at a
 // specific tree size.
 //
@@ -297,6 +299,15 @@ type anchor struct {
 	TreeID       int64                 `json:"treeid"`
 	LogRoot      *types.LogRootV1      `json:"logroot"`
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
+}
+
+// anchorNew returns a new anchor.
+func anchorNew(treeID int64, lr *types.LogRootV1, vd *dcrtime.VerifyDigest) *anchor {
+	return &anchor{
+		TreeID:       treeID,
+		LogRoot:      lr,
+		VerifyDigest: vd,
+	}
 }
 
 // sha256 returns the SHA256 digest of the JSON encoded anchor.
@@ -331,9 +342,70 @@ func (a *anchor) encode() ([]byte, error) {
 	return b, nil
 }
 
-// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
+// save saves the anchor to the key-value store then appends an anchor log leaf
+// to the anchor's trillian tree.
+func (a *anchor) save(kv store.BlobKV, tlog tlogClient) error {
+	// Sanity checks
+	switch {
+	case a.TreeID == 0:
+		return errors.Errorf("invalid tree id of 0")
+	case a.LogRoot == nil:
+		return errors.Errorf("log root not found")
+	case a.VerifyDigest == nil:
+		return errors.Errorf("verify digest not found")
+	}
+
+	// Save anchor record to the kv store
+	b, err := a.encode()
+	if err != nil {
+		return err
+	}
+	key := storeKeyNew(false)
+	err = kv.Put(map[string][]byte{key: b}, false)
+	if err != nil {
+		return err
+	}
+
+	// Append anchor leaf to tlog
+	digest, err := a.sha256()
+	if err != nil {
+		return err
+	}
+	extraData, err := extraDataEncode(key, dataDescriptorAnchor, 0)
+	if err != nil {
+		return err
+	}
+	leaves := []*trillian.LogLeaf{
+		newLogLeaf(digest, extraData),
+	}
+	queued, _, err := tlog.LeavesAppend(a.TreeID, leaves)
+	if err != nil {
+		return err
+	}
+	if len(queued) != 1 {
+		return errors.Errorf("wrong number of queud leaves: got %v, want 1",
+			len(queued))
+	}
+	failed := make([]string, 0, len(queued))
+	for _, v := range queued {
+		c := codes.Code(v.QueuedLeaf.GetStatus().GetCode())
+		if c != codes.OK {
+			failed = append(failed, fmt.Sprintf("%v", c))
+		}
+	}
+	if len(failed) > 0 {
+		return errors.Errorf("append leaves failed: %v", failed)
+	}
+
+	log.Debugf("Anchor saved for tree %v at height %v",
+		a.TreeID, a.LogRoot.TreeSize)
+
+	return nil
+}
+
+// anchorDecode decodes a gzipped byte slice into a BlobEntry then decodes the
 // BlobEntry into a anchor.
-func decodeAnchor(gb []byte) (*anchor, error) {
+func anchorDecode(gb []byte) (*anchor, error) {
 	be, err := store.Deblob(gb)
 	if err != nil {
 		return nil, err
@@ -348,6 +420,129 @@ func decodeAnchor(gb []byte) (*anchor, error) {
 		return nil, errors.WithStack(err)
 	}
 	return &a, nil
+}
+
+// anchorForLeaf returns the anchor for a specific merkle leaf hash.
+func anchorForLeaf(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
+	// Find the leaf for the provided merkle leaf hash
+	var l *trillian.LogLeaf
+	for i, v := range leaves {
+		if bytes.Equal(v.MerkleLeafHash, merkleLeafHash) {
+			l = v
+			// Sanity check
+			if l.LeafIndex != int64(i) {
+				return nil, errors.Errorf("unexpected leaf index: got %v, want %v",
+					l.LeafIndex, i)
+			}
+			break
+		}
+	}
+	if l == nil {
+		return nil, errors.Errorf("leaf not found")
+	}
+
+	// Find the first two anchor that occurs after the leaf. If the
+	// leaf was added in the middle of an anchor drop then it will not
+	// be part of the first anchor. It will be part of the second
+	// anchor.
+	keys := make([]string, 0, 2)
+	for i := int(l.LeafIndex); i < len(leaves); i++ {
+		l := leaves[i]
+		ed, err := extraDataDecode(l.ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDescriptorAnchor {
+			keys = append(keys, ed.storeKey())
+			if len(keys) == 2 {
+				break
+			}
+		}
+	}
+	if len(keys) == 0 {
+		// This leaf has not been anchored yet
+		return nil, errNotFound
+	}
+
+	// Get the anchor records
+	blobs, err := kv.Get(keys)
+	if err != nil {
+		return nil, err
+	}
+	if len(blobs) != len(keys) {
+		return nil, errors.Errorf("unexpected blobs count: got %v, want %v",
+			len(blobs), len(keys))
+	}
+
+	// Find the correct anchor for the leaf
+	var leafAnchor *anchor
+	for _, v := range keys {
+		b, ok := blobs[v]
+		if !ok {
+			return nil, errors.Errorf("blob not found %v", v)
+		}
+		a, err := anchorDecode(b)
+		if err != nil {
+			return nil, err
+		}
+		if uint64(l.LeafIndex) < a.LogRoot.TreeSize {
+			// The leaf is included in this anchor. We're done.
+			leafAnchor = a
+			break
+		}
+	}
+	if leafAnchor == nil {
+		// This leaf has not been anchored yet
+		return nil, errNotFound
+	}
+
+	return leafAnchor, nil
+}
+
+// anchorLatest returns the most recent anchor for the provided tree. A
+// errNotFound is returned if no anchor is found.
+func anchorLatest(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, error) {
+	// Get tree leaves
+	leavesAll, err := tlog.LeavesAll(treeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Find the most recent anchor leaf
+	var key string
+	for i := len(leavesAll) - 1; i >= 0; i-- {
+		ed, err := extraDataDecode(leavesAll[i].ExtraData)
+		if err != nil {
+			return nil, err
+		}
+		if ed.Desc == dataDescriptorAnchor {
+			key = ed.storeKey()
+			break
+		}
+	}
+	if key == "" {
+		return nil, errNotFound
+	}
+
+	// Pull blob from key-value store
+	blobs, err := kv.Get([]string{key})
+	if err != nil {
+		return nil, err
+	}
+	if len(blobs) != 1 {
+		return nil, errors.Errorf("unexpected blobs count: got %v, want 1",
+			len(blobs))
+	}
+	b, ok := blobs[key]
+	if !ok {
+		return nil, errors.Errorf("blob not found %v", key)
+	}
+	a, err := anchorDecode(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
 }
 
 // anchorTrees drops an anchor for any trees that have unanchored leaves at the
@@ -411,7 +606,7 @@ func (t *Tstore) anchorTrees() error {
 	// anchored. Once the dcrtime timestamp is successful, these
 	// anchors will be updated with the timestamp data and saved to the
 	// key-value store.
-	anchors := make([]anchor, 0, len(trees))
+	anchors := make([]*anchor, 0, len(trees))
 
 	// Find the trees that need to be anchored. This is done by pulling
 	// the most recent anchor from the tree and checking the anchored
@@ -420,7 +615,7 @@ func (t *Tstore) anchorTrees() error {
 	// can be added while the anchor is waiting to be dropped.
 	for _, v := range trees {
 		// Get latest anchor
-		a, err := t.anchorLatest(v.TreeId)
+		a, err := anchorLatest(t.store, t.tlog, v.TreeId)
 		switch {
 		case errors.Is(err, errNotFound):
 			// Tree has not been anchored yet. Verify that the tree has
@@ -460,10 +655,7 @@ func (t *Tstore) anchorTrees() error {
 		if err != nil {
 			return err
 		}
-		anchors = append(anchors, anchor{
-			TreeID:  v.TreeId,
-			LogRoot: lr,
-		})
+		anchors = append(anchors, anchorNew(v.TreeId, lr, nil))
 
 		// Collate the tree's root hash. This is what gets submitted to
 		// dcrtime.
@@ -589,18 +781,18 @@ func (t *Tstore) anchorTrees() error {
 		}
 
 		// Save anchor records
-		for k, v := range anchors {
+		for i, a := range anchors {
 			var (
-				verifyDigest = vbr.Digests[k]
+				verifyDigest = vbr.Digests[i]
 				digest       = verifyDigest.Digest
 				merkleRoot   = verifyDigest.ChainInformation.MerkleRoot
 				merklePath   = verifyDigest.ChainInformation.MerklePath
 			)
 
 			// Verify the anchored digest matches the root hash
-			if digest != hex.EncodeToString(v.LogRoot.RootHash) {
+			if digest != hex.EncodeToString(a.LogRoot.RootHash) {
 				log.Errorf("anchorWait: digest mismatch: got %x, want %v",
-					digest, v.LogRoot.RootHash)
+					digest, a.LogRoot.RootHash)
 				continue
 			}
 
@@ -630,12 +822,12 @@ func (t *Tstore) anchorTrees() error {
 			}
 
 			// Add VerifyDigest to the anchor record
-			v.VerifyDigest = &verifyDigest
+			a.VerifyDigest = &verifyDigest
 
 			// Save anchor
-			err = t.anchorSave(v)
+			err = a.save(t.store, t.tlog)
 			if err != nil {
-				log.Errorf("anchorWait: anchorSave %v: %v", v.TreeID, err)
+				log.Errorf("anchorWait: anchorSave %v: %v", a.TreeID, err)
 				continue
 			}
 		}
@@ -646,189 +838,4 @@ func (t *Tstore) anchorTrees() error {
 
 	return errors.Errorf("anchor drop timeout; waited for %v minutes",
 		int(period.Minutes())*retries)
-}
-
-// anchorSave saves an anchor to the key-value store then appends a log leaf
-// to the trillian tree for the anchor.
-func (t *Tstore) anchorSave(a anchor) error {
-	// Sanity checks
-	switch {
-	case a.TreeID == 0:
-		return errors.Errorf("invalid tree id of 0")
-	case a.LogRoot == nil:
-		return errors.Errorf("log root not found")
-	case a.VerifyDigest == nil:
-		return errors.Errorf("verify digest not found")
-	}
-
-	// Save anchor record to the kv store
-	b, err := a.encode()
-	if err != nil {
-		return err
-	}
-	key := storeKeyNew(false)
-	kv := map[string][]byte{key: b}
-	err = t.store.Put(kv, false)
-	if err != nil {
-		return err
-	}
-
-	// Append anchor leaf to tlog
-	digest, err := a.sha256()
-	if err != nil {
-		return err
-	}
-	extraData, err := extraDataEncode(key, dataDescriptorAnchor, 0)
-	if err != nil {
-		return err
-	}
-	leaves := []*trillian.LogLeaf{
-		newLogLeaf(digest, extraData),
-	}
-	queued, _, err := t.tlog.LeavesAppend(a.TreeID, leaves)
-	if err != nil {
-		return err
-	}
-	if len(queued) != 1 {
-		return errors.Errorf("wrong number of queud leaves: got %v, want 1",
-			len(queued))
-	}
-	failed := make([]string, 0, len(queued))
-	for _, v := range queued {
-		c := codes.Code(v.QueuedLeaf.GetStatus().GetCode())
-		if c != codes.OK {
-			failed = append(failed, fmt.Sprintf("%v", c))
-		}
-	}
-	if len(failed) > 0 {
-		return errors.Errorf("append leaves failed: %v", failed)
-	}
-
-	log.Debugf("Anchor saved for tree %v at height %v",
-		a.TreeID, a.LogRoot.TreeSize)
-
-	return nil
-}
-
-// anchorForLeaf returns the anchor for a specific merkle leaf hash.
-func (t *Tstore) anchorForLeaf(treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
-	// Find the leaf for the provided merkle leaf hash
-	var l *trillian.LogLeaf
-	for i, v := range leaves {
-		if bytes.Equal(v.MerkleLeafHash, merkleLeafHash) {
-			l = v
-			// Sanity check
-			if l.LeafIndex != int64(i) {
-				return nil, errors.Errorf("unexpected leaf index: got %v, want %v",
-					l.LeafIndex, i)
-			}
-			break
-		}
-	}
-	if l == nil {
-		return nil, errors.Errorf("leaf not found")
-	}
-
-	// Find the first two anchor that occurs after the leaf. If the
-	// leaf was added in the middle of an anchor drop then it will not
-	// be part of the first anchor. It will be part of the second
-	// anchor.
-	keys := make([]string, 0, 2)
-	for i := int(l.LeafIndex); i < len(leaves); i++ {
-		l := leaves[i]
-		ed, err := extraDataDecode(l.ExtraData)
-		if err != nil {
-			return nil, err
-		}
-		if ed.Desc == dataDescriptorAnchor {
-			keys = append(keys, ed.storeKey())
-			if len(keys) == 2 {
-				break
-			}
-		}
-	}
-	if len(keys) == 0 {
-		// This leaf has not been anchored yet
-		return nil, errNotFound
-	}
-
-	// Get the anchor records
-	blobs, err := t.store.Get(keys)
-	if err != nil {
-		return nil, err
-	}
-	if len(blobs) != len(keys) {
-		return nil, errors.Errorf("unexpected blobs count: got %v, want %v",
-			len(blobs), len(keys))
-	}
-
-	// Find the correct anchor for the leaf
-	var leafAnchor *anchor
-	for _, v := range keys {
-		b, ok := blobs[v]
-		if !ok {
-			return nil, errors.Errorf("blob not found %v", v)
-		}
-		a, err := decodeAnchor(b)
-		if err != nil {
-			return nil, err
-		}
-		if uint64(l.LeafIndex) < a.LogRoot.TreeSize {
-			// The leaf is included in this anchor. We're done.
-			leafAnchor = a
-			break
-		}
-	}
-	if leafAnchor == nil {
-		// This leaf has not been anchored yet
-		return nil, errNotFound
-	}
-
-	return leafAnchor, nil
-}
-
-// anchorLatest returns the most recent anchor for the provided tree. A
-// errNotFound is returned if no anchor is found.
-func (t *Tstore) anchorLatest(treeID int64) (*anchor, error) {
-	// Get tree leaves
-	leavesAll, err := t.tlog.LeavesAll(treeID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the most recent anchor leaf
-	var key string
-	for i := len(leavesAll) - 1; i >= 0; i-- {
-		ed, err := extraDataDecode(leavesAll[i].ExtraData)
-		if err != nil {
-			return nil, err
-		}
-		if ed.Desc == dataDescriptorAnchor {
-			key = ed.storeKey()
-			break
-		}
-	}
-	if key == "" {
-		return nil, errNotFound
-	}
-
-	// Pull blob from key-value store
-	blobs, err := t.store.Get([]string{key})
-	if err != nil {
-		return nil, err
-	}
-	if len(blobs) != 1 {
-		return nil, errors.Errorf("unexpected blobs count: got %v, want 1",
-			len(blobs))
-	}
-	b, ok := blobs[key]
-	if !ok {
-		return nil, errors.Errorf("blob not found %v", key)
-	}
-	a, err := decodeAnchor(b)
-	if err != nil {
-		return nil, err
-	}
-
-	return a, nil
 }
