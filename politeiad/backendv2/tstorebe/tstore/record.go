@@ -135,8 +135,10 @@ func (t *Tstore) RecordNew(tx store.Tx) ([]byte, error) {
 
 // recordSave saves the provided record content to the kv store, appends a leaf
 // to the trillian tree for each piece of content, then returns a record index
-// for the newly saved record. If the record state is unvetted the record
-// content will be saved to the key-value store encrypted.
+// for the newly saved record.
+//
+// If the record state is unvetted the record content will be saved to the
+// key-value store encrypted.
 //
 // If the record is being made public, any encrypted content that is part of
 // the public record is re-saved to the key-value store as clear text.
@@ -327,12 +329,12 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		if err != nil {
 			return nil, err
 		}
-		k := storeKeyNew(encrypt)
+		k := newStoreKey(encrypt)
 		blobs[k] = b
 
 		// Prepare tlog leaf
-		extraData, err := extraDataEncode(k,
-			dataDescriptorRecordMetadata, idx.State)
+		ed := newExtraData(k, dataDescriptorRecordMetadata, idx.State)
+		extraData, err := ed.encode()
 		if err != nil {
 			return nil, err
 		}
@@ -363,12 +365,12 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 			if err != nil {
 				return nil, err
 			}
-			k := storeKeyNew(encrypt)
+			k := newStoreKey(encrypt)
 			blobs[k] = b
 
 			// Prepare tlog leaf
-			extraData, err := extraDataEncode(k,
-				dataDescriptorMetadataStream, idx.State)
+			ed := newExtraData(k, dataDescriptorMetadataStream, idx.State)
+			extraData, err := ed.encode()
 			if err != nil {
 				return nil, err
 			}
@@ -396,11 +398,12 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		if err != nil {
 			return nil, err
 		}
-		k := storeKeyNew(encrypt)
+		k := newStoreKey(encrypt)
 		blobs[k] = b
 
 		// Prepare tlog leaf
-		extraData, err := extraDataEncode(k, dataDescriptorFile, idx.State)
+		ed := newExtraData(k, dataDescriptorFile, idx.State)
+		extraData, err := ed.encode()
 		if err != nil {
 			return nil, err
 		}
@@ -469,7 +472,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 
 		// This is a duplicate. If its unvetted it will need to
 		// be resaved as plain text.
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
@@ -488,7 +491,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		if err != nil {
 			return nil, err
 		}
-		blobs[ed.storeKeyNoPrefix()] = b
+		blobs[ed.keyNoPrefix()] = b
 	}
 	if len(blobs) == 0 {
 		// This should not happen
@@ -613,20 +616,20 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 	for _, v := range leavesAll {
 		_, ok := merkles[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
-			ed, err := extraDataDecode(v.ExtraData)
+			ed, err := decodeExtraData(v.ExtraData)
 			if err != nil {
 				return err
 			}
-			keys = append(keys, ed.storeKey())
+			keys = append(keys, ed.key())
 
 			// When a record is made public the encrypted blobs in the kv
 			// store are re-saved as clear text, but the tlog leaf remains
 			// the same since the record content did not actually change.
 			// Both of these blobs need to be deleted.
-			if ed.storeKey() != ed.storeKeyNoPrefix() {
+			if ed.key() != ed.keyNoPrefix() {
 				// This blob might have a clear text entry and an encrypted
 				// entry. Add both keys to be sure all content is deleted.
-				keys = append(keys, ed.storeKeyNoPrefix())
+				keys = append(keys, ed.keyNoPrefix())
 			}
 		}
 	}
@@ -778,7 +781,7 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 		}
 
 		// Leaf is part of record content. Save the kv store key.
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
@@ -789,10 +792,10 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 			// If the record is vetted the content may exist in
 			// the store as both an encrypted blob and a plain
 			// text blob. Always pull the plaintext blob.
-			key = ed.storeKeyNoPrefix()
+			key = ed.keyNoPrefix()
 		default:
 			// Pull the encrypted blob
-			key = ed.storeKey()
+			key = ed.key()
 		}
 		keys = append(keys, key)
 	}
@@ -1051,11 +1054,11 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 
 	// Get blob entry from the kv store
-	ed, err := extraDataDecode(l.ExtraData)
+	ed, err := decodeExtraData(l.ExtraData)
 	if err != nil {
 		return nil, err
 	}
-	blobs, err := t.store.Get([]string{ed.storeKey()})
+	blobs, err := t.store.Get([]string{ed.key()})
 	if err != nil {
 		return nil, fmt.Errorf("store get: %v", err)
 	}
@@ -1065,9 +1068,9 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	// the rest of the timestamp.
 	var data []byte
 	if len(blobs) == 1 {
-		b, ok := blobs[ed.storeKey()]
+		b, ok := blobs[ed.key()]
 		if !ok {
-			return nil, fmt.Errorf("blob not found %v", ed.storeKey())
+			return nil, fmt.Errorf("blob not found %v", ed.key())
 		}
 		be, err := store.Deblob(b)
 		if err != nil {
@@ -1264,7 +1267,7 @@ func (t *Tstore) Inventory() ([][]byte, error) {
 // determine if a record index is vetted.
 func recordIsVetted(leaves []*trillian.LogLeaf) bool {
 	for _, v := range leaves {
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			panic(err)
 		}

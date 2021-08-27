@@ -117,7 +117,7 @@ func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) err
 	if err != nil {
 		return err
 	}
-	key := storeKeyNew(encrypt)
+	key := newStoreKey(encrypt)
 	kv := map[string][]byte{key: b}
 	err = tx.Put(kv, encrypt)
 	if err != nil {
@@ -129,8 +129,8 @@ func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) err
 	if err != nil {
 		return err
 	}
-	extraData, err := extraDataEncode(key,
-		dataDescriptorRecordIndex, idx.State)
+	ed := newExtraData(key, dataDescriptorRecordIndex, idx.State)
+	extraData, err := ed.encode()
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 		keysVetted   = make([]string, 0, 256)
 	)
 	for _, v := range leaves {
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
@@ -241,9 +241,9 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 		// This is a record index leaf
 		switch ed.State {
 		case backend.StateUnvetted:
-			keysUnvetted = append(keysUnvetted, ed.storeKey())
+			keysUnvetted = append(keysUnvetted, ed.key())
 		case backend.StateVetted:
-			keysVetted = append(keysVetted, ed.storeKey())
+			keysVetted = append(keysVetted, ed.key())
 		default:
 			// Should not happen
 			return nil, fmt.Errorf("invalid extra data state: "+

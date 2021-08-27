@@ -360,18 +360,21 @@ func (a *anchor) save(kv store.BlobKV, tlog tlogClient) error {
 	if err != nil {
 		return err
 	}
-	key := storeKeyNew(false)
+	key := newStoreKey(false)
 	err = kv.Put(map[string][]byte{key: b}, false)
 	if err != nil {
 		return err
 	}
 
-	// Append anchor leaf to tlog
+	// Append a leaf to the tlog tree for the anchor. The anchor's
+	// digest is saved as the leaf value. The kv store key for the
+	// anchor record is saved as part of the leaf extra data.
 	digest, err := a.sha256()
 	if err != nil {
 		return err
 	}
-	extraData, err := extraDataEncode(key, dataDescriptorAnchor, 0)
+	ed := newExtraData(key, dataDescriptorAnchor, 0)
+	extraData, err := ed.encode()
 	if err != nil {
 		return err
 	}
@@ -448,12 +451,12 @@ func anchorForLeaf(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves 
 	keys := make([]string, 0, 2)
 	for i := int(l.LeafIndex); i < len(leaves); i++ {
 		l := leaves[i]
-		ed, err := extraDataDecode(l.ExtraData)
+		ed, err := decodeExtraData(l.ExtraData)
 		if err != nil {
 			return nil, err
 		}
 		if ed.Desc == dataDescriptorAnchor {
-			keys = append(keys, ed.storeKey())
+			keys = append(keys, ed.key())
 			if len(keys) == 2 {
 				break
 			}
@@ -511,12 +514,12 @@ func anchorLatest(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, erro
 	// Find the most recent anchor leaf
 	var key string
 	for i := len(leavesAll) - 1; i >= 0; i-- {
-		ed, err := extraDataDecode(leavesAll[i].ExtraData)
+		ed, err := decodeExtraData(leavesAll[i].ExtraData)
 		if err != nil {
 			return nil, err
 		}
 		if ed.Desc == dataDescriptorAnchor {
-			key = ed.storeKey()
+			key = ed.key()
 			break
 		}
 	}

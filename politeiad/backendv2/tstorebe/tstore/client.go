@@ -9,11 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/google/trillian"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 )
 
@@ -31,7 +31,8 @@ type Client struct {
 
 	// Client read methods use the getter for all operations. This
 	// allows the caller to decide whether the operations should be
-	// part of a store Tx or executed on the store BlobKV directly.
+	// part of a store Tx or executed individually use the BlobKV
+	// interface directly.
 	getter store.Getter
 }
 
@@ -45,16 +46,19 @@ func newClient(id string, tstore *Tstore, tx store.Tx, getter store.Getter) *Cli
 	}
 }
 
-// BlobSave saves a BlobEntry to tstore. If the record is unvetted the
-// BlobEntry will be encrypted prior to being written to disk. The digest of
-// the data, i.e. BlobEntry.Digest, can be thought of as the blob ID and can be
-// used to get/del the blob from tstore.
+// BlobSave saves a BlobEntry to tstore.
+//
+// If the record is unvetted the BlobEntry will be encrypted prior to being
+// written to disk.
+//
+// The digest of the data, i.e. BlobEntry.Digest, can be thought of as the blob
+// ID and can be used to get/del the blob from tstore.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	log.Tracef("%v BlobSave: %x", c.id, token)
 
-	// Verify tree is not frozen
+	// Verify that the tlog tree is not frozen.
 	treeID := treeIDFromToken(token)
 	leaves, err := c.tstore.leavesAll(treeID)
 	if err != nil {
@@ -69,8 +73,34 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 		return backend.ErrRecordLocked
 	}
 
-	// Parse the data descriptor
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	// Only vetted data should be saved cleartext.
+	var encrypt bool
+	switch idx.State {
+	case backend.StateUnvetted:
+		encrypt = true
+	case backend.StateVetted:
+		encrypt = false
+	default:
+		// Should not happen
+		return errors.Errorf("invalid record state %v %v", treeID, idx.State)
+	}
+
+	// Save the blob to the kv store.
+	b, err := store.Blobify(be)
+	if err != nil {
+		return err
+	}
+	key := newStoreKey(encrypt)
+	err = c.tx.Put(map[string][]byte{key: b}, encrypt)
+	if err != nil {
+		return err
+	}
+
+	// Parse the data descriptor. The data descriptor is pulled
+	// out and saved as part of the leaf extra data so that we
+	// know the type of blob that the leaf corresponds to without
+	// having to pull the blob from the kv store and look.
+	b, err = base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
 		return err
 	}
@@ -80,41 +110,15 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 		return err
 	}
 
-	// Only vetted data should be saved plaintext
-	var encrypt bool
-	switch idx.State {
-	case backend.StateUnvetted:
-		encrypt = true
-	case backend.StateVetted:
-		// Save plaintext
-		encrypt = false
-	default:
-		// Something is wrong
-		panic(fmt.Sprintf("invalid record state %v %v", treeID, idx.State))
-	}
-
-	// Prepare blob and digest
+	// Append a leaf to the tlog tree for the blob. The digest of
+	// the blob entry is saved as the leaf value. The kv store key
+	// for the blob is saved as part of the leaf extra data.
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
 	}
-	blob, err := store.Blobify(be)
-	if err != nil {
-		return err
-	}
-	key := storeKeyNew(encrypt)
-	kv := map[string][]byte{key: blob}
-
-	log.Debugf("Saving plugin data blob %v", dd.Descriptor)
-
-	// Save blob to store
-	err = c.tx.Put(kv, encrypt)
-	if err != nil {
-		return fmt.Errorf("store Put: %v", err)
-	}
-
-	// Prepare log leaf
-	extraData, err := extraDataEncode(key, dd.Descriptor, idx.State)
+	ed := newExtraData(key, dd.Descriptor, idx.State)
+	extraData, err := ed.encode()
 	if err != nil {
 		return err
 	}
@@ -125,10 +129,10 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	// Append log leaf to trillian tree
 	queued, _, err := c.tstore.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
-		return fmt.Errorf("LeavesAppend: %v", err)
+		return err
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
+		return errors.Errorf("wrong queued leaves count: got %v, want 1",
 			len(queued))
 	}
 	code := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
@@ -138,8 +142,10 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	case codes.AlreadyExists:
 		return backend.ErrDuplicatePayload
 	default:
-		return fmt.Errorf("queued leaf error: %v", code)
+		return errors.Errorf("queued leaf error: %v", code)
 	}
+
+	log.Debugf("Saved blob %v", dd.Descriptor)
 
 	return nil
 }
@@ -173,18 +179,18 @@ func (c *Client) BlobsDel(token []byte, digests [][]byte) error {
 	for _, v := range leaves {
 		_, ok := merkleHashes[hex.EncodeToString(v.MerkleLeafHash)]
 		if ok {
-			ed, err := extraDataDecode(v.ExtraData)
+			ed, err := decodeExtraData(v.ExtraData)
 			if err != nil {
 				return err
 			}
-			keys = append(keys, ed.storeKey())
+			keys = append(keys, ed.key())
 		}
 	}
 
 	// Delete file blobs from the store
 	err = c.tx.Del(keys)
 	if err != nil {
-		return fmt.Errorf("store Del: %v", err)
+		return err
 	}
 
 	return nil
@@ -226,7 +232,7 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 		matchedKeys   = make([]string, 0, len(digests))
 	)
 	for _, v := range leaves {
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +245,7 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 		if _, ok := ds[hex.EncodeToString(v.LeafValue)]; ok {
 			// Its a match!
 			matchedLeaves = append(matchedLeaves, v)
-			matchedKeys = append(matchedKeys, ed.storeKey())
+			matchedKeys = append(matchedKeys, ed.key())
 		}
 	}
 	if len(matchedKeys) == 0 {
@@ -249,7 +255,7 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 	// Pull the blobs from the store
 	blobs, err := c.getter.Get(matchedKeys)
 	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
+		return nil, err
 	}
 
 	// Prepare reply
@@ -298,17 +304,17 @@ func (c *Client) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 	// Aggregate the keys of all the matches
 	keys := make([]string, 0, len(matches))
 	for _, v := range matches {
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			return nil, err
 		}
-		keys = append(keys, ed.storeKey())
+		keys = append(keys, ed.key())
 	}
 
 	// Pull the blobs from the store
 	blobs, err := c.getter.Get(keys)
 	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
+		return nil, err
 	}
 	if len(blobs) != len(keys) {
 		// One or more blobs were not found
@@ -319,7 +325,7 @@ func (c *Client) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 				missing = append(missing, v)
 			}
 		}
-		return nil, fmt.Errorf("blobs not found: %v", missing)
+		return nil, errors.Errorf("blobs not found: %v", missing)
 	}
 
 	// Prepare reply. The blob entries should be in the same order as
@@ -328,7 +334,7 @@ func (c *Client) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 	for _, v := range keys {
 		b, ok := blobs[v]
 		if !ok {
-			return nil, fmt.Errorf("blob not found: %v", v)
+			return nil, errors.Errorf("blob not found: %v", v)
 		}
 		be, err := store.Deblob(b)
 		if err != nil {
@@ -395,7 +401,7 @@ func (c *Client) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 			}
 
 			// This is the target leaf. Verify that its vetted.
-			ed, err := extraDataDecode(v.ExtraData)
+			ed, err := decodeExtraData(v.ExtraData)
 			if err != nil {
 				return nil, err
 			}
@@ -532,7 +538,7 @@ func leavesForDescriptor(leaves []*trillian.LogLeaf, descriptors []string) []*tr
 	// data descriptor.
 	matches := make([]*trillian.LogLeaf, 0, len(leaves))
 	for _, v := range leaves {
-		ed, err := extraDataDecode(v.ExtraData)
+		ed, err := decodeExtraData(v.ExtraData)
 		if err != nil {
 			panic(err)
 		}

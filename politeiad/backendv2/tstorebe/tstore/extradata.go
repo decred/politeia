@@ -9,6 +9,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -17,66 +18,80 @@ const (
 	// public we can save the plain text record content blobs using the
 	// same keys, but without the prefix. Using a new key for the plain
 	// text blobs would not work since we cannot append a new leaf onto
-	// the tlog without getting a duplicate leaf error.
+	// the tlog tree without getting a duplicate leaf error.
 	keyPrefixEncrypted = "e_"
 )
 
-// extraData is the data that is stored in the log leaf ExtraData field. It is
-// saved as a JSON encoded byte slice. The JSON keys have been abbreviated to
-// minimize the size of a trillian log leaf.
+// extraData is the structure that is stored in the trillain log leaf's
+// ExtraData field.  It contains the kv store key for the leaf's blob entry
+// as well as other cached metadata for the blob entry.
+//
+// The JSON keys for this structure have been abbreviated to minimize the size
+// of the log leaf.
 type extraData struct {
-	// Key contains the key-value store key. If this blob is part of an
-	// unvetted record the key will need to be prefixed with the
-	// keyPrefixEncrypted in order to retrieve the blob from the kv
-	// store. Use the extraData.storeKey() method to retrieve the key.
-	// Do NOT reference this key directly.
+	// Key contains the key-value store key for the corresponding blob.
+	// If the blob is part of an unvetted record, the key will need to
+	// be prefixed with the keyPrefixEncrypted in order to retrieve the
+	// blob from the kv store. This is handled by the extraData key()
+	// method. Do NOT reference the key field directly.
 	Key string `json:"k"`
 
 	// Desc contains the blob entry data descriptor.
 	Desc string `json:"d"`
 
 	// State indicates the record state of the blob that this leaf
-	// corresponds to. Unvetted blobs encrypted prior to being saved
-	// to the store. When retrieving unvetted blobs from the kv store
-	// the keyPrefixEncrypted prefix must be added to the Key field.
-	// State will not be populated for anchor records.
+	// corresponds to. Unvetted blobs are encrypted prior to being
+	// saved to the kv store.
+	//
+	// State will only be populated for blobs that contain record
+	// data. Example: the extra data for an anchor leaf will not
+	// contain a state.
 	State backend.StateT `json:"s,omitempty"`
 }
 
-// storeKey returns the kv store key for the blob. If the blob is part of an
+// newExtraData returns a new extraData.
+func newExtraData(key, desc string, state backend.StateT) *extraData {
+	return &extraData{
+		Key:   key,
+		Desc:  desc,
+		State: state,
+	}
+}
+
+// key returns the kv store key for the blob. If the blob is part of an
 // unvetted record it will be saved as an encrypted blob in the kv store and
-// the key is prefixed with keyPrefixEncrypted.
-func (e *extraData) storeKey() string {
+// the key will be prefixed with the keyPrefixEncrypted.
+func (e *extraData) key() string {
 	if e.State == backend.StateUnvetted {
 		return keyPrefixEncrypted + e.Key
 	}
 	return e.Key
 }
 
-// storeKeyNoPrefix returns the kv store key without any encryption prefix,
-// even if the leaf corresponds to a unvetted blob.
-func (e *extraData) storeKeyNoPrefix() string {
+// keyNoPrefix returns the kv store key without any encryption prefix,
+// regardless of whether the leaf corresponds to a unvetted blob.
+func (e *extraData) keyNoPrefix() string {
 	return e.Key
 }
 
-// extraDataEncode encodes prepares an extraData using the provided arguments
-// then returns the JSON encoded byte slice.
-func extraDataEncode(key, desc string, state backend.StateT) ([]byte, error) {
-	// The encryption prefix is stripped from the key if one exists.
-	ed := extraData{
-		Key:   storeKeyCleaned(key),
-		Desc:  desc,
-		State: state,
+// encode returns the JSON encoded extra data.
+func (e *extraData) encode() ([]byte, error) {
+	// Sanity check. Verify that the encryption key prefix is
+	// not present. The encryption key prefix should only be
+	// added at runtime. The key should be a 36 byte UUID.
+	if len(e.Key) != 36 {
+		return nil, errors.Errorf("invalid key length: %v %v",
+			e.Desc, e.Key)
 	}
-	b, err := json.Marshal(ed)
+	b, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-// extraDataDecode decodes a JSON byte slice into a extraData.
-func extraDataDecode(b []byte) (*extraData, error) {
+// decodeExtraData decodes a JSON byte slice into a extraData.
+func decodeExtraData(b []byte) (*extraData, error) {
 	var ed extraData
 	err := json.Unmarshal(b, &ed)
 	if err != nil {
@@ -85,20 +100,12 @@ func extraDataDecode(b []byte) (*extraData, error) {
 	return &ed, nil
 }
 
-// storeKeyNew returns a new key for the key-value store. If the data is
+// newStoreKey returns a new key for the key-value store. If the data is
 // encrypted the key is prefixed.
-func storeKeyNew(encrypt bool) string {
+func newStoreKey(encrypt bool) string {
 	k := uuid.New().String()
 	if encrypt {
 		k = keyPrefixEncrypted + k
 	}
 	return k
-}
-
-// storeKeyCleaned strips the key-value store key of the encryption prefix if
-// one is present.
-func storeKeyCleaned(key string) string {
-	// A uuid string is 36 bytes. Return the last 36 bytes of the
-	// string. This will strip the prefix if it exists.
-	return key[len(key)-36:]
 }
