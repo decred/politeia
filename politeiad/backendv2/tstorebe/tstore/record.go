@@ -1094,7 +1094,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 
 	// Get the anchor record for this leaf
-	a, err := anchorForLeaf(t.store, treeID, merkleLeafHash, leaves)
+	a, err := getAnchor(t.store, treeID, merkleLeafHash, leaves)
 	if err != nil {
 		if err == errNotFound {
 			// This data has not been anchored yet

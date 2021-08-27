@@ -59,11 +59,11 @@ func (t *Tstore) startAnchorProcess() error {
 	defer cancel()
 
 	// Verify that a dropping anchor record exists
-	_, err = droppingAnchorGet(tx)
+	_, err = getDroppingAnchor(tx)
 	if err == errNotFound {
 		// A dropping anchor record has not been created yet.
 		// Create one and save it to the key-value store.
-		d := droppingAnchorNew(false)
+		d := newDroppingAnchor(false)
 		err = d.save(tx)
 		if err != nil {
 			return err
@@ -123,8 +123,8 @@ type droppingAnchor struct {
 	Timestamp  int64 `json:"timestamp"`  // Unix timestamp of last update
 }
 
-// droppingAnchorNew returns a new droppingAnchor.
-func droppingAnchorNew(inProgress bool) *droppingAnchor {
+// newDroppingAnchor returns a new droppingAnchor.
+func newDroppingAnchor(inProgress bool) *droppingAnchor {
 	return &droppingAnchor{
 		InProgress: inProgress,
 		Timestamp:  time.Now().Unix(),
@@ -168,9 +168,9 @@ func (d *droppingAnchor) save(tx store.Tx) error {
 	}, false)
 }
 
-// anchorDecode decodes a gzipped byte slice into a BlobEntry then decodes the
+// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
 // BlobEntry into a droppingAnchor.
-func droppingAnchorDecode(gb []byte) (*droppingAnchor, error) {
+func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
 	be, err := store.Deblob(gb)
 	if err != nil {
 		return nil, err
@@ -187,9 +187,9 @@ func droppingAnchorDecode(gb []byte) (*droppingAnchor, error) {
 	return &da, nil
 }
 
-// droppingAnchorGet retrieves the droppingAnchor record from the key-value
+// getDroppingAnchor retrieves the droppingAnchor record from the key-value
 // store.
-func droppingAnchorGet(s store.Getter) (*droppingAnchor, error) {
+func getDroppingAnchor(s store.Getter) (*droppingAnchor, error) {
 	blobs, err := s.Get([]string{droppingAnchorKey})
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func droppingAnchorGet(s store.Getter) (*droppingAnchor, error) {
 	if !ok {
 		return nil, errNotFound
 	}
-	return droppingAnchorDecode(b)
+	return decodeDroppingAnchor(b)
 }
 
 var (
@@ -222,7 +222,7 @@ func (t *Tstore) droppingAnchorInProgress() error {
 	defer cancel()
 
 	// Get the dropping anchor record
-	d, err := droppingAnchorGet(tx)
+	d, err := getDroppingAnchor(tx)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (t *Tstore) droppingAnchorInProgress() error {
 	}
 
 	// Set the dropping anchor record to in-progress
-	d = droppingAnchorNew(true)
+	d = newDroppingAnchor(true)
 	err = d.save(tx)
 	if err != nil {
 		return err
@@ -269,7 +269,7 @@ func (t *Tstore) droppingAnchorReset() error {
 	defer cancel()
 
 	// Reset the dropping anchor record
-	d := droppingAnchorNew(false)
+	d := newDroppingAnchor(false)
 	err = d.save(tx)
 	if err != nil {
 		return err
@@ -301,8 +301,8 @@ type anchor struct {
 	VerifyDigest *dcrtime.VerifyDigest `json:"verifydigest"`
 }
 
-// anchorNew returns a new anchor.
-func anchorNew(treeID int64, lr *types.LogRootV1, vd *dcrtime.VerifyDigest) *anchor {
+// newAnchor returns a new anchor.
+func newAnchor(treeID int64, lr *types.LogRootV1, vd *dcrtime.VerifyDigest) *anchor {
 	return &anchor{
 		TreeID:       treeID,
 		LogRoot:      lr,
@@ -406,9 +406,9 @@ func (a *anchor) save(kv store.BlobKV, tlog tlogClient) error {
 	return nil
 }
 
-// anchorDecode decodes a gzipped byte slice into a BlobEntry then decodes the
+// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
 // BlobEntry into a anchor.
-func anchorDecode(gb []byte) (*anchor, error) {
+func decodeAnchor(gb []byte) (*anchor, error) {
 	be, err := store.Deblob(gb)
 	if err != nil {
 		return nil, err
@@ -425,8 +425,8 @@ func anchorDecode(gb []byte) (*anchor, error) {
 	return &a, nil
 }
 
-// anchorForLeaf returns the anchor for a specific merkle leaf hash.
-func anchorForLeaf(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
+// getAnchor returns the anchor for a specific merkle leaf hash.
+func getAnchor(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves []*trillian.LogLeaf) (*anchor, error) {
 	// Find the leaf for the provided merkle leaf hash
 	var l *trillian.LogLeaf
 	for i, v := range leaves {
@@ -484,7 +484,7 @@ func anchorForLeaf(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves 
 		if !ok {
 			return nil, errors.Errorf("blob not found %v", v)
 		}
-		a, err := anchorDecode(b)
+		a, err := decodeAnchor(b)
 		if err != nil {
 			return nil, err
 		}
@@ -502,9 +502,9 @@ func anchorForLeaf(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves 
 	return leafAnchor, nil
 }
 
-// anchorLatest returns the most recent anchor for the provided tree. A
+// getLatestAnchor returns the most recent anchor for the provided tree. A
 // errNotFound is returned if no anchor is found.
-func anchorLatest(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, error) {
+func getLatestAnchor(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, error) {
 	// Get tree leaves
 	leavesAll, err := tlog.LeavesAll(treeID)
 	if err != nil {
@@ -540,7 +540,7 @@ func anchorLatest(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, erro
 	if !ok {
 		return nil, errors.Errorf("blob not found %v", key)
 	}
-	a, err := anchorDecode(b)
+	a, err := decodeAnchor(b)
 	if err != nil {
 		return nil, err
 	}
@@ -617,8 +617,8 @@ func (t *Tstore) anchorTrees() error {
 	// the anchored being the last leaf in the tree since new leaves
 	// can be added while the anchor is waiting to be dropped.
 	for _, v := range trees {
-		// Get latest anchor
-		a, err := anchorLatest(t.store, t.tlog, v.TreeId)
+		// Get the latest anchor.
+		a, err := getLatestAnchor(t.store, t.tlog, v.TreeId)
 		switch {
 		case errors.Is(err, errNotFound):
 			// Tree has not been anchored yet. Verify that the tree has
@@ -658,7 +658,7 @@ func (t *Tstore) anchorTrees() error {
 		if err != nil {
 			return err
 		}
-		anchors = append(anchors, anchorNew(v.TreeId, lr, nil))
+		anchors = append(anchors, newAnchor(v.TreeId, lr, nil))
 
 		// Collate the tree's root hash. This is what gets submitted to
 		// dcrtime.
